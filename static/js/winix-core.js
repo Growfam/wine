@@ -1836,4 +1836,4 @@
 
     // Повертаємо публічний API
     return WinixCore;
-})();
+})();nslookup winixbot.com
