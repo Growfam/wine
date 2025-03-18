@@ -523,4 +523,3 @@
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
         initPage();
     }
-})();
