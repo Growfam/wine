@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Відновлення доступу</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            background: none;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .general-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .general-title {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
+            letter-spacing: 1px;
+        }
+
+        .general-card {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .restore-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .restore-subtitle {
+            font-size: 14px;
+            color: #ffc107;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .words-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .word-cell {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            position: relative;
+        }
+
+        .word-number {
+            color: #6c757d;
+            font-size: 12px;
+        }
+
+        .word-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 5px 0;
+            text-align: center;
+        }
+
+        .word-input:focus {
+            outline: none;
+        }
+
+        .word-input.valid {
+            color: #00C9A7;
+        }
+
+        .word-input.invalid {
+            color: #dc3545;
+        }
+
+        .copy-button {
+            width: 100%;
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            border-radius: 15px;
+            padding: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        .copy-button:hover {
+            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+        }
+
+        .action-button {
+            width: 100%;
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            border-radius: 25px;
+            padding: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+        }
+
+        .action-button:disabled {
+            background: linear-gradient(90deg, #495057, #343a40);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(135deg, #1A1A2E, #0F3460);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 20px;
+            z-index: 5;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .back-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 10px;
+            min-height: 20px;
+        }
+
+        .loader {
+            display: none;
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            border: 4px solid rgba(0, 201, 167, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #00C9A7;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+
+        .toast-message.error {
+            background-color: rgba(220, 53, 69, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+        </div>
+
+        <div class="general-container">
+            <div class="general-title">Відновлення доступу</div>
+
+            <div class="general-card">
+                <!-- Кнопка назад перенесена сюди, в лівий верхній кут контейнера SID фрази -->
+                <button class="back-button" id="back-button">←</button>
+
+                <div class="restore-title">Ваша SID Фраза</div>
+                <div class="restore-subtitle">Збережіть її в безпечному місці!</div>
+
+                <button class="copy-button" id="paste-phrase">
+                    Вставити з буфера обміну
+                </button>
+
+                <div class="words-grid" id="words-grid">
+                    <!-- Поля для вводу 12 слів будуть додані через JavaScript -->
+                </div>
+
+                <div class="error-message" id="error-message"></div>
+
+                <div class="loader" id="loader"></div>
+
+                <button class="action-button" id="restore-button" disabled>Відновити доступ</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-message" id="toast-message"></div>
+
+    <script>
+        // Масив англійських слів для генерації SID фрази
+        const seedWords = [
+            "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
+            "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
+            "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
+            "final", "curve"
+        ];
+
+        // Функція для показу сповіщення
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast-message');
+            toast.textContent = message;
+            toast.classList.add('show');
+
+            if (isError) {
+                toast.classList.add('error');
+            } else {
+                toast.classList.remove('error');
+            }
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Функція для перевірки чи користувач вже залогінений
+        function checkLoginStatus() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            if (isLoggedIn) {
+                // Якщо користувач вже залогінений, перенаправляємо на головну
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Функція для генерації SID фрази (та сама, що використовується на сторінці general.html)
+        function generateSeedPhrase(userId) {
+            try {
+                const id = parseInt(userId.replace(/\D/g, '')) || 12345;
+                let seed = id;
+                const phrase = [];
+                for (let i = 0; i < 12; i++) {
+                    seed = (seed * 9301 + 49297) % 233280;
+                    phrase.push(seedWords[Math.floor((seed / 233280) * seedWords.length)]);
+                }
+                return phrase;
+            } catch (error) {
+                console.error('Seed generation error:', error);
+                return seedWords.slice(0, 12);
+            }
+        }
+
+        // Функція для валідації слова
+        function validateWord(word) {
+            return seedWords.includes(word.trim().toLowerCase());
+        }
+
+        // Функція для перевірки всієї SID фрази
+        function validatePhraseForUser(inputPhrase, userId) {
+            const correctPhrase = generateSeedPhrase(userId);
+
+            // Перевіряємо кожне слово
+            let correctCount = 0;
+            for (let i = 0; i < 12; i++) {
+                if (inputPhrase[i] === correctPhrase[i]) {
+                    correctCount++;
+                }
+            }
+
+            // Повертаємо результат перевірки
+            return {
+                isValid: correctCount === 12,
+                correctCount: correctCount
+            };
+        }
+
+        // Функція для створення полів вводу слів
+        function createWordInputs() {
+            const wordsGrid = document.getElementById('words-grid');
+            wordsGrid.innerHTML = '';
+
+            for (let i = 1; i <= 12; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'word-cell';
+
+                const wordNumber = document.createElement('div');
+                wordNumber.className = 'word-number';
+                wordNumber.textContent = i + '.';
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'word-input';
+                input.id = `word-${i}`;
+                input.placeholder = 'Слово';
+                input.autocomplete = 'off';
+                input.spellcheck = false;
+
+                cell.appendChild(wordNumber);
+                cell.appendChild(input);
+                wordsGrid.appendChild(cell);
+
+                // Додаємо обробник для перевірки слова та автофокусу
+                input.addEventListener('input', function() {
+                    const word = this.value.trim().toLowerCase();
+
+                    // Валідація слова
+                    if (word) {
+                        if (validateWord(word)) {
+                            this.classList.add('valid');
+                            this.classList.remove('invalid');
+                        } else {
+                            this.classList.add('invalid');
+                            this.classList.remove('valid');
+                        }
+                    } else {
+                        this.classList.remove('valid');
+                        this.classList.remove('invalid');
+                    }
+
+                    // Переходимо до наступного поля, якщо слово валідне і є наступне поле
+                    if (validateWord(word) && i < 12) {
+                        const nextInput = document.getElementById(`word-${i + 1}`);
+                        if (nextInput) {
+                            nextInput.focus();
+                        }
+                    }
+
+                    updateRestoreButton();
+                });
+
+                // Додаємо обробник для клавіш
+                input.addEventListener('keydown', function(e) {
+                    const currentIndex = parseInt(this.id.split('-')[1]);
+
+                    // Перемикання між полями за допомогою клавіш зі стрілками
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                        const nextInput = document.getElementById(`word-${Math.min(currentIndex + 1, 12)}`);
+                        if (nextInput) nextInput.focus();
+                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                        const prevInput = document.getElementById(`word-${Math.max(currentIndex - 1, 1)}`);
+                        if (prevInput) prevInput.focus();
+                    }
+                });
+            }
+        }
+
+        // Функція для оновлення стану кнопки відновлення
+        function updateRestoreButton() {
+            const restoreButton = document.getElementById('restore-button');
+            const inputs = document.querySelectorAll('.word-input');
+
+            let allValid = true;
+            let allFilled = true;
+
+            inputs.forEach(input => {
+                const word = input.value.trim().toLowerCase();
+                if (!word) {
+                    allFilled = false;
+                }
+                if (!validateWord(word)) {
+                    allValid = false;
+                }
+            });
+
+            restoreButton.disabled = !(allValid && allFilled);
+        }
+
+        // Функція для збору всіх введених слів
+        function collectWords() {
+            const words = [];
+
+            for (let i = 1; i <= 12; i++) {
+                const input = document.getElementById(`word-${i}`);
+                words.push(input.value.trim().toLowerCase());
+            }
+
+            return words;
+        }
+
+        // Функція для перевірки та відновлення доступу
+        function restoreAccess() {
+            const errorMessage = document.getElementById('error-message');
+            const loader = document.getElementById('loader');
+            const restoreButton = document.getElementById('restore-button');
+
+            // Показуємо індикатор завантаження
+            loader.style.display = 'block';
+            restoreButton.disabled = true;
+            errorMessage.textContent = '';
+
+            // Збираємо введені слова
+            const inputPhrase = collectWords();
+
+            // Імітуємо затримку запиту до сервера
+            setTimeout(() => {
+                // Спробуємо кілька тестових userId
+                const userIds = ['12345678', '87654321', '55555555', '11111111'];
+                let foundMatch = false;
+                let matchedId = null;
+
+                for (const userId of userIds) {
+                    const validation = validatePhraseForUser(inputPhrase, userId);
+                    if (validation.isValid) {
+                        foundMatch = true;
+                        matchedId = userId;
+                        break;
+                    }
+                }
+
+                // Приховуємо індикатор завантаження
+                loader.style.display = 'none';
+
+                if (foundMatch) {
+                    // Запам'ятовуємо ID користувача
+                    localStorage.setItem('userId', matchedId);
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('username', 'RestoreUser');
+
+                    // Створюємо токени для демонстрації
+                    localStorage.setItem('userTokens', '1000');
+                    localStorage.setItem('userCoins', '50');
+                    localStorage.setItem('seedPhraseViewed', 'true');
+
+                    // Показуємо повідомлення про успіх
+                    showToast('Доступ успішно відновлено!');
+
+                    // Перенаправляємо на головну сторінку після короткої затримки
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1500);
+                } else {
+                    // Активуємо кнопку для повторної спроби
+                    restoreButton.disabled = false;
+
+                    // Показуємо повідомлення про помилку
+                    errorMessage.textContent = 'Невірна SID фраза. Перевірте правильність введених слів.';
+                    showToast('Помилка відновлення доступу', true);
+                }
+            }, 2000);
+        }
+
+        // Функція для вставки фрази з буферу обміну
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const words = text.trim().split(/\s+/);
+
+                // Перевіряємо кількість слів
+                if (words.length !== 12) {
+                    showToast('Невірний формат SID фрази. Має бути 12 слів.', true);
+                    return;
+                }
+
+                // Заповнюємо поля
+                for (let i = 0; i < 12; i++) {
+                    const input = document.getElementById(`word-${i + 1}`);
+                    input.value = words[i].toLowerCase();
+
+                    // Валідуємо слово
+                    if (validateWord(words[i])) {
+                        input.classList.add('valid');
+                        input.classList.remove('invalid');
+                    } else {
+                        input.classList.add('invalid');
+                        input.classList.remove('valid');
+                    }
+                }
+
+                updateRestoreButton();
+                showToast('SID фразу вставлено з буферу обміну');
+            } catch (err) {
+                showToast('Не вдалося отримати доступ до буферу обміну', true);
+                console.error('Помилка доступу до буферу обміну:', err);
+            }
+        }
+
+        // Ініціалізація сторінки
+        document.addEventListener('DOMContentLoaded', function() {
+            // Перевіряємо чи користувач вже залогінений
+            checkLoginStatus();
+
+            // Створюємо поля для вводу слів
+            createWordInputs();
+
+            // Додаємо обробники подій для кнопок
+            document.getElementById('restore-button').addEventListener('click', restoreAccess);
+            document.getElementById('paste-phrase').addEventListener('click', pasteFromClipboard);
+            document.getElementById('back-button').addEventListener('click', function() {
+                window.location.href = 'login.html';
+            });
+
+            // Фокус на перше поле
+            document.getElementById('word-1').focus();
+        });
+    </script>
+</body>
+</html>

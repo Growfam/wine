@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Гаманець</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important; /* Забезпечує простір для панелі навігації */
+            -webkit-overflow-scrolling: touch; /* Для плавної прокрутки на iOS */
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px; /* Збільшено на 60% з оригінальних 40px */
+            height: 55px; /* Збільшено на 60% з оригінальних 40px */
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out; /* Змінено анімацію з rotate на pulse */
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+        .balance-title {
+            font-size: 35px;
+            color: #4ea2c7;
+            margin-bottom: 1px;
+        }
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -40px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        /* Стилі для головної сторінки гаманця */
+        .wallet-card {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .balance-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            padding: 20px 0;
+        }
+
+        .main-balance {
+            font-size: 42px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .main-balance-icon {
+            font-size: 1px;
+            margin-left: 1px;
+        }
+
+        .main-balance-icon img,
+        .staking-icon img,
+        .reward-icon img {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .staking-info {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 15px;
+            padding: 15px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            margin-bottom: 10px;
+        }
+
+        .staking-balance {
+            display: flex;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .staking-icon {
+            margin-left: 8px;
+            font-size: 16px;
+        }
+
+        .staking-rewards {
+            display: flex;
+            align-items: center;
+            font-size: 16px;
+            color: #4eb5f7;
+        }
+
+        .reward-icon {
+            margin-left: 8px;
+            font-size: 14px;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            margin: 15px 0;
+            gap: 10px;
+        }
+
+        .action-button {
+            flex: 1;
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 15px;
+            padding: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .button-icon {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .transactions-section {
+            width: 90%;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0 10px 0;
+            color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .view-all-link {
+            font-size: 14px;
+            color: #4eb5f7;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .transaction-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .transaction-item {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            cursor: pointer;
+        }
+
+        .transaction-positive {
+            color: #4caf50;
+        }
+
+        .transaction-negative {
+            color: #f44336;
+        }
+
+        .transaction-neutral {
+            color: #9e9e9e;
+        }
+
+        .transaction-details {
+            font-size: 14px;
+        }
+
+        .transaction-amount {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .empty-message {
+            color: #9e9e9e;
+            font-style: italic;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стиль для тестової кнопки */
+        .test-button {
+            position: fixed;
+            bottom: 80px;
+            right: 10px;
+            background: green;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            z-index: 9999;
+            cursor: pointer;
+        }
+
+        /* Стиль для повідомлень */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.5s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+        <div class="wallet-card">
+            <div class="balance-title">Balance $WINIX</div>
+            <div class="balance-section">
+                <div id="main-balance" class="main-balance">0 <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span></div>
+            </div>
+
+            <div class="staking-info">
+                <div id="staking-balance" class="staking-balance">У стейкінгу: 0 $WINIX <span class="staking-icon"></span></div>
+                <div id="staking-rewards" class="staking-rewards">Нагороди: 0 $WINIX <span class="reward-icon"></span></div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="action-button" id="send-button">
+                    <span class="button-icon"></span>
+                    Надіслати
+                </button>
+                <button class="action-button" id="receive-button">
+                    <span class="button-icon"></span>
+                    Отримати
+                </button>
+                <button class="action-button" id="staking-button">
+                    <span class="button-icon"></span>
+                    Стейкінг
+                </button>
+            </div>
+
+            <div class="transactions-section">
+                <div class="section-title">
+                    Останні транзакції
+                    <span class="view-all-link" id="view-all-transactions">Переглянути всі</span>
+                </div>
+                <div class="transaction-list" id="transaction-list">
+                    <!-- Транзакції будуть додані динамічно через JavaScript -->
+                    <div class="empty-message">Немає транзакцій</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижня навігаційна панель, однакова для всіх сторінок -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item active" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+
+        <!-- Тестова кнопка для нарахування балансу -->
+        <button id="test-reward-btn" class="test-button">
+            Тест +50 WINIX
+        </button>
+
+        <!-- Повідомлення -->
+        <div id="toast-message" class="toast-message"></div>
+    </div>
+
+    <!-- Підключаємо важливі скрипти для функціональності -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        // Перевірка наявності об'єкту Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+            } else {
+                console.log("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.log("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція для відображення повідомлень
+        function showToast(message) {
+            const toast = document.getElementById('toast-message');
+            toast.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(page) {
+            try {
+                // Отримуємо баланс безпосередньо з localStorage
+                const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                const coins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+                // Зберігаємо поточний баланс перед переходом
+                sessionStorage.setItem('lastBalance', tokens.toString());
+                sessionStorage.setItem('lastCoins', coins.toString());
+                console.log(`Зберігаємо баланс перед навігацією: ${tokens}`);
+
+                // Переходимо на іншу сторінку
+                window.location.href = page;
+            } catch (error) {
+                console.error('Помилка навігації:', error);
+                showToast('Помилка навігації');
+            }
+        }
+
+        // Функція для безпосереднього зчитування/збереження даних стейкінгу з localStorage
+        function getStakingData() {
+            // Спроба отримати дані стейкінгу з localStorage
+            const stakingData = localStorage.getItem('stakingData');
+
+            if (stakingData) {
+                try {
+                    return JSON.parse(stakingData);
+                } catch (e) {
+                    console.error('Помилка розбору даних стейкінгу:', e);
+                }
+            }
+
+            // Спроба отримати базові дані для стейкінгу з localStorage
+            const stakedAmount = parseFloat(localStorage.getItem('userStakedTokens') || '0');
+            const stakingRewards = parseFloat(localStorage.getItem('userStakingRewards') || '0');
+
+            if (stakedAmount > 0) {
+                return {
+                    hasActiveStaking: true,
+                    stakingAmount: stakedAmount,
+                    rewardPercent: 15,
+                    expectedReward: stakingRewards,
+                    period: 30,
+                    remainingDays: 25
+                };
+            }
+
+            // Якщо немає даних, повертаємо стандартні значення
+            return {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                period: 0,
+                remainingDays: 0
+            };
+        }
+
+        // Функція для оновлення відображення стейкінгу
+        function updateStakingDisplay() {
+            const stakingData = getStakingData();
+
+            // Оновлюємо відображення стейкінгу
+            const stakingBalanceElement = document.getElementById('staking-balance');
+            const stakingRewardsElement = document.getElementById('staking-rewards');
+
+            if (stakingBalanceElement) {
+                stakingBalanceElement.innerHTML = `У стейкінгу: ${stakingData.stakingAmount.toFixed(2)} $WINIX <span class="staking-icon"></span>`;
+            }
+
+            if (stakingRewardsElement) {
+                stakingRewardsElement.innerHTML = `Нагороди: ${stakingData.expectedReward.toFixed(2)} $WINIX <span class="reward-icon"></span>`;
+            }
+        }
+
+        // Функція для оновлення відображення балансу
+        function updateBalanceDisplay() {
+            // Зчитуємо дані балансу безпосередньо з localStorage
+            const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const coins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+            // Оновлюємо елементи інтерфейсу
+            const userTokensElement = document.getElementById('user-tokens');
+            const userCoinsElement = document.getElementById('user-coins');
+            const mainBalanceElement = document.getElementById('main-balance');
+
+            if (userTokensElement) {
+                userTokensElement.textContent = tokens.toFixed(2);
+            }
+
+            if (userCoinsElement) {
+                userCoinsElement.textContent = coins.toFixed(0);
+            }
+
+            if (mainBalanceElement) {
+                mainBalanceElement.innerHTML = `${tokens.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+            }
+
+            // Оновлюємо відображення стейкінгу
+            updateStakingDisplay();
+
+            // Оновлюємо список транзакцій (просто для прикладу)
+            updateTransactionsList();
+        }
+
+        // Функція для оновлення списку транзакцій
+        function updateTransactionsList() {
+            const transactionList = document.getElementById('transaction-list');
+            if (!transactionList) return;
+
+            // Отримуємо транзакції з localStorage
+            const transactions = localStorage.getItem('transactions');
+
+            // Очищаємо список транзакцій
+            transactionList.innerHTML = '';
+
+            if (transactions) {
+                try {
+                    const parsedTransactions = JSON.parse(transactions);
+
+                    // Обмежуємо кількість транзакцій до 3
+                    const recentTransactions = parsedTransactions.slice(0, 3);
+
+                    if (recentTransactions.length > 0) {
+                        // Додаємо кожну транзакцію до списку
+                        recentTransactions.forEach(transaction => {
+                            const transactionItem = document.createElement('div');
+                            transactionItem.className = 'transaction-item';
+
+                            const isPositive = transaction.amount > 0;
+                            const colorClass = isPositive ? 'transaction-positive' : 'transaction-negative';
+
+                            transactionItem.innerHTML = `
+                                <div class="transaction-details">${transaction.description || 'Транзакція'}</div>
+                                <div class="transaction-amount ${colorClass}">${isPositive ? '+' : ''}${transaction.amount.toFixed(2)} $WINIX</div>
+                            `;
+
+                            transactionList.appendChild(transactionItem);
+                        });
+                    } else {
+                        transactionList.innerHTML = '<div class="empty-message">Немає транзакцій</div>';
+                    }
+                } catch (e) {
+                    console.error('Помилка розбору транзакцій:', e);
+                    transactionList.innerHTML = '<div class="empty-message">Помилка завантаження транзакцій</div>';
+                }
+            } else {
+                transactionList.innerHTML = '<div class="empty-message">Немає транзакцій</div>';
+            }
+        }
+
+        // Функція для додавання винагороди
+        function addReward(amount) {
+            try {
+                // Отримуємо поточний баланс
+                const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+
+                // Додаємо винагороду
+                const newBalance = currentBalance + amount;
+
+                // Зберігаємо новий баланс
+                localStorage.setItem('userTokens', newBalance.toString());
+
+                // Додаємо транзакцію
+                const newTransaction = {
+                    id: 'reward_' + Date.now(),
+                    amount: amount,
+                    description: 'Винагорода за тест',
+                    timestamp: Date.now()
+                };
+
+                // Отримуємо існуючі транзакції
+                const transactions = localStorage.getItem('transactions');
+                let parsedTransactions = [];
+
+                if (transactions) {
+                    try {
+                        parsedTransactions = JSON.parse(transactions);
+                    } catch (e) {
+                        console.error('Помилка розбору транзакцій:', e);
+                    }
+                }
+
+                // Додаємо нову транзакцію на початок списку
+                parsedTransactions.unshift(newTransaction);
+
+                // Зберігаємо оновлений список транзакцій
+                localStorage.setItem('transactions', JSON.stringify(parsedTransactions));
+
+                // Повертаємо результат
+                return {
+                    success: true,
+                    oldBalance: currentBalance,
+                    newBalance: newBalance,
+                    difference: amount
+                };
+            } catch (error) {
+                console.error('Помилка додавання винагороди:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // Тест нарахування винагороди
+        document.getElementById('test-reward-btn').addEventListener('click', function() {
+            console.log('===== ПОЧАТОК ТЕСТУ НАРАХУВАННЯ НАГОРОДИ =====');
+
+            // Зберігаємо початковий баланс
+            const startBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+            console.log(`Початковий баланс: ${startBalance}`);
+
+            // Нараховуємо винагороду
+            const result = addReward(50);
+            console.log('Результат нарахування:', result);
+
+            if (result.success) {
+                // Оновлюємо відображення
+                updateBalanceDisplay();
+
+                // Показуємо сповіщення
+                showToast(`Нараховано ${result.difference} WINIX!`);
+            } else {
+                showToast('Помилка нарахування винагороди');
+            }
+        });
+
+        // Обробники для навігаційних кнопок
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const section = this.dataset.section;
+
+                if (section === 'home') {
+                    navigateTo('index.html');
+                } else if (section === 'earn') {
+                    navigateTo('earn.html');
+                } else if (section === 'referrals') {
+                    navigateTo('referrals.html');
+                } else if (section === 'wallet') {
+                    navigateTo('wallet.html');
+                } else if (section === 'general') {
+                    navigateTo('general.html');
+                }
+            });
+        });
+
+        // Обробники для кнопок дій
+        document.getElementById('send-button').addEventListener('click', function() {
+            navigateTo('send.html');
+        });
+
+        document.getElementById('receive-button').addEventListener('click', function() {
+            navigateTo('receive.html');
+        });
+
+        document.getElementById('staking-button').addEventListener('click', function() {
+            navigateTo('staking.html');
+        });
+
+        document.getElementById('view-all-transactions').addEventListener('click', function() {
+            navigateTo('transactions.html');
+        });
+
+        // Ініціалізація стандартних значень, якщо вони відсутні
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Ініціалізація сторінки гаманця");
+
+            // Встановлюємо базові значення балансу, якщо вони відсутні
+            if (!localStorage.getItem('userTokens')) {
+                localStorage.setItem('userTokens', '1000');
+            }
+
+            if (!localStorage.getItem('userCoins')) {
+                localStorage.setItem('userCoins', '250');
+            }
+
+            // Встановлюємо дані стейкінгу, якщо вони відсутні
+            if (!localStorage.getItem('userStakedTokens') && !localStorage.getItem('stakingData')) {
+                localStorage.setItem('userStakedTokens', '100');
+                localStorage.setItem('userStakingRewards', '5.75');
+
+                // Створюємо тестові дані стейкінгу в форматі JSON
+                const testStakingData = {
+                    hasActiveStaking: true,
+                    stakingAmount: 100,
+                    rewardPercent: 15,
+                    expectedReward: 5.75,
+                    period: 30,
+                    startDate: new Date().toISOString(),
+                    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    remainingDays: 25
+                };
+
+                localStorage.setItem('stakingData', JSON.stringify(testStakingData));
+            }
+
+            // Додаємо тестові транзакції, якщо вони відсутні
+            if (!localStorage.getItem('transactions')) {
+                const testTransactions = [
+                    {
+                        id: 'welcome_bonus',
+                        amount: 1000,
+                        description: 'Вітальний бонус',
+                        timestamp: Date.now() - 3600000 * 24
+                    },
+                    {
+                        id: 'staking_reward',
+                        amount: 5.75,
+                        description: 'Нагорода за стейкінг',
+                        timestamp: Date.now() - 3600000 * 12
+                    },
+                    {
+                        id: 'staking_deposit',
+                        amount: -100,
+                        description: 'Відправлено на стейкінг',
+                        timestamp: Date.now() - 3600000 * 24 * 5
+                    }
+                ];
+
+                localStorage.setItem('transactions', JSON.stringify(testTransactions));
+            }
+
+            // Налаштування періодичного оновлення балансу та стейкінгу
+            const updateInterval = setInterval(() => {
+                try {
+                    updateBalanceDisplay();
+                } catch (error) {
+                    console.error('Помилка оновлення даних:', error);
+                }
+            }, 2000); // Оновлення кожні 2 секунди
+
+            // Очищення інтервалу при виході зі сторінки
+            window.addEventListener('beforeunload', () => {
+                clearInterval(updateInterval);
+            });
+
+            // Початкове оновлення відображення балансу та стейкінгу
+            updateBalanceDisplay();
+        });
+    </script>
+</body>
+</html>

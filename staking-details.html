@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Деталі Стейкінгу</title>
+
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        /* Стилі для модального вікна */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-container {
+            width: 85%;
+            max-width: 350px;
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 201, 167, 0.3);
+            border: 1px solid rgba(0, 201, 167, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 500;
+            text-align: center;
+            color: #fff;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+        }
+
+        .input-container {
+            width: 100%;
+        }
+
+        .modal-input {
+            width: 100%;
+            height: 45px;
+            background: rgba(20, 30, 60, 0.6);
+            border: 1px solid rgba(0, 201, 167, 0.3);
+            border-radius: 12px;
+            padding: 0 15px;
+            color: #fff;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.8);
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .modal-input.error {
+            border-color: #ff3860;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 5px;
+        }
+
+        .modal-button {
+            flex: 1;
+            height: 45px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .cancel-button {
+            background: rgba(30, 39, 70, 0.6);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .confirm-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-button:active {
+            transform: scale(0.97);
+        }
+
+        /* Стилі для сповіщень */
+        .alert-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(3px);
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .alert-container {
+            width: 85%;
+            max-width: 350px;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            animation: bounceIn 0.3s ease-out;
+        }
+
+        .alert-container.success {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+            border: 1px solid rgba(0, 201, 167, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 201, 167, 0.3);
+        }
+
+        .alert-container.error {
+            background: linear-gradient(135deg, rgba(46, 26, 26, 0.95), rgba(96, 15, 15, 0.95));
+            border: 1px solid rgba(201, 0, 0, 0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(201, 0, 0, 0.3);
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .alert-message {
+            text-align: center;
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .alert-button {
+            align-self: center;
+            width: 100px;
+            height: 40px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+            color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .alert-button:active {
+            transform: scale(0.97);
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        .wallet-card {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 5;
+        }
+
+        .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .back-button:active {
+            transform: scale(0.98);
+        }
+
+        .staking-details {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .staking-detail {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stake-action-button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 15px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            margin-top: 15px;
+        }
+
+        .stake-action-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стилі для відлагодження */
+        .debug-info {
+            position: fixed;
+            bottom: 80px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: lime;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 10px;
+            max-width: 300px;
+            max-height: 200px;
+            overflow: auto;
+            z-index: 999;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Верхній блок -->
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wallet-card">
+            <!-- Кнопка "Назад" -->
+            <button class="back-button" id="back-button">←</button>
+
+            <h2>Деталі Стейкінгу</h2>
+
+            <div class="staking-details">
+                <div class="staking-detail">
+                    <span>Сума стейкінгу</span>
+                    <span id="staking-amount">0.00 $WINIX</span>
+                </div>
+                <div class="staking-detail">
+                    <span>Період стейкінгу</span>
+                    <span id="staking-period">0 днів</span>
+                </div>
+                <div class="staking-detail">
+                    <span>Відсоток прибутку</span>
+                    <span id="staking-reward-percent">0%</span>
+                </div>
+                <div class="staking-detail">
+                    <span>Очікувана нагорода</span>
+                    <span id="staking-expected-reward">0.00 $WINIX</span>
+                </div>
+                <div class="staking-detail">
+                    <span>Залишилось днів</span>
+                    <span id="staking-remaining-days">0</span>
+                </div>
+            </div>
+
+            <button class="stake-action-button" id="add-to-stake-button">Додати до стейкінгу</button>
+
+            <!-- Кнопка скасування стейкінгу -->
+            <button class="stake-action-button" id="cancel-staking-button" style="background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222); margin-top: 10px;">Скасувати стейкінг</button>
+        </div>
+
+        <!-- Нижній блок навігації -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item active" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+
+        <!-- Блок для відлагодження -->
+        <div id="debug-info" class="debug-info"></div>
+    </div>
+
+    <script>
+        // Функція для оновлення блоку відлагодження
+        function updateDebugInfo(data) {
+            const debugDiv = document.getElementById('debug-info');
+            if (debugDiv) {
+                debugDiv.innerHTML = `
+                    <strong>Стейкінг дані:</strong><br>
+                    hasActiveStaking: ${data.hasActiveStaking}<br>
+                    stakingId: ${data.stakingId || 'немає'}<br>
+                    Сума: ${data.stakingAmount || 0}<br>
+                    Період: ${data.period || 0} днів<br>
+                    Відсоток: ${data.rewardPercent || 0}%<br>
+                    Очікувана нагорода: ${data.expectedReward || 0}<br>
+                    Залишилось днів: ${data.remainingDays || 0}<br>
+                `;
+
+                // Показуємо блок відлагодження при утриманні Alt
+                document.addEventListener('keydown', function(e) {
+                    if (e.altKey) {
+                        debugDiv.style.display = 'block';
+                    }
+                });
+
+                document.addEventListener('keyup', function(e) {
+                    if (!e.altKey) {
+                        debugDiv.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        // Перевірка наявності об'єкту Telegram WebApp
+        let tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
+        // Головна функція ініціалізації сторінки
+        function initPage() {
+            console.log("Ініціалізація сторінки деталей стейкінгу");
+
+            // Базові значення, якщо їх немає
+            if (!localStorage.getItem('userTokens')) {
+                localStorage.setItem('userTokens', '1000');
+            }
+
+            if (!localStorage.getItem('userCoins')) {
+                localStorage.setItem('userCoins', '250');
+            }
+
+            // Оновлюємо відображення балансів
+            const userTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const userCoins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+            const userTokensElement = document.getElementById('user-tokens');
+            const userCoinsElement = document.getElementById('user-coins');
+
+            if (userTokensElement) userTokensElement.textContent = userTokens.toFixed(2);
+            if (userCoinsElement) userCoinsElement.textContent = userCoins.toFixed(0);
+
+            // Кнопка "Назад"
+            const backButton = document.getElementById('back-button');
+            if (backButton) {
+                backButton.addEventListener('click', function() {
+                    // Зберігаємо мітку часу для захисту балансу
+                    localStorage.setItem('lastNavigationTimestamp', Date.now().toString());
+                    localStorage.setItem('lastTransactionTime', Date.now().toString());
+
+                    // Переходимо на сторінку стейкінгу
+                    window.location.href = "staking.html";
+                });
+            }
+
+            // Використовуємо StakingSystem для оновлення інтерфейсу
+            if (window.stakingSystem) {
+                console.log("Використовуємо window.stakingSystem для оновлення інтерфейсу");
+                // Отримуємо дані стейкінгу
+                const stakingData = window.stakingSystem.getStakingDisplayData();
+
+                // Оновлюємо відлагодження
+                updateDebugInfo(stakingData || {hasActiveStaking: false});
+
+                // Оновлюємо інтерфейс
+                window.stakingSystem.updateStakingDisplay();
+            } else {
+                console.warn("window.stakingSystem не ініціалізовано - спроба запасного варіанту");
+
+                try {
+                    // Запасний варіант, якщо StakingSystem недоступний
+                    const stakingDataStr = localStorage.getItem('stakingData');
+                    if (stakingDataStr) {
+                        const stakingData = JSON.parse(stakingDataStr);
+
+                        if (stakingData && stakingData.hasActiveStaking) {
+                            // Оновлюємо інтерфейс вручну
+                            document.getElementById('staking-amount').textContent = stakingData.stakingAmount + ' $WINIX';
+                            document.getElementById('staking-period').textContent = stakingData.period + ' днів';
+                            document.getElementById('staking-reward-percent').textContent = stakingData.rewardPercent + '%';
+                            document.getElementById('staking-expected-reward').textContent = stakingData.expectedReward + ' $WINIX';
+                            document.getElementById('staking-remaining-days').textContent = stakingData.remainingDays || '0';
+
+                            // Оновлюємо відлагодження
+                            updateDebugInfo(stakingData);
+                        } else {
+                            console.warn("Немає активного стейкінгу");
+                            if (window.simpleAlert || (window.winixUI && window.winixUI.simpleAlert)) {
+                                const alertFunc = window.simpleAlert || window.winixUI.simpleAlert;
+                                alertFunc("Немає активного стейкінгу", false).then(() => {
+                                    window.location.href = "staking.html";
+                                });
+                            } else {
+                                alert("Немає активного стейкінгу");
+                                window.location.href = "staking.html";
+                            }
+                        }
+                    } else {
+                        console.warn("Дані стейкінгу не знайдено");
+                        if (window.simpleAlert || (window.winixUI && window.winixUI.simpleAlert)) {
+                            const alertFunc = window.simpleAlert || window.winixUI.simpleAlert;
+                            alertFunc("Дані стейкінгу не знайдено", false).then(() => {
+                                window.location.href = "staking.html";
+                            });
+                        } else {
+                            alert("Дані стейкінгу не знайдено");
+                            window.location.href = "staking.html";
+                        }
+                    }
+                } catch (error) {
+                    console.error("Помилка при ініціалізації сторінки:", error);
+                    alert("Помилка при завантаженні даних стейкінгу");
+                }
+            }
+
+            // Навігація між сторінками
+            document.querySelectorAll('.nav-item').forEach(function(item) {
+                item.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+
+                    // Зберігаємо баланс перед навігацією
+                    const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+                    sessionStorage.setItem('lastBalance', currentBalance.toString());
+                    sessionStorage.setItem('navigationTime', Date.now().toString());
+
+                    // Навігація
+                    document.querySelectorAll('.nav-item').forEach(function(navItem) {
+                        navItem.classList.remove('active');
+                    });
+                    this.classList.add('active');
+
+                    // Перенаправлення
+                    switch(section) {
+                        case 'home':
+                            window.location.href = 'index.html';
+                            break;
+                        case 'wallet':
+                            window.location.href = 'wallet.html';
+                            break;
+                        case 'earn':
+                            window.location.href = 'earn.html'
+                            break;
+                        case 'referrals':
+                            window.location.href = 'referrals.html';
+                            break;
+                        case 'general':
+                            window.location.href = 'general.html';
+                            break;
+                    }
+                });
+            });
+        }
+
+        // Запускаємо після завантаження DOM
+        document.addEventListener('DOMContentLoaded', initPage);
+
+        // Здійснюємо повторну перевірку при повному завантаженні сторінки
+        window.addEventListener('load', function() {
+            // Перевіряємо чи відображаються дані стейкінгу
+            const amountElement = document.getElementById('staking-amount');
+            if (amountElement && amountElement.textContent === '0.00 $WINIX') {
+                console.log("Дані не відображаються, запускаємо повторну ініціалізацію");
+
+                // Повторна ініціалізація через StakingSystem, якщо можливо
+                if (window.stakingSystem) {
+                    window.stakingSystem.updateStakingDisplay();
+                } else {
+                    // Інакше повторна ініціалізація сторінки
+                    initPage();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

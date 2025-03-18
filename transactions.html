@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Транзакції</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        /* Нові стилі для модального вікна сповіщень */
+        .notification-modal {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        /* Стилі для транзакцій */
+        .transaction-card {
+            position: relative;
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            padding-top: 85px; /* Збільшуємо відступ для заголовка + кнопка назад */
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .transaction-header {
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .transaction-filters {
+            display: flex;
+            width: 100%;
+            overflow-x: auto;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-button {
+            padding: 10px 15px;
+            background: rgba(20, 30, 60, 0.7);
+            border: 1px solid rgba(0, 201, 167, 0.3);
+            border-radius: 15px;
+            color: white;
+            font-size: 14px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-button.active {
+            background: rgba(0, 201, 167, 0.3);
+            border-color: rgba(0, 201, 167, 0.8);
+        }
+
+        .filter-toggle {
+            padding: 6px 10px;
+            background: rgba(0, 201, 167, 0.3);
+            border: 1px solid rgba(0, 201, 167, 0.5);
+            border-radius: 15px;
+            color: white;
+            font-size: 14px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-toggle .toggle-icon {
+            font-size: 16px;
+        }
+
+        .filter-toggle.active {
+            background: rgba(0, 201, 167, 0.7);
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+        }
+
+        .transaction-list {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .transaction-item {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(0, 201, 167, 0.2);
+        }
+
+        .transaction-item:active {
+            transform: scale(0.98);
+        }
+
+        /* Стиль для тестових транзакцій */
+        .transaction-item.test-transaction {
+            background: rgba(20, 30, 60, 0.5);
+            border: 1px dashed rgba(0, 201, 167, 0.2);
+            opacity: 0.8;
+        }
+
+        .transaction-details {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .transaction-type {
+            font-weight: bold;
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .transaction-date {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .transaction-amount {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .transaction-positive {
+            color: #00C9A7;
+        }
+
+        .transaction-negative {
+            color: #ff6b6b;
+        }
+
+        .transaction-neutral {
+            color: #f7d354;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 30px 0;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+        }
+
+        /* Кнопка назад */
+        .back-button {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 5;
+        }
+
+        .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .back-button:active {
+            transform: scale(0.98);
+        }
+
+        /* Кнопка перемикання тестових транзакцій */
+        .test-transactions-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 12px;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 5;
+            display: none; /* Буде показано через JavaScript якщо доречно */
+        }
+
+        .test-transactions-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .test-transactions-toggle:active {
+            transform: scale(0.98);
+        }
+
+        /* Модальне вікно для деталей транзакції */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: rgba(30, 39, 70, 0.95);
+            border: 1px solid rgba(0, 201, 167, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            width: 85%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .transaction-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .detail-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .detail-value {
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .close-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            color: white;
+            padding: 12px 0;
+            border-radius: 15px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .close-button:active {
+            transform: scale(0.98);
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стилі для сповіщень */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .popup-content {
+            width: 85%;
+            max-width: 300px;
+            background: rgba(30, 39, 70, 0.95);
+            border: 1px solid rgba(0, 201, 167, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .popup-content p {
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .popup-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        /* Стилі для індикатора завантаження */
+        .loading-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 201, 167, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #00C9A7;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Індикатор типу транзакцій */
+        .transaction-status-indicator {
+            text-align: center;
+            padding: 5px 0;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="transaction-card">
+            <button class="back-button" id="back-button">←</button>
+            <div class="transaction-header">Історія транзакцій</div>
+
+            <div class="transaction-status-indicator" id="transaction-status">
+                <!-- Показник типу транзакцій: реальні чи тестові -->
+            </div>
+
+            <div class="transaction-filters">
+                <button class="filter-button active" data-filter="all">Всі</button>
+                <button class="filter-button" data-filter="receive">Отримання</button>
+                <button class="filter-button" data-filter="send">Відправлення</button>
+                <button class="filter-button" data-filter="stake">Стейкінг</button>
+                <button class="filter-button" data-filter="unstake">Розстейкінг</button>
+            </div>
+
+            <div class="transaction-list" id="transaction-list">
+                <!-- Тут будуть транзакції через JavaScript -->
+                <div class="empty-message" id="empty-state">Завантаження транзакцій...</div>
+            </div>
+        </div>
+
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                <span>Home</span>
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                <span>Earn</span>
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                <span>Referrals</span>
+            </div>
+            <div class="nav-item active" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                <span>Wallet</span>
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                <span>General</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальне вікно для деталей транзакції -->
+    <div class="modal-overlay" id="transaction-modal">
+        <div class="modal-content">
+            <div class="modal-title">Деталі транзакції</div>
+            <div id="transaction-details-content">
+                <!-- Деталі транзакції будуть додані через JavaScript -->
+            </div>
+            <button class="close-button" id="close-modal">Закрити</button>
+        </div>
+    </div>
+
+    <!-- Індикатор завантаження -->
+    <div class="loading-indicator" id="loading-indicator">
+        <div class="spinner"></div>
+        <div class="loading-text">Завантаження...</div>
+    </div>
+
+    <!-- Модальне вікно сповіщень -->
+    <div class="notification-modal" id="notification-modal"></div>
+
+    <!-- НОВА АВТОНОМНА СИСТЕМА ТРАНЗАКЦІЙ -->
+    <script>
+    // Автономна система транзакцій WINIX
+    // =================================================================
+    // Створюємо у вигляді IIFE (негайно викликана функція), щоб уникнути конфліктів з іншими скриптами
+    (function() {
+        // Глобальний об'єкт для роботи з транзакціями
+        const WinixTransactions = {
+            // =================== ВЛАСТИВОСТІ ===================
+
+            // Список транзакцій
+            transactions: [],
+
+            // Типи транзакцій
+            TYPES: {
+                RECEIVE: 'receive',
+                SEND: 'send',
+                STAKE: 'stake',
+                UNSTAKE: 'unstake'
+            },
+
+            // Статуси транзакцій
+            STATUSES: {
+                PENDING: 'pending',
+                COMPLETED: 'completed',
+                FAILED: 'failed'
+            },
+
+            // Поточний фільтр
+            currentFilter: 'all',
+
+            // Стан завантаження
+            isLoading: true,
+
+            // =================== ОСНОВНІ МЕТОДИ ===================
+
+            // Ініціалізація системи
+            init: function() {
+                console.log("WINIX: Ініціалізація системи транзакцій...");
+
+                try {
+                    // Показуємо індикатор завантаження
+                    this.showLoading("Завантаження транзакцій...");
+
+                    // Завантажуємо транзакції з усіх можливих джерел
+                    this.loadTransactionsFromAllSources();
+
+                    // Налаштовуємо обробники подій
+                    this.setupEventHandlers();
+
+                    // Оновлюємо відображення балансу
+                    this.updateBalanceDisplay();
+
+                    // Відображаємо транзакції
+                    this.displayTransactions();
+
+                    // Налаштовуємо періодичні оновлення
+                    this.setupPeriodicUpdates();
+
+                    // Ховаємо індикатор завантаження
+                    this.hideLoading();
+
+                    console.log("WINIX: Ініціалізацію завершено");
+
+                    // Показуємо повідомлення про успішне завантаження
+                    this.showNotification("Транзакції успішно завантажено");
+
+                } catch (error) {
+                    console.error("WINIX: Помилка ініціалізації:", error);
+                    this.hideLoading();
+
+                    // Створюємо базові транзакції, якщо щось пішло не так
+                    if (this.transactions.length === 0) {
+                        this.createDemoTransactions();
+                        this.displayTransactions();
+                    }
+                }
+            },
+
+            // Завантаження транзакцій з усіх можливих джерел
+            loadTransactionsFromAllSources: function() {
+                console.log("WINIX: Завантаження транзакцій з усіх джерел...");
+
+                // 1. Спочатку спробуємо отримати транзакції з localStorage
+                const possibleKeys = [
+                    'winix_transactions',
+                    'transactions',
+                    'transactionData'
+                ];
+
+                for (const key of possibleKeys) {
+                    try {
+                        const data = localStorage.getItem(key);
+                        if (data) {
+                            const parsedData = JSON.parse(data);
+                            if (Array.isArray(parsedData) && parsedData.length > 0) {
+                                console.log(`WINIX: Знайдено ${parsedData.length} транзакцій у localStorage[${key}]`);
+                                this.transactions = parsedData;
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`WINIX: Помилка при завантаженні з ${key}:`, e);
+                    }
+                }
+
+                // 2. Якщо транзакцій все ще немає, спробуємо отримати їх з TransactionSystem
+                if (this.transactions.length === 0 && window.transactionSystem) {
+                    try {
+                        if (Array.isArray(window.transactionSystem.transactions)) {
+                            this.transactions = [...window.transactionSystem.transactions];
+                            console.log(`WINIX: Знайдено ${this.transactions.length} транзакцій у TransactionSystem`);
+                        }
+                    } catch (e) {
+                        console.warn("WINIX: Помилка при отриманні транзакцій з TransactionSystem:", e);
+                    }
+                }
+
+                // 3. Отримуємо дані стейкінгу, якщо вони є
+                if (window.stakingSystem) {
+                    try {
+                        // Перевіряємо чи є стейкінг
+                        if (typeof window.stakingSystem.getStake === 'function') {
+                            const currentStake = window.stakingSystem.getStake();
+                            if (currentStake > 0) {
+                                // Якщо немає транзакцій стейкінгу, створюємо одну
+                                const hasStakeTx = this.transactions.some(tx => tx.type === this.TYPES.STAKE);
+                                if (!hasStakeTx) {
+                                    this.addTransaction(
+                                        this.TYPES.STAKE,
+                                        currentStake,
+                                        'Поточний стейкінг',
+                                        new Date(Date.now() - 86400000).toISOString(), // вчора
+                                        this.STATUSES.COMPLETED
+                                    );
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("WINIX: Помилка при отриманні даних стейкінгу:", e);
+                    }
+                }
+
+                // 4. Якщо всі джерела порожні, створюємо демонстраційні транзакції
+                if (this.transactions.length === 0) {
+                    console.log("WINIX: Транзакцій не знайдено, створюємо демонстраційні");
+                    this.createDemoTransactions();
+                }
+
+                // 5. Перетворюємо всі транзакції для уніфікації формату і позначаємо як реальні
+                this.normalizeTransactions();
+
+                // 6. Сортуємо транзакції за часом (найновіші спочатку)
+                this.transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                console.log(`WINIX: Завантажено ${this.transactions.length} транзакцій`);
+
+                // 7. Зберігаємо транзакції в localStorage для наступного використання
+                this.saveTransactions();
+            },
+
+            // Нормалізація транзакцій для уніфікації формату
+            normalizeTransactions: function() {
+                this.transactions = this.transactions.map(tx => {
+                    // Переконуємося, що кожна транзакція має всі необхідні поля
+                    return {
+                        id: tx.id || this.generateId(),
+                        type: tx.type || this.TYPES.RECEIVE,
+                        amount: parseFloat(tx.amount) || 0,
+                        description: tx.description || this.getDefaultDescription(tx.type),
+                        timestamp: tx.timestamp || new Date().toISOString(),
+                        status: tx.status || this.STATUSES.COMPLETED,
+                        isReal: true // Позначаємо всі як реальні
+                    };
+                });
+
+                // Фільтруємо транзакції з нульовою або від'ємною сумою
+                this.transactions = this.transactions.filter(tx => {
+                    return tx.amount > 0 && tx.id && tx.type;
+                });
+            },
+
+            // Збереження транзакцій в localStorage
+            saveTransactions: function() {
+                try {
+                    localStorage.setItem('winix_transactions', JSON.stringify(this.transactions));
+                    return true;
+                } catch (error) {
+                    console.error("WINIX: Помилка при збереженні транзакцій:", error);
+                    return false;
+                }
+            },
+
+            // Створення демонстраційних транзакцій
+            createDemoTransactions: function() {
+                const now = Date.now();
+                const day = 24 * 60 * 60 * 1000; // 1 день у мілісекундах
+
+                this.transactions = [
+                    {
+                        id: this.generateId(),
+                        type: this.TYPES.RECEIVE,
+                        amount: 100,
+                        description: 'Початкове зарахування',
+                        timestamp: new Date(now - 7 * day).toISOString(),
+                        status: this.STATUSES.COMPLETED,
+                        isReal: true
+                    },
+                    {
+                        id: this.generateId(),
+                        type: this.TYPES.STAKE,
+                        amount: 50,
+                        description: 'Стейкінг токенів',
+                        timestamp: new Date(now - 5 * day).toISOString(),
+                        status: this.STATUSES.COMPLETED,
+                        isReal: true
+                    },
+                    {
+                        id: this.generateId(),
+                        type: this.TYPES.RECEIVE,
+                        amount: 25,
+                        description: 'Нарахування винагороди',
+                        timestamp: new Date(now - 3 * day).toISOString(),
+                        status: this.STATUSES.COMPLETED,
+                        isReal: true
+                    },
+                    {
+                        id: this.generateId(),
+                        type: this.TYPES.SEND,
+                        amount: 15,
+                        description: 'Відправлення коштів',
+                        timestamp: new Date(now - 2 * day).toISOString(),
+                        status: this.STATUSES.COMPLETED,
+                        isReal: true
+                    },
+                    {
+                        id: this.generateId(),
+                        type: this.TYPES.UNSTAKE,
+                        amount: 20,
+                        description: 'Виведення зі стейкінгу',
+                        timestamp: new Date(now - day).toISOString(),
+                        status: this.STATUSES.COMPLETED,
+                        isReal: true
+                    }
+                ];
+            },
+
+            // Додавання нової транзакції
+            addTransaction: function(type, amount, description, timestamp = null, status = null) {
+                // Валідація суми
+                if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+                    console.error("WINIX: Некоректна сума транзакції:", amount);
+                    return false;
+                }
+
+                // Перевірка типу транзакції
+                if (!Object.values(this.TYPES).includes(type)) {
+                    console.error("WINIX: Некоректний тип транзакції:", type);
+                    return false;
+                }
+
+                // Створюємо нову транзакцію
+                const newTransaction = {
+                    id: this.generateId(),
+                    type: type,
+                    amount: parseFloat(amount),
+                    description: description || this.getDefaultDescription(type),
+                    timestamp: timestamp || new Date().toISOString(),
+                    status: status || this.STATUSES.COMPLETED,
+                    isReal: true
+                };
+
+                // Додаємо транзакцію на початок масиву (найновіші спочатку)
+                this.transactions.unshift(newTransaction);
+
+                // Зберігаємо транзакції
+                this.saveTransactions();
+
+                // Оновлюємо відображення транзакцій
+                this.displayTransactions();
+
+                return newTransaction;
+            },
+
+            // Відображення транзакцій з урахуванням поточного фільтра
+            displayTransactions: function() {
+                const listElement = document.getElementById('transaction-list');
+                if (!listElement) return;
+
+                // Очищаємо список
+                listElement.innerHTML = '';
+
+                // Отримуємо відфільтровані транзакції
+                const filteredTransactions = this.getFilteredTransactions();
+
+                // Якщо транзакцій немає, показуємо повідомлення
+                if (filteredTransactions.length === 0) {
+                    listElement.innerHTML = `
+                        <div class="empty-message">
+                            ${this.currentFilter === 'all' ?
+                              'У вас ще немає транзакцій' :
+                              'Немає транзакцій за обраним фільтром'}
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Відображаємо транзакції
+                filteredTransactions.forEach((transaction) => {
+                    const transactionElement = document.createElement('div');
+                    transactionElement.className = 'transaction-item';
+                    transactionElement.setAttribute('data-tx-id', transaction.id);
+
+                    const txText = this.getTransactionText(transaction.type);
+                    const amountClass = this.getTransactionClass(transaction.type);
+                    const amountPrefix = this.getTransactionPrefix(transaction.type);
+                    const formattedDate = this.formatDate(transaction.timestamp);
+
+                    transactionElement.innerHTML = `
+                        <div class="transaction-details">
+                            <span class="transaction-type">${txText}</span>
+                            <span class="transaction-date">${formattedDate}</span>
+                        </div>
+                        <div class="transaction-amount ${amountClass}">
+                            ${amountPrefix}${transaction.amount.toFixed(2)} $WINIX
+                        </div>
+                    `;
+
+                    // Додаємо обробник для відображення деталей
+                    transactionElement.addEventListener('click', () => {
+                        this.showTransactionDetails(transaction);
+                    });
+
+                    listElement.appendChild(transactionElement);
+                });
+            },
+
+            // Отримання відфільтрованих транзакцій
+            getFilteredTransactions: function() {
+                if (this.currentFilter === 'all') {
+                    return this.transactions;
+                }
+
+                return this.transactions.filter(tx => tx.type === this.currentFilter);
+            },
+
+            // Відображення деталей транзакції
+            showTransactionDetails: function(transaction) {
+                const modal = document.getElementById('transaction-modal');
+                const content = document.getElementById('transaction-details-content');
+
+                if (!modal || !content) return;
+
+                const txText = this.getTransactionText(transaction.type);
+                const amountClass = this.getTransactionClass(transaction.type);
+                const amountPrefix = this.getTransactionPrefix(transaction.type);
+                const formattedDate = this.formatFullDate(transaction.timestamp);
+
+                content.innerHTML = `
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">Тип:</div>
+                        <div class="detail-value">${txText}</div>
+                    </div>
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">Сума:</div>
+                        <div class="detail-value ${amountClass}">
+                            ${amountPrefix}${transaction.amount.toFixed(2)} $WINIX
+                        </div>
+                    </div>
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">Дата:</div>
+                        <div class="detail-value">${formattedDate}</div>
+                    </div>
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">Опис:</div>
+                        <div class="detail-value">${transaction.description || 'Немає опису'}</div>
+                    </div>
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">Статус:</div>
+                        <div class="detail-value">${
+                            transaction.status === this.STATUSES.COMPLETED ? 'Завершено' :
+                            transaction.status === this.STATUSES.PENDING ? 'В обробці' :
+                            transaction.status === this.STATUSES.FAILED ? 'Не вдалося' :
+                            'Завершено'
+                        }</div>
+                    </div>
+                    <div class="transaction-detail-row">
+                        <div class="detail-label">ID:</div>
+                        <div class="detail-value" style="word-break: break-all;">${transaction.id}</div>
+                    </div>
+                `;
+
+                modal.style.display = 'flex';
+
+                // Налаштовуємо закриття модального вікна
+                const closeButton = document.getElementById('close-modal');
+                if (closeButton) {
+                    closeButton.onclick = function() {
+                        modal.style.display = 'none';
+                    };
+                }
+            },
+
+            // Оновлення відображення балансу
+            updateBalanceDisplay: function() {
+                // Отримуємо баланс з різних джерел
+                let balance = 0;
+                let coins = 0;
+
+                // 1. Спробуємо отримати з localStorage
+                try {
+                    balance = parseFloat(localStorage.getItem('userTokens') || '0');
+                    coins = parseFloat(localStorage.getItem('userCoins') || '0');
+                } catch (e) {
+                    console.warn("WINIX: Помилка отримання балансу з localStorage:", e);
+                }
+
+                // 2. Спробуємо отримати з BalanceManager, якщо є
+                if (window.balanceManager && typeof window.balanceManager.getCurrentBalance === 'function') {
+                    try {
+                        const bmBalance = window.balanceManager.getCurrentBalance();
+                        if (!isNaN(bmBalance) && bmBalance > 0) {
+                            balance = bmBalance;
+                        }
+                    } catch (e) {
+                        console.warn("WINIX: Помилка отримання балансу з BalanceManager:", e);
+                    }
+                }
+
+                // 3. Якщо немає даних, спробуємо розрахувати на основі транзакцій
+                if (balance === 0 && this.transactions.length > 0) {
+                    try {
+                        balance = this.calculateBalanceFromTransactions();
+                        // Зберігаємо розрахований баланс в localStorage
+                        localStorage.setItem('userTokens', balance.toString());
+                    } catch (e) {
+                        console.warn("WINIX: Помилка розрахунку балансу з транзакцій:", e);
+                    }
+                }
+
+                // Оновлюємо відображення балансу
+                const tokenElement = document.getElementById('user-tokens');
+                const coinsElement = document.getElementById('user-coins');
+
+                if (tokenElement) {
+                    tokenElement.textContent = balance.toFixed(2);
+                }
+
+                if (coinsElement) {
+                    coinsElement.textContent = coins.toFixed(0);
+                }
+            },
+
+            // Розрахунок балансу на основі транзакцій
+            calculateBalanceFromTransactions: function() {
+                let balance = 0;
+
+                this.transactions.forEach(tx => {
+                    if (tx.type === this.TYPES.RECEIVE || tx.type === this.TYPES.UNSTAKE) {
+                        balance += tx.amount;
+                    } else if (tx.type === this.TYPES.SEND) {
+                        balance -= tx.amount;
+                    }
+                    // Стейкінг не віднімаємо, оскільки у нас є окремий баланс для стейкінгу
+                });
+
+                // Обмеження на від'ємний баланс
+                return Math.max(0, balance);
+            },
+
+            // =================== УТИЛІТАРНІ МЕТОДИ ===================
+
+            // Генерація унікального ID для транзакції
+            generateId: function() {
+                return Date.now().toString() + Math.random().toString(36).substring(2, 9);
+            },
+
+            // Отримання тексту для типу транзакції
+            getTransactionText: function(type) {
+                switch(type) {
+                    case this.TYPES.RECEIVE: return 'Отримано';
+                    case this.TYPES.SEND: return 'Надіслано';
+                    case this.TYPES.STAKE: return 'Застейкано';
+                    case this.TYPES.UNSTAKE: return 'Розстейкано';
+                    default: return 'Транзакція';
+                }
+            },
+
+            // Отримання класу для типу транзакції
+            getTransactionClass: function(type) {
+                switch(type) {
+                    case this.TYPES.RECEIVE:
+                    case this.TYPES.UNSTAKE:
+                        return 'transaction-positive';
+                    case this.TYPES.SEND:
+                        return 'transaction-negative';
+                    case this.TYPES.STAKE:
+                        return 'transaction-neutral';
+                    default:
+                        return '';
+                }
+            },
+
+            // Отримання префікса для типу транзакції
+            getTransactionPrefix: function(type) {
+                switch(type) {
+                    case this.TYPES.RECEIVE:
+                    case this.TYPES.UNSTAKE:
+                        return '+';
+                    case this.TYPES.SEND:
+                    case this.TYPES.STAKE:
+                        return '-';
+                    default:
+                        return '';
+                }
+            },
+
+            // Отримання опису за замовчуванням для типу транзакції
+            getDefaultDescription: function(type) {
+                switch(type) {
+                    case this.TYPES.RECEIVE: return 'Отримання токенів';
+                    case this.TYPES.SEND: return 'Відправлення токенів';
+                    case this.TYPES.STAKE: return 'Стейкінг токенів';
+                    case this.TYPES.UNSTAKE: return 'Виведення токенів зі стейкінгу';
+                    default: return 'Транзакція WINIX';
+                }
+            },
+
+            // Форматування дати для відображення в списку транзакцій
+            formatDate: function(timestamp) {
+                try {
+                    const date = new Date(timestamp);
+                    const now = new Date();
+                    const diff = now - date;
+                    const minutes = Math.floor(diff / 60000);
+
+                    if (minutes < 1) return 'Щойно';
+                    if (minutes < 60) return `${minutes} хв тому`;
+
+                    const hours = Math.floor(minutes / 60);
+                    if (hours < 24) return `${hours} год тому`;
+
+                    const days = Math.floor(hours / 24);
+                    if (days === 1) return 'Вчора';
+                    if (days < 30) return `${days} днів тому`;
+
+                    // Якщо більше 30 днів, показуємо дату
+                    return date.toLocaleDateString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit'
+                    });
+                } catch (e) {
+                    return 'Невідома дата';
+                }
+            },
+
+            // Повний формат дати для деталей транзакції
+            formatFullDate: function(timestamp) {
+                try {
+                    const date = new Date(timestamp);
+                    return date.toLocaleString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                } catch (e) {
+                    return 'Невідома дата';
+                }
+            },
+
+            // Показ сповіщення
+            showNotification: function(message, isSuccess = true) {
+                const modal = document.getElementById('notification-modal');
+                if (!modal) return;
+
+                modal.textContent = message;
+                modal.style.backgroundColor = isSuccess ? 'rgba(76, 175, 80, 0.9)' : 'rgba(244, 67, 54, 0.9)';
+                modal.style.display = 'block';
+
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 3000);
+            },
+
+            // Показ індикатора завантаження
+            showLoading: function(message = 'Завантаження...') {
+                const loader = document.getElementById('loading-indicator');
+                if (!loader) return;
+
+                const textElement = loader.querySelector('.loading-text');
+                if (textElement) {
+                    textElement.textContent = message;
+                }
+
+                loader.style.display = 'flex';
+                this.isLoading = true;
+            },
+
+            // Приховування індикатора завантаження
+            hideLoading: function() {
+                const loader = document.getElementById('loading-indicator');
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+                this.isLoading = false;
+            },
+
+            // Показ діалогового вікна
+            showPopup: function(message, callback) {
+                const overlay = document.createElement('div');
+                overlay.className = 'popup-overlay';
+
+                const content = document.createElement('div');
+                content.className = 'popup-content';
+
+                const p = document.createElement('p');
+                p.textContent = message;
+                content.appendChild(p);
+
+                const button = document.createElement('button');
+                button.className = 'popup-button';
+                button.textContent = 'OK';
+                button.onclick = function() {
+                    document.body.removeChild(overlay);
+                    if (callback) callback();
+                };
+
+                content.appendChild(button);
+                overlay.appendChild(content);
+                document.body.appendChild(overlay);
+            },
+
+            // =================== НАЛАШТУВАННЯ ОБРОБНИКІВ ПОДІЙ ===================
+
+            // Налаштування обробників подій
+            setupEventHandlers: function() {
+                // 1. Налаштування кнопок фільтрації
+                const filterButtons = document.querySelectorAll('.filter-button');
+                filterButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        filterButtons.forEach(b => b.classList.remove('active'));
+                        button.classList.add('active');
+
+                        this.currentFilter = button.getAttribute('data-filter') || 'all';
+                        this.displayTransactions();
+                    });
+                });
+
+                // 2. Кнопка "Назад"
+                const backButton = document.getElementById('back-button');
+                if (backButton) {
+                    backButton.addEventListener('click', () => {
+                        window.location.href = 'wallet.html';
+                    });
+                }
+
+                // 3. Кнопка закриття модального вікна
+                const closeButton = document.getElementById('close-modal');
+                if (closeButton) {
+                    closeButton.addEventListener('click', () => {
+                        const modal = document.getElementById('transaction-modal');
+                        if (modal) modal.style.display = 'none';
+                    });
+                }
+
+                // 4. Навігаційні елементи
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const section = item.getAttribute('data-section');
+
+                        switch(section) {
+                            case 'home':
+                                window.location.href = 'index.html';
+                                break;
+                            case 'earn':
+                                this.showPopup('Секція Earn буде доступна пізніше.');
+                                break;
+                            case 'referrals':
+                                window.location.href = 'referrals.html';
+                                break;
+                            case 'wallet':
+                                window.location.href = 'wallet.html';
+                                break;
+                            case 'general':
+                                this.showPopup('Секція General буде доступна пізніше.');
+                                break;
+                        }
+                    });
+                });
+            },
+
+            // Налаштування періодичних оновлень
+            setupPeriodicUpdates: function() {
+                // Періодичне оновлення балансу
+                setInterval(() => {
+                    this.updateBalanceDisplay();
+                }, 10000); // кожні 10 секунд
+            }
+        };
+
+        // Запускаємо ініціалізацію після завантаження DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            WinixTransactions.init();
+        });
+
+        // Також робимо миттєвий запуск, якщо DOM вже завантажено
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            WinixTransactions.init();
+        }
+
+        // Створюємо заглушку TransactionSystem, якщо вона не існує
+        if (!window.transactionSystem) {
+            window.transactionSystem = {
+                // Базові властивості та методи для сумісності з іншим кодом
+                hasRealTransactions: true,
+                transactions: WinixTransactions.transactions,
+
+                // Методи, які можуть викликатися з інших частин системи
+                shouldShowTestTransactions: function() { return true; },
+                toggleTestTransactions: function() { return true; },
+                updateTransactionsList: function() {
+                    WinixTransactions.displayTransactions();
+                    return true;
+                },
+
+                // Методи для отримання транзакцій
+                getRecentTransactions: function() {
+                    return WinixTransactions.transactions;
+                },
+                getTransactionsByType: function(type) {
+                    return WinixTransactions.transactions.filter(t => t.type === type);
+                },
+                getAllTransactions: function() {
+                    return WinixTransactions.transactions;
+                },
+                getTransactionById: function(id) {
+                    return WinixTransactions.transactions.find(t => t.id === id);
+                },
+
+                // Допоміжні методи
+                getTransactionText: function(type) {
+                    return WinixTransactions.getTransactionText(type);
+                },
+                getTransactionClass: function(type) {
+                    return WinixTransactions.getTransactionClass(type);
+                },
+                getTransactionAmountPrefix: function(type) {
+                    return WinixTransactions.getTransactionPrefix(type);
+                },
+                formatTransactionDate: function(timestamp, format) {
+                    return format === 'full'
+                        ? WinixTransactions.formatFullDate(timestamp)
+                        : WinixTransactions.formatDate(timestamp);
+                },
+
+                // Метод відображення деталей транзакції
+                showTransactionDetails: function(id) {
+                    const tx = this.getTransactionById(id);
+                    if (tx) WinixTransactions.showTransactionDetails(tx);
+                }
+            };
+        }
+
+        // Експортуємо об'єкт для доступу з інших скриптів
+        window.winixTransactions = WinixTransactions;
+    })();
+    </script>
+</body>
+</html>

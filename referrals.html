@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Реферальна Програма</title>
+    <!-- Підключаємо RewardSystem.js для синхронізації балансу -->
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+        }
+/* Додайте ці стилі до вашого CSS-файлу або в тег <style> */
+/* Збільшуємо відступ знизу для контейнера, щоб навігаційна панель не перекривала вміст */
+.container {
+    padding-bottom: 90px !important; /* Забезпечує простір для панелі навігації */
+}
+/* Змінюємо контейнер для списків рефералів, щоб вони не виходили за межі екрану */
+.referral-card {
+    margin-bottom: 30px !important; /* Додатковий відступ внизу */
+}
+/* Забезпечуємо, щоб прокрутка працювала правильно */
+.container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Для плавної прокрутки на iOS */
+}
+/* Додаткові стилі для випадку, якщо контенту багато */
+.referral-list {
+    max-height: 200px;  /* Обмежуємо висоту списків рефералів */
+    overflow-y: auto;   /* Додаємо прокрутку, якщо контенту багато */
+}
+/* Стилі для коректного відображення сповіщення про копіювання */
+.toast-message {
+    z-index: 1100; /* Забезпечуємо, що повідомлення з'являється над усіма елементами */
+}
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+    width: 55px; /* Збільшено на 60% з оригінальних 40px */
+    height: 55px; /* Збільшено на 60% з оригінальних 40px */
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+    animation: pulse 8s infinite ease-in-out; /* Змінено анімацію з rotate на pulse */
+}
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .referral-card {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .card-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+        }
+
+        .referral-link-container {
+            width: 95%;
+            display: flex;
+            align-items: center;
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 15px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid rgba(78, 181, 247, 0.3);
+        }
+
+        .referral-link {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 14px;
+            color: #4eb5f7;
+            padding: 0 10px;
+        }
+
+        .copy-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 10px;
+            padding: 8px 15px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .copy-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .referral-info {
+            width: 95%;
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+        }
+
+        .referral-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 12px;
+            padding: 10px;
+            min-width: 100px;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4eb5f7;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #ccc;
+            text-align: center;
+        }
+
+        .referral-levels {
+            width: 95%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .level-card {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .level-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #4eb5f7, #b251f7);
+            box-shadow: 0 0 10px rgba(78, 181, 247, 0.5);
+        }
+
+        .level-details {
+            flex: 1;
+        }
+
+        .level-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+
+        .level-description {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .level-earnings {
+            color: #4eb5f7;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: right;
+            margin-left: 10px;
+        }
+
+        .referral-list {
+            width: 95%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .referral-list-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 5px 0;
+            color: #fff;
+        }
+
+        .referral-item {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .referral-id {
+            font-size: 14px;
+            color: #ccc;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .referral-balance {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4eb5f7;
+            margin-left: 10px;
+        }
+
+        .empty-message {
+            color: #ccc;
+            font-style: italic;
+            text-align: center;
+            padding: 15px;
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стиль для повідомлень про копіювання */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="referral-card">
+            <div class="card-title">Реферальна Програма</div>
+
+            <div class="referral-link-container">
+                <div class="referral-link" id="referral-link">Завантаження посилання...</div>
+                <button class="copy-button" id="copy-button">Копіювати</button>
+            </div>
+
+            <div class="referral-info">
+                <div class="referral-stat">
+                    <div class="stat-value" id="total-referrals">0</div>
+                    <div class="stat-label">Всього рефералів</div>
+                </div>
+                <div class="referral-stat">
+                    <div class="stat-value" id="total-earnings">0</div>
+                    <div class="stat-label">Зароблено $WINIX</div>
+                </div>
+            </div>
+
+            <div class="referral-levels">
+                <div class="level-card">
+                    <div class="level-icon">1</div>
+                    <div class="level-details">
+                        <div class="level-title">Рівень 1: Прямі реферали</div>
+                        <div class="level-description">Отримуйте 10% від балансу прямих рефералів</div>
+                    </div>
+                    <div class="level-earnings" id="level1-earnings">0 $WINIX</div>
+                </div>
+
+                <div class="level-card">
+                    <div class="level-icon">2</div>
+                    <div class="level-details">
+                        <div class="level-title">Рівень 2: Непрямі реферали</div>
+                        <div class="level-description">Отримуйте 5% від балансу непрямих рефералів</div>
+                    </div>
+                    <div class="level-earnings" id="level2-earnings">0 $WINIX</div>
+                </div>
+            </div>
+
+            <!-- Список рефералів 1 рівня -->
+            <div class="referral-list">
+                <div class="referral-list-title">Ваші прямі реферали (Рівень 1)</div>
+                <div id="level1-referrals-list">
+                    <!-- Сюди буде динамічно додаватися список рефералів 1 рівня -->
+                    <div class="empty-message">У вас ще немає рефералів 1 рівня</div>
+                </div>
+            </div>
+
+            <!-- Список рефералів 2 рівня -->
+            <div class="referral-list">
+                <div class="referral-list-title">Непрямі реферали (Рівень 2)</div>
+                <div id="level2-referrals-list">
+                    <!-- Сюди буде динамічно додаватися список рефералів 2 рівня -->
+                    <div class="empty-message">У вас ще немає рефералів 2 рівня</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижня навігаційна панель, однакова для всіх сторінок -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item active" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+    </div>
+
+    <!-- Повідомлення для копіювання -->
+    <div class="toast-message" id="toast-message">Реферальне посилання скопійовано в буфер обміну!</div>
+
+<!-- Додайте цей скрипт перед закриваючим тегом </body> в файлі referrals.html -->
+<script>
+    // Покращене визначення об'єкта Telegram WebApp
+    let tg;
+    try {
+        tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) {
+            console.log("Telegram WebApp API успішно ініціалізовано");
+            tg.ready();
+            tg.expand();
+        } else {
+            console.error("Telegram WebApp API недоступний");
+        }
+    } catch (error) {
+        console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+        tg = null;
+    }
+
+    // Функція для навігації між сторінками
+    function navigateTo(page) {
+        window.location.href = page;
+    }
+
+    // Функція для показу повідомлення
+    function showToast(message) {
+        const toast = document.getElementById('toast-message');
+        if (toast) {
+            toast.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+    }
+
+    // Обробник кнопки копіювання реферального посилання
+    const copyButton = document.getElementById('copy-button');
+    if (copyButton) {
+        copyButton.addEventListener('click', function() {
+            const refLink = document.getElementById('referral-link');
+            if (refLink && refLink.textContent && refLink.textContent !== 'Завантаження посилання...') {
+                try {
+                    navigator.clipboard.writeText(refLink.textContent)
+                        .then(() => {
+                            showToast('Реферальне посилання скопійовано в буфер обміну!');
+                        })
+                        .catch(err => {
+                            console.error('Помилка копіювання: ', err);
+                            showToast('Помилка копіювання посилання!');
+                        });
+                } catch (err) {
+                    console.error('Помилка копіювання: ', err);
+                    showToast('Помилка копіювання посилання!');
+
+                    // Запасний варіант для старих браузерів
+                    try {
+                        const tempInput = document.createElement('input');
+                        tempInput.value = refLink.textContent;
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        showToast('Реферальне посилання скопійовано в буфер обміну!');
+                    } catch (e) {
+                        console.error('Запасний спосіб копіювання не спрацював: ', e);
+                    }
+                }
+            } else {
+                showToast('Немає посилання для копіювання!');
+            }
+        });
+    }
+
+    // Обробники подій для елементів навігації
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const section = item.getAttribute('data-section');
+            console.log(`Перехід до секції: ${section}`);
+
+            // Обробка для всіх секцій
+            if (section === 'home') {
+                navigateTo('index.html');
+            } else if (section === 'earn') {
+                window.location.href = 'earn.html'
+            } else if (section === 'referrals') {
+                // Вже на сторінці рефералів, нічого не робимо
+                console.log('Вже на сторінці рефералів');
+            } else if (section === 'wallet') {
+                window.location.href = 'wallet.html'
+            } else if (section === 'general') {
+            window.location.href = 'general.html';
+            }
+        });
+    });
+
+    // Функція для оновлення даних реферальної системи на сторінці
+    function updateReferralUIData() {
+        if (typeof referralSystem === 'undefined') {
+            console.error("Реферальна система не ініціалізована");
+            document.getElementById('referral-link').textContent = 'Помилка: система не доступна';
+            return;
+        }
+
+        try {
+            // Отримуємо і відображаємо реферальне посилання
+            const referralLink = referralSystem.getCurrentUserReferralLink();
+            document.getElementById('referral-link').textContent = referralLink || 'Посилання недоступне';
+
+            // Отримуємо статистику користувача
+            const stats = referralSystem.getCurrentUserStats();
+            if (stats) {
+                // Оновлюємо інформацію про рефералів
+                document.getElementById('total-referrals').textContent =
+                    (stats.totalReferrals || 0) + (stats.totalLevel2Referrals || 0);
+
+                document.getElementById('total-earnings').textContent =
+                    stats.referralEarnings && typeof stats.referralEarnings.total !== 'undefined'
+                        ? stats.referralEarnings.total.toFixed(2)
+                        : '0.00';
+
+                document.getElementById('level1-earnings').textContent =
+                    stats.referralEarnings && typeof stats.referralEarnings.level1 !== 'undefined'
+                        ? stats.referralEarnings.level1.toFixed(2) + ' $WINIX'
+                        : '0.00 $WINIX';
+
+                document.getElementById('level2-earnings').textContent =
+                    stats.referralEarnings && typeof stats.referralEarnings.level2 !== 'undefined'
+                        ? stats.referralEarnings.level2.toFixed(2) + ' $WINIX'
+                        : '0.00 $WINIX';
+
+                // Очищаємо і заповнюємо список рефералів першого рівня
+                const level1List = document.getElementById('level1-referrals-list');
+                if (level1List) {
+                    level1List.innerHTML = '';
+
+                    if (stats.level1Referrals && stats.level1Referrals.length > 0) {
+                        stats.level1Referrals.forEach(referral => {
+                            if (referral) {
+                                const referralItem = document.createElement('div');
+                                referralItem.className = 'referral-item';
+
+                                const referralId = document.createElement('div');
+                                referralId.className = 'referral-id';
+                                referralId.textContent = referral.id || 'Невідомий ID';
+
+                                const referralBalance = document.createElement('div');
+                                referralBalance.className = 'referral-balance';
+                                referralBalance.textContent =
+                                    (typeof referral.winixBalance !== 'undefined'
+                                        ? referral.winixBalance.toFixed(2)
+                                        : '0.00') + ' $WINIX';
+
+                                referralItem.appendChild(referralId);
+                                referralItem.appendChild(referralBalance);
+                                level1List.appendChild(referralItem);
+                            }
+                        });
+                    } else {
+                        level1List.innerHTML = '<div class="empty-message">У вас ще немає рефералів 1 рівня</div>';
+                    }
+                }
+
+                // Очищаємо і заповнюємо список рефералів другого рівня
+                const level2List = document.getElementById('level2-referrals-list');
+                if (level2List) {
+                    level2List.innerHTML = '';
+
+                    if (stats.level2Referrals && stats.level2Referrals.length > 0) {
+                        stats.level2Referrals.forEach(referral => {
+                            if (referral) {
+                                const referralItem = document.createElement('div');
+                                referralItem.className = 'referral-item';
+
+                                const referralId = document.createElement('div');
+                                referralId.className = 'referral-id';
+                                referralId.textContent = referral.id || 'Невідомий ID';
+
+                                const referralBalance = document.createElement('div');
+                                referralBalance.className = 'referral-balance';
+                                referralBalance.textContent =
+                                    (typeof referral.winixBalance !== 'undefined'
+                                        ? referral.winixBalance.toFixed(2)
+                                        : '0.00') + ' $WINIX';
+
+                                referralItem.appendChild(referralId);
+                                referralItem.appendChild(referralBalance);
+                                level2List.appendChild(referralItem);
+                            }
+                        });
+                    } else {
+                        level2List.innerHTML = '<div class="empty-message">У вас ще немає рефералів 2 рівня</div>';
+                    }
+                }
+            } else {
+                console.error("Не вдалося отримати статистику користувача");
+            }
+        } catch (error) {
+            console.error("Помилка при оновленні даних реферальної системи:", error);
+            document.getElementById('referral-link').textContent = 'Помилка: ' + error.message;
+        }
+    }
+
+// Ініціалізація сторінки при завантаженні
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOMContentLoaded: Ініціалізація сторінки рефералів");
+
+    // Оновлюємо відображення балансу
+    if (typeof rewardSystem !== 'undefined') {
+        rewardSystem.updateBalanceDisplay();
+    } else {
+        console.error("RewardSystem не знайдено! Перевірте підключення RewardSystem.js");
+    }
+
+    // Оновлюємо інформацію про рефералів
+    if (typeof referralSystem !== 'undefined') {
+        updateReferralUIData();
+    } else {
+        console.error("ReferralSystem не знайдено! Перевірте підключення ReferralSystem.js");
+    }
+});
+</script>
+</body>
+</html>

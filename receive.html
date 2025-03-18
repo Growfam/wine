@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Отримати</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .main-card {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4ea2c7;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .address-container {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 15px;
+            padding: 20px;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .wallet-address {
+            font-size: 16px;
+            color: #fff;
+            text-align: center;
+            word-break: break-all;
+            margin-bottom: 15px;
+            background: rgba(10, 20, 40, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .user-id-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00C9A7;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.3);
+        }
+
+        .copy-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 20px;
+            padding: 12px 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .copy-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .copy-icon {
+            width: 20px;
+            height: 20px;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 5;
+        }
+
+        .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .back-button:active {
+            transform: scale(0.98);
+        }
+
+        .info-section {
+            background: rgba(20, 30, 60, 0.5);
+            border-radius: 15px;
+            padding: 15px;
+            width: 90%;
+            text-align: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .info-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4ea2c7;
+        }
+
+        .info-text {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #ddd;
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стилі для сповіщень */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-card">
+            <button class="back-button" id="back-button">←</button>
+
+            <div class="page-title">Отримати $WINIX</div>
+
+            <div class="address-container">
+                <div class="info-title">Ваш ID для отримання:</div>
+                <div class="user-id-display" id="user-id">12345678</div>
+                <button class="copy-button" id="copy-button">
+                    <span class="copy-icon"></span>
+                    Копіювати ID
+                </button>
+            </div>
+
+            <div class="info-section">
+                <div class="info-title">Як отримати $WINIX</div>
+                <div class="info-text">
+                    Поділіться своїм ID з відправником для отримання токенів.
+                    $WINIX можна отримувати тільки всередині цього додатку.
+                    Після підтвердження транзакції, токени будуть автоматично
+                    зараховані на ваш баланс. Транзакції зазвичай підтверджуються
+                    протягом кількох хвилин.
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижня навігаційна панель -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item active" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+
+        <!-- Сповіщення про копіювання -->
+        <div class="notification" id="notification">ID скопійовано!</div>
+    </div>
+
+    <script>
+        // Ініціалізація Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+            } else {
+                console.log("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.log("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(page) {
+            window.location.href = page;
+        }
+
+        // Функція для відображення сповіщення
+        function showNotification(message, duration = 2000) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, duration);
+        }
+
+        // Функція для отримання ID користувача
+        function getUserId() {
+            // Спробуємо отримати ID з Telegram WebApp
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+                return tg.initDataUnsafe.user.id.toString();
+            }
+
+            // Спробуємо отримати з WalletSystem
+            if (typeof walletSystem !== 'undefined' && walletSystem.userData && walletSystem.userData.userId) {
+                return walletSystem.userData.userId;
+            }
+
+            // Спробуємо отримати зі сховища
+            const storedUserId = localStorage.getItem('winix_user_id');
+            if (storedUserId) {
+                return storedUserId;
+            }
+
+            // Створюємо випадковий ID для демонстрації
+            const randomId = Math.floor(1000000 + Math.random() * 9000000).toString();
+            localStorage.setItem('winix_user_id', randomId);
+            return randomId;
+        }
+
+        // Обробник кнопки "Назад"
+        document.getElementById('back-button').addEventListener('click', function() {
+            navigateTo('wallet.html');
+        });
+
+        // Обробник кнопки копіювання ID
+        document.getElementById('copy-button').addEventListener('click', function() {
+            const userId = document.getElementById('user-id').textContent;
+
+            // Копіювання тексту в буфер обміну
+            navigator.clipboard.writeText(userId)
+                .then(() => {
+                    showNotification('ID скопійовано!');
+                })
+                .catch(err => {
+                    console.error('Помилка копіювання: ', err);
+                    showNotification('Помилка копіювання ID');
+                });
+        });
+
+        // Обробники для елементів навігації
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const section = item.getAttribute('data-section');
+                console.log(`Перехід до секції: ${section}`);
+
+                // Обробка для всіх секцій
+                switch(section) {
+                    case 'home':
+                        navigateTo('index.html');
+                        break;
+                    case 'earn':
+                        window.location.href = 'earn.html'
+                        break;
+                    case 'referrals':
+                        navigateTo('referrals.html');
+                        break;
+                    case 'wallet':
+                        navigateTo('wallet.html');
+                        break;
+                    case 'general':
+                        window.location.href = 'general.html';
+                        break;
+                }
+            });
+        });
+
+        // Ініціалізація сторінки при завантаженні
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOMContentLoaded: Ініціалізація сторінки отримання");
+
+            // Встановлюємо стартовий баланс для демонстрації, якщо він не існує
+            if (!localStorage.getItem('userTokens')) {
+                localStorage.setItem('userTokens', '0');
+            }
+
+            if (!localStorage.getItem('userCoins')) {
+                localStorage.setItem('userCoins', '0');
+            }
+
+            // Оновлюємо відображення балансу
+            const tokensBalance = parseFloat(localStorage.getItem('userTokens') || 0);
+            const coinsBalance = parseFloat(localStorage.getItem('userCoins') || 0);
+
+            document.getElementById('user-tokens').textContent = tokensBalance.toFixed(2);
+            document.getElementById('user-coins').textContent = coinsBalance.toFixed(2);
+
+            // Отримуємо та показуємо ID користувача
+            const userId = getUserId();
+            document.getElementById('user-id').textContent = userId;
+
+            // Оновлюємо відображення через системи, якщо вони доступні
+            if (typeof rewardSystem !== 'undefined') {
+                rewardSystem.updateBalanceDisplay();
+            }
+
+            if (typeof walletSystem !== 'undefined') {
+                walletSystem.updateBalanceDisplay();
+            }
+        });
+    </script>
+</body>
+</html>

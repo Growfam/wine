@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Надіслати</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .main-card {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 550px;
+            padding: 25px 20px;
+            margin: 10px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4ea2c7;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-container {
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 16px;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .form-input {
+            background: rgba(20, 30, 60, 0.7);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            border-radius: 10px;
+            padding: 12px 15px;
+            color: white;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.5);
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.3);
+        }
+
+        .amount-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .max-button {
+            position: absolute;
+            right: 10px;
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .max-button:active {
+            transform: scale(0.95);
+        }
+
+        .available-balance {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .send-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 15px;
+            padding: 14px 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .send-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .back-button {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 5;
+        }
+
+        .back-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .back-button:active {
+            transform: scale(0.98);
+        }
+
+        .info-section {
+            background: rgba(20, 30, 60, 0.5);
+            border-radius: 15px;
+            padding: 15px;
+            width: 90%;
+            text-align: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            margin-top: 15px;
+        }
+
+        .info-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4ea2c7;
+        }
+
+        .info-text {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #ddd;
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стилі для модальних вікон */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-container {
+            width: 85%;
+            max-width: 350px;
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 201, 167, 0.3);
+            border: 1px solid rgba(0, 201, 167, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-container {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 500;
+            text-align: center;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .modal-content {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .modal-button {
+            flex: 1;
+            height: 45px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .cancel-button {
+            background: rgba(30, 39, 70, 0.6);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .confirm-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-button:active {
+            transform: scale(0.97);
+        }
+
+        /* Стилі для сповіщень */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .notification.show {
+            opacity: 1;
+        }
+
+        .notification.error {
+            background: rgba(201, 0, 0, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-card">
+            <button class="back-button" id="back-button">←</button>
+            
+            <div class="page-title">Надіслати $WINIX</div>
+
+            <div class="form-container">
+                <div class="form-group">
+                    <label for="recipient-id" class="form-label">ID отримувача:</label>
+                    <input type="text" id="recipient-id" class="form-input" placeholder="Введіть ID отримувача">
+                </div>
+
+                <div class="form-group">
+                    <label for="amount" class="form-label">Сума $WINIX:</label>
+                    <div class="amount-group">
+                        <input type="number" id="amount" class="form-input" placeholder="0.00" step="0.01" min="0">
+                        <button class="max-button" id="max-button">MAX</button>
+                    </div>
+                    <div class="available-balance" id="available-balance">Доступно: 0.00 $WINIX</div>
+                </div>
+
+                <button class="send-button" id="send-button">Надіслати</button>
+            </div>
+
+            <div class="info-section">
+                <div class="info-title">Про надсилання $WINIX</div>
+                <div class="info-text">
+                    Щоб надіслати $WINIX, введіть ID отримувача та суму, яку бажаєте відправити.
+                    Перевірте дані перед підтвердженням. Надсилання можливе тільки в межах цього
+                    додатку. Транзакції зазвичай підтверджуються протягом кількох хвилин.
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижня навігаційна панель -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item active" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+
+        <!-- Модальне вікно підтвердження -->
+        <div class="modal-overlay" id="confirmation-modal">
+            <div class="modal-container">
+                <div class="modal-title">Підтвердження надсилання</div>
+                <div class="modal-content" id="confirmation-content">
+                    Ви бажаєте надіслати 0.00 $WINIX користувачу з ID: 123456?
+                </div>
+                <div class="modal-buttons">
+                    <button class="modal-button cancel-button" id="cancel-button">Скасувати</button>
+                    <button class="modal-button confirm-button" id="confirm-button">Підтвердити</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Сповіщення -->
+        <div class="notification" id="notification">Надіслано успішно!</div>
+    </div>
+
+    <script>
+        // Ініціалізація Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+            } else {
+                console.log("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.log("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(page) {
+            window.location.href = page;
+        }
+
+        // Функція для відображення сповіщення
+        function showNotification(message, isError = false, duration = 2500) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.remove('error');
+            
+            if (isError) {
+                notification.classList.add('error');
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, duration);
+        }
+
+        // Функція для показу модального вікна підтвердження
+        function showConfirmationModal(recipientId, amount) {
+            const modal = document.getElementById('confirmation-modal');
+            const content = document.getElementById('confirmation-content');
+            
+            content.textContent = `Ви бажаєте надіслати ${amount} $WINIX користувачу з ID: ${recipientId}?`;
+            modal.classList.add('show');
+        }
+
+        // Функція для приховування модального вікна
+        function hideConfirmationModal() {
+            const modal = document.getElementById('confirmation-modal');
+            modal.classList.remove('show');
+        }
+
+        // Функція для надсилання токенів
+        function sendTokens(recipientId, amount) {
+            // Перевірка наявності WalletSystem
+            if (typeof walletSystem === 'undefined' || !walletSystem.sendTokens) {
+                console.error("WalletSystem не знайдено або не має методу sendTokens");
+                return { success: false, message: "Помилка системи гаманця" };
+            }
+            
+            try {
+                // Спроба надіслати токени через WalletSystem
+                const result = walletSystem.sendTokens(recipientId, amount);
+                return result;
+            } catch (error) {
+                console.error("Помилка при надсиланні токенів:", error.message);
+                return { success: false, message: "Помилка при надсиланні токенів" };
+            }
+        }
+
+        // Функція для перевірки валідності введених даних
+        function validateSendForm() {
+            const recipientId = document.getElementById('recipient-id').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            const balance = parseFloat(localStorage.getItem('userTokens') || 0);
+            
+            if (!recipientId) {
+                showNotification("Введіть ID отримувача", true);
+                return false;
+            }
+            
+            if (isNaN(amount) || amount <= 0) {
+                showNotification("Введіть коректну суму", true);
+                return false;
+            }
+            
+            if (amount > balance) {
+                showNotification("Недостатньо коштів на балансі", true);
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Функція для обробки надсилання
+        function handleSend() {
+            // Валідація форми
+            if (!validateSendForm()) {
+                return;
+            }
+            
+            const recipientId = document.getElementById('recipient-id').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            
+            // Показуємо модальне вікно підтвердження
+            showConfirmationModal(recipientId, amount.toFixed(2));
+        }
+
+        // Функція для підтвердження надсилання
+        function confirmSend() {
+            const recipientId = document.getElementById('recipient-id').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            
+            // Приховуємо модальне вікно
+            hideConfirmationModal();
+            
+            // Для демонстрації - імітуємо успішне надсилання
+            if (typeof walletSystem === 'undefined' || !walletSystem.sendTokens) {
+                // Якщо WalletSystem не доступний, просто зменшуємо баланс для демонстрації
+                const currentBalance = parseFloat(localStorage.getItem('userTokens') || 0);
+                const newBalance = Math.max(0, currentBalance - amount);
+                localStorage.setItem('userTokens', newBalance.toString());
+                
+                // Оновлюємо відображення балансу
+                document.getElementById('user-tokens').textContent = newBalance.toFixed(2);
+                document.getElementById('available-balance').textContent = `Доступно: ${newBalance.toFixed(2)} $WINIX`;
+                
+                // Показуємо сповіщення про успішне надсилання
+                showNotification(`Успішно надіслано ${amount.toFixed(2)} $WINIX`);
+                
+                // Очищаємо форму
+                document.getElementById('recipient-id').value = '';
+                document.getElementById('amount').value = '';
+                
+                return;
+            }
+            
+            // Якщо WalletSystem доступний, використовуємо його для надсилання
+            const result = sendTokens(recipientId, amount);
+            
+            if (result.success) {
+                showNotification(result.message || `Успішно надіслано ${amount.toFixed(2)} $WINIX`);
+                
+                // Очищаємо форму
+                document.getElementById('recipient-id').value = '';
+                document.getElementById('amount').value = '';
+                
+                // Оновлюємо баланс
+                if (typeof walletSystem !== 'undefined') {
+                    walletSystem.updateBalanceDisplay();
+                }
+            } else {
+                showNotification(result.message || "Помилка при надсиланні", true);
+            }
+        }
+
+        // Обробник кнопки "Назад"
+        document.getElementById('back-button').addEventListener('click', function() {
+            navigateTo('wallet.html');
+        });
+
+        // Обробник кнопки MAX
+        document.getElementById('max-button').addEventListener('click', function() {
+            const balance = parseFloat(localStorage.getItem('userTokens') || 0);
+            document.getElementById('amount').value = balance.toFixed(2);
+        });
+
+        // Обробник кнопки "Надіслати"
+        document.getElementById('send-button').addEventListener('click', handleSend);
+
+        // Обробники модального вікна
+        document.getElementById('cancel-button').addEventListener('click', hideConfirmationModal);
+        document.getElementById('confirm-button').addEventListener('click', confirmSend);
+
+        // Обробники для елементів навігації
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const section = item.getAttribute('data-section');
+                console.log(`Перехід до секції: ${section}`);
+
+                // Обробка для всіх секцій
+                switch(section) {
+                    case 'home':
+                        navigateTo('index.html');
+                        break;
+                    case 'earn':
+                        window.location.href = 'earn.html'
+                        break;
+                    case 'referrals':
+                        navigateTo('referrals.html');
+                        break;
+                    case 'wallet':
+                        navigateTo('wallet.html');
+                        break;
+                    case 'general':
+                        window.location.href = 'general.html';
+                        break;
+
+                }
+            });
+        });
+
+        // Ініціалізація сторінки при завантаженні
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOMContentLoaded: Ініціалізація сторінки надсилання");
+
+            // Встановлюємо стартовий баланс для демонстрації, якщо він не існує
+            if (!localStorage.getItem('userTokens')) {
+                localStorage.setItem('userTokens', '0');
+            }
+
+            if (!localStorage.getItem('userCoins')) {
+                localStorage.setItem('userCoins', '0');
+            }
+
+            // Оновлюємо відображення балансу
+            const tokensBalance = parseFloat(localStorage.getItem('userTokens') || 0);
+            const coinsBalance = parseFloat(localStorage.getItem('userCoins') || 0);
+
+            document.getElementById('user-tokens').textContent = tokensBalance.toFixed(2);
+            document.getElementById('user-coins').textContent = coinsBalance.toFixed(2);
+            document.getElementById('available-balance').textContent = `Доступно: ${tokensBalance.toFixed(2)} $WINIX`;
+
+            // Оновлюємо відображення через системи, якщо вони доступні
+            if (typeof rewardSystem !== 'undefined') {
+                rewardSystem.updateBalanceDisplay();
+            }
+
+            if (typeof walletSystem !== 'undefined') {
+                walletSystem.updateBalanceDisplay();
+
+                // Оновлюємо доступний баланс, якщо WalletSystem доступний
+                const balance = walletSystem.getBalance();
+                document.getElementById('available-balance').textContent = `Доступно: ${balance.toFixed(2)} $WINIX`;
+            }
+
+            // Додаємо обробник для поля суми, щоб перевіряти валідність при введенні
+            const amountInput = document.getElementById('amount');
+            amountInput.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                const balance = parseFloat(localStorage.getItem('userTokens') || 0);
+
+                if (value > balance) {
+                    this.classList.add('error');
+                } else {
+                    this.classList.remove('error');
+                }
+            });
+
+            // Перевіряємо наявність стейкінгу, щоб показати правильний баланс
+            if (typeof window.stakingSystem !== 'undefined') {
+                try {
+                    const stakingData = window.stakingSystem.getStakingDisplayData();
+
+                    // Якщо є активний стейкінг, оновлюємо баланс
+                    if (stakingData && stakingData.hasActiveStaking) {
+                        const currentBalance = parseFloat(localStorage.getItem('userTokens') || 0);
+                        if (currentBalance > 0) {
+                            // Синхронізуємо з фактичним балансом
+                            console.log("Є активний стейкінг, синхронізуємо баланс");
+                            localStorage.setItem('userTokens', '0');
+                            document.getElementById('user-tokens').textContent = "0.00";
+                            document.getElementById('available-balance').textContent = "Доступно: 0.00 $WINIX";
+                        }
+                    }
+                } catch (error) {
+                    console.log("Помилка при перевірці стейкінгу:", error.message);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Telegram Mini App</title>
+    <!-- Підключаємо RewardSystem.js для синхронізації балансу між сторінками -->
+    <script src="/static/js/winix-core.js"></script>
+    <script src="/static/js/winix-connector.js"></script>
+<style>
+    .nav-item.active .icon-wrapper {
+    background: rgba(2, 234, 163, 0.3);
+    box-shadow: 0 0 15px rgba(29, 244, 208, 0.5);
+}
+
+/* Невелике збільшення яскравості іконки при активності */
+.nav-item.active img {
+    filter: brightness(1.2) invert(1);
+}.nav-item.active .icon-wrapper {
+     background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+}
+
+/* Невелике збільшення яскравості іконки при активності */
+.nav-item.active img {
+    filter: brightness(1.2) invert(1);
+}
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+        }
+
+        .header .token-icon {
+    width: 55px; /* Збільшено на 60% з оригінальних 40px */
+    height: 55px; /* Збільшено на 60% з оригінальних 40px */
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+    animation: pulse 8s infinite ease-in-out; /* Змінено анімацію з rotate на pulse */
+}
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', 'Montserrat', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .language-buttons {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .language-btn {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            flex: 1;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            position: relative;
+            opacity: 0.9;
+        }
+
+        .language-btn:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        .language-btn:active {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+            transform: translateY(1px) !important;
+            opacity: 0.8;
+        }
+
+        .language-btn.active {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        .task-buttons {
+            position: fixed;
+            bottom: 95px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 600px;
+            padding: 0 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 9;
+        }
+
+        .task-btn {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            position: relative;
+            color: #fff;
+            opacity: 0.9;
+        }
+
+        .task-btn:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        .task-btn:active {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+            transform: translateY(1px) !important;
+            opacity: 0.8;
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        svg defs {
+            position: absolute;
+        }
+
+        /* Контейнер для сітки каналів */
+        .channels-container {
+            width: 100%;
+            max-width: 550px;
+            padding: 5px 15px;
+            box-sizing: border-box;
+            height: 270px;
+        }
+
+        /* Сітка каналів */
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 550px;
+        }
+
+        /* Стилі для окремого елемента каналу */
+        .channel-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.7), rgba(15, 52, 96, 0.7));
+            border-radius: 12px;
+            padding: 6px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            height: 80px;
+        }
+
+        .channel-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(0, 201, 167, 0.1), transparent);
+            z-index: 0;
+            border-radius: 12px;
+        }
+
+        .channel-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 15px rgba(0, 201, 167, 0.4);
+        }
+
+        .channel-item:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Контейнер для зображення каналу */
+        .channel-image-container {
+            width: 65px;
+            height: 65px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 0 5px rgba(0, 201, 167, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(26, 26, 46, 0.5);
+        }
+
+        /* Зображення каналу */
+        .channel-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .channel-item:hover .channel-image {
+            transform: scale(1.05);
+        }
+
+        /* Назва каналу */
+        .channel-name {
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        @media (max-width: 400px) {
+            .channels-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .channels-container {
+                height: 270px;
+            }
+        }
+
+        iframe {
+            margin: 0 auto;
+            display: block;
+        }
+
+        /* Стилі для повідомлення про нагороду */
+        .reward-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 1;
+            transition: opacity 0.5s;
+        }
+    </style>
+    <svg style="position: absolute;">
+        <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#1A1A2E" />
+                <stop offset="50%" stop-color="#0F3460" />
+                <stop offset="100%" stop-color="#00C9A7" />
+            </linearGradient>
+        </defs>
+    </svg>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="language-buttons">
+            <button class="language-btn active">Giveaway</button>
+            <button class="language-btn">Folder</button>
+            <button class="language-btn">Roulette</button>
+        </div>
+
+        <!-- Таймер -->
+        <iframe src="components/timer-widget.html" style="border: none; width: 250px; height: 250px;" scrolling="no"></iframe>
+
+        <!-- Сітка каналів -->
+        <div class="channels-container">
+            <div class="channels-grid">
+                <div class="channel-item" data-channel="WorkersCrypto" data-channel-id="channel-1">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/Workers.png" alt="Workers Crypto" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Workers Crypto</div>
+                </div>
+                <div class="channel-item" data-channel="HODL ZONE" data-channel-id="channel-2">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/hold.png" alt="HODL ZONE" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">HODL ZONE</div>
+                </div>
+                <div class="channel-item" data-channel="404CRYPTO" data-channel-id="channel-3">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/404.png" alt="404CRYPTO" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">404CRYPTO</div>
+                </div>
+                <div class="channel-item" data-channel="M O O N 🇺🇦 B A T E" data-channel-id="channel-4">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/moon.png" alt="channel-image" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">M O O N 🇺🇦 B A T E</div>
+                </div>
+                <div class="channel-item" data-channel="Cryptoshi | Crypto 🇺🇦" data-channel-id="channel-5">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/криптоші.png" alt="Channel 5" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Cryptoshi | Crypto 🇺🇦</div>
+                </div>
+                <div class="channel-item" data-channel="ATH crypto" data-channel-id="channel-6">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/ath.png" alt="Channel 6" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">ATH crypto</div>
+                </div>
+                <div class="channel-item" data-channel="Все про Тапалки🇺🇦" data-channel-id="channel-7">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/всепротапалки.png" alt="Channel 7" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Все про Тапалки🇺🇦</div>
+                </div>
+                <div class="channel-item" data-channel="InCrypto" data-channel-id="channel-8">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/in.png" alt="Channel 8" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">InCrypto</div>
+                </div>
+                <div class="channel-item" data-channel="Канал Ростіка" data-channel-id="channel-9">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/rdeni.png" alt="Channel 9" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Канал Ростіка</div>
+                </div>
+                <div class="channel-item" data-channel="Днепровский Криптан" data-channel-id="channel-10">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/dnipro.png" alt="Channel 10" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Днепровский Криптан</div>
+                </div>
+                <div class="channel-item" data-channel="Крипта скам?!" data-channel-id="channel-11">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/scam.png" alt="Channel 11" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Крипта скам?!</div>
+                </div>
+                <div class="channel-item" data-channel="Львівський Криптан" data-channel-id="channel-12">
+                    <div class="channel-image-container">
+                        <img src="ChenelPNG/львівський.png" alt="Channel 12" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
+                    </div>
+                    <div class="channel-name">Львівський Криптан</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопки -->
+        <div class="task-buttons">
+            <button class="task-btn" id="verify-btn">Verify Subscription</button>
+            <button class="task-btn" id="next-page-btn">Go to Next Page</button>
+        </div>
+
+        <!-- Навігація -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+    </div>
+    <script>
+        // Покращене визначення об'єкта Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+            } else {
+                console.error("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Список каналів та їх URL
+        const channelUrls = {
+            'WorkersCrypto': 'https://t.me/+OBGl3szKiX03YThi',
+            'HODL ZONE': 'https://t.me/+0n7X-hgd0UE3MzFh',
+            '404CRYPTO': 'https://t.me/+sj3Lg6G0mSBjYzhi',
+            'M O O N 🇺🇦 B A T E': 'https://t.me/+V7togrlpOboyOGI6',
+            'Cryptoshi | Crypto 🇺🇦': 'https://t.me/cryptoshi_crypto0',
+            'ATH crypto': 'https://t.me/ath_crypto',
+            'Все про Тапалки🇺🇦': 'https://t.me/VseProTapalki_UA',
+            'InCrypto': 'https://t.me/+A2C-S2kfqnVmM2Ri',
+            'Канал Ростіка': 'https://t.me/crypto_rostik',
+            'Днепровский Криптан': 'https://t.me/dnepr_cryptan',
+            'Крипта скам?!': 'https://t.me/cryptascam1',
+            'Львівський Криптан': 'https://t.me/lvivcriptan22'
+        };
+
+        // Функція для відкриття посилання
+        function openTelegramLink(url, channelName) {
+            console.log(`Спроба відкрити посилання: ${url} для каналу ${channelName}`);
+
+            // Перевірка, чи доступний Telegram WebApp
+            if (tg && typeof tg.openLink === 'function') {
+                try {
+                    // Використання encodeURI для кодування спеціальних символів в URL
+                    const encodedUrl = encodeURI(url);
+                    console.log(`Відкриття кодованого посилання: ${encodedUrl}`);
+                    tg.openLink(encodedUrl);
+                } catch (error) {
+                    console.error(`Помилка при відкритті посилання через Telegram WebApp: ${error.message}`);
+                    alert(`Помилка відкриття посилання для ${channelName}: ${error.message}`);
+
+                    // Спроба відкрити посилання звичайним способом як запасний варіант
+                    try {
+                        window.open(url, '_blank');
+                    } catch (e) {
+                        console.error(`Помилка при відкритті посилання через window.open: ${e.message}`);
+                    }
+                }
+            } else {
+                console.warn("Telegram WebApp API або метод openLink недоступні, використовується запасний варіант");
+
+                // Запасний варіант для тестування або коли Telegram WebApp недоступний
+                try {
+                    window.open(url, '_blank');
+                    console.log("Посилання відкрито через window.open");
+                } catch (error) {
+                    console.error(`Помилка при відкритті посилання через window.open: ${error.message}`);
+                    alert(`Помилка відкриття посилання для ${channelName}: ${error.message}`);
+                }
+            }
+        }
+
+        // Функція для переходу на сторінку папки
+        function navigateToFolderPage() {
+            console.log('Перехід на сторінку Folder');
+            window.location.href = 'folder.html';
+        }
+
+        // Обробники подій для кнопок мови
+        document.querySelectorAll('.language-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelector('.language-btn.active')?.classList.remove('active');
+                btn.classList.add('active');
+
+                // Перехід на сторінку Folder при натисканні на відповідну кнопку
+                if (btn.textContent === 'Folder') {
+                    navigateToFolderPage();
+                } else {
+                    console.log('Змінено режим на: ' + btn.textContent);
+                }
+            });
+        });
+
+        // Обробники подій для кнопок завдань
+        document.getElementById('verify-btn').addEventListener('click', () => {
+            console.log('Натиснуто кнопку: Verify Subscription');
+
+            // Перевірка підписок і нарахування винагород
+            if (typeof rewardSystem !== 'undefined') {
+                const channelItems = document.querySelectorAll('.channel-item');
+                let newSubscriptions = 0;
+
+                channelItems.forEach(item => {
+                    const channelId = item.getAttribute('data-channel-id');
+                    if (channelId && !rewardSystem.isActionCompleted(channelId)) {
+                        rewardSystem.reward(channelId, 50, 1);
+                        newSubscriptions++;
+                    }
+                });
+
+                if (newSubscriptions > 0) {
+                    console.log(`Нараховано винагороду за ${newSubscriptions} нових підписок`);
+                    alert(`Вітаємо! Ви отримали винагороду за ${newSubscriptions} нових підписок!`);
+                } else {
+                    alert('Ви вже отримали всі винагороди за підписки!');
+                }
+            } else {
+                console.error("Система винагород не знайдена");
+                alert('Перевірка підписок...');
+            }
+        });
+
+        document.getElementById('next-page-btn').addEventListener('click', () => {
+            console.log('Натиснуто кнопку: Go to Next Page');
+            navigateToFolderPage();
+        });
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        const section = item.getAttribute('data-section');
+        console.log(`Перехід до секції: ${section}`);
+
+        // Обробка для всіх секцій
+        if (section === 'home') {
+            window.location.href = 'index.html';
+        } else if (section === 'earn') {
+            window.location.href = 'earn.html'
+        } else if (section === 'referrals') {
+            window.location.href = 'referrals.html';
+        } else if (section === 'wallet') {
+            window.location.href = 'wallet.html';
+        } else if (section === 'general') {
+            window.location.href = 'general.html';
+        }
+    });
+        });
+
+        // Покращені обробники подій для елементів каналу
+        document.querySelectorAll('.channel-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const channelId = item.getAttribute('data-channel');
+                const channelName = item.querySelector('.channel-name').textContent;
+                console.log(`Клік на канал: ${channelId} (${channelName})`);
+
+                const channelUrl = channelUrls[channelId];
+                if (channelUrl) {
+                    console.log(`URL знайдено: ${channelUrl}`);
+                    openTelegramLink(channelUrl, channelName);
+                } else {
+                    console.error(`URL для каналу ${channelName} не знайдено`);
+                    alert(`Посилання для каналу ${channelName} не знайдено.`);
+                }
+            });
+        });
+
+        // Додаємо обробник помилок для всього документа
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+            return true;
+        };
+
+        // Відображаємо інформацію про середовище для налагодження
+        console.log("Інформація про середовище:");
+        console.log("User Agent:", navigator.userAgent);
+        if (tg) {
+            console.log("Telegram WebApp version:", tg.version);
+            console.log("Telegram WebApp platform:", tg.platform);
+            console.log("Telegram WebApp theme:", tg.colorScheme);
+        }
+    </script>
+
+    <!-- Оновлення балансу при завантаженні сторінки -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOMContentLoaded: Перевірка системи винагород на головній сторінці");
+
+        // Перевіряємо наявність системи винагород
+        if (typeof rewardSystem !== 'undefined') {
+            console.log("rewardSystem знайдено, оновлюємо відображення балансу");
+
+            // Оновлюємо відображення балансу
+            rewardSystem.updateBalanceDisplay();
+
+            console.log("Поточний баланс: ",
+                        rewardSystem.getTokens(), "токенів, ",
+                        rewardSystem.getCoins(), "жетонів");
+
+            console.log("Виконані дії: ", rewardSystem.getCompletedActions());
+        } else {
+            console.error("rewardSystem не знайдено! Перевірте підключення RewardSystem.js");
+        }
+    });
+    function setActiveNavigationItem() {
+    // Спочатку видаляємо клас active з усіх елементів навігації
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // Додаємо клас active для домашньої сторінки
+    document.querySelector('.nav-item[data-section="home"]').classList.add('active');
+}
+
+// Викликаємо функцію при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Встановлюємо активний елемент навігації
+    setActiveNavigationItem();
+});
+    </script>
+</body>
+</html>

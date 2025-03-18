@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Заробляй</title>
+
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            padding-bottom: 90px !important;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        /* Стилі для вкладок у категоріях завдань */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            margin: 0 0 15px 0;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 20px;
+            padding: 5px;
+            border: none;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ccc;
+            cursor: pointer;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Стилі для карток категорій */
+        .category-card {
+            background: rgba(15, 23, 42, 0.0); /* Прозорий фон */
+            border-radius: 24px;
+            width: 100%;
+            padding: 15px 0;
+            margin: 5px 0;
+            box-shadow: none; /* Видаляємо тінь */
+            border: none; /* Видаляємо рамку */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .category-card:first-of-type {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+        }
+
+        .category-title {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
+            letter-spacing: 1px;
+        }
+
+        /* Стилі для щоденного бонусу */
+        .daily-bonus {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .daily-bonus-bar {
+            width: 100%;
+            height: 110px; /* Збільшена висота */
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 20px;
+            padding: 20px 15px; /* Збільшене відступи */
+            margin: 15px 0; /* Додаємо відступи зверху та знизу */
+            position: relative;
+            overflow: visible; /* Дозволяємо контенту виходити за межі контейнера */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); /* Додаємо тінь */
+            border: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .daily-progress {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 10px;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 30px; /* Додаємо відступ знизу для шкали */
+        }
+
+        .day-marker {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            position: relative;
+            min-width: 40px; /* Забезпечуємо мінімальну ширину */
+        }
+
+        .day-circle {
+            width: 40px; /* Збільшений розмір */
+            height: 40px; /* Збільшений розмір */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px; /* Збільшений розмір шрифту */
+            background: rgba(20, 30, 60, 0.7);
+            border: 2px solid #4eb5f7;
+            margin-bottom: 10px;
+            z-index: 3;
+            box-shadow: 0 0 8px rgba(78, 181, 247, 0.3); /* Додаємо світіння */
+        }
+
+        .day-circle.active {
+            background: #4eb5f7;
+            border-color: #ffffff;
+            box-shadow: 0 0 15px rgba(78, 181, 247, 0.7);
+        }
+
+        .day-circle.completed {
+            background: #00C9A7;
+            border-color: #00C9A7;
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+        }
+
+        .day-reward {
+            font-size: 16px;
+            color: #fff;
+            position: relative;
+            z-index: 3;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.8); /* Додаємо тінь для тексту */
+        }
+
+        .progress-bar {
+            position: absolute;
+            height: 8px; /* Трохи товстіша лінія */
+            background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+            bottom: 25px; /* Розташування внизу */
+            left: 40px;
+            right: 40px; /* Використовуємо right замість width для кращого позиціонування */
+            border-radius: 10px;
+            z-index: 0;
+            box-shadow: 0 0 10px rgba(78, 181, 247, 0.5); /* Додаємо світіння */
+        }
+
+        .claim-button {
+            margin-top: 30px;
+            padding: 14px 35px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .claim-button:disabled {
+            background: linear-gradient(90deg, #1E3C5A, #344959);
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .claim-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+        }
+
+        /* Стилі для завдань */
+        .task-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .task-item {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8); /* Темніший синій фон */
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            border: none; /* Видаляємо рамку */
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .task-reward {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00C9A7;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .token-symbol {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .task-description {
+            font-size: 14px;
+            color: #ccc;
+            margin: 5px 0;
+        }
+
+        .task-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #4eb5f7;
+        }
+
+        .progress-bar-container {
+            flex: 1;
+            height: 10px;
+            background: rgba(10, 20, 40, 0.5);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+
+        .task-action {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .action-button {
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 25px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            min-width: 120px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .action-button:disabled {
+            background: #333;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .verify-button {
+            background: linear-gradient(90deg, #5E72EB, #AD6EE5);
+        }
+
+        .completed-label {
+            padding: 5px 10px;
+            background: rgba(0, 201, 167, 0.2);
+            border-radius: 10px;
+            color: #00C9A7;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* Стилі для лідерської дошки */
+        .leaderboard {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .leaderboard-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .leaderboard-item {
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .position {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            background: linear-gradient(90deg, #4eb5f7, #b251f7);
+        }
+
+        .position.top-3 {
+            background: linear-gradient(90deg, #FFD700, #FFA500);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .user-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .username {
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .referral-count {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .user-reward {
+            font-size: 16px;
+            font-weight: bold;
+            color: #00C9A7;
+        }
+
+        /* Стилі для таймерів на обмежених завданнях */
+        .timer-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            color: #FFD700;
+        }
+
+        .timer-icon {
+            font-size: 18px;
+        }
+
+        /* Стилі для спливаючих підказок */
+        .tooltip {
+            position: absolute;
+            background: rgba(10, 20, 40, 0.9);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+            max-width: 200px;
+            display: none;
+        }
+
+        /* Стилі для навігаційної панелі */
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: rgba(0, 201, 167, 0.3);
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        /* Стиль для повідомлень */
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+
+        /* Стилі для секцій контенту */
+        .content-section {
+            width: 100%;
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Перемикач категорій -->
+        <div class="tabs">
+            <div class="tab active" data-tab="social">Соціальні</div>
+            <div class="tab" data-tab="limited">Лімітовані</div>
+            <div class="tab" data-tab="partners">Партнерські</div>
+        </div>
+
+        <!-- Секція Соціальних завдань -->
+        <div class="content-section active" id="social-content">
+            <!-- Щоденний бонус -->
+            <div class="category-card">
+                <div class="category-title">Щоденний бонус</div>
+                <div class="daily-bonus">
+                    <div class="daily-bonus-bar">
+                        <div class="daily-progress">
+                            <div class="day-marker">
+                                <div class="day-circle completed">1</div>
+                                <div class="day-reward">10</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle completed">2</div>
+                                <div class="day-reward">20</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle active">3</div>
+                                <div class="day-reward">30</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle">4</div>
+                                <div class="day-reward">40</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle">5</div>
+                                <div class="day-reward">50</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle">6</div>
+                                <div class="day-reward">60</div>
+                            </div>
+                            <div class="day-marker">
+                                <div class="day-circle">7</div>
+                                <div class="day-reward">70</div>
+                            </div>
+                        </div>
+                        <div class="progress-bar" id="weekly-progress" style="width: 30%;"></div>
+                    </div>
+                    <button class="claim-button" id="claim-daily">Отримати 30 $WINIX</button>
+                </div>
+            </div>
+
+            <!-- Соціальні завдання -->
+            <div class="category-card">
+                <div class="category-title">Соціальні мережі</div>
+                <div class="task-container">
+                    <!-- Завдання Twitter -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Twitter</div>
+                            <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Підпишись на офіційний Twitter проєкту та отримай нагороду!</div>
+                        <div class="task-action">
+                            <button class="action-button" id="twitter-subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="twitter-verify">Перевірити</button>
+                        </div>
+                    </div>
+
+                    <!-- Завдання Telegram -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Telegram канал</div>
+                            <div class="task-reward">80 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Приєднайся до нашого Telegram-каналу та зароби більше!</div>
+                        <div class="task-action">
+                            <button class="action-button" id="telegram-subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="telegram-verify">Перевірити</button>
+                        </div>
+                    </div>
+
+                    <!-- Завдання YouTube -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">YouTube</div>
+                            <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Підпишись на наш YouTube-канал, щоб не пропустити оновлення!</div>
+                        <div class="task-action">
+                            <button class="action-button" id="youtube-subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="youtube-verify">Перевірити</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Реферальні завдання -->
+            <div class="category-card">
+                <div class="category-title">Реферальні завдання</div>
+                <div class="task-container">
+                    <!-- Завдання 5 друзів -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Запроси 5 друзів</div>
+                            <div class="task-reward">300 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Запроси 5 друзів через своє реферальне посилання!</div>
+                        <div class="task-progress">
+                            <div class="progress-text">0/5 друзів запрошено</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div class="task-action">
+                            <button class="action-button" id="invite-friends">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;">Виконано</div>
+                        </div>
+                    </div>
+
+                    <!-- Завдання 10 друзів -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Запроси 10 друзів</div>
+                            <div class="task-reward">700 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Запроси 10 друзів та отримай ще більше!</div>
+                        <div class="task-progress">
+                            <div class="progress-text">0/10 друзів запрошено</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div class="task-action">
+                            <button class="action-button" id="invite-friends-10">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;">Виконано</div>
+                        </div>
+                    </div>
+
+                    <!-- Завдання 25 друзів -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Запроси 25 друзів</div>
+                            <div class="task-reward">1500 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Стань лідером – запроси 25 друзів!</div>
+                        <div class="task-progress">
+                            <div class="progress-text">0/25 друзів запрошено</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div class="task-action">
+                            <button class="action-button" id="invite-friends-25">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;">Виконано</div>
+                        </div>
+                    </div>
+
+                    <!-- Завдання 100 друзів -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Запроси 100 друзів</div>
+                            <div class="task-reward">5000 <span class="token-symbol">$WINIX</span></div>
+                        </div>
+                        <div class="task-description">Епічна мета – запроси 100 друзів та отримай суперприз!</div>
+                        <div class="task-progress">
+                            <div class="progress-text">0/100 друзів запрошено</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div class="task-action">
+                            <button class="action-button" id="invite-friends-100">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;">Виконано</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Лідерська дошка -->
+            <div class="category-card">
+                <div class="category-title">Лідерська дошка</div>
+                <div class="leaderboard-title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
+                <div class="leaderboard">
+                    <!-- Перший користувач -->
+                    <div class="leaderboard-item">
+                        <div class="position top-3">1</div>
+                        <div class="user-info">
+                            <div class="username">Користувач123</div>
+                            <div class="referral-count">35 рефералів</div>
+                        </div>
+                        <div class="user-reward">1000 $WINIX</div>
+                    </div>
+
+                    <!-- Другий користувач -->
+                    <div class="leaderboard-item">
+                        <div class="position top-3">2</div>
+                        <div class="user-info">
+                            <div class="username">Winix_Fan</div>
+                            <div class="referral-count">28 рефералів</div>
+                        </div>
+                        <div class="user-reward">700 $WINIX</div>
+                    </div>
+
+                    <!-- Третій користувач -->
+                    <div class="leaderboard-item">
+                        <div class="position top-3">3</div>
+                        <div class="user-info">
+                            <div class="username">CryptoUkr</div>
+                            <div class="referral-count">22 рефералів</div>
+                        </div>
+                        <div class="user-reward">500 $WINIX</div>
+                    </div>
+
+                    <!-- Інші користувачі -->
+                    <div class="leaderboard-item">
+                        <div class="position">4</div>
+                        <div class="user-info">
+                            <div class="username">TokenMaster</div>
+                            <div class="referral-count">19 рефералів</div>
+                        </div>
+                    </div>
+
+                    <div class="leaderboard-item">
+                        <div class="position">5</div>
+                        <div class="user-info">
+                            <div class="username">BlockchainUA</div>
+                            <div class="referral-count">15 рефералів</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Секція Лімітованих завдань -->
+        <div class="content-section" id="limited-content">
+            <div class="category-card">
+                <div class="category-title">Обмежені за часом завдання</div>
+                <div class="task-container">
+                    <!-- Тут буде вміст лімітованих завдань -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Очікуйте на нові завдання</div>
+                            <div class="timer-container">
+                                <span class="timer-icon">⏰</span> Скоро
+                            </div>
+                        </div>
+                        <div class="task-description">Лімітовані завдання будуть доступні найближчим часом. Не пропустіть можливість отримати додаткові нагороди!</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Секція Партнерських завдань -->
+        <div class="content-section" id="partners-content">
+            <div class="category-card">
+                <div class="category-title">Партнерські завдання</div>
+                <div class="task-container">
+                    <!-- Тут буде вміст партнерських завдань -->
+                    <div class="task-item">
+                        <div class="task-header">
+                            <div class="task-title">Очікуйте на партнерські пропозиції</div>
+                        </div>
+                        <div class="task-description">Партнерські завдання будуть доступні найближчим часом. Слідкуйте за оновленнями!</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Нижня навігаційна панель -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item active" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+    </div>
+
+    <!-- Повідомлення для копіювання -->
+    <div class="toast-message" id="toast-message">Реферальне посилання скопійовано в буфер обміну!</div>
+
+</body>
+</html>

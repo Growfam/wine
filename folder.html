@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Telegram Mini App</title>
+    <script src="static/js/winix-core.js"></script>
+    <script src="static/js/winix-connector.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .header {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            color: #fff;
+            height: 50px;
+            margin-bottom: 15px;
+        }
+
+        .header .token-icon {
+    width: 55px; /* Збільшено на 60% з оригінальних 40px */
+    height: 55px; /* Збільшено на 60% з оригінальних 40px */
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+    animation: pulse 8s infinite ease-in-out; /* Змінено анімацію з rotate на pulse */
+}
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .header .winix-title {
+            font-family: 'SF Pro Display', 'Montserrat', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            animation: glow 11s infinite ease-in-out;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .header .balance-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-right: 5px;
+        }
+
+        .header .jeton-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: -35px;
+        }
+
+        .header .winix-balance {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header .jeton-balance .balance-value,
+        .header .winix-balance .balance-value {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header .jeton-balance .balance-label,
+        .header .winix-balance .balance-label {
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        .header .jeton-icon {
+            width: 30px;
+            height: 30px;
+            background: url('assets/житон.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .folder-card {
+            background: rgba(30, 39, 70, 0.7);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 500px;
+            padding: 30px 20px;
+            margin: 20px auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+        }
+
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(78, 110, 247, 0.2);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(78, 110, 247, 0.4);
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(78, 110, 247, 0.2);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-button:hover {
+            background: rgba(78, 110, 247, 0.4);
+        }
+
+        /* Стиль для контейнера зображення папки з градієнтом і блюром */
+        .folder-image-container {
+            width: 220px;
+            height: 220px;
+            margin: 20px 0;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Круг з градієнтним блюром навколо папки */
+        .folder-glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(25, 31, 52, 0.6);
+            filter: blur(0);
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .folder-glow::before {
+            content: '';
+            position: absolute;
+            width: 150%;
+            height: 150%;
+            top: -25%;
+            left: -25%;
+            background:
+                radial-gradient(circle at 30% 30%, transparent 0%, transparent 60%, rgba(78, 181, 247, 0.8) 70%, transparent 80%),
+                radial-gradient(circle at 70% 70%, transparent 0%, transparent 60%, rgba(178, 81, 247, 0.8) 70%, transparent 80%);
+            filter: blur(20px);
+            z-index: -1;
+            opacity: 0.6;
+            animation: rotate-glow 15s infinite linear;
+        }
+
+        @keyframes rotate-glow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Місце для зображення папки */
+        .folder-image {
+            width: 130%;
+            height: 130%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+            filter: drop-shadow(0 0 15px rgba(78, 181, 247, 0.6));
+        }
+
+        .progress-bar {
+            width: 80%;
+            height: 8px;
+            background: rgba(78, 110, 247, 0.2);
+            border-radius: 10px;
+            margin: 30px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-indicator {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 50%; /* Змініть для показу прогресу */
+            background: linear-gradient(90deg, #4eb5f7, #b251f7);
+            border-radius: 10px;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .progress-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: -6px;
+            left: 50%; /* Змініть для показу прогресу */
+            transform: translateX(-50%);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Стиль для кнопки ADD FOLDER у стилі кнопок з головної сторінки */
+        .add-folder-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 80%;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            position: relative;
+            color: #fff;
+            opacity: 0.9;
+            margin: 20px 0;
+        }
+
+        .add-folder-button:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        .add-folder-button:active {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+            transform: translateY(1px) !important;
+            opacity: 0.8;
+        }
+
+        .verify-button {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 80%;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            position: relative;
+            color: #fff;
+            opacity: 0.9;
+            margin: 20px 0;
+        }
+
+        .verify-button:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        .verify-button:active {
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+            transform: translateY(1px) !important;
+            opacity: 0.8;
+        }
+
+        .progress-dots {
+            display: flex;
+            justify-content: center;
+            width: 80%;
+            margin: 20px 0;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            margin: 0 5px;
+        }
+
+        .dot.active {
+            background: white;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .nav-bar {
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border-radius: 25px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 540px;
+            height: 60px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item img {
+            width: 35px;
+            height: 35px;
+            display: block;
+            filter: brightness(0) invert(1);
+        }
+
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Верхній блок (хедер) як на головній сторінці -->
+        <div class="header">
+            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="winix-title">WINIX</div>
+            <div class="balance-container">
+                <div class="jeton-balance">
+                    <div id="user-coins" class="balance-value">0</div>
+                    <div class="balance-label">Жетони</div>
+                    <div class="jeton-icon"></div>
+                </div>
+                <div class="winix-balance">
+                    <div id="user-tokens" class="balance-value">0</div>
+                    <div class="balance-label">$WINIX</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="folder-card">
+            <button class="back-button" id="back-button">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15 18L9 12L15 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+
+            <button class="copy-button" id="copy-button">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 9H11C9.89543 9 9 9.89543 9 11V20C9 21.1046 9.89543 22 11 22H20C21.1046 22 22 21.1046 22 20V11C22 9.89543 21.1046 9 20 9Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+
+            <!-- Новий контейнер для фото папки з градієнтом і блюром -->
+            <div class="folder-image-container" id="folder-image-container" style="cursor: pointer;">
+                <div class="folder-glow"></div>
+                <img src="assets/folder-icon.png" alt="Folder Icon" class="folder-image" onerror="this.src='https://via.placeholder.com/150?text=Folder'">
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-indicator"></div>
+                <div class="progress-marker"></div>
+            </div>
+
+            <!-- Кнопка ADD FOLDER в стилі кнопок головної сторінки -->
+            <button class="add-folder-button" id="add-folder-button">ADD FOLDER</button>
+
+            <!-- Кнопка Verify Subscription -->
+            <button class="verify-button" id="verify-subscription-btn">Verify Subscription</button>
+
+            <div class="progress-dots">
+                <div class="dot"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+
+        <!-- Нижня навігаційна панель як на головній сторінці -->
+        <div class="nav-bar">
+            <div class="nav-item" data-section="home">
+                <div class="icon-wrapper">
+                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                </div>
+                Home
+            </div>
+            <div class="nav-item" data-section="earn">
+                <div class="icon-wrapper">
+                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                </div>
+                Earn
+            </div>
+            <div class="nav-item" data-section="referrals">
+                <div class="icon-wrapper">
+                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                </div>
+                Referrals
+            </div>
+            <div class="nav-item" data-section="wallet">
+                <div class="icon-wrapper">
+                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                </div>
+                Wallet
+            </div>
+            <div class="nav-item" data-section="general">
+                <div class="icon-wrapper">
+                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                </div>
+                General
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Ініціалізація Telegram Mini App API
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+            } else {
+                console.error("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Перевірка наявності системи винагород після завантаження сторінки
+        window.onload = function() {
+            console.log("RewardSystem існує: ", typeof RewardSystem !== 'undefined');
+        }
+
+        // Обробник для кнопки "Назад"
+        document.getElementById('back-button').addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+
+        // Обробник для кнопки копіювання
+        document.getElementById('copy-button').addEventListener('click', function() {
+            // Код для копіювання відповідної інформації
+            // Наприклад, копіювання назви папки
+            navigator.clipboard.writeText('FoldernameForWinix')
+                .then(() => {
+                    alert('Назву папки скопійовано!');
+                })
+                .catch(err => {
+                    console.error('Помилка при копіюванні: ', err);
+                    alert('Не вдалося скопіювати текст');
+                });
+        });
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        const section = item.getAttribute('data-section');
+        console.log(`Перехід до секції: ${section}`);
+
+        // Обробка для всіх секцій
+        if (section === 'home') {
+            navigateTo('index.html');
+        } else if (section === 'earn') {
+            window.location.href = 'earn.html'
+        } else if (section === 'referrals') {
+            window.location.href = 'referrals.html';
+        } else if (section === 'wallet') {
+            window.location.href = 'wallet.html';
+        } else if (section === 'general') {
+            window.location.href = 'general.html';
+        }
+    });
+        });
+
+        // Додаємо обробник помилок для всього документа
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+            return true;
+        };
+
+        // Відображаємо інформацію про середовище для налагодження
+        console.log("Інформація про середовище:");
+        console.log("User Agent:", navigator.userAgent);
+        if (tg) {
+            console.log("Telegram WebApp version:", tg.version);
+            console.log("Telegram WebApp platform:", tg.platform);
+            console.log("Telegram WebApp theme:", tg.colorScheme);
+        }
+    </script>
+
+   <!-- Обробники подій для сторінки folder.html з використанням RewardSystem.js -->
+<script>
+    // Обробники подій для сторінки folder.html
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOMContentLoaded: Ініціалізація обробників подій для folder.html");
+
+        // Перевіряємо наявність системи винагород
+        if (typeof rewardSystem !== 'undefined') {
+            console.log("rewardSystem знайдено, оновлюємо відображення балансу");
+
+            // Оновлюємо відображення балансу при завантаженні сторінки
+            rewardSystem.updateBalanceDisplay();
+
+            // Якщо папка вже була додана, оновлюємо прогрес-бар
+            if (rewardSystem.isActionCompleted('create-folder')) {
+                const progressIndicator = document.querySelector('.progress-indicator');
+                const progressMarker = document.querySelector('.progress-marker');
+
+                if (progressIndicator && progressMarker) {
+                    progressIndicator.style.width = '100%';
+                    progressMarker.style.left = '100%';
+                    console.log("Прогрес-бар оновлено до 100%, папка вже була додана");
+                }
+            }
+        } else {
+            console.error("rewardSystem не знайдено! Перевірте підключення RewardSystem.js");
+        }
+
+        // Обробник для кнопки додавання папки
+        const addFolderButton = document.getElementById('add-folder-button');
+        if (addFolderButton) {
+            // Видаляємо існуючі обробники подій
+            const newAddFolderBtn = addFolderButton.cloneNode(true);
+            addFolderButton.parentNode.replaceChild(newAddFolderBtn, addFolderButton);
+
+            newAddFolderBtn.addEventListener('click', function() {
+                console.log("Натиснуто кнопку ADD FOLDER");
+
+                // Визначаємо, чи ми в Telegram
+                const isTelegramEnv = window.Telegram && window.Telegram.WebApp;
+
+                if (isTelegramEnv) {
+                    // Відкриваємо посилання для додавання папки в Telegram
+                    window.Telegram.WebApp.openLink('https://t.me/addlist/FoldernameForWinix');
+                    console.log("Відкрито посилання для додавання папки в Telegram");
+                } else {
+                    // Повідомлення для користувачів поза Telegram, але все одно даємо винагороду
+                    console.log("Не в Telegram оточенні, але нарахуємо винагороду");
+                }
+
+                // Нараховуємо винагороду за створення папки в будь-якому випадку
+                if (typeof rewardSystem !== 'undefined') {
+                    // Перевіряємо, чи вже отримували винагороду за цю дію
+                    if (!rewardSystem.isActionCompleted('create-folder')) {
+                        // Нараховуємо 250 токенів і 5 жетонів за створення папки
+                        rewardSystem.reward('create-folder', 250, 5);
+
+                        // Оновлюємо прогрес-бар
+                        const progressIndicator = document.querySelector('.progress-indicator');
+                        const progressMarker = document.querySelector('.progress-marker');
+
+                        if (progressIndicator && progressMarker) {
+                            progressIndicator.style.width = '100%';
+                            progressMarker.style.left = '100%';
+                        }
+
+                        console.log("Винагороду за створення папки нараховано");
+
+                        // Якщо ми не в Telegram, показуємо повідомлення користувачу
+                        if (!isTelegramEnv) {
+                            alert('Ви отримали 250 токенів і 5 жетонів за додавання папки!');
+                        }
+                    } else {
+                        alert('Ви вже отримали винагороду за додавання папки!');
+                        console.log("Винагороду за створення папки вже було нараховано раніше");
+                    }
+                }
+            });
+
+            // Підключаємо клік на зображення папки
+            const folderImageContainer = document.getElementById('folder-image-container');
+            if (folderImageContainer) {
+                const newFolderImageContainer = folderImageContainer.cloneNode(true);
+                folderImageContainer.parentNode.replaceChild(newFolderImageContainer, folderImageContainer);
+
+                newFolderImageContainer.addEventListener('click', function() {
+                    console.log("Клік на зображенні папки");
+                    newAddFolderBtn.click();
+                });
+
+                newFolderImageContainer.addEventListener('mouseover', function() {
+                    this.style.transform = 'scale(1.05)';
+                    this.style.transition = 'transform 0.3s ease';
+                });
+
+                newFolderImageContainer.addEventListener('mouseout', function() {
+                    this.style.transform = 'scale(1)';
+                });
+            }
+        }
+
+        // Обробник для кнопки перевірки підписок
+        const verifySubscriptionBtn = document.getElementById('verify-subscription-btn');
+        if (verifySubscriptionBtn) {
+            const newVerifyBtn = verifySubscriptionBtn.cloneNode(true);
+            verifySubscriptionBtn.parentNode.replaceChild(newVerifyBtn, verifySubscriptionBtn);
+
+            newVerifyBtn.addEventListener('click', function() {
+                console.log("Натиснуто кнопку перевірки підписок");
+
+                // Перевірка підписок (мала б виконуватись на головній сторінці)
+                if (typeof rewardSystem !== 'undefined') {
+                    // Список каналів для перевірки
+                    const channels = ['channel-1', 'channel-2', 'channel-3'];
+                    let newSubscriptions = 0;
+
+                    // Для кожного каналу перевіряємо підписку і нараховуємо винагороду
+                    channels.forEach(channel => {
+                        if (!rewardSystem.isActionCompleted(channel)) {
+                            rewardSystem.reward(channel, 50, 1);
+                            newSubscriptions++;
+                        }
+                    });
+
+                    if (newSubscriptions > 0) {
+                        console.log(`Нараховано винагороду за ${newSubscriptions} нових підписок`);
+
+                        // Оновлюємо прогрес-бар
+                        const progressIndicator = document.querySelector('.progress-indicator');
+                        const progressMarker = document.querySelector('.progress-marker');
+
+                        if (progressIndicator && progressMarker) {
+                            const currentWidth = parseFloat(progressIndicator.style.width || '50') || 50;
+                            const newWidth = Math.min(100, currentWidth + 20);
+                            progressIndicator.style.width = newWidth + '%';
+                            progressMarker.style.left = newWidth + '%';
+                        }
+                    } else {
+                        alert('Ви вже отримали всі винагороди за підписки!');
+                    }
+                }
+            });
+        }
+
+        console.log("Обробники подій для folder.html успішно ініціалізовано");
+    });
+</script>
+</body>
+</html>
