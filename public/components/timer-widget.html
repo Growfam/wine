@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Widget</title>
+    <style>
+        .timer-widget {
+            position: relative;
+            width: 250px;
+            height: 250px;
+            margin: 20px auto;
+            text-align: center;
+            z-index: 10; /* Переміщаємо на передній план */
+            background: url('таймер.png') no-repeat center center / cover; /* Повертаємо робочий шлях */
+        }
+
+        .timer-text {
+            position: absolute;
+            top: 40%; /* Зміщуємо вище, щоб звільнити місце для часу */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'SF Pro Display', 'Montserrat', sans-serif;
+            font-size: 36px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #B266FF, #00DDEB); /* Перелив від світло-фіолетового до світло-голубого */
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent; /* Робимо текст прозорим, щоб видно було градієнт */
+            text-shadow: 0 0 10px rgba(178, 102, 255, 0.8), 0 0 20px rgba(0, 221, 235, 0.5);
+            z-index: 1;
+        }
+
+        .timer-time {
+            position: absolute;
+            top: 60%; /* Розташовуємо нижче відсотків */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'SF Pro Display', 'Montserrat', sans-serif;
+            font-size: 16px; /* Маленький розмір для часу */
+            font-weight: normal;
+            background: linear-gradient(45deg, #B266FF, #00DDEB); /* Такий самий градієнт */
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 5px rgba(178, 102, 255, 0.5), 0 0 10px rgba(0, 221, 235, 0.3);
+            z-index: 1;
+            background-color: rgba(26, 26, 46, 0.7); /* Фон для квадрата */
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="timer-widget">
+        <div class="timer-text" id="timerDisplay">0%</div>
+        <div class="timer-time" id="timeDisplay">00:00:00</div>
+    </div>
+
+    <script>
+        console.log("Script loaded"); // Debug log
+
+        // Initial time for the timer (in seconds)
+        let timeLeft = 0; // Start at 0
+        let totalTime = 3600; // Example: 1 hour (3600 seconds), can be changed
+
+        function updateTimer() {
+            console.log("Updating timer"); // Debug log
+            // Calculate percentage (increases from 0% to 100%)
+            const progress = Math.min(100, Math.floor((timeLeft / totalTime) * 100));
+            document.getElementById("timerDisplay").textContent = `${progress}%`;
+
+            // Calculate remaining time (totalTime - timeLeft)
+            const timeRemaining = totalTime - timeLeft;
+            let hours = Math.floor(timeRemaining / 3600);
+            let minutes = Math.floor((timeRemaining % 3600) / 60);
+            let seconds = timeRemaining % 60;
+
+            // Add leading zeros for single-digit values
+            hours = hours < 10 ? "0" + hours : hours;
+            minutes = minutes < 10 ? "0" + minutes : minutes;
+            seconds = seconds < 10 ? "0" + seconds : seconds;
+
+            document.getElementById("timeDisplay").textContent = `${hours}:${minutes}:${seconds}`;
+
+            if (timeLeft < totalTime) {
+                timeLeft++;
+            } else {
+                document.getElementById("timerDisplay").textContent = `100%`;
+                document.getElementById("timeDisplay").textContent = `00:00:00`;
+                clearInterval(timerInterval);
+            }
+        }
+
+        // Update timer every second
+        let timerInterval = setInterval(updateTimer, 1000);
+        console.log("Timer interval set"); // Debug log
+
+        // Function to change the timer duration (can be called externally)
+        window.setTimerTime = function(newTotalTimeInSeconds) {
+            timeLeft = 0;
+            totalTime = newTotalTimeInSeconds; // Update total time
+            updateTimer();
+            console.log("Timer duration changed to " + newTotalTimeInSeconds + " seconds");
+        };
+    </script>
+</body>
+</html>

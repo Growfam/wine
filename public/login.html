@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <title>WINIX - Вхід/Реєстрація</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0;
+            background: none;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            box-sizing: border-box;
+            padding: 10px;
+            position: relative;
+            z-index: 1;
+            background: url('assets/Fon.png') no-repeat center center;
+            background-size: cover;
+            animation: backgroundShift 15s infinite linear;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        .logo-container {
+            margin-top: 40px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin-bottom: 20px;
+            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .app-title {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-shadow: 0 0 15px rgba(0, 201, 167, 0.7);
+            animation: glow 11s infinite ease-in-out;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+        }
+
+        .auth-card {
+            width: 90%;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .auth-tabs {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(78, 181, 247, 0.3);
+        }
+
+        .auth-tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #adb5bd;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .auth-tab.active {
+            color: #fff;
+        }
+
+        .auth-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .auth-content {
+            display: none;
+        }
+
+        .auth-content.active {
+            display: block;
+        }
+
+        .auth-title {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
+            letter-spacing: 1px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: #adb5bd;
+            font-weight: bold;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 15px;
+            border-radius: 15px;
+            background: rgba(20, 30, 60, 0.7);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            color: white;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #00C9A7;
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+        }
+
+        .auth-button {
+            width: 100%;
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            border-radius: 25px;
+            padding: 15px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .auth-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+        }
+
+        .auth-button:disabled {
+            background: linear-gradient(90deg, #1E3C5A, #344959);
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .error-message {
+            color: #f44336;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 15px;
+            min-height: 20px;
+        }
+
+        .recovery-options {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .divider {
+            width: 100%;
+            text-align: center;
+            position: relative;
+            margin: 25px 0;
+        }
+
+        .divider::before {
+            content: "";
+            display: block;
+            width: 100%;
+            height: 1px;
+            background: rgba(78, 181, 247, 0.3);
+            position: absolute;
+            top: 50%;
+            left: 0;
+        }
+
+        .divider-text {
+            background: rgba(15, 23, 42, 0.8);
+            padding: 0 15px;
+            position: relative;
+            color: #ccc;
+            font-weight: bold;
+        }
+
+        .recovery-button {
+            width: 100%;
+            background: rgba(20, 30, 60, 0.7);
+            border: 1px solid rgba(78, 181, 247, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            color: #f8f9fa;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .recovery-button:hover {
+            background: rgba(45, 110, 182, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .icon {
+            font-size: 18px;
+        }
+
+        .toast-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+
+        .toast-message.error {
+            background-color: rgba(244, 67, 54, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-container">
+            <img src="assets/token.png" alt="WINIX Token" class="logo" onerror="this.src='https://via.placeholder.com/120?text=WINIX'">
+            <div class="app-title">WINIX</div>
+            <div class="subtitle" id="auth-subtitle">Вхід до облікового запису</div>
+        </div>
+
+        <div class="auth-card">
+            <div class="auth-tabs">
+                <div class="auth-tab active" data-tab="login">Вхід</div>
+                <div class="auth-tab" data-tab="register">Реєстрація</div>
+            </div>
+
+            <!-- Форма входу -->
+            <div class="auth-content active" id="login-content">
+                <div class="input-group">
+                    <label class="input-label" for="login-userId">ID користувача</label>
+                    <input type="text" id="login-userId" class="input-field" placeholder="Введіть ID" autocomplete="username">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="login-password">Пароль</label>
+                    <input type="password" id="login-password" class="input-field" placeholder="Введіть пароль" autocomplete="current-password">
+                </div>
+
+                <div class="error-message" id="login-error-message"></div>
+
+                <button id="login-button" class="auth-button">Увійти</button>
+
+                <div class="divider">
+                    <span class="divider-text">або</span>
+                </div>
+
+                <div class="recovery-options">
+                    <button id="recovery-button" class="recovery-button">
+                        <span class="icon">🔑</span> Відновити через SID фразу
+                    </button>
+                </div>
+            </div>
+
+            <!-- Форма реєстрації -->
+            <div class="auth-content" id="register-content">
+                <div class="input-group">
+                    <label class="input-label" for="register-userId">Оберіть ID користувача</label>
+                    <input type="text" id="register-userId" class="input-field" placeholder="Мінімум 6 символів" autocomplete="username">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="register-name">Ваше ім'я</label>
+                    <input type="text" id="register-name" class="input-field" placeholder="Як до вас звертатися">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="register-password">Пароль</label>
+                    <input type="password" id="register-password" class="input-field" placeholder="Мінімум 6 символів" autocomplete="new-password">
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label" for="register-confirm-password">Підтвердження паролю</label>
+                    <input type="password" id="register-confirm-password" class="input-field" placeholder="Повторіть пароль" autocomplete="new-password">
+                </div>
+
+                <div class="error-message" id="register-error-message"></div>
+
+                <button id="register-button" class="auth-button">Зареєструватися</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-message" id="toast-message"></div>
+
+    <script>
+        // Додаємо змінні для Telegram інтеграції з порожніми значеннями за замовчуванням
+        let telegramUserId = null;
+        let telegramUserName = null;
+
+        // ========== СИСТЕМА КЕРУВАННЯ КОРИСТУВАЧАМИ ==========
+
+        // Клас для керування даними користувачів
+        class UserManager {
+            constructor() {
+                try {
+                    console.log("Ініціалізація UserManager");
+
+                    // Отримуємо базу користувачів з localStorage або створюємо нову
+                    let usersData = localStorage.getItem('winix_users');
+
+                    if (usersData) {
+                        try {
+                            this.users = JSON.parse(usersData);
+                            console.log("Успішно зчитано дані користувачів, кількість:", this.users.length);
+                        } catch (e) {
+                            console.error("Помилка при розборі даних користувачів:", e);
+                            this.users = [];
+                        }
+                    } else {
+                        this.users = [];
+                    }
+
+                    // Початкові демо користувачі (якщо база порожня)
+                    if (this.users.length === 0) {
+                        this.users = [
+                            { userId: "12345678", password: "winix2025", name: "WINIX User" },
+                            { userId: "87654321", password: "password123", name: "Test User" },
+                            { userId: "55555555", password: "demo1234", name: "Demo Account" }
+                        ];
+                        this.saveUsers();
+                    }
+                } catch (error) {
+                    console.error("Помилка в конструкторі UserManager:", error);
+                    this.users = [];
+                }
+            }
+
+            // Зберігає базу користувачів
+            saveUsers() {
+                try {
+                    localStorage.setItem('winix_users', JSON.stringify(this.users));
+                    return true;
+                } catch (error) {
+                    console.error("Помилка збереження бази користувачів:", error);
+                    return false;
+                }
+            }
+
+            // Перевіряє чи існує користувач з таким ID
+            userExists(userId) {
+                try {
+                    if (!userId) return false;
+                    return this.users.some(user => user.userId === userId);
+                } catch (error) {
+                    console.error("Помилка при перевірці існування користувача:", error);
+                    return false;
+                }
+            }
+
+            // Додає нового користувача
+            addUser(userId, password, name) {
+                try {
+                    if (this.userExists(userId)) {
+                        return false; // Користувач з таким ID вже існує
+                    }
+
+                    this.users.push({ userId, password, name });
+                    const result = this.saveUsers();
+
+                    if (result) {
+                        // Ініціалізуємо дані нового користувача
+                        this.initUserData(userId);
+                    }
+
+                    return result;
+                } catch (error) {
+                    console.error("Помилка при додаванні користувача:", error);
+                    return false;
+                }
+            }
+
+            // Перевіряє облікові дані користувача
+            validateUser(userId, password) {
+                try {
+                    return this.users.find(user => user.userId === userId && user.password === password);
+                } catch (error) {
+                    console.error("Помилка при валідації користувача:", error);
+                    return null;
+                }
+            }
+
+            // Ініціалізує дані нового користувача
+            initUserData(userId) {
+                try {
+                    // Початковий баланс
+                    localStorage.setItem(`${userId}_userTokens`, '100');
+                    localStorage.setItem(`${userId}_userCoins`, '0');
+
+                    // Порожній список транзакцій
+                    localStorage.setItem(`${userId}_transactions`, JSON.stringify([]));
+
+                    // Дані стейкінгу
+                    localStorage.setItem(`${userId}_userStakedTokens`, '0');
+                    localStorage.setItem(`${userId}_userStakingRewards`, '0');
+
+                    // Порожні дані стейкінгу
+                    const emptyStakingData = {
+                        hasActiveStaking: false,
+                        stakingAmount: 0,
+                        rewardPercent: 0,
+                        expectedReward: 0,
+                        period: 0,
+                        startDate: null,
+                        endDate: null,
+                        remainingDays: 0
+                    };
+                    localStorage.setItem(`${userId}_stakingData`, JSON.stringify(emptyStakingData));
+                } catch (error) {
+                    console.error("Помилка при ініціалізації даних користувача:", error);
+                }
+            }
+
+            // Встановлює поточного користувача
+            setCurrentUser(userId) {
+                try {
+                    localStorage.setItem('currentUserId', userId);
+                    localStorage.setItem('isLoggedIn', 'true');
+
+                    // Копіюємо дані користувача в загальні ключі для сумісності зі старим кодом
+                    this.syncUserData(userId);
+                } catch (error) {
+                    console.error("Помилка при встановленні поточного користувача:", error);
+                }
+            }
+
+            // Синхронізує дані користувача для сумісності зі старим кодом
+            syncUserData(userId) {
+                try {
+                    // Копіюємо всі дані користувача в загальні ключі
+                    const userTokens = localStorage.getItem(`${userId}_userTokens`);
+                    const userCoins = localStorage.getItem(`${userId}_userCoins`);
+                    const transactions = localStorage.getItem(`${userId}_transactions`);
+                    const userStakedTokens = localStorage.getItem(`${userId}_userStakedTokens`);
+                    const userStakingRewards = localStorage.getItem(`${userId}_userStakingRewards`);
+                    const stakingData = localStorage.getItem(`${userId}_stakingData`);
+
+                    if (userTokens) localStorage.setItem('userTokens', userTokens);
+                    if (userCoins) localStorage.setItem('userCoins', userCoins);
+                    if (transactions) localStorage.setItem('transactions', transactions);
+                    if (userStakedTokens) localStorage.setItem('userStakedTokens', userStakedTokens);
+                    if (userStakingRewards) localStorage.setItem('userStakingRewards', userStakingRewards);
+                    if (stakingData) localStorage.setItem('stakingData', stakingData);
+
+                    // Знаходимо і зберігаємо ім'я користувача
+                    const user = this.users.find(u => u.userId === userId);
+                    if (user) {
+                        localStorage.setItem('userName', user.name);
+                    }
+                } catch (error) {
+                    console.error("Помилка при синхронізації даних користувача:", error);
+                }
+            }
+
+            // Отримує ім'я користувача за ID
+            getUserName(userId) {
+                try {
+                    const user = this.users.find(u => u.userId === userId);
+                    return user ? user.name : 'Користувач';
+                } catch (error) {
+                    console.error("Помилка при отриманні імені користувача:", error);
+                    return 'Користувач';
+                }
+            }
+        }
+
+        // Створюємо менеджер користувачів
+        const userManager = new UserManager();
+
+        // ========== ІНТЕРФЕЙС І ВЗАЄМОДІЯ ==========
+
+        // Функція для показу сповіщення
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast-message');
+            toast.textContent = message;
+            toast.classList.add('show');
+
+            if (isError) {
+                toast.classList.add('error');
+            } else {
+                toast.classList.remove('error');
+            }
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Функція для перевірки чи користувач вже залогінений
+        function checkLoginStatus() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            if (isLoggedIn) {
+                // Якщо користувач вже залогінений, перенаправляємо на головну
+                window.location.href = 'index.html';
+            }
+        }
+
+        // Функція для входу
+        function login() {
+            let userId = document.getElementById('login-userId').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorMessage = document.getElementById('login-error-message');
+
+            // Якщо є ID користувача з Telegram, використовуємо його
+            if (telegramUserId && document.getElementById('login-userId').disabled) {
+                userId = telegramUserId;
+            }
+
+            // Перевірка введених даних
+            if (!userId || !password) {
+                errorMessage.textContent = 'Будь ласка, введіть ID та пароль';
+                return;
+            }
+
+            // Перевірка в базі користувачів
+            const user = userManager.validateUser(userId, password);
+
+            if (user) {
+                // Встановлюємо поточного користувача
+                userManager.setCurrentUser(userId);
+
+                // Показуємо сповіщення про успішний вхід
+                showToast('Вхід успішний! Перенаправлення...');
+
+                // Перенаправляємо на головну сторінку
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1500);
+            } else {
+                errorMessage.textContent = 'Невірний ID або пароль';
+                showToast('Помилка входу', true);
+            }
+        }
+
+        // Функція для реєстрації
+        function register() {
+            let userId = document.getElementById('register-userId').value.trim();
+            const name = document.getElementById('register-name').value.trim();
+            const password = document.getElementById('register-password').value;
+            const confirmPassword = document.getElementById('register-confirm-password').value;
+            const errorMessage = document.getElementById('register-error-message');
+
+            // Якщо є ID користувача з Telegram, використовуємо його
+            if (telegramUserId && document.getElementById('register-userId').disabled) {
+                userId = telegramUserId;
+            }
+
+            // Перевірка введених даних
+            if (!userId || !name || !password || !confirmPassword) {
+                errorMessage.textContent = 'Будь ласка, заповніть всі поля';
+                return;
+            }
+
+            // Якщо ID не з Telegram, перевіряємо його довжину
+            if (!telegramUserId && userId.length < 6) {
+                errorMessage.textContent = 'ID користувача має бути не менше 6 символів';
+                return;
+            }
+
+            if (password.length < 6) {
+                errorMessage.textContent = 'Пароль має бути не менше 6 символів';
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                errorMessage.textContent = 'Паролі не співпадають';
+                return;
+            }
+
+            // Перевірка чи ID вже зайнятий
+            if (userManager.userExists(userId)) {
+                errorMessage.textContent = 'Користувач з таким ID вже існує';
+                return;
+            }
+
+            // Додаємо нового користувача
+            const result = userManager.addUser(userId, password, name);
+
+            if (result) {
+                // Встановлюємо поточного користувача
+                userManager.setCurrentUser(userId);
+
+                // Показуємо сповіщення про успішну реєстрацію
+                showToast('Реєстрація успішна! Перенаправлення...');
+
+                // Перенаправляємо на головну сторінку
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1500);
+            } else {
+                errorMessage.textContent = 'Помилка реєстрації. Спробуйте ще раз';
+                showToast('Помилка реєстрації', true);
+            }
+        }
+
+        // Функція для перемикання між вкладками входу та реєстрації
+        function switchTab(tabName) {
+            try {
+                console.log(`Перемикання на вкладку: ${tabName}`);
+
+                // Деактивуємо всі вкладки
+                document.querySelectorAll('.auth-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+
+                // Деактивуємо весь контент
+                document.querySelectorAll('.auth-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+
+                // Активуємо потрібну вкладку
+                const activeTab = document.querySelector(`.auth-tab[data-tab="${tabName}"]`);
+                if (activeTab) {
+                    activeTab.classList.add('active');
+                } else {
+                    console.error(`Вкладка ${tabName} не знайдена`);
+                    return;
+                }
+
+                // Активуємо потрібний контент
+                const activeContent = document.getElementById(`${tabName}-content`);
+                if (activeContent) {
+                    activeContent.classList.add('active');
+                } else {
+                    console.error(`Контент ${tabName}-content не знайдено`);
+                    return;
+                }
+
+                // Змінюємо підзаголовок
+                const subtitle = document.getElementById('auth-subtitle');
+                if (subtitle) {
+                    if (tabName === 'login') {
+                        subtitle.textContent = 'Вхід до облікового запису';
+                    } else {
+                        subtitle.textContent = 'Створення нового облікового запису';
+                    }
+                }
+
+                // Очищаємо повідомлення про помилки
+                const loginError = document.getElementById('login-error-message');
+                const registerError = document.getElementById('register-error-message');
+
+                if (loginError) loginError.textContent = '';
+                if (registerError) registerError.textContent = '';
+
+                console.log(`Перемикання на вкладку ${tabName} завершено`);
+            } catch (error) {
+                console.error(`Помилка при перемиканні на вкладку ${tabName}:`, error);
+            }
+        }
+
+        // Функція для безпечного встановлення обробника події
+        function safeAddEventListener(elementId, eventType, handler) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.addEventListener(eventType, handler);
+                console.log(`Обробник події ${eventType} успішно встановлено для елемента ${elementId}`);
+            } else {
+                console.error(`Елемент з ID ${elementId} не знайдено, неможливо встановити обробник події ${eventType}`);
+            }
+        }
+
+        // Ініціалізація сторінки
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                console.log("Початок ініціалізації сторінки");
+
+                // Перевіряємо чи користувач вже залогінений
+                checkLoginStatus();
+
+                console.log("Статус входу перевірено");
+
+                // Якщо отримано ID користувача з Telegram, перевіряємо чи зареєстрований користувач
+                if (telegramUserId) {
+                    console.log("Використовується ID Telegram:", telegramUserId);
+
+                    // Заповнюємо поля форми реєстрації
+                    const registerUserIdInput = document.getElementById('register-userId');
+                    if (registerUserIdInput) {
+                        registerUserIdInput.value = telegramUserId;
+                        registerUserIdInput.disabled = true; // Блокуємо поле, оскільки ID фіксований
+                        console.log("Заповнено поле ID для реєстрації");
+                    }
+
+                    // Якщо є ім'я, заповнюємо поле імені
+                    if (telegramUserName) {
+                        const nameInput = document.getElementById('register-name');
+                        if (nameInput) {
+                            nameInput.value = telegramUserName;
+                            console.log("Заповнено поле імені");
+                        }
+                    }
+
+                    // Перевіряємо чи користувач вже зареєстрований
+                    if (userManager.userExists(telegramUserId)) {
+                        // Якщо користувач вже зареєстрований, перемикаємося на вкладку входу
+                        switchTab('login');
+
+                        // Заповнюємо поле ID користувача на формі входу
+                        const loginUserIdInput = document.getElementById('login-userId');
+                        if (loginUserIdInput) {
+                            loginUserIdInput.value = telegramUserId;
+                            loginUserIdInput.disabled = true; // Блокуємо поле, оскільки ID фіксований
+                        }
+
+                        // Встановлюємо фокус на поле паролю
+                        document.getElementById('login-password').focus();
+                    } else {
+                        // Якщо користувач ще не зареєстрований, перемикаємося на вкладку реєстрації
+                        switchTab('register');
+                    }
+                }
+
+                console.log("Налаштування обробників подій для кнопок");
+
+                // Обробники для вкладок - використовуємо делегування подій для уникнення помилок
+                const tabsContainer = document.querySelector('.auth-tabs');
+                if (tabsContainer) {
+                    tabsContainer.addEventListener('click', function(e) {
+                        const tab = e.target.closest('.auth-tab');
+                        if (tab) {
+                            const tabName = tab.getAttribute('data-tab');
+                            switchTab(tabName);
+                        }
+                    });
+                    console.log("Встановлено обробник для вкладок");
+                }
+
+                // Безпечно додаємо обробники для кнопок
+                safeAddEventListener('login-button', 'click', function() {
+                    console.log("Клік на кнопку входу");
+                    login();
+                });
+
+                safeAddEventListener('register-button', 'click', function() {
+                    console.log("Клік на кнопку реєстрації");
+                    register();
+                });
+
+                safeAddEventListener('recovery-button', 'click', function() {
+                    console.log("Клік на кнопку відновлення");
+                    window.location.href = 'restore.html';
+                });
+
+                // Додаємо обробники для клавіші Enter в полях вводу
+                safeAddEventListener('login-password', 'keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        login();
+                    }
+                });
+
+                safeAddEventListener('register-confirm-password', 'keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        register();
+                    }
+                });
+
+                console.log("Ініціалізація сторінки завершена");
+            } catch (error) {
+                console.error("Помилка при ініціалізації сторінки:", error);
+                alert("Виникла помилка при завантаженні сторінки. Будь ласка, оновіть сторінку.");
+            }
+        });
+    </script>
+</body>
+</html>
