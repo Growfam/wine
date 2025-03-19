@@ -2,23 +2,51 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WINIX - Гаманець</title>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
     <style>
+        :root {
+            /* Основні кольори для теми */
+            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            --secondary-color: #4eb5f7;
+            --bg-card: rgba(30, 39, 70, 0.8);
+            --bg-item: rgba(20, 30, 60, 0.7);
+            --bg-active: rgba(0, 201, 167, 0.3);
+            --text-color: #fff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --glow-color: rgba(0, 201, 167, 0.5);
+            --border-color: rgba(78, 181, 247, 0.2);
+            --positive-color: #4caf50;
+            --negative-color: #f44336;
+            --neutral-color: #9e9e9e;
+
+            /* Основні розміри */
+            --container-max-width: 600px;
+            --header-height: 3.5rem;
+            --nav-height: 4.5rem;
+            --bottom-padding: 6rem;
+            --card-border-radius: 1.5rem;
+            --item-border-radius: 0.75rem;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: #fff;
+            color: var(--text-color);
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: center;
+            width: 100%;
             height: 100vh;
-            max-width: 600px;
-            margin: 0 auto;
             padding: 0;
             background: none;
         }
@@ -26,9 +54,9 @@
         .container {
             width: 100%;
             height: 100%;
-            max-width: 600px;
+            max-width: var(--container-max-width);
             box-sizing: border-box;
-            padding: 10px;
+            padding: 0.625rem;
             position: relative;
             z-index: 1;
             background: url('assets/Fon.png') no-repeat center center;
@@ -37,10 +65,26 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            overflow-y: auto;
-            padding-bottom: 90px !important; /* Забезпечує простір для панелі навігації */
-            -webkit-overflow-scrolling: touch; /* Для плавної прокрутки на iOS */
+            gap: 0.9375rem;
+            overflow-y: auto; /* Додаємо вертикальну прокрутку */
+            padding-bottom: var(--bottom-padding) !important; /* Відступ для нав.панелі */
+            -webkit-overflow-scrolling: touch; /* Плавна прокрутка на iOS */
+            scrollbar-width: thin; /* Тонкий скролбар для Firefox */
+            scrollbar-color: var(--secondary-color) transparent;
+        }
+
+        /* Стилізація скролбару для Chrome/Safari */
+        .container::-webkit-scrollbar {
+            width: 0.375rem;
+        }
+
+        .container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .container::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-color);
+            border-radius: 1.25rem;
         }
 
         @keyframes backgroundShift {
@@ -50,64 +94,63 @@
         }
 
         .header {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem;
+            padding: 0.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
             width: 100%;
-            color: #fff;
-            height: 50px;
-            margin-bottom: 15px;
+            height: var(--header-height);
+            margin-bottom: 0.9375rem;
+            position: sticky;
+            top: 0.3125rem;
+            z-index: 10;
         }
 
         .header .token-icon {
-            width: 55px; /* Збільшено на 60% з оригінальних 40px */
-            height: 55px; /* Збільшено на 60% з оригінальних 40px */
+            width: 3.4375rem;
+            height: 3.4375rem;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
-            animation: pulse 8s infinite ease-in-out; /* Змінено анімацію з rotate на pulse */
+            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
+            animation: pulse 8s infinite ease-in-out;
         }
 
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .header .winix-title {
             font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 24px;
+            font-size: 1.5rem;
             font-weight: bold;
-            letter-spacing: 2px;
-            color: #fff;
-            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            letter-spacing: 0.125rem;
+            color: var(--text-color);
+            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
             animation: glow 11s infinite ease-in-out;
         }
 
         @keyframes glow {
-            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
-        .balance-title {
-            font-size: 35px;
-            color: #4ea2c7;
-            margin-bottom: 1px;
-        }
+
         .header .balance-container {
             display: flex;
-            gap: 10px;
+            gap: 0.625rem;
             align-items: center;
-            margin-right: 5px;
+            margin-right: 0.3125rem;
         }
 
         .header .jeton-balance {
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-left: -40px;
+            margin-left: -2.1875rem;
         }
 
         .header .winix-balance {
@@ -118,46 +161,47 @@
 
         .header .jeton-balance .balance-value,
         .header .winix-balance .balance-value {
-            font-size: 14px;
+            font-size: 0.875rem;
             font-weight: bold;
         }
 
         .header .jeton-balance .balance-label,
         .header .winix-balance .balance-label {
-            font-size: 12px;
+            font-size: 0.75rem;
             font-weight: normal;
         }
 
         .header .jeton-icon {
-            width: 30px;
-            height: 30px;
+            width: 1.875rem;
+            height: 1.875rem;
             background: url('assets/житон.png') no-repeat center center;
             background-size: cover;
             border-radius: 50%;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
             animation: pulse 1.5s infinite ease-in-out;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-        }
-
-        /* Стилі для головної сторінки гаманця */
+        /* Стилі для сторінки гаманця */
         .wallet-card {
-            background: rgba(30, 39, 70, 0.8);
-            border-radius: 24px;
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
             width: 90%;
-            max-width: 550px;
-            padding: 25px 20px;
-            margin: 10px auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.2);
+            max-width: 34.375rem;
+            padding: 1.5625rem 1.25rem;
+            margin: 0.625rem auto;
+            box-shadow: 0 0.625rem 1.875rem var(--shadow-color);
+            border: 0.0625rem solid var(--border-color);
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 0.9375rem;
+        }
+
+        .balance-title {
+            font-size: 1.5625rem;
+            color: var(--secondary-color);
+            margin-bottom: 0.0625rem;
+            text-align: center;
         }
 
         .balance-section {
@@ -165,90 +209,79 @@
             flex-direction: column;
             align-items: center;
             width: 100%;
-            padding: 20px 0;
+            padding: 1.25rem 0;
         }
 
         .main-balance {
-            font-size: 42px;
+            font-size: 2.625rem;
             font-weight: bold;
-            color: #fff;
-            text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
-            margin-bottom: 5px;
+            color: var(--text-color);
+            text-shadow: 0 0 0.625rem var(--glow-color);
+            margin-bottom: 0.3125rem;
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
         .main-balance-icon {
-            font-size: 1px;
-            margin-left: 1px;
+            margin-left: 0.625rem;
         }
 
-        .main-balance-icon img,
-        .staking-icon img,
-        .reward-icon img {
+        .main-balance-icon img {
             display: inline-block;
             vertical-align: middle;
+            width: 2.5rem;
+            height: 2.5rem;
         }
 
         .staking-info {
-            background: rgba(20, 30, 60, 0.7);
-            border-radius: 15px;
-            padding: 15px;
+            background: var(--bg-item);
+            border-radius: 0.9375rem;
+            padding: 0.9375rem;
             width: 90%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            border: 1px solid rgba(78, 181, 247, 0.2);
-            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 0.625rem;
         }
 
         .staking-balance {
             display: flex;
             align-items: center;
-            font-size: 18px;
+            font-size: 1.125rem;
             font-weight: bold;
-            color: #fff;
-            margin-bottom: 5px;
-        }
-
-        .staking-icon {
-            margin-left: 8px;
-            font-size: 16px;
+            color: var(--text-color);
+            margin-bottom: 0.3125rem;
         }
 
         .staking-rewards {
             display: flex;
             align-items: center;
-            font-size: 16px;
-            color: #4eb5f7;
-        }
-
-        .reward-icon {
-            margin-left: 8px;
-            font-size: 14px;
+            font-size: 1rem;
+            color: var(--secondary-color);
         }
 
         .action-buttons {
             display: flex;
             justify-content: space-between;
             width: 90%;
-            margin: 15px 0;
-            gap: 10px;
+            margin: 0.9375rem 0;
+            gap: 0.625rem;
         }
 
         .action-button {
             flex: 1;
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            background: var(--primary-gradient);
             border: none;
-            border-radius: 15px;
-            padding: 12px;
+            border-radius: 0.9375rem;
+            padding: 0.75rem;
             color: white;
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -256,13 +289,13 @@
         }
 
         .action-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            transform: translateY(-0.1875rem);
+            box-shadow: 0 0.375rem 0.75rem var(--shadow-color);
         }
 
-        .button-icon {
-            font-size: 20px;
-            margin-bottom: 5px;
+        .action-button:active {
+            transform: translateY(0);
+            box-shadow: 0 0.125rem 0.25rem var(--shadow-color);
         }
 
         .transactions-section {
@@ -270,18 +303,18 @@
         }
 
         .section-title {
-            font-size: 18px;
+            font-size: 1.125rem;
             font-weight: bold;
-            margin: 5px 0 10px 0;
-            color: #fff;
+            margin: 0.3125rem 0 0.625rem 0;
+            color: var(--text-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .view-all-link {
-            font-size: 14px;
-            color: #4eb5f7;
+            font-size: 0.875rem;
+            color: var(--secondary-color);
             text-decoration: none;
             cursor: pointer;
         }
@@ -289,61 +322,66 @@
         .transaction-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            margin-bottom: 20px;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
         }
 
         .transaction-item {
-            background: rgba(20, 30, 60, 0.7);
-            border-radius: 12px;
-            padding: 12px;
+            background: var(--bg-item);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border: 1px solid rgba(78, 181, 247, 0.2);
+            border: 0.0625rem solid var(--border-color);
             cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .transaction-item:active {
+            transform: scale(0.98);
         }
 
         .transaction-positive {
-            color: #4caf50;
+            color: var(--positive-color);
         }
 
         .transaction-negative {
-            color: #f44336;
+            color: var(--negative-color);
         }
 
         .transaction-neutral {
-            color: #9e9e9e;
+            color: var(--neutral-color);
         }
 
         .transaction-details {
-            font-size: 14px;
+            font-size: 0.875rem;
         }
 
         .transaction-amount {
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: bold;
         }
 
         .empty-message {
-            color: #9e9e9e;
+            color: var(--neutral-color);
             font-style: italic;
             text-align: center;
-            padding: 15px;
+            padding: 0.9375rem;
         }
 
         .nav-bar {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem;
+            padding: 0.5rem;
             display: flex;
             justify-content: space-around;
             width: 90%;
-            max-width: 540px;
-            height: 60px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 33.75rem;
+            height: var(--nav-height);
+            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
             position: fixed;
-            bottom: 10px;
+            bottom: 1.875rem;
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -351,8 +389,8 @@
 
         .nav-item {
             text-align: center;
-            color: #fff;
-            font-size: 14px;
+            color: var(--text-color);
+            font-size: 0.875rem;
             cursor: pointer;
             display: flex;
             flex-direction: column;
@@ -363,67 +401,137 @@
         }
 
         .nav-item .icon-wrapper {
-            width: 60px;
-            height: 60px;
+            width: 3.75rem;
+            height: 3.75rem;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
+            border-radius: 0.75rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            margin-bottom: 0.3125rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
             transition: transform 0.3s ease;
         }
 
         .nav-item.active .icon-wrapper {
-            background: rgba(0, 201, 167, 0.3);
-            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+            background: var(--bg-active);
+            box-shadow: 0 0 0.9375rem var(--glow-color);
         }
 
         .nav-item img {
-            width: 35px;
-            height: 35px;
+            width: 2.1875rem;
+            height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
+        }
+
+        .nav-item.active img {
+            filter: brightness(1.2) invert(1);
         }
 
         .nav-item:hover .icon-wrapper {
             transform: scale(1.1);
         }
 
-        /* Стиль для тестової кнопки */
-        .test-button {
-            position: fixed;
-            bottom: 80px;
-            right: 10px;
-            background: green;
-            color: white;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            z-index: 9999;
-            cursor: pointer;
-        }
-
         /* Стиль для повідомлень */
         .toast-message {
             position: fixed;
-            top: 20px;
+            top: 1.25rem;
             left: 50%;
             transform: translateX(-50%);
-            background-color: rgba(76, 175, 80, 0.9);
+            background-color: rgba(0, 201, 167, 0.9);
             color: white;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.3125rem;
             z-index: 1000;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: opacity 0.5s;
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
             opacity: 0;
-            pointer-events: none;
+            transition: opacity 0.3s, transform 0.3s;
+            font-size: 0.9375rem;
         }
 
         .toast-message.show {
             opacity: 1;
+            transform: translate(-50%, 0.625rem);
+        }
+
+        /* Медіа-запити для адаптивності */
+        @media (max-width: 450px) {
+            :root {
+                /* Зменшуємо розміри для маленьких екранів */
+                --header-height: 3rem;
+                --nav-height: 4rem;
+            }
+
+            .header .token-icon {
+                width: 2.8125rem;
+                height: 2.8125rem;
+            }
+
+            .header .winix-title {
+                font-size: 1.25rem;
+            }
+
+            .main-balance {
+                font-size: 2.25rem;
+            }
+
+            .action-buttons {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .action-button {
+                min-width: 30%;
+                font-size: 0.875rem;
+                padding: 0.625rem;
+            }
+
+            .nav-item .icon-wrapper {
+                width: 3.125rem;
+                height: 3.125rem;
+            }
+
+            .nav-item img {
+                width: 1.875rem;
+                height: 1.875rem;
+            }
+        }
+
+        @media (max-width: 350px) {
+            .header .jeton-balance {
+                margin-left: -1.25rem;
+            }
+
+            .header .balance-label {
+                font-size: 0.6875rem;
+            }
+
+            .action-buttons {
+                gap: 0.3125rem;
+            }
+
+            .main-balance {
+                font-size: 1.875rem;
+            }
+
+            .main-balance-icon img {
+                width: 2rem;
+                height: 2rem;
+            }
+        }
+
+        @media (min-width: 768px) {
+            body {
+                background: linear-gradient(135deg, #141e30, #243b55);
+            }
+
+            .container {
+                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3);
+                margin: 1.25rem auto;
+                height: calc(100vh - 2.5rem);
+                border-radius: 1.25rem;
+            }
         }
     </style>
 </head>
@@ -444,28 +552,30 @@
                 </div>
             </div>
         </div>
+
         <div class="wallet-card">
             <div class="balance-title">Balance $WINIX</div>
             <div class="balance-section">
-                <div id="main-balance" class="main-balance">0 <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span></div>
+                <div id="main-balance" class="main-balance">0
+                    <span class="main-balance-icon">
+                        <img src="assets/token.png" alt="WINIX">
+                    </span>
+                </div>
             </div>
 
             <div class="staking-info">
-                <div id="staking-balance" class="staking-balance">У стейкінгу: 0 $WINIX <span class="staking-icon"></span></div>
-                <div id="staking-rewards" class="staking-rewards">Нагороди: 0 $WINIX <span class="reward-icon"></span></div>
+                <div id="staking-balance" class="staking-balance">У стейкінгу: 0 $WINIX</div>
+                <div id="staking-rewards" class="staking-rewards">Нагороди: 0 $WINIX</div>
             </div>
 
             <div class="action-buttons">
                 <button class="action-button" id="send-button">
-                    <span class="button-icon"></span>
                     Надіслати
                 </button>
                 <button class="action-button" id="receive-button">
-                    <span class="button-icon"></span>
                     Отримати
                 </button>
                 <button class="action-button" id="staking-button">
-                    <span class="button-icon"></span>
                     Стейкінг
                 </button>
             </div>
@@ -477,59 +587,51 @@
                 </div>
                 <div class="transaction-list" id="transaction-list">
                     <!-- Транзакції будуть додані динамічно через JavaScript -->
-                    <div class="empty-message">Немає транзакцій</div>
+                    <div class="empty-message">Завантаження транзакцій...</div>
                 </div>
             </div>
         </div>
 
-        <!-- Нижня навігаційна панель, однакова для всіх сторінок -->
+        <!-- Нижня навігаційна панель -->
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                Home
+                <span>Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                Earn
+                <span>Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                Referrals
+                <span>Referrals</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                Wallet
+                <span>Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                General
+                <span>General</span>
             </div>
         </div>
-
-        <!-- Тестова кнопка для нарахування балансу -->
-        <button id="test-reward-btn" class="test-button">
-            Тест +50 WINIX
-        </button>
 
         <!-- Повідомлення -->
         <div id="toast-message" class="toast-message"></div>
     </div>
 
-    <!-- Підключаємо важливі скрипти для функціональності -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
     <script>
-        // Перевірка наявності об'єкту Telegram WebApp
+        // Ініціалізація Telegram WebApp API
         let tg;
         try {
             tg = window.Telegram ? window.Telegram.WebApp : null;
@@ -537,104 +639,88 @@
                 console.log("Telegram WebApp API успішно ініціалізовано");
                 tg.ready();
                 tg.expand();
+
+                // Реагування на зміну теми Telegram
+                tg.onEvent('themeChanged', updateThemeColors);
+
+                // Реагування на зміну розміру вікна
+                tg.onEvent('viewportChanged', adjustLayout);
             } else {
-                console.log("Telegram WebApp API недоступний");
+                console.error("Telegram WebApp API недоступний");
             }
         } catch (error) {
-            console.log("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
             tg = null;
         }
 
-        // Функція для відображення повідомлень
-        function showToast(message) {
-            const toast = document.getElementById('toast-message');
-            toast.textContent = message;
-            toast.classList.add('show');
+        // Функція оновлення кольорів при зміні теми
+        function updateThemeColors() {
+            if (tg && tg.colorScheme) {
+                document.body.setAttribute('data-theme', tg.colorScheme);
 
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
+                if (tg.colorScheme === 'dark') {
+                    // Додаткові налаштування для темної теми
+                } else {
+                    // Додаткові налаштування для світлої теми
+                }
+            }
+        }
+
+        // Функція адаптації шарів при зміні розміру екрану
+        function adjustLayout() {
+            // Перевірка на малі екрани
+            const isSmallScreen = window.innerWidth <= 450;
+            const container = document.querySelector('.container');
+
+            if (isSmallScreen) {
+                container.classList.add('small-screen');
+            } else {
+                container.classList.remove('small-screen');
+            }
+        }
+
+        // Функція для відображення повідомлення
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast-message');
+            if (toast) {
+                toast.textContent = message;
+                toast.classList.add('show');
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, duration);
+            }
         }
 
         // Функція для навігації між сторінками
         function navigateTo(page) {
             try {
-                // Отримуємо баланс безпосередньо з localStorage
-                const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                const coins = parseFloat(localStorage.getItem('userCoins') || '0');
-
                 // Зберігаємо поточний баланс перед переходом
-                sessionStorage.setItem('lastBalance', tokens.toString());
-                sessionStorage.setItem('lastCoins', coins.toString());
-                console.log(`Зберігаємо баланс перед навігацією: ${tokens}`);
+                if (typeof rewardSystem !== 'undefined') {
+                    const tokens = rewardSystem.getTokens();
+                    const coins = rewardSystem.getCoins();
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                } else {
+                    const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    const coins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                }
 
                 // Переходимо на іншу сторінку
                 window.location.href = page;
             } catch (error) {
                 console.error('Помилка навігації:', error);
-                showToast('Помилка навігації');
-            }
-        }
-
-        // Функція для безпосереднього зчитування/збереження даних стейкінгу з localStorage
-        function getStakingData() {
-            // Спроба отримати дані стейкінгу з localStorage
-            const stakingData = localStorage.getItem('stakingData');
-
-            if (stakingData) {
-                try {
-                    return JSON.parse(stakingData);
-                } catch (e) {
-                    console.error('Помилка розбору даних стейкінгу:', e);
-                }
-            }
-
-            // Спроба отримати базові дані для стейкінгу з localStorage
-            const stakedAmount = parseFloat(localStorage.getItem('userStakedTokens') || '0');
-            const stakingRewards = parseFloat(localStorage.getItem('userStakingRewards') || '0');
-
-            if (stakedAmount > 0) {
-                return {
-                    hasActiveStaking: true,
-                    stakingAmount: stakedAmount,
-                    rewardPercent: 15,
-                    expectedReward: stakingRewards,
-                    period: 30,
-                    remainingDays: 25
-                };
-            }
-
-            // Якщо немає даних, повертаємо стандартні значення
-            return {
-                hasActiveStaking: false,
-                stakingAmount: 0,
-                rewardPercent: 0,
-                expectedReward: 0,
-                period: 0,
-                remainingDays: 0
-            };
-        }
-
-        // Функція для оновлення відображення стейкінгу
-        function updateStakingDisplay() {
-            const stakingData = getStakingData();
-
-            // Оновлюємо відображення стейкінгу
-            const stakingBalanceElement = document.getElementById('staking-balance');
-            const stakingRewardsElement = document.getElementById('staking-rewards');
-
-            if (stakingBalanceElement) {
-                stakingBalanceElement.innerHTML = `У стейкінгу: ${stakingData.stakingAmount.toFixed(2)} $WINIX <span class="staking-icon"></span>`;
-            }
-
-            if (stakingRewardsElement) {
-                stakingRewardsElement.innerHTML = `Нагороди: ${stakingData.expectedReward.toFixed(2)} $WINIX <span class="reward-icon"></span>`;
+                showToast('Помилка навігації', 2000);
             }
         }
 
         // Функція для оновлення відображення балансу
         function updateBalanceDisplay() {
-            // Зчитуємо дані балансу безпосередньо з localStorage
+            // Зчитуємо дані балансу з localStorage
             const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
             const coins = parseFloat(localStorage.getItem('userCoins') || '0');
 
@@ -652,14 +738,50 @@
             }
 
             if (mainBalanceElement) {
-                mainBalanceElement.innerHTML = `${tokens.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                mainBalanceElement.innerHTML = `${tokens.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="40" height="40" alt="WINIX"></span>`;
             }
 
             // Оновлюємо відображення стейкінгу
             updateStakingDisplay();
 
-            // Оновлюємо список транзакцій (просто для прикладу)
+            // Оновлюємо список транзакцій
             updateTransactionsList();
+        }
+
+        // Функція для оновлення відображення стейкінгу
+        function updateStakingDisplay() {
+            // Отримуємо дані стейкінгу з localStorage
+            let stakingAmount = 0;
+            let stakingRewards = 0;
+
+            try {
+                const stakingDataStr = localStorage.getItem('stakingData');
+                if (stakingDataStr) {
+                    const stakingData = JSON.parse(stakingDataStr);
+                    if (stakingData && stakingData.hasActiveStaking) {
+                        stakingAmount = stakingData.stakingAmount || 0;
+                        stakingRewards = stakingData.expectedReward || 0;
+                    }
+                } else {
+                    // Запасний варіант, якщо stakingData не знайдено
+                    stakingAmount = parseFloat(localStorage.getItem('userStakedTokens') || '0');
+                    stakingRewards = parseFloat(localStorage.getItem('userStakingRewards') || '0');
+                }
+            } catch (e) {
+                console.error('Помилка при отриманні даних стейкінгу:', e);
+            }
+
+            // Оновлюємо елементи інтерфейсу
+            const stakingBalanceElement = document.getElementById('staking-balance');
+            const stakingRewardsElement = document.getElementById('staking-rewards');
+
+            if (stakingBalanceElement) {
+                stakingBalanceElement.textContent = `У стейкінгу: ${stakingAmount.toFixed(2)} $WINIX`;
+            }
+
+            if (stakingRewardsElement) {
+                stakingRewardsElement.textContent = `Нагороди: ${stakingRewards.toFixed(2)} $WINIX`;
+            }
         }
 
         // Функція для оновлення списку транзакцій
@@ -691,7 +813,7 @@
 
                             transactionItem.innerHTML = `
                                 <div class="transaction-details">${transaction.description || 'Транзакція'}</div>
-                                <div class="transaction-amount ${colorClass}">${isPositive ? '+' : ''}${transaction.amount.toFixed(2)} $WINIX</div>
+                                <div class="transaction-amount ${colorClass}">${isPositive ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)} $WINIX</div>
                             `;
 
                             transactionList.appendChild(transactionItem);
@@ -708,122 +830,15 @@
             }
         }
 
-        // Функція для додавання винагороди
-        function addReward(amount) {
-            try {
-                // Отримуємо поточний баланс
-                const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
-
-                // Додаємо винагороду
-                const newBalance = currentBalance + amount;
-
-                // Зберігаємо новий баланс
-                localStorage.setItem('userTokens', newBalance.toString());
-
-                // Додаємо транзакцію
-                const newTransaction = {
-                    id: 'reward_' + Date.now(),
-                    amount: amount,
-                    description: 'Винагорода за тест',
-                    timestamp: Date.now()
-                };
-
-                // Отримуємо існуючі транзакції
-                const transactions = localStorage.getItem('transactions');
-                let parsedTransactions = [];
-
-                if (transactions) {
-                    try {
-                        parsedTransactions = JSON.parse(transactions);
-                    } catch (e) {
-                        console.error('Помилка розбору транзакцій:', e);
-                    }
-                }
-
-                // Додаємо нову транзакцію на початок списку
-                parsedTransactions.unshift(newTransaction);
-
-                // Зберігаємо оновлений список транзакцій
-                localStorage.setItem('transactions', JSON.stringify(parsedTransactions));
-
-                // Повертаємо результат
-                return {
-                    success: true,
-                    oldBalance: currentBalance,
-                    newBalance: newBalance,
-                    difference: amount
-                };
-            } catch (error) {
-                console.error('Помилка додавання винагороди:', error);
-                return {
-                    success: false,
-                    error: error.message
-                };
-            }
-        }
-
-        // Тест нарахування винагороди
-        document.getElementById('test-reward-btn').addEventListener('click', function() {
-            console.log('===== ПОЧАТОК ТЕСТУ НАРАХУВАННЯ НАГОРОДИ =====');
-
-            // Зберігаємо початковий баланс
-            const startBalance = parseFloat(localStorage.getItem('userTokens') || '0');
-            console.log(`Початковий баланс: ${startBalance}`);
-
-            // Нараховуємо винагороду
-            const result = addReward(50);
-            console.log('Результат нарахування:', result);
-
-            if (result.success) {
-                // Оновлюємо відображення
-                updateBalanceDisplay();
-
-                // Показуємо сповіщення
-                showToast(`Нараховано ${result.difference} WINIX!`);
-            } else {
-                showToast('Помилка нарахування винагороди');
-            }
-        });
-
-        // Обробники для навігаційних кнопок
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.dataset.section;
-
-                if (section === 'home') {
-                    navigateTo('index.html');
-                } else if (section === 'earn') {
-                    navigateTo('earn.html');
-                } else if (section === 'referrals') {
-                    navigateTo('referrals.html');
-                } else if (section === 'wallet') {
-                    navigateTo('wallet.html');
-                } else if (section === 'general') {
-                    navigateTo('general.html');
-                }
-            });
-        });
-
-        // Обробники для кнопок дій
-        document.getElementById('send-button').addEventListener('click', function() {
-            navigateTo('send.html');
-        });
-
-        document.getElementById('receive-button').addEventListener('click', function() {
-            navigateTo('receive.html');
-        });
-
-        document.getElementById('staking-button').addEventListener('click', function() {
-            navigateTo('staking.html');
-        });
-
-        document.getElementById('view-all-transactions').addEventListener('click', function() {
-            navigateTo('transactions.html');
-        });
-
-        // Ініціалізація стандартних значень, якщо вони відсутні
+        // Обробники подій для сторінки
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Ініціалізація сторінки гаманця");
+
+            // Викликаємо функцію адаптації при старті
+            adjustLayout();
+
+            // Встановлюємо тему за замовчуванням
+            updateThemeColors();
 
             // Встановлюємо базові значення балансу, якщо вони відсутні
             if (!localStorage.getItem('userTokens')) {
@@ -880,23 +895,89 @@
                 localStorage.setItem('transactions', JSON.stringify(testTransactions));
             }
 
-            // Налаштування періодичного оновлення балансу та стейкінгу
-            const updateInterval = setInterval(() => {
-                try {
-                    updateBalanceDisplay();
-                } catch (error) {
-                    console.error('Помилка оновлення даних:', error);
-                }
-            }, 2000); // Оновлення кожні 2 секунди
+            // Оновлюємо баланс через систему нагород, якщо вона доступна
+            if (typeof rewardSystem !== 'undefined') {
+                rewardSystem.updateBalanceDisplay();
+            } else {
+                // Використовуємо локальне оновлення
+                updateBalanceDisplay();
+            }
 
-            // Очищення інтервалу при виході зі сторінки
+            // Налаштування періодичного оновлення балансу
+            const updateInterval = setInterval(() => {
+                if (typeof rewardSystem !== 'undefined') {
+                    rewardSystem.updateBalanceDisplay();
+                } else {
+                    updateBalanceDisplay();
+                }
+            }, 2000);
+
+            // Очищаємо інтервал при виході зі сторінки
             window.addEventListener('beforeunload', () => {
                 clearInterval(updateInterval);
             });
 
-            // Початкове оновлення відображення балансу та стейкінгу
-            updateBalanceDisplay();
+            // Обробник для кнопки "Надіслати"
+            document.getElementById('send-button').addEventListener('click', function() {
+                navigateTo('send.html');
+            });
+
+            // Обробник для кнопки "Отримати"
+            document.getElementById('receive-button').addEventListener('click', function() {
+                navigateTo('receive.html');
+            });
+
+            // Обробник для кнопки "Стейкінг"
+            document.getElementById('staking-button').addEventListener('click', function() {
+                navigateTo('staking.html');
+            });
+
+            // Обробник для перегляду всіх транзакцій
+            document.getElementById('view-all-transactions').addEventListener('click', function() {
+                navigateTo('transactions.html');
+            });
+
+            // Обробники для навігаційної панелі
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+
+                    // Змінюємо візуально активний елемент
+                    document.querySelectorAll('.nav-item').forEach(navItem => {
+                        navItem.classList.remove('active');
+                    });
+                    this.classList.add('active');
+
+                    // Навігація
+                    switch(section) {
+                        case 'home':
+                            navigateTo('index.html');
+                            break;
+                        case 'earn':
+                            navigateTo('earn.html');
+                            break;
+                        case 'referrals':
+                            navigateTo('referrals.html');
+                            break;
+                        case 'wallet':
+                            // Вже на сторінці гаманця
+                            break;
+                        case 'general':
+                            navigateTo('general.html');
+                            break;
+                    }
+                });
+            });
+
+            // Обробник для зміни розміру вікна
+            window.addEventListener('resize', adjustLayout);
         });
+
+        // Глобальний обробник помилок
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+            return true;
+        };
     </script>
 </body>
 </html>
