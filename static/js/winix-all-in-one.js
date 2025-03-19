@@ -1490,16 +1490,53 @@ function addModalStyles() {
     }
 }
 
+// Запобігання дублюванню обробників подій для важливих елементів
+function preventDuplicateEventListeners(elementIds) {
+    elementIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            // Клонуємо елемент, щоб видалити всі попередні обробники
+            const newElement = element.cloneNode(true);
+            element.parentNode.replaceChild(newElement, element);
+            console.log(`Обробники подій очищено для елемента '${id}'`);
+        }
+    });
+}
+
 // Запускати після завантаження сторінки
 document.addEventListener('DOMContentLoaded', function() {
     addModalStyles();
     fixStakingButtonHandlers();
+
+    // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
+    const criticalElements = [
+        'claim-daily',
+        'add-to-stake-button',
+        'stake-button',
+        'cancel-staking-button',
+        'details-button'
+        // Додайте інші елементи, якщо потрібно
+    ];
+
+    preventDuplicateEventListeners(criticalElements);
 });
 
 // Додаємо обробник для випадку, якщо сторінка вже завантажена
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     addModalStyles();
     fixStakingButtonHandlers();
+
+    // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
+    const criticalElements = [
+        'claim-daily',
+        'add-to-stake-button',
+        'stake-button',
+        'cancel-staking-button',
+        'details-button'
+        // Додайте інші елементи, якщо потрібно
+    ];
+
+    preventDuplicateEventListeners(criticalElements);
 }
 
 })();
