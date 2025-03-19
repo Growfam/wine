@@ -256,7 +256,7 @@
 
         .daily-bonus-bar {
             width: 100%;
-            height: 6.875rem; /* 110px */
+            height: 8.125rem; /* Збільшена висота з 6.875rem до 8.125rem */
             background: rgba(15, 23, 42, 0.8);
             border-radius: 1.25rem; /* 20px */
             padding: 1.25rem 0.9375rem; /* 20px 15px */
@@ -312,9 +312,9 @@
         }
 
         .day-circle.completed {
-            background: #00C9A7;
-            border-color: #00C9A7;
-            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 0 0 10px */
+            background: #3f52af;
+            border-color: #4ea2c7;
+            box-shadow: 0 0 0.625rem rgb(78, 162, 199); /* 0 0 10px */
         }
 
         .day-reward {
@@ -324,22 +324,25 @@
             z-index: 3;
             font-weight: bold;
             text-shadow: 0 0 0.1875rem rgba(0, 0, 0, 0.8); /* 0 0 3px */
-        }
+}
 
+    /* Зміна розташування полоси прогресу - ключове виправлення */
         .progress-bar {
             position: absolute;
             height: 0.5rem; /* 8px */
-            background: linear-gradient(90deg, #4eb5f7, #00C9A7);
-            bottom: 1.5625rem; /* 25px */
+            background: linear-gradient(90deg, #164d6c, #91d6cc);
+            top: 50%; /* Змінено з bottom: 1.5625rem на top: 50% */
             left: 2.5rem; /* 40px */
             right: 2.5rem;
             border-radius: 0.625rem; /* 10px */
             z-index: 0;
-            box-shadow: 0 0 0.625rem rgba(78, 181, 247, 0.5); /* 0 0 10px */
+            box-shadow: 0 0 0.625rem rgba(10, 78, 120, 0.5); /* 0 0 10px */
+            margin-top: -1.5rem; /* Негативний відступ для центрування */
         }
 
+    /* Додаткові стилі для кнопки отримання бонусу */
         .claim-button {
-            margin-top: 1.875rem; /* 30px */
+            margin-top: 1.25rem; /* 20px, зменшено з 1.875rem */
             padding: 0.875rem 2.1875rem; /* 14px 35px */
             border-radius: 1.875rem; /* 30px */
             font-size: 1.125rem; /* 18px */
@@ -1447,6 +1450,328 @@
         console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
         return true;
     };
+</script>
+
+    <script>
+/**
+ * Функція для обробки виконання завдання
+ * @param {HTMLElement} taskItem Елемент завдання
+ * @param {string} platform Платформа (twitter, telegram, youtube)
+ * @param {number} reward Нагорода за виконання
+ */
+function handleTaskCompletion(taskItem, platform, reward) {
+    // Позначаємо завдання як виконане
+    taskItem.classList.add('completed-task');
+
+    // Деактивуємо кнопки
+    const buttons = taskItem.querySelectorAll('button');
+    buttons.forEach(button => {
+        button.disabled = true;
+        button.style.opacity = '0.5';
+        button.style.cursor = 'not-allowed';
+    });
+
+    // Додаємо позначку "Виконано"
+    const taskAction = taskItem.querySelector('.task-action');
+    if (taskAction) {
+        // Перевіряємо, чи вже є мітка "Виконано"
+        if (!taskAction.querySelector('.completed-label')) {
+            const completedLabel = document.createElement('div');
+            completedLabel.className = 'completed-label';
+            completedLabel.textContent = 'Виконано';
+            taskAction.appendChild(completedLabel);
+        }
+    }
+
+    // Позначаємо завдання як виконане в localStorage
+    localStorage.setItem(`${platform}_task_completed`, 'true');
+
+    // Переміщаємо завдання в кінець списку
+    const taskContainer = taskItem.parentElement;
+    if (taskContainer) {
+        // Відкладаємо переміщення для анімації
+        setTimeout(() => {
+            taskContainer.appendChild(taskItem);
+
+            // Плавне переміщення
+            taskItem.style.transition = 'all 0.5s ease';
+            taskItem.style.backgroundColor = 'rgba(0, 201, 167, 0.1)';
+            taskItem.style.borderLeft = '3px solid #00C9A7';
+        }, 500);
+    }
+}
+
+/**
+ * Функція для перевірки та відображення статусу завдань при завантаженні
+ */
+function initTasksStatus() {
+    // Перевіряємо статус завдань і переміщаємо виконані вниз
+    const checkCompletedTasks = () => {
+        const taskItems = document.querySelectorAll('.task-item');
+
+        // Спочатку знаходимо всі виконані завдання
+        const completedTasks = [];
+        const incompleteTasks = [];
+
+        taskItems.forEach(taskItem => {
+            // Знаходимо ідентифікатор платформи
+            let platform = '';
+            const verifyButton = taskItem.querySelector('[id$="-verify"]');
+            if (verifyButton) {
+                const id = verifyButton.id;
+                platform = id.replace('-verify', '');
+            }
+
+            // Перевіряємо, чи завдання виконане
+            if (platform && localStorage.getItem(`${platform}_task_completed`) === 'true') {
+                completedTasks.push(taskItem);
+
+                // Позначаємо завдання як виконане
+                taskItem.classList.add('completed-task');
+
+                // Деактивуємо кнопки
+                const buttons = taskItem.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.style.opacity = '0.5';
+                    button.style.cursor = 'not-allowed';
+                });
+
+                // Додаємо позначку "Виконано"
+                const taskAction = taskItem.querySelector('.task-action');
+                if (taskAction) {
+                    if (!taskAction.querySelector('.completed-label')) {
+                        const completedLabel = document.createElement('div');
+                        completedLabel.className = 'completed-label';
+                        completedLabel.textContent = 'Виконано';
+                        taskAction.appendChild(completedLabel);
+                    }
+                }
+
+                // Стилі для виконаних завдань
+                taskItem.style.backgroundColor = 'rgba(0, 201, 167, 0.1)';
+                taskItem.style.borderLeft = '3px solid #00C9A7';
+            } else {
+                incompleteTasks.push(taskItem);
+            }
+        });
+
+        // Переміщаємо виконані завдання в кінець списку
+        const taskContainer = document.querySelector('.task-container');
+        if (taskContainer && completedTasks.length > 0) {
+            // Спочатку додаємо невиконані завдання
+            incompleteTasks.forEach(task => {
+                taskContainer.appendChild(task);
+            });
+
+            // Потім додаємо виконані завдання
+            completedTasks.forEach(task => {
+                taskContainer.appendChild(task);
+            });
+        }
+    };
+
+    // Викликаємо функцію перевірки
+    checkCompletedTasks();
+}
+
+/**
+ * Функція для встановлення нових обробників кнопок завдань
+ */
+function setupTaskButtons() {
+    // Отримуємо всі кнопки перевірки
+    const verifyButtons = [
+        {id: 'twitter-verify', platform: 'twitter', reward: 50},
+        {id: 'telegram-verify', platform: 'telegram', reward: 80},
+        {id: 'youtube-verify', platform: 'youtube', reward: 50}
+    ];
+
+    verifyButtons.forEach(button => {
+        const btnElement = document.getElementById(button.id);
+        if (btnElement) {
+            // Видаляємо всі існуючі обробники подій
+            const newBtn = btnElement.cloneNode(true);
+            btnElement.parentNode.replaceChild(newBtn, btnElement);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', async function() {
+                // Перевіряємо, чи завдання вже виконано
+                if (localStorage.getItem(`${button.platform}_task_completed`) === 'true') {
+                    window.simpleAlert ?
+                        window.simpleAlert('Це завдання вже виконано!') :
+                        window.showToast ? window.showToast('Це завдання вже виконано!') :
+                        alert('Це завдання вже виконано!');
+                    return;
+                }
+
+                // Перевіряємо, чи користувач клікнув на кнопку підписки
+                if (localStorage.getItem(`${button.platform}_link_clicked`) !== 'true') {
+                    window.simpleAlert ?
+                        window.simpleAlert('Спочатку натисніть кнопку "Підписатись"!', true) :
+                        window.showToast ? window.showToast('Спочатку натисніть кнопку "Підписатись"!') :
+                        alert('Спочатку натисніть кнопку "Підписатись"!');
+                    return;
+                }
+
+                // Повідомлення про перевірку
+                window.simpleAlert ?
+                    window.simpleAlert('Перевірка підписки...') :
+                    window.showToast ? window.showToast('Перевірка підписки...') :
+                    alert('Перевірка підписки...');
+
+                // Імітуємо перевірку підписки
+                setTimeout(() => {
+                    const randomSuccess = Math.random() > 0.3; // 70% шанс успіху
+
+                    if (randomSuccess) {
+                        // Нараховуємо винагороду
+                        if (window.WinixCore && window.WinixCore.Balance) {
+                            window.WinixCore.Balance.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
+                        } else if (window.rewardSystem) {
+                            window.rewardSystem.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
+                        } else {
+                            // Якщо немає системи винагород, просто оновлюємо localStorage
+                            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                            localStorage.setItem('userTokens', (currentTokens + button.reward).toString());
+
+                            // Оновлюємо відображення балансу, якщо можливо
+                            const userTokensElement = document.getElementById('user-tokens');
+                            if (userTokensElement) {
+                                userTokensElement.textContent = (currentTokens + button.reward).toFixed(2);
+                            }
+                        }
+
+                        // Знаходимо батьківський елемент завдання
+                        const taskItem = newBtn.closest('.task-item');
+
+                        // Обробляємо виконання завдання
+                        if (taskItem) {
+                            handleTaskCompletion(taskItem, button.platform, button.reward);
+                        }
+
+                        // Показуємо повідомлення про успіх
+                        window.simpleAlert ?
+                            window.simpleAlert(`Вітаємо! Отримано ${button.reward} $WINIX`) :
+                            window.showToast ? window.showToast(`Вітаємо! Отримано ${button.reward} $WINIX`) :
+                            alert(`Вітаємо! Отримано ${button.reward} $WINIX`);
+                    } else {
+                        window.simpleAlert ?
+                            window.simpleAlert('Підписку не знайдено. Спробуйте ще раз.', true) :
+                            window.showToast ? window.showToast('Підписку не знайдено. Спробуйте ще раз.') :
+                            alert('Підписку не знайдено. Спробуйте ще раз.');
+                    }
+                }, 1500);
+            });
+        }
+    });
+
+    // Кнопки підписки
+    const subscribeButtons = [
+        {id: 'twitter-subscribe', platform: 'twitter'},
+        {id: 'telegram-subscribe', platform: 'telegram'},
+        {id: 'youtube-subscribe', platform: 'youtube'}
+    ];
+
+    subscribeButtons.forEach(button => {
+        const btnElement = document.getElementById(button.id);
+        if (btnElement) {
+            // Видаляємо всі існуючі обробники подій
+            const newBtn = btnElement.cloneNode(true);
+            btnElement.parentNode.replaceChild(newBtn, btnElement);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', function() {
+                localStorage.setItem(`${button.platform}_link_clicked`, 'true');
+
+                let url = '';
+                switch(button.platform) {
+                    case 'twitter': url = 'https://twitter.com/winix_project'; break;
+                    case 'telegram': url = 'https://t.me/winix_channel'; break;
+                    case 'youtube': url = 'https://youtube.com/@winix_project'; break;
+                }
+
+                window.open(url, '_blank');
+            });
+        }
+    });
+}
+
+// Додаємо стилі для виконаних завдань
+function addTaskStyles() {
+    if (!document.getElementById('task-styles')) {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'task-styles';
+        styleElement.textContent = `
+            .completed-task {
+                transition: all 0.5s ease;
+                background-color: rgba(0, 201, 167, 0.1) !important;
+                border-left: 3px solid #00C9A7 !important;
+                opacity: 0.8;
+            }
+
+            .completed-task .task-title {
+                color: #00C9A7;
+            }
+
+            .completed-label {
+                padding: 0.3125rem 0.625rem; /* 5px 10px */
+                background: rgba(0, 201, 167, 0.2);
+                border-radius: 0.625rem; /* 10px */
+                color: #00C9A7;
+                font-weight: bold;
+                font-size: 0.875rem; /* 14px */
+                display: inline-block;
+            }
+
+            .task-item {
+                transition: all 0.3s ease;
+            }
+        `;
+        document.head.appendChild(styleElement);
+    }
+}
+
+// Ініціалізація при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    addTaskStyles();
+    initTasksStatus();
+    setupTaskButtons();
+});
+
+// Запуск, якщо сторінка вже завантажена
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    addTaskStyles();
+    initTasksStatus();
+    setupTaskButtons();
+}
+</script>
+<script>
+function applyProgressBarStyles() {
+    // Додаємо стилі до сторінки
+    if (!document.getElementById('progress-bar-styles')) {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'progress-bar-styles';
+        styleElement.textContent = document.currentScript.textContent;
+        document.head.appendChild(styleElement);
+    }
+
+    // Оновлюємо ширину прогрес-бару залежно від дня
+    const progressBar = document.getElementById('weekly-progress');
+    if (progressBar) {
+        // Знаходимо активний день
+        const activeDay = document.querySelector('.day-circle.active');
+        if (activeDay) {
+            const activeIndex = Array.from(document.querySelectorAll('.day-circle')).indexOf(activeDay);
+            const totalDays = document.querySelectorAll('.day-circle').length;
+
+            if (activeIndex >= 0) {
+                // Розраховуємо відсоток прогресу
+                const progressPercent = ((activeIndex + 0.5) / totalDays) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+            }
+        }
+    }
+}
 </script>
 </body>
 </html>
