@@ -17,18 +17,30 @@
         console.log('🔄 Ініціалізація сторінки через WinixCore');
 
         try {
+            // Перевіряємо, чи вже ініціалізовано WinixCore
+            if (!window.WinixCoreInitialized && window.WinixCore) {
+                window.WinixCore.init();
+                window.WinixCoreInitialized = true;
+                console.log('✅ WinixCore ініціалізовано через winix-connector');
+            }
+
             // Визначаємо поточну сторінку
             const currentPage = getCurrentPage();
             console.log(`📄 Визначено поточну сторінку: ${currentPage}`);
 
             // Оновлюємо відображення балансу
-            WinixCore.UI.updateBalanceDisplay();
+            if (window.WinixCore && window.WinixCore.UI) {
+                window.WinixCore.UI.updateBalanceDisplay();
+            }
 
             // Запускаємо специфічну для сторінки ініціалізацію
             initSpecificPage(currentPage);
 
             // Встановлюємо обробники подій
             setupEventHandlers();
+
+            // Відправляємо подію про ініціалізацію
+            document.dispatchEvent(new CustomEvent('winix-connector-initialized'));
 
             console.log('✅ Сторінку успішно ініціалізовано');
         } catch (error) {
@@ -368,33 +380,123 @@
         });
     }
 
-    // Встановлення обробників для кнопок на сторінці деталей стейкінгу
-    function setupStakingDetailsButtons() {
-        // Кнопка "Додати до стейкінгу"
-        const addButton = document.getElementById('add-to-stake-button');
-        if (addButton) {
-            addButton.addEventListener('click', async function() {
-                // Запитуємо суму для додавання
-                const amount = prompt("Введіть суму для додавання до стейкінгу:");
+   // Встановлення обробників для кнопок на сторінці деталей стейкінгу
+function setupStakingDetailsButtons() {
+    console.log("WINIX-CONNECTOR: Налаштування кнопок деталей стейкінгу...");
 
-                if (amount === null) return; // Натиснуто "Скасувати"
+    // Кнопка "Додати до стейкінгу"
+    const addButton = document.getElementById('add-to-stake-button');
+    if (addButton) {
+        // Очищаємо всі існуючі обробники, клонуючи елемент
+        const newAddButton = addButton.cloneNode(true);
+        addButton.parentNode.replaceChild(newAddButton, addButton);
 
-                const numAmount = parseFloat(amount);
-                if (isNaN(numAmount) || numAmount <= 0) {
-                    WinixCore.UI.showNotification("Введіть коректну суму", WinixCore.MESSAGE_TYPES.ERROR);
-                    return;
+        newAddButton.addEventListener('click', async function() {
+            console.log("WINIX-CONNECTOR: Клік на кнопці додавання до стейкінгу");
+
+            // Запитуємо суму для додавання
+            const amount = prompt("Введіть суму для додавання до стейкінгу:");
+
+            if (amount === null) return; // Натиснуто "Скасувати"
+
+            const numAmount = parseFloat(amount);
+            if (isNaN(numAmount) || numAmount <= 0) {
+                WinixCore.UI.showNotification("Введіть коректну суму", WinixCore.MESSAGE_TYPES.ERROR);
+                return;
+            }
+
+            // Синхронізуємо дані стейкінгу, якщо доступна функція
+            if (typeof syncStakingData === 'function') {
+                syncStakingData();
+            }
+
+            console.log("WINIX-CONNECTOR: Виклик addToStaking з сумою:", numAmount);
+            const result = WinixCore.Staking.addToStaking(numAmount);
+            console.log("WINIX-CONNECTOR: Результат addToStaking:", result);
+
+            if (result.success) {
+                WinixCore.UI.showNotification(result.message, WinixCore.MESSAGE_TYPES.SUCCESS);
+                // Оновлюємо відображення через 500мс
+                setTimeout(() => {
+                    WinixCore.UI.updateStakingDisplay();
+                }, 500);
+            } else {
+                WinixCore.UI.showNotification(result.message, WinixCore.MESSAGE_TYPES.ERROR);
+            }
+        });
+    }
+
+    // Кнопка "Скасувати стейкінг" (може бути присутня на сторінці деталей стейкінгу)
+    const cancelButton = document.getElementById('cancel-staking-button');
+    if (cancelButton) {
+        // Очищаємо всі існуючі обробники, клонуючи елемент
+        const newCancelButton = cancelButton.cloneNode(true);
+        cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+
+        newCancelButton.addEventListener('click', function() {
+            console.log("WINIX-CONNECTOR: Клік на кнопці скасування стейкінгу");
+
+            // Синхронізуємо дані стейкінгу, якщо доступна функція
+            if (typeof syncStakingData === 'function') {
+                syncStakingData();
+            }
+
+            // Перевіряємо наявність стейкінгу перед скасуванням
+            const hasStaking = WinixCore.Staking.hasActiveStaking();
+            console.log("WINIX-CONNECTOR: Наявність стейкінгу перед скасуванням:", hasStaking);
+
+            if (!hasStaking) {
+                // Спроба виправити дані стейкінгу
+                const stakingDataRaw = localStorage.getItem('winix_staking');
+                console.log("WINIX-CONNECTOR: Дані стейкінгу в localStorage:", stakingDataRaw);
+
+                try {
+                    if (stakingDataRaw) {
+                        const parsedData = JSON.parse(stakingDataRaw);
+
+                        // Якщо є сума стейкінгу, але немає флага активності
+                        if (parsedData.stakingAmount > 0 && !parsedData.hasActiveStaking) {
+                            parsedData.hasActiveStaking = true;
+                            localStorage.setItem('winix_staking', JSON.stringify(parsedData));
+                            console.log("WINIX-CONNECTOR: Виправлено дані стейкінгу");
+
+                            // Перевіряємо знову
+                            setTimeout(() => {
+                                const hasStakingNow = WinixCore.Staking.hasActiveStaking();
+                                console.log("WINIX-CONNECTOR: Наявність стейкінгу після виправлення:", hasStakingNow);
+
+                                if (!hasStakingNow) {
+                                    WinixCore.UI.showNotification("У вас немає активного стейкінгу", WinixCore.MESSAGE_TYPES.WARNING);
+                                } else {
+                                    WinixCore.UI.showNotification("Дані стейкінгу відновлено. Спробуйте скасувати ще раз.", WinixCore.MESSAGE_TYPES.INFO);
+                                }
+                            }, 100);
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error("WINIX-CONNECTOR: Помилка виправлення даних стейкінгу:", e);
                 }
 
-                const result = WinixCore.Staking.addToStaking(numAmount);
+                WinixCore.UI.showNotification("У вас немає активного стейкінгу", WinixCore.MESSAGE_TYPES.WARNING);
+                return;
+            }
+
+            if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано 20% від суми стейкінгу як штраф.")) {
+                console.log("WINIX-CONNECTOR: Виклик cancelStaking");
+                const result = WinixCore.Staking.cancelStaking();
+                console.log("WINIX-CONNECTOR: Результат cancelStaking:", result);
 
                 if (result.success) {
-                    WinixCore.UI.showNotification(result.message, WinixCore.MESSAGE_TYPES.SUCCESS);
+                    WinixCore.UI.showNotification(result.message, WinixCore.MESSAGE_TYPES.SUCCESS,
+                        () => window.navigateTo('wallet.html'));
                 } else {
                     WinixCore.UI.showNotification(result.message, WinixCore.MESSAGE_TYPES.ERROR);
                 }
-            });
-        }
+            }
+        });
     }
+}
 
     // Встановлення обробників для кнопок на сторінці заробітку
     function setupEarnButtons() {
@@ -460,6 +562,7 @@
                             localStorage.setItem(`${button.platform}_task_completed`, 'true');
 
                             // Оновлюємо стилі
+                            const taskItem = btnElement.closest('.task-item');
                             if (taskItem) {
                                 taskItem.classList.add('completed-task');
                             }
@@ -469,8 +572,6 @@
                             WinixCore.UI.showNotification('Підписку не знайдено. Спробуйте ще раз.', WinixCore.MESSAGE_TYPES.ERROR);
                         }
                     }, 1500);
-
-                    const taskItem = btnElement.closest('.task-item');
                 });
             }
         });
@@ -510,16 +611,36 @@
     }
 
     // Запускаємо ініціалізацію при завантаженні DOM
-    document.addEventListener('DOMContentLoaded', initPage);
+    document.addEventListener('DOMContentLoaded', function() {
+        // Перевіряємо, чи вже відбулася повна ініціалізація
+        if (window.WinixInitState && window.WinixInitState.isFullyInitialized) {
+            console.log('✅ Система вже повністю ініціалізована');
+            return;
+        }
 
-    // Також запускаємо ініціалізацію після повного завантаження сторінки
+        // Ініціалізуємо сторінку
+        initPage();
+    });
+
+    // Виконуємо дії після повного завантаження сторінки
     window.addEventListener('load', function() {
-        // Повторно оновлюємо відображення балансу після повного завантаження
-        WinixCore.UI.updateBalanceDisplay();
-        WinixCore.UI.updateStakingDisplay();
+        // Оновлюємо відображення балансу після повного завантаження
+        if (window.WinixCore && window.WinixCore.UI) {
+            window.WinixCore.UI.updateBalanceDisplay();
+            window.WinixCore.UI.updateStakingDisplay();
+        }
     });
 
     // Якщо DOM вже готовий, ініціалізуємо сторінку зараз
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        // Перевіряємо, чи вже відбулася повна ініціалізація
+        if (window.WinixInitState && window.WinixInitState.isFullyInitialized) {
+            console.log('✅ Система вже повністю ініціалізована');
+            return;
+        }
+
+        // Ініціалізуємо сторінку
         initPage();
     }
+})();
+

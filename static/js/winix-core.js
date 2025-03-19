@@ -572,27 +572,73 @@
         }
     };
 
+   /**
+ * Створюємо обгортку для роботи зі стейкінгом
+ */
+const StakingManager = {
     /**
-     * Створюємо обгортку для роботи зі стейкінгом
+     * Перевірка наявності активного стейкінгу
+     * @returns {boolean} Чи є активний стейкінг
      */
-    const StakingManager = {
-        /**
-         * Перевірка наявності активного стейкінгу
-         * @returns {boolean} Чи є активний стейкінг
-         */
-        hasActiveStaking: function() {
-            const stakingData = this.getStakingData();
-            return stakingData && stakingData.hasActiveStaking === true;
-        },
+    hasActiveStaking: function() {
+        const stakingData = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
 
-        /**
-         * Отримання даних активного стейкінгу
-         * @returns {Object|null} Дані стейкінгу або null, якщо стейкінгу немає
-         */
-        getStakingData: function() {
-            const data = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
+        // Додаємо логування для діагностики
+        log('info', 'Перевірка наявності стейкінгу', stakingData);
 
-            if (!data || data.hasActiveStaking !== true) {
+        if (!stakingData) {
+            return false;
+        }
+
+        // Перевіряємо прапорець hasActiveStaking та додатково перевіряємо суму стейкінгу
+        return stakingData.hasActiveStaking === true && stakingData.stakingAmount > 0;
+    },
+
+    /**
+     * Отримання даних активного стейкінгу
+     * @returns {Object|null} Дані стейкінгу або null, якщо стейкінгу немає
+     */
+    getStakingData: function() {
+        const data = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
+
+        // Додаємо логування для діагностики
+        log('info', 'Отримання даних стейкінгу', data);
+
+        // Якщо дані відсутні або структура неправильна, повертаємо значення за замовчуванням
+        if (!data || typeof data !== 'object') {
+            return {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+        }
+
+        // Глибока копія об'єкта, щоб уникнути проблем з посиланнями
+        const result = JSON.parse(JSON.stringify(data));
+
+        // Перевіряємо, чи структура даних містить усі необхідні поля
+        if (result.hasActiveStaking === undefined) {
+            result.hasActiveStaking = false;
+        }
+
+        if (result.stakingAmount === undefined || isNaN(parseFloat(result.stakingAmount))) {
+            result.stakingAmount = 0;
+        } else {
+            // Переконуємось, що це число
+            result.stakingAmount = parseFloat(result.stakingAmount);
+        }
+
+        // Перевіряємо статус стейкінгу
+        if (result.hasActiveStaking && result.endDate) {
+            const endDate = new Date(result.endDate);
+            const now = new Date();
+
+            // Якщо стейкінг завершився, автоматично нараховуємо винагороду
+            if (now >= endDate) {
+                log('info', 'Стейкінг завершено, нараховуємо винагороду');
+                this._finalizeStaking(result);
                 return {
                     hasActiveStaking: false,
                     stakingAmount: 0,
@@ -602,473 +648,468 @@
                 };
             }
 
-            // Перевіряємо статус стейкінгу
-            if (data.hasActiveStaking && data.endDate) {
-                const endDate = new Date(data.endDate);
-                const now = new Date();
+            // Оновлюємо кількість днів, що залишилась
+            const diffTime = endDate - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            result.remainingDays = Math.max(0, diffDays);
 
-                // Якщо стейкінг завершився, автоматично нараховуємо винагороду
-                if (now >= endDate) {
-                    log('info', 'Стейкінг завершено, нараховуємо винагороду');
-                    this._finalizeStaking(data);
-                    return {
-                        hasActiveStaking: false,
-                        stakingAmount: 0,
-                        rewardPercent: 0,
-                        expectedReward: 0,
-                        remainingDays: 0
-                    };
-                }
+            // Зберігаємо оновлені дані
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, result);
+        }
 
-                // Оновлюємо кількість днів, що залишилась
-                const diffTime = endDate - now;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                data.remainingDays = Math.max(0, diffDays);
+        return result;
+    },
 
-                // Зберігаємо оновлені дані
-                safeSetItem(STORAGE_KEYS.STAKING_DATA, data);
-            }
-
-            return data;
-        },
-
-        /**
-         * Автоматичне нарахування винагороди при завершенні стейкінгу
-         * @param {Object} stakingData Дані стейкінгу
-         * @returns {boolean} Успішність операції
-         * @private
-         */
-        _finalizeStaking: function(stakingData) {
-            try {
-                if (!stakingData || !stakingData.hasActiveStaking) {
-                    return false;
-                }
-
-                // Рахуємо загальну суму (стейкінг + винагорода)
-                const totalAmount = stakingData.stakingAmount + stakingData.expectedReward;
-
-                // Додаємо суму до балансу
-                BalanceManager.addTokens(
-                    totalAmount,
-                    `Стейкінг завершено: ${stakingData.stakingAmount} + ${stakingData.expectedReward} винагорода`
-                );
-
-                // Зберігаємо стейкінг в історії
-                const historyEntry = {
-                    ...stakingData,
-                    completedDate: new Date().toISOString(),
-                    totalReturned: totalAmount,
-                    status: 'completed'
-                };
-
-                this._addToStakingHistory(historyEntry);
-
-                // Очищаємо дані активного стейкінгу
-                safeSetItem(STORAGE_KEYS.STAKING_DATA, {
-                    hasActiveStaking: false,
-                    stakingAmount: 0,
-                    rewardPercent: 0,
-                    expectedReward: 0,
-                    remainingDays: 0
-                });
-
-                log('info', 'Стейкінг успішно завершено', {
-                    stakingAmount: stakingData.stakingAmount,
-                    reward: stakingData.expectedReward,
-                    total: totalAmount
-                });
-
-                return true;
-            } catch (e) {
-                log('error', 'Помилка завершення стейкінгу', e);
+    /**
+     * Автоматичне нарахування винагороди при завершенні стейкінгу
+     * @param {Object} stakingData Дані стейкінгу
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _finalizeStaking: function(stakingData) {
+        try {
+            if (!stakingData || !stakingData.hasActiveStaking) {
                 return false;
             }
-        },
 
-        /**
-         * Додавання запису до історії стейкінгу
-         * @param {Object} entry Запис для додавання
-         * @returns {boolean} Успішність операції
-         * @private
-         */
-        _addToStakingHistory: function(entry) {
-            try {
-                // Отримуємо поточну історію
-                const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
+            // Рахуємо загальну суму (стейкінг + винагорода)
+            const totalAmount = stakingData.stakingAmount + stakingData.expectedReward;
 
-                // Додаємо новий запис
-                history.unshift(entry);
+            // Додаємо суму до балансу
+            BalanceManager.addTokens(
+                totalAmount,
+                `Стейкінг завершено: ${stakingData.stakingAmount} + ${stakingData.expectedReward} винагорода`
+            );
 
-                // Обмежуємо розмір історії (зберігаємо останні 20 записів)
-                const trimmedHistory = history.slice(0, 20);
+            // Зберігаємо стейкінг в історії
+            const historyEntry = {
+                ...stakingData,
+                completedDate: new Date().toISOString(),
+                totalReturned: totalAmount,
+                status: 'completed'
+            };
 
-                // Зберігаємо оновлену історію
-                safeSetItem(STORAGE_KEYS.STAKING_HISTORY, trimmedHistory);
+            this._addToStakingHistory(historyEntry);
 
-                return true;
-            } catch (e) {
-                log('error', 'Помилка додавання запису до історії стейкінгу', e);
-                return false;
-            }
-        },
+            // Очищаємо дані активного стейкінгу
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            });
 
-        /**
-         * Розрахунок очікуваної винагороди за стейкінг
-         * @param {number} amount Сума стейкінгу
-         * @param {number} period Період стейкінгу (днів)
-         * @returns {number} Очікувана винагорода
-         */
-        calculateExpectedReward: function(amount, period) {
-            try {
-                amount = parseFloat(amount);
-                period = parseInt(period);
+            log('info', 'Стейкінг успішно завершено', {
+                stakingAmount: stakingData.stakingAmount,
+                reward: stakingData.expectedReward,
+                total: totalAmount
+            });
 
-                if (isNaN(amount) || amount <= 0 || isNaN(period) || period <= 0) {
-                    return 0;
-                }
+            return true;
+        } catch (e) {
+            log('error', 'Помилка завершення стейкінгу', e);
+            return false;
+        }
+    },
 
-                // Отримуємо відсоток для обраного періоду
-                const rewardPercent = STAKING_RATES[period] || 7; // За замовчуванням 7%
+    /**
+     * Додавання запису до історії стейкінгу
+     * @param {Object} entry Запис для додавання
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _addToStakingHistory: function(entry) {
+        try {
+            // Отримуємо поточну історію
+            const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
 
-                // Розраховуємо винагороду
-                const reward = amount * (rewardPercent / 100);
+            // Додаємо новий запис
+            history.unshift(entry);
 
-                return parseFloat(reward.toFixed(2));
-            } catch (e) {
-                log('error', 'Помилка розрахунку винагороди', e);
+            // Обмежуємо розмір історії (зберігаємо останні 20 записів)
+            const trimmedHistory = history.slice(0, 20);
+
+            // Зберігаємо оновлену історію
+            safeSetItem(STORAGE_KEYS.STAKING_HISTORY, trimmedHistory);
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання запису до історії стейкінгу', e);
+            return false;
+        }
+    },
+
+    /**
+     * Розрахунок очікуваної винагороди за стейкінг
+     * @param {number} amount Сума стейкінгу
+     * @param {number} period Період стейкінгу (днів)
+     * @returns {number} Очікувана винагорода
+     */
+    calculateExpectedReward: function(amount, period) {
+        try {
+            amount = parseFloat(amount);
+            period = parseInt(period);
+
+            if (isNaN(amount) || amount <= 0 || isNaN(period) || period <= 0) {
                 return 0;
             }
-        },
 
-        /**
-         * Створення нового стейкінгу
-         * @param {number} amount Сума стейкінгу
-         * @param {number} period Період стейкінгу (днів)
-         * @returns {Object} Результат операції
-         */
-        createStaking: function(amount, period) {
-            if (_isCreatingStaking) {
-                log('warn', 'Вже виконується створення стейкінгу');
+            // Отримуємо відсоток для обраного періоду
+            const rewardPercent = STAKING_RATES[period] || 7; // За замовчуванням 7%
+
+            // Розраховуємо винагороду
+            const reward = amount * (rewardPercent / 100);
+
+            return parseFloat(reward.toFixed(2));
+        } catch (e) {
+            log('error', 'Помилка розрахунку винагороди', e);
+            return 0;
+        }
+    },
+
+    /**
+     * Створення нового стейкінгу
+     * @param {number} amount Сума стейкінгу
+     * @param {number} period Період стейкінгу (днів)
+     * @returns {Object} Результат операції
+     */
+    createStaking: function(amount, period) {
+        if (_isCreatingStaking) {
+            log('warn', 'Вже виконується створення стейкінгу');
+            return {
+                success: false,
+                message: 'Операція вже виконується'
+            };
+        }
+
+        _isCreatingStaking = true;
+
+        try {
+            amount = parseFloat(amount);
+            period = parseInt(period);
+
+            // Перевірка коректності параметрів
+            if (isNaN(amount) || amount <= 0) {
                 return {
                     success: false,
-                    message: 'Операція вже виконується'
+                    message: 'Некоректна сума стейкінгу'
                 };
             }
 
-            _isCreatingStaking = true;
+            if (isNaN(period) || ![7, 14, 28].includes(period)) {
+                return {
+                    success: false,
+                    message: 'Некоректний період стейкінгу'
+                };
+            }
 
-            try {
-                amount = parseFloat(amount);
-                period = parseInt(period);
+            // Перевіряємо, чи є вже активний стейкінг
+            if (this.hasActiveStaking()) {
+                return {
+                    success: false,
+                    message: 'У вас вже є активний стейкінг'
+                };
+            }
 
-                // Перевірка коректності параметрів
-                if (isNaN(amount) || amount <= 0) {
-                    return {
-                        success: false,
-                        message: 'Некоректна сума стейкінгу'
-                    };
-                }
+            // Перевіряємо, чи достатньо коштів
+            const balance = BalanceManager.getTokens();
+            if (balance < amount) {
+                return {
+                    success: false,
+                    message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
+                };
+            }
 
-                if (isNaN(period) || ![7, 14, 28].includes(period)) {
-                    return {
-                        success: false,
-                        message: 'Некоректний період стейкінгу'
-                    };
-                }
+            // Визначаємо відсоток відповідно до періоду
+            const rewardPercent = STAKING_RATES[period] || 7;
 
-                // Перевіряємо, чи є вже активний стейкінг
-                if (this.hasActiveStaking()) {
-                    return {
-                        success: false,
-                        message: 'У вас вже є активний стейкінг'
-                    };
-                }
+            // Розрахунок очікуваної винагороди
+            const expectedReward = this.calculateExpectedReward(amount, period);
 
-                // Перевіряємо, чи достатньо коштів
-                const balance = BalanceManager.getTokens();
-                if (balance < amount) {
-                    return {
-                        success: false,
-                        message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
-                    };
-                }
-
-                // Визначаємо відсоток відповідно до періоду
-                const rewardPercent = STAKING_RATES[period] || 7;
-
-                // Розрахунок очікуваної винагороди
-                const expectedReward = this.calculateExpectedReward(amount, period);
-
-                // Перевірка адекватності винагороди
-                if (expectedReward > amount * 0.2) {
-                    log('warn', 'Підозріло висока винагорода за стейкінг', {
-                        amount,
-                        period,
-                        reward: expectedReward
-                    });
-                }
-
-                // Знімаємо кошти з балансу
-                const subtracted = BalanceManager.subtractTokens(
+            // Перевірка адекватності винагороди
+            if (expectedReward > amount * 0.2) {
+                log('warn', 'Підозріло висока винагорода за стейкінг', {
                     amount,
-                    `Стейкінг на ${period} днів (${rewardPercent}%)`
-                );
-
-                if (!subtracted) {
-                    return {
-                        success: false,
-                        message: 'Помилка списання коштів'
-                    };
-                }
-
-                // Створюємо дані стейкінгу
-                const currentDate = new Date();
-                const endDate = new Date(currentDate);
-                endDate.setDate(endDate.getDate() + period);
-
-                const stakingId = generateId();
-
-                const stakingData = {
-                    hasActiveStaking: true,
-                    stakingId,
-                    stakingAmount: amount,
                     period,
-                    rewardPercent,
-                    expectedReward,
-                    remainingDays: period,
-                    startDate: currentDate.toISOString(),
-                    endDate: endDate.toISOString(),
-                    creationTimestamp: Date.now()
-                };
-
-                // Зберігаємо дані стейкінгу
-                safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
-
-                // Додаємо транзакцію стейкінгу
-                TransactionManager.addTransaction(
-                    TRANSACTION_TYPES.STAKE,
-                    amount,
-                    `Стейкінг на ${period} днів (${rewardPercent}%)`
-                );
-
-                // Генеруємо подію створення стейкінгу
-                emitEvent('stakingCreated', stakingData);
-
-                log('info', 'Стейкінг успішно створено', stakingData);
-
-                return {
-                    success: true,
-                    message: 'Стейкінг успішно створено',
-                    data: stakingData
-                };
-            } catch (e) {
-                log('error', 'Помилка створення стейкінгу', e);
-                return {
-                    success: false,
-                    message: 'Внутрішня помилка при створенні стейкінгу'
-                };
-            } finally {
-                _isCreatingStaking = false;
-            }
-        },
-
-        /**
-         * Додавання коштів до існуючого стейкінгу
-         * @param {number} amount Сума для додавання
-         * @returns {Object} Результат операції
-         */
-        addToStaking: function(amount) {
-            try {
-                amount = parseFloat(amount);
-
-                // Перевірка коректності параметрів
-                if (isNaN(amount) || amount <= 0) {
-                    return {
-                        success: false,
-                        message: 'Некоректна сума для додавання'
-                    };
-                }
-
-                // Перевіряємо наявність активного стейкінгу
-                if (!this.hasActiveStaking()) {
-                    return {
-                        success: false,
-                        message: 'У вас немає активного стейкінгу'
-                    };
-                }
-
-                // Перевіряємо, чи достатньо коштів
-                const balance = BalanceManager.getTokens();
-                if (balance < amount) {
-                    return {
-                        success: false,
-                        message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
-                    };
-                }
-
-                // Отримуємо поточні дані стейкінгу
-                const stakingData = this.getStakingData();
-
-                // Знімаємо кошти з балансу
-                const subtracted = BalanceManager.subtractTokens(
-                    amount,
-                    'Додавання до стейкінгу'
-                );
-
-                if (!subtracted) {
-                    return {
-                        success: false,
-                        message: 'Помилка списання коштів'
-                    };
-                }
-
-                // Оновлюємо дані стейкінгу
-                const newAmount = stakingData.stakingAmount + amount;
-                stakingData.stakingAmount = newAmount;
-                stakingData.expectedReward = this.calculateExpectedReward(
-                    newAmount,
-                    stakingData.period
-                );
-
-                // Зберігаємо оновлені дані
-                safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
-
-                // Додаємо транзакцію
-                TransactionManager.addTransaction(
-                    TRANSACTION_TYPES.STAKE,
-                    amount,
-                    'Додавання до стейкінгу'
-                );
-
-                // Генеруємо подію зміни стейкінгу
-                emitEvent('stakingChanged', stakingData);
-
-                log('info', 'Кошти успішно додано до стейкінгу', {
-                    addedAmount: amount,
-                    newAmount,
-                    stakingData
+                    reward: expectedReward
                 });
-
-                return {
-                    success: true,
-                    message: `Додано ${amount.toFixed(2)} WINIX до стейкінгу`,
-                    data: stakingData
-                };
-            } catch (e) {
-                log('error', 'Помилка додавання до стейкінгу', e);
-                return {
-                    success: false,
-                    message: 'Внутрішня помилка при додаванні до стейкінгу'
-                };
             }
-        },
 
-        /**
-         * Скасування стейкінгу
-         * @returns {Object} Результат операції
-         */
-        cancelStaking: function() {
-            if (_isCancellingStaking) {
-                log('warn', 'Вже виконується скасування стейкінгу');
+            // Знімаємо кошти з балансу
+            const subtracted = BalanceManager.subtractTokens(
+                amount,
+                `Стейкінг на ${period} днів (${rewardPercent}%)`
+            );
+
+            if (!subtracted) {
                 return {
                     success: false,
-                    message: 'Операція вже виконується'
+                    message: 'Помилка списання коштів'
                 };
             }
 
-            _isCancellingStaking = true;
+            // Створюємо дані стейкінгу
+            const currentDate = new Date();
+            const endDate = new Date(currentDate);
+            endDate.setDate(endDate.getDate() + period);
 
-            try {
-                // Перевіряємо наявність активного стейкінгу
-                if (!this.hasActiveStaking()) {
-                    return {
-                        success: false,
-                        message: 'У вас немає активного стейкінгу'
-                    };
-                }
+            const stakingId = generateId();
 
-                // Отримуємо дані стейкінгу
-                const stakingData = this.getStakingData();
+            const stakingData = {
+                hasActiveStaking: true,
+                stakingId,
+                stakingAmount: amount,
+                period,
+                rewardPercent,
+                expectedReward,
+                remainingDays: period,
+                startDate: currentDate.toISOString(),
+                endDate: endDate.toISOString(),
+                creationTimestamp: Date.now()
+            };
 
-                // Розраховуємо суму для повернення (80% від суми стейкінгу)
-                const returnAmount = stakingData.stakingAmount * (1 - _config.stakingCancelFee);
-                const feeAmount = stakingData.stakingAmount * _config.stakingCancelFee;
+            // Зберігаємо дані стейкінгу
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
 
-                // Зберігаємо в історії
-                const historyEntry = {
-                    ...stakingData,
-                    cancelledDate: new Date().toISOString(),
-                    returnedAmount: returnAmount,
-                    feeAmount,
-                    status: 'cancelled'
+            // Додаємо транзакцію стейкінгу
+            TransactionManager.addTransaction(
+                TRANSACTION_TYPES.STAKE,
+                amount,
+                `Стейкінг на ${period} днів (${rewardPercent}%)`
+            );
+
+            // Генеруємо подію створення стейкінгу
+            emitEvent('stakingCreated', stakingData);
+
+            log('info', 'Стейкінг успішно створено', stakingData);
+
+            return {
+                success: true,
+                message: 'Стейкінг успішно створено',
+                data: stakingData
+            };
+        } catch (e) {
+            log('error', 'Помилка створення стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при створенні стейкінгу'
+            };
+        } finally {
+            _isCreatingStaking = false;
+        }
+    },
+
+    /**
+     * Додавання коштів до існуючого стейкінгу
+     * @param {number} amount Сума для додавання
+     * @returns {Object} Результат операції
+     */
+    addToStaking: function(amount) {
+        try {
+            amount = parseFloat(amount);
+
+            // Перевірка коректності параметрів
+            if (isNaN(amount) || amount <= 0) {
+                log('warn', 'Некоректна сума для додавання до стейкінгу', amount);
+                return {
+                    success: false,
+                    message: 'Некоректна сума для додавання'
                 };
+            }
 
-                this._addToStakingHistory(historyEntry);
+            // Отримуємо дані стейкінгу
+            const stakingData = this.getStakingData();
 
-                // Очищаємо дані стейкінгу
-                safeSetItem(STORAGE_KEYS.STAKING_DATA, {
-                    hasActiveStaking: false,
-                    stakingAmount: 0,
-                    rewardPercent: 0,
-                    expectedReward: 0,
-                    remainingDays: 0
-                });
+            // Додаємо логування для діагностики
+            log('info', 'Спроба додавання до стейкінгу', {amount, stakingData});
 
-                // Додаємо повернуті кошти на баланс
-                BalanceManager.addTokens(
-                    returnAmount,
-                    `Стейкінг скасовано (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`
-                );
+            // Перевіряємо наявність активного стейкінгу
+            if (!stakingData || !stakingData.hasActiveStaking) {
+                log('warn', 'Спроба додати до неіснуючого стейкінгу', stakingData);
+                return {
+                    success: false,
+                    message: 'У вас немає активного стейкінгу'
+                };
+            }
 
-                // Генеруємо подію скасування стейкінгу
-                emitEvent('stakingCancelled', {
-                    stakingAmount: stakingData.stakingAmount,
+            // Перевіряємо, чи достатньо коштів
+            const balance = BalanceManager.getTokens();
+            if (balance < amount) {
+                return {
+                    success: false,
+                    message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
+                };
+            }
+
+            // Знімаємо кошти з балансу
+            const subtracted = BalanceManager.subtractTokens(
+                amount,
+                'Додавання до стейкінгу'
+            );
+
+            if (!subtracted) {
+                return {
+                    success: false,
+                    message: 'Помилка списання коштів'
+                };
+            }
+
+            // Оновлюємо дані стейкінгу
+            const newAmount = stakingData.stakingAmount + amount;
+            stakingData.stakingAmount = newAmount;
+            stakingData.expectedReward = this.calculateExpectedReward(
+                newAmount,
+                stakingData.period
+            );
+
+            // Зберігаємо оновлені дані
+            const storeResult = safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
+            log('info', 'Результат збереження оновлених даних стейкінгу:', storeResult);
+
+            // Додаємо транзакцію
+            TransactionManager.addTransaction(
+                TRANSACTION_TYPES.STAKE,
+                amount,
+                'Додавання до стейкінгу'
+            );
+
+            // Генеруємо подію зміни стейкінгу
+            emitEvent('stakingChanged', stakingData);
+
+            log('info', 'Кошти успішно додано до стейкінгу', {
+                addedAmount: amount,
+                newAmount,
+                stakingData
+            });
+
+            return {
+                success: true,
+                message: `Додано ${amount.toFixed(2)} WINIX до стейкінгу`,
+                data: stakingData
+            };
+        } catch (e) {
+            log('error', 'Помилка додавання до стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при додаванні до стейкінгу'
+            };
+        }
+    },
+
+    /**
+     * Скасування стейкінгу
+     * @returns {Object} Результат операції
+     */
+    cancelStaking: function() {
+        if (_isCancellingStaking) {
+            log('warn', 'Вже виконується скасування стейкінгу');
+            return {
+                success: false,
+                message: 'Операція вже виконується'
+            };
+        }
+
+        _isCancellingStaking = true;
+
+        try {
+            // Отримуємо дані стейкінгу перед перевіркою
+            const stakingData = this.getStakingData();
+
+            // Додаємо логування для діагностики
+            log('info', 'Спроба скасування стейкінгу', stakingData);
+
+            // Перевіряємо наявність активного стейкінгу
+            if (!stakingData || !stakingData.hasActiveStaking || stakingData.stakingAmount <= 0) {
+                log('warn', 'Спроба скасувати неіснуючий стейкінг', stakingData);
+                return {
+                    success: false,
+                    message: 'У вас немає активного стейкінгу'
+                };
+            }
+
+            // Розраховуємо суму для повернення (80% від суми стейкінгу)
+            const returnAmount = stakingData.stakingAmount * (1 - _config.stakingCancelFee);
+            const feeAmount = stakingData.stakingAmount * _config.stakingCancelFee;
+
+            // Зберігаємо в історії
+            const historyEntry = {
+                ...stakingData,
+                cancelledDate: new Date().toISOString(),
+                returnedAmount: returnAmount,
+                feeAmount,
+                status: 'cancelled'
+            };
+
+            this._addToStakingHistory(historyEntry);
+
+            // Очищаємо дані стейкінгу
+            const emptyStakingData = {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+
+            const storeResult = safeSetItem(STORAGE_KEYS.STAKING_DATA, emptyStakingData);
+            log('info', 'Результат збереження пустих даних стейкінгу:', storeResult);
+
+            // Додаємо повернуті кошти на баланс
+            BalanceManager.addTokens(
+                returnAmount,
+                `Стейкінг скасовано (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`
+            );
+
+            // Генеруємо подію скасування стейкінгу
+            emitEvent('stakingCancelled', {
+                stakingAmount: stakingData.stakingAmount,
+                returnAmount,
+                feeAmount,
+                feePercentage: _config.stakingCancelFee * 100
+            });
+
+            log('info', 'Стейкінг успішно скасовано', {
+                stakingAmount: stakingData.stakingAmount,
+                returnAmount,
+                feeAmount
+            });
+
+            return {
+                success: true,
+                message: `Стейкінг скасовано. Повернено ${returnAmount.toFixed(2)} WINIX (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`,
+                data: {
                     returnAmount,
                     feeAmount,
                     feePercentage: _config.stakingCancelFee * 100
-                });
-
-                log('info', 'Стейкінг успішно скасовано', {
-                    stakingAmount: stakingData.stakingAmount,
-                    returnAmount,
-                    feeAmount
-                });
-
-                return {
-                    success: true,
-                    message: `Стейкінг скасовано. Повернено ${returnAmount.toFixed(2)} WINIX (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`,
-                    data: {
-                        returnAmount,
-                        feeAmount,
-                        feePercentage: _config.stakingCancelFee * 100
-                    }
-                };
-            } catch (e) {
-                log('error', 'Помилка скасування стейкінгу', e);
-                return {
-                    success: false,
-                    message: 'Внутрішня помилка при скасуванні стейкінгу'
-                };
-            } finally {
-                _isCancellingStaking = false;
-            }
-        },
-
-        /**
-         * Отримання історії стейкінгу
-         * @param {number} limit Кількість записів для отримання
-         * @returns {Array} Історія стейкінгу
-         */
-        getStakingHistory: function(limit = 0) {
-            const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
-
-            if (limit > 0 && history.length > limit) {
-                return history.slice(0, limit);
-            }
-
-            return history;
+                }
+            };
+        } catch (e) {
+            log('error', 'Помилка скасування стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при скасуванні стейкінгу'
+            };
+        } finally {
+            _isCancellingStaking = false;
         }
-    };
+    },
+
+    /**
+     * Отримання історії стейкінгу
+     * @param {number} limit Кількість записів для отримання
+     * @returns {Array} Історія стейкінгу
+     */
+    getStakingHistory: function(limit = 0) {
+        const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
+
+        if (limit > 0 && history.length > limit) {
+            return history.slice(0, limit);
+        }
+
+        return history;
+    }
+};
 
     /**
      * Створюємо обгортку для роботи з транзакціями
@@ -1822,17 +1863,44 @@
 
     // Автоматична ініціалізація при завантаженні
     document.addEventListener('DOMContentLoaded', function() {
-        WinixCore.init();
+        // Перевіряємо, чи вже не ініціалізовано
+        if (!window.WinixCoreInitialized) {
+            WinixCore.init();
+            window.WinixCoreInitialized = true;
 
-        log('info', 'WinixCore автоматично ініціалізовано при завантаженні сторінки');
+            log('info', 'WinixCore автоматично ініціалізовано при завантаженні сторінки');
 
-        // Оновлюємо відображення після завантаження
-        setTimeout(function() {
-            UIManager.updateBalanceDisplay();
-            UIManager.updateStakingDisplay();
-            UIManager.updateTransactionsList();
-        }, 500);
+            // Оновлюємо відображення після завантаження
+            setTimeout(function() {
+                UIManager.updateBalanceDisplay();
+                UIManager.updateStakingDisplay();
+                UIManager.updateTransactionsList();
+
+                // Відправляємо подію про ініціалізацію
+                document.dispatchEvent(new CustomEvent('winix-core-initialized'));
+            }, 300);
+        }
     });
+
+    // Якщо DOM вже готовий, ініціалізуємо сторінку зараз
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        if (!window.WinixCoreInitialized) {
+            WinixCore.init();
+            window.WinixCoreInitialized = true;
+
+            log('info', 'WinixCore автоматично ініціалізовано (DOM вже готовий)');
+
+            // Оновлюємо відображення після завантаження
+            setTimeout(function() {
+                UIManager.updateBalanceDisplay();
+                UIManager.updateStakingDisplay();
+                UIManager.updateTransactionsList();
+
+                // Відправляємо подію про ініціалізацію
+                document.dispatchEvent(new CustomEvent('winix-core-initialized'));
+            }, 300);
+        }
+    }
 
     // Повертаємо публічний API
     return WinixCore;
