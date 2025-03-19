@@ -354,6 +354,7 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.0625rem; /* 1px */
+            cursor: pointer;
         }
 
         .claim-button:disabled {
@@ -366,6 +367,13 @@
             transform: translateY(-0.1875rem); /* -3px */
             box-shadow: 0 0.375rem 1.25rem rgba(0, 0, 0, 0.5); /* 0 6px 20px */
             background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+        }
+
+        .claim-button:active:not(:disabled) {
+            transform: scale(0.95);
+            box-shadow: 0 0.125rem 0.625rem rgba(0, 0, 0, 0.4); /* 0 2px 10px */
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            transition: all 0.1s ease;
         }
 
         /* Стилі для завдань */
@@ -1216,34 +1224,56 @@
         const claimButton = document.getElementById('claim-daily');
         if (!claimButton) return;
 
-        claimButton.addEventListener('click', function() {
+        // Визначаємо активний день та відповідну нагороду
+        const activeDay = document.querySelector('.day-circle.active');
+        let rewardAmount = 30; // Значення за замовчуванням
+
+        if (activeDay) {
+            const dayMarker = activeDay.closest('.day-marker');
+            if (dayMarker) {
+                const rewardElement = dayMarker.querySelector('.day-reward');
+                if (rewardElement && rewardElement.textContent) {
+                    rewardAmount = parseInt(rewardElement.textContent, 10) || 30;
+                }
+            }
+        }
+
+        // Оновлюємо текст кнопки відповідно до нагороди
+        claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+
+        // Видаляємо всі існуючі обробники, щоб уникнути дублювання
+        const newButton = claimButton.cloneNode(true);
+        claimButton.parentNode.replaceChild(newButton, claimButton);
+
+        // Додаємо новий обробник події
+        newButton.addEventListener('click', function() {
             if (typeof rewardSystem !== 'undefined') {
                 // Якщо є система нагород, використовуємо її
                 const result = rewardSystem.claimDailyBonus();
                 if (result.success) {
                     showToast(`Отримано ${result.amount} $WINIX!`);
                     // Деактивуємо кнопку
-                    claimButton.disabled = true;
-                    claimButton.textContent = 'Отримано';
+                    newButton.disabled = true;
+                    newButton.textContent = 'Отримано';
                 } else {
                     showToast(result.message || 'Не вдалося отримати бонус');
                 }
             } else {
                 // Запасний варіант без системи нагород
                 const userTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                localStorage.setItem('userTokens', (userTokens + 30).toString());
+                localStorage.setItem('userTokens', (userTokens + rewardAmount).toString());
 
                 // Оновлюємо відображення балансу
                 const userTokensElement = document.getElementById('user-tokens');
                 if (userTokensElement) {
-                    userTokensElement.textContent = (userTokens + 30).toFixed(2);
+                    userTokensElement.textContent = (userTokens + rewardAmount).toFixed(2);
                 }
 
-                showToast('Отримано 30 $WINIX!');
+                showToast(`Отримано ${rewardAmount} $WINIX!`);
 
                 // Деактивуємо кнопку
-                claimButton.disabled = true;
-                claimButton.textContent = 'Отримано';
+                newButton.disabled = true;
+                newButton.textContent = 'Отримано';
             }
         });
     }
