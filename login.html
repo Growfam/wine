@@ -3,22 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Вхід/Реєстрація</title>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
     <style>
+        :root {
+            /* Основні кольори для теми */
+            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            --secondary-color: #4eb5f7;
+            --bg-card: rgba(30, 39, 70, 0.8);
+            --bg-item: rgba(20, 30, 60, 0.7);
+            --bg-active: rgba(0, 201, 167, 0.3);
+            --text-color: #fff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --glow-color: rgba(0, 201, 167, 0.5);
+            --border-color: rgba(78, 181, 247, 0.2);
+            --positive-color: #4caf50;
+            --negative-color: #f44336;
+            --neutral-color: #9e9e9e;
+
+            /* Основні розміри */
+            --container-max-width: 37.5rem; /* 600px */
+            --header-height: 3.5rem; /* 56px */
+            --nav-height: 4.5rem; /* 72px */
+            --bottom-padding: 6rem; /* 96px */
+            --card-border-radius: 1.5rem; /* 24px */
+            --item-border-radius: 0.75rem; /* 12px */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: #fff;
+            color: var(--text-color);
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: center;
+            width: 100%;
             height: 100vh;
-            max-width: 600px;
-            margin: 0 auto;
             padding: 0;
             background: none;
         }
@@ -26,9 +55,9 @@
         .container {
             width: 100%;
             height: 100%;
-            max-width: 600px;
+            max-width: var(--container-max-width);
             box-sizing: border-box;
-            padding: 10px;
+            padding: 0.625rem; /* 10px */
             position: relative;
             z-index: 1;
             background: url('assets/Fon.png') no-repeat center center;
@@ -37,9 +66,25 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 0.9375rem; /* 15px */
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--secondary-color) transparent;
+        }
+
+        /* Стилізація скролбару для Chrome/Safari */
+        .container::-webkit-scrollbar {
+            width: 0.375rem; /* 6px */
+        }
+
+        .container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .container::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-color);
+            border-radius: 1.25rem; /* 20px */
         }
 
         @keyframes backgroundShift {
@@ -49,70 +94,71 @@
         }
 
         .logo-container {
-            margin-top: 40px;
-            margin-bottom: 20px;
+            margin-top: 2.5rem; /* 40px */
+            margin-bottom: 1.25rem; /* 20px */
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
         .logo {
-            width: 120px;
-            height: 120px;
+            width: 7.5rem; /* 120px */
+            height: 7.5rem; /* 120px */
             border-radius: 50%;
-            margin-bottom: 20px;
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            margin-bottom: 1.25rem; /* 20px */
+            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
             animation: pulse 8s infinite ease-in-out;
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .app-title {
-            font-size: 36px;
+            font-size: 2.25rem; /* 36px */
             font-weight: bold;
-            margin-bottom: 5px;
-            text-shadow: 0 0 15px rgba(0, 201, 167, 0.7);
+            margin-bottom: 0.3125rem; /* 5px */
+            text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.7); /* 0 0 15px */
             animation: glow 11s infinite ease-in-out;
-            letter-spacing: 2px;
+            letter-spacing: 0.125rem; /* 2px */
         }
 
         .subtitle {
-            font-size: 18px;
+            font-size: 1.125rem; /* 18px */
             color: #ccc;
-            margin-bottom: 30px;
+            margin-bottom: 1.875rem; /* 30px */
         }
 
         @keyframes glow {
-            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .auth-card {
             width: 90%;
-            background: rgba(15, 23, 42, 0.8);
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
+            padding: 1.5625rem; /* 25px */
+            margin-bottom: 1.875rem; /* 30px */
+            box-shadow: 0 0.625rem 1.875rem var(--shadow-color);
+            border: 0.0625rem solid var(--border-color); /* 1px */
         }
 
         .auth-tabs {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
-            border-bottom: 1px solid rgba(78, 181, 247, 0.3);
+            margin-bottom: 1.25rem; /* 20px */
+            border-bottom: 0.0625rem solid rgba(78, 181, 247, 0.3); /* 1px */
         }
 
         .auth-tab {
             flex: 1;
             text-align: center;
-            padding: 12px;
-            font-size: 18px;
+            padding: 0.75rem; /* 12px */
+            font-size: 1.125rem; /* 18px */
             font-weight: bold;
             cursor: pointer;
             color: #adb5bd;
@@ -127,12 +173,12 @@
         .auth-tab.active::after {
             content: '';
             position: absolute;
-            bottom: -1px;
+            bottom: -0.0625rem; /* -1px */
             left: 0;
             width: 100%;
-            height: 3px;
+            height: 0.1875rem; /* 3px */
             background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-            border-radius: 3px 3px 0 0;
+            border-radius: 0.1875rem 0.1875rem 0 0; /* 3px 3px 0 0 */
         }
 
         .auth-content {
@@ -144,35 +190,35 @@
         }
 
         .auth-title {
-            font-size: 26px;
+            font-size: 1.625rem; /* 26px */
             font-weight: bold;
-            margin-bottom: 20px;
+            margin-bottom: 1.25rem; /* 20px */
             text-align: center;
             color: #fff;
-            text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
-            letter-spacing: 1px;
+            text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.7); /* 0 0 10px */
+            letter-spacing: 0.0625rem; /* 1px */
         }
 
         .input-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.25rem; /* 20px */
         }
 
         .input-label {
             display: block;
-            margin-bottom: 8px;
-            font-size: 16px;
+            margin-bottom: 0.5rem; /* 8px */
+            font-size: 1rem; /* 16px */
             color: #adb5bd;
             font-weight: bold;
         }
 
         .input-field {
             width: 100%;
-            padding: 15px;
-            border-radius: 15px;
-            background: rgba(20, 30, 60, 0.7);
-            border: 1px solid rgba(78, 181, 247, 0.2);
+            padding: 0.9375rem; /* 15px */
+            border-radius: 0.9375rem; /* 15px */
+            background: var(--bg-item);
+            border: 0.0625rem solid rgba(78, 181, 247, 0.2); /* 1px */
             color: white;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
             box-sizing: border-box;
             transition: all 0.3s ease;
         }
@@ -180,29 +226,29 @@
         .input-field:focus {
             outline: none;
             border-color: #00C9A7;
-            box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 0 0 10px */
         }
 
         .auth-button {
             width: 100%;
             background: linear-gradient(90deg, #2D6EB6, #52C0BD);
             border: none;
-            border-radius: 25px;
-            padding: 15px;
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.9375rem; /* 15px */
             color: white;
-            font-size: 18px;
+            font-size: 1.125rem; /* 18px */
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-top: 25px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            margin-top: 1.5625rem; /* 25px */
+            box-shadow: 0 0.25rem 0.9375rem rgba(0, 0, 0, 0.4); /* 0 4px 15px */
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.0625rem; /* 1px */
         }
 
         .auth-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            transform: translateY(-0.1875rem); /* -3px */
+            box-shadow: 0 0.375rem 1.25rem rgba(0, 0, 0, 0.5); /* 0 6px 20px */
             background: linear-gradient(90deg, #3D7EC6, #62D0CD);
         }
 
@@ -217,31 +263,31 @@
         .error-message {
             color: #f44336;
             text-align: center;
-            font-size: 14px;
-            margin-top: 15px;
-            min-height: 20px;
+            font-size: 0.875rem; /* 14px */
+            margin-top: 0.9375rem; /* 15px */
+            min-height: 1.25rem; /* 20px */
         }
 
         .recovery-options {
-            margin-top: 25px;
+            margin-top: 1.5625rem; /* 25px */
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
+            gap: 1.25rem; /* 20px */
         }
 
         .divider {
             width: 100%;
             text-align: center;
             position: relative;
-            margin: 25px 0;
+            margin: 1.5625rem 0; /* 25px 0 */
         }
 
         .divider::before {
             content: "";
             display: block;
             width: 100%;
-            height: 1px;
+            height: 0.0625rem; /* 1px */
             background: rgba(78, 181, 247, 0.3);
             position: absolute;
             top: 50%;
@@ -249,8 +295,8 @@
         }
 
         .divider-text {
-            background: rgba(15, 23, 42, 0.8);
-            padding: 0 15px;
+            background: var(--bg-card);
+            padding: 0 0.9375rem; /* 0 15px */
             position: relative;
             color: #ccc;
             font-weight: bold;
@@ -258,55 +304,117 @@
 
         .recovery-button {
             width: 100%;
-            background: rgba(20, 30, 60, 0.7);
-            border: 1px solid rgba(78, 181, 247, 0.3);
-            border-radius: 15px;
-            padding: 15px;
+            background: var(--bg-item);
+            border: 0.0625rem solid rgba(78, 181, 247, 0.3); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
+            padding: 0.9375rem; /* 15px */
             color: #f8f9fa;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            gap: 0.625rem; /* 10px */
+            box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 0 2px 5px */
         }
 
         .recovery-button:hover {
             background: rgba(45, 110, 182, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.5);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            border: 0.0625rem solid rgba(78, 181, 247, 0.5); /* 1px */
+            transform: translateY(-0.125rem); /* -2px */
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.4); /* 0 4px 8px */
         }
 
         .icon {
-            font-size: 18px;
+            font-size: 1.125rem; /* 18px */
         }
 
         .toast-message {
             position: fixed;
-            top: 20px;
+            top: 1.25rem; /* 20px */
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(0, 201, 167, 0.9);
             color: white;
-            padding: 12px 24px;
-            border-radius: 5px;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 0.3125rem; /* 5px */
             z-index: 1000;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2); /* 0 4px 8px */
             opacity: 0;
             transition: opacity 0.3s, transform 0.3s;
+            font-size: 0.9375rem; /* 15px */
         }
 
         .toast-message.show {
             opacity: 1;
-            transform: translate(-50%, 10px);
+            transform: translate(-50%, 0.625rem); /* -50%, 10px */
         }
 
         .toast-message.error {
             background-color: rgba(244, 67, 54, 0.9);
+        }
+
+        /* Медіа-запити для адаптивності */
+        @media (max-width: 450px) {
+            .logo {
+                width: 6.25rem; /* 100px */
+                height: 6.25rem; /* 100px */
+            }
+
+            .app-title {
+                font-size: 2rem; /* 32px */
+            }
+
+            .subtitle {
+                font-size: 1rem; /* 16px */
+            }
+
+            .auth-tab {
+                font-size: 1rem; /* 16px */
+                padding: 0.625rem; /* 10px */
+            }
+
+            .auth-title {
+                font-size: 1.375rem; /* 22px */
+            }
+
+            .auth-button {
+                padding: 0.75rem; /* 12px */
+            }
+        }
+
+        @media (max-width: 350px) {
+            .logo {
+                width: 5.625rem; /* 90px */
+                height: 5.625rem; /* 90px */
+            }
+
+            .app-title {
+                font-size: 1.75rem; /* 28px */
+            }
+
+            .auth-card {
+                padding: 1.25rem; /* 20px */
+            }
+
+            .input-field {
+                padding: 0.75rem; /* 12px */
+            }
+        }
+
+        @media (min-width: 768px) {
+            body {
+                background: linear-gradient(135deg, #141e30, #243b55);
+            }
+
+            .container {
+                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
+                margin: 1.25rem auto; /* 20px auto */
+                height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
+                border-radius: 1.25rem; /* 20px */
+            }
         }
     </style>
 </head>
@@ -383,6 +491,54 @@
     <div class="toast-message" id="toast-message"></div>
 
     <script>
+        // Покращене визначення об'єкта Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+
+                // Реагування на зміну теми Telegram
+                tg.onEvent('themeChanged', updateThemeColors);
+
+                // Реагування на зміну розміру вікна
+                tg.onEvent('viewportChanged', adjustLayout);
+            } else {
+                console.error("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція оновлення кольорів при зміні теми
+        function updateThemeColors() {
+            if (tg && tg.colorScheme) {
+                document.body.setAttribute('data-theme', tg.colorScheme);
+
+                if (tg.colorScheme === 'dark') {
+                    // Додаткові налаштування для темної теми
+                } else {
+                    // Додаткові налаштування для світлої теми
+                }
+            }
+        }
+
+        // Функція адаптації шарів при зміні розміру екрану
+        function adjustLayout() {
+            // Перевірка на малі екрани
+            const isSmallScreen = window.innerWidth <= 450;
+            const container = document.querySelector('.container');
+
+            if (isSmallScreen) {
+                container.classList.add('small-screen');
+            } else {
+                container.classList.remove('small-screen');
+            }
+        }
+
         // Додаємо змінні для Telegram інтеграції з порожніми значеннями за замовчуванням
         let telegramUserId = null;
         let telegramUserName = null;
@@ -767,6 +923,12 @@
                 // Перевіряємо чи користувач вже залогінений
                 checkLoginStatus();
 
+                // Викликаємо функцію адаптації при старті
+                adjustLayout();
+
+                // Встановлюємо тему за замовчуванням
+                updateThemeColors();
+
                 console.log("Статус входу перевірено");
 
                 // Якщо отримано ID користувача з Telegram, перевіряємо чи зареєстрований користувач
@@ -854,12 +1016,21 @@
                     }
                 });
 
+                // Обробник для зміни розміру вікна
+                window.addEventListener('resize', adjustLayout);
+
                 console.log("Ініціалізація сторінки завершена");
             } catch (error) {
                 console.error("Помилка при ініціалізації сторінки:", error);
                 alert("Виникла помилка при завантаженні сторінки. Будь ласка, оновіть сторінку.");
             }
         });
+
+        // Глобальний обробник помилок
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+            return true;
+        };
     </script>
 </body>
 </html>

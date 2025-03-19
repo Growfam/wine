@@ -3,25 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Стейкінг</title>
 
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
 
     <style>
-        /* Всі попередні стилі залишаються без змін */
+        :root {
+            /* Основні кольори для теми */
+            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            --secondary-color: #4eb5f7;
+            --bg-card: rgba(30, 39, 70, 0.8);
+            --bg-item: rgba(20, 30, 60, 0.7);
+            --bg-active: rgba(0, 201, 167, 0.3);
+            --text-color: #fff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --glow-color: rgba(0, 201, 167, 0.5);
+            --border-color: rgba(78, 181, 247, 0.2);
+            --positive-color: #4caf50;
+            --negative-color: #f44336;
+            --neutral-color: #9e9e9e;
+
+            /* Основні розміри */
+            --container-max-width: 37.5rem; /* 600px */
+            --header-height: 3.5rem; /* 56px */
+            --nav-height: 4.5rem; /* 72px */
+            --bottom-padding: 6rem; /* 96px */
+            --card-border-radius: 1.5rem; /* 24px */
+            --item-border-radius: 0.75rem; /* 12px */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: #fff;
+            color: var(--text-color);
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: center;
+            width: 100%;
             height: 100vh;
-            max-width: 600px;
-            margin: 0 auto;
             padding: 0;
             background: none;
         }
@@ -29,9 +57,9 @@
         .container {
             width: 100%;
             height: 100%;
-            max-width: 600px;
+            max-width: var(--container-max-width);
             box-sizing: border-box;
-            padding: 10px;
+            padding: 0.625rem; /* 10px */
             position: relative;
             z-index: 1;
             background: url('assets/Fon.png') no-repeat center center;
@@ -40,10 +68,26 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 0.9375rem; /* 15px */
             overflow-y: auto;
-            padding-bottom: 90px !important;
+            padding-bottom: var(--bottom-padding) !important;
             -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--secondary-color) transparent;
+        }
+
+        /* Стилізація скролбару для Chrome/Safari */
+        .container::-webkit-scrollbar {
+            width: 0.375rem; /* 6px */
+        }
+
+        .container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .container::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-color);
+            border-radius: 1.25rem; /* 20px */
         }
 
         @keyframes backgroundShift {
@@ -53,61 +97,63 @@
         }
 
         .header {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.5rem; /* 8px */
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
             width: 100%;
-            color: #fff;
-            height: 50px;
-            margin-bottom: 15px;
+            height: var(--header-height);
+            margin-bottom: 0.9375rem; /* 15px */
+            position: sticky;
+            top: 0.3125rem; /* 5px */
+            z-index: 10;
         }
 
         .header .token-icon {
-            width: 55px;
-            height: 55px;
+            width: 3.4375rem; /* 55px */
+            height: 3.4375rem;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
             animation: pulse 8s infinite ease-in-out;
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .header .winix-title {
             font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 24px;
+            font-size: 1.5rem; /* 24px */
             font-weight: bold;
-            letter-spacing: 2px;
-            color: #fff;
-            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            letter-spacing: 0.125rem; /* 2px */
+            color: var(--text-color);
+            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
             animation: glow 11s infinite ease-in-out;
         }
 
         @keyframes glow {
-            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .header .balance-container {
             display: flex;
-            gap: 10px;
+            gap: 0.625rem; /* 10px */
             align-items: center;
-            margin-right: 5px;
+            margin-right: 0.3125rem; /* 5px */
         }
 
         .header .jeton-balance {
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-left: -35px;
+            margin-left: -2.1875rem; /* -35px */
         }
 
         .header .winix-balance {
@@ -118,75 +164,76 @@
 
         .header .jeton-balance .balance-value,
         .header .winix-balance .balance-value {
-            font-size: 14px;
+            font-size: 0.875rem; /* 14px */
             font-weight: bold;
         }
 
         .header .jeton-balance .balance-label,
         .header .winix-balance .balance-label {
-            font-size: 12px;
+            font-size: 0.75rem; /* 12px */
             font-weight: normal;
         }
 
         .header .jeton-icon {
-            width: 30px;
-            height: 30px;
+            width: 1.875rem; /* 30px */
+            height: 1.875rem;
             background: url('assets/житон.png') no-repeat center center;
             background-size: cover;
             border-radius: 50%;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
             animation: pulse 1.5s infinite ease-in-out;
         }
 
         /* Кнопка назад */
         .back-button {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 0.9375rem; /* 15px */
+            left: 0.9375rem;
             background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
             border: none;
             color: white;
-            font-size: 22px;
+            font-size: 1.375rem; /* 22px */
             cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
+            width: 2.5rem; /* 40px */
+            height: 2.5rem;
+            border-radius: 0.75rem; /* 12px */
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color); /* 0 4px 8px */
             transition: all 0.3s ease;
             z-index: 5;
         }
 
         .back-button:hover {
             transform: scale(1.05);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0.375rem 0.75rem var(--shadow-color); /* 0 6px 12px */
         }
 
         .back-button:active {
             transform: scale(0.98);
         }
-        /* Зміни в контейнері стейкінгу */
+
+        /* Стилі для контейнера стейкінгу */
         .wallet-card {
             position: relative;
-            background: rgba(30, 39, 70, 0.8);
-            border-radius: 24px;
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
             width: 90%;
-            max-width: 550px;
-            padding: 25px 20px;
-            /* Збільшуємо верхній відступ до 85px */
-            padding-top: 85px;
-            margin: 10px auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.2);
+            max-width: 34.375rem; /* 550px */
+            padding: 1.5625rem 1.25rem; /* 25px 20px */
+            /* Збільшуємо верхній відступ для заголовків і кнопки назад */
+            padding-top: 5.3125rem; /* 85px */
+            margin: 0.625rem auto; /* 10px auto */
+            box-shadow: 0 0.625rem 1.875rem var(--shadow-color); /* 0 10px 30px */
+            border: 0.0625rem solid var(--border-color); /* 1px */
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 0.9375rem; /* 15px */
         }
 
-        /* Прибираємо додатковий відступ для першого елемента, оскільки тепер відступ є в контейнері */
+        /* Прибираємо додатковий відступ для першого елемента */
         .staking-input:first-of-type {
             margin-top: 0;
         }
@@ -200,64 +247,64 @@
 
         .staking-input input {
             flex-grow: 1;
-            padding: 12px 15px;
-            border-radius: 12px;
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            background: rgba(20, 30, 60, 0.7);
+            padding: 0.75rem 0.9375rem; /* 12px 15px */
+            border-radius: 0.75rem; /* 12px */
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            background: var(--bg-item);
             color: white;
-            font-size: 16px;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 1rem; /* 16px */
+            box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
             transition: all 0.3s ease;
         }
 
         .staking-input input:focus {
             outline: none;
             border-color: rgba(0, 201, 167, 0.8);
-            box-shadow: 0 0 10px rgba(0, 201, 167, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
         }
 
         .max-button {
             width: auto;
-            padding: 12px 20px;
-            margin-left: 10px;
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 12px;
+            padding: 0.75rem 1.25rem; /* 12px 20px */
+            margin-left: 0.625rem; /* 10px */
+            background: var(--primary-gradient);
+            border-radius: 0.75rem; /* 12px */
             color: white;
             font-weight: bold;
             border: none;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color); /* 0 4px 8px */
             transition: all 0.3s ease;
             cursor: pointer;
         }
 
         .max-button:active {
             transform: scale(0.97);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
         }
 
         /* Стилі для селекта періоду */
         .period-select {
             width: 100%;
-            padding: 12px 15px;
-            border-radius: 12px;
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            background: rgba(20, 30, 60, 0.7);
+            padding: 0.75rem 0.9375rem; /* 12px 15px */
+            border-radius: 0.75rem; /* 12px */
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            background: var(--bg-item);
             color: white;
-            font-size: 16px;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-size: 1rem; /* 16px */
+            box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="6" viewBox="0 0 12 6"><path fill="white" d="M0 0l6 6 6-6z"/></svg>');
             background-repeat: no-repeat;
-            background-position: right 15px center;
-            padding-right: 30px;
+            background-position: right 0.9375rem center; /* right 15px center */
+            padding-right: 1.875rem; /* 30px */
         }
 
         .period-select:focus {
             outline: none;
             border-color: rgba(0, 201, 167, 0.8);
-            box-shadow: 0 0 10px rgba(0, 201, 167, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
         }
 
         .period-select option {
@@ -267,32 +314,32 @@
 
         #expected-reward-display {
             background: rgba(20, 30, 60, 0.5);
-            padding: 12px;
-            border-radius: 12px;
+            padding: 0.75rem; /* 12px */
+            border-radius: 0.75rem; /* 12px */
             width: 100%;
             text-align: center;
-            border: 1px solid rgba(0, 201, 167, 0.2);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
             font-weight: 500;
         }
 
         #expected-reward {
             font-weight: bold;
             color: #00C9A7;
-            text-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
         }
 
         .staking-button {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            padding: 0.9375rem; /* 15px */
+            background: var(--primary-gradient);
             border: none;
-            border-radius: 15px;
+            border-radius: 0.9375rem; /* 15px */
             color: white;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color); /* 0 4px 8px */
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -301,55 +348,55 @@
 
         .staking-button:active {
             transform: scale(0.98);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
         }
 
         /* Стиль для кнопки "Деталі стейкінгу" */
         .details-button {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            padding: 0.9375rem; /* 15px */
+            background: var(--primary-gradient);
             border: none;
-            border-radius: 15px;
+            border-radius: 0.9375rem; /* 15px */
             color: white;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color); /* 0 4px 8px */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            margin-top: 10px;
+            margin-top: 0.625rem; /* 10px */
             opacity: 0.8;
         }
 
         .details-button:active {
             transform: scale(0.98);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
         }
 
         .staking-status {
             width: 100%;
             text-align: center;
-            padding: 10px;
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
+            padding: 0.625rem; /* 10px */
+            font-size: 0.875rem; /* 14px */
+            color: var(--text-secondary);
         }
 
         .nav-bar {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.5rem; /* 8px */
             display: flex;
             justify-content: space-around;
             width: 90%;
-            max-width: 540px;
-            height: 60px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 33.75rem; /* 540px */
+            height: var(--nav-height);
+            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
             position: fixed;
-            bottom: 10px;
+            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -357,8 +404,8 @@
 
         .nav-item {
             text-align: center;
-            color: #fff;
-            font-size: 14px;
+            color: var(--text-color);
+            font-size: 0.875rem; /* 14px */
             cursor: pointer;
             display: flex;
             flex-direction: column;
@@ -369,28 +416,32 @@
         }
 
         .nav-item .icon-wrapper {
-            width: 60px;
-            height: 60px;
+            width: 3.75rem; /* 60px */
+            height: 3.75rem;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
+            border-radius: 0.75rem; /* 12px */
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            margin-bottom: 0.3125rem; /* 5px */
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
             transition: transform 0.3s ease;
         }
 
         .nav-item.active .icon-wrapper {
-            background: rgba(0, 201, 167, 0.3);
-            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+            background: var(--bg-active);
+            box-shadow: 0 0 0.9375rem var(--glow-color);
         }
 
         .nav-item img {
-            width: 35px;
-            height: 35px;
+            width: 2.1875rem; /* 35px */
+            height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
+        }
+
+        .nav-item.active img {
+            filter: brightness(1.2) invert(1);
         }
 
         .nav-item:hover .icon-wrapper {
@@ -400,25 +451,109 @@
         /* Стиль для кнопки скасування стейкінгу */
         .cancel-button {
             background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
-            margin-top: 5px;
+            margin-top: 0.3125rem; /* 5px */
         }
 
         /* Стилі для відлагодження */
         .debug-info {
             position: fixed;
-            bottom: 80px;
-            right: 10px;
+            bottom: 5rem; /* 80px */
+            right: 0.625rem; /* 10px */
             background: rgba(0, 0, 0, 0.7);
             color: lime;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 0.625rem; /* 10px */
+            border-radius: 0.3125rem; /* 5px */
             font-family: monospace;
-            font-size: 10px;
-            max-width: 300px;
-            max-height: 200px;
+            font-size: 0.625rem; /* 10px */
+            max-width: 18.75rem; /* 300px */
+            max-height: 12.5rem; /* 200px */
             overflow: auto;
             z-index: 999;
             display: none;
+        }
+
+        /* Медіа-запити для адаптивності */
+        @media (max-width: 450px) {
+            :root {
+                /* Зменшуємо розміри для маленьких екранів */
+                --header-height: 3rem; /* 48px */
+                --nav-height: 4rem; /* 64px */
+            }
+
+            .header .token-icon {
+                width: 2.8125rem; /* 45px */
+                height: 2.8125rem;
+            }
+
+            .header .winix-title {
+                font-size: 1.25rem; /* 20px */
+            }
+
+            .staking-input {
+                flex-direction: column;
+                gap: 0.625rem; /* 10px */
+            }
+
+            .max-button {
+                align-self: flex-end;
+                margin-left: 0;
+            }
+
+            .period-select, #expected-reward-display {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .staking-button, .details-button {
+                font-size: 0.875rem; /* 14px */
+                padding: 0.75rem; /* 12px */
+            }
+
+            .nav-item .icon-wrapper {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem;
+            }
+
+            .nav-item img {
+                width: 1.875rem; /* 30px */
+                height: 1.875rem;
+            }
+        }
+
+        @media (max-width: 350px) {
+            .header .jeton-balance {
+                margin-left: -1.25rem; /* -20px */
+            }
+
+            .header .balance-label {
+                font-size: 0.6875rem; /* 11px */
+            }
+
+            .wallet-card {
+                padding: 1.25rem 0.9375rem; /* 20px 15px */
+                padding-top: 4.375rem; /* 70px */
+            }
+
+            .staking-input input {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .max-button {
+                padding: 0.625rem 0.9375rem; /* 10px 15px */
+                font-size: 0.75rem; /* 12px */
+            }
+        }
+
+        @media (min-width: 768px) {
+            body {
+                background: linear-gradient(135deg, #141e30, #243b55);
+            }
+
+            .container {
+                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
+                margin: 1.25rem auto; /* 20px auto */
+                height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
+                border-radius: 1.25rem; /* 20px */
+            }
         }
     </style>
 </head>
@@ -548,15 +683,62 @@
         }
 
         // Перевірка наявності об'єкту Telegram WebApp
-        let tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) {
-            tg.ready();
-            tg.expand();
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+
+                // Реагування на зміну теми Telegram
+                tg.onEvent('themeChanged', updateThemeColors);
+
+                // Реагування на зміну розміру вікна
+                tg.onEvent('viewportChanged', adjustLayout);
+            } else {
+                console.error("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція оновлення кольорів при зміні теми
+        function updateThemeColors() {
+            if (tg && tg.colorScheme) {
+                document.body.setAttribute('data-theme', tg.colorScheme);
+
+                if (tg.colorScheme === 'dark') {
+                    // Додаткові налаштування для темної теми
+                } else {
+                    // Додаткові налаштування для світлої теми
+                }
+            }
+        }
+
+        // Функція адаптації шарів при зміні розміру екрану
+        function adjustLayout() {
+            // Перевірка на малі екрани
+            const isSmallScreen = window.innerWidth <= 450;
+            const container = document.querySelector('.container');
+
+            if (isSmallScreen) {
+                container.classList.add('small-screen');
+            } else {
+                container.classList.remove('small-screen');
+            }
         }
 
         // Головна функція ініціалізації сторінки
         function initPage() {
             console.log("Ініціалізація сторінки стейкінгу");
+
+            // Викликаємо функцію адаптації при старті
+            adjustLayout();
+
+            // Встановлюємо тему за замовчуванням
+            updateThemeColors();
 
             // Встановлюємо початкові значення, якщо потрібно
             if (!localStorage.getItem('userTokens')) {
@@ -581,7 +763,7 @@
             const backButton = document.getElementById('back-button');
             if (backButton) {
                 backButton.addEventListener('click', function() {
-                    window.location.href = "wallet.html";
+                    navigateTo("wallet.html");
                 });
             }
 
@@ -644,10 +826,10 @@
 
                     let percent = 0;
                     switch(period) {
-                        case 7: percent = 3; break;
-                        case 14: percent = 7; break;
+                        case 7: percent = 4; break;
+                        case 14: percent = 9; break;
                         case 28: percent = 15; break;
-                        default: percent = 7;
+                        default: percent = 9;
                     }
 
                     const reward = amount * (percent / 100);
@@ -725,7 +907,7 @@
                 updateExpectedReward();
             }
 
-            // Налаштування кнопки деталей стейкінгу - окремо, чітко визначений обробник
+            // Налаштування кнопки деталей стейкінгу
             const detailsButton = document.getElementById('details-button');
             if (detailsButton) {
                 // Клонуємо кнопку, щоб видалити всі попередні обробники
@@ -758,12 +940,212 @@
 
                     if (hasActiveStaking) {
                         console.log("Перехід на сторінку деталей стейкінгу");
-                        window.location.href = "staking-details.html";
+                        navigateTo("staking-details.html");
                     } else {
                         if (window.winixUI && window.winixUI.simpleAlert) {
                             window.winixUI.simpleAlert("Немає активного стейкінгу", false);
                         } else {
                             alert("Немає активного стейкінгу");
+                        }
+                    }
+                });
+            }
+
+            // Кнопка стейкінгу
+            const stakeButton = document.getElementById('stake-button');
+            if (stakeButton) {
+                stakeButton.addEventListener('click', function() {
+                    console.log("Клік по кнопці стейкінгу");
+
+                    const amount = parseFloat(document.getElementById('staking-amount').value) || 0;
+                    const period = parseInt(document.getElementById('staking-period').value) || 14;
+
+                    if (amount <= 0) {
+                        if (window.winixUI && window.winixUI.simpleAlert) {
+                            window.winixUI.simpleAlert("Введіть суму для стейкінгу", true);
+                        } else {
+                            alert("Введіть суму для стейкінгу");
+                        }
+                        return;
+                    }
+
+                    const balance = parseFloat(localStorage.getItem('userTokens') || '0');
+                    if (amount > balance) {
+                        if (window.winixUI && window.winixUI.simpleAlert) {
+                            window.winixUI.simpleAlert("Недостатньо коштів на балансі", true);
+                        } else {
+                            alert("Недостатньо коштів на балансі");
+                        }
+                        return;
+                    }
+
+                    // Якщо є StakingSystem, використовуємо його
+                    if (window.stakingSystem) {
+                        window.stakingSystem.startStaking(amount, period);
+                    } else {
+                        // Інакше працюємо через localStorage
+                        try {
+                            const expectedReward = parseFloat(document.getElementById('expected-reward').textContent);
+                            let percent = 0;
+                            switch(period) {
+                                case 7: percent = 4; break;
+                                case 14: percent = 9; break;
+                                case 28: percent = 15; break;
+                                default: percent = 9;
+                            }
+
+                            // Створюємо дані стейкінгу
+                            const stakingData = {
+                                hasActiveStaking: true,
+                                stakingId: Date.now().toString(),
+                                stakingAmount: amount,
+                                rewardPercent: percent,
+                                expectedReward: expectedReward,
+                                period: period,
+                                startDate: new Date().toISOString(),
+                                endDate: new Date(Date.now() + period * 24 * 60 * 60 * 1000).toISOString(),
+                                remainingDays: period
+                            };
+
+                            // Зберігаємо дані стейкінгу
+                            localStorage.setItem('stakingData', JSON.stringify(stakingData));
+
+                            // Віднімаємо суму стейкінгу з балансу
+                            const newBalance = balance - amount;
+                            localStorage.setItem('userTokens', newBalance.toString());
+
+                            // Додаємо транзакцію стейкінгу
+                            try {
+                                const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+                                transactions.unshift({
+                                    id: 'staking_' + Date.now(),
+                                    amount: -amount,
+                                    description: 'Відправлено на стейкінг',
+                                    timestamp: Date.now()
+                                });
+                                localStorage.setItem('transactions', JSON.stringify(transactions));
+                            } catch (e) {
+                                console.error("Помилка при додаванні транзакції:", e);
+                            }
+
+                            // Оновлюємо інтерфейс
+                            document.getElementById('user-tokens').textContent = newBalance.toFixed(2);
+                            document.getElementById('staking-status').textContent = `У стейкінгу: ${amount} $WINIX`;
+
+                            // Активуємо кнопку деталей стейкінгу
+                            document.getElementById('details-button').style.opacity = '1';
+                            document.getElementById('cancel-staking-button').style.opacity = '1';
+
+                            // Показуємо повідомлення про успіх
+                            if (window.winixUI && window.winixUI.simpleAlert) {
+                                window.winixUI.simpleAlert("Стейкінг успішно створено", false);
+                            } else {
+                                alert("Стейкінг успішно створено");
+                            }
+                        } catch (error) {
+                            console.error("Помилка при створенні стейкінгу:", error);
+                            if (window.winixUI && window.winixUI.simpleAlert) {
+                                window.winixUI.simpleAlert("Помилка при створенні стейкінгу", true);
+                            } else {
+                                alert("Помилка при створенні стейкінгу");
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Кнопка скасування стейкінгу
+            const cancelButton = document.getElementById('cancel-staking-button');
+            if (cancelButton) {
+                cancelButton.addEventListener('click', function() {
+                    console.log("Клік по кнопці скасування стейкінгу");
+
+                    // Перевіряємо наявність активного стейкінгу
+                    let hasActiveStaking = false;
+                    let stakingData = null;
+
+                    if (window.stakingSystem) {
+                        stakingData = window.stakingSystem.getStakingDisplayData();
+                        hasActiveStaking = stakingData && stakingData.hasActiveStaking;
+                    } else {
+                        // Запасний варіант через localStorage
+                        try {
+                            const stakingDataStr = localStorage.getItem('stakingData');
+                            if (stakingDataStr) {
+                                stakingData = JSON.parse(stakingDataStr);
+                                hasActiveStaking = stakingData && stakingData.hasActiveStaking;
+                            }
+                        } catch (e) {
+                            console.error("Помилка при отриманні даних стейкінгу:", e);
+                        }
+                    }
+
+                    if (!hasActiveStaking) {
+                        if (window.winixUI && window.winixUI.simpleAlert) {
+                            window.winixUI.simpleAlert("Немає активного стейкінгу", true);
+                        } else {
+                            alert("Немає активного стейкінгу");
+                        }
+                        return;
+                    }
+
+                    // Підтвердження скасування
+                    const isConfirmed = confirm("Ви впевнені, що хочете скасувати стейкінг? Ви не отримаєте нагороду.");
+                    if (!isConfirmed) {
+                        return;
+                    }
+
+                    // Якщо є StakingSystem, використовуємо його
+                    if (window.stakingSystem) {
+                        window.stakingSystem.cancelStaking();
+                    } else {
+                        // Інакше працюємо через localStorage
+                        try {
+                            const stakingAmount = stakingData.stakingAmount;
+                            const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+                            const newBalance = currentBalance + stakingAmount;
+
+                            // Зберігаємо новий баланс
+                            localStorage.setItem('userTokens', newBalance.toString());
+
+                            // Видаляємо дані стейкінгу
+                            localStorage.removeItem('stakingData');
+
+                            // Додаємо транзакцію
+                            try {
+                                const transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+                                transactions.unshift({
+                                    id: 'unstake_' + Date.now(),
+                                    amount: stakingAmount,
+                                    description: 'Стейкінг скасовано',
+                                    timestamp: Date.now()
+                                });
+                                localStorage.setItem('transactions', JSON.stringify(transactions));
+                            } catch (e) {
+                                console.error("Помилка при додаванні транзакції:", e);
+                            }
+
+                            // Оновлюємо інтерфейс
+                            document.getElementById('user-tokens').textContent = newBalance.toFixed(2);
+                            document.getElementById('staking-status').textContent = "Наразі немає активних стейкінгів";
+
+                            // Деактивуємо кнопки
+                            document.getElementById('details-button').style.opacity = '0.5';
+                            document.getElementById('cancel-staking-button').style.opacity = '0.5';
+
+                            // Показуємо повідомлення про успіх
+                            if (window.winixUI && window.winixUI.simpleAlert) {
+                                window.winixUI.simpleAlert("Стейкінг успішно скасовано", false);
+                            } else {
+                                alert("Стейкінг успішно скасовано");
+                            }
+                        } catch (error) {
+                            console.error("Помилка при скасуванні стейкінгу:", error);
+                            if (window.winixUI && window.winixUI.simpleAlert) {
+                                window.winixUI.simpleAlert("Помилка при скасуванні стейкінгу", true);
+                            } else {
+                                alert("Помилка при скасуванні стейкінгу");
+                            }
                         }
                     }
                 });
@@ -786,25 +1168,39 @@
                     this.classList.add('active');
 
                     // Перенаправлення
-                    switch(section) {
-                        case 'home':
-                            window.location.href = 'index.html';
-                            break;
-                        case 'wallet':
-                            window.location.href = 'wallet.html';
-                            break;
-                        case 'earn':
-                            window.location.href = 'earn.html'
-                            break;
-                        case 'referrals':
-                            window.location.href = 'referrals.html';
-                            break;
-                        case 'general':
-                            window.location.href = 'general.html';
-                            break;
-                    }
+                    navigateTo(section === 'wallet' ? 'wallet.html' : section + '.html');
                 });
             });
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(page) {
+            try {
+                // Зберігаємо поточний баланс перед навігацією
+                if (typeof rewardSystem !== 'undefined') {
+                    const tokens = rewardSystem.getTokens();
+                    const coins = rewardSystem.getCoins();
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                } else {
+                    const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    const coins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                }
+
+                // Переходимо на іншу сторінку
+                window.location.href = page;
+            } catch (error) {
+                console.error('Помилка навігації:', error);
+                if (window.winixUI && window.winixUI.simpleAlert) {
+                    window.winixUI.simpleAlert('Помилка навігації', true);
+                } else {
+                    alert('Помилка навігації');
+                }
+            }
         }
 
         // Запускаємо після завантаження DOM
@@ -827,6 +1223,12 @@
                 }
             }
         });
+
+        // Глобальний обробник помилок
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+            return true;
+        };
     </script>
 </body>
 </html>
