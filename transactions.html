@@ -3,38 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=600, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Транзакції</title>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
     <style>
+        :root {
+            /* Основні кольори для теми */
+            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            --secondary-color: #4eb5f7;
+            --bg-card: rgba(30, 39, 70, 0.8);
+            --bg-item: rgba(20, 30, 60, 0.7);
+            --bg-active: rgba(0, 201, 167, 0.3);
+            --text-color: #fff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --glow-color: rgba(0, 201, 167, 0.5);
+            --border-color: rgba(78, 181, 247, 0.2);
+            --positive-color: #4caf50;
+            --negative-color: #f44336;
+            --neutral-color: #9e9e9e;
+
+            /* Основні розміри */
+            --container-max-width: 37.5rem; /* 600px */
+            --header-height: 3.5rem; /* 56px */
+            --nav-height: 4.5rem; /* 72px */
+            --bottom-padding: 6rem; /* 96px */
+            --card-border-radius: 1.5rem; /* 24px */
+            --item-border-radius: 0.75rem; /* 12px */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: #fff;
+            color: var(--text-color);
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: center;
+            width: 100%;
             height: 100vh;
-            max-width: 600px;
-            margin: 0 auto;
             padding: 0;
             background: none;
         }
 
-        /* Нові стилі для модального вікна сповіщень */
+        /* Стилі для модального вікна сповіщень */
         .notification-modal {
             position: fixed;
-            top: 20px;
+            top: 1.25rem; /* 20px */
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(76, 175, 80, 0.9);
             color: white;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 0.9375rem; /* 15px */
+            border-radius: 0.625rem; /* 10px */
             z-index: 1000;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2); /* 0 4px 8px */
             text-align: center;
             display: none;
             animation: fadeIn 0.3s, fadeOut 0.3s 2.7s;
@@ -53,9 +82,9 @@
         .container {
             width: 100%;
             height: 100%;
-            max-width: 600px;
+            max-width: var(--container-max-width);
             box-sizing: border-box;
-            padding: 10px;
+            padding: 0.625rem; /* 10px */
             position: relative;
             z-index: 1;
             background: url('assets/Fon.png') no-repeat center center;
@@ -64,10 +93,26 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
+            gap: 0.9375rem; /* 15px */
             overflow-y: auto;
-            padding-bottom: 90px !important;
+            padding-bottom: var(--bottom-padding) !important;
             -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--secondary-color) transparent;
+        }
+
+        /* Стилізація скролбару для Chrome/Safari */
+        .container::-webkit-scrollbar {
+            width: 0.375rem; /* 6px */
+        }
+
+        .container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .container::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-color);
+            border-radius: 1.25rem; /* 20px */
         }
 
         @keyframes backgroundShift {
@@ -77,61 +122,63 @@
         }
 
         .header {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.5rem; /* 8px */
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
             width: 100%;
-            color: #fff;
-            height: 50px;
-            margin-bottom: 15px;
+            height: var(--header-height);
+            margin-bottom: 0.9375rem; /* 15px */
+            position: sticky;
+            top: 0.3125rem; /* 5px */
+            z-index: 10;
         }
 
         .header .token-icon {
-            width: 55px;
-            height: 55px;
+            width: 3.4375rem; /* 55px */
+            height: 3.4375rem;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.8), 0 0 20px rgba(0, 201, 167, 0.4);
+            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
             animation: pulse 8s infinite ease-in-out;
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .header .winix-title {
             font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 24px;
+            font-size: 1.5rem; /* 24px */
             font-weight: bold;
-            letter-spacing: 2px;
-            color: #fff;
-            text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+            letter-spacing: 0.125rem; /* 2px */
+            color: var(--text-color);
+            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
             animation: glow 11s infinite ease-in-out;
         }
 
         @keyframes glow {
-            0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
+            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
         .header .balance-container {
             display: flex;
-            gap: 10px;
+            gap: 0.625rem; /* 10px */
             align-items: center;
-            margin-right: 5px;
+            margin-right: 0.3125rem; /* 5px */
         }
 
         .header .jeton-balance {
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-left: -35px;
+            margin-left: -2.1875rem; /* -35px */
         }
 
         .header .winix-balance {
@@ -142,38 +189,38 @@
 
         .header .jeton-balance .balance-value,
         .header .winix-balance .balance-value {
-            font-size: 14px;
+            font-size: 0.875rem; /* 14px */
             font-weight: bold;
         }
 
         .header .jeton-balance .balance-label,
         .header .winix-balance .balance-label {
-            font-size: 12px;
+            font-size: 0.75rem; /* 12px */
             font-weight: normal;
         }
 
         .header .jeton-icon {
-            width: 30px;
-            height: 30px;
+            width: 1.875rem; /* 30px */
+            height: 1.875rem;
             background: url('assets/житон.png') no-repeat center center;
             background-size: cover;
             border-radius: 50%;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
             animation: pulse 1.5s infinite ease-in-out;
         }
 
         /* Стилі для транзакцій */
         .transaction-card {
             position: relative;
-            background: rgba(30, 39, 70, 0.8);
-            border-radius: 24px;
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
             width: 90%;
-            max-width: 550px;
-            padding: 25px 20px;
-            padding-top: 85px; /* Збільшуємо відступ для заголовка + кнопка назад */
-            margin: 10px auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.2);
+            max-width: 34.375rem; /* 550px */
+            padding: 1.5625rem 1.25rem; /* 25px 20px */
+            padding-top: 5.3125rem; /* 85px - Збільшуємо відступ для заголовка + кнопка назад */
+            margin: 0.625rem auto; /* 10px auto */
+            box-shadow: 0 0.625rem 1.875rem var(--shadow-color);
+            border: 0.0625rem solid var(--border-color);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -181,81 +228,81 @@
 
         .transaction-header {
             text-align: center;
-            font-size: 22px;
+            font-size: 1.375rem; /* 22px */
             font-weight: bold;
-            margin-bottom: 20px;
-            color: #fff;
+            margin-bottom: 1.25rem; /* 20px */
+            color: var(--text-color);
         }
 
         .transaction-filters {
             display: flex;
             width: 100%;
             overflow-x: auto;
-            gap: 8px;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
+            gap: 0.5rem; /* 8px */
+            margin-bottom: 0.9375rem; /* 15px */
+            padding-bottom: 0.3125rem; /* 5px */
             justify-content: center;
             flex-wrap: wrap;
         }
 
         .filter-button {
-            padding: 10px 15px;
-            background: rgba(20, 30, 60, 0.7);
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            border-radius: 15px;
+            padding: 0.625rem 0.9375rem; /* 10px 15px */
+            background: var(--bg-item);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
             color: white;
-            font-size: 14px;
+            font-size: 0.875rem; /* 14px */
             white-space: nowrap;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
         .filter-button.active {
-            background: rgba(0, 201, 167, 0.3);
+            background: var(--bg-active);
             border-color: rgba(0, 201, 167, 0.8);
         }
 
         .filter-toggle {
-            padding: 6px 10px;
-            background: rgba(0, 201, 167, 0.3);
-            border: 1px solid rgba(0, 201, 167, 0.5);
-            border-radius: 15px;
+            padding: 0.375rem 0.625rem; /* 6px 10px */
+            background: var(--bg-active);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.5); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
             color: white;
-            font-size: 14px;
+            font-size: 0.875rem; /* 14px */
             white-space: nowrap;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 0.3125rem; /* 5px */
         }
 
         .filter-toggle .toggle-icon {
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
         }
 
         .filter-toggle.active {
             background: rgba(0, 201, 167, 0.7);
-            box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 0 0 10px */
         }
 
         .transaction-list {
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 0.625rem; /* 10px */
         }
 
         .transaction-item {
-            background: rgba(20, 30, 60, 0.7);
-            border-radius: 15px;
-            padding: 15px;
+            background: var(--bg-item);
+            border-radius: 0.9375rem; /* 15px */
+            padding: 0.9375rem; /* 15px */
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: pointer;
             transition: all 0.2s ease;
-            border: 1px solid rgba(0, 201, 167, 0.2);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.2);
         }
 
         .transaction-item:active {
@@ -265,75 +312,75 @@
         /* Стиль для тестових транзакцій */
         .transaction-item.test-transaction {
             background: rgba(20, 30, 60, 0.5);
-            border: 1px dashed rgba(0, 201, 167, 0.2);
+            border: 0.0625rem dashed rgba(0, 201, 167, 0.2); /* 1px */
             opacity: 0.8;
         }
 
         .transaction-details {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 0.3125rem; /* 5px */
         }
 
         .transaction-type {
             font-weight: bold;
-            font-size: 16px;
-            color: #fff;
+            font-size: 1rem; /* 16px */
+            color: var(--text-color);
         }
 
         .transaction-date {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.75rem; /* 12px */
+            color: var(--text-secondary);
         }
 
         .transaction-amount {
             font-weight: bold;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
         }
 
         .transaction-positive {
-            color: #00C9A7;
+            color: var(--positive-color);
         }
 
         .transaction-negative {
-            color: #ff6b6b;
+            color: var(--negative-color);
         }
 
         .transaction-neutral {
-            color: #f7d354;
+            color: var(--neutral-color);
         }
 
         .empty-message {
             text-align: center;
-            padding: 30px 0;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 16px;
+            padding: 1.875rem 0; /* 30px 0 */
+            color: var(--text-secondary);
+            font-size: 1rem; /* 16px */
         }
 
         /* Кнопка назад */
         .back-button {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 0.9375rem; /* 15px */
+            left: 0.9375rem;
             background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
             border: none;
             color: white;
-            font-size: 22px;
+            font-size: 1.375rem; /* 22px */
             cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
+            width: 2.5rem; /* 40px */
+            height: 2.5rem;
+            border-radius: 0.75rem; /* 12px */
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
             transition: all 0.3s ease;
             z-index: 5;
         }
 
         .back-button:hover {
             transform: scale(1.05);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0.375rem 0.75rem var(--shadow-color);
         }
 
         .back-button:active {
@@ -343,16 +390,16 @@
         /* Кнопка перемикання тестових транзакцій */
         .test-transactions-toggle {
             position: absolute;
-            top: 15px;
-            right: 15px;
+            top: 0.9375rem; /* 15px */
+            right: 0.9375rem;
             background: linear-gradient(90deg, #1E3A5F, #16213E, #1A7A6B);
             color: white;
             border: none;
-            padding: 8px 15px;
-            border-radius: 12px;
-            font-size: 12px;
+            padding: 0.5rem 0.9375rem; /* 8px 15px */
+            border-radius: 0.75rem; /* 12px */
+            font-size: 0.75rem; /* 12px */
             cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
             transition: all 0.3s ease;
             z-index: 5;
             display: none; /* Буде показано через JavaScript якщо доречно */
@@ -360,7 +407,7 @@
 
         .test-transactions-toggle:hover {
             transform: scale(1.05);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 0.375rem 0.75rem var(--shadow-color);
         }
 
         .test-transactions-toggle:active {
@@ -383,31 +430,31 @@
 
         .modal-content {
             background: rgba(30, 39, 70, 0.95);
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            border-radius: 15px;
-            padding: 20px;
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
+            padding: 1.25rem; /* 20px */
             width: 85%;
-            max-width: 400px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 25rem; /* 400px */
+            box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.5);
         }
 
         .modal-title {
             text-align: center;
-            font-size: 18px;
+            font-size: 1.125rem; /* 18px */
             font-weight: bold;
-            margin-bottom: 20px;
-            color: #fff;
+            margin-bottom: 1.25rem; /* 20px */
+            color: var(--text-color);
         }
 
         .transaction-detail-row {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.625rem 0; /* 10px 0 */
+            border-bottom: 0.0625rem solid rgba(255, 255, 255, 0.1); /* 1px */
         }
 
         .detail-label {
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--text-secondary);
         }
 
         .detail-value {
@@ -416,15 +463,15 @@
         }
 
         .close-button {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            background: var(--primary-gradient);
             border: none;
             color: white;
-            padding: 12px 0;
-            border-radius: 15px;
+            padding: 0.75rem 0; /* 12px 0 */
+            border-radius: 0.9375rem; /* 15px */
             cursor: pointer;
-            margin-top: 20px;
+            margin-top: 1.25rem; /* 20px */
             width: 100%;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
             font-weight: bold;
         }
 
@@ -433,17 +480,17 @@
         }
 
         .nav-bar {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border-radius: 25px;
-            padding: 8px;
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.5rem; /* 8px */
             display: flex;
             justify-content: space-around;
             width: 90%;
-            max-width: 540px;
-            height: 60px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 33.75rem; /* 540px */
+            height: var(--nav-height);
+            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
             position: fixed;
-            bottom: 10px;
+            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -451,8 +498,8 @@
 
         .nav-item {
             text-align: center;
-            color: #fff;
-            font-size: 14px;
+            color: var(--text-color);
+            font-size: 0.875rem; /* 14px */
             cursor: pointer;
             display: flex;
             flex-direction: column;
@@ -463,28 +510,32 @@
         }
 
         .nav-item .icon-wrapper {
-            width: 60px;
-            height: 60px;
+            width: 3.75rem; /* 60px */
+            height: 3.75rem;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
+            border-radius: 0.75rem; /* 12px */
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            margin-bottom: 0.3125rem; /* 5px */
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
             transition: transform 0.3s ease;
         }
 
         .nav-item.active .icon-wrapper {
-            background: rgba(0, 201, 167, 0.3);
-            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+            background: var(--bg-active);
+            box-shadow: 0 0 0.9375rem var(--glow-color);
         }
 
         .nav-item img {
-            width: 35px;
-            height: 35px;
+            width: 2.1875rem; /* 35px */
+            height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
+        }
+
+        .nav-item.active img {
+            filter: brightness(1.2) invert(1);
         }
 
         .nav-item:hover .icon-wrapper {
@@ -507,26 +558,26 @@
 
         .popup-content {
             width: 85%;
-            max-width: 300px;
+            max-width: 18.75rem; /* 300px */
             background: rgba(30, 39, 70, 0.95);
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            border-radius: 15px;
-            padding: 20px;
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
+            padding: 1.25rem; /* 20px */
             text-align: center;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0.3125rem 1.25rem rgba(0, 0, 0, 0.3);
         }
 
         .popup-content p {
-            margin-bottom: 20px;
+            margin-bottom: 1.25rem; /* 20px */
             color: white;
         }
 
         .popup-button {
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            background: var(--primary-gradient);
             border: none;
             color: white;
-            padding: 10px 20px;
-            border-radius: 10px;
+            padding: 0.625rem 1.25rem; /* 10px 20px */
+            border-radius: 0.625rem; /* 10px */
             cursor: pointer;
         }
 
@@ -546,13 +597,13 @@
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(0, 201, 167, 0.3);
+            width: 2.5rem; /* 40px */
+            height: 2.5rem;
+            border: 0.25rem solid rgba(0, 201, 167, 0.3); /* 4px */
             border-radius: 50%;
-            border-top: 4px solid #00C9A7;
+            border-top: 0.25rem solid #00C9A7;
             animation: spin 1s linear infinite;
-            margin-bottom: 15px;
+            margin-bottom: 0.9375rem; /* 15px */
         }
 
         @keyframes spin {
@@ -562,16 +613,107 @@
 
         .loading-text {
             color: white;
-            font-size: 16px;
+            font-size: 1rem; /* 16px */
         }
 
         /* Індикатор типу транзакцій */
         .transaction-status-indicator {
             text-align: center;
-            padding: 5px 0;
-            margin-bottom: 15px;
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
+            padding: 0.3125rem 0; /* 5px 0 */
+            margin-bottom: 0.9375rem; /* 15px */
+            font-size: 0.875rem; /* 14px */
+            color: var(--text-secondary);
+        }
+
+        /* Медіа-запити для адаптивності */
+        @media (max-width: 450px) {
+            :root {
+                /* Зменшуємо розміри для маленьких екранів */
+                --header-height: 3rem; /* 48px */
+                --nav-height: 4rem; /* 64px */
+            }
+
+            .header .token-icon {
+                width: 2.8125rem; /* 45px */
+                height: 2.8125rem;
+            }
+
+            .header .winix-title {
+                font-size: 1.25rem; /* 20px */
+            }
+
+            .transaction-header {
+                font-size: 1.25rem; /* 20px */
+            }
+
+            .transaction-filters {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                justify-content: flex-start;
+                padding-bottom: 0.625rem; /* 10px */
+            }
+
+            .filter-button {
+                font-size: 0.75rem; /* 12px */
+                padding: 0.5rem 0.75rem; /* 8px 12px */
+                flex-shrink: 0;
+            }
+
+            .nav-item .icon-wrapper {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem;
+            }
+
+            .nav-item img {
+                width: 1.875rem; /* 30px */
+                height: 1.875rem;
+            }
+
+            .nav-item {
+                font-size: 0.75rem; /* 12px */
+            }
+        }
+
+        @media (max-width: 350px) {
+            .header .jeton-balance {
+                margin-left: -1.25rem; /* -20px */
+            }
+
+            .header .balance-label {
+                font-size: 0.6875rem; /* 11px */
+            }
+
+            .transaction-item {
+                padding: 0.625rem; /* 10px */
+            }
+
+            .transaction-details {
+                max-width: 60%;
+            }
+
+            .transaction-type {
+                font-size: 0.875rem; /* 14px */
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .transaction-amount {
+                font-size: 0.875rem; /* 14px */
+            }
+        }
+
+        @media (min-width: 768px) {
+            body {
+                background: linear-gradient(135deg, #141e30, #243b55);
+            }
+
+            .container {
+                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
+                margin: 1.25rem auto; /* 20px auto */
+                height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
+                border-radius: 1.25rem; /* 20px */
+            }
         }
     </style>
 </head>
@@ -1341,22 +1483,17 @@
                     item.addEventListener('click', () => {
                         const section = item.getAttribute('data-section');
 
-                        switch(section) {
-                            case 'home':
-                                window.location.href = 'index.html';
-                                break;
-                            case 'earn':
-                                this.showPopup('Секція Earn буде доступна пізніше.');
-                                break;
-                            case 'referrals':
-                                window.location.href = 'referrals.html';
-                                break;
-                            case 'wallet':
-                                window.location.href = 'wallet.html';
-                                break;
-                            case 'general':
-                                this.showPopup('Секція General буде доступна пізніше.');
-                                break;
+                        // Навігація між сторінками
+                        if (section === 'home') {
+                            navigateTo('index.html');
+                        } else if (section === 'earn') {
+                            navigateTo('earn.html');
+                        } else if (section === 'referrals') {
+                            navigateTo('referrals.html');
+                        } else if (section === 'wallet') {
+                            navigateTo('wallet.html');
+                        } else if (section === 'general') {
+                            navigateTo('general.html');
                         }
                     });
                 });
@@ -1380,6 +1517,89 @@
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
             WinixTransactions.init();
         }
+
+        // Покращене визначення об'єкта Telegram WebApp
+        let tg;
+        try {
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+
+                // Реагування на зміну теми Telegram
+                tg.onEvent('themeChanged', updateThemeColors);
+
+                // Реагування на зміну розміру вікна
+                tg.onEvent('viewportChanged', adjustLayout);
+            } else {
+                console.error("Telegram WebApp API недоступний");
+            }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
+
+        // Функція оновлення кольорів при зміні теми
+        function updateThemeColors() {
+            if (tg && tg.colorScheme) {
+                document.body.setAttribute('data-theme', tg.colorScheme);
+
+                if (tg.colorScheme === 'dark') {
+                    // Додаткові налаштування для темної теми
+                } else {
+                    // Додаткові налаштування для світлої теми
+                }
+            }
+        }
+
+        // Функція адаптації шарів при зміні розміру екрану
+        function adjustLayout() {
+            // Перевірка на малі екрани
+            const isSmallScreen = window.innerWidth <= 450;
+            const container = document.querySelector('.container');
+
+            if (isSmallScreen) {
+                container.classList.add('small-screen');
+            } else {
+                container.classList.remove('small-screen');
+            }
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(page) {
+            try {
+                // Зберігаємо поточний баланс перед навігацією
+                if (typeof rewardSystem !== 'undefined') {
+                    const tokens = rewardSystem.getTokens();
+                    const coins = rewardSystem.getCoins();
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                } else {
+                    const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    const coins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+                    sessionStorage.setItem('lastBalance', tokens.toString());
+                    sessionStorage.setItem('lastCoins', coins.toString());
+                }
+
+                // Переходимо на іншу сторінку
+                window.location.href = page;
+            } catch (error) {
+                console.error('Помилка навігації:', error);
+                WinixTransactions.showNotification('Помилка навігації', false);
+            }
+        }
+
+        // Викликаємо функцію адаптації при старті
+        adjustLayout();
+
+        // Встановлюємо тему за замовчуванням
+        updateThemeColors();
+
+        // Налаштовуємо періодичне оновлення
+        window.addEventListener('resize', adjustLayout);
 
         // Створюємо заглушку TransactionSystem, якщо вона не існує
         if (!window.transactionSystem) {
