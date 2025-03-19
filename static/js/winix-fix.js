@@ -1299,39 +1299,202 @@
         }
     }
 
-    // ================ ГОЛОВНА ФУНКЦІЯ ІНІЦІАЛІЗАЦІЇ ================
-
     /**
-     * Головна функція ініціалізації та виправлення системи
-     */
-    function initFixSystem() {
-        try {
-            // Покращуємо системи
-            enhanceBalanceSystem();
-            enhanceStakingSystem();
-            enhanceRewardSystem();
+ * Головна функція ініціалізації та виправлення системи
+ */
+function initFixSystem() {
+    try {
+        console.log("🔄 WINIX-FIX: Перевірка статусу основної системи...");
 
-            // Налаштовуємо обробники для різних сторінок
-            setupStakingPageHandlers();
-            setupStakingDetailsPageHandlers();
-            setupEarnPageHandlers();
+        // Перевіряємо та виправляємо проблеми стейкінгу
+        checkAndFixStakingIssue();
 
-            console.log("✅ WINIX-FIX: Всі системи успішно вдосконалено!");
+        // Синхронізація даних стейкінгу
+        syncStakingData();
+
+        // Тестуємо функціональність стейкінгу
+        testStakingFunctionality();
+
+        // Перевіряємо, чи вже ініціалізована основна система
+        if (window.WinixInitState && window.WinixInitState.isFullyInitialized) {
+            console.log("✅ WINIX-FIX: Основна система вже ініціалізована, виконуємо лише синхронізацію");
+
+            // Синхронізуємо ключі localStorage
+            syncStorageKeys();
+
+            // Відправляємо подію про ініціалізацію
+            document.dispatchEvent(new CustomEvent('winix-fix-initialized'));
+
             return true;
-        } catch (e) {
-            console.error("❌ WINIX-FIX: Критична помилка ініціалізації:", e);
-            return false;
         }
-    }
 
-    // Запускаємо ініціалізацію після повного завантаження сторінки
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initFixSystem);
-    } else {
-        initFixSystem();
-    }
+        // Основна система не ініціалізована, виконуємо повну ініціалізацію
+        // Покращуємо системи
+        enhanceBalanceSystem();
+        enhanceStakingSystem();
+        enhanceRewardSystem();
 
-    // Додаємо функцію сповіщення в глобальний контекст для сумісності
-    window.showToast = showToast;
+        // Синхронізуємо ключі localStorage
+        syncStorageKeys();
+
+        // Відправляємо подію про ініціалізацію
+        document.dispatchEvent(new CustomEvent('winix-fix-initialized'));
+
+        console.log("✅ WINIX-FIX: Всі системи успішно вдосконалено!");
+        return true;
+    } catch (e) {
+        console.error("❌ WINIX-FIX: Критична помилка ініціалізації:", e);
+        return false;
+    }
+}
+
+    // Запускаємо ініціалізацію при завантаженні DOM
+    document.addEventListener('DOMContentLoaded', function() {
+        // Перевіряємо, чи вже відбулася повна ініціалізація
+        if (window.WinixInitState && window.WinixInitState.isFullyInitialized) {
+            console.log('✅ Система вже повністю ініціалізована');
+            return;
+        }
+
+        // Ініціалізуємо сторінку
+        initPage();
+    });
+
+    // Виконуємо дії після повного завантаження сторінки
+    window.addEventListener('load', function() {
+        // Оновлюємо відображення балансу після повного завантаження
+        if (window.WinixCore && window.WinixCore.UI) {
+            window.WinixCore.UI.updateBalanceDisplay();
+            window.WinixCore.UI.updateStakingDisplay();
+        }
+    });
+
+    // Якщо DOM вже готовий, ініціалізуємо сторінку зараз
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        // Перевіряємо, чи вже відбулася повна ініціалізація
+        if (window.WinixInitState && window.WinixInitState.isFullyInitialized) {
+            console.log('✅ Система вже повністю ініціалізована');
+            return;
+        }
+
+        // Ініціалізуємо сторінку
+        initPage();
+    }
+    /**
+ * Синхронізація даних стейкінгу між системами
+ */
+function syncStakingData() {
+    console.log("🔄 WINIX-FIX: Синхронізація даних стейкінгу...");
+
+    try {
+        // Перевіряємо, чи є дані стейкінгу в обох системах
+        const winixCoreData = localStorage.getItem('winix_staking');
+        const fixData = localStorage.getItem('stakingData');
+
+        console.log("WINIX-FIX: Дані стейкінгу в WinixCore:", winixCoreData);
+        console.log("WINIX-FIX: Дані стейкінгу в Fix:", fixData);
+
+        // Якщо дані є в WinixCore, використовуємо їх
+        if (winixCoreData) {
+            const parsedData = JSON.parse(winixCoreData);
+
+            // Перевіряємо, чи дані містять активний стейкінг
+            if (parsedData && parsedData.hasActiveStaking === true) {
+                // Зберігаємо в Fix
+                localStorage.setItem('stakingData', winixCoreData);
+                console.log("WINIX-FIX: Дані з WinixCore скопійовано в Fix");
+            }
+        }
+        // Якщо дані є в Fix, але немає в WinixCore
+        else if (fixData) {
+            const parsedData = JSON.parse(fixData);
+
+            // Перевіряємо, чи дані містять активний стейкінг
+            if (parsedData && parsedData.hasActiveStaking === true) {
+                // Зберігаємо в WinixCore
+                localStorage.setItem('winix_staking', fixData);
+                console.log("WINIX-FIX: Дані з Fix скопійовано в WinixCore");
+            }
+        }
+
+        return true;
+    } catch (e) {
+        console.error("❌ WINIX-FIX: Помилка синхронізації даних стейкінгу:", e);
+        return false;
+    }
+}
+
+/**
+ * Перевірка та виправлення проблеми з даними стейкінгу
+ */
+function checkAndFixStakingIssue() {
+    console.log("🔄 WINIX-FIX: Перевірка проблем стейкінгу...");
+
+    try {
+        // Спочатку синхронізуємо дані
+        syncStakingData();
+
+        // Перевіряємо дані стейкінгу в WinixCore
+        const winixCoreData = localStorage.getItem('winix_staking');
+
+        if (winixCoreData) {
+            const parsedData = JSON.parse(winixCoreData);
+
+            // Перевіряємо, чи структура даних правильна
+            if (parsedData) {
+                // Переконуємося, що hasActiveStaking визначений
+                if (parsedData.hasActiveStaking === undefined && parsedData.stakingAmount > 0) {
+                    parsedData.hasActiveStaking = true;
+                    localStorage.setItem('winix_staking', JSON.stringify(parsedData));
+                    console.log("WINIX-FIX: Виправлено відсутність hasActiveStaking");
+                }
+
+                // Переконуємося, що stakingAmount правильний тип
+                if (parsedData.stakingAmount !== undefined && typeof parsedData.stakingAmount !== 'number') {
+                    parsedData.stakingAmount = parseFloat(parsedData.stakingAmount) || 0;
+                    localStorage.setItem('winix_staking', JSON.stringify(parsedData));
+                    console.log("WINIX-FIX: Виправлено тип stakingAmount");
+                }
+            }
+        }
+
+        console.log("✅ WINIX-FIX: Перевірку проблем стейкінгу завершено");
+        return true;
+    } catch (e) {
+        console.error("❌ WINIX-FIX: Помилка перевірки проблем стейкінгу:", e);
+        return false;
+    }
+}
+
+/**
+ * Перевірка працездатності стейкінгу
+ */
+function testStakingFunctionality() {
+    console.log("🔄 WINIX-FIX: Тестування функціональності стейкінгу...");
+
+    try {
+        // Перевіряємо, чи є активний стейкінг в WinixCore
+        let hasStaking = false;
+
+        if (window.WinixCore && window.WinixCore.Staking) {
+            hasStaking = window.WinixCore.Staking.hasActiveStaking();
+            const stakingData = window.WinixCore.Staking.getStakingData();
+
+            console.log("WINIX-FIX: Результат hasActiveStaking:", hasStaking);
+            console.log("WINIX-FIX: Дані стейкінгу:", stakingData);
+
+            // Перевіряємо, чи обидва способи перевірки узгоджені
+            if (hasStaking !== stakingData.hasActiveStaking) {
+                console.warn("⚠️ WINIX-FIX: Виявлено неузгодженість у перевірці стейкінгу");
+            }
+        }
+
+        console.log("✅ WINIX-FIX: Тестування функціональності стейкінгу завершено");
+        return hasStaking;
+    } catch (e) {
+        console.error("❌ WINIX-FIX: Помилка тестування функціональності стейкінгу:", e);
+        return false;
+    }
+}
 
 })();
