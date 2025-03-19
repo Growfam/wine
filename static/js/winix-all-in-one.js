@@ -1053,65 +1053,47 @@
      * Виправлення дублікатів обробників подій для всіх ключових елементів
      */
     function fixDuplicateEventListeners() {
-        try {
-            log('info', 'Виправлення дублікатів обробників подій');
+    try {
+        log('info', 'Виправлення дублікатів обробників подій');
 
-            // Перевіряємо, чи потрібно виправляти дублікати
-            if (!WINIX_SETTINGS.fixDuplicateEventListeners) {
-                log('info', 'Виправлення дублікатів обробників подій вимкнено в налаштуваннях');
-                return false;
+        // Список елементів для перевірки дублікатів
+        const earnButtons = [
+            'twitter-subscribe', 'telegram-subscribe', 'youtube-subscribe',
+            'twitter-verify', 'telegram-verify', 'youtube-verify'
+        ];
+
+        // Очищення дублікатів обробників для кнопок заробітку
+        earnButtons.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                const newElement = element.cloneNode(true);
+                element.parentNode.replaceChild(newElement, element);
+                log('info', `Очищено обробники для елемента ${id}`);
             }
+        });
 
-            // Список усіх важливих елементів, які потенційно можуть мати дублюючі обробники
-            const importantElements = [
-                'back-button',
-                'stake-button',
-                'cancel-staking-button',
-                'add-to-stake-button',
-                'details-button',
-                'max-button',
-                'staking-amount',
-                'staking-period'
-            ];
+        // Гарантуємо, що функція showNotification не буде перевизначена кілька разів
+        if (window.WinixCore && window.WinixCore.UI) {
+            const originalShowNotification = window.WinixCore.UI.showNotification;
+            window._showNotificationCount = window._showNotificationCount || 0;
 
-            // Запобігаємо глобальному клонуванню документа, яке призводить до втрати всіх обробників
-            window.dangerousCloneDocument = function() {
-                log('warn', 'Спроба клонування всього документа заблокована - це може призвести до втрати всіх обробників подій');
-                return false;
-            };
-
-            // Замінюємо оригінальний метод Node.prototype.cloneNode більш безпечною версією
-            const originalCloneNode = Node.prototype.cloneNode;
-            Node.prototype.cloneNode = function(deep) {
-                // Якщо хтось намагається клонувати цілий документ або html-елемент
-                if (this === document || this === document.documentElement) {
-                    log('warn', 'Спроба клонування documentElement заблокована');
-
-                    // Замість цього починаємо пофрагментно переприв'язувати обробники
-                    fixNavigation();
-                    fixStakingButtons();
-
-                    // Повертаємо оригінальний елемент
-                    return this;
-                }
-
-                // В інших випадках дозволяємо клонування
-                return originalCloneNode.call(this, deep);
-            };
-
-            log('info', 'Виправлення дублікатів обробників подій успішно застосовано');
-            return true;
-        } catch (e) {
-            log('error', 'Помилка виправлення дублікатів обробників подій:', e);
-
-            // Відновлюємо оригінальний метод
-            if (originalCloneNode) {
-                Node.prototype.cloneNode = originalCloneNode;
+            // Встановлюємо перевизначену функцію тільки один раз
+            if (window._showNotificationCount === 0) {
+                window.WinixCore.UI.showNotification = function(message, type, callback) {
+                    log('info', 'Виклик showNotification з контролем дублікатів');
+                    return originalShowNotification(message, type, callback);
+                };
+                window._showNotificationCount++;
             }
-
-            return false;
         }
+
+        log('info', 'Виправлення дублікатів обробників подій завершено');
+        return true;
+    } catch (e) {
+        log('error', 'Помилка виправлення дублікатів обробників подій:', e);
+        return false;
     }
+}
 
     // ====================== ЗАПУСК ВСІХ ВИПРАВЛЕНЬ ======================
 
