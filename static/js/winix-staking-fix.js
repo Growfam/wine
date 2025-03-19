@@ -8,6 +8,9 @@
 (function() {
     console.log("🔄 WINIX-STAKING-FIX: Запуск виправлень системи стейкінгу...");
 
+    // Приховуємо обробники подій, встановлені раніше
+    window.eventListenersFixed = false;
+
     // Перевіряємо наявність основної системи
     if (!window.WinixCore || !window.WinixCore.Staking) {
         console.error("❌ WINIX-STAKING-FIX: Відсутня основна система! Неможливо виправити стейкінг.");
@@ -99,109 +102,6 @@
     }
 
     /**
-     * Виправлення обробників стейкінгу
-     */
-    function fixStakingHandlers() {
-        try {
-            // Перевіряємо, чи ми на сторінці стейкінгу або деталей стейкінгу
-            const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-            if (currentPage !== 'staking' && currentPage !== 'staking-details') return false;
-
-            console.log("🔧 WINIX-STAKING-FIX: Виправлення обробників стейкінгу для сторінки", currentPage);
-
-            if (currentPage === 'staking-details') {
-                // Кнопка додавання до стейкінгу
-                const addButton = document.getElementById('add-to-stake-button');
-                if (addButton) {
-                    console.log("WINIX-STAKING-FIX: Виправлення кнопки додавання до стейкінгу");
-
-                    // Клонуємо кнопку для видалення всіх попередніх обробників
-                    const newAddButton = addButton.cloneNode(true);
-                    addButton.parentNode.replaceChild(newAddButton, addButton);
-
-                    newAddButton.addEventListener('click', function() {
-                        // Запитуємо суму для додавання
-                        const amount = prompt("Введіть суму для додавання до стейкінгу:");
-
-                        if (amount === null) return; // Натиснуто "Скасувати"
-
-                        const numAmount = parseFloat(amount);
-                        if (isNaN(numAmount) || numAmount <= 0) {
-                            window.WinixCore.UI.showNotification("Введіть коректну суму", window.WinixCore.MESSAGE_TYPES.ERROR);
-                            return;
-                        }
-
-                        // Перевіряємо дані стейкінгу
-                        deepFixStakingData();
-
-                        console.log("WINIX-STAKING-FIX: Виклик addToStaking з сумою:", numAmount);
-                        const result = window.WinixCore.Staking.addToStaking(numAmount);
-                        console.log("WINIX-STAKING-FIX: Результат addToStaking:", result);
-
-                        if (result.success) {
-                            window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.SUCCESS);
-                            // Оновлюємо відображення
-                            setTimeout(() => {
-                                window.WinixCore.UI.updateStakingDisplay();
-                            }, 300);
-                        } else {
-                            window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.ERROR);
-                        }
-                    });
-                }
-
-                // Кнопка скасування стейкінгу
-                const cancelButton = document.getElementById('cancel-staking-button');
-                if (cancelButton) {
-                    console.log("WINIX-STAKING-FIX: Виправлення кнопки скасування стейкінгу");
-
-                    // Клонуємо кнопку для видалення всіх попередніх обробників
-                    const newCancelButton = cancelButton.cloneNode(true);
-                    cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
-
-                    newCancelButton.addEventListener('click', function() {
-                        // Перевіряємо дані стейкінгу
-                        deepFixStakingData();
-
-                        // Перевіряємо наявність стейкінгу
-                        const hasStaking = window.WinixCore.Staking.hasActiveStaking();
-                        console.log("WINIX-STAKING-FIX: Наявність стейкінгу:", hasStaking);
-
-                        if (!hasStaking) {
-                            window.WinixCore.UI.showNotification("У вас немає активного стейкінгу", window.WinixCore.MESSAGE_TYPES.WARNING);
-                            // Повторно виправляємо дані та оновлюємо інтерфейс
-                            deepFixStakingData();
-                            setTimeout(() => {
-                                window.WinixCore.UI.updateStakingDisplay();
-                            }, 300);
-                            return;
-                        }
-
-                        if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано 20% від суми стейкінгу як штраф.")) {
-                            console.log("WINIX-STAKING-FIX: Виклик cancelStaking");
-                            const result = window.WinixCore.Staking.cancelStaking();
-                            console.log("WINIX-STAKING-FIX: Результат cancelStaking:", result);
-
-                            if (result.success) {
-                                window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.SUCCESS,
-                                    () => window.navigateTo('wallet.html'));
-                            } else {
-                                window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.ERROR);
-                            }
-                        }
-                    });
-                }
-            }
-
-            console.log("✅ WINIX-STAKING-FIX: Обробники стейкінгу успішно виправлено");
-            return true;
-        } catch (e) {
-            console.error("❌ WINIX-STAKING-FIX: Помилка виправлення обробників стейкінгу:", e);
-            return false;
-        }
-    }
-
-    /**
      * Додаткова допоміжна функція для WinixCore
      */
     function enhanceWinixCore() {
@@ -238,7 +138,7 @@
 
             // Додаємо кнопку відновлення стейкінгу (тільки для сторінки деталей стейкінгу)
             const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-            if (currentPage === 'staking-details') {
+            if (currentPage === 'staking-details' && !document.getElementById('restore-staking-button')) {
                 const buttonsContainer = document.querySelector('.buttons-container');
                 if (buttonsContainer) {
                     const restoreButton = document.createElement('button');
@@ -269,18 +169,145 @@
         }
     }
 
-    // Запускаємо виправлення після повного завантаження сторінки
+    /**
+     * Виправлення обробників подій стейкінгу без створення дублікатів
+     */
+    function fixEventHandlers() {
+        // Перевіряємо, чи вже виправлено
+        if (window.eventListenersFixed) {
+            console.log("ℹ️ WINIX-STAKING-FIX: Обробники подій вже виправлено");
+            return false;
+        }
+
+        try {
+            // Перевіряємо, чи ми на сторінці стейкінгу або деталей стейкінгу
+            const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+            if (currentPage !== 'staking' && currentPage !== 'staking-details') return false;
+
+            console.log("🔧 WINIX-STAKING-FIX: Виправлення обробників подій для сторінки", currentPage);
+
+            if (currentPage === 'staking-details') {
+                // Видаляємо всі існуючі обробники з document, щоб запобігти дублюванню
+                // Це вирішує проблему додаткових обробників, доданих через делегування
+                const oldHtmlElement = document.documentElement;
+                const newHtmlElement = oldHtmlElement.cloneNode(true);
+                oldHtmlElement.parentNode.replaceChild(newHtmlElement, oldHtmlElement);
+
+                // Додаємо обробники подій наново
+                setTimeout(() => {
+                    // Кнопка додавання до стейкінгу
+                    const addButton = document.getElementById('add-to-stake-button');
+                    if (addButton) {
+                        console.log("WINIX-STAKING-FIX: Налаштування кнопки додавання до стейкінгу");
+                        addButton.addEventListener('click', async function(event) {
+                            // Блокуємо стандартну поведінку та спливання події
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            // Запитуємо суму для додавання
+                            const amount = prompt("Введіть суму для додавання до стейкінгу:");
+
+                            if (amount === null) return; // Натиснуто "Скасувати"
+
+                            const numAmount = parseFloat(amount);
+                            if (isNaN(numAmount) || numAmount <= 0) {
+                                window.WinixCore.UI.showNotification("Введіть коректну суму", window.WinixCore.MESSAGE_TYPES.ERROR);
+                                return;
+                            }
+
+                            // Перевіряємо дані стейкінгу
+                            deepFixStakingData();
+
+                            console.log("WINIX-STAKING-FIX: Виклик addToStaking з сумою:", numAmount);
+                            const result = window.WinixCore.Staking.addToStaking(numAmount);
+                            console.log("WINIX-STAKING-FIX: Результат addToStaking:", result);
+
+                            if (result.success) {
+                                window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.SUCCESS);
+                                // Оновлюємо відображення
+                                setTimeout(() => {
+                                    window.WinixCore.UI.updateStakingDisplay();
+                                }, 300);
+                            } else {
+                                window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.ERROR);
+                            }
+
+                            // Запобігаємо всплиттю події
+                            return false;
+                        });
+                    }
+
+                    // Кнопка скасування стейкінгу
+                    const cancelButton = document.getElementById('cancel-staking-button');
+                    if (cancelButton) {
+                        console.log("WINIX-STAKING-FIX: Налаштування кнопки скасування стейкінгу");
+                        cancelButton.addEventListener('click', function(event) {
+                            // Блокуємо стандартну поведінку та спливання події
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            // Перевіряємо дані стейкінгу
+                            deepFixStakingData();
+
+                            // Перевіряємо наявність стейкінгу
+                            const hasStaking = window.WinixCore.Staking.hasActiveStaking();
+                            console.log("WINIX-STAKING-FIX: Наявність стейкінгу:", hasStaking);
+
+                            if (!hasStaking) {
+                                window.WinixCore.UI.showNotification("У вас немає активного стейкінгу", window.WinixCore.MESSAGE_TYPES.WARNING);
+                                // Повторно виправляємо дані та оновлюємо інтерфейс
+                                deepFixStakingData();
+                                setTimeout(() => {
+                                    window.WinixCore.UI.updateStakingDisplay();
+                                }, 300);
+                                return false;
+                            }
+
+                            if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано 20% від суми стейкінгу як штраф.")) {
+                                console.log("WINIX-STAKING-FIX: Виклик cancelStaking");
+                                const result = window.WinixCore.Staking.cancelStaking();
+                                console.log("WINIX-STAKING-FIX: Результат cancelStaking:", result);
+
+                                if (result.success) {
+                                    window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.SUCCESS,
+                                        () => window.navigateTo('wallet.html'));
+                                } else {
+                                    window.WinixCore.UI.showNotification(result.message, window.WinixCore.MESSAGE_TYPES.ERROR);
+                                }
+                            }
+
+                            // Запобігаємо всплиттю події
+                            return false;
+                        });
+                    }
+
+                    window.eventListenersFixed = true;
+                }, 100);
+            }
+
+            console.log("✅ WINIX-STAKING-FIX: Обробники подій успішно налаштовано");
+            return true;
+        } catch (e) {
+            console.error("❌ WINIX-STAKING-FIX: Помилка виправлення обробників подій:", e);
+            return false;
+        }
+    }
+
+    // Запускаємо виправлення після повного завантаження сторінки з затримкою
+    // щоб інші скрипти встигли встановити свої обробники
     window.addEventListener('load', function() {
-        // Виправляємо дані стейкінгу
-        deepFixStakingData();
+        setTimeout(function() {
+            // Виправляємо дані стейкінгу
+            deepFixStakingData();
 
-        // Виправляємо обробники стейкінгу
-        fixStakingHandlers();
+            // Розширюємо WinixCore
+            enhanceWinixCore();
 
-        // Розширюємо WinixCore
-        enhanceWinixCore();
+            // Виправляємо обробники подій
+            fixEventHandlers();
 
-        console.log("✅ WINIX-STAKING-FIX: Всі виправлення застосовано");
+            console.log("✅ WINIX-STAKING-FIX: Всі виправлення застосовано");
+        }, 1000); // Збільшуємо затримку до 1000 мс
     });
 
     // Якщо сторінка вже завантажена
@@ -289,14 +316,14 @@
             // Виправляємо дані стейкінгу
             deepFixStakingData();
 
-            // Виправляємо обробники стейкінгу
-            fixStakingHandlers();
-
             // Розширюємо WinixCore
             enhanceWinixCore();
 
+            // Виправляємо обробники подій
+            fixEventHandlers();
+
             console.log("✅ WINIX-STAKING-FIX: Всі виправлення застосовано (сторінка вже завантажена)");
-        }, 500);
+        }, 1000); // Збільшуємо затримку до 1000 мс
     }
 
     console.log("✅ WINIX-STAKING-FIX: Модуль виправлень стейкінгу ініціалізовано");
