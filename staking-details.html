@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Деталі Стейкінгу</title>
 
+    <script src="modal-fix.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -57,126 +58,126 @@
         }
 
         /* Стилі для модального вікна */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    backdrop-filter: blur(0.3125rem); /* 5px */
-    animation: fadeIn 0.2s ease-out;
-}
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(0.3125rem); /* 5px */
+            animation: fadeIn 0.2s ease-out;
+        }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
 
-.modal-container {
-    width: 85%;
-    max-width: 21.875rem; /* 350px */
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-    border-radius: 1.25rem; /* 20px */
-    padding: 1.5625rem; /* 25px */
-    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.5), 0 0 0.9375rem rgba(0, 201, 167, 0.3);
-    border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem; /* 20px */
-    animation: slideUp 0.3s ease-out;
-}
+        .modal-container {
+            width: 85%;
+            max-width: 21.875rem; /* 350px */
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+            border-radius: 1.25rem; /* 20px */
+            padding: 1.5625rem; /* 25px */
+            box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.5), 0 0 0.9375rem rgba(0, 201, 167, 0.3);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem; /* 20px */
+            animation: slideUp 0.3s ease-out;
+        }
 
-@keyframes slideUp {
-    from { transform: translateY(1.875rem); opacity: 0; } /* 30px */
-    to { transform: translateY(0); opacity: 1; }
-}
+        @keyframes slideUp {
+            from { transform: translateY(1.875rem); opacity: 0; } /* 30px */
+            to { transform: translateY(0); opacity: 1; }
+        }
 
-.modal-title {
-    font-size: 1.125rem; /* 18px */
-    font-weight: 500;
-    text-align: center;
-    color: #fff;
-    margin-bottom: 0.3125rem; /* 5px */
-    text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 10px */
-}
+        .modal-title {
+            font-size: 1.125rem; /* 18px */
+            font-weight: 500;
+            text-align: center;
+            color: #fff;
+            margin-bottom: 0.3125rem; /* 5px */
+            text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 10px */
+        }
 
-.input-container {
-    width: 100%;
-}
+        .input-container {
+            width: 100%;
+        }
 
-.modal-input {
-    width: 100%;
-    height: 2.8125rem; /* 45px */
-    background: rgba(20, 30, 60, 0.6);
-    border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
-    border-radius: 0.75rem; /* 12px */
-    padding: 0 0.9375rem; /* 15px */
-    color: #fff;
-    font-size: 1rem; /* 16px */
-    box-sizing: border-box;
-    transition: all 0.3s ease;
-    box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
-}
+        .modal-input {
+            width: 100%;
+            height: 2.8125rem; /* 45px */
+            background: rgba(20, 30, 60, 0.6);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            border-radius: 0.75rem; /* 12px */
+            padding: 0 0.9375rem; /* 15px */
+            color: #fff;
+            font-size: 1rem; /* 16px */
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+        }
 
-.modal-input:focus {
-    outline: none;
-    border-color: rgba(0, 201, 167, 0.8);
-    box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
-}
+        .modal-input:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.8);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+        }
 
-.modal-input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-}
+        .modal-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
 
-.modal-input.error {
-    border-color: #ff3860;
-    animation: shake 0.5s;
-}
+        .modal-input.error {
+            border-color: #ff3860;
+            animation: shake 0.5s;
+        }
 
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-0.3125rem); } /* -5px */
-    20%, 40%, 60%, 80% { transform: translateX(0.3125rem); } /* 5px */
-}
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-0.3125rem); } /* -5px */
+            20%, 40%, 60%, 80% { transform: translateX(0.3125rem); } /* 5px */
+        }
 
-.modal-buttons {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.9375rem; /* 15px */
-    margin-top: 0.3125rem; /* 5px */
-}
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.9375rem; /* 15px */
+            margin-top: 0.3125rem; /* 5px */
+        }
 
-.modal-button {
-    flex: 1;
-    height: 2.8125rem; /* 45px */
-    border-radius: 0.75rem; /* 12px */
-    font-size: 1rem; /* 16px */
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-}
+        .modal-button {
+            flex: 1;
+            height: 2.8125rem; /* 45px */
+            border-radius: 0.75rem; /* 12px */
+            font-size: 1rem; /* 16px */
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
 
-.cancel-button {
-    background: rgba(30, 39, 70, 0.6);
-    color: #fff;
-    border: 0.0625rem solid rgba(255, 255, 255, 0.2); /* 1px */
-}
+        .cancel-button {
+            background: rgba(30, 39, 70, 0.6);
+            color: #fff;
+            border: 0.0625rem solid rgba(255, 255, 255, 0.2); /* 1px */
+        }
 
-.confirm-button {
-    background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-    color: #fff;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-}
+        .confirm-button {
+            background: var(--primary-gradient);
+            color: #fff;
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+        }
 
-.modal-button:active {
-    transform: scale(0.97);
-}
+        .modal-button:active {
+            transform: scale(0.97);
+        }
 
         /* Стилі для сповіщень */
         .alert-overlay {

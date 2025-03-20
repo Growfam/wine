@@ -1711,353 +1711,84 @@
 
     console.log("✅ WINIX-ALL-IN-ONE: Модуль виправлень ініціалізовано");
 
-    /**
- * Функція для створення стилізованого модального вікна введення суми для стейкінгу
- * @param {string} title Заголовок модального вікна
- * @param {function} onConfirm Функція, яка викликається при підтвердженні
- * @returns {HTMLElement} Створене модальне вікно
- */
-function createInputModal(title, onConfirm) {
-    // Видаляємо всі наявні модальні вікна перед створенням нового
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.remove();
-    });
-
-    // Створюємо елементи модального вікна
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const container = document.createElement('div');
-    container.className = 'modal-container';
-
-    const modalTitle = document.createElement('div');
-    modalTitle.className = 'modal-title';
-    modalTitle.textContent = title || 'Введіть суму для додавання до стейкінгу:';
-
-    const inputContainer = document.createElement('div');
-    inputContainer.className = 'input-container';
-
-    const input = document.createElement('input');
-    input.className = 'modal-input';
-    input.type = 'number';
-    input.min = '0';
-    input.step = 'any';
-    input.placeholder = 'Введіть суму';
-    input.value = '0';
-
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'modal-buttons';
-
-    const cancelButton = document.createElement('button');
-    cancelButton.className = 'modal-button cancel-button';
-    cancelButton.textContent = 'Скасувати';
-
-    const confirmButton = document.createElement('button');
-    confirmButton.className = 'modal-button confirm-button';
-    confirmButton.textContent = 'OK';
-
-    // Складаємо елементи разом
-    inputContainer.appendChild(input);
-    buttonContainer.appendChild(cancelButton);
-    buttonContainer.appendChild(confirmButton);
-    container.appendChild(modalTitle);
-    container.appendChild(inputContainer);
-    container.appendChild(buttonContainer);
-    overlay.appendChild(container);
-
-    // Додаємо обробники подій
-    cancelButton.addEventListener('click', function() {
-        overlay.remove();
-    });
-
-    confirmButton.addEventListener('click', function() {
-        const amount = parseFloat(input.value);
-        if (isNaN(amount) || amount <= 0) {
-            input.classList.add('error');
-            setTimeout(() => input.classList.remove('error'), 500);
-            return;
-        }
-        overlay.remove();
-        if (typeof onConfirm === 'function') {
-            onConfirm(amount);
-        }
-    });
-
-    // Додаємо модальне вікно до сторінки
-    document.body.appendChild(overlay);
-
-    // Встановлюємо фокус на полі введення
-    setTimeout(() => input.focus(), 100);
-
-    return overlay;
-}
-
-/**
- * Основний обробник для кнопки додавання до стейкінгу
- */
-function handleAddToStaking() {
-    // Створюємо модальне вікно для введення суми
-    createInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
-        // Перевіряємо наявність активного стейкінгу
-        let hasActiveStaking = false;
-        if (window.WinixCore && window.WinixCore.Staking) {
-            hasActiveStaking = window.WinixCore.Staking.hasActiveStaking();
-        } else if (window.stakingSystem) {
-            hasActiveStaking = window.stakingSystem.hasActiveStaking();
-        }
-
-        if (!hasActiveStaking) {
-            window.simpleAlert("У вас немає активного стейкінгу", true);
-            return;
-        }
-
-        // Перевіряємо баланс
-        let balance = 0;
-        if (window.WinixCore && window.WinixCore.Balance) {
-            balance = window.WinixCore.Balance.getTokens();
-        } else if (window.balanceSystem) {
-            balance = window.balanceSystem.getTokens();
-        } else {
-            balance = parseFloat(localStorage.getItem('userTokens') || '0');
-        }
-
-        if (amount > balance) {
-            window.simpleAlert(`Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} $WINIX`, true);
-            return;
-        }
-
-        // Додаємо кошти до стейкінгу
-        if (window.WinixCore && window.WinixCore.Staking) {
-            const result = window.WinixCore.Staking.addToStaking(amount);
-            if (result.success) {
-                window.simpleAlert(`Додано ${amount.toFixed(2)} $WINIX до стейкінгу`, false, function() {
-                    // Оновлюємо UI після успішного додавання
-                    if (window.WinixCore && window.WinixCore.UI) {
-                        window.WinixCore.UI.updateStakingDisplay();
-                        window.WinixCore.UI.updateBalanceDisplay();
-                    }
-                });
-            } else {
-                window.simpleAlert(result.message || "Помилка додавання до стейкінгу", true);
+    // Запобігання дублюванню обробників подій для важливих елементів
+    function preventDuplicateEventListeners(elementIds) {
+        elementIds.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                // Клонуємо елемент, щоб видалити всі попередні обробники
+                const newElement = element.cloneNode(true);
+                element.parentNode.replaceChild(newElement, element);
+                console.log(`Обробники подій очищено для елемента '${id}'`);
             }
-        } else if (window.stakingSystem) {
-            const result = window.stakingSystem.addToStaking(amount);
-            if (result.success) {
-                window.simpleAlert(`Додано ${amount.toFixed(2)} $WINIX до стейкінгу`, false, function() {
-                    // Оновлюємо UI після успішного додавання
-                    window.stakingSystem.updateStakingDisplay();
-                    if (window.balanceSystem) {
-                        window.balanceSystem.updateDisplay();
-                    }
-                });
-            } else {
-                window.simpleAlert(result.message || "Помилка додавання до стейкінгу", true);
-            }
-        } else {
-            window.simpleAlert("Помилка: системи стейкінгу не знайдено", true);
-        }
+        });
+    }
+
+    // Запускати після завантаження сторінки
+    document.addEventListener('DOMContentLoaded', function() {
+        fixStakingButtons();
+
+        // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
+        const criticalElements = [
+            'claim-daily',
+            'add-to-stake-button',
+            'stake-button',
+            'cancel-staking-button',
+            'details-button'
+            // Додайте інші елементи, якщо потрібно
+        ];
+
+        preventDuplicateEventListeners(criticalElements);
     });
-}
 
-/**
- * Функція для встановлення коректних обробників подій
- * і видалення дублювань
- */
-function fixStakingButtonHandlers() {
-    // Кнопка додавання до стейкінгу
-    const addButton = document.getElementById('add-to-stake-button');
-    if (addButton) {
-        // Видаляємо всі існуючі обробники, клонуючи елемент
-        const newAddButton = addButton.cloneNode(true);
-        addButton.parentNode.replaceChild(newAddButton, addButton);
+    // Додаємо обробник для випадку, якщо сторінка вже завантажена
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        fixStakingButtons();
 
-        // Додаємо новий єдиний обробник
-        newAddButton.addEventListener('click', handleAddToStaking);
-    }
-}
+        // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
+        const criticalElements = [
+            'claim-daily',
+            'add-to-stake-button',
+            'stake-button',
+            'cancel-staking-button',
+            'details-button'
+            // Додайте інші елементи, якщо потрібно
+        ];
 
-// CSS стилі для модального вікна
-const modalStyles = `
-    /* Стилі для модального вікна */
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        backdrop-filter: blur(0.3125rem); /* 5px */
-        animation: fadeIn 0.2s ease-out;
+        preventDuplicateEventListeners(criticalElements);
     }
 
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
+})();
+// Перехоплювач для запобігання подвійному відкриттю модальних вікон
+(function() {
+    console.log("🛡️ Встановлення глобального захисту від подвійних модальних вікон");
 
-    .modal-container {
-        width: 85%;
-        max-width: 21.875rem; /* 350px */
-        background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-        border-radius: 1.25rem; /* 20px */
-        padding: 1.5625rem; /* 25px */
-        box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.5), 0 0 0.9375rem rgba(0, 201, 167, 0.3);
-        border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
-        display: flex;
-        flex-direction: column;
-        gap: 1.25rem; /* 20px */
-        animation: slideUp 0.3s ease-out;
-    }
+    // Зберігаємо оригінальну функцію
+    const originalCreateInputModal = window.createInputModal;
 
-    @keyframes slideUp {
-        from { transform: translateY(1.875rem); opacity: 0; } /* 30px */
-        to { transform: translateY(0); opacity: 1; }
-    }
+    // Флаг для відстеження, чи вже відкрито модальне вікно
+    let isModalOpening = false;
 
-    .modal-title {
-        font-size: 1.125rem; /* 18px */
-        font-weight: 500;
-        text-align: center;
-        color: #fff;
-        margin-bottom: 0.3125rem; /* 5px */
-        text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5); /* 10px */
-    }
-
-    .input-container {
-        width: 100%;
-    }
-
-    .modal-input {
-        width: 100%;
-        height: 2.8125rem; /* 45px */
-        background: rgba(20, 30, 60, 0.6);
-        border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
-        border-radius: 0.75rem; /* 12px */
-        padding: 0 0.9375rem; /* 15px */
-        color: #fff;
-        font-size: 1rem; /* 16px */
-        box-sizing: border-box;
-        transition: all 0.3s ease;
-        box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
-    }
-
-    .modal-input:focus {
-        outline: none;
-        border-color: rgba(0, 201, 167, 0.8);
-        box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
-    }
-
-    .modal-input::placeholder {
-        color: rgba(255, 255, 255, 0.5);
-    }
-
-    .modal-input.error {
-        border-color: #ff3860;
-        animation: shake 0.5s;
-    }
-
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-0.3125rem); } /* -5px */
-        20%, 40%, 60%, 80% { transform: translateX(0.3125rem); } /* 5px */
-    }
-
-    .modal-buttons {
-        display: flex;
-        justify-content: space-between;
-        gap: 0.9375rem; /* 15px */
-        margin-top: 0.3125rem; /* 5px */
-    }
-
-    .modal-button {
-        flex: 1;
-        height: 2.8125rem; /* 45px */
-        border-radius: 0.75rem; /* 12px */
-        font-size: 1rem; /* 16px */
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        border: none;
-    }
-
-    .cancel-button {
-        background: rgba(30, 39, 70, 0.6);
-        color: #fff;
-        border: 0.0625rem solid rgba(255, 255, 255, 0.2); /* 1px */
-    }
-
-    .confirm-button {
-        background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-        color: #fff;
-        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-    }
-
-    .modal-button:active {
-        transform: scale(0.97);
-    }
-`;
-
-// Додаємо стилі до сторінки
-function addModalStyles() {
-    if (!document.getElementById('modal-styles')) {
-        const styleElement = document.createElement('style');
-        styleElement.id = 'modal-styles';
-        styleElement.textContent = modalStyles;
-        document.head.appendChild(styleElement);
-    }
-}
-
-// Запобігання дублюванню обробників подій для важливих елементів
-function preventDuplicateEventListeners(elementIds) {
-    elementIds.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            // Клонуємо елемент, щоб видалити всі попередні обробники
-            const newElement = element.cloneNode(true);
-            element.parentNode.replaceChild(newElement, element);
-            console.log(`Обробники подій очищено для елемента '${id}'`);
+    // Перевизначаємо функцію
+    window.createInputModal = function(title, onConfirm) {
+        // Якщо вже відкривається вікно, ігноруємо виклик
+        if (isModalOpening) {
+            console.log("🚫 Запобігаємо створенню дублюючого модального вікна");
+            return null;
         }
-    });
-}
 
-// Запускати після завантаження сторінки
-document.addEventListener('DOMContentLoaded', function() {
-    addModalStyles();
-    fixStakingButtonHandlers();
+        // Встановлюємо флаг та скидаємо його через 500 мс
+        isModalOpening = true;
+        setTimeout(() => { isModalOpening = false; }, 500);
 
-    // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
-    const criticalElements = [
-        'claim-daily',
-        'add-to-stake-button',
-        'stake-button',
-        'cancel-staking-button',
-        'details-button'
-        // Додайте інші елементи, якщо потрібно
-    ];
+        // Видаляємо всі існуючі модальні вікна
+        document.querySelectorAll('.modal-overlay, .winix-modal-overlay, .alert-overlay').forEach(modal => {
+            modal.remove();
+        });
 
-    preventDuplicateEventListeners(criticalElements);
-});
+        // Викликаємо оригінальну функцію
+        return originalCreateInputModal(title, onConfirm);
+    };
 
-// Додаємо обробник для випадку, якщо сторінка вже завантажена
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    addModalStyles();
-    fixStakingButtonHandlers();
-
-    // Масив ID елементів, для яких потрібно запобігти дублюванню обробників
-    const criticalElements = [
-        'claim-daily',
-        'add-to-stake-button',
-        'stake-button',
-        'cancel-staking-button',
-        'details-button'
-        // Додайте інші елементи, якщо потрібно
-    ];
-
-    preventDuplicateEventListeners(criticalElements);
-}
-
+    console.log("✅ Глобальний захист від подвійних модальних вікон встановлено");
 })();
