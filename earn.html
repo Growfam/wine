@@ -329,15 +329,16 @@
     /* Зміна розташування полоси прогресу - ключове виправлення */
         .progress-bar {
             position: absolute;
-            height: 0.5rem; /* 8px */
+            width: 100%;
+            height: 0.4rem; /* 8px */
             background: linear-gradient(90deg, #164d6c, #91d6cc);
             top: 50%; /* Змінено з bottom: 1.5625rem на top: 50% */
-            left: 2.5rem; /* 40px */
-            right: 2.5rem;
+            left: 2.7rem; /* 40px */
+            right: 1.5rem;
             border-radius: 0.625rem; /* 10px */
             z-index: 0;
-            box-shadow: 0 0 0.625rem rgba(10, 78, 120, 0.5); /* 0 0 10px */
-            margin-top: -1.5rem; /* Негативний відступ для центрування */
+            box-shadow: 0 0 0.525rem rgba(10, 78, 120, 0.5); /* 0 0 10px */
+            margin-top: +2rem; /* Негативний відступ для центрування */
         }
 
     /* Додаткові стилі для кнопки отримання бонусу */
