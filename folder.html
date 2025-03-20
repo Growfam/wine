@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Папка</title>
 
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -535,6 +536,28 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+
+        /* Стиль для повідомлень */
+        .toast-message {
+            position: fixed;
+            top: 1.25rem; /* 20px */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 201, 167, 0.9);
+            color: white;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 0.3125rem; /* 5px */
+            z-index: 1000;
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            font-size: 0.9375rem; /* 15px */
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 0.625rem); /* -50%, 10px */
+        }
     </style>
 </head>
 <body>
@@ -546,7 +569,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -582,10 +605,10 @@
             </div>
 
             <!-- Кнопка ADD FOLDER в стилі кнопок головної сторінки -->
-            <button class="add-folder-button" id="add-folder-button">ADD FOLDER</button>
+            <button class="add-folder-button" id="add-folder-button" data-lang-key="folder.add">ADD FOLDER</button>
 
             <!-- Кнопка Verify Subscription -->
-            <button class="verify-button" id="verify-subscription-btn">Verify Subscription</button>
+            <button class="verify-button" id="verify-subscription-btn" data-lang-key="folder.verify">Verify Subscription</button>
 
             <div class="progress-dots">
                 <div class="dot"></div>
@@ -602,34 +625,37 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                Home
+                <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                Earn
+                <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                Referrals
+                <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                Wallet
+                <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                General
+                <span data-lang-key="general">General</span>
             </div>
         </div>
     </div>
+
+    <!-- Повідомлення для копіювання -->
+    <div class="toast-message" id="toast-message">Назву папки скопійовано!</div>
 
     <script>
         // Ініціалізація Telegram Mini App API
@@ -719,6 +745,11 @@
                     document.body.appendChild(toast);
                 }
 
+                // Перевіряємо, чи повідомлення має бути перекладено
+                if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
+                    message = window.WinixLanguage.getText(message.substring(1));
+                }
+
                 toast.textContent = message;
                 toast.classList.add('show');
 
@@ -741,6 +772,11 @@
 
             // Встановлюємо тему за замовчуванням
             updateThemeColors();
+
+            // Оновлюємо тексти відповідно до поточної мови
+            if (window.WinixLanguage) {
+                window.WinixLanguage.updatePageTexts();
+            }
 
             // Перевіряємо наявність rewardSystem
             console.log("RewardSystem існує: ", typeof rewardSystem !== 'undefined');
@@ -779,15 +815,20 @@
 
             // Обробник для кнопки копіювання
             document.getElementById('copy-button').addEventListener('click', function() {
+                // Функція для отримання перекладів
+                const getText = window.WinixLanguage ?
+                    window.WinixLanguage.getText :
+                    (key) => key === 'folder.copied' ? 'Назву папки скопійовано!' : key === 'folder.copy_error' ? 'Не вдалося скопіювати текст' : key;
+
                 // Код для копіювання відповідної інформації
                 // Наприклад, копіювання назви папки
                 navigator.clipboard.writeText('FoldernameForWinix')
                     .then(() => {
-                        showToast('Назву папки скопійовано!');
+                        showToast(getText('folder.copied'));
                     })
                     .catch(err => {
                         console.error('Помилка при копіюванні: ', err);
-                        showToast('Не вдалося скопіювати текст');
+                        showToast(getText('folder.copy_error'));
                     });
             });
 
@@ -796,6 +837,12 @@
             if (addFolderButton) {
                 addFolderButton.addEventListener('click', function() {
                     console.log("Натиснуто кнопку ADD FOLDER");
+
+                    // Функція для отримання перекладів
+                    const getText = window.WinixLanguage ?
+                        window.WinixLanguage.getText :
+                        (key) => key === 'folder.reward_received' ? 'Ви отримали 250 токенів і 5 жетонів за додавання папки!' :
+                                 key === 'folder.already_received' ? 'Ви вже отримали винагороду за додавання папки!' : key;
 
                     // Визначаємо, чи ми в Telegram
                     const isTelegramEnv = window.Telegram && window.Telegram.WebApp;
@@ -825,9 +872,9 @@
                                 progressMarker.style.left = '100%';
                             }
 
-                            showToast('Ви отримали 250 токенів і 5 жетонів за додавання папки!');
+                            showToast(getText('folder.reward_received'));
                         } else {
-                            showToast('Ви вже отримали винагороду за додавання папки!');
+                            showToast(getText('folder.already_received'));
                         }
                     } else {
                         // Запасний варіант для нарахування винагороди
@@ -850,7 +897,7 @@
                             progressMarker.style.left = '100%';
                         }
 
-                        showToast('Ви отримали 250 токенів і 5 жетонів за додавання папки!');
+                        showToast(getText('folder.reward_received'));
                     }
                 });
             }
@@ -882,6 +929,12 @@
                 verifySubscriptionBtn.addEventListener('click', function() {
                     console.log("Натиснуто кнопку перевірки підписок");
 
+                    // Функція для отримання перекладів
+                    const getText = window.WinixLanguage ?
+                        window.WinixLanguage.getText :
+                        (key) => key === 'folder.subscriptions_rewarded' ? 'Отримано винагороду за підписки!' :
+                                 key === 'folder.all_subscriptions_rewarded' ? 'Ви вже отримали всі винагороди за підписки!' : key;
+
                     // Перевірка підписок (мала б виконуватись на головній сторінці)
                     if (typeof rewardSystem !== 'undefined') {
                         // Список каналів для перевірки
@@ -898,7 +951,7 @@
 
                         if (newSubscriptions > 0) {
                             console.log(`Нараховано винагороду за ${newSubscriptions} нових підписок`);
-                            showToast(`Отримано винагороду за ${newSubscriptions} підписок!`);
+                            showToast(getText('folder.subscriptions_rewarded'));
 
                             // Оновлюємо прогрес-бар
                             const progressIndicator = document.querySelector('.progress-indicator');
@@ -911,7 +964,7 @@
                                 progressMarker.style.left = newWidth + '%';
                             }
                         } else {
-                            showToast('Ви вже отримали всі винагороди за підписки!');
+                            showToast(getText('folder.all_subscriptions_rewarded'));
                         }
                     } else {
                         // Запасний варіант для нарахування винагороди
@@ -925,7 +978,7 @@
                         document.getElementById('user-tokens').textContent = (userTokens + 50).toFixed(2);
                         document.getElementById('user-coins').textContent = (userCoins + 1).toFixed(0);
 
-                        showToast('Отримано винагороду за підписку!');
+                        showToast(getText('folder.subscriptions_rewarded'));
                     }
                 });
             }
