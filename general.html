@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Налаштування</title>
 
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -1127,7 +1128,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -1138,7 +1139,7 @@
         </div>
 
         <div class="general-container">
-            <div class="general-title">Налаштування</div>
+            <div class="general-title" data-lang-key="settings">Налаштування</div>
 
             <div class="general-card">
                 <div class="profile-section">
@@ -1146,37 +1147,37 @@
                         <div class="profile-avatar" id="profile-avatar">W</div>
                         <div class="profile-info">
                             <div class="profile-name" id="profile-name">WINIX User</div>
-                            <div class="profile-id">ID: <span id="user-id">12345678</span></div>
+                            <div class="profile-id"><span data-lang-key="user_id">ID:</span> <span id="user-id">12345678</span></div>
                         </div>
                     </div>
-                    <button class="action-button" id="edit-profile">Редагувати профіль</button>
+                    <button class="action-button" id="edit-profile" data-lang-key="edit_profile">Редагувати профіль</button>
                 </div>
             </div>
 
             <div class="general-card">
                 <div class="language-section">
-                    <div class="language-title">Вибір мови</div>
+                    <div class="language-title" data-lang-key="language_selection">Вибір мови</div>
                     <div class="language-options">
                         <div class="language-option active" data-lang="uk">
                             <img src="assets/ua_flag.jpg" alt="Українська" class="language-icon" onerror="this.src='https://via.placeholder.com/30?text=UA'">
-                            <div class="language-name">Українська</div>
+                            <div class="language-name" data-lang-key="language_uk">Українська</div>
                         </div>
                         <div class="language-option" data-lang="en">
                             <img src="assets/en_flag.jpg" alt="English" class="language-icon" onerror="this.src='https://via.placeholder.com/30?text=EN'">
-                            <div class="language-name">English</div>
+                            <div class="language-name" data-lang-key="language_en">English</div>
                         </div>
                         <div class="language-option" data-lang="ru">
                             <img src="assets/ru_flag.jpg" alt="Русский" class="language-icon" onerror="this.src='https://via.placeholder.com/30?text=RU'">
-                            <div class="language-name">Русский</div>
+                            <div class="language-name" data-lang-key="language_ru">Русский</div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="general-card">
-                <div class="language-title">Налаштування додатку</div>
+                <div class="language-title" data-lang-key="app_settings">Налаштування додатку</div>
                 <div class="settings-item">
-                    <div class="settings-title">Сповіщення</div>
+                    <div class="settings-title" data-lang-key="notifications">Сповіщення</div>
                     <label class="toggle-switch">
                         <input type="checkbox" id="notifications-toggle" checked>
                         <span class="toggle-slider"></span>
@@ -1185,19 +1186,17 @@
             </div>
 
             <div class="general-card">
-                <div class="language-title">Безпека</div>
-                <button class="action-button" id="show-seed-phrase">Показати SID фразу</button>
+                <div class="language-title" data-lang-key="security">Безпека</div>
+                <button class="action-button" id="show-seed-phrase" data-lang-key="show_seed">Показати SID фразу</button>
             </div>
-
-            <!-- Видалена кнопка виходу з акаунту -->
         </div>
 
         <div class="nav-bar">
-            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Home"></div>Home</div>
-            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Earn"></div>Earn</div>
-            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Referrals"></div>Referrals</div>
-            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Wallet"></div>Wallet</div>
-            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="General"></div>General</div>
+            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Home"></div><span data-lang-key="home">Home</span></div>
+            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Earn"></div><span data-lang-key="earn">Earn</span></div>
+            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Referrals"></div><span data-lang-key="referrals">Referrals</span></div>
+            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Wallet"></div><span data-lang-key="wallet">Wallet</span></div>
+            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="General"></div><span data-lang-key="general">General</span></div>
         </div>
 
         <div class="contact-widget" id="quick-contact">
@@ -1336,7 +1335,7 @@
             }
 
             // Показуємо повідомлення про помилку
-            showToast('Помилка навігації', true);
+            showToast(window.WinixLanguage.getText('navigation_error'), true);
         }
     }
 
@@ -1345,6 +1344,11 @@
         const toast = document.getElementById('toast-message');
 
         if (!toast) return;
+
+        // Перевіримо, чи повідомлення має бути перекладено
+        if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
+            message = window.WinixLanguage.getText(message.substring(1));
+        }
 
         toast.textContent = message;
         toast.classList.add('show');
@@ -1421,6 +1425,9 @@
     function showEditProfileModal() {
         const currentUsername = localStorage.getItem('username') || 'WINIX User';
 
+        // Отримуємо переклади
+        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
+
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1429,28 +1436,28 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">Редагувати профіль</div>
+                    <div class="modal-title">${translate('edit_profile_title')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
                     <div class="settings-item">
-                        <label>Ім'я користувача:</label>
+                        <label>${translate('username')}</label>
                         <input type="text" id="edit-username" value="${currentUsername}">
                     </div>
                     <div class="settings-item">
-                        <label>Новий пароль:</label>
-                        <input type="password" id="edit-password" placeholder="Залиште порожнім, якщо не змінювати">
+                        <label>${translate('new_password')}</label>
+                        <input type="password" id="edit-password" placeholder="${translate('password_placeholder')}">
                     </div>
                     <div class="settings-item">
-                        <label>Підтвердження пароля:</label>
-                        <input type="password" id="edit-password-confirm" placeholder="Підтвердіть новий пароль">
+                        <label>${translate('confirm_password')}</label>
+                        <input type="password" id="edit-password-confirm" placeholder="${translate('confirm_password_placeholder')}">
                     </div>
                     <div class="settings-item">
-                        <label>Завантажити аватар:</label>
+                        <label>${translate('upload_avatar')}</label>
                         <input type="file" id="avatar-upload" accept="image/*">
                     </div>
                     <div class="settings-item">
-                        <label>Або виберіть аватар:</label>
+                        <label>${translate('select_avatar')}</label>
                         <div class="avatar-options">
                             <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
                             <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
@@ -1460,7 +1467,7 @@
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="save-profile">Зберегти</button>
+                    <button class="modal-button" id="save-profile">${translate('btn_save')}</button>
                 </div>
             </div>
         `;
@@ -1486,13 +1493,13 @@
             const error = modal.querySelector('#error-msg');
 
             if (!username) {
-                error.textContent = 'Введіть ім\'я користувача';
+                error.textContent = translate('enter_username');
                 return;
             }
 
             if (password) {
                 if (password !== confirm) {
-                    error.textContent = 'Паролі не співпадають';
+                    error.textContent = translate('passwords_dont_match');
                     return;
                 }
                 const validation = validatePassword(password);
@@ -1523,7 +1530,7 @@
             }
 
             modal.remove();
-            showToast('Профіль оновлено');
+            showToast(translate('profile_updated'));
         };
 
         modal.querySelector('.close-modal').onclick = () => modal.remove();
@@ -1534,11 +1541,16 @@
     function loadUserSettings() {
         const lang = localStorage.getItem('userLanguage') || 'uk';
         document.querySelectorAll('.language-option').forEach(opt => {
-            opt.classList.toggle('active', opt.dataset.lang === lang);
+            opt.classList.toggle('active', opt.getAttribute('data-lang') === lang);
         });
 
         const isNotificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
         document.getElementById('notifications-toggle').checked = isNotificationsEnabled;
+
+        // Оновлюємо всі тексти на сторінці
+        if (window.WinixLanguage) {
+            window.WinixLanguage.updatePageTexts();
+        }
     }
 
     // Збереження налаштувань користувача
@@ -1546,8 +1558,13 @@
         try {
             const activeOption = document.querySelector('.language-option.active');
             if (activeOption) {
-                const lang = activeOption.dataset.lang;
+                const lang = activeOption.getAttribute('data-lang');
                 localStorage.setItem('userLanguage', lang);
+
+                // Оновлюємо мову
+                if (window.WinixLanguage) {
+                    window.WinixLanguage.changeLang(lang);
+                }
             }
 
             const notificationsToggle = document.getElementById('notifications-toggle');
@@ -1556,10 +1573,10 @@
                 localStorage.setItem('notificationsEnabled', isNotificationsEnabled.toString());
             }
 
-            showToast('Налаштування збережено');
+            showToast(window.WinixLanguage ? window.WinixLanguage.getText('settings_saved') : 'Налаштування збережено');
         } catch (error) {
             console.error('Settings save error:', error);
-            showToast('Помилка збереження', true);
+            showToast(window.WinixLanguage ? window.WinixLanguage.getText('settings_error') : 'Помилка збереження', true);
         }
     }
 
@@ -1599,9 +1616,12 @@
 
     // Валідація пароля
     function validatePassword(password) {
-        if (!password || password.length < 8) return { valid: false, message: 'Мінімум 8 символів' };
+        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
+
+        if (!password || password.length < 8)
+            return { valid: false, message: translate('min_8_chars') };
         if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
-            return { valid: false, message: 'Мінімум 5 літер' };
+            return { valid: false, message: translate('min_5_letters') };
         return { valid: true };
     }
 
@@ -1609,6 +1629,9 @@
     function showSeedPhrase() {
         const userId = localStorage.getItem('userId') || '12345678';
         const phrase = generateSeedPhrase(userId);
+
+        // Отримуємо переклади
+        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
 
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
@@ -1618,14 +1641,14 @@
         modal.innerHTML = `
             <div class="seed-modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">SID Фраза</div>
+                    <div class="modal-title">${translate('seed_phrase')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
                     <div class="restore-card">
-                        <div class="restore-title">Ваша SID Фраза</div>
-                        <div class="restore-subtitle">Збережіть її в безпечному місці!</div>
-                        <button class="copy-button">Скопіювати</button>
+                        <div class="restore-title">${translate('your_seed_phrase')}</div>
+                        <div class="restore-subtitle">${translate('save_seed')}</div>
+                        <button class="copy-button">${translate('copy')}</button>
                         <div class="words-grid">
                             ${phrase.map((word, i) => `
                                 <div class="word-cell">
@@ -1634,7 +1657,7 @@
                                 </div>
                             `).join('')}
                         </div>
-                        <button class="seed-continue-button">Готово</button>
+                        <button class="seed-continue-button">${translate('done')}</button>
                     </div>
                 </div>
             </div>
@@ -1644,8 +1667,8 @@
         modal.querySelector('.close-modal').onclick = () => modal.remove();
         modal.querySelector('.copy-button').onclick = () => {
             navigator.clipboard.writeText(phrase.join(' '))
-                .then(() => showToast('Скопійовано'))
-                .catch(() => showToast('Помилка копіювання', true));
+                .then(() => showToast(translate('copied')))
+                .catch(() => showToast(translate('copy_error'), true));
         };
         modal.querySelector('.seed-continue-button').onclick = () => {
             localStorage.setItem('seedPhraseViewed', 'true');
@@ -1656,6 +1679,9 @@
 
     // Показ модального вікна для встановлення пароля
     function showSetPasswordModal(callback) {
+        // Отримуємо переклади
+        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
+
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1664,17 +1690,17 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">Встановіть пароль</div>
+                    <div class="modal-title">${translate('set_password')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
-                    <p>Мінімум 8 символів, 5 літер</p>
-                    <input type="password" id="new-password" placeholder="Пароль">
-                    <input type="password" id="confirm-password" placeholder="Підтвердження">
+                    <p>${translate('password_requirements')}</p>
+                    <input type="password" id="new-password" placeholder="${translate('password')}">
+                    <input type="password" id="confirm-password" placeholder="${translate('confirm')}">
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="save-password">Зберегти</button>
+                    <button class="modal-button" id="save-password">${translate('btn_save')}</button>
                 </div>
             </div>
         `;
@@ -1687,7 +1713,7 @@
             const error = modal.querySelector('#error-msg');
 
             if (pwd !== confirm) {
-                error.textContent = 'Паролі не співпадають';
+                error.textContent = translate('passwords_dont_match');
                 return;
             }
             const validation = validatePassword(pwd);
@@ -1709,6 +1735,9 @@
 
     // Показ модального вікна для введення пароля
     function showEnterPasswordModal(callback) {
+        // Отримуємо переклади
+        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
+
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1717,15 +1746,15 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">Введіть пароль</div>
+                    <div class="modal-title">${translate('enter_password')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
-                    <input type="password" id="enter-password" placeholder="Ваш пароль">
+                    <input type="password" id="enter-password" placeholder="${translate('your_password')}">
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="check-password">Перевірити</button>
+                    <button class="modal-button" id="check-password">${translate('check')}</button>
                 </div>
             </div>
         `;
@@ -1744,7 +1773,7 @@
                     callback();
                 }
             } else {
-                error.textContent = 'Неправильний пароль';
+                error.textContent = translate('wrong_password');
             }
         };
         modal.querySelector('.close-modal').onclick = () => modal.remove();
@@ -1808,6 +1837,12 @@
                 });
                 this.classList.add('active');
 
+                // Отримуємо код мови і змінюємо поточну мову
+                const lang = this.getAttribute('data-lang');
+                if (window.WinixLanguage) {
+                    window.WinixLanguage.changeLang(lang);
+                }
+
                 // Зберігаємо налаштування
                 saveUserSettings();
             });
@@ -1863,7 +1898,8 @@
 
             // Додаємо оптимізований обробник
             newBtn.addEventListener('click', function() {
-                showToast('Зв\'язок з підтримкою');
+                const message = window.WinixLanguage ? window.WinixLanguage.getText('contact_support') : 'Зв\'язок з підтримкою';
+                showToast(message);
             });
         }
     }
@@ -1887,6 +1923,11 @@
         // Оновлюємо стан DOM
         adjustLayout();
         updateThemeColors();
+
+        // Застосовуємо переклади
+        if (window.WinixLanguage) {
+            window.WinixLanguage.updatePageTexts();
+        }
 
         // Ховаємо індикатор завантаження
         setTimeout(() => {

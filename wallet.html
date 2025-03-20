@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WINIX - Гаманець</title>
+    <title>WINIX - <span data-lang-key="wallet.title">Гаманець</span></title>
 
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -547,7 +548,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -558,7 +559,7 @@
         </div>
 
         <div class="wallet-card">
-            <div class="balance-title">Balance $WINIX</div>
+            <div class="balance-title" data-lang-key="wallet.balance">Balance $WINIX</div>
             <div class="balance-section">
                 <div id="main-balance" class="main-balance">0
                     <span class="main-balance-icon">
@@ -568,26 +569,30 @@
             </div>
 
             <div class="staking-info">
-                <div id="staking-balance" class="staking-balance">У стейкінгу: 0 $WINIX</div>
-                <div id="staking-rewards" class="staking-rewards">Нагороди: 0 $WINIX</div>
+            <div id="staking-balance" class="staking-balance">
+                <span data-lang-key="wallet.in_staking">У стейкінгу</span>: <span id="staking-amount">0</span> $WINIX
+            </div>
+            <div id="staking-rewards" class="staking-rewards">
+                <span data-lang-key="wallet.rewards">Нагороди</span>: <span id="rewards-amount">0</span> $WINIX
             </div>
 
             <div class="action-buttons">
-                <button class="action-button" id="send-button">
-                    Надіслати
+                <button class="action-button" id="send-button" data-lang-key="wallet.send">Надіслати</button>
+
                 </button>
-                <button class="action-button" id="receive-button">
-                    Отримати
+                <button class="action-button" id="receive-button" data-lang-key="wallet.receive">Отримати</button>
+
                 </button>
-                <button class="action-button" id="staking-button">
-                    Стейкінг
+                <button class="action-button" id="staking-button" data-lang-key="wallet.staking">Стейкінг</button>
+
                 </button>
+
             </div>
 
             <div class="transactions-section">
                 <div class="section-title">
-                    Останні транзакції
-                    <span class="view-all-link" id="view-all-transactions">Переглянути всі</span>
+                    <span data-lang-key="wallet.recent_transactions">Останні транзакції</span>
+                    <span class="view-all-link" id="view-all-transactions" data-lang-key="wallet.view_all">Переглянути всі</span>
                 </div>
                 <div class="transaction-list" id="transaction-list">
                     <!-- Транзакції будуть додані динамічно через JavaScript -->
@@ -602,31 +607,31 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                <span>Home</span>
+                <span data-lang-key="navigation.home">Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                <span>Earn</span>
+                <span data-lang-key="navigation.earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                <span>Referrals</span>
+                <span data-lang-key="navigation.referrals">Referrals</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                <span>Wallet</span>
+                <span data-lang-key="navigation.wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                <span>General</span>
+                <span data-lang-key="navigation.general">General</span>
             </div>
         </div>
 
@@ -775,18 +780,20 @@
                 console.error('Помилка при отриманні даних стейкінгу:', e);
             }
 
-            // Оновлюємо елементи інтерфейсу
-            const stakingBalanceElement = document.getElementById('staking-balance');
-            const stakingRewardsElement = document.getElementById('staking-rewards');
+                // Оновлюємо елементи інтерфейсу
+                    const stakingBalanceElement = document.getElementById('staking-balance');
+                    const stakingRewardsElement = document.getElementById('staking-rewards');
+                    const stakingAmountElement = document.getElementById('staking-amount');
+                    const rewardsAmountElement = document.getElementById('rewards-amount');
 
-            if (stakingBalanceElement) {
-                stakingBalanceElement.textContent = `У стейкінгу: ${stakingAmount.toFixed(2)} $WINIX`;
+                    if (stakingAmountElement) {
+                        stakingAmountElement.textContent = stakingAmount.toFixed(2);
             }
 
-            if (stakingRewardsElement) {
-                stakingRewardsElement.textContent = `Нагороди: ${stakingRewards.toFixed(2)} $WINIX`;
+                    if (rewardsAmountElement) {
+                        rewardsAmountElement.textContent = stakingRewards.toFixed(2);
+                }
             }
-        }
 
         // Функція для оновлення списку транзакцій
         function updateTransactionsList() {
@@ -837,6 +844,11 @@
         // Обробники подій для сторінки
         document.addEventListener('DOMContentLoaded', function() {
             console.log("Ініціалізація сторінки гаманця");
+
+            // Оновлюємо тексти відповідно до вибраної мови
+            if (window.WinixLanguage) {
+            window.WinixLanguage.updatePageTexts();
+            }
 
             // Викликаємо функцію адаптації при старті
             adjustLayout();
@@ -982,6 +994,19 @@
             console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
             return true;
         };
+        // Обробка зміни мови
+document.addEventListener('languageChanged', function(event) {
+    // Оновлюємо всі динамічні тексти, які не мають атрибута data-lang-key
+    updateDynamicTexts();
+});
+
+function updateDynamicTexts() {
+    // Для transactions.html:
+    // Оновлюємо тексти типів транзакцій, деталей транзакцій, тощо
+
+    // Для wallet.html:
+    // Оновлюємо тексти транзакцій в списку, повідомлення тощо
+}
     </script>
 </body>
 </html>
