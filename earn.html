@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Заробляй</title>
 
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -803,7 +804,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -815,16 +816,16 @@
 
         <!-- Перемикач категорій -->
         <div class="tabs">
-            <div class="tab active" data-tab="social">Соціальні</div>
-            <div class="tab" data-tab="limited">Лімітовані</div>
-            <div class="tab" data-tab="partners">Партнерські</div>
+            <div class="tab active" data-tab="social" data-lang-key="earn.social_networks">Соціальні</div>
+            <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Лімітовані</div>
+            <div class="tab" data-tab="partners" data-lang-key="earn.partners_tasks">Партнерські</div>
         </div>
 
         <!-- Секція Соціальних завдань -->
         <div class="content-section active" id="social-content">
             <!-- Щоденний бонус -->
             <div class="category-card">
-                <div class="category-title">Щоденний бонус</div>
+                <div class="category-title" data-lang-key="earn.daily_bonus">Щоденний бонус</div>
                 <div class="daily-bonus">
                     <div class="daily-bonus-bar">
                         <div class="daily-progress">
@@ -859,13 +860,13 @@
                         </div>
                         <div class="progress-bar" id="weekly-progress" style="width: 30%;"></div>
                     </div>
-                    <button class="claim-button" id="claim-daily">Отримати 30 $WINIX</button>
+                    <button class="claim-button" id="claim-daily" data-lang-key="earn.get">Отримати 30 $WINIX</button>
                 </div>
             </div>
 
             <!-- Соціальні завдання -->
             <div class="category-card">
-                <div class="category-title">Соціальні мережі</div>
+                <div class="category-title" data-lang-key="earn.social_networks">Соціальні мережі</div>
                 <div class="task-container">
                     <!-- Завдання Twitter -->
                     <div class="task-item">
@@ -873,10 +874,10 @@
                             <div class="task-title">Twitter</div>
                             <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Підпишись на офіційний Twitter проєкту та отримай нагороду!</div>
+                        <div class="task-description" data-lang-key="earn.twitter_desc">Підпишись на офіційний Twitter проєкту та отримай нагороду!</div>
                         <div class="task-action">
-                            <button class="action-button" id="twitter-subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="twitter-verify">Перевірити</button>
+                            <button class="action-button" id="twitter-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="twitter-verify" data-lang-key="earn.verify">Перевірити</button>
                         </div>
                     </div>
 
@@ -886,10 +887,10 @@
                             <div class="task-title">Telegram канал</div>
                             <div class="task-reward">80 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Приєднайся до нашого Telegram-каналу та зароби більше!</div>
+                        <div class="task-description" data-lang-key="earn.telegram_desc">Приєднайся до нашого Telegram-каналу та зароби більше!</div>
                         <div class="task-action">
-                            <button class="action-button" id="telegram-subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="telegram-verify">Перевірити</button>
+                            <button class="action-button" id="telegram-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="telegram-verify" data-lang-key="earn.verify">Перевірити</button>
                         </div>
                     </div>
 
@@ -899,10 +900,10 @@
                             <div class="task-title">YouTube</div>
                             <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Підпишись на наш YouTube-канал, щоб не пропустити оновлення!</div>
+                        <div class="task-description" data-lang-key="earn.youtube_desc">Підпишись на наш YouTube-канал, щоб не пропустити оновлення!</div>
                         <div class="task-action">
-                            <button class="action-button" id="youtube-subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="youtube-verify">Перевірити</button>
+                            <button class="action-button" id="youtube-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
+                            <button class="action-button verify-button" id="youtube-verify" data-lang-key="earn.verify">Перевірити</button>
                         </div>
                     </div>
                 </div>
@@ -910,81 +911,81 @@
 
             <!-- Реферальні завдання -->
             <div class="category-card">
-                <div class="category-title">Реферальні завдання</div>
+                <div class="category-title" data-lang-key="earn.referral_tasks">Реферальні завдання</div>
                 <div class="task-container">
                     <!-- Завдання 5 друзів -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Запроси 5 друзів</div>
+                            <div class="task-title" data-lang-key="earn.invite_5">Запроси 5 друзів</div>
                             <div class="task-reward">300 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Запроси 5 друзів через своє реферальне посилання!</div>
+                        <div class="task-description" data-lang-key="earn.invite_5_desc">Запроси 5 друзів через своє реферальне посилання!</div>
                         <div class="task-progress">
-                            <div class="progress-text">0/5 друзів запрошено</div>
+                            <div class="progress-text">0/5 <span data-lang-key="earn.friends_invited">друзів запрошено</span></div>
                             <div class="progress-bar-container">
                                 <div class="progress-fill" style="width: 0%;"></div>
                             </div>
                         </div>
                         <div class="task-action">
-                            <button class="action-button" id="invite-friends">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;">Виконано</div>
+                            <button class="action-button" id="invite-friends" data-lang-key="earn.invite">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
                         </div>
                     </div>
 
                     <!-- Завдання 10 друзів -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Запроси 10 друзів</div>
+                            <div class="task-title" data-lang-key="earn.invite_10">Запроси 10 друзів</div>
                             <div class="task-reward">700 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Запроси 10 друзів та отримай ще більше!</div>
+                        <div class="task-description" data-lang-key="earn.invite_10_desc">Запроси 10 друзів та отримай ще більше!</div>
                         <div class="task-progress">
-                            <div class="progress-text">0/10 друзів запрошено</div>
+                            <div class="progress-text">0/10 <span data-lang-key="earn.friends_invited">друзів запрошено</span></div>
                             <div class="progress-bar-container">
                                 <div class="progress-fill" style="width: 0%;"></div>
                             </div>
                         </div>
                         <div class="task-action">
-                            <button class="action-button" id="invite-friends-10">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;">Виконано</div>
+                            <button class="action-button" id="invite-friends-10" data-lang-key="earn.invite">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
                         </div>
                     </div>
 
                     <!-- Завдання 25 друзів -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Запроси 25 друзів</div>
+                            <div class="task-title" data-lang-key="earn.invite_25">Запроси 25 друзів</div>
                             <div class="task-reward">1500 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Стань лідером – запроси 25 друзів!</div>
+                        <div class="task-description" data-lang-key="earn.invite_25_desc">Стань лідером – запроси 25 друзів!</div>
                         <div class="task-progress">
-                            <div class="progress-text">0/25 друзів запрошено</div>
+                            <div class="progress-text">0/25 <span data-lang-key="earn.friends_invited">друзів запрошено</span></div>
                             <div class="progress-bar-container">
                                 <div class="progress-fill" style="width: 0%;"></div>
                             </div>
                         </div>
                         <div class="task-action">
-                            <button class="action-button" id="invite-friends-25">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;">Виконано</div>
+                            <button class="action-button" id="invite-friends-25" data-lang-key="earn.invite">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
                         </div>
                     </div>
 
                     <!-- Завдання 100 друзів -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Запроси 100 друзів</div>
+                            <div class="task-title" data-lang-key="earn.invite_100">Запроси 100 друзів</div>
                             <div class="task-reward">5000 <span class="token-symbol">$WINIX</span></div>
                         </div>
-                        <div class="task-description">Епічна мета – запроси 100 друзів та отримай суперприз!</div>
+                        <div class="task-description" data-lang-key="earn.invite_100_desc">Епічна мета – запроси 100 друзів та отримай суперприз!</div>
                         <div class="task-progress">
-                            <div class="progress-text">0/100 друзів запрошено</div>
+                            <div class="progress-text">0/100 <span data-lang-key="earn.friends_invited">друзів запрошено</span></div>
                             <div class="progress-bar-container">
                                 <div class="progress-fill" style="width: 0%;"></div>
                             </div>
                         </div>
                         <div class="task-action">
-                            <button class="action-button" id="invite-friends-100">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;">Виконано</div>
+                            <button class="action-button" id="invite-friends-100" data-lang-key="earn.invite">Запросити друзів</button>
+                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
                         </div>
                     </div>
                 </div>
@@ -992,15 +993,15 @@
 
             <!-- Лідерська дошка -->
             <div class="category-card">
-                <div class="category-title">Лідерська дошка</div>
-                <div class="leaderboard-title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
+                <div class="category-title" data-lang-key="earn.leaderboard">Лідерська дошка</div>
+                <div class="leaderboard-title" data-lang-key="earn.leaderboard.title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
                 <div class="leaderboard">
                     <!-- Перший користувач -->
                     <div class="leaderboard-item">
                         <div class="position top-3">1</div>
                         <div class="user-info">
                             <div class="username">Користувач123</div>
-                            <div class="referral-count">35 рефералів</div>
+                            <div class="referral-count">35 <span data-lang-key="earn.referrals">рефералів</span></div>
                         </div>
                         <div class="user-reward">1000 $WINIX</div>
                     </div>
@@ -1010,7 +1011,7 @@
                         <div class="position top-3">2</div>
                         <div class="user-info">
                             <div class="username">Winix_Fan</div>
-                            <div class="referral-count">28 рефералів</div>
+                            <div class="referral-count">28 <span data-lang-key="earn.referrals">рефералів</span></div>
                         </div>
                         <div class="user-reward">700 $WINIX</div>
                     </div>
@@ -1020,7 +1021,7 @@
                         <div class="position top-3">3</div>
                         <div class="user-info">
                             <div class="username">CryptoUkr</div>
-                            <div class="referral-count">22 рефералів</div>
+                            <div class="referral-count">22 <span data-lang-key="earn.referrals">рефералів</span></div>
                         </div>
                         <div class="user-reward">500 $WINIX</div>
                     </div>
@@ -1030,7 +1031,7 @@
                         <div class="position">4</div>
                         <div class="user-info">
                             <div class="username">TokenMaster</div>
-                            <div class="referral-count">19 рефералів</div>
+                            <div class="referral-count">19 <span data-lang-key="earn.referrals">рефералів</span></div>
                         </div>
                     </div>
 
@@ -1038,7 +1039,7 @@
                         <div class="position">5</div>
                         <div class="user-info">
                             <div class="username">BlockchainUA</div>
-                            <div class="referral-count">15 рефералів</div>
+                            <div class="referral-count">15 <span data-lang-key="earn.referrals">рефералів</span></div>
                         </div>
                     </div>
                 </div>
@@ -1048,17 +1049,17 @@
         <!-- Секція Лімітованих завдань -->
         <div class="content-section" id="limited-content">
             <div class="category-card">
-                <div class="category-title">Обмежені за часом завдання</div>
+                <div class="category-title" data-lang-key="earn.limited_tasks">Обмежені за часом завдання</div>
                 <div class="task-container">
                     <!-- Тут буде вміст лімітованих завдань -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Очікуйте на нові завдання</div>
+                            <div class="task-title" data-lang-key="earn.expect_new_tasks_title">Очікуйте на нові завдання</div>
                             <div class="timer-container">
-                                <span class="timer-icon">⏰</span> Скоро
+                                <span class="timer-icon">⏰</span> <span data-lang-key="earn.coming_soon">Скоро</span>
                             </div>
                         </div>
-                        <div class="task-description">Лімітовані завдання будуть доступні найближчим часом. Не пропустіть можливість отримати додаткові нагороди!</div>
+                        <div class="task-description" data-lang-key="earn.expect_new_tasks">Лімітовані завдання будуть доступні найближчим часом. Не пропустіть можливість отримати додаткові нагороди!</div>
                     </div>
                 </div>
             </div>
@@ -1067,14 +1068,14 @@
         <!-- Секція Партнерських завдань -->
         <div class="content-section" id="partners-content">
             <div class="category-card">
-                <div class="category-title">Партнерські завдання</div>
+                <div class="category-title" data-lang-key="earn.partners_tasks">Партнерські завдання</div>
                 <div class="task-container">
                     <!-- Тут буде вміст партнерських завдань -->
                     <div class="task-item">
                         <div class="task-header">
-                            <div class="task-title">Очікуйте на партнерські пропозиції</div>
+                            <div class="task-title" data-lang-key="earn.expect_partners_title">Очікуйте на партнерські пропозиції</div>
                         </div>
-                        <div class="task-description">Партнерські завдання будуть доступні найближчим часом. Слідкуйте за оновленнями!</div>
+                        <div class="task-description" data-lang-key="earn.expect_partners">Партнерські завдання будуть доступні найближчим часом. Слідкуйте за оновленнями!</div>
                     </div>
                 </div>
             </div>
@@ -1085,31 +1086,31 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                Home
+                <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item active" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                Earn
+                <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                Referrals
+                <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                Wallet
+                <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                General
+                <span data-lang-key="general">General</span>
             </div>
         </div>
     </div>
@@ -1196,6 +1197,11 @@
     function showToast(message, duration = 3000) {
         const toast = document.getElementById('toast-message');
         if (toast) {
+            // Перевіряємо, чи повідомлення має бути перекладено
+            if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
+                message = window.WinixLanguage.getText(message.substring(1));
+            }
+
             toast.textContent = message;
             toast.classList.add('show');
 
@@ -1240,7 +1246,9 @@
         }
 
         // Оновлюємо текст кнопки відповідно до нагороди
-        claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+        const getText = window.WinixLanguage ? window.WinixLanguage.getText : (key) => key;
+        const getButtonText = `${getText('earn.get')} ${rewardAmount} $WINIX`;
+        claimButton.textContent = getButtonText;
 
         // Видаляємо всі існуючі обробники, щоб уникнути дублювання
         const newButton = claimButton.cloneNode(true);
@@ -1252,12 +1260,12 @@
                 // Якщо є система нагород, використовуємо її
                 const result = rewardSystem.claimDailyBonus();
                 if (result.success) {
-                    showToast(`Отримано ${result.amount} $WINIX!`);
+                    showToast(`${getText('earn.received')} ${result.amount} $WINIX!`);
                     // Деактивуємо кнопку
                     newButton.disabled = true;
-                    newButton.textContent = 'Отримано';
+                    newButton.textContent = getText('earn.received');
                 } else {
-                    showToast(result.message || 'Не вдалося отримати бонус');
+                    showToast(result.message || getText('earn.bonus_error'));
                 }
             } else {
                 // Запасний варіант без системи нагород
@@ -1270,11 +1278,11 @@
                     userTokensElement.textContent = (userTokens + rewardAmount).toFixed(2);
                 }
 
-                showToast(`Отримано ${rewardAmount} $WINIX!`);
+                showToast(`${getText('earn.received')} ${rewardAmount} $WINIX!`);
 
                 // Деактивуємо кнопку
                 newButton.disabled = true;
-                newButton.textContent = 'Отримано';
+                newButton.textContent = getText('earn.received');
             }
         });
     }
@@ -1296,9 +1304,9 @@
                 if (typeof rewardSystem !== 'undefined') {
                     const result = rewardSystem.completeTask('twitter_subscription', 50);
                     if (result.success) {
-                        showToast('Підписку перевірено! Отримано 50 $WINIX');
+                        showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.twitter_verified') : 'Підписку перевірено! Отримано 50 $WINIX');
                     } else {
-                        showToast(result.message || 'Підписку не знайдено');
+                        showToast(result.message || (window.WinixLanguage ? window.WinixLanguage.getText('earn.subscription_not_found') : 'Підписку не знайдено'));
                     }
                 } else {
                     // Імітуємо успішну перевірку
@@ -1311,7 +1319,7 @@
                         userTokensElement.textContent = (userTokens + 50).toFixed(2);
                     }
 
-                    showToast('Підписку перевірено! Отримано 50 $WINIX');
+                    showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.twitter_verified') : 'Підписку перевірено! Отримано 50 $WINIX');
                 }
             });
         }
@@ -1331,9 +1339,9 @@
                 if (typeof rewardSystem !== 'undefined') {
                     const result = rewardSystem.completeTask('telegram_subscription', 80);
                     if (result.success) {
-                        showToast('Підписку перевірено! Отримано 80 $WINIX');
+                        showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.telegram_verified') : 'Підписку перевірено! Отримано 80 $WINIX');
                     } else {
-                        showToast(result.message || 'Підписку не знайдено');
+                        showToast(result.message || (window.WinixLanguage ? window.WinixLanguage.getText('earn.subscription_not_found') : 'Підписку не знайдено'));
                     }
                 } else {
                     // Імітуємо успішну перевірку
@@ -1346,7 +1354,7 @@
                         userTokensElement.textContent = (userTokens + 80).toFixed(2);
                     }
 
-                    showToast('Підписку перевірено! Отримано 80 $WINIX');
+                    showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.telegram_verified') : 'Підписку перевірено! Отримано 80 $WINIX');
                 }
             });
         }
@@ -1366,9 +1374,9 @@
                 if (typeof rewardSystem !== 'undefined') {
                     const result = rewardSystem.completeTask('youtube_subscription', 50);
                     if (result.success) {
-                        showToast('Підписку перевірено! Отримано 50 $WINIX');
+                        showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.youtube_verified') : 'Підписку перевірено! Отримано 50 $WINIX');
                     } else {
-                        showToast(result.message || 'Підписку не знайдено');
+                        showToast(result.message || (window.WinixLanguage ? window.WinixLanguage.getText('earn.subscription_not_found') : 'Підписку не знайдено'));
                     }
                 } else {
                     // Імітуємо успішну перевірку
@@ -1381,7 +1389,7 @@
                         userTokensElement.textContent = (userTokens + 50).toFixed(2);
                     }
 
-                    showToast('Підписку перевірено! Отримано 50 $WINIX');
+                    showToast(window.WinixLanguage ? window.WinixLanguage.getText('earn.youtube_verified') : 'Підписку перевірено! Отримано 50 $WINIX');
                 }
             });
         }
@@ -1459,6 +1467,11 @@
             document.getElementById('user-coins').textContent = userCoins.toFixed(0);
         }
 
+        // Оновлюємо тексти відповідно до поточної мови
+        if (window.WinixLanguage) {
+            window.WinixLanguage.updatePageTexts();
+        }
+
         // Налаштовуємо перемикання вкладок
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', function() {
@@ -1509,7 +1522,15 @@ function handleTaskCompletion(taskItem, platform, reward) {
         if (!taskAction.querySelector('.completed-label')) {
             const completedLabel = document.createElement('div');
             completedLabel.className = 'completed-label';
-            completedLabel.textContent = 'Виконано';
+
+            // Використовуємо переклад, якщо доступний
+            if (window.WinixLanguage) {
+                completedLabel.textContent = window.WinixLanguage.getText('earn.completed');
+            } else {
+                completedLabel.textContent = 'Виконано';
+            }
+
+            completedLabel.dataset.langKey = 'earn.completed';
             taskAction.appendChild(completedLabel);
         }
     }
@@ -1574,7 +1595,15 @@ function initTasksStatus() {
                     if (!taskAction.querySelector('.completed-label')) {
                         const completedLabel = document.createElement('div');
                         completedLabel.className = 'completed-label';
-                        completedLabel.textContent = 'Виконано';
+
+                        // Використовуємо переклад, якщо доступний
+                        if (window.WinixLanguage) {
+                            completedLabel.textContent = window.WinixLanguage.getText('earn.completed');
+                        } else {
+                            completedLabel.textContent = 'Виконано';
+                        }
+
+                        completedLabel.dataset.langKey = 'earn.completed';
                         taskAction.appendChild(completedLabel);
                     }
                 }
@@ -1626,29 +1655,43 @@ function setupTaskButtons() {
 
             // Додаємо новий обробник
             newBtn.addEventListener('click', async function() {
+                // Функція для отримання перекладу
+                const getText = window.WinixLanguage ?
+                    window.WinixLanguage.getText :
+                    (key) => {
+                        const defaults = {
+                            'earn.task_already_completed': 'Це завдання вже виконано!',
+                            'earn.subscribe_first': 'Спочатку натисніть кнопку "Підписатись"!',
+                            'earn.checking_subscription': 'Перевірка підписки...',
+                            'earn.subscription_received': 'Вітаємо! Отримано',
+                            'earn.subscription_not_found': 'Підписку не знайдено. Спробуйте ще раз.'
+                        };
+                        return defaults[key] || key;
+                    };
+
                 // Перевіряємо, чи завдання вже виконано
                 if (localStorage.getItem(`${button.platform}_task_completed`) === 'true') {
                     window.simpleAlert ?
-                        window.simpleAlert('Це завдання вже виконано!') :
-                        window.showToast ? window.showToast('Це завдання вже виконано!') :
-                        alert('Це завдання вже виконано!');
+                        window.simpleAlert(getText('earn.task_already_completed')) :
+                        window.showToast ? window.showToast(getText('earn.task_already_completed')) :
+                        alert(getText('earn.task_already_completed'));
                     return;
                 }
 
                 // Перевіряємо, чи користувач клікнув на кнопку підписки
                 if (localStorage.getItem(`${button.platform}_link_clicked`) !== 'true') {
                     window.simpleAlert ?
-                        window.simpleAlert('Спочатку натисніть кнопку "Підписатись"!', true) :
-                        window.showToast ? window.showToast('Спочатку натисніть кнопку "Підписатись"!') :
-                        alert('Спочатку натисніть кнопку "Підписатись"!');
+                        window.simpleAlert(getText('earn.subscribe_first'), true) :
+                        window.showToast ? window.showToast(getText('earn.subscribe_first')) :
+                        alert(getText('earn.subscribe_first'));
                     return;
                 }
 
                 // Повідомлення про перевірку
                 window.simpleAlert ?
-                    window.simpleAlert('Перевірка підписки...') :
-                    window.showToast ? window.showToast('Перевірка підписки...') :
-                    alert('Перевірка підписки...');
+                    window.simpleAlert(getText('earn.checking_subscription')) :
+                    window.showToast ? window.showToast(getText('earn.checking_subscription')) :
+                    alert(getText('earn.checking_subscription'));
 
                 // Імітуємо перевірку підписки
                 setTimeout(() => {
@@ -1682,14 +1725,14 @@ function setupTaskButtons() {
 
                         // Показуємо повідомлення про успіх
                         window.simpleAlert ?
-                            window.simpleAlert(`Вітаємо! Отримано ${button.reward} $WINIX`) :
-                            window.showToast ? window.showToast(`Вітаємо! Отримано ${button.reward} $WINIX`) :
-                            alert(`Вітаємо! Отримано ${button.reward} $WINIX`);
+                            window.simpleAlert(`${getText('earn.subscription_received')} ${button.reward} $WINIX`) :
+                            window.showToast ? window.showToast(`${getText('earn.subscription_received')} ${button.reward} $WINIX`) :
+                            alert(`${getText('earn.subscription_received')} ${button.reward} $WINIX`);
                     } else {
                         window.simpleAlert ?
-                            window.simpleAlert('Підписку не знайдено. Спробуйте ще раз.', true) :
-                            window.showToast ? window.showToast('Підписку не знайдено. Спробуйте ще раз.') :
-                            alert('Підписку не знайдено. Спробуйте ще раз.');
+                            window.simpleAlert(getText('earn.subscription_not_found'), true) :
+                            window.showToast ? window.showToast(getText('earn.subscription_not_found')) :
+                            alert(getText('earn.subscription_not_found'));
                     }
                 }, 1500);
             });
@@ -1885,6 +1928,11 @@ function applyProgressBarStyles() {
             return;
         }
 
+        // Функція для отримання перекладів
+        const getText = window.WinixLanguage ?
+            window.WinixLanguage.getText :
+            (key) => key === 'earn.get' ? 'Отримати' : key === 'earn.received' ? 'Отримано' : key;
+
         // Отримуємо активний день і відповідну винагороду
         const activeDay = document.querySelector('.day-circle.active');
         if (activeDay) {
@@ -1893,7 +1941,7 @@ function applyProgressBarStyles() {
                 const rewardElement = dayMarker.querySelector('.day-reward');
                 if (rewardElement && rewardElement.textContent) {
                     const rewardAmount = parseInt(rewardElement.textContent, 10) || 30;
-                    claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+                    claimButton.textContent = `${getText('earn.get')} ${rewardAmount} $WINIX`;
 
                     // Зберігаємо поточну винагороду для використання пізніше
                     localStorage.setItem('currentDailyBonus', rewardAmount.toString());
@@ -1908,7 +1956,7 @@ function applyProgressBarStyles() {
 
         if (lastClaimDate === today) {
             claimButton.disabled = true;
-            claimButton.textContent = 'Отримано';
+            claimButton.textContent = getText('earn.received');
             console.log("Бонус вже отримано сьогодні");
         } else {
             claimButton.disabled = false;
@@ -1930,6 +1978,11 @@ function applyProgressBarStyles() {
             console.log("Кнопка вимкнена, дія скасована");
             return;
         }
+
+        // Функція для отримання перекладів
+        const getText = window.WinixLanguage ?
+            window.WinixLanguage.getText :
+            (key) => key === 'earn.received_bonus' ? 'Отримано' : key;
 
         // Отримуємо поточну винагороду
         const rewardAmount = parseInt(localStorage.getItem('currentDailyBonus') || '30', 10);
@@ -1954,15 +2007,15 @@ function applyProgressBarStyles() {
 
         // Оновлюємо вигляд кнопки
         this.disabled = true;
-        this.textContent = 'Отримано';
+        this.textContent = getText('earn.received_bonus');
 
         // Показуємо повідомлення
         if (window.showToast) {
-            window.showToast(`Отримано ${rewardAmount} $WINIX!`);
+            window.showToast(`${getText('earn.received')} ${rewardAmount} $WINIX!`);
         } else if (window.simpleAlert) {
-            window.simpleAlert(`Отримано ${rewardAmount} $WINIX!`);
+            window.simpleAlert(`${getText('earn.received')} ${rewardAmount} $WINIX!`);
         } else {
-            alert(`Отримано ${rewardAmount} $WINIX!`);
+            alert(`${getText('earn.received')} ${rewardAmount} $WINIX!`);
         }
     }
 
