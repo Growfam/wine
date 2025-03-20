@@ -11,6 +11,216 @@
         console.log("✅ WinixCore вже ініціалізовано");
         return window.WinixCore;
     }
+// ===== ВИПРАВЛЕННЯ ДУБЛЮВАННЯ ВІКОН =====
+// Вставити цей код на початку файлу winix-core.js
+
+(function() {
+    // Зберігаємо оригінальні функції, щоб не втратити функціональність
+    const originalShowNotification = window.showNotification || function() {};
+    const originalSimpleAlert = window.simpleAlert || function() {};
+
+    // Змінна для відстеження, чи є відкрите вікно
+    let isAlertOpen = false;
+
+    // Переписуємо функцію showNotification, щоб вона не створювала дублікати
+    window.showNotification = function(message, type, duration) {
+        // Видаляємо всі існуючі повідомлення перед показом нового
+        const existingNotifications = document.querySelectorAll('.notification');
+        existingNotifications.forEach(notification => {
+            notification.remove();
+        });
+
+        // Застосовуємо оригінальну функцію з контролем дублювання
+        if (!isAlertOpen) {
+            isAlertOpen = true;
+            setTimeout(() => { isAlertOpen = false; }, 300);
+            return originalShowNotification(message, type, duration);
+        }
+    };
+
+    // Переписуємо функцію simpleAlert, щоб вона не створювала дублікати
+    window.simpleAlert = function(message, isError, callback) {
+        // Видаляємо всі існуючі сповіщення перед показом нового
+        const existingAlerts = document.querySelectorAll('.alert-overlay');
+        existingAlerts.forEach(alert => {
+            alert.remove();
+        });
+
+        // Запобігаємо множинним викликам
+        if (!isAlertOpen) {
+            isAlertOpen = true;
+            setTimeout(() => { isAlertOpen = false; }, 300);
+            return originalSimpleAlert(message, isError, callback);
+        }
+    };
+
+    // Виправлення для функції createInputModal
+    const originalCreateInputModal = window.createInputModal || function() {};
+
+    window.createInputModal = function(title, onConfirm) {
+        // Видаляємо всі існуючі модальні вікна перед створенням нового
+        const existingModals = document.querySelectorAll('.modal-overlay');
+        existingModals.forEach(modal => {
+            modal.remove();
+        });
+
+        // Викликаємо оригінальну функцію, якщо вона є
+        if (typeof originalCreateInputModal === 'function') {
+            return originalCreateInputModal(title, onConfirm);
+        } else {
+            // Базова імплементація, якщо оригінальної функції немає
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            // ... реалізація модального вікна за необхідності
+            document.body.appendChild(overlay);
+            return overlay;
+        }
+    };
+})();
+
+// ===== ВИПРАВЛЕННЯ ЩОДЕННОГО БОНУСУ =====
+// Вставити цей код в тому ж файлі, якщо в ньому є логіка щоденного бонусу
+
+(function() {
+    // Функція для правильної ініціалізації щоденного бонусу
+    function initDailyBonus() {
+        // Перевіряємо, чи існує елемент щоденного бонусу
+        const dailyBonus = document.querySelector('.daily-bonus');
+        if (!dailyBonus) return;
+
+        // Отримуємо дату першого входу або встановлюємо її
+        let firstLoginDate = localStorage.getItem('firstLoginDate');
+        if (!firstLoginDate) {
+            firstLoginDate = new Date().toISOString();
+            localStorage.setItem('firstLoginDate', firstLoginDate);
+        }
+
+        // Розраховуємо, який сьогодні день (від 1 до 7)
+        const firstDate = new Date(firstLoginDate);
+        const currentDate = new Date();
+
+        // Різниця в днях (округлюємо вниз, щоб 0-24 години = день 1)
+        let dayDiff = Math.floor((currentDate - firstDate) / (24 * 60 * 60 * 1000)) + 1;
+
+        // Якщо більше 7 днів, почнемо новий цикл
+        if (dayDiff > 7) {
+            dayDiff = dayDiff % 7;
+            if (dayDiff === 0) dayDiff = 7; // Якщо остача 0, то це 7-й день
+        }
+
+        // Оновлюємо відображення днів
+        const allDays = document.querySelectorAll('.day-circle');
+
+        // Скидаємо всі активні класи
+        allDays.forEach(day => {
+            day.classList.remove('active');
+            day.classList.remove('completed');
+        });
+
+        // Встановлюємо правильні класи для днів
+        allDays.forEach((day, index) => {
+            const dayNumber = index + 1;
+
+            if (dayNumber < dayDiff) {
+                day.classList.add('completed');
+            } else if (dayNumber === dayDiff) {
+                day.classList.add('active');
+            }
+        });
+
+        // Оновлюємо прогрес-бар
+        const progressBar = document.getElementById('weekly-progress');
+        if (progressBar) {
+            const progressPercent = (dayDiff / 7) * 100;
+            progressBar.style.width = `${progressPercent}%`;
+        }
+
+        // Оновлюємо текст кнопки з правильною сумою винагороди
+        const claimButton = document.getElementById('claim-daily');
+        if (claimButton) {
+            // Отримуємо активний день і відповідну винагороду
+            const activeDay = document.querySelector('.day-circle.active');
+            if (activeDay) {
+                const dayMarker = activeDay.closest('.day-marker');
+                if (dayMarker) {
+                    const rewardElement = dayMarker.querySelector('.day-reward');
+                    if (rewardElement && rewardElement.textContent) {
+                        const rewardAmount = parseInt(rewardElement.textContent, 10) || 30;
+                        claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+
+                        // Зберігаємо поточну винагороду для використання пізніше
+                        localStorage.setItem('currentDailyBonus', rewardAmount.toString());
+                    }
+                }
+            }
+
+            // Перевіряємо, чи вже отримано бонус сьогодні
+            const lastClaimDate = localStorage.getItem('lastDailyBonusDate');
+            const today = new Date().toDateString();
+
+            if (lastClaimDate === today) {
+                claimButton.disabled = true;
+                claimButton.textContent = 'Отримано';
+            } else {
+                claimButton.disabled = false;
+            }
+
+            // Видаляємо всі існуючі обробники подій
+            const newButton = claimButton.cloneNode(true);
+            claimButton.parentNode.replaceChild(newButton, claimButton);
+
+            // Додаємо новий обробник
+            newButton.addEventListener('click', function() {
+                if (this.disabled) return;
+
+                // Отримуємо поточну винагороду
+                const rewardAmount = parseInt(localStorage.getItem('currentDailyBonus') || '30', 10);
+
+                // Нараховуємо винагороду
+                const userTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                localStorage.setItem('userTokens', (userTokens + rewardAmount).toString());
+
+                // Оновлюємо відображення балансу
+                const userTokensElement = document.getElementById('user-tokens');
+                if (userTokensElement) {
+                    userTokensElement.textContent = (userTokens + rewardAmount).toFixed(2);
+                }
+
+                // Зберігаємо дату отримання бонусу
+                localStorage.setItem('lastDailyBonusDate', today);
+
+                // Оновлюємо вигляд кнопки
+                this.disabled = true;
+                this.textContent = 'Отримано';
+
+                // Показуємо повідомлення
+                if (window.showToast) {
+                    window.showToast(`Отримано ${rewardAmount} $WINIX!`);
+                } else if (window.simpleAlert) {
+                    window.simpleAlert(`Отримано ${rewardAmount} $WINIX!`);
+                }
+            });
+        }
+    }
+
+    // Функція запуску при завантаженні сторінки
+    function initOnLoad() {
+        // Перевіряємо, що сторінка earn.html
+        if (window.location.pathname.includes('earn.html')) {
+            initDailyBonus();
+        }
+    }
+
+    // Додаємо обробник завантаження сторінки
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initOnLoad);
+    } else {
+        initOnLoad();
+    }
+
+    // Додаємо функцію до глобального об'єкту для можливості виклику з інших місць
+    window.initDailyBonus = initDailyBonus;
+})();
 
     // --------------- ПРИВАТНІ КОНСТАНТИ ---------------
 
