@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <title>WINIX - Транзакції</title>
+    <title>WINIX - <span data-lang-key="transactions.title">Транзакції</span></title>
 
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -729,7 +730,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -741,23 +742,23 @@
 
         <div class="transaction-card">
             <button class="back-button" id="back-button">←</button>
-            <div class="transaction-header">Історія транзакцій</div>
+            <div class="transaction-header" data-lang-key="transactions.title">Історія транзакцій</div>
 
             <div class="transaction-status-indicator" id="transaction-status">
                 <!-- Показник типу транзакцій: реальні чи тестові -->
             </div>
 
             <div class="transaction-filters">
-                <button class="filter-button active" data-filter="all">Всі</button>
-                <button class="filter-button" data-filter="receive">Отримання</button>
-                <button class="filter-button" data-filter="send">Відправлення</button>
-                <button class="filter-button" data-filter="stake">Стейкінг</button>
-                <button class="filter-button" data-filter="unstake">Розстейкінг</button>
+                <button class="filter-button active" data-filter="all" data-lang-key="transactions.all">Всі</button>
+                <button class="filter-button" data-filter="receive" data-lang-key="transactions.receive">Отримання</button>
+                <button class="filter-button" data-filter="send" data-lang-key="transactions.send">Відправлення</button>
+                <button class="filter-button" data-filter="stake" data-lang-key="transactions.stake">Стейкінг</button>
+                <button class="filter-button" data-filter="unstake" data-lang-key="transactions.unstake">Розстейкінг</button>
             </div>
 
             <div class="transaction-list" id="transaction-list">
                 <!-- Тут будуть транзакції через JavaScript -->
-                <div class="empty-message" id="empty-state">Завантаження транзакцій...</div>
+                <div class="empty-message" id="empty-state" data-lang-key="transactions.loading">Завантаження транзакцій...</div>
             </div>
         </div>
 
@@ -766,31 +767,31 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                <span>Home</span>
+                <span data-lang-key="navigation.home">Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                <span>Earn</span>
+                <span data-lang-key="navigation.earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                <span>Referrals</span>
+                <span data-lang-key="navigation.referrals">Referrals</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                <span>Wallet</span>
+                <span data-lang-key="navigation.wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                <span>General</span>
+                <span data-lang-key="navigation.general">General</span>
             </div>
         </div>
     </div>
@@ -798,18 +799,18 @@
     <!-- Модальне вікно для деталей транзакції -->
     <div class="modal-overlay" id="transaction-modal">
         <div class="modal-content">
-            <div class="modal-title">Деталі транзакції</div>
+            <div class="modal-title" data-lang-key="transactions.details">Деталі транзакції</div>
             <div id="transaction-details-content">
                 <!-- Деталі транзакції будуть додані через JavaScript -->
             </div>
-            <button class="close-button" id="close-modal">Закрити</button>
+            <button class="close-button" id="close-modal" data-lang-key="transactions.close">Закрити</button>
         </div>
     </div>
 
     <!-- Індикатор завантаження -->
     <div class="loading-indicator" id="loading-indicator">
         <div class="spinner"></div>
-        <div class="loading-text">Завантаження...</div>
+        <div class="loading-text" data-lang-key="status.loading">Завантаження...</div>
     </div>
 
     <!-- Модальне вікно сповіщень -->
@@ -856,8 +857,14 @@
                 console.log("WINIX: Ініціалізація системи транзакцій...");
 
                 try {
-                    // Показуємо індикатор завантаження
-                    this.showLoading("Завантаження транзакцій...");
+                   // Якщо доступний модуль мов, використовуємо переклад
+                    if (window.WinixLanguage) {
+                    this.showLoading(window.WinixLanguage.getText('transactions.loading'));
+                   // Оновлюємо всі тексти на сторінці
+                        window.WinixLanguage.updatePageTexts();
+                } else {
+                        this.showLoading("Завантаження транзакцій...");
+                }
 
                     // Завантажуємо транзакції з усіх можливих джерел
                     this.loadTransactionsFromAllSources();
@@ -1293,15 +1300,15 @@
             },
 
             // Отримання тексту для типу транзакції
-            getTransactionText: function(type) {
-                switch(type) {
-                    case this.TYPES.RECEIVE: return 'Отримано';
-                    case this.TYPES.SEND: return 'Надіслано';
-                    case this.TYPES.STAKE: return 'Застейкано';
-                    case this.TYPES.UNSTAKE: return 'Розстейкано';
-                    default: return 'Транзакція';
-                }
-            },
+getTransactionText: function(type) {
+    switch(type) {
+        case this.TYPES.RECEIVE: return window.WinixLanguage.getText('transactions.received');
+        case this.TYPES.SEND: return window.WinixLanguage.getText('transactions.sent');
+        case this.TYPES.STAKE: return window.WinixLanguage.getText('transactions.staked');
+        case this.TYPES.UNSTAKE: return window.WinixLanguage.getText('transactions.unstaked');
+        default: return window.WinixLanguage.getText('transactions.title');
+    }
+},
 
             // Отримання класу для типу транзакції
             getTransactionClass: function(type) {
@@ -1333,15 +1340,15 @@
             },
 
             // Отримання опису за замовчуванням для типу транзакції
-            getDefaultDescription: function(type) {
-                switch(type) {
-                    case this.TYPES.RECEIVE: return 'Отримання токенів';
-                    case this.TYPES.SEND: return 'Відправлення токенів';
-                    case this.TYPES.STAKE: return 'Стейкінг токенів';
-                    case this.TYPES.UNSTAKE: return 'Виведення токенів зі стейкінгу';
-                    default: return 'Транзакція WINIX';
-                }
-            },
+getDefaultDescription: function(type) {
+    switch(type) {
+        case this.TYPES.RECEIVE: return window.WinixLanguage.getText('transactions.received');
+        case this.TYPES.SEND: return window.WinixLanguage.getText('transactions.sent');
+        case this.TYPES.STAKE: return window.WinixLanguage.getText('transactions.staked');
+        case this.TYPES.UNSTAKE: return window.WinixLanguage.getText('transactions.unstaked');
+        default: return window.WinixLanguage.getText('transactions.title');
+    }
+},
 
             // Форматування дати для відображення в списку транзакцій
             formatDate: function(timestamp) {
@@ -1660,6 +1667,20 @@
 
         // Експортуємо об'єкт для доступу з інших скриптів
         window.winixTransactions = WinixTransactions;
+
+        // Обробка зміни мови
+document.addEventListener('languageChanged', function(event) {
+    // Оновлюємо всі динамічні тексти, які не мають атрибута data-lang-key
+    updateDynamicTexts();
+});
+
+function updateDynamicTexts() {
+    // Для transactions.html:
+    // Оновлюємо тексти типів транзакцій, деталей транзакцій, тощо
+
+    // Для wallet.html:
+    // Оновлюємо тексти транзакцій в списку, повідомлення тощо
+}
     })();
     </script>
 </body>
