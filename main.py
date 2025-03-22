@@ -18,7 +18,7 @@ def init_db():
 # Головна сторінка (Сторінка 1)
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('original-index.html')
 
 
 # Сторінка 2

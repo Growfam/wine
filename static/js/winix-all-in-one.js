@@ -553,7 +553,7 @@
                     let url = '';
                     switch (section) {
                         case 'home':
-                            url = 'index.html';
+                            url = 'original-index.html';
                             break;
                         case 'earn':
                             url = 'earn.html';
