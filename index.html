@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WINIX - Головна сторінка</title>
+    <title>WINIX Blockchain</title>
 
-    <script src="static/js/language.js"></script>
-    <script src="static/js/winix-init.js"></script>
-    <script src="static/js/winix-core.js"></script>
-    <script src="static/js/winix-connector.js"></script>
-    <script src="static/js/winix-all-in-one.js"></script>
+    <!-- Telegram WebApp API -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
     <style>
+        /* Змінні для адаптивності */
         :root {
             /* Основні кольори для теми */
             --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
@@ -26,67 +28,53 @@
             --border-color: rgba(78, 181, 247, 0.2);
 
             /* Основні розміри */
-            --container-max-width: 600px;
-            --header-height: 3.5rem;
-            --nav-height: 4.5rem;
-            --bottom-padding: 7.5rem; /* Збільшено нижній відступ, щоб компенсувати підняття навігаційної панелі */
-            --card-border-radius: 1.5rem;
-            --item-border-radius: 0.75rem;
+            --container-max-width: 37.5rem; /* 600px */
+            --header-height: 3.5rem; /* 56px */
+            --nav-height: 4.5rem; /* 72px */
+            --bottom-padding: 6rem; /* 96px */
+            --card-border-radius: 1.5rem; /* 24px */
+            --item-border-radius: 0.75rem; /* 12px */
         }
 
-        * {
+        /* Базові стилі */
+        *, *::before, *::after {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
 
-        body {
+        body, html {
             margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: var(--text-color);
+            padding: 0;
+            height: 100%;
+            width: 100%;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            background: transparent; /* Прозорий фон для повної інтеграції */
+        }
+
+        #root {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Основний контейнер */
+        .app-container {
             width: 100%;
             height: 100vh;
-            padding: 0;
-            background: none;
-        }
-
-        .container {
-            width: 100%;
-            height: 100%;
-            max-width: var(--container-max-width);
-            box-sizing: border-box;
-            padding: 0.625rem;
+            max-width: 100%;
+            overflow: hidden;
             position: relative;
-            z-index: 1;
-            background: url('assets/Fon.png') no-repeat center center;
-            background-size: cover;
-            animation: backgroundShift 15s infinite linear;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 0.9375rem;
-            overflow-y: auto; /* Додаємо вертикальну прокрутку */
-            padding-bottom: var(--bottom-padding) !important; /* Відступ для нав.панелі */
-            -webkit-overflow-scrolling: touch; /* Плавна прокрутка на iOS */
-            scrollbar-width: thin; /* Тонкий скролбар для Firefox */
-            scrollbar-color: var(--secondary-color) transparent;
-        }
-
-        /* Стилізація скролбару для Chrome/Safari */
-        .container::-webkit-scrollbar {
-            width: 0.375rem;
-        }
-
-        .container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .container::-webkit-scrollbar-thumb {
-            background-color: var(--secondary-color);
-            border-radius: 1.25rem;
+            justify-content: center;
+            border: none;
+            background-color: rgba(13, 14, 25, 0.98); /* Темніший фон як на скріншоті */
+            background-image: url('assets/Fon.png');
+            background-size: cover;
+            background-position: center;
+            animation: backgroundShift 15s infinite linear;
         }
 
         @keyframes backgroundShift {
@@ -95,918 +83,1203 @@
             100% { background-position: 0% 0%; }
         }
 
-        .header {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem;
-            padding: 0.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
+        /* 3D сцена */
+        .scene {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: var(--header-height);
-            margin-bottom: 0.9375rem;
-            position: sticky;
-            top: 0.3125rem;
-            z-index: 10;
+            height: 100%;
+            perspective: 62.5rem; /* 1000px */
+            overflow: hidden;
         }
 
-        .header .token-icon {
-            width: 3.4375rem;
-            height: 3.4375rem;
+        /* Кубічні блоки */
+        .cube {
+            position: absolute;
+            width: 5rem; /* 80px */
+            height: 5rem; /* 80px */
+            transform-style: preserve-3d;
+            animation: cubeSpin 20s infinite linear;
+            opacity: 0.1;
+        }
+
+        .cube-1 {
+            top: 10%;
+            left: 10%;
+            animation-duration: 24s;
+            animation-delay: -2s;
+        }
+
+        .cube-2 {
+            top: 75%;
+            left: 80%;
+            animation-duration: 30s;
+            animation-delay: -5s;
+        }
+
+        .cube-3 {
+            top: 60%;
+            left: 15%;
+            animation-duration: 28s;
+            animation-delay: -10s;
+        }
+
+        .cube-4 {
+            top: 20%;
+            left: 85%;
+            animation-duration: 22s;
+            animation-delay: -15s;
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            background: rgba(64, 224, 208, 0.03);
+            backface-visibility: visible;
+        }
+
+        .cube-face-front { transform: translateZ(2.5rem); } /* 40px */
+        .cube-face-back { transform: rotateY(180deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-right { transform: rotateY(90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-left { transform: rotateY(-90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-top { transform: rotateX(90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-bottom { transform: rotateX(-90deg) translateZ(2.5rem); } /* 40px */
+
+        @keyframes cubeSpin {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+        }
+
+        /* Активні частинки */
+        .particles-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 0.125rem; /* 2px */
+            height: 0.125rem; /* 2px */
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
             border-radius: 50%;
-            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
-            animation: pulse 8s infinite ease-in-out;
+            filter: blur(0.0625rem); /* 1px */
+            animation: particleFloat linear infinite;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+        @keyframes particleFloat {
+            0% {
+                transform: translate(0, 0);
+                opacity: 0;
+            }
+            10% {
+                opacity: var(--opacity, 0.3);
+            }
+            90% {
+                opacity: var(--opacity, 0.3);
+            }
+            100% {
+                transform: translate(var(--tx, 6.25rem), var(--ty, 6.25rem)); /* 100px */
+                opacity: 0;
+            }
         }
 
-        .header .winix-title {
-            font-family: 'SF Pro Display', 'Montserrat', sans-serif;
-            font-size: 1.5rem;
-            font-weight: bold;
-            letter-spacing: 0.125rem;
-            color: var(--text-color);
-            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
-            animation: glow 11s infinite ease-in-out;
-        }
-
-        @keyframes glow {
-            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-        }
-
-        .header .balance-container {
-            display: flex;
-            gap: 0.625rem;
-            align-items: center;
-            margin-right: 0.3125rem;
-        }
-
-        .header .jeton-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-left: -2.1875rem;
-        }
-
-        .header .winix-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .header .jeton-balance .balance-value,
-        .header .winix-balance .balance-value {
-            font-size: 0.875rem;
-            font-weight: bold;
-        }
-
-        .header .jeton-balance .balance-label,
-        .header .winix-balance .balance-label {
-            font-size: 0.75rem;
-            font-weight: normal;
-        }
-
-        .header .jeton-icon {
-            width: 1.875rem;
-            height: 1.875rem;
-            background: url('assets/житон.png') no-repeat center center;
-            background-size: cover;
-            border-radius: 50%;
-            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
-            animation: pulse 1.5s infinite ease-in-out;
-        }
-
-        .language-buttons {
-            display: flex;
-            gap: 0.625rem;
+        /* Фонова сітка */
+        .grid-background {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            margin-bottom: 0.5rem;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(64, 224, 208, 0.05) 0.0625rem, transparent 0.0625rem), /* 1px */
+                linear-gradient(90deg, rgba(64, 224, 208, 0.05) 0.0625rem, transparent 0.0625rem); /* 1px */
+            background-size: 2.5rem 2.5rem; /* 40px */
+            opacity: 0.15;
+            animation: gridMove 60s linear infinite;
         }
 
-        .language-btn {
-            background: var(--primary-gradient);
-            border: none;
-            border-radius: 1.25rem;
-            padding: 0.3125rem 0.9375rem;
-            color: var(--text-color);
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            flex: 1;
-            box-shadow: 0 0.125rem 0.375rem var(--shadow-color);
-            position: relative;
-            opacity: 0.9;
-            font-size: 0.9375rem;
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(2.5rem, 2.5rem); } /* 40px */
         }
 
-        .language-btn:hover {
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
-            transform: translateY(-0.125rem);
-            opacity: 1;
-        }
-
-        .language-btn:active {
-            box-shadow: 0 0.0625rem 0.1875rem var(--shadow-color) !important;
-            transform: translateY(0.0625rem) !important;
-            opacity: 0.8;
-        }
-
-        .language-btn.active {
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
-            transform: translateY(-0.125rem);
-            opacity: 1;
-        }
-
-        /* Контейнер для iframe таймера */
-        .timer-container {
+        /* Радіальний градієнт */
+        .radial-gradient {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(64, 224, 208, 0.1) 0%, rgba(21, 24, 48, 0) 60%);
+            animation: pulseGradient 8s ease-in-out infinite;
+        }
+
+        @keyframes pulseGradient {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Пульсуючі хвилі */
+        .pulse-waves {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
             display: flex;
+            align-items: center;
             justify-content: center;
-            margin-bottom: 0.5rem;
-            flex-shrink: 0;
+            z-index: 2;
         }
 
-        iframe {
-            border: none;
-            width: 15.625rem;
-            height: 15.625rem;
-            max-width: 90%;
+        .wave {
+            position: absolute;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            border-radius: 50%;
+            animation: waveExpand 6s ease-out infinite;
+            opacity: 0;
         }
 
-        /* Контейнер для сітки каналів */
-        .channels-container {
+        .wave-1 { animation-delay: 0s; }
+        .wave-2 { animation-delay: 2s; }
+        .wave-3 { animation-delay: 4s; }
+
+        @keyframes waveExpand {
+            0% {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem; /* 50px */
+                opacity: 0.5;
+            }
+            100% {
+                width: 56.25rem; /* 900px */
+                height: 56.25rem; /* 900px */
+                opacity: 0;
+            }
+        }
+
+        /* Контейнер для контенту */
+        .content-container {
+            position: relative;
+            z-index: 10;
             width: 100%;
-            max-width: 35rem;
-            padding: 0.3125rem 0.9375rem;
-            box-sizing: border-box;
-            margin-bottom: 1rem;
-        }
-
-        /* Сітка каналів */
-        .channels-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0.625rem;
-            width: 100%;
-        }
-
-        /* Стилі для окремого елемента каналу */
-        .channel-item {
+            max-width: 31.25rem; /* 500px */
             display: flex;
             flex-direction: column;
             align-items: center;
-            background: linear-gradient(145deg, rgba(26, 26, 46, 0.7), rgba(15, 52, 96, 0.7));
-            border-radius: 0.75rem;
-            padding: 0.375rem;
-            transition: all 0.3s ease;
+            justify-content: center;
+            padding: 0 1.25rem; /* 0 20px */
+        }
+
+        /* Логотип */
+        .logo-container {
+            position: relative;
+            margin-bottom: 3.75rem; /* 60px */
+            transform: scale(0.8);
+            opacity: 0;
+            animation: logoAppear 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes logoAppear {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .logo-orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 13.75rem; /* 220px */
+            height: 13.75rem; /* 220px */
+            border-radius: 50%;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.3); /* 1px */
+            animation: orbitRotate 20s linear infinite;
+        }
+
+        .orbit-1 { width: 13.75rem; height: 13.75rem; animation-duration: 20s; } /* 220px */
+        .orbit-2 { width: 17.5rem; height: 17.5rem; animation-duration: 25s; } /* 280px */
+        .orbit-3 { width: 21.25rem; height: 21.25rem; animation-duration: 30s; } /* 340px */
+
+        @keyframes orbitRotate {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        .orbit-dot {
+            position: absolute;
+            width: 0.5rem; /* 8px */
+            height: 0.5rem; /* 8px */
+            background: #40E0D0;
+            border-radius: 50%;
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0.9375rem #40E0D0; /* 15px */
+        }
+
+        .logo-frame {
+            position: relative;
+            width: 10rem; /* 160px */
+            height: 10rem; /* 160px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hexagon {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #151830, #1E2040);
+            clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 1.875rem rgba(64, 224, 208, 0.3); /* 30px */
+            animation: hexPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes hexPulse {
+            0%, 100% { filter: drop-shadow(0 0 0.9375rem rgba(64, 224, 208, 0.2)); } /* 15px */
+            50% { filter: drop-shadow(0 0 1.5625rem rgba(64, 224, 208, 0.5)); } /* 25px */
+        }
+
+        .logo-letter {
+            font-size: 5rem; /* 80px */
+            font-weight: 800;
+            color: transparent;
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
+            background-clip: text;
+            -webkit-background-clip: text;
+            text-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.5); /* 20px */
+            animation: textPulse 4s ease-in-out infinite;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+        }
+
+        .brand-name {
+            text-align: center;
+            margin-top: 1.25rem; /* 20px */
+        }
+
+        .main-title {
+            font-size: 3rem; /* 48px */
+            font-weight: 800;
+            letter-spacing: 0.625rem; /* 10px */
+            background: linear-gradient(to right, #FFFFFF, #A0EEFF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 0.3125rem; /* 5px */
+            text-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.3); /* 20px */
+        }
+
+        .sub-title {
+            font-size: 1rem; /* 16px */
+            font-weight: 400;
+            letter-spacing: 0.25rem; /* 4px */
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+        }
+
+        /* Селектор мови */
+        .language-selector {
+            width: 100%;
+            max-width: 25rem; /* 400px */
+            background: rgba(21, 24, 48, 0.8);
+            backdrop-filter: blur(0.625rem); /* 10px */
+            -webkit-backdrop-filter: blur(0.625rem); /* 10px */
+            border-radius: 1.25rem; /* 20px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            padding: 1.875rem; /* 30px */
+            animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform: translateY(1.875rem); /* 30px */
+            opacity: 0;
+            animation-delay: 1s;
+            box-shadow: 0 0 1.875rem rgba(0, 0, 0, 0.3); /* 30px */
+        }
+
+        @keyframes cardSlideUp {
+            0% {
+                transform: translateY(1.875rem); /* 30px */
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .selector-title {
+            text-align: center;
+            font-size: 1.5rem; /* 24px */
+            font-weight: 600;
+            margin-bottom: 1.875rem; /* 30px */
+            color: white;
+        }
+
+        .language-options {
+            display: flex;
+            gap: 0.9375rem; /* 15px */
+        }
+
+        .language-option {
+            flex: 1;
+            background: rgba(30, 32, 64, 0.6);
+            border: 0.0625rem solid rgba(64, 224, 208, 0.1); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
+            padding: 0.9375rem; /* 15px */
+            text-align: center;
             cursor: pointer;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .language-option:hover {
+            background: rgba(64, 224, 208, 0.1);
+            border-color: rgba(64, 224, 208, 0.4);
+            transform: translateY(-0.3125rem); /* -5px */
+        }
+
+        .language-option.active {
+            background: linear-gradient(135deg, rgba(64, 224, 208, 0.2), rgba(63, 160, 255, 0.1));
+            border-color: rgba(64, 224, 208, 0.5);
+            box-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.2); /* 20px */
+        }
+
+        .flag-icon {
+            width: 3.75rem; /* 60px */
+            height: 3.75rem; /* 60px */
+            border-radius: 50%;
+            margin-bottom: 0.625rem; /* 10px */
+            object-fit: cover;
+            border: 0.125rem solid rgba(255, 255, 255, 0.2); /* 2px */
+            box-shadow: 0 0.3125rem 0.9375rem rgba(0, 0, 0, 0.3); /* 5px 15px */
+            transition: transform 0.3s ease;
+        }
+
+        .language-option:hover .flag-icon {
+            transform: scale(1.1);
+        }
+
+        .language-name {
+            color: white;
+            font-size: 1rem; /* 16px */
+            font-weight: 500;
+            margin-top: 0.625rem; /* 10px */
+        }
+
+        /* Екран завантаження */
+        .loading-screen {
+            width: 100%;
+            max-width: 25rem; /* 400px */
+            background: rgba(21, 24, 48, 0.8);
+            backdrop-filter: blur(0.625rem); /* 10px */
+            -webkit-backdrop-filter: blur(0.625rem); /* 10px */
+            border-radius: 1.25rem; /* 20px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            padding: 1.875rem; /* 30px */
+            box-shadow: 0 0 1.875rem rgba(0, 0, 0, 0.3); /* 30px */
+            animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform: translateY(1.875rem); /* 30px */
+            opacity: 0;
+            animation-delay: 1s;
+        }
+
+        .loading-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.9375rem; /* 15px */
+            margin-bottom: 1.5625rem; /* 25px */
+        }
+
+        .loading-spinner {
+            width: 1.875rem; /* 30px */
+            height: 1.875rem; /* 30px */
+            border: 0.1875rem solid rgba(64, 224, 208, 0.3); /* 3px */
+            border-top: 0.1875rem solid #40E0D0; /* 3px */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 0.9375rem rgba(64, 224, 208, 0.2); /* 15px */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-title {
+            font-size: 1.5rem; /* 24px */
+            font-weight: 600;
+            color: white;
+        }
+
+        .hash-display {
+            background: rgba(21, 24, 48, 0.6);
+            border-radius: 0.625rem; /* 10px */
+            padding: 0.75rem; /* 12px */
+            font-family: monospace;
+            font-size: 0.875rem; /* 14px */
+            color: rgba(64, 224, 208, 0.8);
+            text-align: center;
+            margin-bottom: 1.5625rem; /* 25px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            letter-spacing: 0.0625rem; /* 1px */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            animation: hashFlicker 4s infinite;
+            box-shadow: inset 0 0 0.625rem rgba(0, 0, 0, 0.2); /* 10px */
+        }
+
+        @keyframes hashFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .loading-progress-container {
+            margin-bottom: 0.9375rem; /* 15px */
+        }
+
+        .loading-bar-wrapper {
+            width: 100%;
+            height: 0.5rem; /* 8px */
+            background: rgba(21, 24, 48, 0.6);
+            border-radius: 0.25rem; /* 4px */
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 0.3125rem rgba(0, 0, 0, 0.3); /* 5px */
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
+            border-radius: 0.25rem; /* 4px */
+            transition: width 0.2s ease;
             position: relative;
             overflow: hidden;
-            height: 5rem;
         }
 
-        .channel-item::before {
+        .loading-bar::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(45deg, rgba(0, 201, 167, 0.1), transparent);
-            z-index: 0;
-            border-radius: 0.75rem;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.4),
+                transparent
+            );
+            animation: shimmer 2s infinite;
         }
 
-        .channel-item:hover {
-            transform: translateY(-0.3125rem);
-            box-shadow: 0 0.375rem 0.9375rem rgba(0, 201, 167, 0.4);
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
-        .channel-item:active {
-            transform: translateY(0);
-            box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
+        .loading-glow {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translate(50%, -50%);
+            width: 0.75rem; /* 12px */
+            height: 0.75rem; /* 12px */
+            background: #40E0D0;
+            border-radius: 50%;
+            filter: blur(0.1875rem); /* 3px */
+            box-shadow: 0 0 0.625rem #40E0D0; /* 10px */
         }
 
-        /* Контейнер для зображення каналу */
-        .channel-image-container {
-            width: 4.0625rem;
-            height: 4.0625rem;
-            border-radius: 0.625rem;
-            overflow: hidden;
-            position: relative;
-            z-index: 1;
-            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.4);
+        .loading-info {
             display: flex;
-            justify-content: center;
+            justify-content: space-between;
             align-items: center;
-            background: rgba(26, 26, 46, 0.5);
+            margin-top: 0.625rem; /* 10px */
         }
 
-        /* Зображення каналу */
-        .channel-image {
+        .loading-phase {
+            font-size: 0.875rem; /* 14px */
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .loading-percentage {
+            font-size: 0.875rem; /* 14px */
+            font-weight: 600;
+            color: #40E0D0;
+        }
+
+        /* Blockchain блоки в фоні */
+        .blockchain-blocks {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
-            border-radius: 0.625rem;
-            transition: transform 0.3s ease;
-        }
-
-        .channel-item:hover .channel-image {
-            transform: scale(1.05);
-        }
-
-        /* Назва каналу */
-        .channel-name {
-            color: white;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-align: center;
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 0.0625rem 0.125rem rgba(0, 0, 0, 0.5);
-            white-space: nowrap;
+            z-index: 3;
             overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-            margin-top: 0.25rem;
         }
 
-        .task-buttons {
-            position: relative;
-            width: 100%;
-            max-width: var(--container-max-width);
-            padding: 0 0.625rem;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 0.625rem;
-            z-index: 9;
-            margin-top: 2rem;
-            margin-bottom: 1.5rem;
+        .chain-block {
+            position: absolute;
+            font-family: monospace;
+            font-size: 0.75rem; /* 12px */
+            color: rgba(64, 224, 208, 0.15);
+            white-space: nowrap;
+            animation: blockFloat linear infinite;
         }
 
-        .task-btn {
-            background: var(--primary-gradient);
-            border: none;
-            border-radius: 1.25rem;
-            padding: 0.75rem 1.5rem; /* Збільшений розмір кнопки */
-            font-size: 1.125rem; /* Збільшений розмір тексту */
-            font-weight: bold;
-            cursor: pointer;
-            width: 100%;
-            text-align: center;
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-            box-shadow: 0 0.125rem 0.375rem var(--shadow-color);
-            position: relative;
-            color: var(--text-color);
-            opacity: 0.9;
-        }
+        /* Адаптивність */
+        @media screen and (max-width: 768px) {
+            .orbit-1 { width: 11.25rem; height: 11.25rem; } /* 180px */
+            .orbit-2 { width: 15rem; height: 15rem; } /* 240px */
+            .orbit-3 { width: 18.75rem; height: 18.75rem; } /* 300px */
 
-        .task-btn:hover, .task-btn:active {
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
-            transform: translateY(-0.125rem);
-            opacity: 1;
-        }
-
-        .task-btn:active {
-            box-shadow: 0 0.0625rem 0.1875rem var(--shadow-color) !important;
-            transform: translateY(0.0625rem) !important;
-            opacity: 0.8;
-        }
-
-        .nav-bar {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem;
-            padding: 0.5rem;
-            display: flex;
-            justify-content: space-around;
-            width: 90%;
-            max-width: 33.75rem;
-            height: var(--nav-height);
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
-            position: fixed;
-            bottom: 1.875rem; /* Підняли на 20px вгору (з 0.625rem до 1.875rem) */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-        }
-
-        .nav-item {
-            text-align: center;
-            color: var(--text-color);
-            font-size: 0.875rem;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 20%;
-            position: relative;
-        }
-
-        .nav-item .icon-wrapper {
-            width: 3.75rem;
-            height: 3.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.3125rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active .icon-wrapper {
-            background: var(--bg-active);
-            box-shadow: 0 0 0.9375rem var(--glow-color);
-        }
-
-        .nav-item img {
-            width: 2.1875rem;
-            height: 2.1875rem;
-            display: block;
-            filter: brightness(0) invert(1);
-        }
-
-        .nav-item.active img {
-            filter: brightness(1.2) invert(1);
-        }
-
-        .nav-item:hover .icon-wrapper {
-            transform: scale(1.1);
-        }
-
-        /* Стиль для повідомлень */
-        .toast-message {
-            position: fixed;
-            top: 1.25rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 201, 167, 0.9);
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.3125rem;
-            z-index: 1000;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
-            opacity: 0;
-            transition: opacity 0.3s, transform 0.3s;
-            font-size: 0.9375rem;
-        }
-
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem);
-        }
-
-        /* Медіа-запити для адаптивності */
-        @media (max-width: 450px) {
-            :root {
-                /* Зменшуємо розміри для маленьких екранів */
-                --header-height: 3rem;
-                --nav-height: 4rem;
+            .logo-frame {
+                width: 8.75rem; /* 140px */
+                height: 8.75rem; /* 140px */
             }
 
-            .header .token-icon {
-                width: 2.8125rem;
-                height: 2.8125rem;
+            .logo-letter {
+                font-size: 4.375rem; /* 70px */
             }
 
-            .header .winix-title {
-                font-size: 1.25rem;
+            .main-title {
+                font-size: 2.375rem; /* 38px */
+                letter-spacing: 0.5rem; /* 8px */
             }
 
-            .channels-grid {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 0.5rem;
+            .language-selector,
+            .loading-screen {
+                max-width: 21.875rem; /* 350px */
+                padding: 1.5625rem; /* 25px */
             }
 
-            .channel-item {
-                height: 4.375rem;
-            }
-
-            .channel-image-container {
-                width: 3.125rem;
-                height: 3.125rem;
-            }
-
-            .channel-name {
-                font-size: 0.6875rem;
-            }
-
-            .language-btn {
-                font-size: 0.8125rem;
-                padding: 0.25rem 0.625rem;
-            }
-
-            .task-btn {
-                font-size: 0.9375rem;
-                padding: 0.5rem 1rem;
-            }
-
-            iframe {
-                height: 13.75rem;
-            }
-
-            .nav-item .icon-wrapper {
-                width: 3.125rem;
-                height: 3.125rem;
-            }
-
-            .nav-item img {
-                width: 1.875rem;
-                height: 1.875rem;
+            .cube {
+                width: 4.5rem; /* 72px */
+                height: 4.5rem; /* 72px */
             }
         }
 
-        @media (max-width: 350px) {
-            .channels-grid {
-                grid-template-columns: repeat(2, 1fr);
+        @media screen and (max-width: 480px) {
+            .logo-container {
+                margin-bottom: 2.5rem; /* 40px */
             }
 
-            .header .jeton-balance {
-                margin-left: -1.25rem;
+            .orbit-1 { width: 10rem; height: 10rem; } /* 160px */
+            .orbit-2 { width: 13.75rem; height: 13.75rem; } /* 220px */
+            .orbit-3 { width: 17.5rem; height: 17.5rem; } /* 280px */
+
+            .logo-frame {
+                width: 7.5rem; /* 120px */
+                height: 7.5rem; /* 120px */
             }
 
-            .header .balance-label {
-                font-size: 0.6875rem;
+            .logo-letter {
+                font-size: 3.75rem; /* 60px */
             }
 
-            iframe {
-                height: 11.25rem;
+            .main-title {
+                font-size: 2rem; /* 32px */
+                letter-spacing: 0.375rem; /* 6px */
+            }
+
+            .sub-title {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .language-options {
+                flex-direction: column;
+            }
+
+            .flag-icon {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem; /* 50px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 18.75rem; /* 300px */
+                padding: 1.25rem; /* 20px */
+            }
+
+            .selector-title,
+            .loading-title {
+                font-size: 1.25rem; /* 20px */
+                margin-bottom: 1.25rem; /* 20px */
+            }
+
+            .cube {
+                width: 4rem; /* 64px */
+                height: 4rem; /* 64px */
+            }
+
+            .cube-face-front,
+            .cube-face-back,
+            .cube-face-right,
+            .cube-face-left,
+            .cube-face-top,
+            .cube-face-bottom {
+                transform: translateZ(2rem); /* 32px */
+            }
+
+            .loading-spinner {
+                width: 1.5rem; /* 24px */
+                height: 1.5rem; /* 24px */
+            }
+
+            .hash-display {
+                font-size: 0.75rem; /* 12px */
+                padding: 0.625rem; /* 10px */
             }
         }
 
-        @media (min-width: 768px) {
-            body {
-                background: linear-gradient(135deg, #141e30, #243b55);
+        /* Додаткова адаптивність для надмалих екранів */
+        @media screen and (max-width: 350px) {
+            .logo-container {
+                margin-bottom: 1.875rem; /* 30px */
             }
 
-            .container {
-                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3);
-                margin: 1.25rem auto;
-                height: calc(100vh - 2.5rem);
-                border-radius: 1.25rem;
+            .orbit-1 { width: 9rem; height: 9rem; } /* 144px */
+            .orbit-2 { width: 12rem; height: 12rem; } /* 192px */
+            .orbit-3 { width: 15rem; height: 15rem; } /* 240px */
+
+            .logo-frame {
+                width: 6.25rem; /* 100px */
+                height: 6.25rem; /* 100px */
+            }
+
+            .logo-letter {
+                font-size: 3.125rem; /* 50px */
+            }
+
+            .main-title {
+                font-size: 1.75rem; /* 28px */
+                letter-spacing: 0.25rem; /* 4px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 16.25rem; /* 260px */
+                padding: 1rem; /* 16px */
+            }
+
+            .flag-icon {
+                width: 2.5rem; /* 40px */
+                height: 2.5rem; /* 40px */
+            }
+
+            .language-name {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .cube {
+                width: 3.5rem; /* 56px */
+                height: 3.5rem; /* 56px */
+            }
+        }
+
+        /* Адаптивність для великих екранів */
+        @media screen and (min-width: 1200px) {
+            .orbit-1 { width: 15rem; height: 15rem; } /* 240px */
+            .orbit-2 { width: 20rem; height: 20rem; } /* 320px */
+            .orbit-3 { width: 25rem; height: 25rem; } /* 400px */
+
+            .logo-frame {
+                width: 12.5rem; /* 200px */
+                height: 12.5rem; /* 200px */
+            }
+
+            .logo-letter {
+                font-size: 6.25rem; /* 100px */
+            }
+
+            .main-title {
+                font-size: 3.75rem; /* 60px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 31.25rem; /* 500px */
             }
         }
     </style>
-    <svg style="position: absolute;">
-        <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#1A1A2E" />
-                <stop offset="50%" stop-color="#0F3460" />
-                <stop offset="100%" stop-color="#00C9A7" />
-            </linearGradient>
-        </defs>
-    </svg>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
-            <div class="winix-title">WINIX</div>
-            <div class="balance-container">
-                <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label" data-lang-key="balance.jetons">Жетони</div>
-                    <div class="jeton-icon"></div>
-                </div>
-                <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">0</div>
-                    <div class="balance-label">$WINIX</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="language-buttons">
-            <button class="language-btn active" data-lang-key="giveaway">Giveaway</button>
-            <button class="language-btn" data-lang-key="folder">Folder</button>
-            <button class="language-btn" data-lang-key="roulette">Roulette</button>
-        </div>
-
-        <!-- Таймер -->
-        <div class="timer-container">
-            <iframe src="components/timer-widget.html" scrolling="no"></iframe>
-        </div>
-
-        <!-- Сітка каналів -->
-        <div class="channels-container">
-            <div class="channels-grid">
-                <div class="channel-item" data-channel="WorkersCrypto" data-channel-id="channel-1">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/Workers.png" alt="Workers Crypto" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Workers Crypto</div>
-                </div>
-                <div class="channel-item" data-channel="HODL ZONE" data-channel-id="channel-2">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/hold.png" alt="HODL ZONE" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">HODL ZONE</div>
-                </div>
-                <div class="channel-item" data-channel="404CRYPTO" data-channel-id="channel-3">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/404.png" alt="404CRYPTO" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">404CRYPTO</div>
-                </div>
-                <div class="channel-item" data-channel="M O O N 🇺🇦 B A T E" data-channel-id="channel-4">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/moon.png" alt="channel-image" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">M O O N 🇺🇦 B A T E</div>
-                </div>
-                <div class="channel-item" data-channel="Cryptoshi | Crypto 🇺🇦" data-channel-id="channel-5">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/криптоші.png" alt="Channel 5" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Cryptoshi | Crypto 🇺🇦</div>
-                </div>
-                <div class="channel-item" data-channel="ATH crypto" data-channel-id="channel-6">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/ath.png" alt="Channel 6" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">ATH crypto</div>
-                </div>
-                <div class="channel-item" data-channel="Все про Тапалки🇺🇦" data-channel-id="channel-7">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/всепротапалки.png" alt="Channel 7" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Все про Тапалки🇺🇦</div>
-                </div>
-                <div class="channel-item" data-channel="InCrypto" data-channel-id="channel-8">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/in.png" alt="Channel 8" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">InCrypto</div>
-                </div>
-                <div class="channel-item" data-channel="Канал Ростіка" data-channel-id="channel-9">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/rdeni.png" alt="Channel 9" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Канал Ростіка</div>
-                </div>
-                <div class="channel-item" data-channel="Днепровский Криптан" data-channel-id="channel-10">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/dnipro.png" alt="Channel 10" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Днепровский Криптан</div>
-                </div>
-                <div class="channel-item" data-channel="Крипта скам?!" data-channel-id="channel-11">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/scam.png" alt="Channel 11" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Крипта скам?!</div>
-                </div>
-                <div class="channel-item" data-channel="Львівський Криптан" data-channel-id="channel-12">
-                    <div class="channel-image-container">
-                        <img src="ChenelPNG/львівський.png" alt="Channel 12" class="channel-image" onerror="this.src='https://via.placeholder.com/65?text=Channel'">
-                    </div>
-                    <div class="channel-name">Львівський Криптан</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Кнопка верифікації -->
-        <div class="task-buttons">
-            <button class="task-btn" id="verify-btn" data-lang-key="earn.verify">Verify Subscription</button>
-        </div>
-
-        <!-- Навігація -->
-        <div class="nav-bar">
-            <div class="nav-item active" data-section="home">
-                <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
-                </div>
-                <span data-lang-key="navigation.home">Home</span>
-            </div>
-            <div class="nav-item" data-section="earn">
-                <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
-                </div>
-                <span data-lang-key="navigation.earn">Earn</span>
-            </div>
-            <div class="nav-item" data-section="referrals">
-                <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
-                </div>
-                <span data-lang-key="navigation.referrals">Referrals</span>
-            </div>
-            <div class="nav-item" data-section="wallet">
-                <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
-                </div>
-                <span data-lang-key="navigation.wallet">Wallet</span>
-            </div>
-            <div class="nav-item" data-section="general">
-                <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
-                </div>
-                <span data-lang-key="navigation.general">General</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Повідомлення при копіюванні -->
-    <div class="toast-message" id="toast-message" data-lang-key="referrals.copied">Реферальне посилання скопійовано в буфер обміну!</div>
+    <div id="root"></div>
 
     <script>
-        // Ініціалізація Telegram WebApp API
-        let tg;
-        try {
-            tg = window.Telegram ? window.Telegram.WebApp : null;
-            if (tg) {
-                console.log("Telegram WebApp API успішно ініціалізовано");
-                tg.ready();
-                tg.expand();
+        const { useState, useEffect } = React;
 
-                // Реагування на зміну теми Telegram
-                tg.onEvent('themeChanged', updateThemeColors);
+        // Компонент WinixTelegramLoader
+        function WinixTelegramLoader() {
+            const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+            const [selectedLanguage, setSelectedLanguage] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [progress, setProgress] = useState(0);
+            const [animationComplete, setAnimationComplete] = useState(false);
+            const [particles, setParticles] = useState([]);
+            const [chainBlocks, setChainBlocks] = useState([]);
+            const [loadingPhase, setLoadingPhase] = useState(0);
 
-                // Реагування на зміну розміру вікна
-                tg.onEvent('viewportChanged', adjustLayout);
-            } else {
-                console.error("Telegram WebApp API недоступний");
-            }
-        } catch (error) {
-            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
-            tg = null;
-        }
+            // Додаємо стан для адаптивності
+            const [windowSize, setWindowSize] = useState({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
 
-        // Функція оновлення кольорів при зміні теми
-        function updateThemeColors() {
-            if (tg && tg.colorScheme) {
-                document.body.setAttribute('data-theme', tg.colorScheme);
-
-                if (tg.colorScheme === 'dark') {
-                    // Додаткові налаштування для темної теми
-                } else {
-                    // Додаткові налаштування для світлої теми
+            // Тексти для різних мов
+            const translations = {
+                uk: {
+                    select: "Оберіть мову",
+                    loading: "Завантаження",
+                    syncing: "Синхронізація з блокчейном",
+                    cryptoInit: "Ініціалізація криптогаманця",
+                    walletSetup: "Налаштування гаманця",
+                    finalizing: "Підключення смарт-контрактів",
+                    welcome: "Вітаємо у WINIX Ecosystem!",
+                    tokens: "Токени",
+                    connecting: "Підключення..."
+                },
+                en: {
+                    select: "Select language",
+                    loading: "Loading",
+                    syncing: "Syncing with blockchain",
+                    cryptoInit: "Initializing crypto wallet",
+                    walletSetup: "Setting up wallet",
+                    finalizing: "Connecting smart contracts",
+                    welcome: "Welcome to WINIX Ecosystem!",
+                    tokens: "Tokens",
+                    connecting: "Connecting..."
+                },
+                ru: {
+                    select: "Выберите язык",
+                    loading: "Загрузка",
+                    syncing: "Синхронизация с блокчейном",
+                    cryptoInit: "Инициализация криптокошелька",
+                    walletSetup: "Настройка кошелька",
+                    finalizing: "Подключение смарт-контрактов",
+                    welcome: "Добро пожаловать в WINIX Ecosystem!",
+                    tokens: "Токены",
+                    connecting: "Подключение..."
                 }
-            }
-        }
+            };
 
-        // Функція адаптації шарів при зміні розміру екрану
-        function adjustLayout() {
-            // Перевірка на малі екрани
-            const isSmallScreen = window.innerWidth <= 450;
-            const container = document.querySelector('.container');
+            // Функція для адаптивного налаштування елементів
+            const adjustLayout = () => {
+                setWindowSize({
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                });
 
-            if (isSmallScreen) {
-                container.classList.add('small-screen');
-            } else {
-                container.classList.remove('small-screen');
-            }
-        }
+                // Тут можна додати додаткову логіку адаптивності
+                console.log(`Розмір вікна змінено: ${window.innerWidth}x${window.innerHeight}`);
+            };
 
-        // Функція для відображення сповіщення
-        function showToast(message, duration = 3000) {
-            const toast = document.getElementById('toast-message');
-            if (toast) {
-                // Якщо повідомлення має перекладатися через мовну систему
-                if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
-                    message = window.WinixLanguage.getText(message.substring(1));
+            // Створення частинок та блоків ланцюга при монтуванні
+            useEffect(() => {
+                // Ініціалізація Telegram WebApp з повною інтеграцією
+                if (window.Telegram && window.Telegram.WebApp) {
+                    const tg = window.Telegram.WebApp;
+                    tg.ready();
+                    tg.expand();
+
+                    // Встановлюємо обробник зміни розміру вікна для Telegram WebApp
+                    tg.onEvent('viewportChanged', adjustLayout);
+
+                    // Налаштування стилів для повної інтеграції з Telegram
+                    document.body.style.backgroundColor = 'transparent';
+                    document.documentElement.style.backgroundColor = 'transparent';
+
+                    // Встановлюємо параметри повної інтеграції
+                    if (tg.platform !== 'unknown') {
+                        console.log("Платформа Telegram: " + tg.platform);
+
+                        // Видалення будь-яких рамок для найбільш нативного вигляду
+                        document.body.style.boxSizing = 'border-box';
+                        document.body.style.padding = '0';
+                        document.body.style.margin = '0';
+                        document.body.style.overflow = 'hidden';
+                    }
                 }
 
-                toast.textContent = message;
-                toast.classList.add('show');
+                // Додаємо слухач зміни розміру вікна
+                window.addEventListener('resize', adjustLayout);
 
+                // Генерація частинок
+                const newParticles = [];
+                const particleCount = windowSize.width < 480 ? 30 : 50; // менше частинок на малих екранах
+
+                for (let i = 0; i < particleCount; i++) {
+                    const x = Math.random() * 100;
+                    const y = Math.random() * 100;
+                    const size = Math.random() * 2 + 1;
+                    const duration = Math.random() * 30 + 20;
+                    const delay = Math.random() * 10;
+                    const tx = (Math.random() - 0.5) * 200;
+                    const ty = (Math.random() - 0.5) * 200;
+                    const opacity = Math.random() * 0.3 + 0.1;
+
+                    newParticles.push({
+                        id: i,
+                        x,
+                        y,
+                        size,
+                        duration,
+                        delay,
+                        tx,
+                        ty,
+                        opacity
+                    });
+                }
+                setParticles(newParticles);
+
+                // Генерація блоків ланцюга
+                const newChainBlocks = [];
+                const blockCount = windowSize.width < 480 ? 10 : 15; // менше блоків на малих екранах
+
+                for (let i = 0; i < blockCount; i++) {
+                    const hash = Array.from({ length: 16 }, () =>
+                        Math.floor(Math.random() * 16).toString(16)
+                    ).join('');
+
+                    newChainBlocks.push({
+                        id: i,
+                        hash: `0x${hash}...`,
+                        x: Math.random() * 90 + 5,
+                        y: Math.random() * 90 + 5,
+                        size: Math.random() * 0.3 + 0.7,
+                        opacity: Math.random() * 0.2 + 0.05,
+                        duration: Math.random() * 40 + 60
+                    });
+                }
+                setChainBlocks(newChainBlocks);
+
+                // Запуск анімації та показ селектора мови
                 setTimeout(() => {
-                    toast.classList.remove('show');
-                }, duration);
-            }
-        }
+                    setAnimationComplete(true);
 
-        // Список каналів та їх URL
-        const channelUrls = {
-            'WorkersCrypto': 'https://t.me/+OBGl3szKiX03YThi',
-            'HODL ZONE': 'https://t.me/+0n7X-hgd0UE3MzFh',
-            '404CRYPTO': 'https://t.me/+sj3Lg6G0mSBjYzhi',
-            'M O O N 🇺🇦 B A T E': 'https://t.me/+V7togrlpOboyOGI6',
-            'Cryptoshi | Crypto 🇺🇦': 'https://t.me/cryptoshi_crypto0',
-            'ATH crypto': 'https://t.me/ath_crypto',
-            'Все про Тапалки🇺🇦': 'https://t.me/VseProTapalki_UA',
-            'InCrypto': 'https://t.me/+A2C-S2kfqnVmM2Ri',
-            'Канал Ростіка': 'https://t.me/crypto_rostik',
-            'Днепровский Криптан': 'https://t.me/dnepr_cryptan',
-            'Крипта скам?!': 'https://t.me/cryptascam1',
-            'Львівський Криптан': 'https://t.me/lvivcriptan22'
-        };
+                    setTimeout(() => {
+                        const savedLanguage = localStorage.getItem('winixLang');
 
-        // Функція для безпечного відкриття посилання
-        function openTelegramLink(url, channelName) {
-            console.log(`Спроба відкрити посилання: ${url} для каналу ${channelName}`);
-
-            if (tg && typeof tg.openLink === 'function') {
-                try {
-                    const encodedUrl = encodeURI(url);
-                    tg.openLink(encodedUrl);
-                } catch (error) {
-                    console.error(`Помилка при відкритті посилання через Telegram WebApp: ${error.message}`);
-                    showToast(`Помилка відкриття каналу ${channelName}`, 2000);
-
-                    // Запасний варіант
-                    try {
-                        window.open(url, '_blank');
-                    } catch (e) {
-                        console.error(`Помилка при відкритті посилання через window.open: ${e.message}`);
-                    }
-                }
-            } else {
-                console.warn("Telegram WebApp API недоступний, використовуємо запасний варіант");
-
-                try {
-                    window.open(url, '_blank');
-                    console.log("Посилання відкрито через window.open");
-                } catch (error) {
-                    console.error(`Помилка при відкритті посилання: ${error.message}`);
-                    showToast(`Помилка відкриття каналу ${channelName}`, 2000);
-                }
-            }
-        }
-
-        // Функція для переходу на сторінку папки
-        function navigateToFolderPage() {
-            console.log('Перехід на сторінку Folder');
-            navigateTo('folder.html');
-        }
-
-        // Функція для навігації між сторінками
-        function navigateTo(page) {
-            try {
-                // Зберігаємо поточний баланс перед переходом
-                if (typeof rewardSystem !== 'undefined') {
-                    const tokens = rewardSystem.getTokens();
-                    const coins = rewardSystem.getCoins();
-
-                    sessionStorage.setItem('lastBalance', tokens.toString());
-                    sessionStorage.setItem('lastCoins', coins.toString());
-                } else {
-                    const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                    const coins = parseFloat(localStorage.getItem('userCoins') || '0');
-
-                    sessionStorage.setItem('lastBalance', tokens.toString());
-                    sessionStorage.setItem('lastCoins', coins.toString());
-                }
-
-                // Переходимо на іншу сторінку
-                window.location.href = page;
-            } catch (error) {
-                console.error('Помилка навігації:', error);
-                showToast(window.WinixLanguage ? window.WinixLanguage.getText('navigation_error') : 'Помилка навігації', 2000);
-            }
-        }
-
-        // Обробники подій при завантаженні сторінки
-        document.addEventListener('DOMContentLoaded', function() {
-            // Викликаємо функцію адаптації при старті
-            adjustLayout();
-
-            // Встановлюємо тему за замовчуванням
-            updateThemeColors();
-
-            // Оновлюємо тексти з мовної системи
-            if (window.WinixLanguage) {
-                window.WinixLanguage.updatePageTexts();
-            }
-
-            // Оновлюємо баланс
-            if (typeof rewardSystem !== 'undefined') {
-                rewardSystem.updateBalanceDisplay();
-                console.log("Баланс оновлено через rewardSystem");
-            } else {
-                // Базове оновлення балансу, якщо rewardSystem недоступний
-                const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                const coins = parseFloat(localStorage.getItem('userCoins') || '0');
-
-                document.getElementById('user-tokens').textContent = tokens.toFixed(2);
-                document.getElementById('user-coins').textContent = coins.toFixed(0);
-                console.log("Баланс оновлено з localStorage");
-            }
-
-            // Обробники для кнопок мови
-            document.querySelectorAll('.language-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    document.querySelector('.language-btn.active')?.classList.remove('active');
-                    btn.classList.add('active');
-
-                    // Перехід на сторінку Folder при натисканні на відповідну кнопку
-                    if (btn.getAttribute('data-lang-key') === 'folder') {
-                        navigateToFolderPage();
-                    } else if (btn.getAttribute('data-lang-key') === 'roulette') {
-                        navigateTo('fortune-wheel.html');
-                    } else {
-                        console.log('Змінено режим на: ' + btn.textContent);
-                    }
-                });
-            });
-
-            // Обробник для кнопки верифікації
-            document.getElementById('verify-btn').addEventListener('click', () => {
-                console.log('Натиснуто кнопку: Verify Subscription');
-
-                // Перевірка підписок і нарахування винагород
-                if (typeof rewardSystem !== 'undefined') {
-                    const channelItems = document.querySelectorAll('.channel-item');
-                    let newSubscriptions = 0;
-
-                    channelItems.forEach(item => {
-                        const channelId = item.getAttribute('data-channel-id');
-                        if (channelId && !rewardSystem.isActionCompleted(channelId)) {
-                            rewardSystem.reward(channelId, 50, 1);
-                            newSubscriptions++;
+                        if (savedLanguage) {
+                            setSelectedLanguage(savedLanguage);
+                            startLoading();
+                        } else {
+                            setShowLanguageSelector(true);
                         }
-                    });
+                    }, 1000);
+                }, 500);
 
-                    if (newSubscriptions > 0) {
-                        console.log(`Нараховано винагороду за ${newSubscriptions} нових підписок`);
-                        showToast(`Вітаємо! Ви отримали винагороду за ${newSubscriptions} нових підписок!`);
+                // Функція очищення при розмонтуванні
+                return () => {
+                    window.removeEventListener('resize', adjustLayout);
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        const tg = window.Telegram.WebApp;
+                        tg.offEvent('viewportChanged', adjustLayout);
+                    }
+                };
+            }, []);
+
+            // Функція для отримання тексту фази завантаження
+            const getLoadingPhaseText = () => {
+                const phases = ['syncing', 'cryptoInit', 'walletSetup', 'finalizing', 'welcome'];
+                return translations[selectedLanguage || 'uk'][phases[loadingPhase % phases.length]];
+            };
+
+            // Функція для генерації випадкового хешу
+            const generateRandomHash = () => {
+                return Array.from({ length: 16 }, () =>
+                    Math.floor(Math.random() * 16).toString(16)
+                ).join('');
+            };
+
+            // Функція для вибору мови
+            const selectLanguage = (lang) => {
+                localStorage.setItem('winixLang', lang);
+                localStorage.setItem('userLanguage', lang); // Зберігаємо також для інших сторінок
+                setSelectedLanguage(lang);
+                setShowLanguageSelector(false);
+                startLoading();
+            };
+
+            // Функція для запуску завантаження
+            const startLoading = () => {
+                setLoading(true);
+
+                // Змінюємо фазу завантаження кожні 2-3 секунди
+                const phaseInterval = setInterval(() => {
+                    setLoadingPhase(prev => prev + 1);
+                }, 2500);
+
+                // Симулюємо завантаження
+                let currentProgress = 0;
+                const progressInterval = setInterval(() => {
+                    if (currentProgress >= 100) {
+                        clearInterval(progressInterval);
+                        clearInterval(phaseInterval);
+
+                        // Перенаправлення на головну сторінку
+                        setTimeout(() => {
+                            window.location.href = 'original-index.html';
+                        }, 1000);
+                        return;
+                    }
+
+                    // Різні швидкості завантаження для реалістичності
+                    let increment;
+                    if (currentProgress < 30) {
+                        increment = Math.random() * 2 + 0.5; // Повільний початок
+                    } else if (currentProgress < 70) {
+                        increment = Math.random() * 3 + 1; // Середня швидкість
+                    } else if (currentProgress < 90) {
+                        increment = Math.random() * 1 + 0.2; // Сповільнення під кінець
                     } else {
-                        showToast('Ви вже отримали всі винагороди за підписки!');
+                        increment = Math.random() * 0.5 + 0.1; // Дуже повільне закінчення
                     }
-                } else {
-                    console.error("Система винагород не знайдена");
-                    showToast('Перевірка підписок...');
-                }
-            });
 
-            // Кнопку Next Page видалено за вимогою
+                    currentProgress = Math.min(currentProgress + increment, 100);
+                    setProgress(currentProgress);
+                }, 100);
+            };
 
-            // Обробники для елементів навігації
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const section = item.getAttribute('data-section');
-                    console.log(`Перехід до секції: ${section}`);
+            // JSX розмітка з використанням React.createElement
+            return React.createElement('div', { className: 'app-container' }, [
+                // 3D Сцена з кубами
+                React.createElement('div', { className: 'scene', key: 'scene' }, [
+                    // Куб 1
+                    React.createElement('div', { className: 'cube cube-1', key: 'cube-1' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-1-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-1-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-1-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-1-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-1-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-1-6' })
+                    ]),
+                    // Куб 2
+                    React.createElement('div', { className: 'cube cube-2', key: 'cube-2' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-2-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-2-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-2-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-2-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-2-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-2-6' })
+                    ]),
+                    // Куб 3
+                    React.createElement('div', { className: 'cube cube-3', key: 'cube-3' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-3-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-3-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-3-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-3-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-3-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-3-6' })
+                    ]),
+                    // Куб 4
+                    React.createElement('div', { className: 'cube cube-4', key: 'cube-4' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-4-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-4-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-4-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-4-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-4-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-4-6' })
+                    ])
+                ]),
 
-                    // Змінюємо візуально активний елемент
-                    document.querySelectorAll('.nav-item').forEach(navItem => {
-                        navItem.classList.remove('active');
-                    });
-                    item.classList.add('active');
+                // Контейнер для частинок
+                React.createElement('div', { className: 'particles-container', key: 'particles' },
+                    particles.map(particle =>
+                        React.createElement('div', {
+                            key: `particle-${particle.id}`,
+                            className: 'particle',
+                            style: {
+                                left: `${particle.x}%`,
+                                top: `${particle.y}%`,
+                                width: `${particle.size}px`,
+                                height: `${particle.size}px`,
+                                animationDuration: `${particle.duration}s`,
+                                animationDelay: `${particle.delay}s`,
+                                '--tx': `${particle.tx}px`,
+                                '--ty': `${particle.ty}px`,
+                                '--opacity': particle.opacity
+                            }
+                        })
+                    )
+                ),
 
-                    // Обробка для всіх секцій
-                    switch(section) {
-                        case 'home':
-                            // Вже на головній
-                            break;
-                        case 'earn':
-                            navigateTo('earn.html');
-                            break;
-                        case 'referrals':
-                            navigateTo('referrals.html');
-                            break;
-                        case 'wallet':
-                            navigateTo('wallet.html');
-                            break;
-                        case 'general':
-                            navigateTo('general.html');
-                            break;
-                    }
-                });
-            });
+                // Фон сітки
+                React.createElement('div', { className: 'grid-background', key: 'grid' }),
 
-            // Обробники для каналів Telegram
-            document.querySelectorAll('.channel-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const channelId = item.getAttribute('data-channel');
-                    const channelName = item.querySelector('.channel-name').textContent;
-                    console.log(`Клік на канал: ${channelId} (${channelName})`);
+                // Радіальний градієнт
+                React.createElement('div', { className: 'radial-gradient', key: 'radial' }),
 
-                    const channelUrl = channelUrls[channelId];
-                    if (channelUrl) {
-                        console.log(`URL знайдено: ${channelUrl}`);
-                        openTelegramLink(channelUrl, channelName);
-                    } else {
-                        console.error(`URL для каналу ${channelName} не знайдено`);
-                        showToast(`Посилання для каналу ${channelName} не знайдено.`);
-                    }
-                });
-            });
+                // Пульсуючі хвилі
+                React.createElement('div', { className: 'pulse-waves', key: 'waves' }, [
+                    React.createElement('div', { className: 'wave wave-1', key: 'wave-1' }),
+                    React.createElement('div', { className: 'wave wave-2', key: 'wave-2' }),
+                    React.createElement('div', { className: 'wave wave-3', key: 'wave-3' })
+                ]),
 
-            // Обробник для зміни розміру вікна
-            window.addEventListener('resize', adjustLayout);
-        });
+                // Блоки ланцюга
+                React.createElement('div', { className: 'blockchain-blocks', key: 'blockchain' },
+                    chainBlocks.map(block =>
+                        React.createElement('div', {
+                            key: `block-${block.id}`,
+                            className: 'chain-block',
+                            style: {
+                                left: `${block.x}%`,
+                                top: `${block.y}%`,
+                                opacity: block.opacity,
+                                transform: `scale(${block.size})`,
+                                animationDuration: `${block.duration}s`
+                            }
+                        }, block.hash)
+                    )
+                ),
 
-        // Додаємо обробник помилок для всього документа
-        window.onerror = function(message, source, lineno, colno, error) {
-            console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
-            return true;
-        };
+                // Основний контент
+                React.createElement('div', { className: 'content-container', key: 'content' }, [
+                    // Логотип
+                    React.createElement('div', { className: 'logo-container', key: 'logo' }, [
+                        // Орбіти
+                        React.createElement('div', { className: 'logo-orbit orbit-1', key: 'orbit-1' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-1' })
+                        ),
+                        React.createElement('div', { className: 'logo-orbit orbit-2', key: 'orbit-2' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-2' })
+                        ),
+                        React.createElement('div', { className: 'logo-orbit orbit-3', key: 'orbit-3' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-3' })
+                        ),
 
-        // Додаємо обробник для автоматичного оновлення текстів при зміні мови
-        document.addEventListener('languageChanged', function() {
-            if (window.WinixLanguage) {
-                window.WinixLanguage.updatePageTexts();
-            }
-        });
+                        // Центральний логотип
+                        React.createElement('div', { className: 'logo-frame', key: 'frame' }, [
+                            React.createElement('div', { className: 'hexagon', key: 'hex' }),
+                            React.createElement('div', { className: 'logo-letter', key: 'letter' }, 'W')
+                        ]),
+
+                        // Назва бренду
+                        React.createElement('div', { className: 'brand-name', key: 'brand' }, [
+                            React.createElement('div', { className: 'main-title', key: 'title' }, 'WINIX'),
+                            React.createElement('div', { className: 'sub-title', key: 'subtitle' }, 'Blockchain Ecosystem')
+                        ])
+                    ]),
+
+                    // Селектор мови
+                    showLanguageSelector &&
+                        React.createElement('div', { className: 'language-selector', key: 'lang-selector' }, [
+                            React.createElement('div', { className: 'selector-title', key: 'title' },
+                                translations[selectedLanguage || 'uk'].select
+                            ),
+                            React.createElement('div', { className: 'language-options', key: 'options' }, [
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'uk' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('uk'),
+                                    key: 'uk'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/ua_flag.jpg',
+                                        alt: 'Українська',
+                                        className: 'flag-icon',
+                                        key: 'flag-uk'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-uk' }, 'Українська')
+                                ]),
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'en' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('en'),
+                                    key: 'en'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/en_flag.jpg',
+                                        alt: 'English',
+                                        className: 'flag-icon',
+                                        key: 'flag-en'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-en' }, 'English')
+                                ]),
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'ru' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('ru'),
+                                    key: 'ru'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/ru_flag.jpg',
+                                        alt: 'Русский',
+                                        className: 'flag-icon',
+                                        key: 'flag-ru'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-ru' }, 'Русский')
+                                ])
+                            ])
+                        ]),
+
+                    // Екран завантаження
+                    loading &&
+                        React.createElement('div', { className: 'loading-screen', key: 'loading' }, [
+                            React.createElement('div', { className: 'loading-header', key: 'header' }, [
+                                React.createElement('div', { className: 'loading-spinner', key: 'spinner' }),
+                                React.createElement('div', { className: 'loading-title', key: 'title' },
+                                    translations[selectedLanguage || 'uk'].loading
+                                )
+                            ]),
+                            React.createElement('div', { className: 'hash-display', key: 'hash' },
+                                `TX: 0x${generateRandomHash()}`
+                            ),
+                            React.createElement('div', { className: 'loading-progress-container', key: 'progress-container' }, [
+                                React.createElement('div', { className: 'loading-bar-wrapper', key: 'bar-wrapper' }, [
+                                    React.createElement('div', {
+                                        className: 'loading-bar',
+                                        style: { width: `${progress}%` },
+                                        key: 'bar'
+                                    }),
+                                    React.createElement('div', {
+                                        className: 'loading-glow',
+                                        style: { left: `${progress}%` },
+                                        key: 'glow'
+                                    })
+                                ]),
+                                React.createElement('div', { className: 'loading-info', key: 'info' }, [
+                                    React.createElement('div', { className: 'loading-phase', key: 'phase' },
+                                        getLoadingPhaseText()
+                                    ),
+                                    React.createElement('div', { className: 'loading-percentage', key: 'percentage' },
+                                        `${Math.round(progress)}%`
+                                    )
+                                ])
+                            ])
+                        ])
+                ])
+            ]);
+        }
+
+        // Рендеринг компонента
+        ReactDOM.render(
+            React.createElement(WinixTelegramLoader),
+            document.getElementById('root')
+        );
     </script>
 </body>
 </html>

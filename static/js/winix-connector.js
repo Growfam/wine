@@ -53,7 +53,7 @@
         const path = window.location.pathname;
         const filename = path.split('/').pop();
 
-        if (!filename || filename === '' || filename === 'index.html') {
+        if (!filename || filename === '' || filename === 'original-index.html') {
             return 'home';
         }
 
@@ -197,7 +197,7 @@
                 // Переходимо на відповідну сторінку
                 switch(section) {
                     case 'home':
-                        window.navigateTo('index.html');
+                        window.navigateTo('original-index.html');
                         break;
                     case 'earn':
                         window.navigateTo('earn.html');

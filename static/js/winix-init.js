@@ -93,7 +93,7 @@
             const filename = path.split('/').pop();
 
             let currentPage = '';
-            if (!filename || filename === '' || filename === 'index.html') {
+            if (!filename || filename === '' || filename === 'original-index.html') {
                 currentPage = 'home';
             } else {
                 currentPage = filename.replace('.html', '');
