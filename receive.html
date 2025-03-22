@@ -103,7 +103,7 @@
         .header {
             background: var(--primary-gradient);
             border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
+            padding: 0.5rem 1rem; /* 8px 16px */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -116,18 +116,54 @@
             z-index: 10;
         }
 
-        .header .token-icon {
-            width: 3.4375rem; /* 55px */
-            height: 3.4375rem;
+        /* Стилі для аватара користувача */
+        .header .profile-avatar {
+            width: 2.5rem; /* 40px */
+            height: 2.5rem;
             border-radius: 50%;
-            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
-            animation: pulse 8s infinite ease-in-out;
+            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem; /* 20px */
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
+            cursor: pointer;
+            transition: transform 0.2s ease;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+        .header .profile-avatar:hover {
+            transform: scale(1.1);
+        }
+
+        .header .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .header .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* 8px */
+            cursor: pointer;
+        }
+
+        .header .user-id-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.75rem; /* 12px */
+        }
+
+        .header .user-id-label {
+            color: var(--text-secondary);
+        }
+
+        .header .user-id-value {
+            font-weight: bold;
         }
 
         .header .winix-title {
@@ -138,6 +174,8 @@
             color: var(--text-color);
             text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
             animation: glow 11s infinite ease-in-out;
+            text-align: center;
+            flex-grow: 1;
         }
 
         @keyframes glow {
@@ -148,44 +186,29 @@
 
         .header .balance-container {
             display: flex;
-            gap: 0.625rem; /* 10px */
+            gap: 0.875rem; /* 14px */
             align-items: center;
-            margin-right: 0.3125rem; /* 5px */
         }
 
-        .header .jeton-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-left: -2.1875rem; /* -35px */
-        }
-
-        .header .winix-balance {
+        .header .jeton-balance, .header .winix-balance {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
-        .header .jeton-balance .balance-value,
-        .header .winix-balance .balance-value {
+        .header .jeton-balance .balance-value, .header .winix-balance .balance-value {
             font-size: 0.875rem; /* 14px */
             font-weight: bold;
         }
 
-        .header .jeton-balance .balance-label,
-        .header .winix-balance .balance-label {
+        .header .jeton-balance .balance-label, .header .winix-balance .balance-label {
             font-size: 0.75rem; /* 12px */
             font-weight: normal;
         }
 
+        /* Приховуємо іконку жетона */
         .header .jeton-icon {
-            width: 1.875rem; /* 30px */
-            height: 1.875rem;
-            background: url('assets/житон.png') no-repeat center center;
-            background-size: cover;
-            border-radius: 50%;
-            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
-            animation: pulse 1.5s infinite ease-in-out;
+            display: none;
         }
 
         .main-card {
@@ -416,9 +439,14 @@
                 --nav-height: 4rem; /* 64px */
             }
 
-            .header .token-icon {
-                width: 2.8125rem; /* 45px */
-                height: 2.8125rem;
+            .header .profile-avatar {
+                width: 2.1875rem; /* 35px */
+                height: 2.1875rem;
+                font-size: 1.125rem; /* 18px */
+            }
+
+            .header .user-id-container {
+                font-size: 0.6875rem; /* 11px */
             }
 
             .header .winix-title {
@@ -450,8 +478,12 @@
         }
 
         @media (max-width: 350px) {
+            .header .user-id-container {
+                display: none;
+            }
+
             .header .jeton-balance {
-                margin-left: -1.25rem; /* -20px */
+                margin-left: 0;
             }
 
             .header .balance-label {
@@ -491,17 +523,23 @@
 </head>
 <body>
     <div class="container">
+        <!-- Новий хедер з аватаром користувача замість логотипу -->
         <div class="header">
-            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="user-profile" id="profile-link">
+                <div class="profile-avatar" id="profile-avatar">W</div>
+                <div class="user-id-container">
+                    <span class="user-id-label">ID:</span>
+                    <span class="user-id-value" id="user-id">12345678</span>
+                </div>
+            </div>
             <div class="winix-title">WINIX</div>
             <div class="balance-container">
                 <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">0</div>
+                    <div id="user-coins" class="balance-value">250</div>
                     <div class="balance-label" data-lang-key="coins">Жетони</div>
-                    <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">0</div>
+                    <div id="user-tokens" class="balance-value">294562.16</div>
                     <div class="balance-label">$WINIX</div>
                 </div>
             </div>
@@ -514,7 +552,7 @@
 
             <div class="address-container">
                 <div class="info-title" data-lang-key="receive.id">Ваш ID для отримання:</div>
-                <div class="user-id-display" id="user-id">12345678</div>
+                <div class="user-id-display" id="user-id-display">12345678</div>
                 <button class="copy-button" id="copy-button">
                     <span class="copy-icon"></span>
                     <span data-lang-key="receive.copy_id">Копіювати ID</span>
@@ -594,16 +632,63 @@
             tg = null;
         }
 
+        // Функція для завантаження аватара користувача
+        function loadUserAvatar() {
+            const avatar = document.getElementById('profile-avatar');
+            const userId = document.getElementById('user-id');
+            const userIdDisplay = document.getElementById('user-id-display');
+
+            if (!avatar || !userId) return;
+
+            // Отримуємо дані користувача з localStorage
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const userIdValue = localStorage.getItem('userId') || '12345678';
+
+            userId.textContent = userIdValue;
+            if (userIdDisplay) userIdDisplay.textContent = userIdValue;
+
+            const avatarSrc = localStorage.getItem('userAvatarSrc');
+            const avatarId = localStorage.getItem('selectedAvatarId');
+
+            // Очищаємо вміст аватара
+            avatar.innerHTML = '';
+
+            if (avatarSrc) {
+                // Використовуємо завантажене зображення
+                const img = new Image();
+                img.src = avatarSrc;
+                img.alt = username;
+                img.onerror = () => avatar.textContent = username[0].toUpperCase();
+                avatar.appendChild(img);
+            } else if (avatarId) {
+                // Використовуємо системний аватар
+                const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
+                const img = new Image();
+                img.src = src;
+                img.alt = username;
+                img.onerror = () => avatar.textContent = username[0].toUpperCase();
+                avatar.appendChild(img);
+            } else {
+                // Використовуємо першу літеру імені
+                avatar.textContent = username[0].toUpperCase();
+            }
+        }
+
+        // Функція для встановлення обробника кліку по аватару
+        function setupProfileLink() {
+            const profileLink = document.getElementById('profile-link');
+            if (profileLink) {
+                profileLink.addEventListener('click', function() {
+                    // Перехід на сторінку профілю
+                    window.location.href = 'profile.html';
+                });
+            }
+        }
+
         // Функція оновлення кольорів при зміні теми
         function updateThemeColors() {
             if (tg && tg.colorScheme) {
                 document.body.setAttribute('data-theme', tg.colorScheme);
-
-                if (tg.colorScheme === 'dark') {
-                    // Додаткові налаштування для темної теми
-                } else {
-                    // Додаткові налаштування для світлої теми
-                }
             }
         }
 
@@ -684,6 +769,7 @@
             // Створюємо випадковий ID для демонстрації
             const randomId = Math.floor(1000000 + Math.random() * 9000000).toString();
             localStorage.setItem('winix_user_id', randomId);
+            localStorage.setItem('userId', randomId);
             return randomId;
         }
 
@@ -694,7 +780,7 @@
 
         // Обробник кнопки копіювання ID
         document.getElementById('copy-button').addEventListener('click', function() {
-            const userId = document.getElementById('user-id').textContent;
+            const userId = document.getElementById('user-id-display').textContent;
 
             // Копіювання тексту в буфер обміну
             navigator.clipboard.writeText(userId)
@@ -751,6 +837,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DOMContentLoaded: Ініціалізація сторінки отримання");
 
+            // Завантажуємо аватар і налаштовуємо клік на профіль
+            loadUserAvatar();
+            setupProfileLink();
+
             // Оновлюємо всі тексти відповідно до мови
             if (window.WinixLanguage) {
                 window.WinixLanguage.updatePageTexts();
@@ -785,6 +875,7 @@
 
             // Отримуємо та показуємо ID користувача
             const userId = getUserId();
+            document.getElementById('user-id-display').textContent = userId;
             document.getElementById('user-id').textContent = userId;
 
             // Обробник для зміни розміру вікна

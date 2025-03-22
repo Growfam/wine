@@ -12,7 +12,6 @@
     <script src="static/js/winix-connector.js"></script>
     <script src="static/js/winix-all-in-one.js"></script>
 
-
     <style>
         :root {
             /* Основні кольори для теми */
@@ -29,6 +28,8 @@
             --positive-color: #4caf50;
             --negative-color: #f44336;
             --neutral-color: #9e9e9e;
+            --accent-color: #ff9800;
+            --premium-color: #ffc107;
 
             /* Основні розміри */
             --container-max-width: 37.5rem; /* 600px */
@@ -103,7 +104,7 @@
         .header {
             background: var(--primary-gradient);
             border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
+            padding: 0.5rem 1rem; /* 8px 16px */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -116,18 +117,54 @@
             z-index: 10;
         }
 
-        .header .token-icon {
-            width: 3.4375rem; /* 55px */
-            height: 3.4375rem;
+        /* Стилі для аватара користувача */
+        .header .profile-avatar {
+            width: 2.5rem; /* 40px */
+            height: 2.5rem;
             border-radius: 50%;
-            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.8), 0 0 1.25rem rgba(0, 201, 167, 0.4);
-            animation: pulse 8s infinite ease-in-out;
+            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem; /* 20px */
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
+            cursor: pointer;
+            transition: transform 0.2s ease;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-            50% { transform: scale(1.1); box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.6); }
-            100% { transform: scale(1); box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
+        .header .profile-avatar:hover {
+            transform: scale(1.1);
+        }
+
+        .header .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .header .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* 8px */
+            cursor: pointer;
+        }
+
+        .header .user-id-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            font-size: 0.75rem; /* 12px */
+        }
+
+        .header .user-id-label {
+            color: var(--text-secondary);
+        }
+
+        .header .user-id-value {
+            font-weight: bold;
         }
 
         .header .winix-title {
@@ -138,7 +175,8 @@
             color: var(--text-color);
             text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
             animation: glow 11s infinite ease-in-out;
-            margin-left: 2.5rem; /* 40px */
+            text-align: center;
+            flex-grow: 1;
         }
 
         @keyframes glow {
@@ -149,9 +187,8 @@
 
         .header .balance-container {
             display: flex;
-            gap: 0.625rem; /* 10px */
+            gap: 0.875rem; /* 14px */
             align-items: center;
-            margin-right: 0.3125rem; /* 5px */
         }
 
         .header .jeton-balance, .header .winix-balance {
@@ -170,14 +207,9 @@
             font-weight: normal;
         }
 
+        /* Приховуємо іконку жетона */
         .header .jeton-icon {
-            width: 1.875rem; /* 30px */
-            height: 1.875rem;
-            background: url('assets/житон.png') no-repeat center center;
-            background-size: cover;
-            border-radius: 50%;
-            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
-            animation: pulse 1.5s infinite ease-in-out;
+            display: none;
         }
 
         .general-container {
@@ -279,7 +311,7 @@
             width: 4.375rem; /* 70px */
             height: 4.375rem;
             border-radius: 50%;
-            background: #000000;
+            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -403,10 +435,13 @@
             overflow: auto;
             background-color: rgba(0,0,0,0.8);
             animation: fadeIn 0.3s;
+            backdrop-filter: blur(3px);
         }
 
         .document-modal.show {
-            display: block;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         @keyframes fadeIn {
@@ -424,6 +459,14 @@
             max-height: 80vh;
             overflow-y: auto;
             box-shadow: 0 0.3125rem 1.25rem rgba(0, 0, 0, 0.5); /* 0 5px 20px */
+            border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
+            animation: bounceIn 0.4s;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            70% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
         }
 
         .modal-header {
@@ -439,6 +482,7 @@
             font-size: 1.25rem; /* 20px */
             font-weight: bold;
             color: var(--text-color);
+            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
         }
 
         .close-modal {
@@ -447,6 +491,7 @@
             font-size: 1.75rem; /* 28px */
             font-weight: bold;
             cursor: pointer;
+            transition: color 0.2s ease;
         }
 
         .close-modal:hover {
@@ -459,20 +504,29 @@
             color: #ddd;
         }
 
+        .modal-body input {
+            width: 100%;
+            padding: 0.625rem 0.75rem; /* 10px 12px */
+            margin-bottom: 0.9375rem; /* 15px */
+            border-radius: 0.625rem; /* 10px */
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
+            background: rgba(20, 30, 60, 0.6);
+            color: var(--text-color);
+            font-size: 0.9375rem; /* 15px */
+            transition: all 0.3s ease;
+        }
+
+        .modal-body input:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.8);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4);
+        }
+
         .modal-body label {
             display: block;
             margin-bottom: 0.3125rem; /* 5px */
             font-weight: bold;
-        }
-
-        .modal-body input {
-            width: 100%;
-            padding: 0.5rem; /* 8px */
-            margin-bottom: 0.625rem; /* 10px */
-            border-radius: 0.3125rem; /* 5px */
-            border: 0.0625rem solid rgba(255, 255, 255, 0.2); /* 1px */
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-color);
+            color: #f0f0f0;
         }
 
         .modal-footer {
@@ -490,11 +544,17 @@
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
+            box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.4);
         }
 
         .modal-button:hover {
             background: linear-gradient(90deg, #3D7EC6, #62D0CD);
             transform: translateY(-0.125rem); /* -2px */
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-button:active {
+            transform: scale(0.98);
         }
 
         .avatar-options {
@@ -519,121 +579,6 @@
 
         .avatar-option:hover {
             border: 0.125rem solid rgba(0, 201, 167, 0.5); /* 2px */
-        }
-
-        .toast-message {
-            position: fixed;
-            top: 1.25rem; /* 20px */
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgb(9, 26, 50);
-            color: white;
-            padding: 0.75rem 1.5rem; /* 12px 24px */
-            border-radius: 0.3125rem; /* 5px */
-            z-index: 1000;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2); /* 0 4px 8px */
-            opacity: 0;
-            transition: opacity 0.3s, transform 0.3s;
-        }
-
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem); /* -50%, 10px */
-        }
-
-        .toast-message.error {
-            background-color: rgba(220, 53, 69, 0.9);
-        }
-
-        .nav-bar {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
-            display: flex;
-            justify-content: space-around;
-            width: 90%;
-            max-width: 33.75rem; /* 540px */
-            height: var(--nav-height);
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
-            position: fixed;
-            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-        }
-
-        .nav-item {
-            text-align: center;
-            color: var(--text-color);
-            font-size: 0.875rem; /* 14px */
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 20%;
-            position: relative;
-        }
-
-        .nav-item .icon-wrapper {
-            width: 3.75rem; /* 60px */
-            height: 3.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 0.75rem; /* 12px */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.3125rem; /* 5px */
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active .icon-wrapper {
-            background: var(--bg-active);
-            box-shadow: 0 0 0.9375rem var(--glow-color);
-        }
-
-        .nav-item img {
-            width: 2.1875rem; /* 35px */
-            height: 2.1875rem;
-            display: block;
-            filter: brightness(0) invert(1);
-        }
-
-        .nav-item.active img {
-            filter: brightness(1.2) invert(1);
-        }
-
-        .nav-item:hover .icon-wrapper {
-            transform: scale(1.1);
-        }
-
-        .contact-widget {
-            position: fixed;
-            bottom: 5.625rem; /* 90px */
-            right: 1.25rem; /* 20px */
-            width: 3.125rem; /* 50px */
-            height: 3.125rem;
-            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3); /* 0 4px 10px */
-            cursor: pointer;
-            z-index: 9;
-            transition: all 0.3s ease;
-        }
-
-        .contact-widget:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0.375rem 0.9375rem rgba(0, 0, 0, 0.4); /* 0 6px 15px */
-        }
-
-        .contact-icon {
-            width: 1.5rem; /* 24px */
-            height: 1.5rem;
-            filter: brightness(0) invert(1);
         }
 
         .seed-modal-content {
@@ -728,6 +673,101 @@
             background: linear-gradient(90deg, #3D7EC6, #62D0CD);
         }
 
+        .nav-bar {
+            background: var(--primary-gradient);
+            border-radius: 1.5625rem; /* 25px */
+            padding: 0.5rem; /* 8px */
+            display: flex;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 33.75rem; /* 540px */
+            height: var(--nav-height);
+            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
+            position: fixed;
+            bottom: 1.875rem; /* 30px */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .nav-item {
+            text-align: center;
+            color: var(--text-color);
+            font-size: 0.875rem; /* 14px */
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 20%;
+            position: relative;
+            opacity: 0.7;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active {
+            opacity: 1;
+        }
+
+        .nav-item .icon-wrapper {
+            width: 3.75rem; /* 60px */
+            height: 3.75rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 0.75rem; /* 12px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.3125rem; /* 5px */
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background: var(--bg-active);
+            box-shadow: 0 0 0.9375rem var(--glow-color);
+            transform: translateY(-0.1875rem); /* -3px */
+        }
+
+        .nav-item img {
+            width: 2.1875rem; /* 35px */
+            height: 2.1875rem;
+            display: block;
+            filter: brightness(0) invert(1);
+            transition: all 0.2s ease;
+        }
+
+        .nav-item.active img {
+            filter: brightness(1.2) invert(1);
+        }
+
+        .contact-widget {
+            position: fixed;
+            bottom: 5.625rem; /* 90px */
+            right: 1.25rem; /* 20px */
+            width: 3.125rem; /* 50px */
+            height: 3.125rem;
+            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3); /* 0 4px 10px */
+            cursor: pointer;
+            z-index: 9;
+            transition: all 0.3s ease;
+        }
+
+        .contact-widget:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0.375rem 0.9375rem rgba(0, 0, 0, 0.4); /* 0 6px 15px */
+        }
+
+        .contact-icon {
+            width: 1.5rem; /* 24px */
+            height: 1.5rem;
+            filter: brightness(0) invert(1);
+        }
+
         .spinner {
             display: none;
             position: fixed;
@@ -739,6 +779,7 @@
             z-index: 1000;
             justify-content: center;
             align-items: center;
+            backdrop-filter: blur(3px);
         }
 
         .spinner-inner {
@@ -747,12 +788,40 @@
             border: 0.3125rem solid rgba(0, 201, 167, 0.3); /* 5px */
             border-radius: 50%;
             border-top: 0.3125rem solid #00C9A7; /* 5px */
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        .toast-message {
+            position: fixed;
+            top: 1.25rem; /* 20px */
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, rgba(0, 201, 167, 0.9), rgba(78, 181, 247, 0.9));
+            color: white;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 1.875rem; /* 30px */
+            z-index: 1000;
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 0.9375rem; /* 15px */
+            font-weight: 500;
+            text-align: center;
+            min-width: 15rem; /* 240px */
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 0.625rem); /* -50%, 10px */
+        }
+
+        .toast-message.error {
+            background: linear-gradient(90deg, rgba(244, 67, 54, 0.9), rgba(211, 47, 47, 0.9));
         }
 
         /* Медіа-запити для адаптивності */
@@ -763,14 +832,18 @@
                 --nav-height: 4rem; /* 64px */
             }
 
-            .header .token-icon {
-                width: 2.8125rem; /* 45px */
-                height: 2.8125rem;
+            .header .profile-avatar {
+                width: 2.1875rem; /* 35px */
+                height: 2.1875rem;
+                font-size: 1.125rem; /* 18px */
+            }
+
+            .header .user-id-container {
+                font-size: 0.6875rem; /* 11px */
             }
 
             .header .winix-title {
                 font-size: 1.25rem; /* 20px */
-                margin-left: 1.875rem; /* 30px */
             }
 
             .language-options {
@@ -798,8 +871,12 @@
         }
 
         @media (max-width: 350px) {
+            .header .user-id-container {
+                display: none;
+            }
+
             .header .jeton-balance {
-                margin-left: -1.25rem; /* -20px */
+                margin-left: 0;
             }
 
             .header .balance-label {
@@ -833,306 +910,27 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
-        /* Покращені стилі модальних вікон */
-.document-modal {
-    display: none;
-    position: fixed;
-    z-index: 100;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.8);
-    animation: fadeIn 0.3s;
-    backdrop-filter: blur(3px);
-}
-
-.document-modal.show {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-@keyframes fadeIn {
-    from {opacity: 0}
-    to {opacity: 1}
-}
-
-.modal-content {
-    background: linear-gradient(135deg, #1A1A2E, #0F3460);
-    margin: 5% auto;
-    padding: 1.25rem; /* 20px */
-    border-radius: 1.25rem; /* 20px */
-    width: 90%;
-    max-width: 34.375rem; /* 550px */
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 0.3125rem 1.25rem rgba(0, 0, 0, 0.5); /* 0 5px 20px */
-    border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
-    animation: bounceIn 0.4s;
-}
-
-@keyframes bounceIn {
-    0% { transform: scale(0.8); opacity: 0; }
-    70% { transform: scale(1.05); }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.9375rem; /* 15px */
-    padding-bottom: 0.625rem; /* 10px */
-    border-bottom: 0.0625rem solid rgba(255, 255, 255, 0.1); /* 1px */
-}
-
-.modal-title {
-    font-size: 1.25rem; /* 20px */
-    font-weight: bold;
-    color: var(--text-color);
-    text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
-}
-
-.close-modal {
-    color: #aaa;
-    float: right;
-    font-size: 1.75rem; /* 28px */
-    font-weight: bold;
-    cursor: pointer;
-    transition: color 0.2s ease;
-}
-
-.close-modal:hover {
-    color: #00C9A7;
-}
-
-.modal-body {
-    font-size: 0.875rem; /* 14px */
-    line-height: 1.6;
-    color: #ddd;
-}
-
-.modal-body input {
-    width: 100%;
-    padding: 0.625rem 0.75rem; /* 10px 12px */
-    margin-bottom: 0.9375rem; /* 15px */
-    border-radius: 0.625rem; /* 10px */
-    border: 0.0625rem solid rgba(0, 201, 167, 0.3); /* 1px */
-    background: rgba(20, 30, 60, 0.6);
-    color: var(--text-color);
-    font-size: 0.9375rem; /* 15px */
-    transition: all 0.3s ease;
-}
-
-.modal-body input:focus {
-    outline: none;
-    border-color: rgba(0, 201, 167, 0.8);
-    box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4);
-}
-
-.modal-body label {
-    display: block;
-    margin-bottom: 0.3125rem; /* 5px */
-    font-weight: bold;
-    color: #f0f0f0;
-}
-
-.modal-footer {
-    margin-top: 1.25rem; /* 20px */
-    text-align: right;
-}
-
-.modal-button {
-    background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-    border: none;
-    border-radius: 1.25rem; /* 20px */
-    padding: 0.625rem 1.25rem; /* 10px 20px */
-    color: white;
-    font-size: 1rem; /* 16px */
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.4);
-}
-
-.modal-button:hover {
-    background: linear-gradient(90deg, #3D7EC6, #62D0CD);
-    transform: translateY(-0.125rem); /* -2px */
-    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.5);
-}
-
-.modal-button:active {
-    transform: scale(0.98);
-}
-
-/* Оптимізовані стилі для кнопок навігації */
-.nav-item {
-    text-align: center;
-    color: var(--text-color);
-    font-size: 0.875rem; /* 14px */
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 20%;
-    position: relative;
-    opacity: 0.7;
-    transition: all 0.2s ease;
-}
-
-.nav-item.active {
-    opacity: 1;
-}
-
-.nav-item .icon-wrapper {
-    width: 3.75rem; /* 60px */
-    height: 3.75rem;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 0.75rem; /* 12px */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.3125rem; /* 5px */
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
-}
-
-.nav-item.active .icon-wrapper {
-    background: var(--bg-active);
-    box-shadow: 0 0 0.9375rem var(--glow-color);
-    transform: translateY(-0.1875rem); /* -3px */
-}
-
-.nav-item img {
-    width: 2.1875rem; /* 35px */
-    height: 2.1875rem;
-    display: block;
-    filter: brightness(0) invert(1);
-    transition: all 0.2s ease;
-}
-
-.nav-item.active img {
-    filter: brightness(1.2) invert(1);
-}
-
-.nav-item:hover .icon-wrapper {
-    transform: translateY(-0.125rem); /* -2px */
-}
-
-/* Оптимізовані стилі для швидшої анімації */
-.spinner {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(3px);
-}
-
-.spinner-inner {
-    width: 3.125rem; /* 50px */
-    height: 3.125rem;
-    border: 0.3125rem solid rgba(0, 201, 167, 0.3); /* 5px */
-    border-radius: 50%;
-    border-top: 0.3125rem solid #00C9A7; /* 5px */
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Покращений toast */
-.toast-message {
-    position: fixed;
-    top: 1.25rem; /* 20px */
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(90deg, rgba(0, 201, 167, 0.9), rgba(78, 181, 247, 0.9));
-    color: white;
-    padding: 0.75rem 1.5rem; /* 12px 24px */
-    border-radius: 1.875rem; /* 30px */
-    z-index: 1000;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
-    opacity: 0;
-    transition: all 0.3s ease;
-    font-size: 0.9375rem; /* 15px */
-    font-weight: 500;
-    text-align: center;
-    min-width: 15rem; /* 240px */
-}
-
-.toast-message.show {
-    opacity: 1;
-    transform: translate(-50%, 0.625rem); /* -50%, 10px */
-}
-
-.toast-message.error {
-    background: linear-gradient(90deg, rgba(244, 67, 54, 0.9), rgba(211, 47, 47, 0.9));
-}
-
-/* Медіа-запити для мобільних пристроїв */
-@media (max-width: 450px) {
-    /* Зменшений розмір навігаційних іконок */
-    .nav-item .icon-wrapper {
-        width: 3.125rem; /* 50px */
-        height: 3.125rem;
-    }
-
-    .nav-item img {
-        width: 1.875rem; /* 30px */
-        height: 1.875rem;
-    }
-
-    /* Покращений вигляд модальних вікон */
-    .modal-content {
-        width: 95%;
-        padding: 1rem;
-    }
-
-    /* Зменшені кнопки */
-    .modal-button {
-        padding: 0.5625rem 1.125rem; /* 9px 18px */
-        font-size: 0.9375rem; /* 15px */
-    }
-}
-
-/* Стилі для зменшення використання процесора */
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.1s !important;
-        transition-duration: 0.1s !important;
-    }
-}
-
-.reduce-motion * {
-    animation-duration: 0.15s !important;
-    transition-duration: 0.15s !important;
-}
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header from the first file -->
         <div class="header">
-            <img src="assets/token.png" alt="WINIX Token" class="token-icon" onerror="this.src='https://via.placeholder.com/40?text=WINIX'">
+            <div class="user-profile" id="profile-link">
+                <div class="profile-avatar" id="profile-avatar">W</div>
+                <div class="user-id-container">
+                    <span class="user-id-label">ID:</span>
+                    <span class="user-id-value" id="user-id">12345678</span>
+                </div>
+            </div>
             <div class="winix-title">WINIX</div>
             <div class="balance-container">
                 <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">0</div>
+                    <div id="user-coins" class="balance-value">250</div>
                     <div class="balance-label" data-lang-key="coins">Жетони</div>
-                    <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">0</div>
+                    <div id="user-tokens" class="balance-value">294562.16</div>
                     <div class="balance-label">$WINIX</div>
                 </div>
             </div>
@@ -1144,10 +942,10 @@
             <div class="general-card">
                 <div class="profile-section">
                     <div class="profile-header">
-                        <div class="profile-avatar" id="profile-avatar">W</div>
+                        <div class="profile-avatar" id="profile-avatar-large">W</div>
                         <div class="profile-info">
                             <div class="profile-name" id="profile-name">WINIX User</div>
-                            <div class="profile-id"><span data-lang-key="user_id">ID:</span> <span id="user-id">12345678</span></div>
+                            <div class="profile-id"><span data-lang-key="user_id">ID:</span> <span id="user-id-profile">12345678</span></div>
                         </div>
                     </div>
                     <button class="action-button" id="edit-profile" data-lang-key="edit_profile">Редагувати профіль</button>
@@ -1192,15 +990,15 @@
         </div>
 
         <div class="nav-bar">
-            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Home"></div><span data-lang-key="home">Home</span></div>
-            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Earn"></div><span data-lang-key="earn">Earn</span></div>
-            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Referrals"></div><span data-lang-key="referrals">Referrals</span></div>
-            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Wallet"></div><span data-lang-key="wallet">Wallet</span></div>
-            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="General"></div><span data-lang-key="general">General</span></div>
+            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div><span data-lang-key="home">Головна</span></div>
+            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Заробіток</span></div>
+            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Реферали</span></div>
+            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Гаманець</span></div>
+            <div class="nav-item active" data-section="profile"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Профіль"></div><span data-lang-key="profile">Профіль</span></div>
         </div>
 
         <div class="contact-widget" id="quick-contact">
-            <img src="assets/support-icon.png" alt="Support" class="contact-icon">
+            <img src="assets/support-icon.png" alt="Підтримка" class="contact-icon">
         </div>
 
         <div class="spinner" id="loading-spinner"><div class="spinner-inner"></div></div>
@@ -1208,6 +1006,81 @@
     </div>
 
     <script>
+    // Словник для перекладів
+    const translations = {
+        // Загальні елементи
+        "WINIX": "WINIX",
+        "$WINIX": "$WINIX",
+        "home": "Головна",
+        "earn": "Заробіток",
+        "referrals": "Реферали",
+        "wallet": "Гаманець",
+        "profile": "Профіль",
+        "settings": "Налаштування",
+        "coins": "Жетони",
+        "days": "днів",
+        "hours": "годин",
+        "minutes": "хвилин",
+
+        // Налаштування профілю
+        "edit_profile": "Редагувати профіль",
+        "edit_profile_title": "Редагування профілю",
+        "username": "Ім'я користувача",
+        "new_password": "Новий пароль",
+        "password_placeholder": "Залиште порожнім, щоб не змінювати",
+        "confirm_password": "Підтвердження паролю",
+        "confirm_password_placeholder": "Повторіть новий пароль",
+        "upload_avatar": "Завантажити аватар",
+        "select_avatar": "Обрати аватар",
+        "btn_save": "Зберегти",
+        "profile_updated": "Профіль оновлено",
+        "enter_username": "Введіть ім'я користувача",
+        "passwords_dont_match": "Паролі не співпадають",
+        "min_8_chars": "Пароль має містити не менше 8 символів",
+        "min_5_letters": "Пароль має містити не менше 5 літер",
+
+        // Налаштування мови
+        "language_selection": "Вибір мови",
+        "language_uk": "Українська",
+        "language_en": "English",
+        "language_ru": "Русский",
+
+        // Налаштування додатку
+        "app_settings": "Налаштування додатку",
+        "notifications": "Сповіщення",
+        "security": "Безпека",
+        "settings_saved": "Налаштування збережено",
+        "settings_error": "Помилка збереження",
+
+        // SID фраза
+        "show_seed": "Показати SID фразу",
+        "set_password": "Встановлення паролю",
+        "password_requirements": "Пароль має містити не менше 8 символів, включаючи 5 літер",
+        "password": "Пароль",
+        "confirm": "Підтвердження",
+        "enter_password": "Введіть пароль",
+        "your_password": "Ваш пароль",
+        "check": "Перевірити",
+        "wrong_password": "Невірний пароль",
+        "seed_phrase": "SID фраза",
+        "your_seed_phrase": "Ваша SID фраза",
+        "save_seed": "Збережіть цю фразу в надійному місці",
+        "copy": "Копіювати",
+        "copied": "Скопійовано",
+        "copy_error": "Помилка копіювання",
+        "done": "Готово",
+
+        // Повідомлення
+        "contact_support": "Зв'язок з підтримкою",
+        "navigation_error": "Помилка навігації",
+        "user_id": "ID:"
+    };
+
+    // Функція для отримання перекладу
+    function getText(key, defaultText = key) {
+        return translations[key] || defaultText;
+    }
+
     // Ініціалізація Telegram WebApp API
     let tg;
     try {
@@ -1248,6 +1121,25 @@
         } else {
             container.classList.remove('small-screen');
         }
+    }
+
+    /**
+     * Функція для отримання перекладеного тексту
+     * Безпечно працює навіть якщо WinixLanguage недоступний
+     * @param {string} key - Ключ для перекладу
+     * @param {string} defaultText - Текст за замовчуванням якщо переклад недоступний
+     * @returns {string} - Перекладений текст або текст за замовчуванням
+     */
+    function getTranslation(key, defaultText) {
+        if (window.WinixLanguage && typeof window.WinixLanguage.getText === 'function') {
+            try {
+                return window.WinixLanguage.getText(key) || defaultText || key;
+            } catch (error) {
+                console.error(`Помилка отримання перекладу для ключа ${key}:`, error);
+                return defaultText || key;
+            }
+        }
+        return getText(key, defaultText || key);
     }
 
     /**
@@ -1335,7 +1227,7 @@
             }
 
             // Показуємо повідомлення про помилку
-            showToast(window.WinixLanguage.getText('navigation_error'), true);
+            showToast(getTranslation('navigation_error', 'Помилка навігації'), true);
         }
     }
 
@@ -1344,11 +1236,6 @@
         const toast = document.getElementById('toast-message');
 
         if (!toast) return;
-
-        // Перевіримо, чи повідомлення має бути перекладено
-        if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
-            message = window.WinixLanguage.getText(message.substring(1));
-        }
 
         toast.textContent = message;
         toast.classList.add('show');
@@ -1364,54 +1251,63 @@
         }, 3000);
     }
 
-    // Функція для перевірки чи користувач вже авторизований
-    function checkLoginStatus() {
-        if (!localStorage.getItem('isLoggedIn')) {
-            localStorage.setItem('isLoggedIn', 'true');
-        }
-        return true;
-    }
+    // Функція для завантаження аватара користувача
+    function loadUserAvatar() {
+        const headerAvatar = document.getElementById('profile-avatar');
+        const profileAvatar = document.getElementById('profile-avatar-large');
+        const headerUserId = document.getElementById('user-id');
+        const profileUserId = document.getElementById('user-id-profile');
 
-    // Завантаження даних користувача
-    function loadUserProfile() {
-        try {
-            const username = localStorage.getItem('username') || 'WINIX User';
-            const userId = localStorage.getItem('userId') || '12345678';
-            const avatarSrc = localStorage.getItem('userAvatarSrc');
-            const avatarId = localStorage.getItem('selectedAvatarId');
+        // Отримуємо дані користувача з localStorage
+        const username = localStorage.getItem('username') || 'WINIX User';
+        const userId = localStorage.getItem('userId') || '12345678';
+        const avatarSrc = localStorage.getItem('userAvatarSrc');
+        const avatarId = localStorage.getItem('selectedAvatarId');
 
-            document.getElementById('profile-name').textContent = username;
-            document.getElementById('user-id').textContent = userId;
+        document.getElementById('profile-name').textContent = username;
 
-            const avatar = document.getElementById('profile-avatar');
-            avatar.innerHTML = '';
+        if (headerUserId) headerUserId.textContent = userId;
+        if (profileUserId) profileUserId.textContent = userId;
+
+        // Функція для встановлення аватара в елемент
+        function setAvatar(element) {
+            if (!element) return;
+
+            // Очищаємо вміст аватара
+            element.innerHTML = '';
+
             if (avatarSrc) {
+                // Використовуємо завантажене зображення
                 const img = new Image();
                 img.src = avatarSrc;
                 img.alt = username;
-                img.onerror = () => avatar.textContent = username[0].toUpperCase();
-                avatar.appendChild(img);
+                img.onerror = () => element.textContent = username[0].toUpperCase();
+                element.appendChild(img);
             } else if (avatarId) {
+                // Використовуємо системний аватар
                 const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
                 const img = new Image();
                 img.src = src;
                 img.alt = username;
-                img.onerror = () => avatar.textContent = username[0].toUpperCase();
-                avatar.appendChild(img);
+                img.onerror = () => element.textContent = username[0].toUpperCase();
+                element.appendChild(img);
             } else {
-                avatar.textContent = username[0].toUpperCase();
+                // Використовуємо першу літеру імені
+                element.textContent = username[0].toUpperCase();
             }
-        } catch (error) {
-            console.error('Profile load error:', error);
         }
+
+        // Встановлюємо аватари
+        setAvatar(headerAvatar);
+        setAvatar(profileAvatar);
     }
 
     // Оновлення балансу
     function updateBalanceDisplay() {
         try {
             // Спочатку отримуємо баланс безпосередньо з localStorage
-            let tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            let coins = parseFloat(localStorage.getItem('userCoins') || '0');
+            let tokens = parseFloat(localStorage.getItem('userTokens') || '294562.16');
+            let coins = parseFloat(localStorage.getItem('userCoins') || '250');
 
             // Оновлюємо елементи інтерфейсу
             document.getElementById('user-tokens').textContent = tokens.toFixed(2);
@@ -1425,9 +1321,6 @@
     function showEditProfileModal() {
         const currentUsername = localStorage.getItem('username') || 'WINIX User';
 
-        // Отримуємо переклади
-        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
-
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1436,28 +1329,28 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">${translate('edit_profile_title')}</div>
+                    <div class="modal-title">${getTranslation('edit_profile_title', 'Редагування профілю')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
                     <div class="settings-item">
-                        <label>${translate('username')}</label>
+                        <label>${getTranslation('username', "Ім'я користувача")}</label>
                         <input type="text" id="edit-username" value="${currentUsername}">
                     </div>
                     <div class="settings-item">
-                        <label>${translate('new_password')}</label>
-                        <input type="password" id="edit-password" placeholder="${translate('password_placeholder')}">
+                        <label>${getTranslation('new_password', 'Новий пароль')}</label>
+                        <input type="password" id="edit-password" placeholder="${getTranslation('password_placeholder', 'Залиште порожнім, щоб не змінювати')}">
                     </div>
                     <div class="settings-item">
-                        <label>${translate('confirm_password')}</label>
-                        <input type="password" id="edit-password-confirm" placeholder="${translate('confirm_password_placeholder')}">
+                        <label>${getTranslation('confirm_password', 'Підтвердження паролю')}</label>
+                        <input type="password" id="edit-password-confirm" placeholder="${getTranslation('confirm_password_placeholder', 'Повторіть новий пароль')}">
                     </div>
                     <div class="settings-item">
-                        <label>${translate('upload_avatar')}</label>
+                        <label>${getTranslation('upload_avatar', 'Завантажити аватар')}</label>
                         <input type="file" id="avatar-upload" accept="image/*">
                     </div>
                     <div class="settings-item">
-                        <label>${translate('select_avatar')}</label>
+                        <label>${getTranslation('select_avatar', 'Обрати аватар')}</label>
                         <div class="avatar-options">
                             <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
                             <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
@@ -1467,7 +1360,7 @@
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="save-profile">${translate('btn_save')}</button>
+                    <button class="modal-button" id="save-profile">${getTranslation('btn_save', 'Зберегти')}</button>
                 </div>
             </div>
         `;
@@ -1493,13 +1386,13 @@
             const error = modal.querySelector('#error-msg');
 
             if (!username) {
-                error.textContent = translate('enter_username');
+                error.textContent = getTranslation('enter_username', "Введіть ім'я користувача");
                 return;
             }
 
             if (password) {
                 if (password !== confirm) {
-                    error.textContent = translate('passwords_dont_match');
+                    error.textContent = getTranslation('passwords_dont_match', 'Паролі не співпадають');
                     return;
                 }
                 const validation = validatePassword(password);
@@ -1518,7 +1411,7 @@
                 reader.onload = () => {
                     localStorage.setItem('userAvatarSrc', reader.result);
                     localStorage.removeItem('selectedAvatarId');
-                    loadUserProfile();
+                    loadUserAvatar();
                 };
                 reader.readAsDataURL(uploadedAvatar);
             } else if (selectedAvatar) {
@@ -1526,11 +1419,11 @@
                 localStorage.setItem('selectedAvatarId', avatarId);
                 localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
                 localStorage.removeItem('userAvatarSrc');
-                loadUserProfile();
+                loadUserAvatar();
             }
 
             modal.remove();
-            showToast(translate('profile_updated'));
+            showToast(getTranslation('profile_updated', 'Профіль оновлено'));
         };
 
         modal.querySelector('.close-modal').onclick = () => modal.remove();
@@ -1548,9 +1441,17 @@
         document.getElementById('notifications-toggle').checked = isNotificationsEnabled;
 
         // Оновлюємо всі тексти на сторінці
-        if (window.WinixLanguage) {
-            window.WinixLanguage.updatePageTexts();
-        }
+        updatePageTexts();
+    }
+
+    // Оновлення всіх текстів на сторінці
+    function updatePageTexts() {
+        document.querySelectorAll('[data-lang-key]').forEach(element => {
+            const key = element.getAttribute('data-lang-key');
+            if (key && translations[key]) {
+                element.textContent = translations[key];
+            }
+        });
     }
 
     // Збереження налаштувань користувача
@@ -1562,8 +1463,12 @@
                 localStorage.setItem('userLanguage', lang);
 
                 // Оновлюємо мову
-                if (window.WinixLanguage) {
-                    window.WinixLanguage.changeLang(lang);
+                if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
+                    try {
+                        window.WinixLanguage.changeLang(lang);
+                    } catch (error) {
+                        console.error('Помилка зміни мови:', error);
+                    }
                 }
             }
 
@@ -1573,10 +1478,10 @@
                 localStorage.setItem('notificationsEnabled', isNotificationsEnabled.toString());
             }
 
-            showToast(window.WinixLanguage ? window.WinixLanguage.getText('settings_saved') : 'Налаштування збережено');
+            showToast(getTranslation('settings_saved', 'Налаштування збережено'));
         } catch (error) {
             console.error('Settings save error:', error);
-            showToast(window.WinixLanguage ? window.WinixLanguage.getText('settings_error') : 'Помилка збереження', true);
+            showToast(getTranslation('settings_error', 'Помилка збереження'), true);
         }
     }
 
@@ -1616,22 +1521,18 @@
 
     // Валідація пароля
     function validatePassword(password) {
-        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
-
         if (!password || password.length < 8)
-            return { valid: false, message: translate('min_8_chars') };
+            return { valid: false, message: getTranslation('min_8_chars', 'Пароль має містити не менше 8 символів') };
         if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
-            return { valid: false, message: translate('min_5_letters') };
+            return { valid: false, message: getTranslation('min_5_letters', 'Пароль має містити не менше 5 літер') };
         return { valid: true };
     }
 
     // Показ SID фрази
     function showSeedPhrase() {
+        console.log("Виклик функції showSeedPhrase");
         const userId = localStorage.getItem('userId') || '12345678';
         const phrase = generateSeedPhrase(userId);
-
-        // Отримуємо переклади
-        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
 
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
@@ -1641,14 +1542,14 @@
         modal.innerHTML = `
             <div class="seed-modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">${translate('seed_phrase')}</div>
+                    <div class="modal-title">${getTranslation('seed_phrase', 'SID фраза')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
                     <div class="restore-card">
-                        <div class="restore-title">${translate('your_seed_phrase')}</div>
-                        <div class="restore-subtitle">${translate('save_seed')}</div>
-                        <button class="copy-button">${translate('copy')}</button>
+                        <div class="restore-title">${getTranslation('your_seed_phrase', 'Ваша SID фраза')}</div>
+                        <div class="restore-subtitle">${getTranslation('save_seed', 'Збережіть цю фразу в надійному місці')}</div>
+                        <button class="copy-button">${getTranslation('copy', 'Копіювати')}</button>
                         <div class="words-grid">
                             ${phrase.map((word, i) => `
                                 <div class="word-cell">
@@ -1657,7 +1558,7 @@
                                 </div>
                             `).join('')}
                         </div>
-                        <button class="seed-continue-button">${translate('done')}</button>
+                        <button class="seed-continue-button">${getTranslation('done', 'Готово')}</button>
                     </div>
                 </div>
             </div>
@@ -1667,8 +1568,8 @@
         modal.querySelector('.close-modal').onclick = () => modal.remove();
         modal.querySelector('.copy-button').onclick = () => {
             navigator.clipboard.writeText(phrase.join(' '))
-                .then(() => showToast(translate('copied')))
-                .catch(() => showToast(translate('copy_error'), true));
+                .then(() => showToast(getTranslation('copied', 'Скопійовано')))
+                .catch(() => showToast(getTranslation('copy_error', 'Помилка копіювання'), true));
         };
         modal.querySelector('.seed-continue-button').onclick = () => {
             localStorage.setItem('seedPhraseViewed', 'true');
@@ -1679,9 +1580,6 @@
 
     // Показ модального вікна для встановлення пароля
     function showSetPasswordModal(callback) {
-        // Отримуємо переклади
-        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
-
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1690,17 +1588,17 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">${translate('set_password')}</div>
+                    <div class="modal-title">${getTranslation('set_password', 'Встановлення паролю')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
-                    <p>${translate('password_requirements')}</p>
-                    <input type="password" id="new-password" placeholder="${translate('password')}">
-                    <input type="password" id="confirm-password" placeholder="${translate('confirm')}">
+                    <p>${getTranslation('password_requirements', 'Пароль має містити не менше 8 символів, включаючи 5 літер')}</p>
+                    <input type="password" id="new-password" placeholder="${getTranslation('password', 'Пароль')}">
+                    <input type="password" id="confirm-password" placeholder="${getTranslation('confirm', 'Підтвердження')}">
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="save-password">${translate('btn_save')}</button>
+                    <button class="modal-button" id="save-password">${getTranslation('btn_save', 'Зберегти')}</button>
                 </div>
             </div>
         `;
@@ -1713,7 +1611,7 @@
             const error = modal.querySelector('#error-msg');
 
             if (pwd !== confirm) {
-                error.textContent = translate('passwords_dont_match');
+                error.textContent = getTranslation('passwords_dont_match', 'Паролі не співпадають');
                 return;
             }
             const validation = validatePassword(pwd);
@@ -1735,9 +1633,6 @@
 
     // Показ модального вікна для введення пароля
     function showEnterPasswordModal(callback) {
-        // Отримуємо переклади
-        const translate = window.WinixLanguage ? window.WinixLanguage.getText : key => key;
-
         // Видаляємо існуючі модальні вікна, якщо вони є
         document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
@@ -1746,15 +1641,15 @@
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <div class="modal-title">${translate('enter_password')}</div>
+                    <div class="modal-title">${getTranslation('enter_password', 'Введіть пароль')}</div>
                     <span class="close-modal">×</span>
                 </div>
                 <div class="modal-body">
-                    <input type="password" id="enter-password" placeholder="${translate('your_password')}">
+                    <input type="password" id="enter-password" placeholder="${getTranslation('your_password', 'Ваш пароль')}">
                     <div id="error-msg" style="color: #f44336;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-button" id="check-password">${translate('check')}</button>
+                    <button class="modal-button" id="check-password">${getTranslation('check', 'Перевірити')}</button>
                 </div>
             </div>
         `;
@@ -1773,7 +1668,7 @@
                     callback();
                 }
             } else {
-                error.textContent = translate('wrong_password');
+                error.textContent = getTranslation('wrong_password', 'Невірний пароль');
             }
         };
         modal.querySelector('.close-modal').onclick = () => modal.remove();
@@ -1782,31 +1677,126 @@
 
     // Обробка показу SID фрази
     function handleShowSeedPhrase() {
-        const hasPassword = localStorage.getItem('seedPhrasePasswordHash');
+        console.log("Виклик функції handleShowSeedPhrase");
+        try {
+            const hasPassword = localStorage.getItem('seedPhrasePasswordHash');
+            console.log("Наявність паролю:", !!hasPassword);
 
-        if (!hasPassword) {
-            showSetPasswordModal(showSeedPhrase);
-        } else {
-            showEnterPasswordModal(showSeedPhrase);
+            if (!hasPassword) {
+                console.log("Пароль відсутній, показуємо модалку встановлення паролю");
+                showSetPasswordModal(function() {
+                    console.log("Пароль встановлено, показуємо SID фразу");
+                    showSeedPhrase();
+                });
+            } else {
+                console.log("Пароль наявний, показуємо модалку введення паролю");
+                showEnterPasswordModal(function() {
+                    console.log("Пароль підтверджено, показуємо SID фразу");
+                    showSeedPhrase();
+                });
+            }
+        } catch (error) {
+            console.error("Помилка при обробці показу SID фрази:", error);
+            showToast("Виникла помилка при спробі показати SID фразу", true);
         }
     }
 
-    // Встановлення обробників подій для всіх елементів навігації
-    function setupNavigationHandlers() {
-        // Для кнопок навігації (головного меню)
-        document.querySelectorAll('.nav-item').forEach(item => {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newItem = item.cloneNode(true);
-            if (item.parentNode) {
-                item.parentNode.replaceChild(newItem, item);
-            }
+    // Оновлена функція для встановлення обробників подій
+    function setupEventHandlers() {
+        console.log("Налаштування обробників подій");
 
-            // Додаємо оптимізований обробник
-            newItem.addEventListener('click', function() {
+        // 1. Кнопка редагування профілю
+        const editProfileBtn = document.getElementById('edit-profile');
+        if (editProfileBtn) {
+            console.log("Встановлюємо обробник для кнопки редагування профілю");
+            // Видаляємо існуючий обробник, якщо є
+            const oldBtn = editProfileBtn.cloneNode(true);
+            editProfileBtn.parentNode.replaceChild(oldBtn, editProfileBtn);
+
+            // Встановлюємо новий обробник
+            oldBtn.addEventListener('click', function(e) {
+                console.log("Клік на кнопці редагування профілю");
+                e.preventDefault();
+                showEditProfileModal();
+                return false;
+            });
+        }
+
+        // 2. Кнопка показу SID фрази
+        const seedPhraseBtn = document.getElementById('show-seed-phrase');
+        if (seedPhraseBtn) {
+            console.log("Встановлюємо обробник для кнопки SID фрази");
+            // Видаляємо існуючий обробник, якщо є
+            const oldBtn = seedPhraseBtn.cloneNode(true);
+            seedPhraseBtn.parentNode.replaceChild(oldBtn, seedPhraseBtn);
+
+            // Встановлюємо новий обробник
+            oldBtn.addEventListener('click', function(e) {
+                console.log("Клік на кнопці SID фрази");
+                e.preventDefault();
+                handleShowSeedPhrase();
+                return false;
+            });
+        }
+
+        // 3. Мовні опції
+        document.querySelectorAll('.language-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                console.log("Клік на мовній опції:", this.getAttribute('data-lang'));
+
+                // Змінюємо активну опцію
+                document.querySelectorAll('.language-option').forEach(o => {
+                    o.classList.remove('active');
+                });
+                this.classList.add('active');
+
+                // Отримуємо код мови
+                const lang = this.getAttribute('data-lang');
+
+                // Змінюємо мову, якщо WinixLanguage доступний
+                if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
+                    try {
+                        window.WinixLanguage.changeLang(lang);
+                    } catch (error) {
+                        console.error('Помилка зміни мови:', error);
+                        // Зберігаємо у localStorage, якщо сталася помилка
+                        localStorage.setItem('userLanguage', lang);
+                    }
+                } else {
+                    // Зберігаємо у localStorage, якщо об'єкт WinixLanguage недоступний
+                    localStorage.setItem('userLanguage', lang);
+                }
+
+                // Зберігаємо налаштування
+                saveUserSettings();
+            });
+        });
+
+        // 4. Перемикач сповіщень
+        const notificationsToggle = document.getElementById('notifications-toggle');
+        if (notificationsToggle) {
+            notificationsToggle.addEventListener('change', function() {
+                console.log("Зміна стану сповіщень:", this.checked);
+                saveUserSettings();
+            });
+        }
+
+        // 5. Обробник для кліку на хедері для переходу в профіль
+        const profileLink = document.getElementById('profile-link');
+        if (profileLink) {
+            profileLink.addEventListener('click', function() {
+                // Перехід на сторінку профілю
+                navigateToPage('profile.html');
+            });
+        }
+
+        // 6. Кнопки навігації
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
                 const section = this.getAttribute('data-section');
 
                 // Не робимо нічого, якщо вже на цій сторінці
-                if (section === 'general') return;
+                if (section === 'profile') return;
 
                 // Змінюємо активний елемент
                 document.querySelectorAll('.nav-item').forEach(navItem => {
@@ -1815,126 +1805,47 @@
                 this.classList.add('active');
 
                 // Переходимо на відповідну сторінку
-                const pageName = section === 'home' ? 'original-index.html' : `${section}.html`;
+                const pageName = section === 'home' ? 'index.html' : `${section}.html`;
                 navigateToPage(pageName);
             });
         });
 
-        // Для кнопок налаштувань
-        // 1. Мовні опції
-        document.querySelectorAll('.language-option').forEach(opt => {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newOpt = opt.cloneNode(true);
-            if (opt.parentNode) {
-                opt.parentNode.replaceChild(newOpt, opt);
-            }
-
-            // Додаємо оптимізований обробник
-            newOpt.addEventListener('click', function() {
-                // Змінюємо активну опцію
-                document.querySelectorAll('.language-option').forEach(o => {
-                    o.classList.remove('active');
-                });
-                this.classList.add('active');
-
-                // Отримуємо код мови і змінюємо поточну мову
-                const lang = this.getAttribute('data-lang');
-                if (window.WinixLanguage) {
-                    window.WinixLanguage.changeLang(lang);
-                }
-
-                // Зберігаємо налаштування
-                saveUserSettings();
-            });
-        });
-
-        // 2. Перемикач сповіщень
-        const notificationsToggle = document.getElementById('notifications-toggle');
-        if (notificationsToggle) {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newToggle = notificationsToggle.cloneNode(true);
-            if (notificationsToggle.parentNode) {
-                notificationsToggle.parentNode.replaceChild(newToggle, notificationsToggle);
-            }
-
-            // Додаємо оптимізований обробник
-            newToggle.addEventListener('change', saveUserSettings);
-        }
-
-        // 3. Кнопка редагування профілю
-        const editProfileBtn = document.getElementById('edit-profile');
-        if (editProfileBtn) {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newBtn = editProfileBtn.cloneNode(true);
-            if (editProfileBtn.parentNode) {
-                editProfileBtn.parentNode.replaceChild(newBtn, editProfileBtn);
-            }
-
-            // Додаємо оптимізований обробник
-            newBtn.addEventListener('click', showEditProfileModal);
-        }
-
-        // 4. Кнопка показу SID фрази
-        const seedPhraseBtn = document.getElementById('show-seed-phrase');
-        if (seedPhraseBtn) {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newBtn = seedPhraseBtn.cloneNode(true);
-            if (seedPhraseBtn.parentNode) {
-                seedPhraseBtn.parentNode.replaceChild(newBtn, seedPhraseBtn);
-            }
-
-            // Додаємо оптимізований обробник
-            newBtn.addEventListener('click', handleShowSeedPhrase);
-        }
-
-        // 5. Кнопка швидкого зв'язку
+        // 7. Кнопка швидкого зв'язку
         const quickContactBtn = document.getElementById('quick-contact');
         if (quickContactBtn) {
-            // Клонуємо елемент для видалення всіх існуючих обробників
-            const newBtn = quickContactBtn.cloneNode(true);
-            if (quickContactBtn.parentNode) {
-                quickContactBtn.parentNode.replaceChild(newBtn, quickContactBtn);
-            }
-
-            // Додаємо оптимізований обробник
-            newBtn.addEventListener('click', function() {
-                const message = window.WinixLanguage ? window.WinixLanguage.getText('contact_support') : 'Зв\'язок з підтримкою';
-                showToast(message);
+            quickContactBtn.addEventListener('click', function() {
+                showToast(getTranslation('contact_support', "Зв'язок з підтримкою"));
             });
         }
+
+        console.log("Налаштування обробників завершено");
     }
 
-    // Очікуємо готовності всіх скриптів
-    window.addEventListener('load', () => {
-        // Показуємо індикатор завантаження
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.style.display = 'flex';
-        }
+    // Обробка завантаження сторінки
+    window.addEventListener('load', function() {
+        console.log("Сторінка завантажена");
 
-        if (!checkLoginStatus()) return;
+        try {
+            // Ініціалізуємо інтерфейс
+            loadUserAvatar();
+            updateBalanceDisplay();
+            loadUserSettings();
 
-        // Ініціалізуємо інтерфейс
-        loadUserProfile();
-        updateBalanceDisplay();
-        loadUserSettings();
-        setupNavigationHandlers();
+            // Критично важливо - встановлюємо обробники подій
+            setupEventHandlers();
 
-        // Оновлюємо стан DOM
-        adjustLayout();
-        updateThemeColors();
-
-        // Застосовуємо переклади
-        if (window.WinixLanguage) {
-            window.WinixLanguage.updatePageTexts();
+            // Оновлюємо стан DOM
+            adjustLayout();
+            updateThemeColors();
+        } catch (error) {
+            console.error("Помилка при ініціалізації сторінки:", error);
         }
 
         // Ховаємо індикатор завантаження
-        setTimeout(() => {
-            if (spinner) {
-                spinner.style.display = 'none';
-            }
-        }, 500);
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'none';
+        }
     });
 
     // Глобальний обробник помилок
@@ -1949,9 +1860,7 @@
         const now = Date.now();
         if (now - lastScrollTime < 100) return; // Обмежуємо частоту виконання
         lastScrollTime = now;
-
-        // Тут можна додати код, який повинен виконуватися при скролі
-    }, { passive: true }); // passive: true - покращує продуктивність
-</script>
+    }, { passive: true });
+    </script>
 </body>
 </html>
