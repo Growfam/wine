@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Стейкінг</title>
 
+    <!-- Підключаємо спочатку мовний скрипт, потім інші скрипти -->
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -569,7 +571,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -588,32 +590,33 @@
                     type="number"
                     id="staking-amount"
                     placeholder="Введіть суму $WINIX"
+                    data-lang-key="staking.amount"
                     value="850"
                 >
-                <button class="max-button" id="max-button">Max</button>
+                <button class="max-button" id="max-button" data-lang-key="staking.max">Max</button>
             </div>
 
             <div class="staking-input">
                 <select id="staking-period" class="period-select">
-                    <option value="7">7 днів (4% прибутку)</option>
-                    <option value="14" selected>14 днів (9% прибутку)</option>
-                    <option value="28">28 днів (15% прибутку)</option>
+                    <option value="7" data-lang-key="staking.period_7">7 днів (4% прибутку)</option>
+                    <option value="14" selected data-lang-key="staking.period_14">14 днів (9% прибутку)</option>
+                    <option value="28" data-lang-key="staking.period_28">28 днів (15% прибутку)</option>
                 </select>
             </div>
 
             <div id="expected-reward-display">
-                Очікувана нагорода: <span id="expected-reward">59.50</span> $WINIX
+                <span data-lang-key="staking.expected_reward">Очікувана нагорода:</span> <span id="expected-reward">59.50</span> $WINIX
             </div>
 
-            <button class="staking-button" id="stake-button">Застейкати</button>
+            <button class="staking-button" id="stake-button" data-lang-key="staking.stake_button">Застейкати</button>
 
             <!-- Кнопка деталей стейкінгу -->
-            <button class="details-button" id="details-button">Деталі стейкінгу</button>
+            <button class="details-button" id="details-button" data-lang-key="staking.details_button">Деталі стейкінгу</button>
 
             <!-- Кнопка скасування стейкінгу -->
-            <button class="details-button cancel-button" id="cancel-staking-button">Скасувати стейкінг</button>
+            <button class="details-button cancel-button" id="cancel-staking-button" data-lang-key="staking.cancel_button">Скасувати стейкінг</button>
 
-            <div class="staking-status" id="staking-status">
+            <div class="staking-status" id="staking-status" data-lang-key="staking.none">
                 Наразі немає активних стейкінгів
             </div>
         </div>
@@ -623,31 +626,31 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                Home
+                <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                Earn
+                <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                Referrals
+                <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                Wallet
+                <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                General
+                <span data-lang-key="general">General</span>
             </div>
         </div>
 
@@ -737,6 +740,11 @@
         // Головна функція ініціалізації сторінки
         function initPage() {
             console.log("Ініціалізація сторінки стейкінгу");
+
+            // Оновлюємо всі тексти відповідно до мови
+            if (window.WinixLanguage) {
+                window.WinixLanguage.updatePageTexts();
+            }
 
             // Викликаємо функцію адаптації при старті
             adjustLayout();
@@ -874,7 +882,12 @@
                             // Оновлюємо статус
                             const statusElement = document.getElementById('staking-status');
                             if (statusElement) {
-                                statusElement.textContent = `У стейкінгу: ${stakingData.stakingAmount} $WINIX`;
+                                // Змінюємо статус використовуючи локалізацію
+                                if (window.WinixLanguage) {
+                                    statusElement.textContent = `${window.WinixLanguage.getText('wallet.in_staking')} ${stakingData.stakingAmount} $WINIX`;
+                                } else {
+                                    statusElement.textContent = `У стейкінгу: ${stakingData.stakingAmount} $WINIX`;
+                                }
                             }
 
                             // Активуємо кнопки
@@ -946,10 +959,14 @@
                         console.log("Перехід на сторінку деталей стейкінгу");
                         navigateTo("staking-details.html");
                     } else {
+                        const alertMessage = window.WinixLanguage ?
+                            window.WinixLanguage.getText('no_active_staking') :
+                            "Немає активного стейкінгу";
+
                         if (window.winixUI && window.winixUI.simpleAlert) {
-                            window.winixUI.simpleAlert("Немає активного стейкінгу", false);
+                            window.winixUI.simpleAlert(alertMessage, false);
                         } else {
-                            alert("Немає активного стейкінгу");
+                            alert(alertMessage);
                         }
                     }
                 });
@@ -964,11 +981,20 @@
                     const amount = parseFloat(document.getElementById('staking-amount').value) || 0;
                     const period = parseInt(document.getElementById('staking-period').value) || 14;
 
+                    // Використовуємо локалізовані повідомлення про помилки
+                    const errorAmount = window.WinixLanguage ?
+                        window.WinixLanguage.getText('enter_amount_for_staking') :
+                        "Введіть суму для стейкінгу";
+
+                    const errorBalance = window.WinixLanguage ?
+                        window.WinixLanguage.getText('status.insufficient_funds') :
+                        "Недостатньо коштів на балансі";
+
                     if (amount <= 0) {
                         if (window.winixUI && window.winixUI.simpleAlert) {
-                            window.winixUI.simpleAlert("Введіть суму для стейкінгу", true);
+                            window.winixUI.simpleAlert(errorAmount, true);
                         } else {
-                            alert("Введіть суму для стейкінгу");
+                            alert(errorAmount);
                         }
                         return;
                     }
@@ -976,9 +1002,9 @@
                     const balance = parseFloat(localStorage.getItem('userTokens') || '0');
                     if (amount > balance) {
                         if (window.winixUI && window.winixUI.simpleAlert) {
-                            window.winixUI.simpleAlert("Недостатньо коштів на балансі", true);
+                            window.winixUI.simpleAlert(errorBalance, true);
                         } else {
-                            alert("Недостатньо коштів на балансі");
+                            alert(errorBalance);
                         }
                         return;
                     }
@@ -1024,7 +1050,9 @@
                                 transactions.unshift({
                                     id: 'staking_' + Date.now(),
                                     amount: -amount,
-                                    description: 'Відправлено на стейкінг',
+                                    description: window.WinixLanguage ?
+                                        window.WinixLanguage.getText('wallet.staking_deposit') :
+                                        'Відправлено на стейкінг',
                                     timestamp: Date.now()
                                 });
                                 localStorage.setItem('transactions', JSON.stringify(transactions));
@@ -1034,24 +1062,42 @@
 
                             // Оновлюємо інтерфейс
                             document.getElementById('user-tokens').textContent = newBalance.toFixed(2);
-                            document.getElementById('staking-status').textContent = `У стейкінгу: ${amount} $WINIX`;
+
+                            // Оновлюємо статус
+                            const statusElement = document.getElementById('staking-status');
+                            if (statusElement) {
+                                if (window.WinixLanguage) {
+                                    statusElement.textContent = `${window.WinixLanguage.getText('wallet.in_staking')} ${amount} $WINIX`;
+                                } else {
+                                    statusElement.textContent = `У стейкінгу: ${amount} $WINIX`;
+                                }
+                            }
 
                             // Активуємо кнопку деталей стейкінгу
                             document.getElementById('details-button').style.opacity = '1';
                             document.getElementById('cancel-staking-button').style.opacity = '1';
 
                             // Показуємо повідомлення про успіх
+                            const successMessage = window.WinixLanguage ?
+                                window.WinixLanguage.getText('staking_created_success') :
+                                "Стейкінг успішно створено";
+
                             if (window.winixUI && window.winixUI.simpleAlert) {
-                                window.winixUI.simpleAlert("Стейкінг успішно створено", false);
+                                window.winixUI.simpleAlert(successMessage, false);
                             } else {
-                                alert("Стейкінг успішно створено");
+                                alert(successMessage);
                             }
                         } catch (error) {
                             console.error("Помилка при створенні стейкінгу:", error);
+
+                            const errorMessage = window.WinixLanguage ?
+                                window.WinixLanguage.getText('staking_error') :
+                                "Помилка при створенні стейкінгу";
+
                             if (window.winixUI && window.winixUI.simpleAlert) {
-                                window.winixUI.simpleAlert("Помилка при створенні стейкінгу", true);
+                                window.winixUI.simpleAlert(errorMessage, true);
                             } else {
-                                alert("Помилка при створенні стейкінгу");
+                                alert(errorMessage);
                             }
                         }
                     }
@@ -1084,17 +1130,26 @@
                         }
                     }
 
+                    // Використовуємо локалізовані повідомлення
+                    const noStakingMessage = window.WinixLanguage ?
+                        window.WinixLanguage.getText('no_active_staking') :
+                        "Немає активного стейкінгу";
+
+                    const confirmCancelMessage = window.WinixLanguage ?
+                        window.WinixLanguage.getText('confirm_cancel_staking') :
+                        "Ви впевнені, що хочете скасувати стейкінг? Ви не отримаєте нагороду.";
+
                     if (!hasActiveStaking) {
                         if (window.winixUI && window.winixUI.simpleAlert) {
-                            window.winixUI.simpleAlert("Немає активного стейкінгу", true);
+                            window.winixUI.simpleAlert(noStakingMessage, true);
                         } else {
-                            alert("Немає активного стейкінгу");
+                            alert(noStakingMessage);
                         }
                         return;
                     }
 
                     // Підтвердження скасування
-                    const isConfirmed = confirm("Ви впевнені, що хочете скасувати стейкінг? Ви не отримаєте нагороду.");
+                    const isConfirmed = confirm(confirmCancelMessage);
                     if (!isConfirmed) {
                         return;
                     }
@@ -1121,7 +1176,9 @@
                                 transactions.unshift({
                                     id: 'unstake_' + Date.now(),
                                     amount: stakingAmount,
-                                    description: 'Стейкінг скасовано',
+                                    description: window.WinixLanguage ?
+                                        window.WinixLanguage.getText('staking_canceled') :
+                                        'Стейкінг скасовано',
                                     timestamp: Date.now()
                                 });
                                 localStorage.setItem('transactions', JSON.stringify(transactions));
@@ -1131,24 +1188,42 @@
 
                             // Оновлюємо інтерфейс
                             document.getElementById('user-tokens').textContent = newBalance.toFixed(2);
-                            document.getElementById('staking-status').textContent = "Наразі немає активних стейкінгів";
+
+                            // Оновлюємо статус з локалізацією
+                            const statusElement = document.getElementById('staking-status');
+                            if (statusElement) {
+                                if (window.WinixLanguage) {
+                                    statusElement.textContent = window.WinixLanguage.getText('staking.none');
+                                } else {
+                                    statusElement.textContent = "Наразі немає активних стейкінгів";
+                                }
+                            }
 
                             // Деактивуємо кнопки
                             document.getElementById('details-button').style.opacity = '0.5';
                             document.getElementById('cancel-staking-button').style.opacity = '0.5';
 
                             // Показуємо повідомлення про успіх
+                            const successMessage = window.WinixLanguage ?
+                                window.WinixLanguage.getText('staking_canceled_success') :
+                                "Стейкінг успішно скасовано";
+
                             if (window.winixUI && window.winixUI.simpleAlert) {
-                                window.winixUI.simpleAlert("Стейкінг успішно скасовано", false);
+                                window.winixUI.simpleAlert(successMessage, false);
                             } else {
-                                alert("Стейкінг успішно скасовано");
+                                alert(successMessage);
                             }
                         } catch (error) {
                             console.error("Помилка при скасуванні стейкінгу:", error);
+
+                            const errorMessage = window.WinixLanguage ?
+                                window.WinixLanguage.getText('staking_cancel_error') :
+                                "Помилка при скасуванні стейкінгу";
+
                             if (window.winixUI && window.winixUI.simpleAlert) {
-                                window.winixUI.simpleAlert("Помилка при скасуванні стейкінгу", true);
+                                window.winixUI.simpleAlert(errorMessage, true);
                             } else {
-                                alert("Помилка при скасуванні стейкінгу");
+                                alert(errorMessage);
                             }
                         }
                     }
@@ -1199,10 +1274,15 @@
                 window.location.href = page;
             } catch (error) {
                 console.error('Помилка навігації:', error);
+
+                const errorMessage = window.WinixLanguage ?
+                    window.WinixLanguage.getText('navigation_error') :
+                    'Помилка навігації';
+
                 if (window.winixUI && window.winixUI.simpleAlert) {
-                    window.winixUI.simpleAlert('Помилка навігації', true);
+                    window.winixUI.simpleAlert(errorMessage, true);
                 } else {
-                    alert('Помилка навігації');
+                    alert(errorMessage);
                 }
             }
         }

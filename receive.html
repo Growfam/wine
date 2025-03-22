@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Отримати</title>
 
+    <!-- Підключаємо спочатку мовний скрипт, потім інші скрипти -->
+    <script src="static/js/language.js"></script>
     <script src="static/js/winix-init.js"></script>
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
@@ -495,7 +497,7 @@
             <div class="balance-container">
                 <div class="jeton-balance">
                     <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label">Жетони</div>
+                    <div class="balance-label" data-lang-key="coins">Жетони</div>
                     <div class="jeton-icon"></div>
                 </div>
                 <div class="winix-balance">
@@ -508,20 +510,20 @@
         <div class="main-card">
             <button class="back-button" id="back-button">←</button>
 
-            <div class="page-title">Отримати $WINIX</div>
+            <div class="page-title" data-lang-key="receive.title">Отримати $WINIX</div>
 
             <div class="address-container">
-                <div class="info-title">Ваш ID для отримання:</div>
+                <div class="info-title" data-lang-key="receive.id">Ваш ID для отримання:</div>
                 <div class="user-id-display" id="user-id">12345678</div>
                 <button class="copy-button" id="copy-button">
                     <span class="copy-icon"></span>
-                    Копіювати ID
+                    <span data-lang-key="receive.copy_id">Копіювати ID</span>
                 </button>
             </div>
 
             <div class="info-section">
-                <div class="info-title">Як отримати $WINIX</div>
-                <div class="info-text">
+                <div class="info-title" data-lang-key="receive.how_to">Як отримати $WINIX</div>
+                <div class="info-text" data-lang-key="receive.how_to_desc">
                     Поділіться своїм ID з відправником для отримання токенів.
                     $WINIX можна отримувати тільки всередині цього додатку.
                     Після підтвердження транзакції, токени будуть автоматично
@@ -537,36 +539,36 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                Home
+                <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                Earn
+                <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                Referrals
+                <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                Wallet
+                <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                General
+                <span data-lang-key="general">General</span>
             </div>
         </div>
 
         <!-- Сповіщення про копіювання -->
-        <div class="notification" id="notification">ID скопійовано!</div>
+        <div class="notification" id="notification" data-lang-key="status.copied">ID скопійовано!</div>
     </div>
 
     <script>
@@ -640,13 +642,19 @@
                 window.location.href = page;
             } catch (error) {
                 console.error('Помилка навігації:', error);
-                showNotification('Помилка навігації', 2000);
+                showNotification(window.WinixLanguage ? window.WinixLanguage.getText('navigation_error') : 'Помилка навігації', 2000);
             }
         }
 
         // Функція для відображення сповіщення
         function showNotification(message, duration = 2000) {
             const notification = document.getElementById('notification');
+
+            // Перевіряємо, чи повідомлення має бути перекладено
+            if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
+                message = window.WinixLanguage.getText(message.substring(1));
+            }
+
             notification.textContent = message;
             notification.classList.add('show');
 
@@ -691,7 +699,7 @@
             // Копіювання тексту в буфер обміну
             navigator.clipboard.writeText(userId)
                 .then(() => {
-                    showNotification('ID скопійовано!');
+                    showNotification(window.WinixLanguage ? window.WinixLanguage.getText('status.copied') : 'ID скопійовано!');
                 })
                 .catch(err => {
                     console.error('Помилка копіювання: ', err);
@@ -704,10 +712,10 @@
                         tempInput.select();
                         document.execCommand('copy');
                         document.body.removeChild(tempInput);
-                        showNotification('ID скопійовано!');
+                        showNotification(window.WinixLanguage ? window.WinixLanguage.getText('status.copied') : 'ID скопійовано!');
                     } catch (e) {
                         console.error('Запасний спосіб копіювання не спрацював: ', e);
-                        showNotification('Помилка копіювання ID');
+                        showNotification(window.WinixLanguage ? window.WinixLanguage.getText('copy_error') : 'Помилка копіювання ID');
                     }
                 });
         });
@@ -742,6 +750,11 @@
         // Ініціалізація сторінки при завантаженні
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DOMContentLoaded: Ініціалізація сторінки отримання");
+
+            // Оновлюємо всі тексти відповідно до мови
+            if (window.WinixLanguage) {
+                window.WinixLanguage.updatePageTexts();
+            }
 
             // Викликаємо функцію адаптації при старті
             adjustLayout();
