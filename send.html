@@ -530,29 +530,40 @@
             transform: scale(0.97);
         }
 
-        /* Стилі для сповіщень */
-        .notification {
-            position: fixed;
-            top: 1.25rem; /* 20px */
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 201, 167, 0.9);
-            color: white;
-            padding: 0.75rem 1.25rem; /* 12px 20px */
-            border-radius: 0.625rem; /* 10px */
-            z-index: 1000;
-            box-shadow: 0 0.3125rem 0.9375rem rgba(0, 0, 0, 0.3);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
+        /* Стиль для повідомлень */
+.toast-message {
+    position: fixed;
+    top: 1.25rem; /* 20px */
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem; /* 12px 24px */
+    border-radius: 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    max-width: 350px;
+    width: 90%;
+}
 
-        .notification.show {
-            opacity: 1;
-        }
+.toast-message::after {
+    content: '×';
+    color: #4eb5f7;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 20px;
+}
 
-        .notification.error {
-            background: rgba(201, 0, 0, 0.9);
-        }
+.toast-message.show {
+    opacity: 1;
+    transform: translate(-50%, 0.625rem); /* -50%, 10px */
+}
 
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
@@ -639,8 +650,7 @@
             body {
                 background: linear-gradient(135deg, #141e30, #243b55);
             }
-
-            .container {
+                    .container {
                 box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
                 margin: 1.25rem auto; /* 20px auto */
                 height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */

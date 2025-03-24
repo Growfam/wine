@@ -227,6 +227,7 @@
             position: relative;
             opacity: 0.9;
             font-size: 0.9375rem;
+            -webkit-tap-highlight-color: transparent; /* Прибрати підсвічування при натисканні на мобільних */
         }
 
         .language-btn:hover {
@@ -294,6 +295,7 @@
             position: relative;
             overflow: hidden;
             height: 5rem;
+            -webkit-tap-highlight-color: transparent; /* Прибрати підсвічування при натисканні на мобільних */
         }
 
         .channel-item::before {
@@ -391,6 +393,7 @@
             position: relative;
             color: var(--text-color);
             opacity: 0.9;
+            -webkit-tap-highlight-color: transparent; /* Прибрати підсвічування при натисканні на мобільних */
         }
 
         .task-btn:hover, .task-btn:active {
@@ -403,6 +406,104 @@
             box-shadow: 0 0.0625rem 0.1875rem var(--shadow-color) !important;
             transform: translateY(0.0625rem) !important;
             opacity: 0.8;
+        }
+
+        .task-btn.verified {
+            background: linear-gradient(90deg, #2D8EB6, #52C0BD);
+            cursor: default;
+            opacity: 0.8;
+        }
+
+        /* Модальне вікно */
+        .document-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+
+        .document-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1A1A2E, #0F3460);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            margin: 20px;
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: white;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            cursor: pointer;
+            font-size: 24px;
+            color: #ccc;
+            font-weight: bold;
+        }
+
+        .modal-body {
+            color: white;
+        }
+
+        .modal-body ul {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .modal-body li {
+            margin-bottom: 8px;
+        }
+
+        .modal-body a {
+            color: #4eb5f7;
+            text-decoration: none;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .modal-button {
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 20px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
         }
 
         .nav-bar {
@@ -433,6 +534,7 @@
             justify-content: center;
             width: 20%;
             position: relative;
+            -webkit-tap-highlight-color: transparent; /* Прибрати підсвічування при натисканні на мобільних */
         }
 
         .nav-item .icon-wrapper {
@@ -469,26 +571,39 @@
         }
 
         /* Стиль для повідомлень */
-        .toast-message {
-            position: fixed;
-            top: 1.25rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 201, 167, 0.9);
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.3125rem;
-            z-index: 1000;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
-            opacity: 0;
-            transition: opacity 0.3s, transform 0.3s;
-            font-size: 0.9375rem;
-        }
+.toast-message {
+    position: fixed;
+    top: 1.25rem; /* 20px */
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem; /* 12px 24px */
+    border-radius: 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    max-width: 350px;
+    width: 90%;
+}
 
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem);
-        }
+.toast-message::after {
+    content: '×';
+    color: #4eb5f7;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.toast-message.show {
+    opacity: 1;
+    transform: translate(-50%, 0.625rem); /* -50%, 10px */
+}
 
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
@@ -625,9 +740,8 @@
         </div>
 
         <div class="language-buttons">
-            <button class="language-btn active" data-lang-key="giveaway">Giveaway</button>
-            <button class="language-btn" data-lang-key="folder">Folder</button>
-            <button class="language-btn" data-lang-key="roulette">Roulette</button>
+            <button class="language-btn active" id="giveaway-btn">Розіграш</button>
+            <button class="language-btn" id="folder-btn">Папка</button>
         </div>
 
         <!-- Таймер -->
@@ -715,7 +829,7 @@
 
         <!-- Кнопка верифікації -->
         <div class="task-buttons">
-            <button class="task-btn" id="verify-btn" data-lang-key="earn.verify">Verify Subscription</button>
+            <button class="task-btn" id="verify-btn">Перевірити підписки</button>
         </div>
 
         <!-- Навігація -->
@@ -890,23 +1004,40 @@
             'Львівський Криптан': 'https://t.me/lvivcriptan22'
         };
 
-        // Функція для безпечного відкриття посилання
+        // Функція для безпечного відкриття посилання в Telegram
         function openTelegramLink(url, channelName) {
             console.log(`Спроба відкрити посилання: ${url} для каналу ${channelName}`);
 
-            if (tg && typeof tg.openLink === 'function') {
+            if (tg && typeof tg.openTelegramLink === 'function') {
                 try {
                     const encodedUrl = encodeURI(url);
-                    tg.openLink(encodedUrl);
+                    // Використовуємо спеціальну функцію openTelegramLink для посилань Telegram
+                    tg.openTelegramLink(encodedUrl);
                 } catch (error) {
                     console.error(`Помилка при відкритті посилання через Telegram WebApp: ${error.message}`);
-                    showToast(`Помилка відкриття каналу ${channelName}`, 2000);
 
-                    // Запасний варіант
+                    // Пробуємо запасний варіант через window.open
                     try {
                         window.open(url, '_blank');
                     } catch (e) {
                         console.error(`Помилка при відкритті посилання через window.open: ${e.message}`);
+                        showToast(`Помилка відкриття каналу ${channelName}`, 2000);
+                    }
+                }
+            } else if (tg && typeof tg.openLink === 'function') {
+                try {
+                    const encodedUrl = encodeURI(url);
+                    // Запасний варіант через звичайну функцію openLink
+                    tg.openLink(encodedUrl);
+                } catch (error) {
+                    console.error(`Помилка при відкритті посилання через Telegram WebApp: ${error.message}`);
+
+                    // Пробуємо запасний варіант через window.open
+                    try {
+                        window.open(url, '_blank');
+                    } catch (e) {
+                        console.error(`Помилка при відкритті посилання через window.open: ${e.message}`);
+                        showToast(`Помилка відкриття каналу ${channelName}`, 2000);
                     }
                 }
             } else {
@@ -954,6 +1085,252 @@
             }
         }
 
+        // Оновлення текстів кнопок відповідно до мови
+        function updateButtonsText() {
+            const currentLang = localStorage.getItem('userLanguage') || 'uk';
+
+            const giveawayBtn = document.getElementById('giveaway-btn');
+            const folderBtn = document.getElementById('folder-btn');
+
+            if (currentLang === 'uk') {
+                giveawayBtn.textContent = 'Розіграш';
+                folderBtn.textContent = 'Папка';
+            } else {
+                giveawayBtn.textContent = 'Giveaway';
+                folderBtn.textContent = 'Folder';
+            }
+        }
+
+        // Функція для перевірки підписок на всі канали
+        function verifyAllSubscriptions() {
+            console.log('Перевірка підписок на всі канали...');
+            showToast('Перевірка підписок на всі канали...', 2000);
+
+            // Імітуємо асинхронну перевірку через Telegram Bot API
+            setTimeout(() => {
+                // Створюємо масив каналів для перевірки
+                const channels = [];
+                document.querySelectorAll('.channel-item').forEach(item => {
+                    const channelId = item.getAttribute('data-channel');
+                    const channelName = item.querySelector('.channel-name').textContent;
+                    channels.push({
+                        id: channelId,
+                        name: channelName,
+                        isSubscribed: false
+                    });
+                });
+
+                // Імітуємо перевірку підписок через Telegram Bot API
+                checkSubscriptionsWithBot(channels);
+            }, 1500);
+        }
+
+        // Функція для імітації перевірки через Telegram Bot
+        function checkSubscriptionsWithBot(channels) {
+            // В реальному сценарії тут буде запит до вашого бота через Telegram API
+
+            // Симулюємо результат перевірки (випадково)
+            const mockResults = simulateBotCheck(channels);
+
+            // Відображаємо результати перевірки
+            displaySubscriptionResults(mockResults);
+        }
+
+        // Функція для імітації результатів перевірки бота
+        function simulateBotCheck(channels) {
+            // Копіюємо масив каналів
+            const results = [...channels];
+
+            // У реальній програмі замість цього буде справжня перевірка через Telegram Bot API
+            // Тут ми просто генеруємо випадкові результати для демонстрації
+            const totalChannels = results.length;
+
+            // Вирішуємо випадково, скільки каналів буде з підпискою
+            const subscribedCount = Math.floor(Math.random() * (totalChannels + 1));
+
+            // Позначаємо перші N каналів як підписані
+            for (let i = 0; i < subscribedCount; i++) {
+                results[i].isSubscribed = true;
+            }
+
+            // Перемішуємо масив, щоб не завжди перші канали були підписані
+            return shuffleArray(results);
+        }
+
+        // Функція для перемішування масиву (алгоритм Фішера-Єйтса)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Функція для відображення результатів перевірки підписок
+        function displaySubscriptionResults(results) {
+            // Підраховуємо кількість каналів з підпискою та без підписки
+            const subscribedChannels = results.filter(channel => channel.isSubscribed);
+            const unsubscribedChannels = results.filter(channel => !channel.isSubscribed);
+
+            const totalChannels = results.length;
+            const subscribedCount = subscribedChannels.length;
+
+            // Перевіряємо, чи підписаний користувач на всі канали
+            if (subscribedCount === totalChannels) {
+                // Користувач підписаний на всі канали - видаємо винагороду
+                rewardUser();
+            } else {
+                // Користувач не підписаний на всі канали - показуємо, на які канали потрібно підписатися
+                showMissingSubscriptions(unsubscribedChannels);
+            }
+        }
+
+        // Функція для винагороди користувача, якщо він підписаний на всі канали
+        function rewardUser() {
+            // Перевіряємо, чи вже отримував користувач винагороду
+            const hasReceivedReward = localStorage.getItem('subscription_reward_received') === 'true';
+
+            if (hasReceivedReward) {
+                // Користувач вже отримував винагороду
+                showToast('Ви вже отримали винагороду за підписки!', 3000);
+                return;
+            }
+
+            // Визначаємо винагороду: 500 WINIX + 1 жетон
+            const winixReward = 500;
+            const coinReward = 1;
+
+            // Нараховуємо винагороду
+            if (typeof rewardSystem !== 'undefined' && typeof rewardSystem.addTokens === 'function') {
+                // Використовуємо систему винагород, якщо вона доступна
+                rewardSystem.addTokens(winixReward);
+                rewardSystem.addCoins(coinReward);
+            } else {
+                // Базове оновлення балансу, якщо rewardSystem недоступна
+                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                const currentCoins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+                localStorage.setItem('userTokens', (currentTokens + winixReward).toString());
+                localStorage.setItem('userCoins', (currentCoins + coinReward).toString());
+
+                // Оновлюємо відображення балансу
+                const tokensElement = document.getElementById('user-tokens');
+                const coinsElement = document.getElementById('user-coins');
+
+                if (tokensElement) tokensElement.textContent = (currentTokens + winixReward).toFixed(2);
+                if (coinsElement) coinsElement.textContent = (currentCoins + coinReward).toFixed(0);
+            }
+
+            // Позначаємо, що користувач отримав винагороду
+            localStorage.setItem('subscription_reward_received', 'true');
+
+            // Показуємо повідомлення про успішну винагороду
+            showToast(`Вітаємо! Ви отримали ${winixReward} $WINIX та ${coinReward} жетон за підписку на всі канали!`, 3500);
+
+            // Оновлюємо кнопку перевірки
+            updateVerifyButtonAfterReward();
+        }
+
+        // Функція для оновлення кнопки перевірки після отримання винагороди
+        function updateVerifyButtonAfterReward() {
+            const verifyBtn = document.getElementById('verify-btn');
+            if (verifyBtn) {
+                verifyBtn.textContent = 'Перевірено ✓';
+                verifyBtn.classList.add('verified');
+                verifyBtn.disabled = true;
+                verifyBtn.style.background = 'linear-gradient(90deg, #2D8EB6, #52C0BD)';
+                verifyBtn.style.opacity = '0.8';
+                verifyBtn.style.cursor = 'default';
+            }
+        }
+
+        // Функція для відображення списку каналів, на які користувач не підписаний
+        function showMissingSubscriptions(unsubscribedChannels) {
+            // Створюємо повідомлення зі списком каналів без підписки
+            let message = 'Для отримання винагороди потрібно підписатися на всі канали. Не знайдено підписку на:';
+
+            // Обмежуємо список перших 3 каналів для повідомлення toast
+            const channelsToShow = unsubscribedChannels.slice(0, 3);
+
+            channelsToShow.forEach(channel => {
+                message += `\n- ${channel.name}`;
+            });
+
+            // Якщо каналів без підписки більше 3, додаємо "..."
+            if (unsubscribedChannels.length > 3) {
+                message += `\n- та ще ${unsubscribedChannels.length - 3} каналів`;
+            }
+
+            // Показуємо повідомлення
+            showToast(message, 5000);
+
+            // Додатково можна створити модальне вікно з повним списком каналів без підписки
+            if (unsubscribedChannels.length > 3) {
+                showMissingSubscriptionsModal(unsubscribedChannels);
+            }
+        }
+
+        // Функція для створення модального вікна зі списком каналів без підписки
+        function showMissingSubscriptionsModal(unsubscribedChannels) {
+            // Перевіряємо, чи вже існує модальне вікно
+            let modal = document.getElementById('subscription-modal');
+
+            // Якщо модальне вікно вже існує, видаляємо його
+            if (modal) {
+                modal.remove();
+            }
+
+            // Створюємо нове модальне вікно
+            modal = document.createElement('div');
+            modal.id = 'subscription-modal';
+            modal.className = 'document-modal show';
+
+            // Формуємо HTML для модального вікна
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Потрібно підписатись на всі канали</h3>
+                        <span class="modal-close" onclick="document.getElementById('subscription-modal').remove()">×</span>
+                    </div>
+                    <div class="modal-body">
+                        <p>Для отримання винагороди потрібно підписатися на всі канали:</p>
+                        <ul>
+                            ${unsubscribedChannels.map(channel => `
+                                <li>
+                                    <a href="#"
+                                       data-channel="${channel.id}"
+                                       onclick="openTelegramLink(channelUrls['${channel.id}'], '${channel.name}'); return false;">
+                                        ${channel.name}
+                                    </a>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        <p>Після підписки на всі канали натисніть кнопку "Перевірити" ще раз.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="modal-button" onclick="document.getElementById('subscription-modal').remove()">Зрозуміло</button>
+                    </div>
+                </div>
+            `;
+
+            // Додаємо модальне вікно до сторінки
+            document.body.appendChild(modal);
+
+            // Закриття модального вікна при кліку за його межами
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // Перевіряємо, чи вже отримував користувач винагороду при завантаженні сторінки
+        function checkRewardStatusOnLoad() {
+            if (localStorage.getItem('subscription_reward_received') === 'true') {
+                updateVerifyButtonAfterReward();
+            }
+        }
+
         // Обробники подій при завантаженні сторінки
         document.addEventListener('DOMContentLoaded', function() {
             // Завантажуємо аватар і налаштовуємо клік на профіль
@@ -965,6 +1342,9 @@
 
             // Встановлюємо тему за замовчуванням
             updateThemeColors();
+
+            // Оновлюємо тексти кнопок
+            updateButtonsText();
 
             // Оновлюємо тексти з мовної системи
             if (window.WinixLanguage) {
@@ -985,58 +1365,58 @@
                 console.log("Баланс оновлено з localStorage");
             }
 
-            // Обробники для кнопок мови
-            document.querySelectorAll('.language-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+            // Обробник для кнопки Giveaway/Розіграш
+            const giveawayBtn = document.getElementById('giveaway-btn');
+            if (giveawayBtn) {
+                giveawayBtn.addEventListener('click', function(e) {
                     e.preventDefault();
+                    // Активуємо цю кнопку
                     document.querySelector('.language-btn.active')?.classList.remove('active');
-                    btn.classList.add('active');
+                    giveawayBtn.classList.add('active');
+                    // Залишаємося на поточній сторінці, оскільки це Giveaway
+                    console.log('Обрано режим: Giveaway/Розіграш');
+                });
+            }
 
-                    // Перехід на сторінку Folder при натисканні на відповідну кнопку
-                    if (btn.getAttribute('data-lang-key') === 'folder') {
-                        navigateToFolderPage();
-                    } else if (btn.getAttribute('data-lang-key') === 'roulette') {
-                        navigateTo('fortune-wheel.html');
-                    } else {
-                        console.log('Змінено режим на: ' + btn.textContent);
+            // Обробник для кнопки Folder/Папка
+            const folderBtn = document.getElementById('folder-btn');
+            if (folderBtn) {
+                folderBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Активуємо цю кнопку
+                    document.querySelector('.language-btn.active')?.classList.remove('active');
+                    folderBtn.classList.add('active');
+                    // Переходимо на сторінку Folder
+                    navigateToFolderPage();
+                });
+            }
+
+            // Перевіряємо статус винагороди
+            checkRewardStatusOnLoad();
+
+            // Обробник для кнопки перевірки підписок
+            const verifyBtn = document.getElementById('verify-btn');
+            if (verifyBtn) {
+                // Видаляємо старий обробник, щоб уникнути дублювання
+                const newBtn = verifyBtn.cloneNode(true);
+                verifyBtn.parentNode.replaceChild(newBtn, verifyBtn);
+
+                // Додаємо новий обробник
+                newBtn.addEventListener('click', function() {
+                    // Якщо кнопка не вимкнена
+                    if (!this.disabled) {
+                        verifyAllSubscriptions();
                     }
                 });
-            });
 
-            // Обробник для кнопки верифікації
-            document.getElementById('verify-btn').addEventListener('click', () => {
-                console.log('Натиснуто кнопку: Verify Subscription');
-
-                // Перевірка підписок і нарахування винагород
-                if (typeof rewardSystem !== 'undefined') {
-                    const channelItems = document.querySelectorAll('.channel-item');
-                    let newSubscriptions = 0;
-
-                    channelItems.forEach(item => {
-                        const channelId = item.getAttribute('data-channel-id');
-                        if (channelId && !rewardSystem.isActionCompleted(channelId)) {
-                            rewardSystem.reward(channelId, 50, 1);
-                            newSubscriptions++;
-                        }
-                    });
-
-                    if (newSubscriptions > 0) {
-                        console.log(`Нараховано винагороду за ${newSubscriptions} нових підписок`);
-                        showToast(`Вітаємо! Ви отримали винагороду за ${newSubscriptions} нових підписок!`);
-                    } else {
-                        showToast('Ви вже отримали всі винагороди за підписки!');
-                    }
-                } else {
-                    console.error("Система винагород не знайдена");
-                    showToast('Перевірка підписок...');
-                }
-            });
-
-            // Кнопку Next Page видалено за вимогою
+                // Оновлюємо текст кнопки відповідно до мови
+                const currentLang = localStorage.getItem('userLanguage') || 'uk';
+                newBtn.textContent = currentLang === 'uk' ? 'Перевірити підписки' : 'Verify Subscriptions';
+            }
 
             // Обробники для елементів навігації
             document.querySelectorAll('.nav-item').forEach(item => {
-                item.addEventListener('click', () => {
+                item.addEventListener('click', function() {
                     const section = item.getAttribute('data-section');
                     console.log(`Перехід до секції: ${section}`);
 
@@ -1069,7 +1449,7 @@
 
             // Обробники для каналів Telegram
             document.querySelectorAll('.channel-item').forEach(item => {
-                item.addEventListener('click', () => {
+                item.addEventListener('click', function() {
                     const channelId = item.getAttribute('data-channel');
                     const channelName = item.querySelector('.channel-name').textContent;
                     console.log(`Клік на канал: ${channelId} (${channelName})`);
@@ -1099,6 +1479,15 @@
         document.addEventListener('languageChanged', function() {
             if (window.WinixLanguage) {
                 window.WinixLanguage.updatePageTexts();
+            }
+            // Оновлюємо тексти кнопок при зміні мови
+            updateButtonsText();
+
+            // Оновлюємо текст кнопки перевірки
+            const verifyBtn = document.getElementById('verify-btn');
+            if (verifyBtn && !verifyBtn.disabled) {
+                const currentLang = localStorage.getItem('userLanguage') || 'uk';
+                verifyBtn.textContent = currentLang === 'uk' ? 'Перевірити підписки' : 'Verify Subscriptions';
             }
         });
     </script>

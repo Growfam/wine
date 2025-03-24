@@ -469,27 +469,40 @@
             transform: scale(1.1);
         }
 
-        /* Стиль для повідомлень про копіювання */
-        .toast-message {
-            position: fixed;
-            top: 1.25rem; /* 20px */
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 201, 167, 0.9);
-            color: white;
-            padding: 0.75rem 1.5rem; /* 12px 24px */
-            border-radius: 0.3125rem; /* 5px */
-            z-index: 1000;
-            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
-            opacity: 0;
-            transition: opacity 0.3s, transform 0.3s;
-            font-size: 0.9375rem; /* 15px */
-        }
+        /* Стиль для повідомлень */
+.toast-message {
+    position: fixed;
+    top: 1.25rem; /* 20px */
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem; /* 12px 24px */
+    border-radius: 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    max-width: 350px;
+    width: 90%;
+}
 
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem); /* -50%, 10px */
-        }
+.toast-message::after {
+    content: '×';
+    color: #4eb5f7;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.toast-message.show {
+    opacity: 1;
+    transform: translate(-50%, 0.625rem); /* -50%, 10px */
+}
 
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
