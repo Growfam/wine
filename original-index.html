@@ -1367,16 +1367,17 @@
 
             // Обробник для кнопки Giveaway/Розіграш
             const giveawayBtn = document.getElementById('giveaway-btn');
-            if (giveawayBtn) {
-                giveawayBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    // Активуємо цю кнопку
-                    document.querySelector('.language-btn.active')?.classList.remove('active');
-                    giveawayBtn.classList.add('active');
-                    // Залишаємося на поточній сторінці, оскільки це Giveaway
-                    console.log('Обрано режим: Giveaway/Розіграш');
-                });
-            }
+if (giveawayBtn) {
+    giveawayBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        // Активуємо цю кнопку
+        document.querySelector('.language-btn.active')?.classList.remove('active');
+        giveawayBtn.classList.add('active');
+
+        // Переходимо на сторінку розіграшів
+        navigateTo('raffles.html');
+    });
+}
 
             // Обробник для кнопки Folder/Папка
             const folderBtn = document.getElementById('folder-btn');
