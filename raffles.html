@@ -322,25 +322,43 @@
         }
 
         .timer-block {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-width: 3.5rem;
-        }
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 3.5rem;
+    /* Нові властивості: */
+    width: 3.5rem; /* Фіксована ширина */
+    height: 4.5rem; /* Фіксована висота */
+    justify-content: center;
+}
 
-        .timer-value {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: white;
-        }
+.timer-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: white;
+    /* Нові властивості: */
+    font-family: 'Courier New', monospace; /* Моноширинний шрифт */
+    width: 2.5rem; /* Фіксована ширина для цифр */
+    text-align: center;
+    height: 1.5rem; /* Фіксована висота */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
         .timer-label {
             font-size: 0.75rem;
             color: rgba(255, 255, 255, 0.7);
         }
+        /* Додаємо плавну анімацію при зміні цифр */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
 
         .main-raffle-participants {
             display: flex;
@@ -842,7 +860,7 @@
             border-color: var(--secondary-color);
         }
 
-        .max-button, .all-button {
+        .all-button {
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 0.625rem; /* 10px */
@@ -853,7 +871,7 @@
             transition: all 0.3s ease;
         }
 
-        .max-button:hover, .all-button:hover {
+        .all-button:hover {
             background: rgba(255, 255, 255, 0.2);
         }
 
@@ -1179,7 +1197,10 @@
             <div class="raffles-section active" id="active-raffles">
                 <!-- Основний розіграш -->
                 <div class="main-raffle">
-                    <img src="assets/prize-image.mp4" alt="Розіграш 250 USDT та 130000 WINIX" class="main-raffle-image">
+                    <video class="main-raffle-image" loop autoplay muted playsinline poster="assets/prize-poster.jpg">
+                        <source src="assets/prize-image.mp4" type="video/mp4">
+                        Ваш браузер не підтримує відео.
+                    </video>
                     <div class="main-raffle-content">
                         <div class="main-raffle-header">
                             <h3 class="main-raffle-title">GIVEAWEY</h3>
@@ -1228,7 +1249,7 @@
                         </div>
 
                         <div class="main-raffle-participants">
-                            <div class="participants-info">Учасників: <span class="participants-count">0/500</span></div>
+                            <div class="participants-info">Учасників: <span class="participants-count">0</span></div>
                             <div class="share-container">
                                 <button class="share-button" id="share-raffle-btn">
                                      Поділитися
@@ -1340,7 +1361,10 @@
                     <h2 class="modal-title" id="main-modal-title">Гранд Розіграш</h2>
                     <span class="modal-close" id="main-modal-close">×</span>
                 </div>
-                <img src="assets/prize-image.mp4" alt="Розіграш 250 USDT та 130000 WINIX" class="prize-image" id="main-prize-image">
+                <video class="prize-image" id="main-prize-image" loop autoplay muted playsinline poster="assets/prize-poster.jpg">
+                    <source src="assets/prize-image.mp4" type="video/mp4">
+                    Ваш браузер не підтримує відео.
+                </video>
                 <div class="prize-details">
                     <div class="detail-item">
                         <div class="detail-label">Приз:</div>
@@ -1352,25 +1376,24 @@
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="main-participants">0/500</div>
+                        <div class="detail-value" id="main-participants">0</div>
                     </div>
                 </div>
                 <div class="prize-description" id="main-description">
-                    Грандіозний розіграш з призовим фондом 250 USDT та 130,000 WINIX! 10 щасливих переможців отримають цінні призи. Перше місце - 125$ та 10,000 WINIX, друге - 75$ та 8,000 WINIX, третє - 50$ та 5,000 WINIX. Місця з 4 по 10 отримають по 15,000 WINIX! Кожен додатковий жетон збільшує ваші шанси на перемогу!
+                    Грандіозний розіграш з призовим фондом 250 USDT та 130,000 WINIX! 10 щасливих переможців отримають цінні призи. Перше місце - 125$ та 10,000 WINIX, друге - 75$ та 8,000 WINIX, третє - 50$ та 5,000 WINIX. Місця з 4 по 10 отримають по 15,000 WINIX!
                 </div>
                 <div class="participation-info">
                     <h3>Умови участі:</h3>
                     <ul>
-                        <li>Для участі потрібен мінімум 1 жетон (максимум 50)</li>
-                        <li>Кожен додатковий жетон збільшує ваші шанси на перемогу</li>
+                        <li>Для участі потрібен 1 жетон</li>
+                        <li>Розіграш проводиться серед всіх учасників</li>
                         <li>Переможці визначаються автоматично після закінчення часу розіграшу</li>
                         <li>Результати будуть опубліковані одразу після завершення</li>
                     </ul>
                 </div>
                 <div class="token-input-container">
-                    <input type="number" class="token-input" id="main-token-amount" placeholder="Кількість жетонів" min="1" max="50" value="1">
-                    <button class="max-button" id="main-max-tokens-btn">MAX</button>
-                    <button class="all-button" id="main-all-tokens-btn">ВСІ</button>
+                    <input type="number" class="token-input" id="main-token-amount" placeholder="Кількість жетонів" min="1" max="1" value="1">
+                    <button class="all-button" id="main-all-tokens-btn" style="display: none;">ВСІ</button>
                 </div>
                 <button class="join-button" id="main-join-btn" data-raffle-id="raffle1" data-raffle-type="main">Взяти участь</button>
             </div>
@@ -1383,7 +1406,10 @@
                     <h2 class="modal-title" id="daily-modal-title">Щоденний розіграш</h2>
                     <span class="modal-close" id="daily-modal-close">×</span>
                 </div>
-                <img src="assets/daily-prize.mp4" alt="Щоденний розіграш WINIX" class="prize-image" id="daily-prize-image">
+                <video class="prize-image" id="daily-prize-image" loop autoplay muted playsinline poster="assets/daily-prize-poster.jpg">
+                    <source src="assets/daily-prize.mp4" type="video/mp4">
+                    Ваш браузер не підтримує відео.
+                </video>
                 <div class="prize-details">
                     <div class="detail-item">
                         <div class="detail-label">Приз:</div>
@@ -1399,21 +1425,20 @@
                     </div>
                 </div>
                 <div class="prize-description" id="daily-description">
-                    Щоденний розіграш 30,000 WINIX для 15 переможців! Кожен переможець отримає по 2,000 WINIX. Розіграш проводиться щодня, переможці визначаються автоматично о 12:00. Чим більше жетонів ви використаєте, тим вищі шанси на перемогу!
+                    Щоденний розіграш 30,000 WINIX для 15 переможців! Кожен переможець отримає по 2,000 WINIX. Розіграш проводиться щодня, переможці визначаються автоматично о 12:00.
                 </div>
                 <div class="participation-info">
                     <h3>Умови участі:</h3>
                     <ul>
-                        <li>Для участі потрібен мінімум 1 жетон (максимум 50)</li>
-                        <li>Кожен додатковий жетон збільшує ваші шанси на перемогу</li>
+                        <li>Для участі потрібен 1 жетон</li>
+                        <li>Розіграш проводиться серед всіх учасників</li>
                         <li>Переможці визначаються щодня о 12:00</li>
                         <li>Результати з'являться в історії розіграшів</li>
                     </ul>
                 </div>
                 <div class="token-input-container">
-                    <input type="number" class="token-input" id="daily-token-amount" placeholder="Кількість жетонів" min="1" max="50" value="1">
-                    <button class="max-button" id="daily-max-tokens-btn">MAX</button>
-                    <button class="all-button" id="daily-all-tokens-btn">ВСІ</button>
+                    <input type="number" class="token-input" id="daily-token-amount" placeholder="Кількість жетонів" min="1" max="1" value="1">
+                    <button class="all-button" id="daily-all-tokens-btn" style="display: none;">ВСІ</button>
                 </div>
                 <button class="join-button" id="daily-join-btn" data-raffle-id="mini1" data-raffle-type="daily">Взяти участь</button>
             </div>
@@ -1445,7 +1470,45 @@
             // Завантажуємо дані розіграшів та історію
             loadRafflesData();
             loadRaffleHistory();
+
+            // Забезпечуємо відтворення відео на мобільних пристроях
+            ensureVideoPlayback();
         });
+
+        // Функція для забезпечення відтворення відео на мобільних пристроях
+        function ensureVideoPlayback() {
+            const videos = document.querySelectorAll('video');
+
+            videos.forEach(video => {
+                // Перезапускаємо відео, якщо воно зупинилось
+                video.addEventListener('canplay', function() {
+                    if (video.paused) {
+                        video.play()
+                            .catch(e => console.log('Помилка автоматичного відтворення відео:', e));
+                    }
+                });
+
+                // Спроба запустити відео при взаємодії з документом
+                document.addEventListener('touchstart', function() {
+                    if (video.paused) {
+                        video.play()
+                            .catch(e => console.log('Помилка відтворення відео при дотику:', e));
+                    }
+                }, {once: true});
+
+                // Спроба запустити відео при відкритті модального вікна
+                document.querySelectorAll('.join-button, .mini-raffle-button').forEach(button => {
+                    button.addEventListener('click', function() {
+                        setTimeout(() => {
+                            if (video.paused) {
+                                video.play()
+                                    .catch(e => console.log('Помилка відтворення відео при кліку:', e));
+                            }
+                        }, 500);
+                    });
+                });
+            });
+        }
 
         // Функція для завантаження аватара користувача
         function loadUserAvatar() {
@@ -1569,47 +1632,68 @@
 
         // Старт таймера для головного розіграшу
         function startRaffleTimer() {
-            // Встановлюємо дату закінчення розіграшу (наприклад, через 3 дні)
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() + 2);
-            endDate.setHours(endDate.getHours() + 14);
-            endDate.setMinutes(endDate.getMinutes() + 35);
-            endDate.setSeconds(endDate.getSeconds() + 22);
+    // Встановлюємо дату закінчення розіграшу
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 2);
+    endDate.setHours(endDate.getHours() + 14);
+    endDate.setMinutes(endDate.getMinutes() + 35);
+    endDate.setSeconds(endDate.getSeconds() + 22);
 
-            // Оновлюємо таймер кожну секунду
-            function updateTimer() {
-                const now = new Date();
-                const diff = endDate - now;
+    // Визначаємо загальну тривалість розіграшу (тут встановлено 3 дні)
+    const totalDuration = 3 * 24 * 60 * 60 * 1000; // 3 дні в мілісекундах
+    const startDate = new Date(endDate.getTime() - totalDuration);
 
-                if (diff <= 0) {
-                    // Розіграш завершено
-                    document.getElementById('days').textContent = '00';
-                    document.getElementById('hours').textContent = '00';
-                    document.getElementById('minutes').textContent = '00';
-                    document.getElementById('seconds').textContent = '00';
-                    clearInterval(timerInterval);
-                    return;
-                }
+    // Оновлюємо таймер кожну секунду
+    function updateTimer() {
+        const now = new Date();
+        const diff = endDate - now;
 
-                // Розрахунок днів, годин, хвилин та секунд
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        if (diff <= 0) {
+            // Розіграш завершено
+            document.getElementById('days').textContent = '00';
+            document.getElementById('hours').textContent = '00';
+            document.getElementById('minutes').textContent = '00';
+            document.getElementById('seconds').textContent = '00';
 
-                // Оновлення елементів таймера
-                document.getElementById('days').textContent = String(days).padStart(2, '0');
-                document.getElementById('hours').textContent = String(hours).padStart(2, '0');
-                document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
-                document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+            // Заповнюємо прогрес-бар на 100%
+            const progressBar = document.querySelector('.progress');
+            if (progressBar) {
+                progressBar.style.width = '100%';
             }
 
-            // Початкове оновлення таймера
-            updateTimer();
-
-            // Запуск таймера з інтервалом 1 секунда
-            const timerInterval = setInterval(updateTimer, 1000);
+            clearInterval(timerInterval);
+            return;
         }
+
+        // Розрахунок днів, годин, хвилин та секунд
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        // Оновлення елементів таймера
+        document.getElementById('days').textContent = String(days).padStart(2, '0');
+        document.getElementById('hours').textContent = String(hours).padStart(2, '0');
+        document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
+        document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+
+        // Розрахунок прогресу (скільки відсотків часу вже пройшло)
+        const elapsedTime = now - startDate;
+        const progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalDuration) * 100));
+
+        // Оновлення прогрес-бару
+        const progressBar = document.querySelector('.progress');
+        if (progressBar) {
+            progressBar.style.width = `${progressPercentage}%`;
+        }
+    }
+
+    // Початкове оновлення таймера
+    updateTimer();
+
+    // Запуск таймера з інтервалом 1 секунда
+    const timerInterval = setInterval(updateTimer, 1000);
+}
 
         // Встановлення обробників подій
         function setupEventHandlers() {
@@ -1672,15 +1756,6 @@
                 document.getElementById('daily-raffle-modal').classList.remove('open');
             });
 
-            // Обробники для кнопок MAX в модальних вікнах
-            document.getElementById('main-max-tokens-btn').addEventListener('click', function() {
-                setMaxTokens('main-token-amount');
-            });
-
-            document.getElementById('daily-max-tokens-btn').addEventListener('click', function() {
-                setMaxTokens('daily-token-amount');
-            });
-
             // Обробники для кнопок ВСІ в модальних вікнах
             document.getElementById('main-all-tokens-btn').addEventListener('click', function() {
                 setAllTokens('main-token-amount');
@@ -1703,13 +1778,13 @@
                 participateInRaffle(raffleId, raffleType, 'daily-token-amount');
             });
 
-            // Обробники для полів вводу жетонів (обмеження до 50)
+            // Обробники для полів вводу жетонів
             document.getElementById('main-token-amount').addEventListener('input', function() {
-                limitTokenAmount(this, 50);
+                limitTokenAmount(this);
             });
 
             document.getElementById('daily-token-amount').addEventListener('input', function() {
-                limitTokenAmount(this, 50);
+                limitTokenAmount(this);
             });
 
             // Обробники для навігаційних елементів
@@ -1733,24 +1808,16 @@
         }
 
         // Функція обмеження кількості жетонів
-        function limitTokenAmount(input, maxValue) {
+        function limitTokenAmount(input) {
             let value = parseInt(input.value);
             if (isNaN(value)) {
                 input.value = 1;
             } else if (value < 1) {
                 input.value = 1;
-            } else if (value > maxValue) {
-                input.value = maxValue;
-                showToast(`Максимальна кількість жетонів: ${maxValue}`, 2000);
+            } else if (value > 1) {
+                input.value = 1;
+                showToast('Максимальна кількість жетонів: 1', 2000);
             }
-        }
-
-        // Функція встановлення максимальної кількості жетонів
-        function setMaxTokens(inputId) {
-            const input = document.getElementById(inputId);
-            const coinsBalance = parseInt(document.getElementById('user-coins').textContent);
-            const maxAllowed = Math.min(coinsBalance, 50);
-            input.value = maxAllowed;
         }
 
         // Функція встановлення всіх доступних жетонів
@@ -1758,11 +1825,11 @@
             const input = document.getElementById(inputId);
             const coinsBalance = parseInt(document.getElementById('user-coins').textContent);
 
-            if (coinsBalance > 50) {
-                input.value = 50;
-                showToast('Максимально можна використати 50 жетонів', 2500);
+            if (coinsBalance < 1) {
+                showToast('У вас немає жетонів для участі в розіграші', 2000);
             } else {
-                input.value = coinsBalance;
+                input.value = 1; // Завжди 1 жетон
+                showToast('Додано 1 жетон для участі в розіграші', 2000);
             }
         }
 
@@ -1800,7 +1867,6 @@
             // За замовчуванням встановлюємо 1 жетон
             const inputId = raffleType === 'daily' ? 'daily-token-amount' : 'main-token-amount';
             document.getElementById(inputId).value = 1;
-
             // Оновлюємо кнопку участі
             const btnId = raffleType === 'daily' ? 'daily-join-btn' : 'main-join-btn';
             const joinBtn = document.getElementById(btnId);
@@ -1815,11 +1881,9 @@
                 document.getElementById('daily-participants').textContent = '125';
             } else {
                 document.getElementById('main-modal-title').textContent = 'Гранд Розіграш';
-
-                document.getElementById('main-modal-title').textContent = 'Гранд Розіграш';
                 document.getElementById('main-prize-value').textContent = '250 USDT + 130,000 WINIX (10 переможців)';
                 document.getElementById('main-end-time').textContent = '26 березня 2025, 15:00';
-                document.getElementById('main-participants').textContent = '0/500';
+                document.getElementById('main-participants').textContent = '0';
             }
 
             // Відкриваємо модальне вікно
@@ -1839,29 +1903,47 @@
 
             // Імітуємо запит до сервера
             setTimeout(() => {
-                // Нараховуємо бонус (150 WINIX)
-                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                localStorage.setItem('userTokens', (currentTokens + 150).toString());
+                try {
+                    // Додаткова перевірка для уникнення подвійного нарахування
+                    if(localStorage.getItem('newbie_bonus_claimed') === 'true') {
+                        showToast('Ви вже отримали бонус новачка!', 3000);
+                        document.getElementById('loading-spinner').classList.remove('show');
+                        return;
+                    }
 
-                // Позначаємо, що бонус отримано
-                localStorage.setItem('newbie_bonus_claimed', 'true');
+                    // Фіксована сума бонусу - САМЕ 150 WINIX
+                    const bonusAmount = 150;
 
-                // Оновлюємо відображення балансу
-                updateBalanceDisplay();
+                    // Нараховуємо бонус (150 WINIX)
+                    const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    localStorage.setItem('userTokens', (currentTokens + bonusAmount).toString());
 
-                // Приховуємо індикатор завантаження
-                document.getElementById('loading-spinner').classList.remove('show');
+                    // Позначаємо, що бонус отримано, ПЕРЕД оновленням UI
+                    localStorage.setItem('newbie_bonus_claimed', 'true');
 
-                // Показуємо повідомлення про успіх
-                showToast('Вітаємо! Ви отримали 150 WINIX як бонус новачка!', 3000);
+                    // Оновлюємо відображення балансу
+                    updateBalanceDisplay();
 
-                // Оновлюємо кнопку
-                const button = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
-                if (button) {
-                    button.textContent = 'Отримано';
-                    button.disabled = true;
-                    button.style.opacity = '0.6';
-                    button.style.cursor = 'default';
+                    // Приховуємо індикатор завантаження
+                    document.getElementById('loading-spinner').classList.remove('show');
+
+                    // Показуємо повідомлення про успіх
+                    showToast(`Вітаємо! Ви отримали ${bonusAmount} WINIX як бонус новачка!`, 3000);
+
+                    // Оновлюємо кнопку
+                    const button = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
+                    if (button) {
+                        button.textContent = 'Отримано';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'default';
+                    }
+                } catch (error) {
+                    console.error('Помилка при отриманні бонусу новачка:', error);
+                    showToast('Сталася помилка при отриманні бонусу', 3000);
+                } finally {
+                    // Приховуємо індикатор завантаження
+                    document.getElementById('loading-spinner').classList.remove('show');
                 }
             }, 1500);
         }
@@ -1918,9 +2000,10 @@
                 return;
             }
 
-            if (tokenAmount > 50) {
-                showToast('Максимальна кількість жетонів: 50', 3000);
-                document.getElementById(inputId).value = 50;
+            // Обмеження максимальної кількості жетонів до 1
+            if (tokenAmount > 1) {
+                showToast('Максимальна кількість жетонів: 1', 3000);
+                document.getElementById(inputId).value = 1;
                 return;
             }
 
@@ -1965,7 +2048,7 @@
                 document.getElementById('loading-spinner').classList.remove('show');
 
                 // Показуємо повідомлення про успіх
-                let message = `Ви успішно взяли участь у розіграші ${tokenAmount > 1 ? `з ${tokenAmount} жетонами` : ''}`;
+                let message = `Ви успішно взяли участь у розіграші`;
                 showToast(message, 3000);
 
                 // Якщо це перший розіграш, показуємо додаткове повідомлення про бонус
@@ -1983,32 +2066,35 @@
         // Функція для оновлення кількості учасників розіграшу
         function updateRaffleParticipation(raffleId, raffleType) {
             if (raffleType === 'main') {
-                // Оновлюємо відображення для головного розіграшу
+                // Оновлюємо відображення на сторінці для головного розіграшу
                 const participantsElement = document.querySelector('.participants-count');
                 if (participantsElement) {
-                    const [current, total] = participantsElement.textContent.split('/');
-                    const newCurrent = parseInt(current) + 1;
-                    participantsElement.textContent = `${newCurrent}/${total}`;
+                    // Отримуємо поточне значення кількості учасників і збільшуємо на 1
+                    const currentCount = parseInt(participantsElement.textContent) || 0;
+                    const newCount = currentCount + 1;
+                    participantsElement.textContent = newCount.toString();
 
                     // Оновлюємо прогрес-бар
                     const progressBar = document.querySelector('.progress');
                     if (progressBar) {
-                        const progressPercent = (newCurrent / parseInt(total)) * 100;
-                        progressBar.style.width = `${progressPercent}%`;
+                        // Збільшуємо заповнення прогрес-бара на 2% за кожного учасника, максимум до 100%
+                        let currentWidth = parseFloat(progressBar.style.width) || 0;
+                        currentWidth = Math.min(currentWidth + 2, 100);
+                        progressBar.style.width = `${currentWidth}%`;
                     }
 
                     // Оновлюємо відображення в модальному вікні
                     const modalParticipants = document.getElementById('main-participants');
                     if (modalParticipants) {
-                        modalParticipants.textContent = `${newCurrent}/${total}`;
+                        modalParticipants.textContent = newCount.toString();
                     }
                 }
             } else if (raffleType === 'daily') {
                 // Оновлюємо відображення для щоденного розіграшу
                 const dailyParticipants = document.getElementById('daily-participants');
                 if (dailyParticipants) {
-                    const current = parseInt(dailyParticipants.textContent);
-                    dailyParticipants.textContent = (current + 1).toString();
+                    const currentParticipants = parseInt(dailyParticipants.textContent) || 0;
+                    dailyParticipants.textContent = (currentParticipants + 1).toString();
                 }
             }
         }
@@ -2164,10 +2250,10 @@
             window.location.href = url;
         }
         // Функція для повернення назад
-function goBack() {
-    // Повертаємось на головну сторінку
-    window.location.href = 'original-index.html';
-}
+        function goBack() {
+            // Повертаємось на головну сторінку
+            window.location.href = 'original-index.html';
+        }
     </script>
 </body>
 </html>
