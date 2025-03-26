@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WINIX Blockchain</title>
+
+    <!-- Telegram WebApp API -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <style>
+        /* Змінні для адаптивності */
+        :root {
+            /* Основні кольори для теми */
+            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            --secondary-color: #4eb5f7;
+            --bg-card: rgba(30, 39, 70, 0.8);
+            --bg-item: rgba(20, 30, 60, 0.7);
+            --bg-active: rgba(0, 201, 167, 0.3);
+            --text-color: #fff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --glow-color: rgba(0, 201, 167, 0.5);
+            --border-color: rgba(78, 181, 247, 0.2);
+
+            /* Основні розміри */
+            --container-max-width: 37.5rem; /* 600px */
+            --header-height: 3.5rem; /* 56px */
+            --nav-height: 4.5rem; /* 72px */
+            --bottom-padding: 6rem; /* 96px */
+            --card-border-radius: 1.5rem; /* 24px */
+            --item-border-radius: 0.75rem; /* 12px */
+        }
+
+        /* Базові стилі */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-color);
+            background: transparent; /* Прозорий фон для повної інтеграції */
+        }
+
+        #root {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Основний контейнер */
+        .app-container {
+            width: 100%;
+            height: 100vh;
+            max-width: 100%;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background-color: rgba(13, 14, 25, 0.98); /* Темніший фон як на скріншоті */
+            background-image: url('assets/Fon.png');
+            background-size: cover;
+            background-position: center;
+            animation: backgroundShift 15s infinite linear;
+        }
+
+        @keyframes backgroundShift {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 10% 10%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        /* 3D сцена */
+        .scene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            perspective: 62.5rem; /* 1000px */
+            overflow: hidden;
+        }
+
+        /* Кубічні блоки */
+        .cube {
+            position: absolute;
+            width: 5rem; /* 80px */
+            height: 5rem; /* 80px */
+            transform-style: preserve-3d;
+            animation: cubeSpin 20s infinite linear;
+            opacity: 0.1;
+        }
+
+        .cube-1 {
+            top: 10%;
+            left: 10%;
+            animation-duration: 24s;
+            animation-delay: -2s;
+        }
+
+        .cube-2 {
+            top: 75%;
+            left: 80%;
+            animation-duration: 30s;
+            animation-delay: -5s;
+        }
+
+        .cube-3 {
+            top: 60%;
+            left: 15%;
+            animation-duration: 28s;
+            animation-delay: -10s;
+        }
+
+        .cube-4 {
+            top: 20%;
+            left: 85%;
+            animation-duration: 22s;
+            animation-delay: -15s;
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            background: rgba(64, 224, 208, 0.03);
+            backface-visibility: visible;
+        }
+
+        .cube-face-front { transform: translateZ(2.5rem); } /* 40px */
+        .cube-face-back { transform: rotateY(180deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-right { transform: rotateY(90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-left { transform: rotateY(-90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-top { transform: rotateX(90deg) translateZ(2.5rem); } /* 40px */
+        .cube-face-bottom { transform: rotateX(-90deg) translateZ(2.5rem); } /* 40px */
+
+        @keyframes cubeSpin {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+        }
+
+        /* Активні частинки */
+        .particles-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 0.125rem; /* 2px */
+            height: 0.125rem; /* 2px */
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
+            border-radius: 50%;
+            filter: blur(0.0625rem); /* 1px */
+            animation: particleFloat linear infinite;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translate(0, 0);
+                opacity: 0;
+            }
+            10% {
+                opacity: var(--opacity, 0.3);
+            }
+            90% {
+                opacity: var(--opacity, 0.3);
+            }
+            100% {
+                transform: translate(var(--tx, 6.25rem), var(--ty, 6.25rem)); /* 100px */
+                opacity: 0;
+            }
+        }
+
+        /* Фонова сітка */
+        .grid-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(64, 224, 208, 0.05) 0.0625rem, transparent 0.0625rem), /* 1px */
+                linear-gradient(90deg, rgba(64, 224, 208, 0.05) 0.0625rem, transparent 0.0625rem); /* 1px */
+            background-size: 2.5rem 2.5rem; /* 40px */
+            opacity: 0.15;
+            animation: gridMove 60s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(2.5rem, 2.5rem); } /* 40px */
+        }
+
+        /* Радіальний градієнт */
+        .radial-gradient {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(64, 224, 208, 0.1) 0%, rgba(21, 24, 48, 0) 60%);
+            animation: pulseGradient 8s ease-in-out infinite;
+        }
+
+        @keyframes pulseGradient {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Пульсуючі хвилі */
+        .pulse-waves {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .wave {
+            position: absolute;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            border-radius: 50%;
+            animation: waveExpand 6s ease-out infinite;
+            opacity: 0;
+        }
+
+        .wave-1 { animation-delay: 0s; }
+        .wave-2 { animation-delay: 2s; }
+        .wave-3 { animation-delay: 4s; }
+
+        @keyframes waveExpand {
+            0% {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem; /* 50px */
+                opacity: 0.5;
+            }
+            100% {
+                width: 56.25rem; /* 900px */
+                height: 56.25rem; /* 900px */
+                opacity: 0;
+            }
+        }
+
+        /* Контейнер для контенту */
+        .content-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 31.25rem; /* 500px */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 1.25rem; /* 0 20px */
+        }
+
+        /* Логотип */
+        .logo-container {
+            position: relative;
+            margin-bottom: 3.75rem; /* 60px */
+            transform: scale(0.8);
+            opacity: 0;
+            animation: logoAppear 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes logoAppear {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .logo-orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 13.75rem; /* 220px */
+            height: 13.75rem; /* 220px */
+            border-radius: 50%;
+            border: 0.0625rem solid rgba(64, 224, 208, 0.3); /* 1px */
+            animation: orbitRotate 20s linear infinite;
+        }
+
+        .orbit-1 { width: 13.75rem; height: 13.75rem; animation-duration: 20s; } /* 220px */
+        .orbit-2 { width: 17.5rem; height: 17.5rem; animation-duration: 25s; } /* 280px */
+        .orbit-3 { width: 21.25rem; height: 21.25rem; animation-duration: 30s; } /* 340px */
+
+        @keyframes orbitRotate {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        .orbit-dot {
+            position: absolute;
+            width: 0.5rem; /* 8px */
+            height: 0.5rem; /* 8px */
+            background: #40E0D0;
+            border-radius: 50%;
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0.9375rem #40E0D0; /* 15px */
+        }
+
+        .logo-frame {
+            position: relative;
+            width: 10rem; /* 160px */
+            height: 10rem; /* 160px */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hexagon {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #151830, #1E2040);
+            clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 1.875rem rgba(64, 224, 208, 0.3); /* 30px */
+            animation: hexPulse 4s ease-in-out infinite;
+        }
+
+        @keyframes hexPulse {
+            0%, 100% { filter: drop-shadow(0 0 0.9375rem rgba(64, 224, 208, 0.2)); } /* 15px */
+            50% { filter: drop-shadow(0 0 1.5625rem rgba(64, 224, 208, 0.5)); } /* 25px */
+        }
+
+        .logo-letter {
+            font-size: 5rem; /* 80px */
+            font-weight: 800;
+            color: transparent;
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
+            background-clip: text;
+            -webkit-background-clip: text;
+            text-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.5); /* 20px */
+            animation: textPulse 4s ease-in-out infinite;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
+        }
+
+        .brand-name {
+            text-align: center;
+            margin-top: 1.25rem; /* 20px */
+        }
+
+        .main-title {
+            font-size: 3rem; /* 48px */
+            font-weight: 800;
+            letter-spacing: 0.625rem; /* 10px */
+            background: linear-gradient(to right, #FFFFFF, #A0EEFF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 0.3125rem; /* 5px */
+            text-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.3); /* 20px */
+        }
+
+        .sub-title {
+            font-size: 1rem; /* 16px */
+            font-weight: 400;
+            letter-spacing: 0.25rem; /* 4px */
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+        }
+
+        /* Селектор мови */
+        .language-selector {
+            width: 100%;
+            max-width: 25rem; /* 400px */
+            background: rgba(21, 24, 48, 0.8);
+            backdrop-filter: blur(0.625rem); /* 10px */
+            -webkit-backdrop-filter: blur(0.625rem); /* 10px */
+            border-radius: 1.25rem; /* 20px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            padding: 1.875rem; /* 30px */
+            animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform: translateY(1.875rem); /* 30px */
+            opacity: 0;
+            animation-delay: 1s;
+            box-shadow: 0 0 1.875rem rgba(0, 0, 0, 0.3); /* 30px */
+        }
+
+        @keyframes cardSlideUp {
+            0% {
+                transform: translateY(1.875rem); /* 30px */
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .selector-title {
+            text-align: center;
+            font-size: 1.5rem; /* 24px */
+            font-weight: 600;
+            margin-bottom: 1.875rem; /* 30px */
+            color: white;
+        }
+
+        .language-options {
+            display: flex;
+            gap: 0.9375rem; /* 15px */
+        }
+
+        .language-option {
+            flex: 1;
+            background: rgba(30, 32, 64, 0.6);
+            border: 0.0625rem solid rgba(64, 224, 208, 0.1); /* 1px */
+            border-radius: 0.9375rem; /* 15px */
+            padding: 0.9375rem; /* 15px */
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .language-option:hover {
+            background: rgba(64, 224, 208, 0.1);
+            border-color: rgba(64, 224, 208, 0.4);
+            transform: translateY(-0.3125rem); /* -5px */
+        }
+
+        .language-option.active {
+            background: linear-gradient(135deg, rgba(64, 224, 208, 0.2), rgba(63, 160, 255, 0.1));
+            border-color: rgba(64, 224, 208, 0.5);
+            box-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.2); /* 20px */
+        }
+
+        .flag-icon {
+            width: 3.75rem; /* 60px */
+            height: 3.75rem; /* 60px */
+            border-radius: 50%;
+            margin-bottom: 0.625rem; /* 10px */
+            object-fit: cover;
+            border: 0.125rem solid rgba(255, 255, 255, 0.2); /* 2px */
+            box-shadow: 0 0.3125rem 0.9375rem rgba(0, 0, 0, 0.3); /* 5px 15px */
+            transition: transform 0.3s ease;
+        }
+
+        .language-option:hover .flag-icon {
+            transform: scale(1.1);
+        }
+
+        .language-name {
+            color: white;
+            font-size: 1rem; /* 16px */
+            font-weight: 500;
+            margin-top: 0.625rem; /* 10px */
+        }
+
+        /* Екран завантаження */
+        .loading-screen {
+            width: 100%;
+            max-width: 25rem; /* 400px */
+            background: rgba(21, 24, 48, 0.8);
+            backdrop-filter: blur(0.625rem); /* 10px */
+            -webkit-backdrop-filter: blur(0.625rem); /* 10px */
+            border-radius: 1.25rem; /* 20px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            padding: 1.875rem; /* 30px */
+            box-shadow: 0 0 1.875rem rgba(0, 0, 0, 0.3); /* 30px */
+            animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform: translateY(1.875rem); /* 30px */
+            opacity: 0;
+            animation-delay: 1s;
+        }
+
+        .loading-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.9375rem; /* 15px */
+            margin-bottom: 1.5625rem; /* 25px */
+        }
+
+        .loading-spinner {
+            width: 1.875rem; /* 30px */
+            height: 1.875rem; /* 30px */
+            border: 0.1875rem solid rgba(64, 224, 208, 0.3); /* 3px */
+            border-top: 0.1875rem solid #40E0D0; /* 3px */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 0.9375rem rgba(64, 224, 208, 0.2); /* 15px */
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-title {
+            font-size: 1.5rem; /* 24px */
+            font-weight: 600;
+            color: white;
+        }
+
+        .hash-display {
+            background: rgba(21, 24, 48, 0.6);
+            border-radius: 0.625rem; /* 10px */
+            padding: 0.75rem; /* 12px */
+            font-family: monospace;
+            font-size: 0.875rem; /* 14px */
+            color: rgba(64, 224, 208, 0.8);
+            text-align: center;
+            margin-bottom: 1.5625rem; /* 25px */
+            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
+            letter-spacing: 0.0625rem; /* 1px */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            animation: hashFlicker 4s infinite;
+            box-shadow: inset 0 0 0.625rem rgba(0, 0, 0, 0.2); /* 10px */
+        }
+
+        @keyframes hashFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .loading-progress-container {
+            margin-bottom: 0.9375rem; /* 15px */
+        }
+
+        .loading-bar-wrapper {
+            width: 100%;
+            height: 0.5rem; /* 8px */
+            background: rgba(21, 24, 48, 0.6);
+            border-radius: 0.25rem; /* 4px */
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 0.3125rem rgba(0, 0, 0, 0.3); /* 5px */
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(to right, #3FA0FF, #40E0D0);
+            border-radius: 0.25rem; /* 4px */
+            transition: width 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loading-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.4),
+                transparent
+            );
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .loading-glow {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translate(50%, -50%);
+            width: 0.75rem; /* 12px */
+            height: 0.75rem; /* 12px */
+            background: #40E0D0;
+            border-radius: 50%;
+            filter: blur(0.1875rem); /* 3px */
+            box-shadow: 0 0 0.625rem #40E0D0; /* 10px */
+        }
+
+        .loading-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.625rem; /* 10px */
+        }
+
+        .loading-phase {
+            font-size: 0.875rem; /* 14px */
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .loading-percentage {
+            font-size: 0.875rem; /* 14px */
+            font-weight: 600;
+            color: #40E0D0;
+        }
+
+        /* Blockchain блоки в фоні */
+        .blockchain-blocks {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            overflow: hidden;
+        }
+
+        .chain-block {
+            position: absolute;
+            font-family: monospace;
+            font-size: 0.75rem; /* 12px */
+            color: rgba(64, 224, 208, 0.15);
+            white-space: nowrap;
+            animation: blockFloat linear infinite;
+        }
+
+        /* Адаптивність */
+        @media screen and (max-width: 768px) {
+            .orbit-1 { width: 11.25rem; height: 11.25rem; } /* 180px */
+            .orbit-2 { width: 15rem; height: 15rem; } /* 240px */
+            .orbit-3 { width: 18.75rem; height: 18.75rem; } /* 300px */
+
+            .logo-frame {
+                width: 8.75rem; /* 140px */
+                height: 8.75rem; /* 140px */
+            }
+
+            .logo-letter {
+                font-size: 4.375rem; /* 70px */
+            }
+
+            .main-title {
+                font-size: 2.375rem; /* 38px */
+                letter-spacing: 0.5rem; /* 8px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 21.875rem; /* 350px */
+                padding: 1.5625rem; /* 25px */
+            }
+
+            .cube {
+                width: 4.5rem; /* 72px */
+                height: 4.5rem; /* 72px */
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .logo-container {
+                margin-bottom: 2.5rem; /* 40px */
+            }
+
+            .orbit-1 { width: 10rem; height: 10rem; } /* 160px */
+            .orbit-2 { width: 13.75rem; height: 13.75rem; } /* 220px */
+            .orbit-3 { width: 17.5rem; height: 17.5rem; } /* 280px */
+
+            .logo-frame {
+                width: 7.5rem; /* 120px */
+                height: 7.5rem; /* 120px */
+            }
+
+            .logo-letter {
+                font-size: 3.75rem; /* 60px */
+            }
+
+            .main-title {
+                font-size: 2rem; /* 32px */
+                letter-spacing: 0.375rem; /* 6px */
+            }
+
+            .sub-title {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .language-options {
+                flex-direction: column;
+            }
+
+            .flag-icon {
+                width: 3.125rem; /* 50px */
+                height: 3.125rem; /* 50px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 18.75rem; /* 300px */
+                padding: 1.25rem; /* 20px */
+            }
+
+            .selector-title,
+            .loading-title {
+                font-size: 1.25rem; /* 20px */
+                margin-bottom: 1.25rem; /* 20px */
+            }
+
+            .cube {
+                width: 4rem; /* 64px */
+                height: 4rem; /* 64px */
+            }
+
+            .cube-face-front,
+            .cube-face-back,
+            .cube-face-right,
+            .cube-face-left,
+            .cube-face-top,
+            .cube-face-bottom {
+                transform: translateZ(2rem); /* 32px */
+            }
+
+            .loading-spinner {
+                width: 1.5rem; /* 24px */
+                height: 1.5rem; /* 24px */
+            }
+
+            .hash-display {
+                font-size: 0.75rem; /* 12px */
+                padding: 0.625rem; /* 10px */
+            }
+        }
+
+        /* Додаткова адаптивність для надмалих екранів */
+        @media screen and (max-width: 350px) {
+            .logo-container {
+                margin-bottom: 1.875rem; /* 30px */
+            }
+
+            .orbit-1 { width: 9rem; height: 9rem; } /* 144px */
+            .orbit-2 { width: 12rem; height: 12rem; } /* 192px */
+            .orbit-3 { width: 15rem; height: 15rem; } /* 240px */
+
+            .logo-frame {
+                width: 6.25rem; /* 100px */
+                height: 6.25rem; /* 100px */
+            }
+
+            .logo-letter {
+                font-size: 3.125rem; /* 50px */
+            }
+
+            .main-title {
+                font-size: 1.75rem; /* 28px */
+                letter-spacing: 0.25rem; /* 4px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 16.25rem; /* 260px */
+                padding: 1rem; /* 16px */
+            }
+
+            .flag-icon {
+                width: 2.5rem; /* 40px */
+                height: 2.5rem; /* 40px */
+            }
+
+            .language-name {
+                font-size: 0.875rem; /* 14px */
+            }
+
+            .cube {
+                width: 3.5rem; /* 56px */
+                height: 3.5rem; /* 56px */
+            }
+        }
+
+        /* Адаптивність для великих екранів */
+        @media screen and (min-width: 1200px) {
+            .orbit-1 { width: 15rem; height: 15rem; } /* 240px */
+            .orbit-2 { width: 20rem; height: 20rem; } /* 320px */
+            .orbit-3 { width: 25rem; height: 25rem; } /* 400px */
+
+            .logo-frame {
+                width: 12.5rem; /* 200px */
+                height: 12.5rem; /* 200px */
+            }
+
+            .logo-letter {
+                font-size: 6.25rem; /* 100px */
+            }
+
+            .main-title {
+                font-size: 3.75rem; /* 60px */
+            }
+
+            .language-selector,
+            .loading-screen {
+                max-width: 31.25rem; /* 500px */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const { useState, useEffect } = React;
+
+        // Компонент WinixTelegramLoader
+        function WinixTelegramLoader() {
+            const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+            const [selectedLanguage, setSelectedLanguage] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [progress, setProgress] = useState(0);
+            const [animationComplete, setAnimationComplete] = useState(false);
+            const [particles, setParticles] = useState([]);
+            const [chainBlocks, setChainBlocks] = useState([]);
+            const [loadingPhase, setLoadingPhase] = useState(0);
+
+            // Додаємо стан для адаптивності
+            const [windowSize, setWindowSize] = useState({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+
+            // Тексти для різних мов
+            const translations = {
+                uk: {
+                    select: "Оберіть мову",
+                    loading: "Завантаження",
+                    syncing: "Синхронізація з блокчейном",
+                    cryptoInit: "Ініціалізація криптогаманця",
+                    walletSetup: "Налаштування гаманця",
+                    finalizing: "Підключення смарт-контрактів",
+                    welcome: "Вітаємо у WINIX Ecosystem!",
+                    tokens: "Токени",
+                    connecting: "Підключення..."
+                },
+                en: {
+                    select: "Select language",
+                    loading: "Loading",
+                    syncing: "Syncing with blockchain",
+                    cryptoInit: "Initializing crypto wallet",
+                    walletSetup: "Setting up wallet",
+                    finalizing: "Connecting smart contracts",
+                    welcome: "Welcome to WINIX Ecosystem!",
+                    tokens: "Tokens",
+                    connecting: "Connecting..."
+                },
+                ru: {
+                    select: "Выберите язык",
+                    loading: "Загрузка",
+                    syncing: "Синхронизация с блокчейном",
+                    cryptoInit: "Инициализация криптокошелька",
+                    walletSetup: "Настройка кошелька",
+                    finalizing: "Подключение смарт-контрактов",
+                    welcome: "Добро пожаловать в WINIX Ecosystem!",
+                    tokens: "Токены",
+                    connecting: "Подключение..."
+                }
+            };
+
+            // Функція для адаптивного налаштування елементів
+            const adjustLayout = () => {
+                setWindowSize({
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                });
+
+                // Тут можна додати додаткову логіку адаптивності
+                console.log(`Розмір вікна змінено: ${window.innerWidth}x${window.innerHeight}`);
+            };
+
+            // Створення частинок та блоків ланцюга при монтуванні
+            useEffect(() => {
+                // Ініціалізація Telegram WebApp з повною інтеграцією
+                if (window.Telegram && window.Telegram.WebApp) {
+                    const tg = window.Telegram.WebApp;
+                    tg.ready();
+                    tg.expand();
+
+                    // Встановлюємо обробник зміни розміру вікна для Telegram WebApp
+                    tg.onEvent('viewportChanged', adjustLayout);
+
+                    // Налаштування стилів для повної інтеграції з Telegram
+                    document.body.style.backgroundColor = 'transparent';
+                    document.documentElement.style.backgroundColor = 'transparent';
+
+                    // Встановлюємо параметри повної інтеграції
+                    if (tg.platform !== 'unknown') {
+                        console.log("Платформа Telegram: " + tg.platform);
+
+                        // Видалення будь-яких рамок для найбільш нативного вигляду
+                        document.body.style.boxSizing = 'border-box';
+                        document.body.style.padding = '0';
+                        document.body.style.margin = '0';
+                        document.body.style.overflow = 'hidden';
+                    }
+                }
+
+                // Додаємо слухач зміни розміру вікна
+                window.addEventListener('resize', adjustLayout);
+
+                // Генерація частинок
+                const newParticles = [];
+                const particleCount = windowSize.width < 480 ? 30 : 50; // менше частинок на малих екранах
+
+                for (let i = 0; i < particleCount; i++) {
+                    const x = Math.random() * 100;
+                    const y = Math.random() * 100;
+                    const size = Math.random() * 2 + 1;
+                    const duration = Math.random() * 30 + 20;
+                    const delay = Math.random() * 10;
+                    const tx = (Math.random() - 0.5) * 200;
+                    const ty = (Math.random() - 0.5) * 200;
+                    const opacity = Math.random() * 0.3 + 0.1;
+
+                    newParticles.push({
+                        id: i,
+                        x,
+                        y,
+                        size,
+                        duration,
+                        delay,
+                        tx,
+                        ty,
+                        opacity
+                    });
+                }
+                setParticles(newParticles);
+
+                // Генерація блоків ланцюга
+                const newChainBlocks = [];
+                const blockCount = windowSize.width < 480 ? 10 : 15; // менше блоків на малих екранах
+
+                for (let i = 0; i < blockCount; i++) {
+                    const hash = Array.from({ length: 16 }, () =>
+                        Math.floor(Math.random() * 16).toString(16)
+                    ).join('');
+
+                    newChainBlocks.push({
+                        id: i,
+                        hash: `0x${hash}...`,
+                        x: Math.random() * 90 + 5,
+                        y: Math.random() * 90 + 5,
+                        size: Math.random() * 0.3 + 0.7,
+                        opacity: Math.random() * 0.2 + 0.05,
+                        duration: Math.random() * 40 + 60
+                    });
+                }
+                setChainBlocks(newChainBlocks);
+
+                // Запуск анімації та показ селектора мови
+                setTimeout(() => {
+                    setAnimationComplete(true);
+
+                    setTimeout(() => {
+                        const savedLanguage = localStorage.getItem('winixLang');
+
+                        if (savedLanguage) {
+                            setSelectedLanguage(savedLanguage);
+                            startLoading();
+                        } else {
+                            setShowLanguageSelector(true);
+                        }
+                    }, 1000);
+                }, 500);
+
+                // Функція очищення при розмонтуванні
+                return () => {
+                    window.removeEventListener('resize', adjustLayout);
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        const tg = window.Telegram.WebApp;
+                        tg.offEvent('viewportChanged', adjustLayout);
+                    }
+                };
+            }, []);
+
+            // Функція для отримання тексту фази завантаження
+            const getLoadingPhaseText = () => {
+                const phases = ['syncing', 'cryptoInit', 'walletSetup', 'finalizing', 'welcome'];
+                return translations[selectedLanguage || 'uk'][phases[loadingPhase % phases.length]];
+            };
+
+            // Функція для генерації випадкового хешу
+            const generateRandomHash = () => {
+                return Array.from({ length: 16 }, () =>
+                    Math.floor(Math.random() * 16).toString(16)
+                ).join('');
+            };
+
+            // Функція для вибору мови
+            const selectLanguage = (lang) => {
+                localStorage.setItem('winixLang', lang);
+                localStorage.setItem('userLanguage', lang); // Зберігаємо також для інших сторінок
+                setSelectedLanguage(lang);
+                setShowLanguageSelector(false);
+                startLoading();
+            };
+
+            // Функція для запуску завантаження
+            const startLoading = () => {
+                setLoading(true);
+
+                // Змінюємо фазу завантаження кожні 2-3 секунди
+                const phaseInterval = setInterval(() => {
+                    setLoadingPhase(prev => prev + 1);
+                }, 2500);
+
+                // Симулюємо завантаження
+                let currentProgress = 0;
+                const progressInterval = setInterval(() => {
+                    if (currentProgress >= 100) {
+                        clearInterval(progressInterval);
+                        clearInterval(phaseInterval);
+
+                        // Перенаправлення на головну сторінку
+                        setTimeout(() => {
+                            window.location.href = 'original-index.html';
+                        }, 1000);
+                        return;
+                    }
+
+                    // Різні швидкості завантаження для реалістичності
+                    let increment;
+                    if (currentProgress < 30) {
+                        increment = Math.random() * 2 + 0.5; // Повільний початок
+                    } else if (currentProgress < 70) {
+                        increment = Math.random() * 3 + 1; // Середня швидкість
+                    } else if (currentProgress < 90) {
+                        increment = Math.random() * 1 + 0.2; // Сповільнення під кінець
+                    } else {
+                        increment = Math.random() * 0.5 + 0.1; // Дуже повільне закінчення
+                    }
+
+                    currentProgress = Math.min(currentProgress + increment, 100);
+                    setProgress(currentProgress);
+                }, 100);
+            };
+
+            // JSX розмітка з використанням React.createElement
+            return React.createElement('div', { className: 'app-container' }, [
+                // 3D Сцена з кубами
+                React.createElement('div', { className: 'scene', key: 'scene' }, [
+                    // Куб 1
+                    React.createElement('div', { className: 'cube cube-1', key: 'cube-1' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-1-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-1-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-1-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-1-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-1-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-1-6' })
+                    ]),
+                    // Куб 2
+                    React.createElement('div', { className: 'cube cube-2', key: 'cube-2' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-2-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-2-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-2-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-2-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-2-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-2-6' })
+                    ]),
+                    // Куб 3
+                    React.createElement('div', { className: 'cube cube-3', key: 'cube-3' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-3-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-3-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-3-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-3-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-3-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-3-6' })
+                    ]),
+                    // Куб 4
+                    React.createElement('div', { className: 'cube cube-4', key: 'cube-4' }, [
+                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-4-1' }),
+                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-4-2' }),
+                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-4-3' }),
+                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-4-4' }),
+                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-4-5' }),
+                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-4-6' })
+                    ])
+                ]),
+
+                // Контейнер для частинок
+                React.createElement('div', { className: 'particles-container', key: 'particles' },
+                    particles.map(particle =>
+                        React.createElement('div', {
+                            key: `particle-${particle.id}`,
+                            className: 'particle',
+                            style: {
+                                left: `${particle.x}%`,
+                                top: `${particle.y}%`,
+                                width: `${particle.size}px`,
+                                height: `${particle.size}px`,
+                                animationDuration: `${particle.duration}s`,
+                                animationDelay: `${particle.delay}s`,
+                                '--tx': `${particle.tx}px`,
+                                '--ty': `${particle.ty}px`,
+                                '--opacity': particle.opacity
+                            }
+                        })
+                    )
+                ),
+
+                // Фон сітки
+                React.createElement('div', { className: 'grid-background', key: 'grid' }),
+
+                // Радіальний градієнт
+                React.createElement('div', { className: 'radial-gradient', key: 'radial' }),
+
+                // Пульсуючі хвилі
+                React.createElement('div', { className: 'pulse-waves', key: 'waves' }, [
+                    React.createElement('div', { className: 'wave wave-1', key: 'wave-1' }),
+                    React.createElement('div', { className: 'wave wave-2', key: 'wave-2' }),
+                    React.createElement('div', { className: 'wave wave-3', key: 'wave-3' })
+                ]),
+
+                // Блоки ланцюга
+                React.createElement('div', { className: 'blockchain-blocks', key: 'blockchain' },
+                    chainBlocks.map(block =>
+                        React.createElement('div', {
+                            key: `block-${block.id}`,
+                            className: 'chain-block',
+                            style: {
+                                left: `${block.x}%`,
+                                top: `${block.y}%`,
+                                opacity: block.opacity,
+                                transform: `scale(${block.size})`,
+                                animationDuration: `${block.duration}s`
+                            }
+                        }, block.hash)
+                    )
+                ),
+
+                // Основний контент
+                React.createElement('div', { className: 'content-container', key: 'content' }, [
+                    // Логотип
+                    React.createElement('div', { className: 'logo-container', key: 'logo' }, [
+                        // Орбіти
+                        React.createElement('div', { className: 'logo-orbit orbit-1', key: 'orbit-1' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-1' })
+                        ),
+                        React.createElement('div', { className: 'logo-orbit orbit-2', key: 'orbit-2' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-2' })
+                        ),
+                        React.createElement('div', { className: 'logo-orbit orbit-3', key: 'orbit-3' },
+                            React.createElement('div', { className: 'orbit-dot', key: 'dot-3' })
+                        ),
+
+                        // Центральний логотип
+                        React.createElement('div', { className: 'logo-frame', key: 'frame' }, [
+                            React.createElement('div', { className: 'hexagon', key: 'hex' }),
+                            React.createElement('div', { className: 'logo-letter', key: 'letter' }, 'W')
+                        ]),
+
+                        // Назва бренду
+                        React.createElement('div', { className: 'brand-name', key: 'brand' }, [
+                            React.createElement('div', { className: 'main-title', key: 'title' }, 'WINIX'),
+                            React.createElement('div', { className: 'sub-title', key: 'subtitle' }, 'Blockchain Ecosystem')
+                        ])
+                    ]),
+
+                    // Селектор мови
+                    showLanguageSelector &&
+                        React.createElement('div', { className: 'language-selector', key: 'lang-selector' }, [
+                            React.createElement('div', { className: 'selector-title', key: 'title' },
+                                translations[selectedLanguage || 'uk'].select
+                            ),
+                            React.createElement('div', { className: 'language-options', key: 'options' }, [
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'uk' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('uk'),
+                                    key: 'uk'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/ua_flag.jpg',
+                                        alt: 'Українська',
+                                        className: 'flag-icon',
+                                        key: 'flag-uk'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-uk' }, 'Українська')
+                                ]),
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'en' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('en'),
+                                    key: 'en'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/en_flag.jpg',
+                                        alt: 'English',
+                                        className: 'flag-icon',
+                                        key: 'flag-en'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-en' }, 'English')
+                                ]),
+                                React.createElement('div', {
+                                    className: `language-option ${selectedLanguage === 'ru' ? 'active' : ''}`,
+                                    onClick: () => selectLanguage('ru'),
+                                    key: 'ru'
+                                }, [
+                                    React.createElement('img', {
+                                        src: 'assets/ru_flag.jpg',
+                                        alt: 'Русский',
+                                        className: 'flag-icon',
+                                        key: 'flag-ru'
+                                    }),
+                                    React.createElement('div', { className: 'language-name', key: 'name-ru' }, 'Русский')
+                                ])
+                            ])
+                        ]),
+
+                    // Екран завантаження
+                    loading &&
+                        React.createElement('div', { className: 'loading-screen', key: 'loading' }, [
+                            React.createElement('div', { className: 'loading-header', key: 'header' }, [
+                                React.createElement('div', { className: 'loading-spinner', key: 'spinner' }),
+                                React.createElement('div', { className: 'loading-title', key: 'title' },
+                                    translations[selectedLanguage || 'uk'].loading
+                                )
+                            ]),
+                            React.createElement('div', { className: 'hash-display', key: 'hash' },
+                                `TX: 0x${generateRandomHash()}`
+                            ),
+                            React.createElement('div', { className: 'loading-progress-container', key: 'progress-container' }, [
+                                React.createElement('div', { className: 'loading-bar-wrapper', key: 'bar-wrapper' }, [
+                                    React.createElement('div', {
+                                        className: 'loading-bar',
+                                        style: { width: `${progress}%` },
+                                        key: 'bar'
+                                    }),
+                                    React.createElement('div', {
+                                        className: 'loading-glow',
+                                        style: { left: `${progress}%` },
+                                        key: 'glow'
+                                    })
+                                ]),
+                                React.createElement('div', { className: 'loading-info', key: 'info' }, [
+                                    React.createElement('div', { className: 'loading-phase', key: 'phase' },
+                                        getLoadingPhaseText()
+                                    ),
+                                    React.createElement('div', { className: 'loading-percentage', key: 'percentage' },
+                                        `${Math.round(progress)}%`
+                                    )
+                                ])
+                            ])
+                        ])
+                ])
+            ]);
+        }
+
+        // Рендеринг компонента
+        ReactDOM.render(
+            React.createElement(WinixTelegramLoader),
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
