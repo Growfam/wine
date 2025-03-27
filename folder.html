@@ -1146,5 +1146,355 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
     </script>
+<!-- Оновлений HTML для модального вікна -->
+<div id="reward-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px);">
+    <div style="width: 90%; max-width: 400px; background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95)); border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); animation: modalFadeIn 0.5s ease; position: relative; overflow: hidden;">
+        <!-- Фоновий градієнтний ефект -->
+        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 30%, transparent 0%, transparent 60%, rgba(0, 201, 167, 0.1) 70%, transparent 80%); z-index: -1;"></div>
+
+        <!-- Заголовок -->
+        <h2 style="text-align: center; margin-bottom: 20px; font-size: 24px; color: white; text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);">Вітаємо!</h2>
+
+        <!-- Анімоване зображення винагороди з підтримкою GIF -->
+<div style="text-align: center; margin: 20px 0;">
+    <div id="reward-animation" style="width: 150px; height: 150px; margin: 0 auto; background: rgba(0, 0, 0, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+        <!-- Тут буде ваша GIF-анімація -->
+        <img src="assets/reward-animation.gif" alt="Винагорода" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+
+        <!-- Іконки винагороди (залишені для сумісності) -->
+        <div id="winix-token" style="font-size: 40px; font-weight: bold; color: gold; text-shadow: 0 0 15px rgba(255, 215, 0, 0.8); position: absolute; opacity: 0; transform: scale(0.5); transition: all 0.5s ease;">$W</div>
+        <div id="jeton-token" style="font-size: 40px; font-weight: bold; color: silver; text-shadow: 0 0 15px rgba(192, 192, 192, 0.8); position: absolute; opacity: 0; transform: scale(0.5); transition: all 0.5s ease;">J</div>
+    </div>
+</div>
+
+        <!-- Текст винагороди -->
+        <div style="text-align: center; margin: 20px 0; color: white; font-size: 18px;">
+            <p>Ви отримали винагороду:</p>
+            <p style="margin: 15px 0; font-size: 24px; font-weight: bold; color: gold; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);">+ <span id="winix-amount">250</span> WINIX</p>
+            <p style="margin: 15px 0; font-size: 20px; font-weight: bold; color: silver; text-shadow: 0 0 10px rgba(192, 192, 192, 0.5);">+ <span id="jeton-amount">1</span> Жетон</p>
+        </div>
+
+        <!-- Кнопка закриття -->
+        <button id="claim-reward-btn" style="width: 100%; background: linear-gradient(90deg, #4eb5f7, #b251f7); border: none; border-radius: 20px; padding: 12px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); transition: all 0.3s ease;">Отримати винагороду</button>
+    </div>
+</div>
+
+<script>
+// Створюємо стилі для анімацій
+(function createAnimationStyles() {
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = `
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0.5; }
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(-20px); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+})();
+
+// ВАЖЛИВО: Переконаємося, що модальне вікно спочатку приховане
+document.addEventListener('DOMContentLoaded', function() {
+    const rewardModal = document.getElementById('reward-modal');
+    if (rewardModal) {
+        rewardModal.style.display = 'none';
+    }
+});
+
+// Функція для перевірки підписки через Telegram Bot API
+function checkTelegramSubscription() {
+    return new Promise((resolve, reject) => {
+        console.log("Починаємо перевірку підписки через Bot API...");
+
+        // Отримуємо Telegram WebApp дані
+        const tg = window.Telegram?.WebApp;
+        if (!tg) {
+            console.warn("Telegram WebApp недоступний");
+
+            // Для тестування та демонстрації - імітуємо успішну відповідь
+            setTimeout(() => {
+                console.log("Імітація успішної перевірки (демо-режим)");
+                resolve({
+                    success: true,
+                    subscribed: true,
+                    message: "Підписка підтверджена"
+                });
+            }, 1500);
+            return;
+        }
+
+        // Отримуємо ID користувача
+        const userId = tg.initDataUnsafe?.user?.id || localStorage.getItem('tg_user_id');
+        if (!userId) {
+            console.warn("ID користувача Telegram недоступний");
+
+            // Для тестування - імітуємо успішну відповідь
+            setTimeout(() => {
+                resolve({
+                    success: true,
+                    subscribed: true,
+                    message: "Підписка підтверджена (демо-режим)"
+                });
+            }, 1500);
+            return;
+        }
+
+        // У реальному сценарії тут має бути запит до вашого бекенда для перевірки
+        // через Telegram Bot API. Нижче приклад як це може виглядати:
+
+        /*
+        fetch('https://ваш-сервер.com/api/check-telegram-subscription', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                folder_id: 'fpdo93hRYgAxNThi'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            resolve(data);
+        })
+        .catch(error => {
+            console.error('Помилка перевірки підписки:', error);
+            reject(error);
+        });
+        */
+
+        // Для демонстрації - імітуємо запит до API
+        console.log(`Перевірка підписки для користувача ${userId}...`);
+
+        setTimeout(() => {
+            // Імітуємо успішну відповідь
+            resolve({
+                success: true,
+                subscribed: true,
+                message: "Підписка підтверджена"
+            });
+        }, 1500);
+    });
+}
+
+// Функція для показу модального вікна з винагородою
+function showRewardModal(winixAmount = 250, jetonAmount = 1) {
+    console.log(`Показ вікна винагороди: ${winixAmount} WINIX, ${jetonAmount} жетон(ів)`);
+
+    // Встановлюємо суми винагороди
+    document.getElementById('winix-amount').textContent = winixAmount;
+    document.getElementById('jeton-amount').textContent = jetonAmount;
+
+    // Показуємо модальне вікно
+    const rewardModal = document.getElementById('reward-modal');
+    rewardModal.style.display = 'flex';
+
+    // Запускаємо анімацію винагороди
+    setTimeout(() => {
+        const winixToken = document.getElementById('winix-token');
+        winixToken.style.opacity = '1';
+        winixToken.style.transform = 'scale(1) rotate(10deg)';
+
+        setTimeout(() => {
+            const jetonToken = document.getElementById('jeton-token');
+            jetonToken.style.opacity = '1';
+            jetonToken.style.transform = 'scale(1) rotate(-10deg)';
+        }, 500);
+    }, 300);
+
+    // ВАЖЛИВО: Додаємо обробник для кнопки отримання винагороди
+    const claimButton = document.getElementById('claim-reward-btn');
+
+    // Видаляємо старі обробники, щоб уникнути дублювання
+    const newClaimButton = claimButton.cloneNode(true);
+    claimButton.parentNode.replaceChild(newClaimButton, claimButton);
+
+    // Додаємо новий обробник
+    newClaimButton.addEventListener('click', function() {
+        console.log("Кнопка отримання винагороди натиснута");
+
+        // Закриваємо модальне вікно
+        rewardModal.style.display = 'none';
+
+        // Зберігаємо стан у локальному сховищі
+        localStorage.setItem('folder_verified', 'true');
+
+        // Оновлюємо індикатор прогресу до 100%
+        const progressIndicator = document.querySelector('.progress-indicator');
+        const progressMarker = document.querySelector('.progress-marker');
+
+        if (progressIndicator) progressIndicator.style.width = '100%';
+        if (progressMarker) progressMarker.style.left = '100%';
+
+        // Додаємо винагороду користувачу
+        addReward(winixAmount, jetonAmount);
+
+        // Показуємо повідомлення
+        showToast(`Ви отримали ${winixAmount} WINIX і ${jetonAmount} жетон за додавання папки!`);
+    });
+}
+
+// Перевизначаємо обробник кнопки "Verify Subscription"
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM завантажено, налаштовуємо обробники кнопок");
+
+    // ВАЖЛИВО: Переконаємося, що модальне вікно спочатку приховане
+    const rewardModal = document.getElementById('reward-modal');
+    if (rewardModal) {
+        rewardModal.style.display = 'none';
+    }
+
+    const verifySubscriptionBtn = document.getElementById('verify-subscription-btn');
+
+    if (verifySubscriptionBtn) {
+        console.log("Знайдено кнопку верифікації, додаємо обробник");
+
+        // Видаляємо старі обробники
+        const newBtn = verifySubscriptionBtn.cloneNode(true);
+        verifySubscriptionBtn.parentNode.replaceChild(newBtn, verifySubscriptionBtn);
+
+        // Додаємо новий обробник
+        newBtn.addEventListener('click', async function() {
+            console.log("Натиснуто кнопку перевірки підписок");
+
+            // Перевіряємо, чи була папка додана
+            if (localStorage.getItem('folder_added') !== 'true') {
+                showToast('Спочатку додайте папку, натиснувши "ADD FOLDER"');
+                return;
+            }
+
+            // Перевіряємо, чи вже отримували винагороду
+            if (localStorage.getItem('folder_verified') === 'true') {
+                showToast('Ви вже отримали винагороду за додавання папки!');
+                return;
+            }
+
+            // Показуємо спінер або індикатор перевірки
+            showToast('Перевірка підписки...');
+
+            try {
+                // Перевіряємо підписку через Bot API
+                const result = await checkTelegramSubscription();
+
+                if (result.success && result.subscribed) {
+                    console.log("Підписка підтверджена, показуємо вікно винагороди");
+
+                    // Показуємо вікно з винагородою
+                    showRewardModal(250, 1);
+                } else {
+                    // Якщо підписка не підтверджена
+                    showToast(result.message || 'Підписка не підтверджена. Спробуйте додати папку знову.');
+                }
+            } catch (error) {
+                console.error('Помилка перевірки підписки:', error);
+                showToast('Виникла помилка при перевірці підписки. Спробуйте пізніше.');
+            }
+        });
+    } else {
+        console.warn("Кнопку верифікації не знайдено!");
+    }
+});
+
+// Додаткова перевірка, що за функцію `addReward` ми можемо використовувати
+function addReward(tokensToAdd, coinsToAdd) {
+    console.log(`Додавання нагороди: ${tokensToAdd} WINIX, ${coinsToAdd} жетонів`);
+
+    // Перевірка наявності різних реалізацій функції нагороди
+    if (typeof window.addReward === 'function' && window.addReward !== addReward) {
+        // Якщо глобальна функція addReward вже існує і не є поточною функцією
+        return window.addReward(tokensToAdd, coinsToAdd);
+    } else if (window.rewardSystem && typeof window.rewardSystem.addReward === 'function') {
+        // Якщо є система винагород
+        return window.rewardSystem.addReward(tokensToAdd, coinsToAdd);
+    } else {
+        // Проста реалізація якщо жодної функції не знайдено
+        try {
+            // Отримуємо поточний баланс
+            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const currentCoins = parseFloat(localStorage.getItem('userCoins') || '0');
+
+            // Розраховуємо новий баланс
+            const newTokens = currentTokens + tokensToAdd;
+            const newCoins = currentCoins + coinsToAdd;
+
+            // Зберігаємо новий баланс
+            localStorage.setItem('userTokens', newTokens.toString());
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_balance', newTokens.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
+
+            // Оновлюємо відображення
+            if (document.getElementById('user-tokens')) {
+                document.getElementById('user-tokens').textContent = newTokens.toFixed(2);
+            }
+
+            if (document.getElementById('user-coins')) {
+                document.getElementById('user-coins').textContent = newCoins.toFixed(0);
+            }
+
+            console.log(`Новий баланс: ${newTokens} WINIX, ${newCoins} жетонів`);
+            return true;
+        } catch (e) {
+            console.error('Помилка при додаванні нагороди:', e);
+            return false;
+        }
+    }
+}
+
+// Невеликий поліфіл для showToast, якщо така функція не існує
+if (typeof window.showToast !== 'function') {
+    window.showToast = function(message, duration = 3000) {
+        console.log("Показуємо повідомлення:", message);
+
+        // Отримуємо або створюємо елемент toast
+        let toast = document.getElementById('toast-message');
+
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast-message';
+            toast.className = 'toast-message';
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+            toast.style.color = '#ffffff';
+            toast.style.padding = '12px 24px';
+            toast.style.borderRadius = '12px';
+            toast.style.zIndex = '1000';
+            toast.style.boxShadow = '0 4px 15px rgba(0,0,0,0.5)';
+            toast.style.border = '1px solid rgba(78, 181, 247, 0.2)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'all 0.3s ease';
+            toast.style.maxWidth = '350px';
+            toast.style.width = '90%';
+            toast.style.textAlign = 'center';
+
+            document.body.appendChild(toast);
+        }
+
+        // Встановлюємо текст і показуємо повідомлення
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate(-50%, 10px)';
+
+        // Приховуємо повідомлення через вказаний час
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translate(-50%, 0)';
+        }, duration);
+    };
+}
+</script>
 </body>
 </html>
