@@ -686,6 +686,123 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+        /* Стилі для блоку статистики */
+.stats-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9375rem; /* 15px */
+}
+
+.stats-title {
+    font-size: 1.625rem; /* 26px */
+    font-weight: bold;
+    margin-bottom: 1.25rem; /* 20px */
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.7); /* 0 0 10px */
+    letter-spacing: 0.0625rem; /* 1px */
+}
+
+.stats-card {
+    width: 100%;
+    background: var(--bg-card);
+    border-radius: var(--card-border-radius);
+    padding: 1.25rem; /* 20px */
+    margin-bottom: 1.25rem; /* 20px */
+    box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3);
+}
+
+.stats-section {
+    margin-bottom: 1.5rem; /* 24px */
+}
+
+.section-title {
+    font-size: 1.125rem; /* 18px */
+    font-weight: bold;
+    margin-bottom: 0.75rem; /* 12px */
+    color: var(--secondary-color);
+    border-bottom: 1px solid rgba(78, 181, 247, 0.2);
+    padding-bottom: 0.5rem; /* 8px */
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem; /* 16px */
+}
+
+.stat-item {
+    flex: 1;
+    background: var(--bg-item);
+    border-radius: var(--item-border-radius);
+    padding: 0.75rem; /* 12px */
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.875rem; /* 14px */
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem; /* 8px */
+}
+
+.stat-value {
+    font-size: 1.25rem; /* 20px */
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.achievements-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem; /* 12px */
+    justify-content: center;
+}
+
+.achievement-badge {
+    width: 3.75rem; /* 60px */
+    height: 3.75rem;
+    background: var(--bg-item);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem; /* 28px */
+    transition: transform 0.2s ease;
+}
+
+.achievement-badge:hover {
+    transform: scale(1.1);
+}
+
+.achievement-badge.earned {
+    background: linear-gradient(145deg, #2D6EB6, #52C0BD);
+    box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.5);
+}
+
+.achievement-badge.locked {
+    opacity: 0.5;
+    color: var(--text-secondary);
+}
+
+/* Адаптивність для статистики */
+@media (max-width: 450px) {
+    .stats-row {
+        flex-direction: column;
+        gap: 0.75rem; /* 12px */
+    }
+
+    .stat-item {
+        width: 100%;
+    }
+
+    .achievement-badge {
+        width: 3.125rem; /* 50px */
+        height: 3.125rem;
+        font-size: 1.5rem; /* 24px */
+    }
+}
     </style>
 </head>
 <body>
@@ -712,84 +829,86 @@
             </div>
         </div>
 
-        <div class="raffles-container">
-            <div class="raffles-title" data-lang-key="active_raffles">Активні розіграші</div>
+        <div class="stats-container">
+    <div class="stats-title">Статистика користувача</div>
 
-            <div class="raffle-card">
-                <div class="raffle-title">
-                    Мега Розіграш Готівки
-                    <span class="raffle-prize">$1320</span>
+    <div class="stats-card">
+        <div class="stats-section">
+            <div class="stats-section">
+    <div class="section-title">Інформація про користувача</div>
+    <div class="stats-row">
+        <div class="stat-item">
+            <div class="stat-label">ID користувача</div>
+            <div class="stat-value" id="stats-user-id">12345678</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Ім'я користувача</div>
+            <div class="stat-value" id="stats-username">WINIX User</div>
+        </div>
+    </div>
+    </div>
+            <div class="section-title">Баланс</div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-label">Токени $WINIX</div>
+                    <div class="stat-value" id="total-tokens">294562.16</div>
                 </div>
-                <div class="raffle-details">
-                    <div class="raffle-info">13 переможців x $101.5</div>
-                    <div class="raffle-participants">
-                        <div class="participants-count">288/500</div>
-                        <div class="participants-label" data-lang-key="participants">учасників</div>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress" style="width: 57%"></div>
-                </div>
-                <div class="raffle-footer">
-                    <div class="time-left">⏰ <span id="raffle-time-left">23г 43хв</span></div>
-                    <div class="entry-fee">🎟️ 25 жетонів</div>
-                </div>
-                <button class="action-button join" id="join-raffle" data-lang-key="join_raffle">Взяти участь</button>
-            </div>
-
-            <div class="raffle-card">
-                <div class="raffle-title">
-                    Тижневий Крипто Розіграш
-                    <span class="raffle-prize">0.05 BTC</span>
-                </div>
-                <div class="raffle-details">
-                    <div class="raffle-info">5 переможців</div>
-                    <div class="raffle-participants">
-                        <div class="participants-count">156/300</div>
-                        <div class="participants-label" data-lang-key="participants">учасників</div>
-                    </div>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress" style="width: 52%"></div>
-                </div>
-                <div class="raffle-footer">
-                    <div class="time-left">⏰ <span id="raffle2-time-left">2д 11г</span></div>
-                    <div class="entry-fee">🎟️ 50 жетонів</div>
-                </div>
-                <button class="action-button join" id="join-raffle2" data-lang-key="join_raffle">Взяти участь</button>
-            </div>
-
-            <button class="action-button view-all" id="view-all-raffles" data-lang-key="view_all_raffles">Всі розіграші</button>
-
-            <div class="referral-section">
-                <div class="referral-title" data-lang-key="referral_program">Реферальна програма</div>
-                <div class="referral-subtitle" data-lang-key="referral_subtitle">Запрошуйте друзів та отримуйте 10% від їх поповнень</div>
-
-                <div class="referral-link-container">
-                    <div class="referral-link" id="referral-link">https://t.me/winix_bot?start=ref12345678</div>
-                    <button class="copy-button" id="copy-referral" data-lang-key="copy">Скопіювати</button>
-                </div>
-
-                <div class="achievement-section">
-                    <div class="achievement-badge earned" title="5 рефералів">👥</div>
-                    <div class="achievement-badge earned" title="10 рефералів">🌟</div>
-                    <div class="achievement-badge" title="25 рефералів">🏆</div>
-                    <div class="achievement-badge locked" title="50 рефералів">💰</div>
-                    <div class="achievement-badge locked" title="100 рефералів">🚀</div>
+                <div class="stat-item">
+                    <div class="stat-label">Жетони</div>
+                    <div class="stat-value" id="total-coins">250</div>
                 </div>
             </div>
         </div>
+
+        <div class="stats-section">
+            <div class="section-title">Реферальна програма</div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-label">Запрошено друзів</div>
+                    <div class="stat-value" id="total-referrals">12</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Зароблено $WINIX</div>
+                    <div class="stat-value" id="referral-earnings">1528.45</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <div class="section-title">Активність</div>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-label">Виконано завдань</div>
+                    <div class="stat-value" id="completed-tasks">7</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Участь у розіграшах</div>
+                    <div class="stat-value" id="total-raffles">3</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <div class="section-title">Досягнення</div>
+            <div class="achievements-grid">
+                <div class="achievement-badge earned" title="5 рефералів">👥</div>
+                <div class="achievement-badge earned" title="10 рефералів">🌟</div>
+                <div class="achievement-badge" title="25 рефералів">🏆</div>
+                <div class="achievement-badge locked" title="50 рефералів">💰</div>
+                <div class="achievement-badge locked" title="100 рефералів">🚀</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+            <button class="action-button view-all" id="view-all-raffles" data-lang-key="Всі розіграші">view_all_raffles</button>
 
         <div class="nav-bar">
             <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div><span data-lang-key="home">Головна</span></div>
             <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Заробіток</span></div>
             <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Реферали</span></div>
             <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Гаманець</span></div>
-            <div class="nav-item active" data-section="profile"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Профіль"></div><span data-lang-key="profile">Профіль</span></div>
-        </div>
-
-        <div class="contact-widget" id="quick-contact">
-            <img src="assets/support-icon.png" alt="Підтримка" class="contact-icon">
+            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Загальне"></div><span data-lang-key="General">Загальне</span></div>
         </div>
 
         <div class="spinner" id="loading-spinner"><div class="spinner-inner"></div></div>
@@ -860,40 +979,56 @@
 
     // Функція для завантаження аватара користувача
     function loadUserAvatar() {
-        const avatar = document.getElementById('profile-avatar');
-        const userId = document.getElementById('user-id');
+    const avatar = document.getElementById('profile-avatar');
+    const userId = document.getElementById('user-id');
 
-        if (!avatar || !userId) return;
+    if (!avatar || !userId) return;
 
-        // Отримуємо дані користувача з localStorage
-        const username = localStorage.getItem('username') || 'WINIX User';
-        userId.textContent = localStorage.getItem('userId') || '12345678';
-        const avatarSrc = localStorage.getItem('userAvatarSrc');
-        const avatarId = localStorage.getItem('selectedAvatarId');
+    const username = localStorage.getItem('username') || 'WINIX User';
+    userId.textContent = localStorage.getItem('userId') || '12345678';
+    document.getElementById('stats-user-id').textContent = localStorage.getItem('userId') || '12345678';
+    document.getElementById('stats-username').textContent = username;
 
-        // Очищаємо вміст аватара
-        avatar.innerHTML = '';
+    // Оновлення балансу
+    const tokens = localStorage.getItem('userTokens') || '294562.16';
+    const coins = localStorage.getItem('userCoins') || '250';
+    document.getElementById('total-tokens').textContent = tokens;
+    document.getElementById('total-coins').textContent = coins;
 
-        if (avatarSrc) {
-            // Використовуємо завантажене зображення
-            const img = new Image();
-            img.src = avatarSrc;
-            img.alt = username;
-            img.onerror = () => avatar.textContent = username[0].toUpperCase();
-            avatar.appendChild(img);
-        } else if (avatarId) {
-            // Використовуємо системний аватар
-            const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
-            const img = new Image();
-            img.src = src;
-            img.alt = username;
-            img.onerror = () => avatar.textContent = username[0].toUpperCase();
-            avatar.appendChild(img);
-        } else {
-            // Використовуємо першу літеру імені
-            avatar.textContent = username[0].toUpperCase();
-        }
+    // Оновлення реферальної програми
+    const referrals = localStorage.getItem('totalReferrals') || '12';
+    const referralEarnings = localStorage.getItem('referralEarnings') || '1528.45';
+    document.getElementById('total-referrals').textContent = referrals;
+    document.getElementById('referral-earnings').textContent = referralEarnings;
+
+    // Оновлення активності
+    const completedTasks = localStorage.getItem('completedTasks') || '7';
+    const totalRaffles = localStorage.getItem('totalRaffles') || '3';
+    document.getElementById('completed-tasks').textContent = completedTasks;
+    document.getElementById('total-raffles').textContent = totalRaffles;
+
+    // Оновлення аватара (існуюча логіка)
+    const avatarSrc = localStorage.getItem('userAvatarSrc');
+    const avatarId = localStorage.getItem('selectedAvatarId');
+    avatar.innerHTML = '';
+
+    if (avatarSrc) {
+        const img = new Image();
+        img.src = avatarSrc;
+        img.alt = username;
+        img.onerror = () => avatar.textContent = username[0].toUpperCase();
+        avatar.appendChild(img);
+    } else if (avatarId) {
+        const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
+        const img = new Image();
+        img.src = src;
+        img.alt = username;
+        img.onerror = () => avatar.textContent = username[0].toUpperCase();
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = username[0].toUpperCase();
     }
+}
 
     // Функція для встановлення обробника кліку по аватару
     function setupProfileLink() {
@@ -1082,75 +1217,62 @@
         }
     }
 
+
     // Функція для встановлення обробників подій
-    function setupEventHandlers() {
-        console.log("Налаштування обробників подій");
+function setupEventHandlers() {
+    console.log("Налаштування обробників подій");
 
-        // 1. Кнопки для участі в розіграшах
-        const joinRaffleBtn = document.getElementById('join-raffle');
-        if (joinRaffleBtn) {
-            joinRaffleBtn.addEventListener('click', () => handleJoinRaffle('raffle1', 25));
-        }
-
-        const joinRaffle2Btn = document.getElementById('join-raffle2');
-        if (joinRaffle2Btn) {
-            joinRaffle2Btn.addEventListener('click', () => handleJoinRaffle('raffle2', 50));
-        }
-
-        // 2. Кнопка для перегляду всіх розіграшів
-        const viewAllRafflesBtn = document.getElementById('view-all-raffles');
-        if (viewAllRafflesBtn) {
-            viewAllRafflesBtn.addEventListener('click', () => {
-                // Тут можна додати навігацію на повний список розіграшів
-                showToast("Переглянути всі розіграші");
-            });
-        }
-
-        // 3. Кнопка копіювання реферального посилання
-        const copyReferralBtn = document.getElementById('copy-referral');
-        if (copyReferralBtn) {
-            copyReferralBtn.addEventListener('click', copyReferralLink);
-        }
-
-        // 4. Підказки для значків досягнень
-        document.querySelectorAll('.achievement-badge').forEach(badge => {
-            badge.addEventListener('click', function() {
-                const title = this.getAttribute('title');
-                if (title) {
-                    showToast(title);
-                }
-            });
+    // Кнопка для перегляду всіх розіграшів
+    const viewAllRafflesBtn = document.getElementById('view-all-raffles');
+    if (viewAllRafflesBtn) {
+        viewAllRafflesBtn.addEventListener('click', function() {
+            console.log("Кнопка 'Всі розіграші' натиснута");
+            window.location.href = 'raffles.html';
         });
+    } else {
+        console.error("Кнопка 'view-all-raffles' не знайдена");
+    }
+
+    console.log("Налаштування обробників завершено");
+}
 
         // 5. Кнопки навігації
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const section = this.getAttribute('data-section');
 
-                // Не робимо нічого, якщо вже на цій сторінці
-                if (section === 'profile') return;
+        // Не робимо нічого, якщо вже на цій сторінці
+        if (section === 'general') return;
 
-                // Змінюємо активний елемент
-                document.querySelectorAll('.nav-item').forEach(navItem => {
-                    navItem.classList.remove('active');
-                });
-                this.classList.add('active');
-
-                // Тут можна додати навігацію між сторінками
-                showToast(`Перехід на: ${getText(section)}`);
-            });
+        // Змінюємо активний елемент
+        document.querySelectorAll('.nav-item').forEach(navItem => {
+            navItem.classList.remove('active');
         });
+        this.classList.add('active');
 
-        // 6. Кнопка швидкого зв'язку
-        const quickContactBtn = document.getElementById('quick-contact');
-        if (quickContactBtn) {
-            quickContactBtn.addEventListener('click', function() {
-                showToast(getText('contact_support'));
-            });
+        // Виконуємо навігацію на відповідну сторінку
+        switch(section) {
+            case 'home':
+                window.location.href = 'original-index.html';
+                break;
+            case 'earn':
+                window.location.href = 'earn.html';
+                break;
+            case 'referrals':
+                window.location.href = 'referrals.html';
+                break;
+            case 'wallet':
+                window.location.href = 'wallet.html';
+                break;
+            case 'general':
+                window.location.href = 'general.html';
+                break;
+            default:
+                showToast('Помилка навігації');
         }
+    });
+});
 
-        console.log("Налаштування обробників завершено");
-    }
 
     // Оновлення всіх текстів на сторінці
     function updatePageTexts() {
@@ -1178,7 +1300,14 @@
             updateRaffleStatus();
 
             // Встановлюємо обробники подій
-            setupEventHandlers();
+            // Налаштовуємо кнопку "Всі розіграші"
+const viewAllRafflesBtn = document.getElementById('view-all-raffles');
+if (viewAllRafflesBtn) {
+    viewAllRafflesBtn.addEventListener('click', function() {
+        console.log("Кнопка 'Всі розіграші' натиснута");
+        window.location.href = 'raffles.html';
+    });
+}
 
             // Оновлюємо стан DOM
             adjustLayout();
