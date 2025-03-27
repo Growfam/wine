@@ -319,3 +319,53 @@
 
     console.log("✅ WINIX-INIT: Координатор ініціалізації готовий");
 })();
+// Інтеграція кнопки "Всі розіграші" з системою WINIX
+(function() {
+    // Функція для налаштування кнопки "Всі розіграші" з повною інтеграцією в екосистему WINIX
+    function setupRafflesButton() {
+        console.log("🎮 WINIX: Налаштування кнопки 'Всі розіграші'");
+
+        const rafflesBtn = document.getElementById('view-all-raffles');
+        if (!rafflesBtn) return;
+
+        // Очищаємо попередні обробники, що могли бути встановлені
+        const newBtn = rafflesBtn.cloneNode(true);
+        rafflesBtn.parentNode.replaceChild(newBtn, rafflesBtn);
+
+        // Встановлюємо новий обробник через WinixNavigation (повна інтеграція)
+        newBtn.addEventListener('click', function() {
+            console.log("🎮 WINIX: Кнопка 'Всі розіграші' натиснута");
+
+            // Використовуємо навігаційну систему WINIX, якщо вона доступна
+            if (window.WinixNavigation && window.WinixNavigation.navigateTo) {
+                window.WinixNavigation.navigateTo('raffles.html');
+            }
+            // Резервний метод
+            else {
+                window.location.href = 'raffles.html';
+            }
+        });
+
+        console.log("✅ WINIX: Кнопка 'Всі розіграші' успішно інтегрована");
+    }
+
+    // Інтегруємося з системою ініціалізації WINIX
+    if (window.WinixInitState) {
+        // Якщо система вже ініціалізована, налаштовуємо кнопку зараз
+        if (window.WinixInitState.isFullyInitialized) {
+            setupRafflesButton();
+        }
+
+        // Додаємо обробник для події повної ініціалізації
+        document.addEventListener('winix-initialized', setupRafflesButton);
+    } else {
+        // Без системи WINIX просто виконуємо при завантаженні
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(setupRafflesButton, 500);
+            });
+        } else {
+            setTimeout(setupRafflesButton, 500);
+        }
+    }
+})();
