@@ -1137,6 +1137,131 @@
         .back-button:active {
             transform: scale(0.98);
         }
+        /* Стилі для водяних знаків на бейджах */
+.badge-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.badge-completed .badge-icon {
+    opacity: 0.85;
+}
+
+.badge-watermark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.badge-watermark-text {
+    position: absolute;
+    width: 200%;
+    text-align: center;
+    transform: rotate(-35deg);
+    font-family: Impact, sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: black;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 205, 0, 0.8),
+        rgba(255, 205, 0, 0.8) 10px,
+        rgba(0, 0, 0, 0.8) 10px,
+        rgba(0, 0, 0, 0.8) 20px
+    );
+    padding: 2px 20px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    text-shadow: 0px 0px 2px white;
+    white-space: nowrap;
+}
+/* Стилі для зображень бейджів */
+.badge-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    margin-bottom: 0.5rem;
+    background: transparent;
+}
+
+.badge-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 2;
+    border-radius: 50%;
+}
+
+.lock-icon {
+    position: absolute;
+    bottom: -0.25rem;
+    right: -0.25rem;
+    font-size: 1rem;
+    z-index: 3;
+}
+
+/* Стилі для водяного знаку, щоб він перекривав зображення */
+.badge-watermark {
+    z-index: 4;
+}
+
+/* Стилі для водяних знаків на бейджах */
+.badge-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.badge-completed .badge-icon {
+    opacity: 0.85;
+}
+
+.badge-watermark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.badge-watermark-text {
+    position: absolute;
+    width: 200%;
+    text-align: center;
+    transform: rotate(-35deg);
+    font-family: Impact, sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: black;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 205, 0, 0.8),
+        rgba(255, 205, 0, 0.8) 10px,
+        rgba(0, 0, 0, 0.8) 10px,
+        rgba(0, 0, 0, 0.8) 20px
+    );
+    padding: 2px 20px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    text-shadow: 0px 0px 1px white;
+    white-space: nowrap;
+}
     </style>
 </head>
 <body>
@@ -1243,9 +1368,9 @@
 
                 <div class="mini-raffle">
                     <div class="mini-raffle-info">
-                        <div class="mini-raffle-title">Міні-розіграш #24</div>
+                        <div class="mini-raffle-title">Щоденний-розіграш</div>
                         <div class="mini-raffle-prize">30,000 WINIX (15 переможців)</div>
-                        <div class="mini-raffle-time">⏰ Залишилось: 23 год 24 хв</div>
+                        <div class="mini-raffle-time">Залишилось: 23 год 24 хв</div>
                     </div>
                     <button class="mini-raffle-button" data-raffle-id="mini1" data-raffle-type="daily">Участь</button>
                 </div>
@@ -1254,7 +1379,7 @@
                     <div class="mini-raffle-info">
                         <div class="mini-raffle-title">Бонус новачкам</div>
                         <div class="mini-raffle-prize">150 WINIX</div>
-                        <div class="mini-raffle-time">Завжди доступно</div>
+                        <div class="mini-raffle-time">Доступно</div>
                     </div>
                     <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
                 </div>
@@ -1273,49 +1398,48 @@
                 <div class="statistics-title">Статистика і досягнення</div>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value">8</div>
+                        <div class="stat-value">1</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">2</div>
+                        <div class="stat-value">0</div>
                         <div class="stat-label">Виграші</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">32,500</div>
+                        <div class="stat-value">0</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">3</div>
+                        <div class="stat-value">0</div>
                         <div class="stat-label">Запрошені друзі</div>
                     </div>
                 </div>
             </div>
 
             <!-- Бейджі досягнень -->
-            <div class="badges-container">
-                <div class="badges-title">Ваші бейджі</div>
-                <div class="badges-grid">
-                    <div class="badge-item">
-                        <div class="badge-icon">🏆</div>
-                        <div class="badge-name">Переможець</div>
-                        <div class="badge-desc">Виграйте будь-який розіграш</div>
-                        <div class="badge-reward">+5,000 WINIX</div>
-                    </div>
-                    <div class="badge-item">
-                        <div class="badge-icon">🚀</div>
-                        <div class="badge-name">Початківець</div>
-                        <div class="badge-desc">Візьміть участь у 5 розіграшах</div>
-                        <div class="badge-reward">+7,500 WINIX</div>
-                    </div>
-                    <div class="badge-item">
-                        <div class="badge-icon locked">💰</div>
-                        <div class="badge-name">Багатій</div>
-                        <div class="badge-desc">Виграйте 100,000 WINIX</div>
-                        <div class="badge-reward">+10,000 WINIX</div>
-                    </div>
-                </div>
-            </div>
+<div class="badges-container">
+    <div class="badges-title">Ваші бейджі</div>
+    <div class="badges-grid">
+        <div class="badge-item" id="badge-winner">
+            <div class="badge-icon">🏆</div>
+            <div class="badge-name">Переможець</div>
+            <div class="badge-desc">Виграйте будь-який розіграш</div>
+            <div class="badge-reward">+2,500 WINIX</div>
         </div>
+        <div class="badge-item" id="badge-beginner">
+            <div class="badge-icon">🚀</div>
+            <div class="badge-name">Початківець</div>
+            <div class="badge-desc">Візьміть участь у розіграші</div>
+            <div class="badge-reward">+1,000 WINIX</div>
+        </div>
+        <div class="badge-item" id="badge-rich">
+            <div class="badge-icon">💰</div>
+            <div class="badge-name">Багатій</div>
+            <div class="badge-desc">Баланс 50,000 WINIX</div>
+            <div class="badge-reward">+5,000 WINIX</div>
+        </div>
+    </div>
+</div>
 
         <!-- Навігаційне меню -->
         <div class="nav-bar">
@@ -1706,71 +1830,125 @@ function openRaffleDetails(raffleId, raffleType) {
     modal.classList.add('open');
 }
 
-// Обробка бонусу новачкам
+/**
+ * Отримання бонусу новачка з правильним нарахуванням через централізований API
+ */
 function claimNewbieBonus() {
+    // Визначаємо поточну мову
+    const lang = getCurrentLanguage();
+
+    // Перевіряємо, чи вже отримано
     if (localStorage.getItem('newbie_bonus_claimed') === 'true') {
-        showToast('Ви вже отримали бонус новачка!', 3000);
+        if (window.showToast) {
+            if (lang === 'uk') {
+                window.showToast('Ви вже отримали бонус новачка!', 3000);
+            } else if (lang === 'ru') {
+                window.showToast('Вы уже получили бонус новичка!', 3000);
+            } else {
+                window.showToast('You have already received the newbie bonus!', 3000);
+            }
+        }
         return;
     }
 
-    document.getElementById('loading-spinner').classList.add('show');
+    // Показуємо індикатор завантаження
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.classList.add('show');
+
+    // Впроваджуємо затримку для анімації
     setTimeout(() => {
         try {
+            // Повторна перевірка
             if (localStorage.getItem('newbie_bonus_claimed') === 'true') {
-                showToast('Ви вже отримали бонус новачка!', 3000);
-                document.getElementById('loading-spinner').classList.remove('show');
+                if (window.showToast) {
+                    if (lang === 'uk') {
+                        window.showToast('Ви вже отримали бонус новачка!', 3000);
+                    } else if (lang === 'ru') {
+                        window.showToast('Вы уже получили бонус новичка!', 3000);
+                    } else {
+                        window.showToast('You have already received the newbie bonus!', 3000);
+                    }
+                }
+                if (spinner) spinner.classList.remove('show');
                 return;
             }
 
+            // Розмір бонусу
             const bonusAmount = 150;
-            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            localStorage.setItem('userTokens', (currentTokens + bonusAmount).toString());
-            localStorage.setItem('newbie_bonus_claimed', 'true');
-            updateBalanceDisplay();
-            document.getElementById('loading-spinner').classList.remove('show');
-            showToast(`Вітаємо! Ви отримали ${bonusAmount} WINIX як бонус новачка!`, 3000);
 
-            const button = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
-            if (button) {
-                button.textContent = 'Отримано';
-                button.disabled = true;
-                button.style.opacity = '0.6';
-                button.style.cursor = 'default';
+            // ВИПРАВЛЕННЯ: Використовуємо централізований API
+            let success = false;
+
+            // Спроба 1: Через WinixCore API
+            if (window.WinixCore && window.WinixCore.Balance) {
+                success = window.WinixCore.Balance.addTokens(bonusAmount, 'Бонус новачка');
+                console.log("Бонус додано через WinixCore API:", success);
             }
+            // Спроба 2: Через rewardSystem
+            else if (window.rewardSystem) {
+                success = window.rewardSystem.addTokens(bonusAmount, 'Бонус новачка');
+                console.log("Бонус додано через rewardSystem:", success);
+            }
+            // Запасний варіант: напряму через localStorage
+            else {
+                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                const newTokens = currentTokens + bonusAmount;
+
+                // Оновлюємо обидва ключі для узгодженості
+                localStorage.setItem('userTokens', newTokens.toString());
+                localStorage.setItem('winix_balance', newTokens.toString());
+
+                // Додаємо транзакцію вручну
+                addManualTransaction('receive', bonusAmount, 'Бонус новачка');
+
+                success = true;
+                console.log("Бонус додано через localStorage:", newTokens);
+            }
+
+            // Позначаємо, що бонус отримано
+            localStorage.setItem('newbie_bonus_claimed', 'true');
+
+            // Оновлюємо інтерфейс за допомогою доступних методів
+            if (window.WinixCore && window.WinixCore.UI) {
+                window.WinixCore.UI.updateBalanceDisplay();
+            } else if (window.updateBalanceDisplay) {
+                window.updateBalanceDisplay();
+            } else {
+                updateAllBalanceElements();
+            }
+
+            // Показуємо повідомлення про успіх
+            if (window.showToast) {
+                if (lang === 'uk') {
+                    window.showToast(`Вітаємо! Ви отримали ${bonusAmount} WINIX як бонус новачка!`, 3000);
+                } else if (lang === 'ru') {
+                    window.showToast(`Поздравляем! Вы получили ${bonusAmount} WINIX как бонус новичка!`, 3000);
+                } else {
+                    window.showToast(`Congratulations! You received ${bonusAmount} WINIX as a newbie bonus!`, 3000);
+                }
+            }
+
+            // Додаємо водяний знак до кнопки
+            setTimeout(() => {
+                markNewbieBonus();
+            }, 300);
+
         } catch (error) {
             console.error('Помилка при отриманні бонусу новачка:', error);
-            showToast('Сталася помилка при отриманні бонусу', 3000);
-        } finally {
-            document.getElementById('loading-spinner').classList.remove('show');
-        }
-    }, 1500);
-}
-
-// Поширення розіграшу
-function shareRaffle() {
-    const shareUrl = window.location.href + '?raffle=main';
-    if (navigator.share) {
-        navigator.share({
-            title: 'Гранд Розіграш WINIX',
-            text: 'Приєднуйтеся до розіграшу 250 USDT та 130,000 WINIX! 10 переможців отримають цінні призи.',
-            url: shareUrl
-        })
-        .then(() => showToast('Дякуємо за поширення!', 2000))
-        .catch(error => console.log('Помилка поширення:', error));
-    } else {
-        navigator.clipboard.writeText(shareUrl)
-            .then(() => {
-                showToast('Посилання на розіграш скопійовано в буфер обміну!', 3000);
-                if (localStorage.getItem('share_bonus_claimed') !== 'true') {
-                    const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
-                    localStorage.setItem('userCoins', (currentCoins + 1).toString());
-                    localStorage.setItem('share_bonus_claimed', 'true');
-                    updateBalanceDisplay();
-                    setTimeout(() => showToast('Ви отримали +1 жетон за поширення розіграшу!', 3000), 3500);
+            if (window.showToast) {
+                if (lang === 'uk') {
+                    window.showToast('Сталася помилка при отриманні бонусу', 3000);
+                } else if (lang === 'ru') {
+                    window.showToast('Произошла ошибка при получении бонуса', 3000);
+                } else {
+                    window.showToast('An error occurred while receiving the bonus', 3000);
                 }
-            })
-            .catch(err => console.error('Помилка при копіюванні:', err));
-    }
+            }
+        } finally {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.classList.remove('show');
+        }
+    }, 1000);
 }
 
 // Участь у розіграші - повністю перероблена версія
@@ -1949,34 +2127,66 @@ function addToRaffleHistory(raffleId, raffleType, tokenAmount) {
     localStorage.setItem('currentParticipations', JSON.stringify(currentParticipations));
 }
 
-// Оновлення статистики та бейджів
 function updateParticipationStatistics(tokenAmount) {
-    let statistics = JSON.parse(localStorage.getItem('userStatistics') || '{}');
-    if (!statistics.participationsCount) statistics.participationsCount = 8;
-    if (!statistics.winsCount) statistics.winsCount = 2;
-    if (!statistics.totalWinnings) statistics.totalWinnings = 32500;
-    if (!statistics.referralsCount) statistics.referralsCount = 3;
+    console.log("Оновлення статистики участі");
 
+    // Отримуємо дані статистики
+    let statistics = JSON.parse(localStorage.getItem('userStatistics') || '{}');
+    if (!statistics.participationsCount) statistics.participationsCount = 0;
+    if (!statistics.winsCount) statistics.winsCount = 0;
+    if (!statistics.totalWinnings) statistics.totalWinnings = 0;
+    if (!statistics.referralsCount) statistics.referralsCount = 0;
+
+    // Збільшуємо лічильник участі
     statistics.participationsCount++;
+
+    // Оновлюємо відображення статистики
     document.querySelector('.stat-card:nth-child(1) .stat-value').textContent = statistics.participationsCount;
 
+    // Перевіряємо умови для бейджа "Початківець"
     if (statistics.participationsCount >= 5 && !localStorage.getItem('badge_beginner_claimed')) {
         const beginnerBadge = document.querySelector('.badge-item:nth-child(2) .badge-icon');
         if (beginnerBadge && beginnerBadge.classList.contains('locked')) {
             beginnerBadge.classList.remove('locked');
+            console.log("Бейдж 'Початківець' розблоковано візуально");
         }
 
+        // ЗМІНЕНО: Зменшена сума нагороди
+        const reward = 1000; // Було 7500
+
+        // Оновлюємо дані нагороди
+        if (typeof addRewardTokens === 'function') {
+            addRewardTokens(reward, 'Нагорода за бейдж "Початківець"');
+        } else {
+            // Альтернативний шлях нарахування через WinixCore або напряму
+            if (window.WinixCore && window.WinixCore.Balance) {
+                window.WinixCore.Balance.addTokens(reward, 'Нагорода за бейдж "Початківець"');
+            } else {
+                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                localStorage.setItem('userTokens', (currentTokens + reward).toString());
+                localStorage.setItem('winix_balance', (currentTokens + reward).toString());
+            }
+        }
+
+        // Показуємо повідомлення
         setTimeout(() => {
-            const reward = 7500;
             showToast(`Вітаємо! Ви розблокували бейдж "Початківець" і отримали ${reward} WINIX!`, 4000);
-            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            localStorage.setItem('userTokens', (currentTokens + reward).toString());
-            updateBalanceDisplay();
-            localStorage.setItem('badge_beginner_claimed', 'true');
-        }, 3000);
+        }, 1000);
+
+        // Позначаємо, що бейдж отримано
+        localStorage.setItem('badge_beginner_claimed', 'true');
+        console.log("Бейдж 'Початківець' позначено як отриманий");
+
+        // Оновлюємо маркування і зображення бейджа
+        setTimeout(() => {
+            markCompletedBadges();
+            replaceBadgeEmojisWithImages();
+        }, 2000);
     }
 
+    // Зберігаємо оновлену статистику
     localStorage.setItem('userStatistics', JSON.stringify(statistics));
+    console.log("Статистику участі оновлено та збережено", statistics);
 }
 
 // Вибір переможців
@@ -2199,46 +2409,88 @@ function addRaffleResult(raffleId, raffleType, winners) {
     updateBalanceDisplay();
 }
 
-// Допоміжна функція для обробки бейджів
 function handleBadgeUnlocks(statistics) {
+    console.log("Обробка розблокування бейджів:", statistics);
+
     // Бейдж "Переможець"
     if (!localStorage.getItem('badge_winner_claimed')) {
         const winnerBadge = document.querySelector('.badge-item:nth-child(1) .badge-icon');
         if (winnerBadge && winnerBadge.classList.contains('locked')) {
             winnerBadge.classList.remove('locked');
+            console.log("Бейдж 'Переможець' розблоковано візуально");
         }
 
+        // ЗМІНЕНО: Сума нагороди зменшена
+        const badgeReward = 2500; // Було 5000
+
+        // Оновлюємо дані нагороди
+        if (typeof addRewardTokens === 'function') {
+            addRewardTokens(badgeReward, 'Нагорода за бейдж "Переможець"');
+        } else {
+            // Альтернативний шлях нарахування через WinixCore або напряму
+            if (window.WinixCore && window.WinixCore.Balance) {
+                window.WinixCore.Balance.addTokens(badgeReward, 'Нагорода за бейдж "Переможець"');
+            } else {
+                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                localStorage.setItem('userTokens', (currentTokens + badgeReward).toString());
+                localStorage.setItem('winix_balance', (currentTokens + badgeReward).toString());
+            }
+        }
+
+        // Показуємо повідомлення
+        showToast(`Вітаємо! Ви розблокували бейдж "Переможець" і отримали ${badgeReward} WINIX!`, 4000);
+
+        // Позначаємо, що бейдж отримано
+        localStorage.setItem('badge_winner_claimed', 'true');
+        console.log("Бейдж 'Переможець' позначено як отриманий");
+
+        // Оновлюємо маркування і зображення бейджа
         setTimeout(() => {
-            const badgeReward = 5000;
-            showToast(`Вітаємо! Ви розблокували бейдж "Переможець" і отримали ${badgeReward} WINIX!`, 4000);
-
-            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            const newTokens = currentTokens + badgeReward;
-            localStorage.setItem('userTokens', newTokens.toString());
-
-            document.getElementById('user-tokens').textContent = newTokens.toFixed(2);
-            localStorage.setItem('badge_winner_claimed', 'true');
-        }, 6000);
+            markCompletedBadges();
+            replaceBadgeEmojisWithImages();
+        }, 1000);
     }
 
-    // Бейдж "Багатій"
-    if (statistics.totalWinnings >= 100000 && !localStorage.getItem('badge_rich_claimed')) {
+    // ЗМІНЕНО: Перевіряємо загальний баланс, а не totalWinnings
+    const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+
+    // Бейдж "Багатій" - змінений критерій
+    if (currentBalance >= 50000 && !localStorage.getItem('badge_rich_claimed')) {
         const richBadge = document.querySelector('.badge-item:nth-child(3) .badge-icon');
         if (richBadge && richBadge.classList.contains('locked')) {
             richBadge.classList.remove('locked');
+            console.log("Бейдж 'Багатій' розблоковано візуально");
         }
 
+        // ЗМІНЕНО: Сума нагороди зменшена
+        const badgeReward = 5000; // Було 10000
+
+        // Оновлюємо дані нагороди
+        if (typeof addRewardTokens === 'function') {
+            addRewardTokens(badgeReward, 'Нагорода за бейдж "Багатій"');
+        } else {
+            // Альтернативний шлях нарахування через WinixCore або напряму
+            if (window.WinixCore && window.WinixCore.Balance) {
+                window.WinixCore.Balance.addTokens(badgeReward, 'Нагорода за бейдж "Багатій"');
+            } else {
+                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                localStorage.setItem('userTokens', (currentTokens + badgeReward).toString());
+                localStorage.setItem('winix_balance', (currentTokens + badgeReward).toString());
+            }
+        }
+
+        // Показуємо повідомлення
+        showToast(`Вітаємо! Ви розблокували бейдж "Багатій" і отримали ${badgeReward} WINIX!`, 4000);
+
+        // Позначаємо, що бейдж отримано
+        localStorage.setItem('badge_rich_claimed', 'true');
+        console.log("Бейдж 'Багатій' позначено як отриманий");
+
+        // Оновлюємо маркування і зображення бейджа
         setTimeout(() => {
-            const badgeReward = 10000;
-            showToast(`Вітаємо! Ви розблокували бейдж "Багатій" і отримали ${badgeReward} WINIX!`, 4000);
-
-            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            const newTokens = currentTokens + badgeReward;
-            localStorage.setItem('userTokens', newTokens.toString());
-
-            document.getElementById('user-tokens').textContent = newTokens.toFixed(2);
-            localStorage.setItem('badge_rich_claimed', 'true');
-        }, 10000);
+            markCompletedBadges();
+            replaceBadgeEmojisWithImages();
+        }, 1000);
     }
 }
 
@@ -2995,125 +3247,132 @@ document.addEventListener('DOMContentLoaded', function() {
         return TRANSLATIONS[lang];
     }
 
-    // Функція для пошуку і маркування блоку бонусу новачка
-    function markNewbieBonus() {
-        // Перевіряємо, чи бонус вже отримано
-        if (localStorage.getItem('newbie_bonus_claimed') !== 'true') {
-            return;
+    /**
+ * Функція для пошуку і маркування блоку бонусу новачка
+ */
+function markNewbieBonus() {
+    // Перевіряємо, чи бонус вже отримано
+    if (localStorage.getItem('newbie_bonus_claimed') !== 'true') {
+        return;
+    }
+
+    console.log("Пошук блоку бонусу новачка для додавання водяного знаку");
+
+    // Визначаємо текст для водяного знаку
+    const lang = getCurrentLanguage();
+    const watermarkText = lang === 'uk' ? "ОТРИМАНО" : (lang === 'ru' ? "ПОЛУЧЕНО" : "RECEIVED");
+    console.log(`Використовуємо текст "${watermarkText}" для водяного знаку`);
+
+    // Шукаємо контейнер з бонусом новачка
+    let foundContainer = false;
+
+    // 1. Шукаємо за атрибутом data-raffle-id
+    const newbieButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-id="newbie"]');
+    newbieButtons.forEach(button => {
+        const container = button.closest('.mini-raffle');
+        if (container) {
+            addWatermarkToContainer(container, watermarkText);
+            foundContainer = true;
         }
+    });
 
-        console.log("Пошук блоку бонусу новачка для додавання водяного знаку");
+    // 2. Якщо не знайшли, шукаємо за текстом на різних мовах
+    if (!foundContainer) {
+        const allContainers = document.querySelectorAll('.mini-raffle');
+        allContainers.forEach(container => {
+            const text = container.textContent.toLowerCase();
 
-        // Визначаємо текст для водяного знаку
-        const watermarkText = getWatermarkText();
-        console.log(`Використовуємо текст "${watermarkText}" для водяного знаку`);
-
-        // Шукаємо контейнер з бонусом новачка
-        let foundContainer = false;
-
-        // 1. Шукаємо за атрибутом data-raffle-id
-        const newbieButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-id="newbie"]');
-        newbieButtons.forEach(button => {
-            const container = button.closest('.mini-raffle');
-            if (container) {
+            // Перевірка українською
+            if (text.includes('бонус новачкам') ||
+                (text.includes('бонус') && text.includes('150 winix'))) {
+                addWatermarkToContainer(container, watermarkText);
+                foundContainer = true;
+            }
+            // Перевірка російською
+            else if (text.includes('бонус новичкам') ||
+                    (text.includes('бонус') && text.includes('150 winix'))) {
+                addWatermarkToContainer(container, watermarkText);
+                foundContainer = true;
+            }
+            // Перевірка англійською
+            else if (text.includes('newbie bonus') ||
+                    (text.includes('bonus') && text.includes('150 winix'))) {
                 addWatermarkToContainer(container, watermarkText);
                 foundContainer = true;
             }
         });
-
-        // 2. Якщо не знайшли, шукаємо за текстом на різних мовах
-        if (!foundContainer) {
-            const allContainers = document.querySelectorAll('.mini-raffle');
-            allContainers.forEach(container => {
-                const text = container.textContent.toLowerCase();
-
-                // Перевірка українською
-                if (text.includes('бонус новачкам') ||
-                    (text.includes('бонус') && text.includes('150 winix'))) {
-                    addWatermarkToContainer(container, watermarkText);
-                    foundContainer = true;
-                }
-                // Перевірка російською
-                else if (text.includes('бонус новичкам') ||
-                        (text.includes('бонус') && text.includes('150 winix'))) {
-                    addWatermarkToContainer(container, watermarkText);
-                    foundContainer = true;
-                }
-                // Перевірка англійською
-                else if (text.includes('newbie bonus') ||
-                        (text.includes('bonus') && text.includes('150 winix'))) {
-                    addWatermarkToContainer(container, watermarkText);
-                    foundContainer = true;
-                }
-            });
-        }
-
-        console.log(foundContainer ? "Знайдено і позначено блок бонусу новачка" : "Блок бонусу новачка не знайдено");
     }
 
-    // Функція для додавання водяного знаку до конкретного контейнера
-    function addWatermarkToContainer(container, text) {
-        // Перевіряємо, чи вже є водяний знак
-        if (container.querySelector('.danger-watermark')) {
-            return;
-        }
+    console.log(foundContainer ? "Знайдено і позначено блок бонусу новачка" : "Блок бонусу новачка не знайдено");
+}
 
-        // Додаємо клас до контейнера
-        container.classList.add('has-watermark');
-
-        // Створюємо основний контейнер водяного знаку
-        const watermark = document.createElement('div');
-        watermark.className = 'danger-watermark';
-
-        // Створюємо темний напівпрозорий фон
-        const overlay = document.createElement('div');
-        overlay.className = 'danger-watermark-overlay';
-
-        // Створюємо текстову стрічку
-        const textElement = document.createElement('div');
-        textElement.className = 'danger-watermark-text';
-        textElement.textContent = text;
-
-        // Збираємо все разом
-        watermark.appendChild(overlay);
-        watermark.appendChild(textElement);
-        container.appendChild(watermark);
-
-        // Знаходимо кнопку і деактивуємо її
-        const button = container.querySelector('.mini-raffle-button');
-        if (button) {
-            // Змінюємо текст
-            const lang = getCurrentLanguage();
-            if (lang === 'uk') button.textContent = 'Отримано';
-            else if (lang === 'ru') button.textContent = 'Получено';
-            else button.textContent = 'Received';
-
-            // Деактивуємо кнопку
-            button.disabled = true;
-
-            // Прибираємо обробники подій
-            const newButton = button.cloneNode(true);
-            button.parentNode.replaceChild(newButton, button);
-
-            // Додаємо обробник, який показує повідомлення
-            newButton.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (window.showToast) {
-                    if (lang === 'uk') {
-                        window.showToast('Ви вже отримали бонус новачка!', 2000);
-                    } else if (lang === 'ru') {
-                        window.showToast('Вы уже получили бонус новичка!', 2000);
-                    } else {
-                        window.showToast('You have already received the newbie bonus!', 2000);
-                    }
-                }
-
-                return false;
-            });
-        }
+/**
+ * Додавання водяного знаку до контейнера
+ * @param {HTMLElement} container Контейнер для додавання водяного знаку
+ * @param {string} text Текст для водяного знаку
+ */
+function addWatermarkToContainer(container, text) {
+    // Перевіряємо, чи вже є водяний знак
+    if (container.querySelector('.danger-watermark')) {
+        return;
     }
+
+    // Додаємо клас до контейнера
+    container.classList.add('has-watermark');
+
+    // Створюємо основний контейнер водяного знаку
+    const watermark = document.createElement('div');
+    watermark.className = 'danger-watermark';
+
+    // Створюємо темний напівпрозорий фон
+    const overlay = document.createElement('div');
+    overlay.className = 'danger-watermark-overlay';
+
+    // Створюємо текстову стрічку
+    const textElement = document.createElement('div');
+    textElement.className = 'danger-watermark-text';
+    textElement.textContent = text;
+
+    // Збираємо все разом
+    watermark.appendChild(overlay);
+    watermark.appendChild(textElement);
+    container.appendChild(watermark);
+
+    // Знаходимо кнопку і деактивуємо її
+    const button = container.querySelector('.mini-raffle-button');
+    if (button) {
+        // Змінюємо текст
+        const lang = getCurrentLanguage();
+        if (lang === 'uk') button.textContent = 'Отримано';
+        else if (lang === 'ru') button.textContent = 'Получено';
+        else button.textContent = 'Received';
+
+        // Деактивуємо кнопку
+        button.disabled = true;
+
+        // Прибираємо обробники подій
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+
+        // Додаємо обробник, який показує повідомлення
+        newButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (window.showToast) {
+                if (lang === 'uk') {
+                    window.showToast('Ви вже отримали бонус новачка!', 2000);
+                } else if (lang === 'ru') {
+                    window.showToast('Вы уже получили бонус новичка!', 2000);
+                } else {
+                    window.showToast('You have already received the newbie bonus!', 2000);
+                }
+            }
+
+            return false;
+        });
+    }
+}
 
     // Оновлення мови водяного знаку
     function updateWatermarkLanguage() {
@@ -3251,6 +3510,834 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log("🎁 WINIX MULTILINGUAL WATERMARK: Багатомовний водяний знак готовий!");
 })();
+/**
+ * Універсальна функція для додавання токенів в нагороду через будь-який доступний API
+ * @param {number} amount Кількість токенів
+ * @param {string} description Опис нагороди
+ * @returns {boolean} Успішність операції
+ */
+function addRewardTokens(amount, description) {
+    console.log(`Спроба додати ${amount} токенів за ${description}`);
+
+    // Спроба 1: Через WinixCore API
+    if (window.WinixCore && window.WinixCore.Balance) {
+        const success = window.WinixCore.Balance.addTokens(amount, description);
+        console.log("Токени додано через WinixCore API:", success);
+
+        // Оновлюємо інтерфейс
+        if (window.WinixCore.UI) {
+            window.WinixCore.UI.updateBalanceDisplay();
+        }
+
+        return success;
+    }
+    // Спроба 2: Через rewardSystem
+    else if (window.rewardSystem) {
+        const success = window.rewardSystem.addTokens(amount, description);
+        console.log("Токени додано через rewardSystem:", success);
+
+        // Оновлюємо інтерфейс
+        if (window.rewardSystem.updateBalanceDisplay) {
+            window.rewardSystem.updateBalanceDisplay();
+        }
+
+        return success;
+    }
+    // Запасний варіант: напряму через localStorage
+    else {
+        try {
+            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const newTokens = currentTokens + amount;
+
+            // Оновлюємо обидва ключі для узгодженості
+            localStorage.setItem('userTokens', newTokens.toString());
+            localStorage.setItem('winix_balance', newTokens.toString());
+
+            // Додаємо транзакцію вручну
+            addManualTransaction('receive', amount, description);
+
+            // Оновлюємо інтерфейс
+            updateAllBalanceElements();
+
+            console.log("Токени додано через localStorage:", newTokens);
+            return true;
+        } catch (error) {
+            console.error("Помилка при додаванні токенів через localStorage:", error);
+            return false;
+        }
+    }
+}
+
+/**
+ * Додавання транзакції вручну, якщо API недоступний
+ * @param {string} type Тип транзакції ('receive', 'send', etc.)
+ * @param {number} amount Сума транзакції
+ * @param {string} description Опис транзакції
+ */
+function addManualTransaction(type, amount, description) {
+    try {
+        // Отримуємо поточні транзакції
+        let transactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+
+        // Створюємо нову транзакцію
+        const newTransaction = {
+            id: Date.now().toString(36) + Math.random().toString(36).substring(2, 9),
+            type: type,
+            amount: amount,
+            description: description,
+            timestamp: Date.now(),
+            status: 'completed'
+        };
+
+        // Додаємо транзакцію до списку
+        transactions.unshift(newTransaction);
+
+        // Обмежуємо кількість транзакцій
+        if (transactions.length > 100) {
+            transactions = transactions.slice(0, 100);
+        }
+
+        // Зберігаємо список транзакцій
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        localStorage.setItem('winix_transactions', JSON.stringify(transactions));
+
+        console.log("Транзакцію додано вручну:", newTransaction);
+        return true;
+    } catch (error) {
+        console.error("Помилка при додаванні транзакції вручну:", error);
+        return false;
+    }
+}
+
+/**
+ * Оновлення всіх елементів балансу на сторінці
+ */
+function updateAllBalanceElements() {
+    try {
+        const tokenBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+        const coinsBalance = parseInt(localStorage.getItem('userCoins') || '0');
+
+        // Оновлюємо всі елементи, які показують баланс токенів
+        const tokenSelectors = [
+            '#user-tokens',
+            '#main-balance',
+            '.balance-amount',
+            '#current-balance',
+            '.balance-value'
+        ];
+
+        tokenSelectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                if (element) {
+                    if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                        element.innerHTML = `${tokenBalance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                    } else {
+                        element.textContent = tokenBalance.toFixed(2);
+                    }
+                }
+            });
+        });
+
+        // Оновлюємо елементи жетонів
+        const coinsSelectors = [
+            '#user-coins',
+            '.coins-amount',
+            '.coins-value'
+        ];
+
+        coinsSelectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(element => {
+                if (element) {
+                    element.textContent = coinsBalance.toString();
+                }
+            });
+        });
+
+        console.log("Елементи балансу оновлено:", {tokens: tokenBalance, coins: coinsBalance});
+        return true;
+    } catch (error) {
+        console.error("Помилка при оновленні елементів балансу:", error);
+        return false;
+    }
+}
+
+/**
+ * Синхронізація ключів локального сховища для забезпечення узгодженості
+ */
+function syncStorageKeys() {
+    try {
+        console.log("Синхронізація ключів локального сховища...");
+
+        // Мапування ключів
+        const keyMappings = {
+            'winix_balance': 'userTokens',
+            'userTokens': 'winix_balance',
+            'winix_coins': 'userCoins',
+            'userCoins': 'winix_coins',
+            'winix_staking': 'stakingData',
+            'stakingData': 'winix_staking',
+            'winix_transactions': 'transactions',
+            'transactions': 'winix_transactions'
+        };
+
+        // Синхронізуємо ключі
+        for (const [key1, key2] of Object.entries(keyMappings)) {
+            const value1 = localStorage.getItem(key1);
+            const value2 = localStorage.getItem(key2);
+
+            // Якщо обидва значення існують, але різні
+            if (value1 !== null && value2 !== null && value1 !== value2) {
+                // Для токенів вибираємо більше значення
+                if (key1 === 'winix_balance' || key1 === 'userTokens') {
+                    const num1 = parseFloat(value1);
+                    const num2 = parseFloat(value2);
+
+                    if (!isNaN(num1) && !isNaN(num2)) {
+                        const maxValue = Math.max(num1, num2).toString();
+                        localStorage.setItem(key1, maxValue);
+                        localStorage.setItem(key2, maxValue);
+                        console.log(`Синхронізовано баланс токенів: ${maxValue}`);
+                    }
+                }
+                // Для інших даних використовуємо більш детальний аналіз
+                else if (key1 === 'winix_staking' || key1 === 'stakingData') {
+                    try {
+                        const data1 = JSON.parse(value1);
+                        const data2 = JSON.parse(value2);
+
+                        // Перевіряємо наявність активного стейкінгу
+                        if (data1.hasActiveStaking && !data2.hasActiveStaking) {
+                            localStorage.setItem(key2, value1);
+                            console.log("Синхронізовано активний стейкінг з winix_staking");
+                        } else if (!data1.hasActiveStaking && data2.hasActiveStaking) {
+                            localStorage.setItem(key1, value2);
+                            console.log("Синхронізовано активний стейкінг з stakingData");
+                        }
+                    } catch (e) {
+                        // Якщо помилка парсингу JSON, просто копіюємо
+                        localStorage.setItem(key2, value1);
+                    }
+                }
+                // Для решти просто копіюємо
+                else {
+                    localStorage.setItem(key2, value1);
+                }
+            }
+            // Якщо значення є тільки в одному з ключів, копіюємо його
+            else if (value1 !== null && value2 === null) {
+                localStorage.setItem(key2, value1);
+            }
+            else if (value1 === null && value2 !== null) {
+                localStorage.setItem(key1, value2);
+            }
+        }
+
+        console.log("Синхронізацію ключів локального сховища завершено");
+        return true;
+    } catch (e) {
+        console.error('Помилка синхронізації ключів локального сховища:', e);
+        return false;
+    }
+}
+
+/**
+ * Визначення поточної мови для локалізації повідомлень
+ * @returns {string} Код мови (uk, ru, en)
+ */
+function getCurrentLanguage() {
+    // Спроба 1: Перевірити налаштування мови в localStorage
+    let lang = localStorage.getItem('userLanguage') || localStorage.getItem('winix_language');
+
+    // Спроба 2: Перевірити наявність класу мови на body або html
+    if (!lang) {
+        const htmlEl = document.documentElement;
+        const bodyEl = document.body;
+
+        if (htmlEl.lang) {
+            lang = htmlEl.lang;
+        } else if (bodyEl.className.includes('lang-')) {
+            const langMatch = bodyEl.className.match(/lang-([a-z]{2})/);
+            if (langMatch) lang = langMatch[1];
+        }
+    }
+
+    // Спроба 3: Перевірка URL
+    if (!lang && window.location.href.includes('/ru/')) {
+        lang = 'ru';
+    } else if (!lang && window.location.href.includes('/en/')) {
+        lang = 'en';
+    }
+
+    // За замовчуванням - українська
+    return lang || 'uk';
+}
+
+/**
+ * Безпечне відображення повідомлення
+ * @param {string} message Текст повідомлення
+ * @param {number} duration Тривалість показу (мс)
+ */
+function showToast(message, duration = 3000) {
+    console.log(`Показ повідомлення: ${message}`);
+
+    // Спроба 1: Через WinixCore
+    if (window.WinixCore && window.WinixCore.UI && window.WinixCore.UI.showNotification) {
+        window.WinixCore.UI.showNotification(message);
+        return;
+    }
+
+    // Спроба 2: Через глобальну функцію showToast
+    if (window.showToast) {
+        window.showToast(message, duration);
+        return;
+    }
+
+    // Спроба 3: Через глобальну функцію showNotification
+    if (window.showNotification) {
+        window.showNotification(message, 'info', duration);
+        return;
+    }
+
+    // Запасний варіант: створюємо елемент сповіщення самостійно
+    let toast = document.getElementById('toast-message');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-message';
+        toast.className = 'toast-message';
+        toast.style.position = 'fixed';
+        toast.style.top = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = 'rgba(10, 20, 40, 0.95)';
+        toast.style.color = 'white';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '10px';
+        toast.style.zIndex = '9999';
+        toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+        toast.style.transition = 'opacity 0.3s ease';
+        toast.style.opacity = '0';
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.style.opacity = '1';
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+    }, duration);
+}
+// Виконуємо синхронізацію при завантаженні
+document.addEventListener('DOMContentLoaded', function() {
+    // Синхронізуємо ключі локального сховища
+    syncStorageKeys();
+
+    // Перевіряємо, чи бонус новачка вже отримано
+    markNewbieBonus();
+
+    // Додаткова перевірка для інтерфейсу
+    updateAllBalanceElements();
+
+    console.log("✅ Виправлення для системи нагород успішно застосовано");
+});
+/**
+ * newbie-bonus-fix.js
+ * Спеціальне виправлення для проблеми з бонусом новачка
+ * Цей скрипт має бути підключений у кінці HTML-файлу
+ */
+
+(function() {
+    console.log("🎁 NEWBIE BONUS FIX: Запуск спеціального виправлення для бонусу новачка...");
+
+    // Функція для безпечного отримання значення з localStorage
+    function safeGetItem(key, defaultValue) {
+        try {
+            const value = localStorage.getItem(key);
+            return value !== null ? value : defaultValue;
+        } catch (e) {
+            console.error(`Помилка при отриманні ${key} з localStorage:`, e);
+            return defaultValue;
+        }
+    }
+
+    // Функція для безпечного збереження значення в localStorage
+    function safeSetItem(key, value) {
+        try {
+            localStorage.setItem(key, value);
+            return true;
+        } catch (e) {
+            console.error(`Помилка збереження ${key} в localStorage:`, e);
+            return false;
+        }
+    }
+
+    // Функція для показу повідомлення
+    function showMessage(message, duration = 3000) {
+        console.log("TOAST:", message);
+
+        // Використовуємо доступну функцію показу повідомлень
+        if (window.showToast) {
+            window.showToast(message, duration);
+        } else if (window.showNotification) {
+            window.showNotification(message, 'success', duration);
+        } else if (window.simpleAlert) {
+            window.simpleAlert(message);
+        } else {
+            // Резервний варіант - створюємо тост-повідомлення вручну
+            let toast = document.getElementById('fixed-toast-message');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'fixed-toast-message';
+                toast.style.position = 'fixed';
+                toast.style.top = '20px';
+                toast.style.left = '50%';
+                toast.style.transform = 'translateX(-50%)';
+                toast.style.background = 'rgba(10, 20, 40, 0.95)';
+                toast.style.color = 'white';
+                toast.style.padding = '10px 20px';
+                toast.style.borderRadius = '10px';
+                toast.style.zIndex = '9999';
+                toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+                toast.style.transition = 'opacity 0.3s ease';
+                toast.style.opacity = '0';
+                document.body.appendChild(toast);
+            }
+
+            toast.textContent = message;
+            toast.style.opacity = '1';
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, duration);
+        }
+    }
+
+    // Функція для оновлення інтерфейсу після зміни балансу
+    function updateInterface() {
+        console.log("Оновлення інтерфейсу після нарахування бонусу");
+
+        // Оновлюємо відображення балансу через доступні функції
+        if (window.WinixCore && window.WinixCore.UI) {
+            window.WinixCore.UI.updateBalanceDisplay();
+        } else if (window.updateBalanceDisplay) {
+            window.updateBalanceDisplay();
+        } else {
+            // Ручне оновлення елементів балансу
+            const tokenBalance = parseFloat(safeGetItem('userTokens', '0'));
+            const tokenElements = document.querySelectorAll('#user-tokens, #main-balance, .balance-amount, #current-balance, .balance-value');
+            tokenElements.forEach(el => {
+                if (el) el.textContent = tokenBalance.toFixed(2);
+            });
+        }
+    }
+
+    // Функція для додавання бонусних токенів (гарантовано працює)
+    function addBonusTokens(amount, description) {
+        console.log(`Додавання ${amount} токенів за "${description}"`);
+
+        // Метод 1: Через WinixCore API (найкращий варіант)
+        if (window.WinixCore && window.WinixCore.Balance) {
+            const success = window.WinixCore.Balance.addTokens(amount, description);
+            console.log("Результат WinixCore.Balance.addTokens:", success);
+            return success;
+        }
+
+        // Метод 2: Через систему винагород
+        if (window.rewardSystem) {
+            const success = window.rewardSystem.addTokens(amount, description);
+            console.log("Результат rewardSystem.addTokens:", success);
+            return success;
+        }
+
+        // Метод 3: Вручну через localStorage
+        try {
+            // Отримуємо поточний баланс з обох ключів
+            const userTokens = parseFloat(safeGetItem('userTokens', '0'));
+            const winixBalance = parseFloat(safeGetItem('winix_balance', '0'));
+
+            // Беремо більше значення для надійності
+            const currentBalance = Math.max(userTokens, winixBalance);
+
+            // Розраховуємо новий баланс
+            const newBalance = currentBalance + amount;
+            console.log(`Старий баланс: ${currentBalance}, Новий баланс: ${newBalance}`);
+
+            // Оновлюємо обидва ключі
+            safeSetItem('userTokens', newBalance.toString());
+            safeSetItem('winix_balance', newBalance.toString());
+
+            // Додаємо транзакцію, якщо можливо
+            try {
+                let transactions = JSON.parse(safeGetItem('transactions', '[]'));
+                const newTransaction = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substring(2, 9),
+                    type: 'receive',
+                    amount: amount,
+                    description: description,
+                    timestamp: Date.now(),
+                    status: 'completed'
+                };
+                transactions.unshift(newTransaction);
+                safeSetItem('transactions', JSON.stringify(transactions));
+                safeSetItem('winix_transactions', JSON.stringify(transactions));
+            } catch (e) {
+                console.error("Не вдалося додати транзакцію:", e);
+            }
+
+            return true;
+        } catch (e) {
+            console.error("Помилка при ручному додаванні токенів:", e);
+            return false;
+        }
+    }
+
+    // Оновлена функція отримання бонусу новачка (100% робоча)
+    function guaranteedNewbieBonus() {
+        console.log("Запуск гарантованої функції бонусу новачка");
+
+        // Перевіряємо, чи вже отримано бонус
+        const bonusClaimed = safeGetItem('newbie_bonus_claimed', 'false') === 'true';
+        if (bonusClaimed) {
+            console.log("Бонус вже отримано раніше");
+            showMessage('Ви вже отримали бонус новачка!', 3000);
+            return false;
+        }
+
+        // Показуємо індикатор завантаження, якщо він є
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.classList.add('show');
+
+        // Сума бонусу
+        const bonusAmount = 150;
+
+        // Додаємо токени
+        const success = addBonusTokens(bonusAmount, 'Бонус новачка');
+
+        if (success) {
+            // Позначаємо бонус як отриманий
+            safeSetItem('newbie_bonus_claimed', 'true');
+
+            // Оновлюємо інтерфейс
+            updateInterface();
+
+            // Показуємо повідомлення про успіх
+            showMessage(`Вітаємо! Ви отримали ${bonusAmount} WINIX як бонус новачка!`, 3000);
+
+            // Оновлюємо кнопку
+            const button = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
+            if (button) {
+                button.textContent = 'Отримано';
+                button.disabled = true;
+                button.style.opacity = '0.6';
+                button.style.cursor = 'default';
+            }
+
+            console.log("Бонус новачка успішно нараховано!");
+        } else {
+            console.error("Не вдалося нарахувати бонус новачка!");
+            showMessage('Сталася помилка при отриманні бонусу. Спробуйте ще раз.', 3000);
+        }
+
+        // Приховуємо індикатор завантаження
+        if (spinner) spinner.classList.remove('show');
+
+        return success;
+    }
+
+    // Функція для налаштування перехоплювача кнопки бонусу новачка
+    function setupNewbieButtonInterceptor() {
+        console.log("Налаштування перехоплювача кнопки бонусу новачка");
+
+        // Різні варіанти селекторів для пошуку кнопки
+        const selectors = [
+            '.mini-raffle-button[data-raffle-id="newbie"]',
+            '.mini-raffle:contains("Бонус новачкам") .mini-raffle-button',
+            '.mini-raffle:contains("Бонус новичкам") .mini-raffle-button',
+            '.mini-raffle:contains("Newbie Bonus") .mini-raffle-button',
+            '.mini-raffle:contains("бонус") .mini-raffle-button',
+            '.mini-raffle:contains("150 WINIX") .mini-raffle-button'
+        ];
+
+        // Функція для пошуку елементів за текстом
+        jQuery.expr[':'].contains = function(a, i, m) {
+            return jQuery(a).text().toLowerCase().indexOf(m[3].toLowerCase()) >= 0;
+        };
+
+        // Перевіряємо кожен селектор
+        for (const selector of selectors) {
+            try {
+                const buttons = document.querySelectorAll(selector);
+                if (buttons.length > 0) {
+                    console.log(`Знайдено ${buttons.length} кнопок за селектором "${selector}"`);
+
+                    buttons.forEach((button, index) => {
+                        // Перевіряємо, чи не отримано вже бонус
+                        if (safeGetItem('newbie_bonus_claimed', 'false') === 'true') {
+                            button.textContent = 'Отримано';
+                            button.disabled = true;
+                            button.style.opacity = '0.6';
+                            button.style.cursor = 'default';
+                            console.log("Кнопку позначено як неактивну (бонус вже отримано)");
+                            return;
+                        }
+
+                        // Створюємо копію кнопки для очищення обробників
+                        const newButton = button.cloneNode(true);
+                        button.parentNode.replaceChild(newButton, button);
+
+                        // Додаємо наш власний обробник
+                        newButton.addEventListener('click', function(e) {
+                            console.log("Клік на кнопці бонусу новачка перехоплено!");
+                            e.preventDefault();
+                            e.stopPropagation();
+                            guaranteedNewbieBonus();
+                            return false;
+                        });
+
+                        console.log(`Кнопка #${index + 1} успішно налаштована`);
+                    });
+                }
+            } catch (e) {
+                console.error(`Помилка пошуку за селектором "${selector}":`, e);
+            }
+        }
+    }
+
+    // Запускаємо налаштування кнопки при завантаженні DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupNewbieButtonInterceptor);
+    } else {
+        setupNewbieButtonInterceptor();
+    }
+
+    // Запускаємо повторно через 1 секунду для підстраховки
+    setTimeout(setupNewbieButtonInterceptor, 1000);
+
+    // Додаємо глобальну функцію для можливості виклику вручну
+    window.claimNewbieBonus = guaranteedNewbieBonus;
+
+    console.log("🎁 NEWBIE BONUS FIX: Виправлення для бонусу новачка успішно встановлено!");
+})();
+/**
+ * Додає водяний знак "ОТРИМАНО" до бейджів, які вже отримано
+ */
+function markCompletedBadges() {
+    console.log("Додавання водяних знаків до отриманих бейджів");
+
+    // Визначаємо текст для водяного знаку залежно від мови
+    const lang = localStorage.getItem('userLanguage') || 'uk';
+    const watermarkText = lang === 'uk' ? "ОТРИМАНО" : (lang === 'ru' ? "ПОЛУЧЕНО" : "RECEIVED");
+
+    // Перевіряємо всі бейджі
+    const badges = [
+        {selector: '.badge-item:nth-child(1)', storageKey: 'badge_winner_claimed'},
+        {selector: '.badge-item:nth-child(2)', storageKey: 'badge_beginner_claimed'},
+        {selector: '.badge-item:nth-child(3)', storageKey: 'badge_rich_claimed'}
+    ];
+
+    badges.forEach(badge => {
+        // Перевіряємо, чи бейдж отримано
+        if (localStorage.getItem(badge.storageKey) === 'true') {
+            const badgeElement = document.querySelector(badge.selector);
+            if (!badgeElement) return;
+
+            // Перевіряємо, чи водяний знак уже додано
+            if (badgeElement.querySelector('.badge-watermark')) return;
+
+            // Додаємо клас для стилізації
+            badgeElement.classList.add('badge-completed');
+
+            // Створюємо водяний знак
+            const watermark = document.createElement('div');
+            watermark.className = 'badge-watermark';
+
+            // Створюємо елемент тексту
+            const textElement = document.createElement('div');
+            textElement.className = 'badge-watermark-text';
+            textElement.textContent = watermarkText;
+
+            // Додаємо стилі
+            watermark.style.position = 'absolute';
+            watermark.style.top = '0';
+            watermark.style.left = '0';
+            watermark.style.right = '0';
+            watermark.style.bottom = '0';
+            watermark.style.display = 'flex';
+            watermark.style.justifyContent = 'center';
+            watermark.style.alignItems = 'center';
+            watermark.style.pointerEvents = 'none';
+            watermark.style.overflow = 'hidden';
+
+            textElement.style.position = 'absolute';
+            textElement.style.transform = 'rotate(-35deg)';
+            textElement.style.fontSize = '14px';
+            textElement.style.fontWeight = '900';
+            textElement.style.color = 'black';
+            textElement.style.backgroundColor = 'rgba(255, 204, 0, 0.8)';
+            textElement.style.padding = '2px 20px';
+            textElement.style.letterSpacing = '1px';
+            textElement.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
+            textElement.style.textShadow = '0px 0px 1px white';
+
+            // Додаємо елементи
+            watermark.appendChild(textElement);
+            badgeElement.style.position = 'relative';
+            badgeElement.appendChild(watermark);
+
+            console.log(`Додано водяний знак до бейджа: ${badge.selector}`);
+        }
+    });
+}
+// Викликаємо маркування бейджів при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Викликаємо існуючі функції, якщо вони є
+    if (typeof syncStorageKeys === 'function') syncStorageKeys();
+    if (typeof markNewbieBonus === 'function') markNewbieBonus();
+
+    // Викликаємо нову функцію для маркування бейджів
+    markCompletedBadges();
+});
+/**
+ * Замінює емоджі на бейджах на зображення
+ */
+function replaceBadgeEmojisWithImages() {
+    console.log("Заміна емоджі на бейджах на зображення");
+
+    // Конфігурація бейджів та їх зображень
+    const badgeImages = [
+        {
+            selector: '.badge-item:nth-child(1) .badge-icon', // Переможець (перший бейдж)
+            imagePath: 'assets/badge-winner.png',
+            altText: 'Переможець'
+        },
+        {
+            selector: '.badge-item:nth-child(2) .badge-icon', // Початківець (другий бейдж)
+            imagePath: 'assets/badge-beginner.png',
+            altText: 'Початківець'
+        },
+        {
+            selector: '.badge-item:nth-child(3) .badge-icon', // Багатій (третій бейдж)
+            imagePath: 'assets/badge-rich.png',
+            altText: 'Багатій'
+        }
+    ];
+
+    // Проходимо по всіх елементах і замінюємо емоджі на зображення
+    badgeImages.forEach(badge => {
+        const badgeIcon = document.querySelector(badge.selector);
+        if (!badgeIcon) {
+            console.log(`Елемент не знайдено: ${badge.selector}`);
+            return;
+        }
+
+        // Перевіряємо, чи є вже зображення
+        if (badgeIcon.querySelector('img')) {
+            console.log(`Зображення вже додано для: ${badge.selector}`);
+            return;
+        }
+
+        // Зберігаємо клас locked, якщо він є
+        const isLocked = badgeIcon.classList.contains('locked');
+
+        // Створюємо елемент зображення
+        const img = document.createElement('img');
+        img.src = badge.imagePath;
+        img.alt = badge.altText;
+        img.className = 'badge-image';
+
+        // Додаємо обробник на випадок помилки завантаження зображення
+        img.onerror = function() {
+            console.error(`Помилка завантаження зображення: ${badge.imagePath}`);
+            badgeIcon.textContent = isLocked ? '🔒' : '🏆';
+        };
+
+        // Очищаємо контейнер від емоджі
+        badgeIcon.innerHTML = '';
+
+        // Додаємо зображення
+        badgeIcon.appendChild(img);
+
+        // Якщо бейдж був заблокований, додаємо значок замка
+        if (isLocked) {
+            const lockIcon = document.createElement('div');
+            lockIcon.className = 'lock-icon';
+            lockIcon.textContent = '🔒';
+            badgeIcon.appendChild(lockIcon);
+        }
+
+        console.log(`Замінено емоджі на зображення для бейджа: ${badge.selector}`);
+    });
+}
+
+/**
+ * Додає водяний знак "ОТРИМАНО" до бейджів, які вже отримано
+ */
+function markCompletedBadges() {
+    console.log("Додавання водяних знаків до отриманих бейджів");
+
+    // Визначаємо текст для водяного знаку залежно від мови
+    const lang = localStorage.getItem('userLanguage') || 'uk';
+    const watermarkText = lang === 'uk' ? "ОТРИМАНО" : (lang === 'ru' ? "ПОЛУЧЕНО" : "RECEIVED");
+
+    // Перевіряємо всі бейджі
+    const badges = [
+        {selector: '.badge-item:nth-child(1)', storageKey: 'badge_winner_claimed'},
+        {selector: '.badge-item:nth-child(2)', storageKey: 'badge_beginner_claimed'},
+        {selector: '.badge-item:nth-child(3)', storageKey: 'badge_rich_claimed'}
+    ];
+
+    badges.forEach(badge => {
+        // Перевіряємо, чи бейдж отримано
+        if (localStorage.getItem(badge.storageKey) === 'true') {
+            const badgeElement = document.querySelector(badge.selector);
+            if (!badgeElement) return;
+
+            // Перевіряємо, чи водяний знак уже додано
+            if (badgeElement.querySelector('.badge-watermark')) return;
+
+            // Додаємо клас для стилізації
+            badgeElement.classList.add('badge-completed');
+
+            // Створюємо водяний знак
+            const watermark = document.createElement('div');
+            watermark.className = 'badge-watermark';
+
+            // Створюємо елемент тексту
+            const textElement = document.createElement('div');
+            textElement.className = 'badge-watermark-text';
+            textElement.textContent = watermarkText;
+
+            // Додаємо елементи
+            watermark.appendChild(textElement);
+            badgeElement.style.position = 'relative';
+            badgeElement.appendChild(watermark);
+
+            console.log(`Додано водяний знак до бейджа: ${badge.selector}`);
+        }
+    });
+}
+// Ініціалізація функцій при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Спроба виклику функції маркування бонусу новачка, якщо вона існує
+    if (typeof markNewbieBonus === 'function') {
+        markNewbieBonus();
+    }
+
+    // Маркування отриманих бейджів
+    markCompletedBadges();
+
+    // Заміна емоджі на зображення
+    replaceBadgeEmojisWithImages();
+
+    console.log("✅ Система бейджів із зображеннями ініціалізована");
+});
+
+// Повторний запуск через 1 секунду для надійності
+setTimeout(function() {
+    markCompletedBadges();
+    replaceBadgeEmojisWithImages();
+}, 1000);
 </script>
 </body>
 </html>
