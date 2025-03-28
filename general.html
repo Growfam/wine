@@ -75,13 +75,12 @@
             align-items: center;
             gap: 0.9375rem; /* 15px */
             overflow-y: auto;
-            padding-bottom: var(--bottom-padding) !important;
+            padding-bottom: var(--bottom-padding);
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
             scrollbar-color: var(--secondary-color) transparent;
         }
 
-        /* Стилізація скролбару для Chrome/Safari */
         .container::-webkit-scrollbar {
             width: 0.375rem; /* 6px */
         }
@@ -117,7 +116,6 @@
             z-index: 10;
         }
 
-        /* Стилі для аватара користувача */
         .header .profile-avatar {
             width: 2.5rem; /* 40px */
             height: 2.5rem;
@@ -207,7 +205,6 @@
             font-weight: normal;
         }
 
-        /* Приховуємо іконку жетона */
         .header .jeton-icon {
             display: none;
         }
@@ -522,6 +519,17 @@
             box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4);
         }
 
+        .modal-body input.error {
+            border-color: #f44336;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
         .modal-body label {
             display: block;
             margin-bottom: 0.3125rem; /* 5px */
@@ -562,6 +570,7 @@
             flex-wrap: wrap;
             gap: 0.625rem; /* 10px */
             margin-top: 0.625rem; /* 10px */
+            justify-content: center;
         }
 
         .avatar-option {
@@ -570,15 +579,18 @@
             border-radius: 50%;
             cursor: pointer;
             border: 0.125rem solid transparent; /* 2px */
-            transition: border 0.3s ease;
+            transition: all 0.3s ease;
+            object-fit: cover;
         }
 
         .avatar-option.selected {
             border: 0.125rem solid #00C9A7; /* 2px */
+            transform: scale(1.1);
         }
 
         .avatar-option:hover {
             border: 0.125rem solid rgba(0, 201, 167, 0.5); /* 2px */
+            transform: scale(1.05);
         }
 
         .seed-modal-content {
@@ -684,7 +696,7 @@
             height: var(--nav-height);
             box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
             position: fixed;
-            bottom: 1.875rem; /* 30px */
+            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
@@ -701,12 +713,6 @@
             justify-content: center;
             width: 20%;
             position: relative;
-            opacity: 0.7;
-            transition: all 0.2s ease;
-        }
-
-        .nav-item.active {
-            opacity: 1;
         }
 
         .nav-item .icon-wrapper {
@@ -719,13 +725,12 @@
             justify-content: center;
             margin-bottom: 0.3125rem; /* 5px */
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: all 0.2s ease;
+            transition: transform 0.3s ease;
         }
 
         .nav-item.active .icon-wrapper {
             background: var(--bg-active);
             box-shadow: 0 0 0.9375rem var(--glow-color);
-            transform: translateY(-0.1875rem); /* -3px */
         }
 
         .nav-item img {
@@ -733,39 +738,106 @@
             height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
-            transition: all 0.2s ease;
         }
 
         .nav-item.active img {
             filter: brightness(1.2) invert(1);
         }
 
-        .contact-widget {
-            position: fixed;
-            bottom: 5.625rem; /* 90px */
-            right: 1.25rem; /* 20px */
-            width: 3.125rem; /* 50px */
-            height: 3.125rem;
+        .nav-item:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+
+        .bottom-buttons-container {
+            display: flex;
+            flex-direction: row;
+            gap: 8.625rem; /* 10px */
+            align-items: flex-end;
+            padding: 0.1rem; /* 16px */
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 0.1rem; /* 16px */
+        }
+
+        .bottom-button {
+            width: 6.125rem; /* 50px */
+            height: 6.125rem; /* 50px */
             background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            border-radius: 50%;
+            border-radius: 90%;
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3); /* 0 4px 10px */
             cursor: pointer;
-            z-index: 9;
             transition: all 0.3s ease;
         }
 
-        .contact-widget:hover {
+        .bottom-button:hover {
             transform: scale(1.1);
             box-shadow: 0 0.375rem 0.9375rem rgba(0, 0, 0, 0.4); /* 0 6px 15px */
         }
 
-        .contact-icon {
+        .bottom-button img {
+            width: 6.5rem; /* 24px */
+            height: 6.5rem;
+            filter: brightness(0) invert(1);
+        }
+
+        .button-icon {
             width: 1.5rem; /* 24px */
             height: 1.5rem;
             filter: brightness(0) invert(1);
+        }
+
+        .modal-scrollable-content {
+            max-height: 60vh;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            padding-right: 0.5rem;
+        }
+
+        .modal-scrollable-content::-webkit-scrollbar {
+            width: 0.375rem; /* 6px */
+        }
+
+        .modal-scrollable-content::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 0.625rem; /* 10px */
+        }
+
+        .modal-scrollable-content::-webkit-scrollbar-thumb {
+            background-color: var(--secondary-color);
+            border-radius: 0.625rem; /* 10px */
+        }
+
+        .modal-back-button {
+            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+            border: none;
+            border-radius: 1.25rem; /* 20px */
+            padding: 0.625rem 1.25rem; /* 10px 20px */
+            color: white;
+            font-size: 1rem; /* 16px */
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.4);
+            margin-top: 1rem;
+        }
+
+        .modal-back-button:hover {
+            transform: translateY(-0.125rem); /* -2px */
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.5);
+        }
+
+        #error-msg {
+            color: #f44336;
+            background-color: rgba(244, 67, 54, 0.1);
+            border-left: 3px solid #f44336;
+            padding: 8px 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s ease;
         }
 
         .spinner {
@@ -796,45 +868,52 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Стиль для повідомлень */
-.toast-message {
-    position: fixed;
-    top: 1.25rem; /* 20px */
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(135deg, #1A1A2E, #0F3460);
-    color: #ffffff;
-    padding: 0.75rem 1.5rem; /* 12px 24px */
-    border-radius: 12px;
-    z-index: 1000;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    border: 1px solid rgba(78, 181, 247, 0.2);
-    opacity: 0;
-    transition: all 0.3s ease;
-    font-size: 0.9375rem; /* 15px */
-    display: flex;
-    align-items: center;
-    max-width: 350px;
-    width: 90%;
-}
+        .toast-message {
+            position: fixed;
+            top: 1.25rem; /* 20px */
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #1A1A2E, #0F3460);
+            color: #ffffff;
+            padding: 0.75rem 1.5rem; /* 12px 24px */
+            border-radius: 12px;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 0.9375rem; /* 15px */
+            display: flex;
+            align-items: center;
+            max-width: 350px;
+            width: 90%;
+        }
 
-.toast-message::after {
-    content: '×';
-    color: #4eb5f7;
-    margin-left: 10px;
-    cursor: pointer;
-    font-size: 20px;
-}
+        .toast-message.success {
+            background: linear-gradient(135deg, #0F3460, #006064);
+            border: 1px solid rgba(0, 201, 167, 0.5);
+        }
 
-.toast-message.show {
-    opacity: 1;
-    transform: translate(-50%, 0.625rem); /* -50%, 10px */
-}
+        .toast-message.error {
+            background: linear-gradient(135deg, #2E0B0B, #860000);
+            border: 1px solid rgba(255, 82, 82, 0.5);
+        }
 
-        /* Медіа-запити для адаптивності */
+        .toast-message::after {
+            content: '×';
+            color: #4eb5f7;
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 0.625rem); /* -50%, 10px */
+        }
+
         @media (max-width: 450px) {
             :root {
-                /* Зменшуємо розміри для маленьких екранів */
                 --header-height: 3rem; /* 48px */
                 --nav-height: 4rem; /* 64px */
             }
@@ -921,7 +1000,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header from the first file -->
         <div class="header">
             <div class="user-profile" id="profile-link">
                 <div class="profile-avatar" id="profile-avatar">W</div>
@@ -994,6 +1072,18 @@
                 <div class="language-title" data-lang-key="security">Безпека</div>
                 <button class="action-button" id="show-seed-phrase" data-lang-key="show_seed">Показати SID фразу</button>
             </div>
+
+            <div class="bottom-buttons-container">
+                <a href="https://t.me/Winix_Support" target="_blank" class="bottom-button" id="help-button" title="Підтримка">
+                    <img src="assets/support-icon.png" alt="Підтримка" class="button-icon">
+                </a>
+                <div class="bottom-button" id="license-button" title="Ліцензія">
+                    <img src="assets/license-icon.png" alt="Ліцензія" class="button-icon" onerror="this.src='https://via.placeholder.com/24?text=L'">
+                </div>
+                <div class="bottom-button" id="agreement-button" title="Угода користувача">
+                    <img src="assets/agreement-icon.png" alt="Угода" class="button-icon" onerror="this.src='https://via.placeholder.com/24?text=A'">
+                </div>
+            </div>
         </div>
 
         <div class="nav-bar">
@@ -1001,873 +1091,978 @@
             <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Заробіток</span></div>
             <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Реферали</span></div>
             <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Гаманець</span></div>
-            <div class="nav-item active" data-section="profile"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Профіль"></div><span data-lang-key="profile">Профіль</span></div>
+            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Налаштування"></div><span data-lang-key="General">Налаштування</span></div>
         </div>
-
-        <div class="contact-widget" id="quick-contact">
-            <img src="assets/support-icon.png" alt="Підтримка" class="contact-icon">
-        </div>
-
-        <div class="spinner" id="loading-spinner"><div class="spinner-inner"></div></div>
-        <div class="toast-message" id="toast-message"></div>
     </div>
 
     <script>
-    // Словник для перекладів
-    const translations = {
-        // Загальні елементи
-        "WINIX": "WINIX",
-        "$WINIX": "$WINIX",
-        "home": "Головна",
-        "earn": "Заробіток",
-        "referrals": "Реферали",
-        "wallet": "Гаманець",
-        "profile": "Профіль",
-        "settings": "Налаштування",
-        "coins": "Жетони",
-        "days": "днів",
-        "hours": "годин",
-        "minutes": "хвилин",
+        // Словник для перекладів
+        const translations = {
+            "WINIX": "WINIX",
+            "$WINIX": "$WINIX",
+            "home": "Головна",
+            "earn": "Заробіток",
+            "referrals": "Реферали",
+            "wallet": "Гаманець",
+            "profile": "Профіль",
+            "settings": "Налаштування",
+            "coins": "Жетони",
+            "days": "днів",
+            "hours": "годин",
+            "minutes": "хвилин",
+            "edit_profile": "Редагувати профіль",
+            "edit_profile_title": "Редагування профілю",
+            "username": "Ім'я користувача",
+            "new_password": "Новий пароль",
+            "password_placeholder": "Залиште порожнім, щоб не змінювати",
+            "confirm_password": "Підтвердження паролю",
+            "confirm_password_placeholder": "Повторіть новий пароль",
+            "upload_avatar": "Завантажити аватар",
+            "select_avatar": "Обрати аватар",
+            "btn_save": "Зберегти",
+            "profile_updated": "Профіль успішно оновлено",
+            "enter_username": "Введіть ім'я користувача",
+            "passwords_dont_match": "Паролі не співпадають",
+            "min_8_chars": "Пароль має містити не менше 8 символів",
+            "min_5_letters": "Пароль має містити не менше 5 літер",
+            "current_password": "Поточний пароль",
+            "current_password_placeholder": "Введіть поточний пароль для зміни",
+            "enter_current_password": "Введіть поточний пароль для зміни",
+            "wrong_current_password": "Неправильний поточний пароль",
+            "set_new_password": "Встановити пароль",
+            "set_password_placeholder": "Пароль для захисту акаунту",
+            "language_selection": "Вибір мови",
+            "language_uk": "Українська",
+            "language_en": "English",
+            "language_ru": "Русский",
+            "app_settings": "Налаштування додатку",
+            "notifications": "Сповіщення",
+            "security": "Безпека",
+            "settings_saved": "Налаштування збережено",
+            "settings_error": "Помилка збереження",
+            "show_seed": "Показати SID фразу",
+            "set_password": "Встановлення паролю",
+            "password_requirements": "Пароль має містити не менше 8 символів, включаючи 5 літер",
+            "password": "Пароль",
+            "confirm": "Підтвердження",
+            "enter_password": "Введіть пароль",
+            "your_password": "Ваш пароль",
+            "check": "Перевірити",
+            "wrong_password": "Невірний пароль",
+            "seed_phrase": "SID фраза",
+            "your_seed_phrase": "Ваша SID фраза",
+            "save_seed": "Збережіть цю фразу в надійному місці",
+            "copy": "Копіювати",
+            "copied": "Скопійовано",
+            "copy_error": "Помилка копіювання",
+            "done": "Готово",
+            "license_agreement": "Ліцензійна угода",
+            "user_agreement": "Угода користувача",
+            "back": "Назад",
+            "contact_support": "Зв'язок з підтримкою",
+            "navigation_error": "Помилка навігації",
+            "user_id": "ID:",
+            "password_required": "Потрібно ввести пароль",
+            "password_invalid": "Невірний формат пароля",
+            "avatar_load_error": "Помилка завантаження аватара"
+        };
 
-        // Налаштування профілю
-        "edit_profile": "Редагувати профіль",
-        "edit_profile_title": "Редагування профілю",
-        "username": "Ім'я користувача",
-        "new_password": "Новий пароль",
-        "password_placeholder": "Залиште порожнім, щоб не змінювати",
-        "confirm_password": "Підтвердження паролю",
-        "confirm_password_placeholder": "Повторіть новий пароль",
-        "upload_avatar": "Завантажити аватар",
-        "select_avatar": "Обрати аватар",
-        "btn_save": "Зберегти",
-        "profile_updated": "Профіль оновлено",
-        "enter_username": "Введіть ім'я користувача",
-        "passwords_dont_match": "Паролі не співпадають",
-        "min_8_chars": "Пароль має містити не менше 8 символів",
-        "min_5_letters": "Пароль має містити не менше 5 літер",
-
-        // Налаштування мови
-        "language_selection": "Вибір мови",
-        "language_uk": "Українська",
-        "language_en": "English",
-        "language_ru": "Русский",
-
-        // Налаштування додатку
-        "app_settings": "Налаштування додатку",
-        "notifications": "Сповіщення",
-        "security": "Безпека",
-        "settings_saved": "Налаштування збережено",
-        "settings_error": "Помилка збереження",
-
-        // SID фраза
-        "show_seed": "Показати SID фразу",
-        "set_password": "Встановлення паролю",
-        "password_requirements": "Пароль має містити не менше 8 символів, включаючи 5 літер",
-        "password": "Пароль",
-        "confirm": "Підтвердження",
-        "enter_password": "Введіть пароль",
-        "your_password": "Ваш пароль",
-        "check": "Перевірити",
-        "wrong_password": "Невірний пароль",
-        "seed_phrase": "SID фраза",
-        "your_seed_phrase": "Ваша SID фраза",
-        "save_seed": "Збережіть цю фразу в надійному місці",
-        "copy": "Копіювати",
-        "copied": "Скопійовано",
-        "copy_error": "Помилка копіювання",
-        "done": "Готово",
-
-        // Повідомлення
-        "contact_support": "Зв'язок з підтримкою",
-        "navigation_error": "Помилка навігації",
-        "user_id": "ID:"
-    };
-
-    // Функція для отримання перекладу
-    function getText(key, defaultText = key) {
-        return translations[key] || defaultText;
-    }
-
-    // Ініціалізація Telegram WebApp API
-    let tg;
-    try {
-        tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) {
-            console.log("Telegram WebApp API успішно ініціалізовано");
-            tg.ready();
-            tg.expand();
-
-            // Реагування на зміну теми Telegram
-            tg.onEvent('themeChanged', updateThemeColors);
-
-            // Реагування на зміну розміру вікна
-            tg.onEvent('viewportChanged', adjustLayout);
-        } else {
-            console.error("Telegram WebApp API недоступний");
+        function getText(key, defaultText = key) {
+            return translations[key] || defaultText;
         }
-    } catch (error) {
-        console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
-        tg = null;
-    }
 
-    // Функція оновлення кольорів при зміні теми
-    function updateThemeColors() {
-        if (tg && tg.colorScheme) {
-            document.body.setAttribute('data-theme', tg.colorScheme);
-        }
-    }
-
-    // Функція адаптації шарів при зміні розміру екрану
-    function adjustLayout() {
-        // Перевірка на малі екрани
-        const isSmallScreen = window.innerWidth <= 450;
-        const container = document.querySelector('.container');
-
-        if (isSmallScreen) {
-            container.classList.add('small-screen');
-        } else {
-            container.classList.remove('small-screen');
-        }
-    }
-
-    /**
-     * Функція для отримання перекладеного тексту
-     * Безпечно працює навіть якщо WinixLanguage недоступний
-     * @param {string} key - Ключ для перекладу
-     * @param {string} defaultText - Текст за замовчуванням якщо переклад недоступний
-     * @returns {string} - Перекладений текст або текст за замовчуванням
-     */
-    function getTranslation(key, defaultText) {
-        if (window.WinixLanguage && typeof window.WinixLanguage.getText === 'function') {
-            try {
-                return window.WinixLanguage.getText(key) || defaultText || key;
-            } catch (error) {
-                console.error(`Помилка отримання перекладу для ключа ${key}:`, error);
-                return defaultText || key;
-            }
-        }
-        return getText(key, defaultText || key);
-    }
-
-    /**
-     * Єдина функція для навігації між сторінками
-     * Оптимізована для запобігання лагам та дублюванню коду
-     * @param {string} page URL сторінки для переходу
-     */
-    function navigateToPage(page) {
+        let tg;
         try {
-            // Блокуємо повторні кліки
-            if (window._isNavigating) {
-                console.log('Навігація вже в процесі');
-                return;
+            tg = window.Telegram ? window.Telegram.WebApp : null;
+            if (tg) {
+                console.log("Telegram WebApp API успішно ініціалізовано");
+                tg.ready();
+                tg.expand();
+                tg.onEvent('themeChanged', updateThemeColors);
+                tg.onEvent('viewportChanged', adjustLayout);
+            } else {
+                console.error("Telegram WebApp API недоступний");
             }
+        } catch (error) {
+            console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
+            tg = null;
+        }
 
-            window._isNavigating = true;
-
-            // Показуємо індикатор завантаження, якщо він є на сторінці
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'flex';
+        function updateThemeColors() {
+            if (tg && tg.colorScheme) {
+                document.body.setAttribute('data-theme', tg.colorScheme);
             }
+        }
 
-            // Зберігаємо поточний баланс перед навігацією
-            let tokens = 0;
-            let coins = 0;
-
-            // Спробуємо отримати баланс із різних можливих джерел
-
-            // 1. Пробуємо WinixCore
-            if (window.WinixCore && window.WinixCore.Balance) {
-                tokens = window.WinixCore.Balance.getTokens();
-                coins = window.WinixCore.Balance.getCoins();
+        function adjustLayout() {
+            const isSmallScreen = window.innerWidth <= 450;
+            const container = document.querySelector('.container');
+            if (isSmallScreen) {
+                container.classList.add('small-screen');
+            } else {
+                container.classList.remove('small-screen');
             }
-            // 2. Пробуємо rewardSystem або balanceSystem
-            else if (window.rewardSystem) {
-                if (typeof window.rewardSystem.getTokens === 'function') {
-                    tokens = window.rewardSystem.getTokens();
+        }
+
+        function getTranslation(key, defaultText) {
+            if (window.WinixLanguage && typeof window.WinixLanguage.getText === 'function') {
+                try {
+                    return window.WinixLanguage.getText(key) || defaultText || key;
+                } catch (error) {
+                    console.error(`Помилка отримання перекладу для ключа ${key}:`, error);
+                    return defaultText || key;
                 }
-                if (typeof window.rewardSystem.getCoins === 'function') {
-                    coins = window.rewardSystem.getCoins();
-                }
-            } else if (window.balanceSystem) {
-                if (typeof window.balanceSystem.getTokens === 'function') {
-                    tokens = window.balanceSystem.getTokens();
-                }
-                if (typeof window.balanceSystem.getCoins === 'function') {
-                    coins = window.balanceSystem.getCoins();
-                }
             }
-            // 3. Повертаємось до localStorage як запасного варіанту
-            else {
-                tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                coins = parseFloat(localStorage.getItem('userCoins') || '0');
-            }
+            return getText(key, defaultText || key);
+        }
 
-            // Зберігаємо значення в sessionStorage для надійності
-            sessionStorage.setItem('lastBalance', tokens.toString());
-            sessionStorage.setItem('lastCoins', coins.toString());
-            sessionStorage.setItem('navigationTime', Date.now().toString());
+        function navigateToPage(page) {
+            try {
+                if (window._isNavigating) {
+                    console.log('Навігація вже в процесі');
+                    return;
+                }
 
-            // Захист від перенаправлення на ту ж саму сторінку
-            const currentPage = window.location.pathname.split('/').pop();
-            if (currentPage === page) {
-                console.log('Вже на цій сторінці');
+                window._isNavigating = true;
+
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) {
+                    spinner.style.display = 'flex';
+                }
+
+                let tokens = 0;
+                let coins = 0;
+
+                if (window.WinixCore && window.WinixCore.Balance) {
+                    tokens = window.WinixCore.Balance.getTokens();
+                    coins = window.WinixCore.Balance.getCoins();
+                } else if (window.rewardSystem) {
+                    if (typeof window.rewardSystem.getTokens === 'function') {
+                        tokens = window.rewardSystem.getTokens();
+                    }
+                    if (typeof window.rewardSystem.getCoins === 'function') {
+                        coins = window.rewardSystem.getCoins();
+                    }
+                } else if (window.balanceSystem) {
+                    if (typeof window.balanceSystem.getTokens === 'function') {
+                        tokens = window.balanceSystem.getTokens();
+                    }
+                    if (typeof window.balanceSystem.getCoins === 'function') {
+                        coins = window.balanceSystem.getCoins();
+                    }
+                } else {
+                    tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    coins = parseFloat(localStorage.getItem('userCoins') || '0');
+                }
+
+                sessionStorage.setItem('lastBalance', tokens.toString());
+                sessionStorage.setItem('lastCoins', coins.toString());
+                sessionStorage.setItem('navigationTime', Date.now().toString());
+
+                const currentPage = window.location.pathname.split('/').pop();
+                if (currentPage === page) {
+                    console.log('Вже на цій сторінці');
+                    if (spinner) {
+                        spinner.style.display = 'none';
+                    }
+                    window._isNavigating = false;
+                    return;
+                }
+
+                setTimeout(() => {
+                    window.location.href = page;
+                }, 100);
+            } catch (error) {
+                console.error('Помилка навігації:', error);
+                window._isNavigating = false;
+
+                const spinner = document.getElementById('loading-spinner');
                 if (spinner) {
                     spinner.style.display = 'none';
                 }
-                window._isNavigating = false;
-                return;
+
+                showToast(getTranslation('navigation_error', 'Помилка навігації'), true);
             }
-
-            // Переходимо на нову сторінку з затримкою
-            setTimeout(() => {
-                window.location.href = page;
-            }, 100);
-        } catch (error) {
-            console.error('Помилка навігації:', error);
-            window._isNavigating = false;
-
-            // Ховаємо індикатор завантаження в разі помилки
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'none';
-            }
-
-            // Показуємо повідомлення про помилку
-            showToast(getTranslation('navigation_error', 'Помилка навігації'), true);
-        }
-    }
-
-    // Функція для показу сповіщення
-    function showToast(message, isError = false) {
-        const toast = document.getElementById('toast-message');
-
-        if (!toast) return;
-
-        toast.textContent = message;
-        toast.classList.add('show');
-
-        if (isError) {
-            toast.classList.add('error');
-        } else {
-            toast.classList.remove('error');
         }
 
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
-    }
+        function showToast(message, isError = false) {
+            let toast = document.getElementById('toast-message');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast-message';
+                toast.className = 'toast-message';
+                document.body.appendChild(toast);
+            }
 
-    // Функція для завантаження аватара користувача
-    function loadUserAvatar() {
-        const headerAvatar = document.getElementById('profile-avatar');
-        const profileAvatar = document.getElementById('profile-avatar-large');
-        const headerUserId = document.getElementById('user-id');
-        const profileUserId = document.getElementById('user-id-profile');
+            toast.textContent = message;
+            toast.classList.add('show');
 
-        // Отримуємо дані користувача з localStorage
-        const username = localStorage.getItem('username') || 'WINIX User';
-        const userId = localStorage.getItem('userId') || '12345678';
-        const avatarSrc = localStorage.getItem('userAvatarSrc');
-        const avatarId = localStorage.getItem('selectedAvatarId');
-
-        document.getElementById('profile-name').textContent = username;
-
-        if (headerUserId) headerUserId.textContent = userId;
-        if (profileUserId) profileUserId.textContent = userId;
-
-        // Функція для встановлення аватара в елемент
-        function setAvatar(element) {
-            if (!element) return;
-
-            // Очищаємо вміст аватара
-            element.innerHTML = '';
-
-            if (avatarSrc) {
-                // Використовуємо завантажене зображення
-                const img = new Image();
-                img.src = avatarSrc;
-                img.alt = username;
-                img.onerror = () => element.textContent = username[0].toUpperCase();
-                element.appendChild(img);
-            } else if (avatarId) {
-                // Використовуємо системний аватар
-                const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
-                const img = new Image();
-                img.src = src;
-                img.alt = username;
-                img.onerror = () => element.textContent = username[0].toUpperCase();
-                element.appendChild(img);
+            if (isError) {
+                toast.classList.add('error');
+                toast.classList.remove('success');
             } else {
-                // Використовуємо першу літеру імені
-                element.textContent = username[0].toUpperCase();
+                toast.classList.add('success');
+                toast.classList.remove('error');
+            }
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toast.classList.remove('error', 'success');
+                }, 300);
+            }, 3000);
+        }
+
+        function loadUserAvatar() {
+            const headerAvatar = document.getElementById('profile-avatar');
+            const profileAvatar = document.getElementById('profile-avatar-large');
+            const headerUserId = document.getElementById('user-id');
+            const profileUserId = document.getElementById('user-id-profile');
+
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const userId = localStorage.getItem('userId') || '12345678';
+            const avatarSrc = localStorage.getItem('userAvatarSrc');
+            const avatarId = localStorage.getItem('selectedAvatarId');
+
+            document.getElementById('profile-name').textContent = username;
+
+            if (headerUserId) headerUserId.textContent = userId;
+            if (profileUserId) profileUserId.textContent = userId;
+
+            function setAvatar(element) {
+                if (!element) return;
+                element.innerHTML = '';
+                if (avatarSrc) {
+                    const img = new Image();
+                    img.src = avatarSrc;
+                    img.alt = username;
+                    img.onerror = () => {
+                        console.log('Помилка завантаження аватара, використовуємо текст');
+                        element.textContent = username[0].toUpperCase();
+                    };
+                    element.appendChild(img);
+                } else if (avatarId) {
+                    const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png` || `https://via.placeholder.com/50?text=${avatarId}`;
+                    const img = new Image();
+                    img.src = src;
+                    img.alt = username;
+                    img.onerror = () => {
+                        console.log('Помилка завантаження аватара, використовуємо запасний варіант');
+                        element.textContent = username[0].toUpperCase();
+                    };
+                    element.appendChild(img);
+                } else {
+                    element.textContent = username[0].toUpperCase();
+                }
+            }
+
+            setAvatar(headerAvatar);
+            setAvatar(profileAvatar);
+        }
+
+        function updateBalanceDisplay() {
+            try {
+                let tokens = parseFloat(localStorage.getItem('userTokens') || '294562.16');
+                let coins = parseFloat(localStorage.getItem('userCoins') || '250');
+                document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+                document.getElementById('user-coins').textContent = coins.toFixed(0);
+            } catch (error) {
+                console.error('Error updating balance:', error);
             }
         }
 
-        // Встановлюємо аватари
-        setAvatar(headerAvatar);
-        setAvatar(profileAvatar);
-    }
-
-    // Оновлення балансу
-    function updateBalanceDisplay() {
-        try {
-            // Спочатку отримуємо баланс безпосередньо з localStorage
-            let tokens = parseFloat(localStorage.getItem('userTokens') || '294562.16');
-            let coins = parseFloat(localStorage.getItem('userCoins') || '250');
-
-            // Оновлюємо елементи інтерфейсу
-            document.getElementById('user-tokens').textContent = tokens.toFixed(2);
-            document.getElementById('user-coins').textContent = coins.toFixed(0);
-        } catch (error) {
-            console.error('Error updating balance:', error);
+        function hashPassword(password) {
+            let hash = 0;
+            if (password.length === 0) return hash.toString();
+            for (let i = 0; i < password.length; i++) {
+                const char = password.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString() + "winix";
         }
-    }
 
-    // Показ модального вікна редагування профілю
-    function showEditProfileModal() {
-        const currentUsername = localStorage.getItem('username') || 'WINIX User';
+        function validatePassword(password) {
+            if (!password || password.length < 8)
+                return { valid: false, message: getTranslation('min_8_chars', 'Пароль має містити не менше 8 символів') };
+            if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
+                return { valid: false, message: getTranslation('min_5_letters', 'Пароль має містити не менше 5 літер') };
+            return { valid: true };
+        }
 
-        // Видаляємо існуючі модальні вікна, якщо вони є
-        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+        function showEditProfileModal() {
+            const currentUsername = localStorage.getItem('username') || 'WINIX User';
+            const savedPasswordHash = localStorage.getItem('passwordHash');
+            const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+            const hasPassword = savedPasswordHash || savedSeedHash;
 
-        const modal = document.createElement('div');
-        modal.className = 'document-modal show';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="modal-title">${getTranslation('edit_profile_title', 'Редагування профілю')}</div>
-                    <span class="close-modal">×</span>
+            const passwordFieldLabel = hasPassword ? getTranslation('current_password', 'Поточний пароль') : getTranslation('set_new_password', 'Встановити пароль');
+            const passwordFieldPlaceholder = hasPassword ? getTranslation('current_password_placeholder', 'Введіть поточний пароль для зміни') : getTranslation('set_password_placeholder', 'Пароль для захисту акаунту');
+
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">${getTranslation('edit_profile_title', 'Редагування профілю')}</div>
+                        <span class="close-modal">×</span>
+                    </div>
+                    <div class="modal-body">
+                        <div class="settings-item">
+                            <label>${getTranslation('username', "Ім'я користувача")}</label>
+                            <input type="text" id="edit-username" value="${currentUsername}">
+                        </div>
+                        <div class="settings-item">
+                            <label>${passwordFieldLabel}</label>
+                            <input type="password" id="edit-current-password" placeholder="${passwordFieldPlaceholder}">
+                        </div>
+                        <div class="settings-item">
+                            <label>${getTranslation('new_password', 'Новий пароль')}</label>
+                            <input type="password" id="edit-password" placeholder="${getTranslation('password_placeholder', 'Залиште порожнім, щоб не змінювати')}">
+                        </div>
+                        <div class="settings-item">
+                            <label>${getTranslation('confirm_password', 'Підтвердження паролю')}</label>
+                            <input type="password" id="edit-password-confirm" placeholder="${getTranslation('confirm_password_placeholder', 'Повторіть новий пароль')}">
+                        </div>
+                        <div class="settings-item">
+                            <label>${getTranslation('upload_avatar', 'Завантажити аватар')}</label>
+                            <input type="file" id="avatar-upload" accept="image/*">
+                        </div>
+                        <div class="settings-item">
+                            <label>${getTranslation('select_avatar', 'Обрати аватар')}</label>
+                            <div class="avatar-options">
+                                <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
+                                <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
+                                <img src="assets/avatar3.png" class="avatar-option" data-id="3" onerror="this.src='https://via.placeholder.com/50?text=3'">
+                                <img src="assets/avatar4.png" class="avatar-option" data-id="4" onerror="this.src='https://via.placeholder.com/50?text=4'">
+                                <img src="assets/avatar5.png" class="avatar-option" data-id="5" onerror="this.src='https://via.placeholder.com/50?text=5'">
+                                <img src="assets/avatar6.png" class="avatar-option" data-id="6" onerror="this.src='https://via.placeholder.com/50?text=6'">
+                                <img src="assets/avatar7.png" class="avatar-option" data-id="7" onerror="this.src='https://via.placeholder.com/50?text=7'">
+                                <img src="assets/avatar8.png" class="avatar-option" data-id="8" onerror="this.src='https://via.placeholder.com/50?text=8'">
+                                <img src="assets/avatar9.png" class="avatar-option" data-id="9" onerror="this.src='https://via.placeholder.com/50?text=9'">
+                                <img src="assets/avatar10.png" class="avatar-option" data-id="10" onerror="this.src='https://via.placeholder.com/50?text=10'">
+                                <img src="assets/avatar11.png" class="avatar-option" data-id="11" onerror="this.src='https://via.placeholder.com/50?text=11'">
+                                <img src="assets/avatar12.png" class="avatar-option" data-id="12" onerror="this.src='https://via.placeholder.com/50?text=12'">
+                                <img src="assets/avatar13.png" class="avatar-option" data-id="13" onerror="this.src='https://via.placeholder.com/50?text=13'">
+                            </div>
+                        </div>
+                        <div id="error-msg"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="modal-button" id="save-profile">${getTranslation('btn_save', 'Зберегти')}</button>
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <div class="settings-item">
-                        <label>${getTranslation('username', "Ім'я користувача")}</label>
-                        <input type="text" id="edit-username" value="${currentUsername}">
+            `;
+            document.body.appendChild(modal);
+
+            const avatarOptions = modal.querySelectorAll('.avatar-option');
+            const selectedAvatarId = localStorage.getItem('selectedAvatarId');
+            avatarOptions.forEach(opt => {
+                if (opt.dataset.id === selectedAvatarId) opt.classList.add('selected');
+                opt.onclick = () => {
+                    avatarOptions.forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                };
+            });
+
+            const saveBtn = modal.querySelector('#save-profile');
+            saveBtn.onclick = () => {
+                const username = modal.querySelector('#edit-username').value.trim();
+                const password = modal.querySelector('#edit-password').value;
+                const confirm = modal.querySelector('#edit-password-confirm').value;
+                const currentPassword = modal.querySelector('#edit-current-password').value;
+                const uploadedAvatar = modal.querySelector('#avatar-upload').files[0];
+                const selectedAvatar = modal.querySelector('.avatar-option.selected');
+                const error = modal.querySelector('#error-msg');
+
+                error.textContent = '';
+
+                if (!username) {
+                    error.textContent = getTranslation('enter_username', "Введіть ім'я користувача");
+                    modal.querySelector('#edit-username').classList.add('error');
+                    "Введіть ім'я користувача";
+                    return;
+                }
+
+                if (password) {
+                    if (hasPassword) {
+                        if (!currentPassword) {
+                            error.textContent = getTranslation('enter_current_password', 'Введіть поточний пароль для зміни');
+                            modal.querySelector('#edit-current-password').classList.add('error');
+                            return;
+                        }
+
+                        const currentPasswordHash = hashPassword(currentPassword);
+                        if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
+                            (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
+                            error.textContent = getTranslation('wrong_current_password', 'Неправильний поточний пароль');
+                            modal.querySelector('#edit-current-password').classList.add('error');
+                            return;
+                        }
+                    }
+
+                    if (password !== confirm) {
+                        error.textContent = getTranslation('passwords_dont_match', 'Паролі не співпадають');
+                        modal.querySelector('#edit-password-confirm').classList.add('error');
+                        return;
+                    }
+
+                    const validation = validatePassword(password);
+                    if (!validation.valid) {
+                        error.textContent = validation.message;
+                        modal.querySelector('#edit-password').classList.add('error');
+                        return;
+                    }
+
+                    const newPasswordHash = hashPassword(password);
+                    localStorage.setItem('passwordHash', newPasswordHash);
+                    localStorage.setItem('seedPhrasePasswordHash', newPasswordHash);
+                } else if (currentPassword && !hasPassword) {
+                    const validation = validatePassword(currentPassword);
+                    if (!validation.valid) {
+                        error.textContent = validation.message;
+                        modal.querySelector('#edit-current-password').classList.add('error');
+                        return;
+                    }
+
+                    const newPasswordHash = hashPassword(currentPassword);
+                    localStorage.setItem('passwordHash', newPasswordHash);
+                    localStorage.setItem('seedPhrasePasswordHash', newPasswordHash);
+                }
+
+                localStorage.setItem('username', username);
+
+                if (uploadedAvatar) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        localStorage.setItem('userAvatarSrc', reader.result);
+                        localStorage.removeItem('selectedAvatarId');
+                        loadUserAvatar();
+                    };
+                    reader.readAsDataURL(uploadedAvatar);
+                } else if (selectedAvatar) {
+                    const avatarId = selectedAvatar.dataset.id;
+                    localStorage.setItem('selectedAvatarId', avatarId);
+                    localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
+                    localStorage.removeItem('userAvatarSrc');
+                    loadUserAvatar();
+                }
+
+                modal.remove();
+                showToast(getTranslation('profile_updated', 'Профіль успішно оновлено'), false);
+            };
+
+            modal.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', function() {
+                    this.classList.remove('error');
+                });
+            });
+
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
+
+        function loadUserSettings() {
+            const lang = localStorage.getItem('userLanguage') || 'uk';
+            document.querySelectorAll('.language-option').forEach(opt => {
+                opt.classList.toggle('active', opt.getAttribute('data-lang') === lang);
+            });
+
+            const isNotificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
+            document.getElementById('notifications-toggle').checked = isNotificationsEnabled;
+
+            updatePageTexts();
+        }
+
+        function updatePageTexts() {
+            document.querySelectorAll('[data-lang-key]').forEach(element => {
+                const key = element.getAttribute('data-lang-key');
+                if (key) {
+                    element.textContent = getTranslation(key, key);
+                }
+            });
+        }
+
+        function saveUserSettings() {
+            try {
+                const activeOption = document.querySelector('.language-option.active');
+                if (activeOption) {
+                    const lang = activeOption.getAttribute('data-lang');
+                    localStorage.setItem('userLanguage', lang);
+
+                    if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
+                        try {
+                            window.WinixLanguage.changeLang(lang);
+                        } catch (error) {
+                            console.error('Помилка зміни мови:', error);
+                        }
+                    }
+                }
+
+                const notificationsToggle = document.getElementById('notifications-toggle');
+                if (notificationsToggle) {
+                    const isNotificationsEnabled = notificationsToggle.checked;
+                    localStorage.setItem('notificationsEnabled', isNotificationsEnabled.toString());
+                }
+
+                showToast(getTranslation('settings_saved', 'Налаштування збережено'));
+            } catch (error) {
+                console.error('Settings save error:', error);
+                showToast(getTranslation('settings_error', 'Помилка збереження'), true);
+            }
+        }
+
+        function generateSeedPhrase(userId) {
+            const seedWords = [
+                "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
+                "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
+                "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
+                "final", "curve"
+            ];
+
+            try {
+                const id = parseInt(userId.replace(/\D/g, '')) || 12345;
+                let seed = id;
+                const phrase = [];
+                for (let i = 0; i < 12; i++) {
+                    seed = (seed * 9301 + 49297) % 233280;
+                    phrase.push(seedWords[Math.floor((seed / 233280) * seedWords.length)]);
+                }
+                return phrase;
+            } catch (error) {
+                console.error('Seed generation error:', error);
+                return seedWords.slice(0, 12);
+            }
+        }
+
+        function showSeedPhrase() {
+            console.log("Виклик функції showSeedPhrase");
+            const userId = localStorage.getItem('userId') || '12345678';
+            const phrase = generateSeedPhrase(userId);
+
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="seed-modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">${getTranslation('seed_phrase', 'SID фраза')}</div>
+                        <span class="close-modal">×</span>
                     </div>
-                    <div class="settings-item">
-                        <label>${getTranslation('new_password', 'Новий пароль')}</label>
-                        <input type="password" id="edit-password" placeholder="${getTranslation('password_placeholder', 'Залиште порожнім, щоб не змінювати')}">
-                    </div>
-                    <div class="settings-item">
-                        <label>${getTranslation('confirm_password', 'Підтвердження паролю')}</label>
-                        <input type="password" id="edit-password-confirm" placeholder="${getTranslation('confirm_password_placeholder', 'Повторіть новий пароль')}">
-                    </div>
-                    <div class="settings-item">
-                        <label>${getTranslation('upload_avatar', 'Завантажити аватар')}</label>
-                        <input type="file" id="avatar-upload" accept="image/*">
-                    </div>
-                    <div class="settings-item">
-                        <label>${getTranslation('select_avatar', 'Обрати аватар')}</label>
-                        <div class="avatar-options">
-                            <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
-                            <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
-                            <img src="assets/avatar3.png" class="avatar-option" data-id="3" onerror="this.src='https://via.placeholder.com/50?text=3'">
+                    <div class="modal-body">
+                        <div class="restore-card">
+                            <div class="restore-title">${getTranslation('your_seed_phrase', 'Ваша SID фраза')}</div>
+                            <div class="restore-subtitle">${getTranslation('save_seed', 'Збережіть цю фразу в надійному місці')}</div>
+                            <button class="copy-button">${getTranslation('copy', 'Копіювати')}</button>
+                            <div class="words-grid">
+                                ${phrase.map((word, i) => `
+                                    <div class="word-cell">
+                                        <div class="word-number">${i + 1}.</div>
+                                        <div class="word-value">${word}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button class="seed-continue-button">${getTranslation('done', 'Готово')}</button>
                         </div>
                     </div>
-                    <div id="error-msg" style="color: #f44336;"></div>
                 </div>
-                <div class="modal-footer">
-                    <button class="modal-button" id="save-profile">${getTranslation('btn_save', 'Зберегти')}</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
+            `;
+            document.body.appendChild(modal);
 
-        const avatarOptions = modal.querySelectorAll('.avatar-option');
-        const selectedAvatarId = localStorage.getItem('selectedAvatarId');
-        avatarOptions.forEach(opt => {
-            if (opt.dataset.id === selectedAvatarId) opt.classList.add('selected');
-            opt.onclick = () => {
-                avatarOptions.forEach(o => o.classList.remove('selected'));
-                opt.classList.add('selected');
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.querySelector('.copy-button').onclick = () => {
+                navigator.clipboard.writeText(phrase.join(' '))
+                    .then(() => showToast(getTranslation('copied', 'Скопійовано')))
+                    .catch(() => showToast(getTranslation('copy_error', 'Помилка копіювання'), true));
             };
-        });
+            modal.querySelector('.seed-continue-button').onclick = () => {
+                localStorage.setItem('seedPhraseViewed', 'true');
+                modal.remove();
+            };
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
 
-        const saveBtn = modal.querySelector('#save-profile');
-        saveBtn.onclick = () => {
-            const username = modal.querySelector('#edit-username').value.trim();
-            const password = modal.querySelector('#edit-password').value;
-            const confirm = modal.querySelector('#edit-password-confirm').value;
-            const uploadedAvatar = modal.querySelector('#avatar-upload').files[0];
-            const selectedAvatar = modal.querySelector('.avatar-option.selected');
-            const error = modal.querySelector('#error-msg');
+        function showSetPasswordModal(callback) {
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
-            if (!username) {
-                error.textContent = getTranslation('enter_username', "Введіть ім'я користувача");
-                return;
-            }
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">${getTranslation('set_password', 'Встановлення паролю')}</div>
+                        <span class="close-modal">×</span>
+                    </div>
+                    <div class="modal-body">
+                        <p>${getTranslation('password_requirements', 'Пароль має містити не менше 8 символів, включаючи 5 літер')}</p>
+                        <input type="password" id="new-password" placeholder="${getTranslation('password', 'Пароль')}">
+                        <input type="password" id="confirm-password" placeholder="${getTranslation('confirm', 'Підтвердження')}">
+                        <div id="error-msg"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="modal-button" id="save-password">${getTranslation('btn_save', 'Зберегти')}</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
 
-            if (password) {
-                if (password !== confirm) {
+            const saveBtn = modal.querySelector('#save-password');
+            saveBtn.onclick = () => {
+                const pwd = modal.querySelector('#new-password').value;
+                const confirm = modal.querySelector('#confirm-password').value;
+                const error = modal.querySelector('#error-msg');
+
+                if (pwd !== confirm) {
                     error.textContent = getTranslation('passwords_dont_match', 'Паролі не співпадають');
                     return;
                 }
-                const validation = validatePassword(password);
+                const validation = validatePassword(pwd);
                 if (!validation.valid) {
                     error.textContent = validation.message;
                     return;
                 }
 
-                localStorage.setItem('passwordHash', hashPassword(password));
-            }
+                const passwordHash = hashPassword(pwd);
+                localStorage.setItem('passwordHash', passwordHash);
+                localStorage.setItem('seedPhrasePasswordHash', passwordHash);
 
-            localStorage.setItem('username', username);
-
-            if (uploadedAvatar) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    localStorage.setItem('userAvatarSrc', reader.result);
-                    localStorage.removeItem('selectedAvatarId');
-                    loadUserAvatar();
-                };
-                reader.readAsDataURL(uploadedAvatar);
-            } else if (selectedAvatar) {
-                const avatarId = selectedAvatar.dataset.id;
-                localStorage.setItem('selectedAvatarId', avatarId);
-                localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
-                localStorage.removeItem('userAvatarSrc');
-                loadUserAvatar();
-            }
-
-            modal.remove();
-            showToast(getTranslation('profile_updated', 'Профіль оновлено'));
-        };
-
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    }
-
-    // Завантаження налаштувань користувача
-    function loadUserSettings() {
-        const lang = localStorage.getItem('userLanguage') || 'uk';
-        document.querySelectorAll('.language-option').forEach(opt => {
-            opt.classList.toggle('active', opt.getAttribute('data-lang') === lang);
-        });
-
-        const isNotificationsEnabled = localStorage.getItem('notificationsEnabled') !== 'false';
-        document.getElementById('notifications-toggle').checked = isNotificationsEnabled;
-
-        // Оновлюємо всі тексти на сторінці
-        updatePageTexts();
-    }
-
-    // Оновлення всіх текстів на сторінці
-    function updatePageTexts() {
-        document.querySelectorAll('[data-lang-key]').forEach(element => {
-            const key = element.getAttribute('data-lang-key');
-            if (key && translations[key]) {
-                element.textContent = translations[key];
-            }
-        });
-    }
-
-    // Збереження налаштувань користувача
-    function saveUserSettings() {
-        try {
-            const activeOption = document.querySelector('.language-option.active');
-            if (activeOption) {
-                const lang = activeOption.getAttribute('data-lang');
-                localStorage.setItem('userLanguage', lang);
-
-                // Оновлюємо мову
-                if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
-                    try {
-                        window.WinixLanguage.changeLang(lang);
-                    } catch (error) {
-                        console.error('Помилка зміни мови:', error);
-                    }
+                modal.remove();
+                if (typeof callback === 'function') {
+                    callback(pwd);
                 }
+            };
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
+
+        function showEnterPasswordModal(callback) {
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">${getTranslation('enter_password', 'Введіть пароль')}</div>
+                        <span class="close-modal">×</span>
+                    </div>
+                    <div class="modal-body">
+                        <input type="password" id="enter-password" placeholder="${getTranslation('your_password', 'Ваш пароль')}">
+                        <div id="error-msg"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="modal-button" id="check-password">${getTranslation('check', 'Перевірити')}</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const checkBtn = modal.querySelector('#check-password');
+            checkBtn.onclick = () => {
+                const pwd = modal.querySelector('#enter-password').value;
+                const error = modal.querySelector('#error-msg');
+
+                const savedPassHash = localStorage.getItem('passwordHash');
+                const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+                const inputHash = hashPassword(pwd);
+
+                if (inputHash === savedPassHash || inputHash === savedSeedHash) {
+                    modal.remove();
+                    if (typeof callback === 'function') {
+                        callback(pwd);
+                    }
+                } else {
+                    error.textContent = getTranslation('wrong_password', 'Невірний пароль');
+                }
+            };
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
+
+        function handleShowSeedPhrase() {
+            console.log("Виклик функції handleShowSeedPhrase");
+            try {
+                const savedPassHash = localStorage.getItem('passwordHash');
+                const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+                const hasPassword = savedPassHash || savedSeedHash;
+
+                console.log("Наявність паролю:", !!hasPassword);
+
+                if (!hasPassword) {
+                    console.log("Пароль відсутній, показуємо модалку встановлення паролю");
+                    showSetPasswordModal(function(password) {
+                        console.log("Пароль встановлено, показуємо SID фразу");
+                        showSeedPhrase();
+                    });
+                } else {
+                    console.log("Пароль наявний, показуємо модалку введення паролю");
+                    showEnterPasswordModal(function(password) {
+                        console.log("Пароль підтверджено, показуємо SID фразу");
+                        showSeedPhrase();
+                    });
+                }
+            } catch (error) {
+                console.error("Помилка при обробці показу SID фрази:", error);
+                showToast("Виникла помилка при спробі показати SID фразу", true);
             }
+        }
+
+        function showLicenseModal() {
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">Ліцензійна угода WINIX</div>
+                        <span class="close-modal">×</span>
+                    </div>
+                    <div class="modal-scrollable-content">
+                        <p>Версія 1.0, Березень 2025</p>
+                        <br>
+                        <p>Ця ліцензійна угода ("Угода") укладена між WINIX ("Ліцензіар") та Вами ("Ліцензіат").</p>
+                        <br>
+                        <p>1. НАДАННЯ ЛІЦЕНЗІЇ</p>
+                        <p>Ліцензіар надає Ліцензіату невиключну ліцензію на використання програмного забезпечення WINIX ("Програмне забезпечення") відповідно до умов цієї Угоди.</p>
+                        <br>
+                        <p>2. ОБМЕЖЕННЯ</p>
+                        <p>Ліцензіат не має права:</p>
+                        <p>- Копіювати або розповсюджувати Програмне забезпечення</p>
+                        <p>- Модифікувати, декомпілювати або дизасемблювати Програмне забезпечення</p>
+                        <p>- Використовувати Програмне забезпечення для незаконних цілей</p>
+                        <br>
+                        <p>3. ПРАВА ВЛАСНОСТІ</p>
+                        <p>Програмне забезпечення є власністю Ліцензіара та захищено законами про інтелектуальну власність.</p>
+                        <br>
+                        <p>4. ГАРАНТІЇ ТА ВІДМОВА ВІД ВІДПОВІДАЛЬНОСТІ</p>
+                        <p>Програмне забезпечення надається "як є" без будь-яких гарантій.</p>
+                        <br>
+                        <p>5. ВІДШКОДУВАННЯ ЗБИТКІВ</p>
+                        <p>Ліцензіат погоджується відшкодувати Ліцензіару будь-які збитки, що виникли внаслідок порушення цієї Угоди.</p>
+                        <br>
+                        <p>6. ПРИПИНЕННЯ</p>
+                        <p>Ця Угода діє до її припинення. Ліцензіар має право припинити дію цієї Угоди в разі порушення її умов Ліцензіатом.</p>
+                        <br>
+                        <p>7. ЗАГАЛЬНІ ПОЛОЖЕННЯ</p>
+                        <p>Ця Угода регулюється законодавством України. Всі спори, що виникають в зв'язку з цією Угодою, підлягають вирішенню в судах України.</p>
+                    </div>
+                    <button class="modal-back-button">${getTranslation('back', 'Назад')}</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.querySelector('.modal-back-button').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
+
+        function showAgreementModal() {
+            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+            const modal = document.createElement('div');
+            modal.className = 'document-modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="modal-title">Угода користувача WINIX</div>
+                        <span class="close-modal">×</span>
+                    </div>
+                    <div class="modal-scrollable-content">
+                        <p>Версія 1.0, Березень 2025</p>
+                        <br>
+                        <p>Ласкаво просимо до WINIX!</p>
+                        <br>
+                        <p>Ця Угода користувача ("Угода") регулює використання Вами мобільного додатку WINIX та всіх пов'язаних послуг.</p>
+                        <br>
+                        <p>1. ПРИЙНЯТТЯ УМОВ</p>
+                        <p>Використовуючи WINIX, Ви погоджуєтесь з умовами цієї Угоди. Якщо Ви не погоджуєтесь з умовами, Ви не маєте права використовувати WINIX.</p>
+                        <br>
+                        <p>2. РЕЄСТРАЦІЯ ТА БЕЗПЕКА</p>
+                        <p>Для використання WINIX Вам необхідно створити обліковий запис. Ви зобов'язані надати достовірну інформацію та забезпечити безпеку свого облікового запису.</p>
+                        <br>
+                        <p>3. КОНФІДЕНЦІЙНІСТЬ</p>
+                        <p>Ваша конфіденційність є важливою для нас. Збір та використання Ваших персональних даних регулюється нашою Політикою конфіденційності.</p>
+                        <br>
+                        <p>4. ВИКОРИСТАННЯ ТОКЕНІВ WINIX</p>
+                        <p>Токени WINIX є внутрішньою валютою додатку та не мають реальної вартості. Ви не маєте права продавати або обмінювати токени WINIX за межами додатку.</p>
+                        <br>
+                        <p>5. ПРАВИЛА ПОВЕДІНКИ</p>
+                        <p>Ви зобов'язуєтесь не використовувати WINIX для незаконних або шахрайських цілей.</p>
+                        <br>
+                        <p>6. ЗМІНИ В УГОДІ</p>
+                        <p>Ми залишаємо за собою право змінювати цю Угоду в будь-який час. Зміни вступають в силу після їх публікації в додатку.</p>
+                        <br>
+                        <p>7. ПРИПИНЕННЯ</p>
+                        <p>Ми залишаємо за собою право припинити або обмежити Ваш доступ до WINIX в разі порушення цієї Угоди.</p>
+                    </div>
+                    <button class="modal-back-button">${getTranslation('back', 'Назад')}</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            modal.querySelector('.close-modal').onclick = () => modal.remove();
+            modal.querySelector('.modal-back-button').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        }
+
+        function setupEventHandlers() {
+            console.log("Налаштування обробників подій");
+
+            const editProfileBtn = document.getElementById('edit-profile');
+            if (editProfileBtn) {
+                editProfileBtn.addEventListener('click', function() {
+                    showEditProfileModal();
+                });
+            }
+
+            const languageOptions = document.querySelectorAll('.language-option');
+            languageOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    languageOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    const selectedLang = this.getAttribute('data-lang');
+                    localStorage.setItem('userLanguage', selectedLang);
+                    if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
+                        window.WinixLanguage.changeLang(selectedLang);
+                    }
+                    updatePageTexts();
+                    showToast(getTranslation('settings_saved', 'Налаштування збережено'));
+                });
+            });
 
             const notificationsToggle = document.getElementById('notifications-toggle');
             if (notificationsToggle) {
-                const isNotificationsEnabled = notificationsToggle.checked;
-                localStorage.setItem('notificationsEnabled', isNotificationsEnabled.toString());
-            }
-
-            showToast(getTranslation('settings_saved', 'Налаштування збережено'));
-        } catch (error) {
-            console.error('Settings save error:', error);
-            showToast(getTranslation('settings_error', 'Помилка збереження'), true);
-        }
-    }
-
-    // Генерація SID фрази
-    function generateSeedPhrase(userId) {
-        const seedWords = [
-            "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
-            "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
-            "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
-            "final", "curve"
-        ];
-
-        try {
-            const id = parseInt(userId.replace(/\D/g, '')) || 12345;
-            let seed = id;
-            const phrase = [];
-            for (let i = 0; i < 12; i++) {
-                seed = (seed * 9301 + 49297) % 233280;
-                phrase.push(seedWords[Math.floor((seed / 233280) * seedWords.length)]);
-            }
-            return phrase;
-        } catch (error) {
-            console.error('Seed generation error:', error);
-            return seedWords.slice(0, 12);
-        }
-    }
-
-    // Функція для хешування пароля
-    function hashPassword(password) {
-        let hash = 0;
-        for (let i = 0; i < password.length; i++) {
-            hash = ((hash << 5) - hash) + password.charCodeAt(i);
-            hash &= hash;
-        }
-        return hash.toString();
-    }
-
-    // Валідація пароля
-    function validatePassword(password) {
-        if (!password || password.length < 8)
-            return { valid: false, message: getTranslation('min_8_chars', 'Пароль має містити не менше 8 символів') };
-        if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
-            return { valid: false, message: getTranslation('min_5_letters', 'Пароль має містити не менше 5 літер') };
-        return { valid: true };
-    }
-
-    // Показ SID фрази
-    function showSeedPhrase() {
-        console.log("Виклик функції showSeedPhrase");
-        const userId = localStorage.getItem('userId') || '12345678';
-        const phrase = generateSeedPhrase(userId);
-
-        // Видаляємо існуючі модальні вікна, якщо вони є
-        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-        const modal = document.createElement('div');
-        modal.className = 'document-modal show';
-        modal.innerHTML = `
-            <div class="seed-modal-content">
-                <div class="modal-header">
-                    <div class="modal-title">${getTranslation('seed_phrase', 'SID фраза')}</div>
-                    <span class="close-modal">×</span>
-                </div>
-                <div class="modal-body">
-                    <div class="restore-card">
-                        <div class="restore-title">${getTranslation('your_seed_phrase', 'Ваша SID фраза')}</div>
-                        <div class="restore-subtitle">${getTranslation('save_seed', 'Збережіть цю фразу в надійному місці')}</div>
-                        <button class="copy-button">${getTranslation('copy', 'Копіювати')}</button>
-                        <div class="words-grid">
-                            ${phrase.map((word, i) => `
-                                <div class="word-cell">
-                                    <div class="word-number">${i + 1}.</div>
-                                    <div class="word-value">${word}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <button class="seed-continue-button">${getTranslation('done', 'Готово')}</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.querySelector('.copy-button').onclick = () => {
-            navigator.clipboard.writeText(phrase.join(' '))
-                .then(() => showToast(getTranslation('copied', 'Скопійовано')))
-                .catch(() => showToast(getTranslation('copy_error', 'Помилка копіювання'), true));
-        };
-        modal.querySelector('.seed-continue-button').onclick = () => {
-            localStorage.setItem('seedPhraseViewed', 'true');
-            modal.remove();
-        };
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    }
-
-    // Показ модального вікна для встановлення пароля
-    function showSetPasswordModal(callback) {
-        // Видаляємо існуючі модальні вікна, якщо вони є
-        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-        const modal = document.createElement('div');
-        modal.className = 'document-modal show';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="modal-title">${getTranslation('set_password', 'Встановлення паролю')}</div>
-                    <span class="close-modal">×</span>
-                </div>
-                <div class="modal-body">
-                    <p>${getTranslation('password_requirements', 'Пароль має містити не менше 8 символів, включаючи 5 літер')}</p>
-                    <input type="password" id="new-password" placeholder="${getTranslation('password', 'Пароль')}">
-                    <input type="password" id="confirm-password" placeholder="${getTranslation('confirm', 'Підтвердження')}">
-                    <div id="error-msg" style="color: #f44336;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button class="modal-button" id="save-password">${getTranslation('btn_save', 'Зберегти')}</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const saveBtn = modal.querySelector('#save-password');
-        saveBtn.onclick = () => {
-            const pwd = modal.querySelector('#new-password').value;
-            const confirm = modal.querySelector('#confirm-password').value;
-            const error = modal.querySelector('#error-msg');
-
-            if (pwd !== confirm) {
-                error.textContent = getTranslation('passwords_dont_match', 'Паролі не співпадають');
-                return;
-            }
-            const validation = validatePassword(pwd);
-            if (!validation.valid) {
-                error.textContent = validation.message;
-                return;
-            }
-
-            localStorage.setItem('seedPhrasePasswordHash', hashPassword(pwd));
-
-            modal.remove();
-            if (typeof callback === 'function') {
-                callback();
-            }
-        };
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    }
-
-    // Показ модального вікна для введення пароля
-    function showEnterPasswordModal(callback) {
-        // Видаляємо існуючі модальні вікна, якщо вони є
-        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-        const modal = document.createElement('div');
-        modal.className = 'document-modal show';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="modal-title">${getTranslation('enter_password', 'Введіть пароль')}</div>
-                    <span class="close-modal">×</span>
-                </div>
-                <div class="modal-body">
-                    <input type="password" id="enter-password" placeholder="${getTranslation('your_password', 'Ваш пароль')}">
-                    <div id="error-msg" style="color: #f44336;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button class="modal-button" id="check-password">${getTranslation('check', 'Перевірити')}</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const checkBtn = modal.querySelector('#check-password');
-        checkBtn.onclick = () => {
-            const pwd = modal.querySelector('#enter-password').value;
-            const error = modal.querySelector('#error-msg');
-
-            const savedHash = localStorage.getItem('seedPhrasePasswordHash');
-
-            if (hashPassword(pwd) === savedHash) {
-                modal.remove();
-                if (typeof callback === 'function') {
-                    callback();
-                }
-            } else {
-                error.textContent = getTranslation('wrong_password', 'Невірний пароль');
-            }
-        };
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    }
-
-    // Обробка показу SID фрази
-    function handleShowSeedPhrase() {
-        console.log("Виклик функції handleShowSeedPhrase");
-        try {
-            const hasPassword = localStorage.getItem('seedPhrasePasswordHash');
-            console.log("Наявність паролю:", !!hasPassword);
-
-            if (!hasPassword) {
-                console.log("Пароль відсутній, показуємо модалку встановлення паролю");
-                showSetPasswordModal(function() {
-                    console.log("Пароль встановлено, показуємо SID фразу");
-                    showSeedPhrase();
-                });
-            } else {
-                console.log("Пароль наявний, показуємо модалку введення паролю");
-                showEnterPasswordModal(function() {
-                    console.log("Пароль підтверджено, показуємо SID фразу");
-                    showSeedPhrase();
+                notificationsToggle.addEventListener('change', function() {
+                    localStorage.setItem('notificationsEnabled', this.checked);
+                    showToast(getTranslation('settings_saved', 'Налаштування збережено'));
                 });
             }
-        } catch (error) {
-            console.error("Помилка при обробці показу SID фрази:", error);
-            showToast("Виникла помилка при спробі показати SID фразу", true);
-        }
-    }
 
-    // Оновлена функція для встановлення обробників подій
-    function setupEventHandlers() {
-        console.log("Налаштування обробників подій");
-
-        // 1. Кнопка редагування профілю
-        const editProfileBtn = document.getElementById('edit-profile');
-        if (editProfileBtn) {
-            console.log("Встановлюємо обробник для кнопки редагування профілю");
-            // Видаляємо існуючий обробник, якщо є
-            const oldBtn = editProfileBtn.cloneNode(true);
-            editProfileBtn.parentNode.replaceChild(oldBtn, editProfileBtn);
-
-            // Встановлюємо новий обробник
-            oldBtn.addEventListener('click', function(e) {
-                console.log("Клік на кнопці редагування профілю");
-                e.preventDefault();
-                showEditProfileModal();
-                return false;
-            });
-        }
-
-        // 2. Кнопка показу SID фрази
-        const seedPhraseBtn = document.getElementById('show-seed-phrase');
-        if (seedPhraseBtn) {
-            console.log("Встановлюємо обробник для кнопки SID фрази");
-            // Видаляємо існуючий обробник, якщо є
-            const oldBtn = seedPhraseBtn.cloneNode(true);
-            seedPhraseBtn.parentNode.replaceChild(oldBtn, seedPhraseBtn);
-
-            // Встановлюємо новий обробник
-            oldBtn.addEventListener('click', function(e) {
-                console.log("Клік на кнопці SID фрази");
-                e.preventDefault();
-                handleShowSeedPhrase();
-                return false;
-            });
-        }
-
-        // 3. Мовні опції
-        document.querySelectorAll('.language-option').forEach(opt => {
-            opt.addEventListener('click', function() {
-                console.log("Клік на мовній опції:", this.getAttribute('data-lang'));
-
-                // Змінюємо активну опцію
-                document.querySelectorAll('.language-option').forEach(o => {
-                    o.classList.remove('active');
+            const showSeedBtn = document.getElementById('show-seed-phrase');
+            if (showSeedBtn) {
+                showSeedBtn.addEventListener('click', function() {
+                    handleShowSeedPhrase();
                 });
-                this.classList.add('active');
+            }
 
-                // Отримуємо код мови
-                const lang = this.getAttribute('data-lang');
-
-                // Змінюємо мову, якщо WinixLanguage доступний
-                if (window.WinixLanguage && typeof window.WinixLanguage.changeLang === 'function') {
-                    try {
-                        window.WinixLanguage.changeLang(lang);
-                    } catch (error) {
-                        console.error('Помилка зміни мови:', error);
-                        // Зберігаємо у localStorage, якщо сталася помилка
-                        localStorage.setItem('userLanguage', lang);
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    navItems.forEach(navItem => navItem.classList.remove('active'));
+                    this.classList.add('active');
+                    switch (section) {
+                        case 'home':
+                            navigateToPage('original-index.html');
+                            break;
+                        case 'earn':
+                            navigateToPage('earn.html');
+                            break;
+                        case 'referrals':
+                            navigateToPage('referrals.html');
+                            break;
+                        case 'wallet':
+                            navigateToPage('wallet.html');
+                            break;
+                        case 'general':
+                            break;
+                        default:
+                            navigateToPage(section + '.html');
                     }
-                } else {
-                    // Зберігаємо у localStorage, якщо об'єкт WinixLanguage недоступний
-                    localStorage.setItem('userLanguage', lang);
-                }
-
-                // Зберігаємо налаштування
-                saveUserSettings();
-            });
-        });
-
-        // 4. Перемикач сповіщень
-        const notificationsToggle = document.getElementById('notifications-toggle');
-        if (notificationsToggle) {
-            notificationsToggle.addEventListener('change', function() {
-                console.log("Зміна стану сповіщень:", this.checked);
-                saveUserSettings();
-            });
-        }
-
-        // 5. Обробник для кліку на хедері для переходу в профіль
-        const profileLink = document.getElementById('profile-link');
-        if (profileLink) {
-            profileLink.addEventListener('click', function() {
-                // Перехід на сторінку профілю
-                navigateToPage('profile.html');
-            });
-        }
-
-        // 6. Кнопки навігації
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-
-                // Не робимо нічого, якщо вже на цій сторінці
-                if (section === 'profile') return;
-
-                // Змінюємо активний елемент
-                document.querySelectorAll('.nav-item').forEach(navItem => {
-                    navItem.classList.remove('active');
                 });
-                this.classList.add('active');
-
-                // Переходимо на відповідну сторінку
-                const pageName = section === 'home' ? 'index.html' : `${section}.html`;
-                navigateToPage(pageName);
             });
-        });
 
-        // 7. Кнопка швидкого зв'язку
-        const quickContactBtn = document.getElementById('quick-contact');
-        if (quickContactBtn) {
-            quickContactBtn.addEventListener('click', function() {
-                showToast(getTranslation('contact_support', "Зв'язок з підтримкою"));
-            });
+            const helpButton = document.getElementById('help-button');
+            const licenseButton = document.getElementById('license-button');
+            const agreementButton = document.getElementById('agreement-button');
+
+            if (helpButton) {
+                helpButton.addEventListener('click', function(e) {
+                    if (!this.getAttribute('href')) {
+                        e.preventDefault();
+                        window.open('https://t.me/Winix_Support', '_blank');
+                    }
+                });
+            }
+
+            if (licenseButton) {
+                licenseButton.addEventListener('click', function() {
+                    showLicenseModal();
+                });
+            }
+
+            if (agreementButton) {
+                agreementButton.addEventListener('click', function() {
+                    showAgreementModal();
+                });
+            }
+
+            const profileAvatar = document.getElementById('profile-avatar');
+            if (profileAvatar) {
+                profileAvatar.addEventListener('click', function() {
+                    showEditProfileModal();
+                });
+            }
+
+            console.log("Обробники подій успішно налаштовано");
         }
 
-        console.log("Налаштування обробників завершено");
-    }
-
-    // Обробка завантаження сторінки
-    window.addEventListener('load', function() {
-        console.log("Сторінка завантажена");
-
-        try {
-            // Ініціалізуємо інтерфейс
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUserSettings();
             loadUserAvatar();
             updateBalanceDisplay();
-            loadUserSettings();
-
-            // Критично важливо - встановлюємо обробники подій
             setupEventHandlers();
+        });
 
-            // Оновлюємо стан DOM
-            adjustLayout();
-            updateThemeColors();
-        } catch (error) {
-            console.error("Помилка при ініціалізації сторінки:", error);
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            loadUserSettings();
+            loadUserAvatar();
+            updateBalanceDisplay();
+            setupEventHandlers();
         }
 
-        // Ховаємо індикатор завантаження
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.style.display = 'none';
+        console.log("✅ Сторінку налаштувань успішно ініціалізовано");
+        document.dispatchEvent(new CustomEvent('settings-initialized'));
+
+        const errorStyles = document.createElement('style');
+        errorStyles.textContent = `
+            #error-msg {
+                color: #f44336;
+                background-color: rgba(244, 67, 54, 0.1);
+                border-left: 3px solid #f44336;
+                padding: 8px 12px;
+                margin: 10px 0;
+                border-radius: 4px;
+                font-size: 14px;
+                transition: all 0.3s ease;
+            }
+            .wrong-password-message {
+                color: #f44336;
+                font-weight: bold;
+                padding: 10px;
+                background-color: rgba(244, 67, 54, 0.1);
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+        `;
+        document.head.appendChild(errorStyles);
+
+        function checkMobileVersion() {
+            const isMobile = window.innerWidth < 768;
+            document.body.classList.toggle('mobile-version', isMobile);
         }
-    });
 
-    // Глобальний обробник помилок
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
-        return true;
-    };
+        window.addEventListener('resize', checkMobileVersion);
+        checkMobileVersion();
 
-    // Оптимізація обробника скролу
-    let lastScrollTime = 0;
-    window.addEventListener('scroll', function() {
-        const now = Date.now();
-        if (now - lastScrollTime < 100) return; // Обмежуємо частоту виконання
-        lastScrollTime = now;
-    }, { passive: true });
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
     </script>
 </body>
 </html>
