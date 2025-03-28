@@ -3771,5 +3771,388 @@
     console.log("🔔 WINIX SUBSCRIPTION CHECK: Заглушка готова");
 })();
     </script>
+    <script>
+/**
+ * carousel-telegram-fix.js
+ * Спеціальне виправлення для каруселі/банера у Telegram міні-апп
+ * Додайте цей файл ОСТАННІМ у списку скриптів у html файлі
+ */
+
+(function() {
+    console.log("🔧 TELEGRAM CAROUSEL FIX: Запуск виправлення для каруселі в Telegram міні-апп...");
+
+    // Перевіряємо, чи запущено в Telegram
+    const isTelegram = window.Telegram && window.Telegram.WebApp;
+
+    // Функція для виправлення каруселі
+    function fixCarousel() {
+        console.log("🔄 Застосовуємо виправлення для каруселі...");
+
+        // Знаходимо контейнер каруселі
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (!carouselContainer) {
+            console.error("❌ Контейнер каруселі не знайдено!");
+            return;
+        }
+
+        // Перевіряємо видимість
+        if (carouselContainer.offsetHeight === 0 ||
+            carouselContainer.style.display === 'none' ||
+            carouselContainer.style.visibility === 'hidden') {
+            console.log("⚠️ Карусель прихована, виправляємо...");
+
+            // Показуємо контейнер
+            carouselContainer.style.display = 'block';
+            carouselContainer.style.visibility = 'visible';
+            carouselContainer.style.height = 'auto';
+            carouselContainer.style.minHeight = '220px';
+            carouselContainer.style.opacity = '1';
+        }
+
+        // Перевіряємо зображення
+        const slideImages = carouselContainer.querySelectorAll('.carousel-slide img');
+        let hasImageErrors = false;
+
+        slideImages.forEach((img, index) => {
+            if (!img.complete || img.naturalHeight === 0) {
+                hasImageErrors = true;
+                console.warn(`⚠️ Проблема із зображенням в слайді ${index + 1}`);
+
+                // Виправляємо шлях до зображення
+                const currentSrc = img.src;
+                if (currentSrc) {
+                    // Спробуємо різні варіанти шляхів
+                    const fileName = currentSrc.split('/').pop();
+
+                    // Список можливих шляхів для перевірки
+                    const potentialPaths = [
+                        `assets/${fileName}`,
+                        `./assets/${fileName}`,
+                        `../assets/${fileName}`,
+                        `/assets/${fileName}`,
+                        `https://YOUR_SERVER_URL/assets/${fileName}` // Замініть на реальний URL вашого сервера
+                    ];
+
+                    // Встановлюємо запасне зображення
+                    img.onerror = function() {
+                        this.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==';
+                        console.log("🔧 Встановлено запасне зображення для слайду");
+                    };
+
+                    // Намагаємося завантажити зображення з різних шляхів
+                    for (const path of potentialPaths) {
+                        const testImg = new Image();
+                        testImg.onload = function() {
+                            img.src = this.src;
+                            console.log(`✅ Знайдено правильний шлях: ${this.src}`);
+                        };
+                        testImg.src = path;
+                    }
+                }
+            }
+        });
+
+        // Якщо є проблеми з зображеннями, пробуємо перезапустити ініціалізацію каруселі
+        if (hasImageErrors && typeof setupCarousel === 'function') {
+            console.log("🔄 Перезапуск ініціалізації каруселі...");
+            try {
+                setupCarousel();
+            } catch (e) {
+                console.error("❌ Помилка при перезапуску каруселі:", e);
+            }
+        }
+    }
+
+    // Функція для створення запасної каруселі, якщо оригінальна не працює
+    function createFallbackCarousel() {
+        console.log("🔧 Створення запасної каруселі...");
+
+        // Шукаємо контейнер для каруселі або місце для вставки
+        let carouselContainer = document.querySelector('.carousel-container');
+        const actionButton = document.querySelector('.action-button');
+
+        if (!carouselContainer && actionButton) {
+            // Створюємо новий контейнер каруселі
+            carouselContainer = document.createElement('div');
+            carouselContainer.className = 'carousel-container';
+
+            // Вставляємо його перед кнопкою дії
+            actionButton.parentNode.insertBefore(carouselContainer, actionButton);
+
+            // Створюємо структуру каруселі
+            carouselContainer.innerHTML = `
+                <div class="carousel-wrapper" id="carousel-wrapper">
+                    <div class="carousel-slide" id="main-raffle-slide">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==" alt="Гранд Розіграш" class="carousel-image" style="background-color: #4eb5f7;">
+                        <div class="carousel-overlay">
+                            <div class="carousel-title">Гранд Розіграш</div>
+                            <div class="carousel-subtitle">250 USDT + 130,000 WINIX (10 переможців)</div>
+                        </div>
+                    </div>
+                    <div class="carousel-slide" id="daily-raffle-slide">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==" alt="Щоденний розіграш" class="carousel-image" style="background-color: #52C0BD;">
+                        <div class="carousel-overlay">
+                            <div class="carousel-title">Щоденний Розіграш</div>
+                            <div class="carousel-subtitle">30,000 WINIX (15 переможців)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-indicators">
+                    <div class="carousel-indicator active" data-slide="0"></div>
+                    <div class="carousel-indicator" data-slide="1"></div>
+                </div>
+
+                <div class="carousel-nav carousel-nav-left" id="carousel-prev">❮</div>
+                <div class="carousel-nav carousel-nav-right" id="carousel-next">❯</div>
+            `;
+
+            console.log("✅ Створено запасний слайдер");
+
+            // Додаємо стилі
+            const style = document.createElement('style');
+            style.textContent = `
+                .carousel-container {
+                    width: 100%;
+                    position: relative;
+                    margin-bottom: 15px;
+                    overflow: hidden;
+                    border-radius: 20px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                    height: 220px;
+                }
+
+                .carousel-wrapper {
+                    display: flex;
+                    transition: transform 0.5s ease;
+                    width: 200%;
+                }
+
+                .carousel-slide {
+                    flex: 0 0 50%;
+                    position: relative;
+                    cursor: pointer;
+                }
+
+                .carousel-slide img {
+                    width: 100%;
+                    height: 220px;
+                    object-fit: cover;
+                }
+
+                .carousel-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 50%);
+                    border-radius: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: flex-end;
+                    padding: 16px;
+                }
+
+                .carousel-title {
+                    color: white;
+                    font-size: 20px;
+                    font-weight: bold;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+                    margin-bottom: 8px;
+                }
+
+                .carousel-subtitle {
+                    color: rgba(255,255,255,0.8);
+                    font-size: 14px;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+                }
+
+                .carousel-indicators {
+                    position: absolute;
+                    bottom: 10px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .carousel-indicator {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: rgba(255,255,255,0.5);
+                    cursor: pointer;
+                }
+
+                .carousel-indicator.active {
+                    background: white;
+                    box-shadow: 0 0 5px rgba(255,255,255,0.8);
+                }
+
+                .carousel-nav {
+                    position: absolute;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    width: 40px;
+                    height: 40px;
+                    background: rgba(0,0,0,0.5);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 24px;
+                    cursor: pointer;
+                    z-index: 2;
+                    transition: all 0.3s ease;
+                }
+
+                .carousel-nav:hover {
+                    background: rgba(0,0,0,0.7);
+                    transform: translateY(-50%) scale(1.1);
+                }
+
+                .carousel-nav-left {
+                    left: 10px;
+                }
+
+                .carousel-nav-right {
+                    right: 10px;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Додаємо простий обробник карусельки
+            setupSimpleCarousel();
+        }
+    }
+
+    // Проста функція для керування каруселлю
+    function setupSimpleCarousel() {
+        const wrapper = document.getElementById('carousel-wrapper');
+        const prevBtn = document.getElementById('carousel-prev');
+        const nextBtn = document.getElementById('carousel-next');
+        const indicators = document.querySelectorAll('.carousel-indicator');
+
+        if (!wrapper || !prevBtn || !nextBtn) return;
+
+        let currentSlide = 0;
+
+        // Функція оновлення каруселі
+        function updateCarousel() {
+            wrapper.style.transform = `translateX(-${currentSlide * 50}%)`;
+
+            indicators.forEach((indicator, index) => {
+                indicator.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        // Кнопки навігації
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentSlide = currentSlide > 0 ? currentSlide - 1 : 1;
+            updateCarousel();
+        });
+
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentSlide = currentSlide < 1 ? currentSlide + 1 : 0;
+            updateCarousel();
+        });
+
+        // Індикатори
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener('click', (e) => {
+                e.stopPropagation();
+                currentSlide = index;
+                updateCarousel();
+            });
+        });
+
+        // Авто-зміна слайдів
+        setInterval(() => {
+            currentSlide = currentSlide < 1 ? currentSlide + 1 : 0;
+            updateCarousel();
+        }, 5000);
+
+        // Відкриття модальних вікон при кліку на слайд
+        const mainSlide = document.getElementById('main-raffle-slide');
+        const dailySlide = document.getElementById('daily-raffle-slide');
+
+        if (mainSlide) {
+            mainSlide.addEventListener('click', () => {
+                try {
+                    if (typeof openModal === 'function') {
+                        openModal('main-raffle-modal');
+                    }
+                } catch (e) {
+                    console.error("❌ Помилка відкриття модального вікна розіграшу:", e);
+                }
+            });
+        }
+
+        if (dailySlide) {
+            dailySlide.addEventListener('click', () => {
+                try {
+                    if (typeof openModal === 'function') {
+                        openModal('daily-raffle-modal');
+                    }
+                } catch (e) {
+                    console.error("❌ Помилка відкриття модального вікна розіграшу:", e);
+                }
+            });
+        }
+    }
+
+    // Запускаємо виправлення
+    function applyFix() {
+        // Спочатку намагаємося виправити існуючу карусель
+        fixCarousel();
+
+        // Перевіряємо, чи виправлення спрацювало
+        setTimeout(() => {
+            const carouselContainer = document.querySelector('.carousel-container');
+            if (!carouselContainer ||
+                carouselContainer.offsetHeight === 0 ||
+                carouselContainer.style.display === 'none' ||
+                carouselContainer.style.visibility === 'hidden') {
+
+                // Якщо не спрацювало, створюємо запасну карусель
+                createFallbackCarousel();
+            }
+        }, 500);
+    }
+
+    // Функція для визначення, чи видимий елемент
+    function isElementVisible(element) {
+        if (!element) return false;
+
+        const style = window.getComputedStyle(element);
+
+        return style.display !== 'none' &&
+               style.visibility !== 'hidden' &&
+               element.offsetHeight > 0;
+    }
+
+    // Запуск виправлення при завантаженні DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyFix);
+    } else {
+        // DOM вже завантажений, застосовуємо виправлення зараз
+        applyFix();
+    }
+
+    // Також запустимо виправлення після повного завантаження сторінки
+    window.addEventListener('load', applyFix);
+
+    // І ще раз через 1 секунду після завантаження
+    window.addEventListener('load', () => {
+        setTimeout(applyFix, 1000);
+    });
+
+    console.log("✅ TELEGRAM CAROUSEL FIX: Виправлення для каруселі готове до застосування");
+})();
+</script>
 </body>
 </html>
