@@ -4301,300 +4301,43 @@ setTimeout(function() {
 </script>
 <script src="static/js/winix-unified-fixes.js"></script>
     <script>
-/**
- * WINIX RAFFLES MINIMAL FIX
- * Спрощене рішення для стабільного відображення кількості учасників
- * Додайте цей скрипт у кінець файлу raffles.html
- */
-
+// Виправлення відображення кількості учасників
 (function() {
-    console.log("🎲 WINIX RAFFLES MINIMAL FIX: Запуск мінімального виправлення...");
+    // Функція оновлення кількості учасників на всіх елементах
+    function updateCounts() {
+        // Отримуємо дані (з пріоритетом на прості ключі)
+        const mainCount = parseInt(localStorage.getItem('mainRaffleParticipants') || '1');
+        const dailyCount = parseInt(localStorage.getItem('dailyRaffleParticipants') || '1');
 
-    // ===== ОСНОВНІ НАЛАШТУВАННЯ =====
-
-    // Ключ для зберігання учасників головного розіграшу
-    const MAIN_PARTICIPANTS_KEY = 'mainRaffleParticipants';
-
-    // Ключ для зберігання учасників щоденного розіграшу
-    const DAILY_PARTICIPANTS_KEY = 'dailyRaffleParticipants';
-
-    // Затримка між оновленнями інтерфейсу (1 секунда)
-    const UPDATE_DELAY = 1000;
-
-    // ===== ОСНОВНІ ФУНКЦІЇ =====
-
-    /**
-     * Оновлення кількості учасників на сторінці
-     */
-    function updateParticipantsCount() {
-        try {
-            // Отримуємо кількість учасників
-            let mainCount = localStorage.getItem(MAIN_PARTICIPANTS_KEY);
-            let dailyCount = localStorage.getItem(DAILY_PARTICIPANTS_KEY);
-
-            // Конвертуємо у числа або встановлюємо мінімальне значення
-            mainCount = parseInt(mainCount) || 1;
-            dailyCount = parseInt(dailyCount) || 1;
-
-            console.log(`Оновлення інтерфейсу: головний=${mainCount}, щоденний=${dailyCount}`);
-
-            // Оновлюємо всі елементи головного розіграшу
-            document.querySelectorAll('.participants-count').forEach(element => {
-                if (element) element.textContent = mainCount.toString();
-            });
-
-            // Оновлюємо елемент в модальному вікні головного розіграшу
-            const mainParticipants = document.getElementById('main-participants');
-            if (mainParticipants) mainParticipants.textContent = mainCount.toString();
-
-            // Оновлюємо елемент в модальному вікні щоденного розіграшу
-            const dailyParticipants = document.getElementById('daily-participants');
-            if (dailyParticipants) dailyParticipants.textContent = dailyCount.toString();
-
-        } catch (error) {
-            console.error("Помилка оновлення відображення учасників:", error);
-        }
-    }
-
-    /**
-     * Перехоплення функції участі в розіграші
-     */
-    function setupParticipationHook() {
-        // Зберігаємо оригінальну функцію
-        const originalParticipate = window.participateInRaffle;
-
-        if (typeof originalParticipate !== 'function') {
-            console.warn("Функцію participateInRaffle не знайдено");
-            return;
-        }
-
-        // Замінюємо функцію на нашу версію
-        window.participateInRaffle = function(raffleId, raffleType, inputId) {
-            console.log(`Перехоплено participateInRaffle: ${raffleId}, ${raffleType}`);
-
-            // Викликаємо оригінальну функцію
-            originalParticipate(raffleId, raffleType, inputId);
-
-            // Додаємо наш код після оригінальної функції
-            setTimeout(() => {
-                try {
-                    // Отримуємо поточне значення
-                    let currentValue = 1;
-                    const key = raffleType === 'main' ? MAIN_PARTICIPANTS_KEY : DAILY_PARTICIPANTS_KEY;
-
-                    const storedValue = localStorage.getItem(key);
-                    if (storedValue) {
-                        currentValue = parseInt(storedValue) || 1;
-                    }
-
-                    // Збільшуємо кількість учасників
-                    const newValue = currentValue + 1;
-                    localStorage.setItem(key, newValue.toString());
-
-                    console.log(`Збільшено кількість учасників для ${key}: ${currentValue} -> ${newValue}`);
-
-                    // Оновлюємо відображення
-                    updateParticipantsCount();
-                } catch (error) {
-                    console.error("Помилка при оновленні кількості учасників:", error);
-                }
-            }, UPDATE_DELAY);
-        };
-
-        console.log("✅ Функцію participateInRaffle успішно перехоплено");
-    }
-
-    /**
-     * Встановлення періодичного оновлення
-     */
-    function setupPeriodicUpdates() {
-        // Оновлюємо відображення кожні 5 секунд
-        setInterval(updateParticipantsCount, 5000);
-
-        // Оновлюємо відображення при поверненні на вкладку
-        window.addEventListener('focus', updateParticipantsCount);
-
-        // Оновлюємо відображення при завантаженні сторінки з кешу
-        window.addEventListener('pageshow', (event) => {
-            if (event.persisted) {
-                updateParticipantsCount();
-            }
+        // Оновлюємо всі елементи з кількістю учасників головного розіграшу
+        document.querySelectorAll('.participants-count').forEach(el => {
+            if (el) el.textContent = mainCount.toString();
         });
 
-        console.log("✅ Періодичні оновлення встановлено");
+        // Оновлюємо кількість у головному модальному вікні
+        const mainParticipants = document.getElementById('main-participants');
+        if (mainParticipants) mainParticipants.textContent = mainCount.toString();
+
+        // Оновлюємо кількість у щоденному модальному вікні
+        const dailyParticipants = document.getElementById('daily-participants');
+        if (dailyParticipants) dailyParticipants.textContent = dailyCount.toString();
     }
 
-    /**
-     * Перехоплення відкриття деталей розіграшу
-     */
-    function setupOpenRaffleDetailsHook() {
-        // Зберігаємо оригінальну функцію
-        const originalOpenDetails = window.openRaffleDetails;
-
-        if (typeof originalOpenDetails !== 'function') {
-            console.warn("Функцію openRaffleDetails не знайдено");
-            return;
-        }
-
-        // Замінюємо функцію на нашу версію
-        window.openRaffleDetails = function(raffleId, raffleType) {
-            console.log(`Перехоплено openRaffleDetails: ${raffleId}, ${raffleType}`);
-
-            // Оновлюємо відображення перед відкриттям деталей
-            updateParticipantsCount();
-
-            // Викликаємо оригінальну функцію
-            originalOpenDetails(raffleId, raffleType);
-        };
-
-        console.log("✅ Функцію openRaffleDetails успішно перехоплено");
-    }
-
-    /**
-     * Резервне копіювання кількості учасників у всі можливі ключі для надійності
-     */
-    function syncParticipantsCounts() {
-        try {
-            // Список всіх можливих ключів для кількості учасників головного розіграшу
-            const mainKeys = [
-                'mainRaffleParticipants',
-                'winix_mainRaffleParticipants',
-                'raffleParticipants_main'
-            ];
-
-            // Список всіх можливих ключів для кількості учасників щоденного розіграшу
-            const dailyKeys = [
-                'dailyRaffleParticipants',
-                'winix_dailyRaffleParticipants',
-                'raffleParticipants_daily'
-            ];
-
-            // Синхронізація головного розіграшу
-            let mainCount = 1;
-            for (const key of mainKeys) {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    const numValue = parseInt(value);
-                    if (numValue && numValue > mainCount) {
-                        mainCount = numValue;
-                    }
-                }
-            }
-
-            // Встановлюємо узгоджене значення в усі ключі
-            for (const key of mainKeys) {
-                localStorage.setItem(key, mainCount.toString());
-            }
-
-            // Синхронізація щоденного розіграшу
-            let dailyCount = 1;
-            for (const key of dailyKeys) {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    const numValue = parseInt(value);
-                    if (numValue && numValue > dailyCount) {
-                        dailyCount = numValue;
-                    }
-                }
-            }
-
-            // Встановлюємо узгоджене значення в усі ключі
-            for (const key of dailyKeys) {
-                localStorage.setItem(key, dailyCount.toString());
-            }
-
-            console.log(`Синхронізовано кількість учасників: головний=${mainCount}, щоденний=${dailyCount}`);
-            return true;
-        } catch (error) {
-            console.error("Помилка при синхронізації кількості учасників:", error);
-            return false;
-        }
-    }
-
-    /**
-     * Оновлення прогрес-бару головного розіграшу
-     */
-    function updateProgressBar() {
-        const progressBar = document.querySelector('.progress');
-        if (!progressBar) return;
-
-        try {
-            // Отримуємо поточне значення прогресу
-            let progress = parseInt(localStorage.getItem('mainRaffleProgress')) || 29;
-
-            // Забезпечуємо поступове збільшення з часом (макс. 99%)
-            const now = new Date();
-            const dayOfMonth = now.getDate();
-            const hourOfDay = now.getHours();
-
-            // Використовуємо дату і годину для визначення прогресу
-            // Це забезпечить однакове значення для всіх користувачів у певний момент
-            const calculatedProgress = Math.min(Math.max(29, 29 + dayOfMonth + hourOfDay), 99);
-
-            // Якщо розрахований прогрес більший за поточний, оновлюємо
-            if (calculatedProgress > progress) {
-                progress = calculatedProgress;
-                localStorage.setItem('mainRaffleProgress', progress.toString());
-            }
-
-            // Встановлюємо прогрес
-            progressBar.style.width = `${progress}%`;
-
-            console.log(`Прогрес-бар оновлено: ${progress}%`);
-        } catch (error) {
-            console.error("Помилка оновлення прогрес-бару:", error);
-
-            // У випадку помилки встановлюємо фіксоване значення
-            progressBar.style.width = '45%';
-        }
-    }
-
-    /**
-     * Запуск всіх виправлень
-     */
-    function initFixes() {
-        console.log("🎲 Ініціалізація виправлень...");
-
-        // Запускаємо синхронізацію значень
-        syncParticipantsCounts();
-
-        // Оновлюємо відображення
-        updateParticipantsCount();
-
-        // Оновлюємо прогрес-бар
-        updateProgressBar();
-
-        // Налаштовуємо перехоплення
-        setupParticipationHook();
-        setupOpenRaffleDetailsHook();
-
-        // Налаштовуємо періодичні оновлення
-        setupPeriodicUpdates();
-
-        console.log("✅ Всі виправлення успішно ініціалізовано");
-    }
-
-    // ===== ЗАПУСК СИСТЕМИ =====
-
-    // Перевіряємо, чи DOM вже завантажений
+    // Оновлюємо одразу після завантаження DOM
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initFixes);
+        document.addEventListener('DOMContentLoaded', updateCounts);
     } else {
-        // Якщо DOM вже завантажено, запускаємо з невеликою затримкою
-        setTimeout(initFixes, 100);
+        updateCounts();
     }
 
-    // Також запускаємо після повного завантаження сторінки для надійності
-    window.addEventListener('load', function() {
-        setTimeout(initFixes, 500);
-    });
+    // Оновлюємо після повного завантаження сторінки
+    window.addEventListener('load', updateCounts);
 
-    // Експортуємо функції для можливого виклику ззовні
-    window.winixRafflesFix = {
-        updateParticipantsCount,
-        syncParticipantsCounts,
-        updateProgressBar
-    };
+    // Встановлюємо періодичне оновлення
+    setInterval(updateCounts, 5000);
+
+    // Оновлюємо при фокусі на вкладці
+    window.addEventListener('focus', updateCounts);
 })();
 </script>
 </body>
