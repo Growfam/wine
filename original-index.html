@@ -1440,57 +1440,101 @@
             checkFolderProgress();
         });
 
+        // Також запускаємо ініціалізацію відразу, якщо сторінка вже завантажена
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    setTimeout(setupCarousel, 100);
+}
+
         // Налаштування каруселі
-        function setupCarousel() {
-            const wrapper = document.getElementById('carousel-wrapper');
-            const prevBtn = document.getElementById('carousel-prev');
-            const nextBtn = document.getElementById('carousel-next');
-            const indicators = document.querySelectorAll('.carousel-indicator');
-            const slides = document.querySelectorAll('.carousel-slide');
+       function setupCarousel() {
+    // Очищаємо всі попередні таймери
+    if (window.carouselTimer) {
+        clearInterval(window.carouselTimer);
+    }
 
-            // Кнопки навігації каруселі
-            prevBtn.addEventListener('click', () => {
-                currentSlide = currentSlide > 0 ? currentSlide - 1 : slides.length - 1;
-                updateCarousel();
-            });
+    const wrapper = document.getElementById('carousel-wrapper');
+    const prevBtn = document.getElementById('carousel-prev');
+    const nextBtn = document.getElementById('carousel-next');
+    const indicators = document.querySelectorAll('.carousel-indicator');
+    const slides = document.querySelectorAll('.carousel-slide');
 
-            nextBtn.addEventListener('click', () => {
-                currentSlide = currentSlide < slides.length - 1 ? currentSlide + 1 : 0;
-                updateCarousel();
-            });
+    // Перезавантажуємо змінну поточного слайду
+    window.currentSlide = 0;
 
-            // Індикатори слайдів
-            indicators.forEach((indicator, index) => {
-                indicator.addEventListener('click', () => {
-                    currentSlide = index;
-                    updateCarousel();
-                });
-            });
+    // Оновлення каруселі - винести в окрему функцію
+    function updateCarousel() {
+        if (!wrapper) return;
+        wrapper.style.transform = `translateX(-${window.currentSlide * 50}%)`;
 
-            // Кліки по слайдах для відкриття відповідних модальних вікон
-            document.getElementById('main-raffle-slide').addEventListener('click', () => {
-                openModal('main-raffle-modal');
-            });
+        indicators.forEach((indicator, index) => {
+            indicator.classList.toggle('active', index === window.currentSlide);
+        });
+    }
 
-            document.getElementById('daily-raffle-slide').addEventListener('click', () => {
-                openModal('daily-raffle-modal');
-            });
+    // Ініціалізуємо карусель
+    updateCarousel();
 
-            // Автоматична зміна слайдів кожні 5 секунд
-            setInterval(() => {
-                currentSlide = currentSlide < slides.length - 1 ? currentSlide + 1 : 0;
-                updateCarousel();
-            }, 5000);
+    // Кнопки навігації з блокуванням швидких повторних кліків
+    if (prevBtn) {
+        prevBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (prevBtn.dataset.clicking === 'true') return;
+            prevBtn.dataset.clicking = 'true';
 
-            // Функція оновлення каруселі
-            function updateCarousel() {
-                wrapper.style.transform = `translateX(-${currentSlide * 50}%)`;
+            window.currentSlide = window.currentSlide > 0 ?
+                window.currentSlide - 1 : slides.length - 1;
+            updateCarousel();
 
-                indicators.forEach((indicator, index) => {
-                    indicator.classList.toggle('active', index === currentSlide);
-                });
-            }
+            setTimeout(() => { prevBtn.dataset.clicking = 'false'; }, 500);
+        };
+    }
+
+    if (nextBtn) {
+        nextBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (nextBtn.dataset.clicking === 'true') return;
+            nextBtn.dataset.clicking = 'true';
+
+            window.currentSlide = window.currentSlide < slides.length - 1 ?
+                window.currentSlide + 1 : 0;
+            updateCarousel();
+
+            setTimeout(() => { nextBtn.dataset.clicking = 'false'; }, 500);
+        };
+    }
+
+    // Індикатори
+    indicators.forEach((indicator, index) => {
+        indicator.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.currentSlide = index;
+            updateCarousel();
+        };
+    });
+
+    // Запускаємо автоматичну зміну слайдів
+    window.carouselTimer = setInterval(() => {
+        window.currentSlide = window.currentSlide < slides.length - 1 ?
+            window.currentSlide + 1 : 0;
+        updateCarousel();
+    }, 5000);
+
+    // Додаємо обробники для модальних вікон
+    document.getElementById('main-raffle-slide').onclick = function() {
+        if (typeof openModal === 'function') {
+            openModal('main-raffle-modal');
         }
+    };
+
+    document.getElementById('daily-raffle-slide').onclick = function() {
+        if (typeof openModal === 'function') {
+            openModal('daily-raffle-modal');
+        }
+    };
+}
 
         // Налаштування модальних вікон
         function setupModals() {
