@@ -1374,17 +1374,7 @@
                     </div>
                     <button class="mini-raffle-button" data-raffle-id="mini1" data-raffle-type="daily">Участь</button>
                 </div>
-
-                <div class="mini-raffle">
-                    <div class="mini-raffle-info">
-                        <div class="mini-raffle-title">Бонус новачкам</div>
-                        <div class="mini-raffle-prize">150 WINIX</div>
-                        <div class="mini-raffle-time">Доступно</div>
-                    </div>
-                    <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
-                </div>
             </div>
-
             <!-- Секція минулих розіграшів -->
             <div class="raffles-section" id="past-raffles">
                 <div class="history-title">Історія розіграшів</div>
@@ -1429,7 +1419,7 @@
         <div class="badge-item" id="badge-beginner">
             <div class="badge-icon">🚀</div>
             <div class="badge-name">Початківець</div>
-            <div class="badge-desc">Візьміть участь у розіграші</div>
+            <div class="badge-desc">Візьміть участь у 5 розіграшах</div>
             <div class="badge-reward">+1,000 WINIX</div>
         </div>
         <div class="badge-item" id="badge-rich">
@@ -1469,11 +1459,11 @@
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="main-participants">0</div>
+                        <div class="detail-value" id="main-participants">1</div>
                     </div>
                 </div>
                 <div class="prize-description" id="main-description">
-                    Грандіозний розіграш з призовим фондом 250 USDT та 130,000 WINIX! 10 щасливих переможців отримають цінні призи. Перше місце - 125$ та 10,000 WINIX, друге - 75$ та 8,000 WINIX, третє - 50$ та 5,000 WINIX. Місця з 4 по 10 отримають по 15,000 WINIX!
+                    Грандіозний розіграш з призовим фондом 250 USDT та 130,000 WINIX! 10 щасливих переможців отримають цінні призи.
                 </div>
                 <div class="participation-info">
                     <h3>Умови участі:</h3>
@@ -1511,7 +1501,7 @@
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="daily-participants">125</div>
+                        <div class="detail-value" id="daily-participants">1</div>
                     </div>
                 </div>
                 <div class="prize-description" id="daily-description">
@@ -1539,8 +1529,8 @@
 
         <!-- Повідомлення toast -->
         <div class="toast-message" id="toast-message"></div>
+        </div>
     </div>
-
     <script>
        // Глобальні змінні для таймерів
 let mainRaffleTimer;
@@ -1951,180 +1941,150 @@ function claimNewbieBonus() {
     }, 1000);
 }
 
-// Участь у розіграші - повністю перероблена версія
+// Оновлена функція участі в розіграші
 function participateInRaffle(raffleId, raffleType, inputId) {
-    // КРИТИЧНО: Отримання поточного балансу безпосередньо з DOM і з localStorage
+    // Використовуємо централізований API для отримання балансу жетонів
     const tokenAmount = parseInt(document.getElementById(inputId).value) || 1;
-    const domCoinsBalance = parseInt(document.getElementById('user-coins').textContent);
-    const storageCoinsBalance = parseInt(localStorage.getItem('userCoins') || '0');
+    const coinsBalance = window.WinixCore.Balance.getCoins();
 
-    // Визначаємо реальний баланс (беремо більший з двох для безпеки)
-    const coinsBalance = Math.max(domCoinsBalance, storageCoinsBalance);
+    console.log(`Початок участі в розіграші: поточний баланс=${coinsBalance} жетонів`);
 
-    console.log(`Початок функції participateInRaffle: DOM баланс=${domCoinsBalance}, localStorage баланс=${storageCoinsBalance}`);
-
-    // Перевірки перед участю
-    if (tokenAmount <= 0) {
-        showToast('Введіть коректну кількість жетонів', 3000);
-        return;
-    }
-
-    if (tokenAmount > 1) {
-        showToast('Максимальна кількість жетонів: 1', 3000);
-        document.getElementById(inputId).value = 1;
-        return;
-    }
-
+    // Перевірка балансу
     if (coinsBalance < tokenAmount) {
-        showToast('Недостатньо жетонів для участі', 3000);
+        window.WinixCore.UI.showNotification('Недостатньо жетонів для участі');
         return;
     }
 
-    // Показуємо спінер
+    // Показуємо індикатор завантаження
     const spinner = document.getElementById('loading-spinner');
     if (spinner) spinner.classList.add('show');
 
-    // НАЙВАЖЛИВІШЕ: негайно списуємо жетони ще до будь-яких setTimeout
-    const newCoinsBalance = coinsBalance - tokenAmount;
-    console.log(`СПИСАННЯ ЖЕТОНІВ: ${coinsBalance} - ${tokenAmount} = ${newCoinsBalance}`);
+    // Списуємо жетони через WinixCore API
+    const success = window.WinixCore.Balance.subtractCoins(tokenAmount);
 
-    // Негайно оновлюємо інтерфейс
-    const coinsDisplay = document.getElementById('user-coins');
-    if (coinsDisplay) {
-        coinsDisplay.textContent = newCoinsBalance.toString();
-        console.log(`DOM баланс оновлено: ${coinsDisplay.textContent}`);
+    if (!success) {
+        window.WinixCore.UI.showNotification('Помилка при знятті жетонів');
+        if (spinner) spinner.classList.remove('show');
+        return;
     }
 
-    // Негайно оновлюємо localStorage
-    localStorage.setItem('userCoins', newCoinsBalance.toString());
-    console.log(`localStorage баланс оновлено: ${localStorage.getItem('userCoins')}`);
-
-    // Запускаємо решту логіки з затримкою для анімації
     setTimeout(() => {
         try {
-            // Перевіряємо, чи справді оновився баланс
-            const updatedDomBalance = document.getElementById('user-coins').textContent;
-            const updatedStorageBalance = localStorage.getItem('userCoins');
-            console.log(`Після затримки: DOM=${updatedDomBalance}, localStorage=${updatedStorageBalance}`);
+            // Додаємо запис про участь в спеціальне сховище WINIX
+            let raffleData = getRaffleStorage();
 
-            // Логіка нагороди за першу участь
-            const isFirstRaffle = localStorage.getItem('first_raffle_participated') !== 'true';
-            if (isFirstRaffle) {
-                const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                const newTokens = currentTokens + 150;
-                localStorage.setItem('userTokens', newTokens.toString());
-                localStorage.setItem('first_raffle_participated', 'true');
+            // Додаємо дані участі
+            const participationData = {
+                userId: localStorage.getItem('userId') || 'anonymous',
+                raffleId,
+                raffleType,
+                tokenAmount,
+                timestamp: new Date().toISOString()
+            };
 
-                // Оновлюємо відображення токенів WINIX
-                const tokensDisplay = document.getElementById('user-tokens');
-                if (tokensDisplay) tokensDisplay.textContent = newTokens.toFixed(2);
-                console.log(`Нарахована нагорода за першу участь: +150 WINIX, новий баланс: ${newTokens}`);
+            // Додаємо до участі
+            if (!raffleData.participations) raffleData.participations = [];
+            raffleData.participations.push(participationData);
+
+            // Оновлюємо лічильник
+            raffleData.totalParticipants = (raffleData.totalParticipants || 0) + 1;
+            if (raffleType === 'main') {
+                raffleData.mainRaffleParticipants = (raffleData.mainRaffleParticipants || 0) + 1;
+            } else if (raffleType === 'daily') {
+                raffleData.dailyRaffleParticipants = (raffleData.dailyRaffleParticipants || 0) + 1;
             }
 
-            // Оновлення статистики та участі
-            updateParticipationStatistics(tokenAmount);
-            updateRaffleParticipation(raffleId, raffleType);
-            addToRaffleHistory(raffleId, raffleType, tokenAmount);
+            // Зберігаємо в централізованому сховищі
+            saveRaffleStorage(raffleData);
 
-            // Закриття модального вікна
+            // Оновлюємо відображення
+            updateRaffleDisplay(raffleData);
+
+            // Створюємо запис у транзакціях через WinixCore
+            window.WinixCore.Transactions.addTransaction(
+                'stake',
+                tokenAmount,
+                `Участь у ${raffleType === 'main' ? 'головному' : 'щоденному'} розіграші`
+            );
+
+            // Закриваємо модальне вікно
             const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
             const modal = document.getElementById(modalId);
             if (modal) modal.classList.remove('open');
 
-            // Приховання спінера (для безпеки, якщо з якоїсь причини він не прихований нижче)
-            if (spinner) spinner.classList.remove('show');
-
-            // Показ повідомлення про успішну участь
-            showToast('Ви успішно взяли участь у розіграші', 3000);
-
-            // Показ повідомлення про нагороду за першу участь
-            if (isFirstRaffle) {
-                setTimeout(() => showToast('Вітаємо! Ви отримали 150 WINIX за першу участь!', 4000), 3500);
-            }
-
-            // Фінальна перевірка балансу
-            console.log(`Фінальний баланс після участі: ${document.getElementById('user-coins').textContent} жетонів`);
+            // Показуємо повідомлення
+            window.WinixCore.UI.showNotification('Ви успішно взяли участь у розіграші');
 
         } catch (error) {
             console.error('Помилка під час участі в розіграші:', error);
-            console.error('Стек помилки:', error.stack);
-            showToast('Сталася помилка. Спробуйте ще раз.', 3000);
+            window.WinixCore.UI.showNotification('Сталася помилка. Спробуйте ще раз.', 'error');
         } finally {
-            // Гарантоване приховання спінера
+            // Приховуємо індикатор завантаження
             if (spinner) spinner.classList.remove('show');
         }
-    }, 1500);
-
-    // ДОДАТКОВА ПЕРЕСТРАХОВКА: Перевіряємо через 2 секунди, чи справді списалися жетони
-    setTimeout(() => {
-        const finalDomBalance = document.getElementById('user-coins').textContent;
-        const finalStorageBalance = localStorage.getItem('userCoins');
-
-        console.log(`Фінальна перевірка через 2с: DOM=${finalDomBalance}, localStorage=${finalStorageBalance}`);
-
-        // Якщо з якоїсь причини баланс не оновився, примусово оновлюємо його
-        if (parseInt(finalDomBalance) !== newCoinsBalance) {
-            console.log(`КОРЕКЦІЯ: DOM баланс не оновився, примусово встановлюємо ${newCoinsBalance}`);
-            document.getElementById('user-coins').textContent = newCoinsBalance.toString();
-        }
-
-        if (parseInt(finalStorageBalance) !== newCoinsBalance) {
-            console.log(`КОРЕКЦІЯ: localStorage баланс не оновився, примусово встановлюємо ${newCoinsBalance}`);
-            localStorage.setItem('userCoins', newCoinsBalance.toString());
-        }
-    }, 2000);
+    }, 1000);
 }
 
-// Оновлення кількості учасників
-function updateRaffleParticipation(raffleId, raffleType) {
-    if (raffleType === 'main') {
-        const participantsElement = document.querySelector('.participants-count');
-        if (participantsElement) {
-            const currentCount = parseInt(participantsElement.textContent) || 0;
-            const newCount = currentCount + 1;
-            participantsElement.textContent = newCount.toString();
-
-            // Збереження кількості учасників у localStorage
-            localStorage.setItem('mainRaffleParticipants', newCount.toString());
-
-            const progressBar = document.querySelector('.progress');
-            if (progressBar) {
-                let currentWidth = parseFloat(progressBar.style.width) || 0;
-                currentWidth = Math.min(currentWidth + 2, 100);
-                progressBar.style.width = `${currentWidth}%`;
-
-                // Зберігаємо прогрес
-                localStorage.setItem('mainRaffleProgress', currentWidth.toString());
-            }
-
-            const modalParticipants = document.getElementById('main-participants');
-            if (modalParticipants) modalParticipants.textContent = newCount.toString();
-        }
-    } else if (raffleType === 'daily') {
-        const dailyParticipants = document.getElementById('daily-participants');
-        if (dailyParticipants) {
-            const currentParticipants = parseInt(dailyParticipants.textContent) || 0;
-            const newCount = currentParticipants + 1;
-            dailyParticipants.textContent = newCount.toString();
-
-            // Збереження кількості учасників у localStorage
-            localStorage.setItem('dailyRaffleParticipants', newCount.toString());
-        }
+// Додаткові допоміжні функції для роботи з централізованим сховищем
+function getRaffleStorage() {
+    // Отримуємо дані розіграшів з централізованого сховища
+    if (window.WinixCore && window.WinixCore.Storage) {
+        return window.WinixCore.Storage.getItem('winix_raffles_data', {}) || {};
+    } else {
+        // Якщо немає доступу до WinixCore.Storage, використовуємо наш резервний метод
+        const storageData = localStorage.getItem('winix_raffles_data');
+        return storageData ? JSON.parse(storageData) : {};
     }
 }
 
-// Додавання запису в історію
-function addToRaffleHistory(raffleId, raffleType, tokenAmount) {
-    const participationData = {
-        raffleId,
-        raffleType,
-        tokenAmount,
-        timestamp: new Date().toISOString()
-    };
+function saveRaffleStorage(data) {
+    // Зберігаємо дані розіграшів у централізованому сховищі
+    if (window.WinixCore && window.WinixCore.Storage) {
+        window.WinixCore.Storage.setItem('winix_raffles_data', data);
+    } else {
+        // Якщо немає доступу до WinixCore.Storage, використовуємо резервний метод
+        localStorage.setItem('winix_raffles_data', JSON.stringify(data));
+    }
 
-    let currentParticipations = JSON.parse(localStorage.getItem('currentParticipations') || '[]');
-    currentParticipations.push(participationData);
-    localStorage.setItem('currentParticipations', JSON.stringify(currentParticipations));
+    // Додатково синхронізуємо ключі для сумісності
+    if (data.mainRaffleParticipants !== undefined) {
+        localStorage.setItem('mainRaffleParticipants', data.mainRaffleParticipants.toString());
+    }
+    if (data.dailyRaffleParticipants !== undefined) {
+        localStorage.setItem('dailyRaffleParticipants', data.dailyRaffleParticipants.toString());
+    }
+    if (data.participations !== undefined) {
+        localStorage.setItem('currentParticipations', JSON.stringify(data.participations));
+    }
+}
+
+// Функція оновлення відображення розіграшів
+function updateRaffleDisplay(raffleData) {
+    // Оновлюємо лічильник учасників головного розіграшу
+    const participantsCountElement = document.querySelector('.participants-count');
+    if (participantsCountElement && raffleData.mainRaffleParticipants !== undefined) {
+        participantsCountElement.textContent = raffleData.mainRaffleParticipants.toString();
+    }
+
+    // Оновлюємо відображення в модальних вікнах
+    const mainParticipantsElement = document.getElementById('main-participants');
+    if (mainParticipantsElement && raffleData.mainRaffleParticipants !== undefined) {
+        mainParticipantsElement.textContent = raffleData.mainRaffleParticipants.toString();
+    }
+
+    const dailyParticipantsElement = document.getElementById('daily-participants');
+    if (dailyParticipantsElement && raffleData.dailyRaffleParticipants !== undefined) {
+        dailyParticipantsElement.textContent = raffleData.dailyRaffleParticipants.toString();
+    }
+
+    // Оновлюємо прогрес-бар
+    const progressBar = document.querySelector('.progress');
+    if (progressBar && raffleData.mainRaffleParticipants !== undefined) {
+        // Розраховуємо прогрес на основі кількості учасників (наприклад, 1 учасник = +2%)
+        const progress = Math.min(Math.max(29, 29 + raffleData.mainRaffleParticipants * 2), 100);
+        progressBar.style.width = `${progress}%`;
+        localStorage.setItem('mainRaffleProgress', progress.toString());
+    }
 }
 
 function updateParticipationStatistics(tokenAmount) {
@@ -4339,5 +4299,6 @@ setTimeout(function() {
     replaceBadgeEmojisWithImages();
 }, 1000);
 </script>
+<script src="static/js/winix-unified-fixes.js"></script>
 </body>
 </html>
