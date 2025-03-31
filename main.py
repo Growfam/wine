@@ -1,60 +1,258 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from supabase_client import get_user, create_user, update_balance
 from supabase import create_client
 import os
+import sys
 from dotenv import load_dotenv
 
 # Завантажуємо .env (для локального тесту)
 load_dotenv()
 
-# Ініціалізація Flask з налаштуванням для пошуку шаблонів у кореневій директорії
-app = Flask(__name__, template_folder='./', static_folder='./static')
+# Визначаємо базову директорію проекту
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Ініціалізація Flask з абсолютними шляхами для шаблонів та статики
+app = Flask(__name__,
+            template_folder=os.path.join(BASE_DIR),  # Кореневий каталог для HTML
+            static_folder=os.path.join(BASE_DIR, 'static'))  # Директорія для статичних файлів
 
 # Підключення до Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+# Перевірка критичних змінних середовища
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("CRITICAL: Не встановлено SUPABASE_URL або SUPABASE_ANON_KEY!")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Головна сторінка (наприклад, сторінка 1)
+
+# Спеціальний маршрут для папки assets
+@app.route('/assets/<path:filename>')
+def serve_asset(filename):
+    assets_dir = os.path.join(BASE_DIR, 'assets')
+    try:
+        return send_from_directory(assets_dir, filename)
+    except Exception as e:
+        print(f"Error serving asset {filename}: {str(e)}")
+        return jsonify({"error": f"Asset not found: {filename}"}), 404
+
+
+# Маршрут для ChenelPNG папки
+@app.route('/ChenelPNG/<path:filename>')
+def serve_chenel_png(filename):
+    chenel_dir = os.path.join(BASE_DIR, 'ChenelPNG')
+    try:
+        return send_from_directory(chenel_dir, filename)
+    except Exception as e:
+        print(f"Error serving ChenelPNG/{filename}: {str(e)}")
+        return jsonify({"error": f"ChenelPNG file not found: {filename}"}), 404
+
+
+# Маршрут для компонентів
+@app.route('/components/<path:filename>')
+def serve_component(filename):
+    components_dir = os.path.join(BASE_DIR, 'components')
+    try:
+        return send_from_directory(components_dir, filename)
+    except Exception as e:
+        print(f"Error serving component {filename}: {str(e)}")
+        return jsonify({"error": f"Component not found: {filename}"}), 404
+
+
+# Діагностичний маршрут для перевірки конфігурації
+@app.route('/debug')
+def debug():
+    assets_dir = os.path.join(BASE_DIR, 'assets')
+    assets_exists = os.path.exists(assets_dir)
+
+    chenel_dir = os.path.join(BASE_DIR, 'ChenelPNG')
+    chenel_exists = os.path.exists(chenel_dir)
+
+    components_dir = os.path.join(BASE_DIR, 'components')
+    components_exists = os.path.exists(components_dir)
+
+    static_dir = os.path.join(BASE_DIR, 'static')
+    static_exists = os.path.exists(static_dir)
+
+    assets_files = []
+    if assets_exists:
+        try:
+            assets_files = os.listdir(assets_dir)
+        except Exception as e:
+            assets_files = [f"Error listing assets: {str(e)}"]
+
+    return jsonify({
+        "status": "running",
+        "environment": {
+            "base_dir": BASE_DIR,
+            "current_dir": os.getcwd(),
+            "files_in_root": os.listdir(BASE_DIR),
+            "template_folder": app.template_folder,
+            "static_folder": app.static_folder,
+            "assets_folder": assets_dir,
+            "assets_exists": assets_exists,
+            "assets_files": assets_files,
+            "chenel_exists": chenel_exists,
+            "components_exists": components_exists,
+            "static_exists": static_exists,
+            "supabase_configured": bool(SUPABASE_URL and SUPABASE_KEY),
+            "python_version": sys.version
+        }
+    })
+
+
+# Головна сторінка
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        print(f"Error rendering index.html: {str(e)}")
+        return jsonify({"error": str(e), "type": "template_error"}), 500
 
-# Сторінка 2
-@app.route('/page2')
-def page2():
-    return render_template('page2.html')
+
+# Явні маршрути для всіх HTML-файлів
+@app.route('/<path:filename>.html')
+def serve_html(filename):
+    try:
+        return render_template(f'{filename}.html')
+    except Exception as e:
+        print(f"Error rendering {filename}.html: {str(e)}")
+        return jsonify({"error": str(e), "type": "template_error", "filename": filename}), 500
+
+
+# Додаткові явні маршрути для основних сторінок
+@app.route('/earn')
+def earn():
+    return render_template('earn.html')
+
+
+@app.route('/wallet')
+def wallet():
+    return render_template('wallet.html')
+
+
+@app.route('/referrals')
+def referrals():
+    return render_template('referrals.html')
+
+
+@app.route('/profile')
+def profile():
+    return render_template('profile.html')
+
+
+@app.route('/general')
+def general():
+    return render_template('general.html')
+
+
+@app.route('/folder')
+def folder():
+    return render_template('folder.html')
+
+
+@app.route('/staking')
+def staking():
+    return render_template('staking.html')
+
+
+@app.route('/staking-details')
+def staking_details():
+    return render_template('staking-details.html')
+
+
+@app.route('/transactions')
+def transactions():
+    return render_template('transactions.html')
+
+
+@app.route('/send')
+def send():
+    return render_template('send.html')
+
+
+@app.route('/receive')
+def receive():
+    return render_template('receive.html')
+
 
 # API для нарахування жетонів
 @app.route('/confirm', methods=['POST'])
 def confirm():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    if not data or 'user_id' not in data:
-        return jsonify({"status": "error", "message": "Missing user_id"}), 400
+        if not data or 'user_id' not in data:
+            return jsonify({"status": "error", "message": "Missing user_id"}), 400
 
-    user_id = str(data['user_id'])
+        user_id = str(data['user_id'])
+        print(f"Processing confirm for user_id: {user_id}")
 
-    # Отримуємо користувача
-    user = get_user(user_id)
+        # Отримуємо користувача
+        user = get_user(user_id)
 
-    # Якщо користувача немає — створюємо
-    if not user:
-        user = create_user(user_id, username="unknown")
+        # Якщо користувача немає — створюємо
+        if not user:
+            print(f"Creating new user with id: {user_id}")
+            user = create_user(user_id, username="unknown")
 
-    # Якщо ще не завершив сторінку 1
-    if not user.get("page1_completed", False):
-        update_balance(user_id, 1)
+        # Якщо ще не завершив сторінку 1
+        if not user.get("page1_completed", False):
+            print(f"User {user_id} completing page1, awarding token")
+            update_balance(user_id, 1)
 
-        # Позначаємо, що сторінка 1 завершена
-        supabase.table("Winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
+            # Позначаємо, що сторінка 1 завершена
+            supabase.table("Winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
 
-        updated_user = get_user(user_id)
-        return jsonify({"status": "success", "tokens": updated_user["balance"]})
+            updated_user = get_user(user_id)
+            return jsonify({"status": "success", "tokens": updated_user["balance"]})
+        else:
+            print(f"User {user_id} already completed page1")
+            return jsonify({"status": "already_completed", "message": "Жетон уже нараховано"})
+    except Exception as e:
+        print(f"Error in confirm endpoint: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    else:
-        return jsonify({"status": "already_completed", "message": "Жетон уже нараховано"})
+
+# Тестовий API-ендпоінт
+@app.route('/api/test', methods=['GET'])
+def api_test():
+    return jsonify({
+        "status": "ok",
+        "message": "API працює коректно",
+        "version": "1.0.0"
+    })
+
+
+# Обробник помилок 404
+@app.errorhandler(404)
+def page_not_found(e):
+    print(f"404 error: {request.path}")
+    return jsonify({
+        "error": "not_found",
+        "message": f"Сторінка не знайдена: {request.path}",
+        "available_routes": [
+            "/", "/index.html", "/earn.html", "/wallet.html",
+            "/referrals.html", "/original-index.html", "/debug"
+        ]
+    }), 404
+
+
+# Обробник помилок 500
+@app.errorhandler(500)
+def server_error(e):
+    print(f"500 error: {str(e)}")
+    return jsonify({
+        "error": "server_error",
+        "message": "Внутрішня помилка сервера",
+        "details": str(e)
+    }), 500
+
 
 # Запуск додатку
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 5050)))
+    port = int(os.environ.get("PORT", 5050))
+    print(f"Starting application on port {port}")
+    app.run(debug=True, host='0.0.0.0', port=port)
