@@ -251,6 +251,46 @@ def server_error(e):
     }), 500
 
 
+@app.route('/api/user/<telegram_id>', methods=['GET'])
+def get_user_data(telegram_id):
+    try:
+        # Отримуємо користувача з Supabase
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо кількість рефералів (приклад запиту)
+        referrals_count = 0
+        referral_earnings = 0
+        try:
+            # У реальному випадку ви б рахували це з бази даних
+            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referrals_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
+
+            # Тут можна додати логіку обчислення заробітку від рефералів
+            referral_earnings = referrals_count * 127.37  # Приклад формули
+        except Exception as e:
+            print(f"Помилка отримання даних рефералів: {str(e)}")
+
+        # Формуємо дані для відповіді
+        user_data = {
+            "id": user["telegram_id"],
+            "username": user.get("username", "WINIX User"),
+            "balance": user.get("balance", 0),
+            "coins": 250,  # В майбутньому це має бути окреме поле в базі
+            "page1_completed": user.get("page1_completed", False),
+            "referrals_count": referrals_count,
+            "referral_earnings": referral_earnings,
+            "completed_tasks": 7,  # В майбутньому це має бути окреме поле в базі
+            "total_raffles": 3  # В майбутньому це має бути окреме поле в базі
+        }
+
+        return jsonify({"status": "success", "data": user_data})
+    except Exception as e:
+        print(f"Помилка отримання даних користувача {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # Запуск додатку
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5050))

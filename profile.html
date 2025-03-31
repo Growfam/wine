@@ -978,36 +978,128 @@
     }
 
     // Функція для завантаження аватара користувача
-    function loadUserAvatar() {
-    const avatar = document.getElementById('profile-avatar');
-    const userId = document.getElementById('user-id');
+   // Функція для завантаження даних користувача з сервера
+function loadUserData() {
+    console.log("Завантаження даних користувача з сервера...");
 
-    if (!avatar || !userId) return;
+    // Показуємо індикатор завантаження
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.style.display = 'flex';
+
+    // Отримуємо ID користувача (з localStorage як тимчасове рішення)
+    const userId = localStorage.getItem('userId') || '12345678';
+
+    // Робимо запит до API
+    fetch(`/api/user/${userId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Помилка HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.status === 'success' && result.data) {
+                const userData = result.data;
+                console.log("Отримано дані користувача:", userData);
+
+                // Оновлюємо ID користувача
+                document.getElementById('user-id').textContent = userData.id;
+                document.getElementById('stats-user-id').textContent = userData.id;
+
+                // Оновлюємо ім'я користувача
+                const username = userData.username || 'WINIX User';
+                document.getElementById('stats-username').textContent = username;
+
+                // Оновлюємо баланс токенів
+                const tokens = userData.balance || 0;
+                document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+                document.getElementById('total-tokens').textContent = tokens.toFixed(2);
+
+                // Оновлюємо баланс жетонів
+                const coins = userData.coins || 0;
+                document.getElementById('user-coins').textContent = coins.toString();
+                document.getElementById('total-coins').textContent = coins.toString();
+
+                // Оновлюємо реферальну інформацію
+                document.getElementById('total-referrals').textContent = userData.referrals_count || '0';
+                document.getElementById('referral-earnings').textContent = userData.referral_earnings || '0';
+
+                // Оновлюємо активність
+                document.getElementById('completed-tasks').textContent = userData.completed_tasks || '0';
+                document.getElementById('total-raffles').textContent = userData.total_raffles || '0';
+
+                // Оновлюємо аватар
+                updateAvatar(username);
+
+                // Зберігаємо в localStorage для оффлайн-доступу
+                localStorage.setItem('userId', userData.id);
+                localStorage.setItem('username', username);
+                localStorage.setItem('userTokens', tokens.toString());
+                localStorage.setItem('userCoins', coins.toString());
+                localStorage.setItem('totalReferrals', userData.referrals_count);
+                localStorage.setItem('referralEarnings', userData.referral_earnings);
+
+                console.log("✅ Дані користувача успішно оновлено з сервера");
+            } else {
+                console.warn("Отримано некоректні дані:", result);
+                throw new Error("Некоректні дані від сервера");
+            }
+        })
+        .catch(error => {
+            console.error('❌ Помилка отримання даних з сервера:', error);
+
+            // Використовуємо localStorage як запасний варіант
+            loadUserDataFromLocalStorage();
+
+            // Показуємо повідомлення користувачу
+            showToast("Використовуємо локальні дані. Перевірте підключення до інтернету.", true);
+        })
+        .finally(() => {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
+        });
+}
+
+// Функція для завантаження даних з localStorage (запасний варіант)
+function loadUserDataFromLocalStorage() {
+    console.log("Завантаження даних з localStorage (офлайн режим)");
 
     const username = localStorage.getItem('username') || 'WINIX User';
-    userId.textContent = localStorage.getItem('userId') || '12345678';
-    document.getElementById('stats-user-id').textContent = localStorage.getItem('userId') || '12345678';
+    const userId = localStorage.getItem('userId') || '12345678';
+
+    document.getElementById('user-id').textContent = userId;
+    document.getElementById('stats-user-id').textContent = userId;
     document.getElementById('stats-username').textContent = username;
 
     // Оновлення балансу
-    const tokens = localStorage.getItem('userTokens') || '294562.16';
-    const coins = localStorage.getItem('userCoins') || '250';
+    const tokens = localStorage.getItem('userTokens') || '0';
+    const coins = localStorage.getItem('userCoins') || '0';
+    document.getElementById('user-tokens').textContent = tokens;
     document.getElementById('total-tokens').textContent = tokens;
+    document.getElementById('user-coins').textContent = coins;
     document.getElementById('total-coins').textContent = coins;
 
     // Оновлення реферальної програми
-    const referrals = localStorage.getItem('totalReferrals') || '12';
-    const referralEarnings = localStorage.getItem('referralEarnings') || '1528.45';
+    const referrals = localStorage.getItem('totalReferrals') || '0';
+    const referralEarnings = localStorage.getItem('referralEarnings') || '0';
     document.getElementById('total-referrals').textContent = referrals;
     document.getElementById('referral-earnings').textContent = referralEarnings;
 
     // Оновлення активності
-    const completedTasks = localStorage.getItem('completedTasks') || '7';
-    const totalRaffles = localStorage.getItem('totalRaffles') || '3';
+    const completedTasks = localStorage.getItem('completedTasks') || '0';
+    const totalRaffles = localStorage.getItem('totalRaffles') || '0';
     document.getElementById('completed-tasks').textContent = completedTasks;
     document.getElementById('total-raffles').textContent = totalRaffles;
 
-    // Оновлення аватара (існуюча логіка)
+    // Оновлення аватара
+    updateAvatar(username);
+}
+
+// Функція для оновлення аватара
+function updateAvatar(username) {
+    const avatar = document.getElementById('profile-avatar');
+    if (!avatar) return;
+
     const avatarSrc = localStorage.getItem('userAvatarSrc');
     const avatarId = localStorage.getItem('selectedAvatarId');
     avatar.innerHTML = '';
@@ -1028,6 +1120,14 @@
     } else {
         avatar.textContent = username[0].toUpperCase();
     }
+}
+
+// Функція періодичного оновлення даних
+function startPeriodicUpdates() {
+    console.log("Запуск періодичного оновлення даних");
+
+    // Оновлюємо дані кожні 30 секунд
+    setInterval(loadUserData, 30000);
 }
 
     // Функція для встановлення обробника кліку по аватару
@@ -1285,46 +1385,57 @@ document.querySelectorAll('.nav-item').forEach(item => {
     }
 
     // Обробка завантаження сторінки
-    window.addEventListener('load', function() {
-        console.log("Сторінка завантажена");
+window.addEventListener('load', function() {
+    console.log("Сторінка завантажена");
 
-        try {
-            // Завантажуємо аватар і налаштовуємо клік на профіль
-            loadUserAvatar();
-            setupProfileLink();
+    try {
+        // Завантажуємо дані з сервера
+        loadUserData();
 
-            // Оновлюємо всі тексти
-            updatePageTexts();
+        // Запускаємо періодичне оновлення
+        startPeriodicUpdates();
 
-            // Ініціалізуємо таймери розіграшів
-            updateRaffleStatus();
+        // Налаштовуємо клік на профіль
+        setupProfileLink();
 
-            // Встановлюємо обробники подій
-            // Налаштовуємо кнопку "Всі розіграші"
-const viewAllRafflesBtn = document.getElementById('view-all-raffles');
-if (viewAllRafflesBtn) {
-    viewAllRafflesBtn.addEventListener('click', function() {
-        console.log("Кнопка 'Всі розіграші' натиснута");
-        window.location.href = 'raffles.html';
+        // Оновлюємо всі тексти
+        updatePageTexts();
+
+        setupOnlineStatusDetection();
+
+        // Встановлюємо обробники подій
+        // Налаштовуємо кнопку "Всі розіграші"
+        const viewAllRafflesBtn = document.getElementById('view-all-raffles');
+        if (viewAllRafflesBtn) {
+            viewAllRafflesBtn.addEventListener('click', function() {
+                console.log("Кнопка 'Всі розіграші' натиснута");
+                window.location.href = 'raffles.html';
+            });
+        }
+
+        // Оновлюємо стан DOM
+        adjustLayout();
+        updateThemeColors();
+    } catch (error) {
+        console.error("Помилка при ініціалізації сторінки:", error);
+
+        // Запасний варіант - завантаження з localStorage
+        loadUserDataFromLocalStorage();
+    }
+});
+    // Додайте цю функцію в скрипт
+function setupOnlineStatusDetection() {
+    window.addEventListener('online', function() {
+        console.log("З'єднання з інтернетом відновлено");
+        showToast("З'єднання відновлено, оновлюємо дані...");
+        loadUserData();
+    });
+
+    window.addEventListener('offline', function() {
+        console.log("З'єднання з інтернетом втрачено");
+        showToast("Відсутнє з'єднання з інтернетом. Перейшли в офлайн режим.", true);
     });
 }
-
-            // Оновлюємо стан DOM
-            adjustLayout();
-            updateThemeColors();
-
-            // Анімуємо прогрес-бари після завантаження
-            document.querySelectorAll('.progress').forEach(progress => {
-                const width = progress.style.width;
-                progress.style.width = "0%";
-                setTimeout(() => {
-                    progress.style.width = width;
-                }, 300);
-            });
-        } catch (error) {
-            console.error("Помилка при ініціалізації сторінки:", error);
-        }
-    });
 
     // Глобальний обробник помилок
     window.onerror = function(message, source, lineno, colno, error) {
