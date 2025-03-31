@@ -838,69 +838,50 @@
             showToast('Помилка навігації', 2000);
         }
     }
+// Функція для показу toast-повідомлення
+function showToast(message) {
+    const toast = document.getElementById('toast-message');
 
-    // Функція для показу повідомлення
-    function showToast(message, duration = 2000) {
-        const toast = document.getElementById('toast-message');
-        if (toast) {
-            // Перевіряємо, чи повідомлення має бути перекладено
-            if (typeof message === 'string' && message.startsWith('@') && window.WinixLanguage) {
-                message = window.WinixLanguage.getText(message.substring(1));
-            }
+    if (toast) {
+        // Встановлюємо текст повідомлення
+        toast.textContent = message;
 
-            toast.textContent = message;
-            toast.classList.add('show');
+        // Додаємо клас для показу
+        toast.classList.add('show');
 
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, duration);
-        }
+        // Автоматично приховуємо через 2 секунди
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2000);
     }
+}
 
-    // Обробник кнопки копіювання реферального посилання
+// Обробник кнопки копіювання
+document.addEventListener('DOMContentLoaded', function() {
     const copyButton = document.getElementById('copy-button');
+
     if (copyButton) {
         copyButton.addEventListener('click', function() {
             const refLink = document.getElementById('referral-link');
+
             if (refLink && refLink.textContent && refLink.textContent !== 'Завантаження посилання...') {
-                try {
-                    // Функція для отримання перекладів
-                    const getText = window.WinixLanguage ?
-                        window.WinixLanguage.getText :
-                        (key) => key === 'referrals.copy_success' ? 'Реферальне посилання скопійовано в буфер обміну!' :
-                                 key === 'referrals.copy_error' ? 'Помилка копіювання посилання!' :
-                                 key === 'referrals.no_link_to_copy' ? 'Немає посилання для копіювання!' : key;
-
-                    navigator.clipboard.writeText(refLink.textContent)
-                        .then(() => {
-                            showToast(getText('referrals.copy_success'));
-                        })
-                        .catch(err => {
-                            console.error('Помилка копіювання: ', err);
-                            showToast(getText('referrals.copy_error'));
-                        });
-                } catch (err) {
-                    console.error('Помилка копіювання: ', err);
-                    showToast(getText('referrals.copy_error'));
-
-                    // Запасний варіант для старих браузерів
-                    try {
-                        const tempInput = document.createElement('input');
-                        tempInput.value = refLink.textContent;
-                        document.body.appendChild(tempInput);
-                        tempInput.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(tempInput);
-                        showToast(getText('referrals.copy_success'));
-                    } catch (e) {
-                        console.error('Запасний спосіб копіювання не спрацював: ', e);
-                    }
-                }
+                // Копіюємо посилання
+                navigator.clipboard.writeText(refLink.textContent)
+                    .then(() => {
+                        // Показуємо toast після успішного копіювання
+                        showToast('Посилання скопійовано!');
+                    })
+                    .catch(err => {
+                        // Показуємо повідомлення про помилку
+                        showToast('Помилка копіювання');
+                        console.error('Помилка копіювання:', err);
+                    });
             } else {
-                showToast(getText('referrals.no_link_to_copy'));
+                showToast('Немає посилання для копіювання');
             }
         });
     }
+});
 
     // Обробники подій для елементів навігації
     document.querySelectorAll('.nav-item').forEach(item => {
