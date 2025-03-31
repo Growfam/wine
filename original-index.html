@@ -213,8 +213,8 @@
         /* Стилі для каруселі/слайдера */
         .carousel-container {
             width: 100%;
-            height: 160px;
-            min-height: 160px;
+            height: 220px;
+            min-height: 220px;
             position: relative;
             margin-bottom: 0.9375rem;
             overflow: hidden;
@@ -244,28 +244,12 @@
         }
 
         .carousel-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 50%);
-            border-radius: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            padding: 1rem;
-            display: none;
-        }
+    display: none !important;
+}
 
-        .carousel-title {
-            color: white;
-            font-size: 1.25rem;
-            font-weight: bold;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            margin-bottom: 0.5rem;
-            display: none;
-        }
+.carousel-title, .carousel-subtitle {
+    display: none !important;
+}
 
         .carousel-subtitle {
             color: rgba(255,255,255,0.8);
@@ -1098,18 +1082,10 @@
         <div class="carousel-container">
             <div class="carousel-wrapper" id="carousel-wrapper">
                 <div class="carousel-slide" id="main-raffle-slide">
-                    <img src="assets/prize-poster1.gif" alt="Головний розіграш" class="carousel-image">
-                    <div class="carousel-overlay">
-                        <div class="carousel-title">Гранд Розіграш</div>
-                        <div class="carousel-subtitle">250 USDT + 130,000 WINIX (10 переможців)</div>
-                    </div>
+                    <img src="assets/prize-poster.gif" alt="Головний розіграш" class="carousel-image">
                 </div>
                 <div class="carousel-slide" id="daily-raffle-slide">
-                    <img src="assets/daily-prize1.gif" alt="Щоденний розіграш" class="carousel-image">
-                    <div class="carousel-overlay">
-                        <div class="carousel-title">Щоденний Розіграш</div>
-                        <div class="carousel-subtitle">30,000 WINIX (15 переможців)</div>
-                    </div>
+                    <img src="assets/daily-prize.gif" alt="Щоденний розіграш" class="carousel-image">
                 </div>
             </div>
 
@@ -1449,7 +1425,7 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
 }
 
         // Налаштування каруселі
-       function setupCarousel() {
+      function setupCarousel() {
     // Очищаємо всі попередні таймери
     if (window.carouselTimer) {
         clearInterval(window.carouselTimer);
@@ -1464,7 +1440,7 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
     // Перезавантажуємо змінну поточного слайду
     window.currentSlide = 0;
 
-    // Оновлення каруселі - винести в окрему функцію
+    // Оновлення каруселі
     function updateCarousel() {
         if (!wrapper) return;
         wrapper.style.transform = `translateX(-${window.currentSlide * 50}%)`;
@@ -1518,25 +1494,28 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
         };
     });
 
-    // Запускаємо автоматичну зміну слайдів
+    // Автоматична зміна слайдів з меншим інтервалом (4s замість 5s)
     window.carouselTimer = setInterval(() => {
         window.currentSlide = window.currentSlide < slides.length - 1 ?
             window.currentSlide + 1 : 0;
         updateCarousel();
-    }, 5000);
+    }, 4000);
 
-    // Додаємо обробники для модальних вікон
-    document.getElementById('main-raffle-slide').onclick = function() {
-        if (typeof openModal === 'function') {
+    // Обробники для модальних вікон
+    const mainSlide = document.getElementById('main-raffle-slide');
+    const dailySlide = document.getElementById('daily-raffle-slide');
+
+    if (mainSlide) {
+        mainSlide.onclick = function() {
             openModal('main-raffle-modal');
-        }
-    };
+        };
+    }
 
-    document.getElementById('daily-raffle-slide').onclick = function() {
-        if (typeof openModal === 'function') {
+    if (dailySlide) {
+        dailySlide.onclick = function() {
             openModal('daily-raffle-modal');
-        }
-    };
+        };
+    }
 }
 
         // Налаштування модальних вікон
