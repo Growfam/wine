@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 # Завантажуємо .env (для локального тесту)
 load_dotenv()
 
-app = Flask(__name__)
+# Ініціалізація Flask з налаштуванням для пошуку шаблонів у кореневій директорії
+app = Flask(__name__, template_folder='./')
 
 # Підключення до Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -17,7 +18,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Головна сторінка (наприклад, сторінка 1)
 @app.route('/')
 def index():
-    return render_template('original-index.html')
+    return render_template('index.html')
 
 # Сторінка 2
 @app.route('/page2')
