@@ -1069,6 +1069,33 @@
         z-index: 10 !important;
     }
 }
+@media screen {
+    body.telegram-webview .carousel-indicators {
+        bottom: 10px; /* Збільшуємо відстань від нижнього краю, щоб крапки були всередині банера */
+        background: rgba(0, 0, 0, 0.3); /* Додаємо напівпрозорий фон для кращої видимості на темному тлі */
+        padding: 5px 10px; /* Додаємо відступи для естетичного вигляду */
+        border-radius: 20px; /* Закруглені кути для контейнера крапок */
+    }
+
+    body.telegram-webview .carousel-indicator {
+        width: 8px; /* Зменшуємо розмір крапок, якщо потрібно */
+        height: 8px;
+        background: rgba(255, 255, 255, 0.7); /* Змінюємо колір для гармонії */
+    }
+
+    body.telegram-webview .carousel-indicator.active {
+        background: #fff; /* Активна крапка — яскраво-біла */
+    }
+}
+body.telegram-webview .carousel-container {
+    height: 220px !important; /* Фіксуємо висоту контейнера */
+    overflow: hidden; /* Приховуємо все, що виходить за межі */
+}
+
+body.telegram-webview .carousel-slide img {
+    height: 220px !important; /* Переконуємося, що зображення займає всю висоту */
+    object-fit: cover; /* Зображення адаптується без спотворень */
+}
      </style>
 </head>
 <body>
@@ -3951,6 +3978,24 @@ function openModal(modalId) {
             }
         }
     }
+    function fixCarousel() {
+    const carouselContainer = document.querySelector('.carousel-container');
+    if (!carouselContainer) return;
+
+    // Виправлення видимості контейнера
+    carouselContainer.style.display = 'block';
+    carouselContainer.style.visibility = 'visible';
+    carouselContainer.style.height = '220px';
+
+    // Налаштування індикаторів
+    const indicators = carouselContainer.querySelector('.carousel-indicators');
+    if (indicators) {
+        indicators.style.bottom = '10px';
+        indicators.style.background = 'rgba(0, 0, 0, 0.3)';
+        indicators.style.padding = '5px 10px';
+        indicators.style.borderRadius = '20px';
+    }
+}
 
     // Функція для створення запасної каруселі, якщо оригінальна не працює
     function createFallbackCarousel() {
