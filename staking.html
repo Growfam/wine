@@ -525,14 +525,16 @@
                 font-size: 1.25rem; /* 20px */
             }
 
-            .staking-input {
-                flex-direction: column;
-                gap: 0.625rem; /* 10px */
-            }
+
+                .staking-input {
+        flex-direction: row; /* Змінено з column */
+        align-items: center;
+        gap: 0.5rem;
+    }
 
             .max-button {
-                align-self: flex-end;
-                margin-left: 0;
+                align-self: initial;
+                margin-left: 0.5rem;
             }
 
             .period-select, #expected-reward-display {
