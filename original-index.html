@@ -1066,7 +1066,7 @@
     body.telegram-webview .action-button {
         margin-top: 0 !important;
         position: relative !important;
-        z-index: 5 !important;
+        z-index: 10 !important;
     }
 }
      </style>
@@ -1252,7 +1252,7 @@
                 <div class="modal-title">Гранд Розіграш</div>
                 <div class="modal-close" data-modal="main-raffle-modal">×</div>
             </div>
-            <img src="assets/prize-poster.gif" alt="Головний розіграш" class="raffle-image">
+            <img src="assets/prize-poster1.png" alt="Головний розіграш" class="raffle-image">
             <div class="raffle-details">
                 <div class="raffle-header">
                     <h3 class="raffle-title">GIVEAWEY</h3>
@@ -1328,7 +1328,7 @@
                 <div class="modal-title">Щоденний Розіграш</div>
                 <div class="modal-close" data-modal="daily-raffle-modal">×</div>
             </div>
-            <img src="assets/daily-prize.gif" alt="Щоденний розіграш" class="raffle-image">
+            <img src="assets/daily-prize1.png" alt="Щоденний розіграш" class="raffle-image">
             <div class="raffle-details">
                 <div class="raffle-header">
                     <h3 class="raffle-title">Міні-розіграш #24</h3>
@@ -1409,54 +1409,38 @@
 
     <!-- Повідомлення toast -->
     <div class="toast-message" id="toast-message">Повідомлення</div>
-<script>
-// Глобальні змінні
-let mainRaffleTimer;
-let dailyRaffleTimer;
-let currentSlide = 0;
+    <script>
+        // Глобальні змінні для таймерів
+        let mainRaffleTimer;
+        let dailyRaffleTimer;
+        let currentSlide = 0;
 
-// Telegram WebApp детектор - викликається при завантаженні сторінки
-document.addEventListener('DOMContentLoaded', function() {
-    // Перевіряємо, чи відкрито у Telegram WebApp
-    if (window.Telegram && window.Telegram.WebApp) {
-        // Додаємо клас для спеціальних стилів
-        document.body.classList.add('telegram-webview');
-        console.log('WINIX: Виявлено Telegram WebApp, застосовуємо спеціальні стилі');
+        // Ініціалізація сторінки
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUserAvatar();
+            setupProfileLink();
+            updateBalanceDisplay();
+            setupCarousel();
+            setupModals();
+            setupFolderFunctionality();
+            loadRafflesData();
 
-        // Налаштовуємо відступи каруселі та інших елементів
-        const carouselContainer = document.querySelector('.carousel-container');
-        if (carouselContainer) {
-            carouselContainer.style.marginBottom = '0.3rem';
-            carouselContainer.style.marginTop = '0.3rem';
-        }
+            // Встановлюємо таймери для розіграшів
+            setupRaffleTimers();
 
-        // Приховуємо стрілки навігації в Telegram WebApp
-        document.querySelectorAll('.carousel-nav').forEach(nav => {
-            nav.style.display = 'none';
+            // Налаштовуємо навігацію
+            setupNavigation();
+
+            // Перевіряємо дані папки
+            checkFolderProgress();
         });
 
-        // Приховуємо оверлей тексту
-        document.querySelectorAll('.carousel-overlay').forEach(overlay => {
-            overlay.style.display = 'none';
-        });
-    }
+        // Також запускаємо ініціалізацію відразу, якщо сторінка вже завантажена
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    setTimeout(setupCarousel, 100);
+}
 
-    // Ініціалізація основних функцій
-    loadUserAvatar();
-    setupProfileLink();
-    updateBalanceDisplay();
-    setupCarousel();
-    setupModals();
-    setupFolderFunctionality();
-    loadRafflesData();
-    setupRaffleTimers();
-    setupNavigation();
-    checkFolderProgress();
-    setupChannelLinks();
-    setupVerifyButton();
-});
-
-// Налаштування каруселі
+    // Нова функція налаштування каруселі для Telegram WebApp
 function setupCarousel() {
     // Очищаємо всі попередні таймери
     if (window.carouselTimer) {
@@ -1469,10 +1453,10 @@ function setupCarousel() {
     const indicators = document.querySelectorAll('.carousel-indicator');
     const slides = document.querySelectorAll('.carousel-slide');
 
-    // Скидаємо змінну поточного слайду
+    // Перезавантажуємо змінну поточного слайду
     window.currentSlide = 0;
 
-    // Функція оновлення каруселі
+    // Оновлення каруселі - винести в окрему функцію
     function updateCarousel() {
         if (!wrapper) return;
         wrapper.style.transform = `translateX(-${window.currentSlide * 50}%)`;
@@ -1535,556 +1519,619 @@ function setupCarousel() {
 
     // Додаємо обробники для модальних вікон
     document.getElementById('main-raffle-slide').onclick = function() {
-        openModal('main-raffle-modal');
+        if (typeof openModal === 'function') {
+            openModal('main-raffle-modal');
+        }
     };
 
     document.getElementById('daily-raffle-slide').onclick = function() {
-        openModal('daily-raffle-modal');
+        if (typeof openModal === 'function') {
+            openModal('daily-raffle-modal');
+        }
     };
 }
 
-// Налаштування модальних вікон
-function setupModals() {
-    // Відкриття модальних вікон
-    document.getElementById('all-raffles-btn').addEventListener('click', () => {
-        window.location.href = 'raffles.html';
-    });
-
-    document.getElementById('add-folder-btn').addEventListener('click', () => {
-        openModal('folder-modal');
-    });
-
-    document.getElementById('verify-btn').addEventListener('click', () => {
-        verifyAllSubscriptions();
-    });
-
-    // Закриття модальних вікон
-    document.querySelectorAll('.modal-close').forEach(closeBtn => {
-        closeBtn.addEventListener('click', () => {
-            const modalId = closeBtn.getAttribute('data-modal');
-            closeModal(modalId);
-        });
-    });
-
-    // Кліки поза модальним вікном для закриття
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                closeModal(modal.id);
-            }
-        });
-    });
-
-    // Кнопки для участі в розіграшах
-    document.getElementById('join-main-raffle-btn').addEventListener('click', () => {
-        participateInRaffle('main-raffle', 'main', 1);
-    });
-
-    document.getElementById('join-daily-raffle-btn').addEventListener('click', () => {
-        participateInRaffle('daily-raffle', 'daily', 1);
-    });
-
-    // Поширення розіграшу
-    document.getElementById('share-raffle-btn').addEventListener('click', () => {
-        shareRaffle();
-    });
-}
-
-// Налаштування функціональності папки
-function setupFolderFunctionality() {
-    document.getElementById('add-folder-action-btn').addEventListener('click', () => {
-        addFolder();
-    });
-
-    document.getElementById('verify-folder-btn').addEventListener('click', () => {
-        verifyFolder();
-    });
-
-    document.getElementById('folder-image-container').addEventListener('click', () => {
-        addFolder();
-    });
-}
-
-// Завантаження аватара користувача
-function loadUserAvatar() {
-    const avatar = document.getElementById('profile-avatar');
-    const userId = document.getElementById('user-id');
-
-    if (!avatar || !userId) return;
-
-    // Отримуємо дані користувача з localStorage
-    const username = localStorage.getItem('username') || 'WINIX User';
-    const userIdValue = localStorage.getItem('userId') || '12345678';
-
-    userId.textContent = userIdValue;
-
-    const avatarSrc = localStorage.getItem('userAvatarSrc');
-    const avatarId = localStorage.getItem('selectedAvatarId');
-
-    // Очищаємо вміст аватара
-    avatar.innerHTML = '';
-
-    if (avatarSrc) {
-        // Використовуємо завантажене зображення
-        const img = new Image();
-        img.src = avatarSrc;
-        img.alt = username;
-        img.onerror = () => avatar.textContent = username[0].toUpperCase();
-        avatar.appendChild(img);
-    } else if (avatarId) {
-        // Використовуємо системний аватар
-        const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
-        const img = new Image();
-        img.src = src;
-        img.alt = username;
-        img.onerror = () => avatar.textContent = username[0].toUpperCase();
-        avatar.appendChild(img);
-    } else {
-        // Використовуємо першу літеру імені
-        avatar.textContent = username[0].toUpperCase();
-    }
-}
-
-// Налаштування кліку по профілю
-function setupProfileLink() {
-    const profileLink = document.getElementById('profile-link');
-    if (profileLink) {
-        profileLink.addEventListener('click', function() {
-            window.location.href = 'profile.html';
-        });
-    }
-}
-
-// Оновлення відображення балансу
-function updateBalanceDisplay() {
-    const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
-    const coins = parseInt(localStorage.getItem('userCoins') || '0');
-
-    const tokensDisplay = document.getElementById('user-tokens');
-    const coinsDisplay = document.getElementById('user-coins');
-
-    if (tokensDisplay) tokensDisplay.textContent = tokens.toFixed(2);
-    if (coinsDisplay) coinsDisplay.textContent = coins;
-}
-
-// Налаштування навігації
-function setupNavigation() {
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const section = item.getAttribute('data-section');
-            document.querySelectorAll('.nav-item').forEach(navItem => navItem.classList.remove('active'));
-            item.classList.add('active');
-
-            // Якщо не головна, перенаправляємо на відповідну сторінку
-            if (section !== 'home') {
-                navigateTo(section);
-            }
-        });
-    });
-}
-
-// Перевірка прогресу папки
-function checkFolderProgress() {
-    const folderAdded = localStorage.getItem('folder_added') === 'true';
-    const folderVerified = localStorage.getItem('folder_verified') === 'true';
-
-    if (folderVerified) {
-        document.getElementById('folder-progress').style.width = '100%';
-        document.getElementById('folder-marker').style.left = '100%';
-    } else if (folderAdded) {
-        document.getElementById('folder-progress').style.width = '50%';
-        document.getElementById('folder-marker').style.left = '50%';
-    }
-}
-
-// Додавання папки
-function addFolder() {
-    // Перевіряємо, чи вже була додана папка
-    if (localStorage.getItem('folder_added') === 'true') {
-        showToast('Ви вже додали папку. Натисніть "Verify Subscription" для отримання винагороди');
-        return;
-    }
-
-    // Відкриваємо посилання для додавання папки в Telegram
+// Перевіряємо, чи відкрито у Telegram WebApp при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Перевіряємо, чи відкрито у Telegram WebApp
     if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.openLink('https://t.me/addlist/fpdo93hRYgAxNThi');
-    } else {
-        window.open('https://t.me/addlist/fpdo93hRYgAxNThi', '_blank');
-    }
+        // Додаємо клас до body для специфічних стилів
+        document.body.classList.add('telegram-webview');
 
-    // Зберігаємо прапорець, що папка додана
-    localStorage.setItem('folder_added', 'true');
-
-    // Оновлюємо прогрес-бар до 50%
-    document.getElementById('folder-progress').style.width = '50%';
-    document.getElementById('folder-marker').style.left = '50%';
-
-    // Показуємо повідомлення
-    showToast('Папку додано. Натисніть "Verify Subscription" для отримання винагороди');
-}
-
-// Верифікація папки
-function verifyFolder() {
-    // Перевіряємо, чи була папка додана
-    if (localStorage.getItem('folder_added') !== 'true') {
-        showToast('Спочатку додайте папку, натиснувши "ADD FOLDER"');
-        return;
-    }
-
-    // Перевіряємо, чи вже отримували винагороду
-    if (localStorage.getItem('folder_verified') === 'true') {
-        showToast('Ви вже отримали винагороду за додавання папки!');
-        return;
-    }
-
-    // Отримуємо поточний баланс
-    const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-    const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
-
-    // Додаємо винагороду: +250 WINIX, +1 жетон
-    const newTokens = currentTokens + 250;
-    const newCoins = currentCoins + 1;
-
-    // Зберігаємо новий баланс
-    localStorage.setItem('userTokens', newTokens.toString());
-    localStorage.setItem('userCoins', newCoins.toString());
-
-    // Оновлюємо відображення балансу
-    updateBalanceDisplay();
-
-    // Відмічаємо, що винагорода отримана
-    localStorage.setItem('folder_verified', 'true');
-
-    // Оновлюємо прогрес-бар до 100%
-    document.getElementById('folder-progress').style.width = '100%';
-    document.getElementById('folder-marker').style.left = '100%';
-
-    // Показуємо повідомлення
-    showToast('Ви отримали 250 WINIX і 1 жетон за додавання папки!');
-
-    // Закриваємо модальне вікно через 2 секунди
-    setTimeout(() => {
-        closeModal('folder-modal');
-    }, 2000);
-}
-
-// Налаштування таймерів для розіграшів
-function setupRaffleTimers() {
-    // Таймер для головного розіграшу
-    const mainEndDate = new Date();
-    mainEndDate.setDate(mainEndDate.getDate() + 2);
-    mainEndDate.setHours(14, 35, 0, 0);
-
-    updateMainRaffleTimer();
-    mainRaffleTimer = setInterval(updateMainRaffleTimer, 60000);
-
-    function updateMainRaffleTimer() {
-        const now = new Date();
-        const diff = mainEndDate - now;
-
-        if (diff <= 0) {
-            document.getElementById('days').textContent = '00';
-            document.getElementById('hours').textContent = '00';
-            document.getElementById('minutes').textContent = '00';
-            clearInterval(mainRaffleTimer);
-            return;
+        // Також можна точно налаштувати відступи через JavaScript
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (carouselContainer) {
+            carouselContainer.style.marginBottom = '0.3rem';
+            carouselContainer.style.marginTop = '0.3rem';
+            console.log('Встановлено відступи для контейнера каруселі в Telegram WebApp');
         }
-
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-        document.getElementById('days').textContent = days.toString().padStart(2, '0');
-        document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
-        document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
     }
+});
 
-    // Таймер для щоденного розіграшу
-    const dailyEndDate = new Date();
-    dailyEndDate.setHours(dailyEndDate.getHours() + 23, dailyEndDate.getMinutes() + 45, 0, 0);
+// Виправлення GIF у модальних вікнах
+function fixModalGifs() {
+    // Перевіряємо, чи це Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Знаходимо всі GIF зображення в модальних вікнах
+        document.querySelectorAll('.modal-container img[src$=".gif"]').forEach(img => {
+            // Створюємо копію оригінального src
+            const originalSrc = img.src;
 
-    updateDailyRaffleTimer();
-    dailyRaffleTimer = setInterval(updateDailyRaffleTimer, 60000);
+            // Встановлюємо обробник помилки
+            img.onerror = function() {
+                // Якщо GIF не завантажується, замінюємо на статичне зображення
+                console.log("Помилка завантаження GIF:", originalSrc);
+                this.src = originalSrc.replace(".gif", ".png");
+            };
 
-    function updateDailyRaffleTimer() {
-        const now = new Date();
-        const diff = dailyEndDate - now;
-
-        if (diff <= 0) {
-            document.getElementById('daily-hours').textContent = '00';
-            document.getElementById('daily-minutes').textContent = '00';
-            clearInterval(dailyRaffleTimer);
-            return;
-        }
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-        document.getElementById('daily-hours').textContent = hours.toString().padStart(2, '0');
-        document.getElementById('daily-minutes').textContent = minutes.toString().padStart(2, '0');
+            // Примусово перезавантажуємо зображення
+            img.src = originalSrc + "?t=" + new Date().getTime();
+        });
     }
 }
 
-// Завантаження даних розіграшів
-function loadRafflesData() {
-    // Відновлення кількості учасників головного розіграшу
-    const mainParticipants = localStorage.getItem('mainRaffleParticipants') || '0';
-    document.querySelector('.participants-count').textContent = mainParticipants;
-
-    // Відновлення прогресу розіграшу
-    const mainProgress = localStorage.getItem('mainRaffleProgress') || '29';
-    document.querySelector('.raffle-progress').style.width = `${mainProgress}%`;
-
-    // Відновлення кількості учасників щоденного розіграшу
-    const dailyParticipants = localStorage.getItem('dailyRaffleParticipants') || '125';
-    document.querySelector('.daily-participants-count').textContent = dailyParticipants;
-}
-
-// Участь у розіграші
-function participateInRaffle(raffleId, raffleType, tokenAmount) {
-    // Перевіряємо наявність жетонів
-    const coinsBalance = parseInt(document.getElementById('user-coins').textContent);
-
-    if (coinsBalance < tokenAmount) {
-        showToast('Недостатньо жетонів для участі в розіграші');
-        return;
-    }
-
-    // Списуємо жетони
-    const newBalance = coinsBalance - tokenAmount;
-    localStorage.setItem('userCoins', newBalance.toString());
-    localStorage.setItem('winix_coins', newBalance.toString());
-
-    // Оновлюємо відображення балансу
-    updateBalanceDisplay();
-
-    // Оновлюємо кількість учасників
-    if (raffleType === 'main') {
-        const currentParticipants = parseInt(document.querySelector('.participants-count').textContent);
-        const newCount = currentParticipants + 1;
-        document.querySelector('.participants-count').textContent = newCount.toString();
-        localStorage.setItem('mainRaffleParticipants', newCount.toString());
-
-        // Оновлюємо прогрес-бар
-        const currentWidth = parseFloat(document.querySelector('.raffle-progress').style.width) || 29;
-        const newWidth = Math.min(currentWidth + 2, 100);
-        document.querySelector('.raffle-progress').style.width = `${newWidth}%`;
-        localStorage.setItem('mainRaffleProgress', newWidth.toString());
-    } else if (raffleType === 'daily') {
-        const currentParticipants = parseInt(document.querySelector('.daily-participants-count').textContent);
-        const newCount = currentParticipants + 1;
-        document.querySelector('.daily-participants-count').textContent = newCount.toString();
-        localStorage.setItem('dailyRaffleParticipants', newCount.toString());
-    }
-
-    // Відмічаємо участь у localStorage
-    let participations = JSON.parse(localStorage.getItem('raffle_participations') || '[]');
-    participations.push({
-        raffleId,
-        raffleType,
-        timestamp: new Date().toISOString()
-    });
-    localStorage.setItem('raffle_participations', JSON.stringify(participations));
-
-    // Показуємо повідомлення
-    showToast('Ви успішно взяли участь у розіграші!');
-
-    // Закриваємо модальне вікно
-    closeModal(raffleType === 'main' ? 'main-raffle-modal' : 'daily-raffle-modal');
-}
-
-// Поширення розіграшу
-function shareRaffle() {
-    const shareUrl = window.location.href + '?raffle=main';
-
-    if (navigator.share) {
-        navigator.share({
-            title: 'Гранд Розіграш WINIX',
-            text: 'Приєднуйтеся до розіграшу 250 USDT та 130,000 WINIX! 10 переможців отримають цінні призи.',
-            url: shareUrl
-        })
-        .then(() => showToast('Дякуємо за поширення!'))
-        .catch(error => console.log('Помилка поширення:', error));
-    } else {
-        navigator.clipboard.writeText(shareUrl)
-            .then(() => {
-                showToast('Посилання на розіграш скопійовано в буфер обміну!');
-            })
-            .catch(err => console.error('Помилка при копіюванні:', err));
-    }
-}
-
-// Перевірка підписок на канали
-function verifyAllSubscriptions() {
-    showToast('Перевірка підписок на канали...');
-
-    // Додаємо індикатор завантаження
-    const loaderElement = createLoaderElement('subscription-loader');
-    document.body.appendChild(loaderElement);
-
-    // Імітуємо асинхронну перевірку
-    setTimeout(() => {
-        // Приховуємо лоадер
-        loaderElement.style.display = 'none';
-
-        // Перевіряємо наявність попередньої винагороди
-        if (localStorage.getItem('subscription_reward_received') === 'true') {
-            showToast('Ви вже отримали винагороду за підписки!');
-            return;
-        }
-
-        // Для демонстрації визначаємо випадкову кількість каналів
-        const totalChannels = document.querySelectorAll('.channel-item').length;
-
-        // В демо-режимі завжди успішно
-        const subscribedCount = totalChannels;
-
-        // Нараховуємо винагороду
-        const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-        const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
-
-        const newTokens = currentTokens + 500;
-        const newCoins = currentCoins + 1;
-
-        localStorage.setItem('userTokens', newTokens.toString());
-        localStorage.setItem('userCoins', newCoins.toString());
-
-        // Оновлюємо відображення балансу
-        updateBalanceDisplay();
-
-        // Відмічаємо, що винагорода отримана
-        localStorage.setItem('subscription_reward_received', 'true');
-
-        // Оновлюємо кнопку
-        const verifyBtn = document.getElementById('verify-btn');
-        verifyBtn.textContent = 'Перевірено ✓';
-        verifyBtn.classList.add('verified');
-        verifyBtn.disabled = true;
-
-        // Показуємо повідомлення
-        showToast('Вітаємо! Ви отримали 500 WINIX та 1 жетон за підписку на всі канали!');
-    }, 1500);
-}
-
-// Відкриття модального вікна
+// Викликаємо функцію при відкритті модальних вікон
 function openModal(modalId) {
     document.getElementById(modalId).classList.add('show');
     document.body.style.overflow = 'hidden';
 
-    // Виправляємо GIF у відкритому модальному вікні, якщо це Telegram
-    if (window.Telegram && window.Telegram.WebApp) {
-        fixModalGifs(modalId);
-    }
+    // Виправляємо GIF у відкритому модальному вікні
+    fixModalGifs();
 }
 
-// Закриття модального вікна
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('show');
-    document.body.style.overflow = '';
-}
+        // Налаштування модальних вікон
+        function setupModals() {
+            // Відкриття модальних вікон
+            document.getElementById('all-raffles-btn').addEventListener('click', () => {
+                window.location.href = 'raffles.html';
+            });
 
-// Функція для відображення сповіщення
-function showToast(message, duration = 3000) {
-    const toast = document.getElementById('toast-message');
-    toast.textContent = message;
-    toast.classList.add('show');
+            document.getElementById('add-folder-btn').addEventListener('click', () => {
+                openModal('folder-modal');
+            });
 
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, duration);
-}
+            document.getElementById('verify-btn').addEventListener('click', () => {
+                verifyAllSubscriptions();
+            });
 
-// Функція для навігації між сторінками
-function navigateTo(section) {
-    const pages = {
-        'home': 'original-index.html',
-        'earn': 'earn.html',
-        'referrals': 'referrals.html',
-        'wallet': 'wallet.html',
-        'general': 'general.html'
-    };
+            // Закриття модальних вікон
+            document.querySelectorAll('.modal-close').forEach(closeBtn => {
+                closeBtn.addEventListener('click', () => {
+                    const modalId = closeBtn.getAttribute('data-modal');
+                    closeModal(modalId);
+                });
+            });
 
-    const url = pages[section] || `${section}.html`;
+            // Кліки поза модальним вікном для закриття
+            document.querySelectorAll('.modal-overlay').forEach(modal => {
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) {
+                        closeModal(modal.id);
+                    }
+                });
+            });
 
-    // Зберігаємо поточний баланс перед переходом
-    const tokens = parseFloat(document.getElementById('user-tokens').textContent);
-    const coins = parseInt(document.getElementById('user-coins').textContent);
+            // Кнопки для участі в розіграшах
+            document.getElementById('join-main-raffle-btn').addEventListener('click', () => {
+                participateInRaffle('raffle1', 'main', 1);
+            });
 
-    localStorage.setItem('userTokens', tokens.toString());
-    localStorage.setItem('userCoins', coins.toString());
+            document.getElementById('join-daily-raffle-btn').addEventListener('click', () => {
+                participateInRaffle('mini1', 'daily', 1);
+            });
 
-    // Переходимо на відповідну сторінку
-    window.location.href = url;
-}
+            // Поширення розіграшу
+            document.getElementById('share-raffle-btn').addEventListener('click', () => {
+                shareRaffle();
+            });
+        }
 
-// Виправлення GIF у модальних вікнах
-function fixModalGifs(modalId) {
-    // Знаходимо всі GIF зображення в модальному вікні
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
+        // Налаштування функціональності папки
+        function setupFolderFunctionality() {
+            document.getElementById('add-folder-action-btn').addEventListener('click', () => {
+                addFolder();
+            });
 
-    const gifImages = modal.querySelectorAll('img[src$=".gif"]');
+            document.getElementById('verify-folder-btn').addEventListener('click', () => {
+                verifyFolder();
+            });
 
-    gifImages.forEach(img => {
-        // Запам'ятовуємо оригінальне посилання
-        const originalSrc = img.src;
+            document.getElementById('folder-image-container').addEventListener('click', () => {
+                addFolder();
+            });
+        }
 
-        // Додаємо параметр для запобігання кешування
-        img.src = originalSrc + '?t=' + new Date().getTime();
+        // Завантаження аватара користувача
+        function loadUserAvatar() {
+            const avatar = document.getElementById('profile-avatar');
+            const userId = document.getElementById('user-id');
 
-        // Додаємо обробник для випадку, якщо GIF не завантажиться
-        img.onerror = function() {
-            // Намагаємося замінити на статичне зображення
-            this.src = originalSrc.replace('.gif', '.png');
-            console.log('Замінено GIF на PNG:', this.src);
-        };
-    });
-}
+            if (!avatar || !userId) return;
 
-// Створення елемента завантаження
-function createLoaderElement(id) {
-    const loaderElement = document.createElement('div');
-    loaderElement.id = id;
-    loaderElement.style.position = 'fixed';
-    loaderElement.style.top = '0';
-    loaderElement.style.left = '0';
-    loaderElement.style.width = '100%';
-    loaderElement.style.height = '100%';
-    loaderElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    loaderElement.style.display = 'flex';
-    loaderElement.style.justifyContent = 'center';
-    loaderElement.style.alignItems = 'center';
-    loaderElement.style.zIndex = '9999';
-    loaderElement.style.backdropFilter = 'blur(3px)';
+            // Отримуємо дані користувача з localStorage
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const userIdValue = localStorage.getItem('userId') || '12345678';
 
-    const spinner = document.createElement('div');
-    spinner.style.width = '50px';
-    spinner.style.height = '50px';
-    spinner.style.border = '5px solid rgba(255, 255, 255, 0.3)';
-    spinner.style.borderTop = '5px solid #fff';
-    spinner.style.borderRadius = '50%';
-    spinner.style.animation = 'spin 1s linear infinite';
+            userId.textContent = userIdValue;
 
-    // Додаємо стиль анімації, якщо його ще немає
-    if (!document.getElementById('loader-animation-style')) {
-        const styleElement = document.createElement('style');
-        styleElement.id = 'loader-animation-style';
-        styleElement.textContent = `
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
+            const avatarSrc = localStorage.getItem('userAvatarSrc');
+            const avatarId = localStorage.getItem('selectedAvatarId');
+
+            // Очищаємо вміст аватара
+            avatar.innerHTML = '';
+
+            if (avatarSrc) {
+                // Використовуємо завантажене зображення
+                const img = new Image();
+                img.src = avatarSrc;
+                img.alt = username;
+                img.onerror = () => avatar.textContent = username[0].toUpperCase();
+                avatar.appendChild(img);
+            } else if (avatarId) {
+                // Використовуємо системний аватар
+                const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
+                const img = new Image();
+                img.src = src;
+                img.alt = username;
+                img.onerror = () => avatar.textContent = username[0].toUpperCase();
+                avatar.appendChild(img);
+            } else {
+                // Використовуємо першу літеру імені
+                avatar.textContent = username[0].toUpperCase();
             }
-        `;
-        document.head.appendChild(styleElement);
-    }
+        }
 
-    loaderElement.appendChild(spinner);
-    return loaderElement;
-}
+        // Налаштування кліку по профілю
+        function setupProfileLink() {
+            const profileLink = document.getElementById('profile-link');
+            if (profileLink) {
+                profileLink.addEventListener('click', function() {
+                    window.location.href = 'profile.html';
+                });
+            }
+        }
 
-// Налаштування каналів Telegram
-function setupChannelLinks() {
-    // Карта імен каналів до URL-адрес Telegram
+        // Оновлення відображення балансу
+        function updateBalanceDisplay() {
+            console.log("Оновлення балансу на дисплеї");
+            const tokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const coins = parseInt(localStorage.getItem('userCoins') || '0');
+
+            console.log(`Баланс з localStorage: ${tokens} WINIX, ${coins} жетонів`);
+
+            const tokensDisplay = document.getElementById('user-tokens');
+            const coinsDisplay = document.getElementById('user-coins');
+
+            if (tokensDisplay) tokensDisplay.textContent = tokens.toFixed(2);
+            if (coinsDisplay) coinsDisplay.textContent = coins;
+
+            console.log(`Оновлені значення: ${tokensDisplay?.textContent} WINIX, ${coinsDisplay?.textContent} жетонів`);
+        }
+
+        // Налаштування навігації
+        function setupNavigation() {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const section = item.getAttribute('data-section');
+                    document.querySelectorAll('.nav-item').forEach(navItem => navItem.classList.remove('active'));
+                    item.classList.add('active');
+
+                    // Якщо не головна, перенаправляємо на відповідну сторінку
+                    if (section !== 'home') {
+                        navigateTo(section);
+                    }
+                });
+            });
+        }
+
+        // Перевірка прогресу папки
+        function checkFolderProgress() {
+            const folderAdded = localStorage.getItem('folder_added') === 'true';
+            const folderVerified = localStorage.getItem('folder_verified') === 'true';
+
+            if (folderVerified) {
+                document.getElementById('folder-progress').style.width = '100%';
+                document.getElementById('folder-marker').style.left = '100%';
+            } else if (folderAdded) {
+                document.getElementById('folder-progress').style.width = '50%';
+                document.getElementById('folder-marker').style.left = '50%';
+            }
+        }
+
+        // Додавання папки
+        function addFolder() {
+            // Перевіряємо, чи вже була додана папка
+            if (localStorage.getItem('folder_added') === 'true') {
+                showToast('Ви вже додали папку. Натисніть "Verify Subscription" для отримання винагороди');
+                return;
+            }
+
+            // Відкриваємо посилання для додавання папки в Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.openLink('https://t.me/addlist/fpdo93hRYgAxNThi');
+            } else {
+                window.open('https://t.me/addlist/fpdo93hRYgAxNThi', '_blank');
+            }
+
+            // Зберігаємо прапорець, що папка додана
+            localStorage.setItem('folder_added', 'true');
+
+            // Оновлюємо прогрес-бар до 50%
+            document.getElementById('folder-progress').style.width = '50%';
+            document.getElementById('folder-marker').style.left = '50%';
+
+            // Показуємо повідомлення
+            showToast('Папку додано. Натисніть "Verify Subscription" для отримання винагороди');
+        }
+
+        // Верифікація папки
+        function verifyFolder() {
+            console.log("Запуск verifyFolder()");
+
+            // Перевіряємо, чи була папка додана
+            if (localStorage.getItem('folder_added') !== 'true') {
+                showToast('Спочатку додайте папку, натиснувши "ADD FOLDER"');
+                return;
+            }
+
+            // Перевіряємо, чи вже отримували винагороду
+            if (localStorage.getItem('folder_verified') === 'true') {
+                showToast('Ви вже отримали винагороду за додавання папки!');
+                return;
+            }
+
+            console.log("Читаємо поточний баланс з localStorage");
+
+            // Отримуємо поточний баланс
+            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
+
+            console.log(`Поточний баланс: ${currentTokens} WINIX, ${currentCoins} жетонів`);
+
+            // Додаємо винагороду: +250 WINIX, +1 жетон
+            const newTokens = currentTokens + 250;
+            const newCoins = currentCoins + 1;
+
+            console.log(`Новий баланс: ${newTokens} WINIX, ${newCoins} жетонів`);
+
+            // Зберігаємо новий баланс
+            localStorage.setItem('userTokens', newTokens.toString());
+            localStorage.setItem('userCoins', newCoins.toString());
+
+            console.log("Баланс збережено в localStorage");
+
+            // Оновлюємо відображення балансу
+            updateBalanceDisplay();
+
+            console.log("Відображення балансу оновлено");
+
+            // Відмічаємо, що винагорода отримана
+            localStorage.setItem('folder_verified', 'true');
+
+            console.log("Встановлено folder_verified=true");
+
+            // Оновлюємо прогрес-бар до 100%
+            document.getElementById('folder-progress').style.width = '100%';
+            document.getElementById('folder-marker').style.left = '100%';
+
+            console.log("Прогрес-бар оновлено до 100%");
+
+            // Показуємо повідомлення
+            showToast('Ви отримали 250 WINIX і 1 жетон за додавання папки!');
+
+            console.log("Показано повідомлення про успіх");
+
+            // Закриваємо модальне вікно через 2 секунди
+            setTimeout(() => {
+                closeModal('folder-modal');
+                console.log("Модальне вікно закрито");
+            }, 2000);
+        }
+
+        // Налаштування таймерів для розіграшів
+        function setupRaffleTimers() {
+            // Таймер для головного розіграшу
+            const mainEndDate = new Date();
+            mainEndDate.setDate(mainEndDate.getDate() + 2);
+            mainEndDate.setHours(14, 35, 0, 0);
+
+            mainRaffleTimer = setInterval(() => {
+                const now = new Date();
+                const diff = mainEndDate - now;
+
+                if (diff <= 0) {
+                    document.getElementById('days').textContent = '00';
+                    document.getElementById('hours').textContent = '00';
+                    document.getElementById('minutes').textContent = '00';
+                    clearInterval(mainRaffleTimer);
+                    return;
+                }
+
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+                document.getElementById('days').textContent = days.toString().padStart(2, '0');
+                document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+                document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+            }, 60000); // Оновлюємо кожну хвилину
+
+            // Запускаємо таймер один раз відразу для початкового відображення
+            const now = new Date();
+            const diff = mainEndDate - now;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            document.getElementById('days').textContent = days.toString().padStart(2, '0');
+            document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+            document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+
+            // Таймер для щоденного розіграшу
+            const dailyEndDate = new Date();
+            dailyEndDate.setHours(dailyEndDate.getHours() + 23, dailyEndDate.getMinutes() + 45, 0, 0);
+
+            dailyRaffleTimer = setInterval(() => {
+                const now = new Date();
+                const diff = dailyEndDate - now;
+
+                if (diff <= 0) {
+                    document.getElementById('daily-hours').textContent = '00';
+                    document.getElementById('daily-minutes').textContent = '00';
+                    clearInterval(dailyRaffleTimer);
+                    return;
+                }
+
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+                document.getElementById('daily-hours').textContent = hours.toString().padStart(2, '0');
+                document.getElementById('daily-minutes').textContent = minutes.toString().padStart(2, '0');
+            }, 60000); // Оновлюємо кожну хвилину
+
+            // Запускаємо таймер один раз відразу для початкового відображення
+            const dailyNow = new Date();
+            const dailyDiff = dailyEndDate - dailyNow;
+            const dailyHours = Math.floor(dailyDiff / (1000 * 60 * 60));
+            const dailyMinutes = Math.floor((dailyDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+            document.getElementById('daily-hours').textContent = dailyHours.toString().padStart(2, '0');
+            document.getElementById('daily-minutes').textContent = dailyMinutes.toString().padStart(2, '0');
+        }
+
+        // Завантаження даних розіграшів
+        function loadRafflesData() {
+            // Відновлення кількості учасників головного розіграшу
+            const mainParticipants = localStorage.getItem('mainRaffleParticipants') || '0';
+            document.querySelector('.participants-count').textContent = mainParticipants;
+
+            // Відновлення прогресу розіграшу
+            const mainProgress = localStorage.getItem('mainRaffleProgress') || '29';
+            document.querySelector('.raffle-progress').style.width = `${mainProgress}%`;
+
+            // Відновлення кількості учасників щоденного розіграшу
+            const dailyParticipants = localStorage.getItem('dailyRaffleParticipants') || '125';
+            document.querySelector('.daily-participants-count').textContent = dailyParticipants;
+        }
+
+        // Участь у розіграші
+        function participateInRaffle(raffleId, raffleType, tokenAmount) {
+            console.log(`Запуск participateInRaffle(${raffleId}, ${raffleType}, ${tokenAmount})`);
+
+            // Перевіряємо наявність жетонів
+            const coinsBalance = parseInt(document.getElementById('user-coins').textContent);
+            console.log(`Поточний баланс жетонів: ${coinsBalance}`);
+
+            if (coinsBalance < tokenAmount) {
+                showToast('Недостатньо жетонів для участі в розіграші');
+                return;
+            }
+
+            console.log(`Списуємо ${tokenAmount} жетонів`);
+
+            // Списуємо жетони
+            const newBalance = coinsBalance - tokenAmount;
+            localStorage.setItem('userCoins', newBalance.toString());
+
+            console.log(`Новий баланс жетонів: ${newBalance}`);
+
+            // Оновлюємо відображення балансу
+            updateBalanceDisplay();
+
+            console.log("Відображення балансу оновлено");
+
+            // Оновлюємо кількість учасників
+            if (raffleType === 'main') {
+                const currentParticipants = parseInt(document.querySelector('.participants-count').textContent);
+                const newCount = currentParticipants + 1;
+                document.querySelector('.participants-count').textContent = newCount.toString();
+                localStorage.setItem('mainRaffleParticipants', newCount.toString());
+
+                // Оновлюємо прогрес-бар
+                const currentWidth = parseFloat(document.querySelector('.raffle-progress').style.width) || 29;
+                const newWidth = Math.min(currentWidth + 2, 100);
+                document.querySelector('.raffle-progress').style.width = `${newWidth}%`;
+                localStorage.setItem('mainRaffleProgress', newWidth.toString());
+
+                console.log(`Оновлено кількість учасників головного розіграшу до ${newCount}`);
+            } else if (raffleType === 'daily') {
+                const currentParticipants = parseInt(document.querySelector('.daily-participants-count').textContent);
+                const newCount = currentParticipants + 1;
+                document.querySelector('.daily-participants-count').textContent = newCount.toString();
+                localStorage.setItem('dailyRaffleParticipants', newCount.toString());
+
+                console.log(`Оновлено кількість учасників щоденного розіграшу до ${newCount}`);
+            }
+
+            // Відмічаємо участь у localStorage
+            let participations = JSON.parse(localStorage.getItem('raffle_participations') || '[]');
+            participations.push({
+                raffleId,
+                raffleType,
+                timestamp: new Date().toISOString()
+            });
+            localStorage.setItem('raffle_participations', JSON.stringify(participations));
+
+            console.log("Участь збережено в localStorage");
+
+            // Показуємо повідомлення
+            showToast('Ви успішно взяли участь у розіграші!');
+
+            // Закриваємо модальне вікно
+            closeModal(raffleType === 'main' ? 'main-raffle-modal' : 'daily-raffle-modal');
+
+            console.log("Модальне вікно закрито");
+        }
+
+        // Поширення розіграшу
+        function shareRaffle() {
+            const shareUrl = window.location.href + '?raffle=main';
+
+            if (navigator.share) {
+                navigator.share({
+                    title: 'Гранд Розіграш WINIX',
+                    text: 'Приєднуйтеся до розіграшу 250 USDT та 130,000 WINIX! 10 переможців отримають цінні призи.',
+                    url: shareUrl
+                })
+                .then(() => showToast('Дякуємо за поширення!'))
+                .catch(error => console.log('Помилка поширення:', error));
+            } else {
+                navigator.clipboard.writeText(shareUrl)
+                    .then(() => {
+                        showToast('Посилання на розіграш скопійовано в буфер обміну!');
+                    })
+                    .catch(err => console.error('Помилка при копіюванні:', err));
+            }
+        }
+
+        // Перевірка підписок на канали
+        function verifyAllSubscriptions() {
+            showToast('Перевірка підписок на канали...');
+
+            // Імітуємо асинхронну перевірку
+            setTimeout(() => {
+                // Перевіряємо наявність попередньої винагороди
+                if (localStorage.getItem('subscription_reward_received') === 'true') {
+                    showToast('Ви вже отримали винагороду за підписки!');
+                    return;
+                }
+
+                // Визначаємо випадкову кількість каналів з підпискою (для демонстрації)
+                const totalChannels = document.querySelectorAll('.channel-item').length;
+                const subscribedCount = Math.floor(Math.random() * (totalChannels + 1));
+
+                // Якщо підписаний на всі канали
+                if (subscribedCount === totalChannels) {
+                    // Нараховуємо винагороду
+                    const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+                    const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
+
+                    const newTokens = currentTokens + 500;
+                    const newCoins = currentCoins + 1;
+
+                    console.log(`Оновлюємо баланс: ${currentTokens} -> ${newTokens} WINIX, ${currentCoins} -> ${newCoins} жетонів`);
+
+                    localStorage.setItem('userTokens', newTokens.toString());
+                    localStorage.setItem('userCoins', newCoins.toString());
+
+                    // Оновлюємо відображення балансу
+                    updateBalanceDisplay();
+
+                    // Відмічаємо, що винагорода отримана
+                    localStorage.setItem('subscription_reward_received', 'true');
+
+                    // Оновлюємо кнопку
+                    const verifyBtn = document.getElementById('verify-btn');
+                    verifyBtn.textContent = 'Перевірено ✓';
+                    verifyBtn.classList.add('verified');
+                    verifyBtn.disabled = true;
+
+                    // Показуємо повідомлення
+                    showToast('Вітаємо! Ви отримали 500 WINIX та 1 жетон за підписку на всі канали!');
+                } else {
+                    // Формуємо повідомлення про канали без підписки
+                    const missingCount = totalChannels - subscribedCount;
+                    showToast(`Потрібно підписатися ще на ${missingCount} канал${missingCount === 1 ? '' : 'и/ів'}`);
+                }
+            }, 1500);
+        }
+
+        // Функція відкриття модального вікна
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Функція закриття модального вікна
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        // Функція для відображення сповіщення
+        function showToast(message, duration = 3000) {
+            console.log(`Показ повідомлення: ${message}`);
+
+            const toast = document.getElementById('toast-message');
+            toast.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Функція для навігації між сторінками
+        function navigateTo(section) {
+            const pages = {
+                'home': 'original-index.html',
+                'earn': 'earn.html',
+                'referrals': 'referrals.html',
+                'wallet': 'wallet.html',
+                'general': 'general.html'
+            };
+
+            const url = pages[section] || `${section}.html`;
+
+            // Зберігаємо поточний баланс перед переходом
+            const tokens = parseFloat(document.getElementById('user-tokens').textContent);
+            const coins = parseInt(document.getElementById('user-coins').textContent);
+
+            localStorage.setItem('userTokens', tokens.toString());
+            localStorage.setItem('userCoins', coins.toString());
+
+            // Переходимо на відповідну сторінку
+            window.location.href = url;
+        }
+
+        // Функція для оновлення мови інтерфейсу
+        function updateLanguage() {
+            const language = localStorage.getItem('userLanguage') || 'uk';
+
+            // Тут можна додати код для зміни мови інтерфейсу
+            document.querySelectorAll('[data-lang-key]').forEach(element => {
+                const key = element.getAttribute('data-lang-key');
+                // Отримуємо переклад для ключа (припускаємо, що є функція getTranslation)
+                if (window.WinixLanguage && typeof window.WinixLanguage.getText === 'function') {
+                    element.textContent = window.WinixLanguage.getText(key);
+                }
+            });
+        }
+
+        // Обробник події зміни мови (якщо такий функціонал є)
+        document.addEventListener('languageChanged', updateLanguage);
+    </script>
+    <script>
+/**
+ * WINIX Виправлення посилань на канали
+ * Цей скрипт додає належні обробники кліків для елементів каналів,
+ * які відкриватимуть відповідні канали Telegram.
+ */
+
+(function() {
+    console.log("🔗 WINIX КАНАЛИ: Додавання функціональності посилань на канали...");
+
+    // Карта імен каналів до фактичних URL-адрес Telegram
     const CHANNEL_URLS = {
         "WorkersCrypto": "https://t.me/wworkerscrypto",
         "HODL ZONE": "https://t.me/+0n7X-hgd0UE3MzFh",
@@ -2100,64 +2147,2101 @@ function setupChannelLinks() {
         "Львівський Криптан": "https://t.me/lvivcriptan22"
     };
 
-    // Знаходимо всі елементи каналів
-    const channelItems = document.querySelectorAll('.channel-item');
+    // Функція для додавання обробників кліків до каналів
+    function setupChannelLinks() {
+        // Знаходимо всі елементи каналів
+        const channelItems = document.querySelectorAll('.channel-item');
 
-    // Перебираємо всі елементи каналів
-    channelItems.forEach(item => {
-        // Отримуємо назву каналу з атрибуту data-channel
-        const channelName = item.getAttribute('data-channel');
+        // Перебираємо всі елементи каналів
+        channelItems.forEach(item => {
+            // Отримуємо назву каналу з атрибуту data-channel
+            const channelName = item.getAttribute('data-channel');
 
-        // Якщо URL для цього каналу існує в нашій карті
-        if (channelName && CHANNEL_URLS[channelName]) {
-            // Додаємо обробник кліку
-            item.addEventListener('click', function() {
-                // Отримуємо URL каналу
-                const channelUrl = CHANNEL_URLS[channelName];
+            // Якщо URL для цього каналу існує в нашій карті
+            if (channelName && CHANNEL_URLS[channelName]) {
+                // Оновлюємо стиль курсора, щоб показати, що елемент клікабельний
+                item.style.cursor = 'pointer';
 
-                // Перевіряємо наявність Telegram WebApp API
-                if (window.Telegram && window.Telegram.WebApp) {
-                    // Відкриваємо URL через Telegram WebApp API
-                    window.Telegram.WebApp.openTelegramLink(channelUrl);
-                } else {
-                    // Відкриваємо URL у новій вкладці, якщо Telegram WebApp недоступний
-                    window.open(channelUrl, '_blank');
-                }
+                // Додаємо обробник кліку
+                item.addEventListener('click', function() {
+                    // Отримуємо URL каналу
+                    const channelUrl = CHANNEL_URLS[channelName];
+                    console.log(`Відкриваємо канал ${channelName}: ${channelUrl}`);
 
-                // Зберігаємо в localStorage, що користувач клікнув на канал
-                const channelId = item.getAttribute('data-channel-id') || channelName;
-                localStorage.setItem(`${channelId}_clicked`, 'true');
-                localStorage.setItem(`${channelId}_subscribed`, 'true');
+                    // Перевіряємо наявність Telegram WebApp API
+                    if (window.Telegram && window.Telegram.WebApp) {
+                        // Відкриваємо URL через Telegram WebApp API
+                        window.Telegram.WebApp.openTelegramLink(channelUrl);
+                    } else {
+                        // Відкриваємо URL у новій вкладці, якщо Telegram WebApp недоступний
+                        window.open(channelUrl, '_blank');
+                    }
 
-                // Показуємо сповіщення
-                showToast(`Переходимо до каналу ${channelName}...`);
-            });
+                    // Зберігаємо в localStorage, що користувач клікнув на канал
+                    const channelId = item.getAttribute('data-channel-id') || channelName;
+                    localStorage.setItem(`${channelId}_clicked`, 'true');
+
+                    // Показуємо сповіщення
+                    if (window.showToast) {
+                        window.showToast(`Переходимо до каналу ${channelName}...`);
+                    }
+                });
+
+                // Додаємо ефект наведення, якщо стилі ще не визначені
+                item.addEventListener('mouseover', function() {
+                    this.style.transform = 'translateY(-3px)';
+                    this.style.boxShadow = '0 6px 15px rgba(0, 201, 167, 0.4)';
+                });
+
+                item.addEventListener('mouseout', function() {
+                    this.style.transform = '';
+                    this.style.boxShadow = '';
+                });
+            } else {
+                console.warn(`URL для каналу "${channelName}" не налаштовано`);
+            }
+        });
+
+        console.log(`Налаштовано ${channelItems.length} елементів каналів`);
+    }
+
+    // Викликаємо функцію при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', setupChannelLinks);
+
+    // Також викликаємо функцію зараз, якщо DOM вже завантажений
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        setupChannelLinks();
+    }
+
+    console.log("🔗 WINIX КАНАЛИ: Функціональність посилань на канали готова!");
+})();
+</script>
+    <script>
+/**
+ * WINIX Повне рішення для участі в розіграшах
+ * Цей скрипт повністю перевизначає поведінку кнопок участі в розіграшах
+ */
+
+(function() {
+    console.log("🎮 WINIX РОЗІГРАШІ: Запуск радикального виправлення...");
+
+    // Функція для безпосереднього маніпулювання DOM
+    function setElementText(elementId, text) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            console.log(`Встановлення тексту для елемента #${elementId}: ${text}`);
+            element.textContent = text;
+            return true;
         }
-    });
-}
+        return false;
+    }
 
-// Налаштування кнопки "Перевірити підписки"
-function setupVerifyButton() {
-    const verifyBtn = document.getElementById('verify-btn');
+    // Повністю нова реалізація функції участі в розіграші
+    function newParticipateInRaffle(buttonElement) {
+        console.log("ЗАПУСК: newParticipateInRaffle");
 
-    if (verifyBtn) {
-        // Перевіряємо, чи вже отримана винагорода
-        if (localStorage.getItem('subscription_reward_received') === 'true') {
-            verifyBtn.textContent = 'Перевірено ✓';
-            verifyBtn.classList.add('verified');
-            verifyBtn.disabled = true;
+        try {
+            // Отримуємо дані розіграшу з кнопки
+            const raffleId = buttonElement.getAttribute('data-raffle-id');
+            const raffleType = buttonElement.getAttribute('data-raffle-type') || 'main';
+
+            // Знаходимо поле введення кількості жетонів
+            const inputId = raffleType === 'daily' ? 'daily-token-amount' : 'main-token-amount';
+
+            console.log(`Розіграш: ID=${raffleId}, Тип=${raffleType}, Поле вводу=${inputId}`);
+
+            // Отримуємо кількість жетонів
+            const tokenAmountElement = document.getElementById(inputId);
+            const tokenAmount = parseInt(tokenAmountElement?.value || '1');
+            console.log(`Кількість жетонів для списання: ${tokenAmount}`);
+
+            // Отримуємо поточний баланс жетонів з DOM
+            const coinsElement = document.getElementById('user-coins');
+
+            if (!coinsElement) {
+                console.error("Не знайдено елемент #user-coins");
+                alert("Помилка: не вдалося знайти баланс жетонів");
+                return false;
+            }
+
+            const currentCoins = parseInt(coinsElement.textContent);
+            console.log(`Поточний баланс жетонів: ${currentCoins}`);
+
+            // Перевіряємо наявність жетонів
+            if (isNaN(currentCoins) || currentCoins < tokenAmount) {
+                alert(`Недостатньо жетонів! У вас є ${currentCoins}, потрібно ${tokenAmount}`);
+                return false;
+            }
+
+            // КРИТИЧНО ВАЖЛИВО: Списуємо жетони
+            const newCoins = currentCoins - tokenAmount;
+
+            // Безпосередньо оновлюємо DOM
+            coinsElement.textContent = newCoins.toString();
+            console.log(`DOM: Баланс жетонів оновлено до ${newCoins}`);
+
+            // Оновлюємо localStorage
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
+            console.log(`localStorage: Баланс жетонів оновлено до ${newCoins}`);
+
+            // Намагаємося оновити WinixCore, якщо він доступний
+            if (window.WinixCore?.Balance?.setCoins) {
+                window.WinixCore.Balance.setCoins(newCoins);
+                console.log(`WinixCore: Баланс жетонів оновлено до ${newCoins}`);
+            }
+
+            // Збільшуємо кількість учасників
+            increaseParticipants(raffleType);
+
+            // Зберігаємо участь
+            saveParticipation(raffleId, raffleType, tokenAmount);
+
+            // Закриваємо модальне вікно
+            closeRaffleModal(raffleType);
+
+            // Показуємо повідомлення про успіх
+            setTimeout(() => {
+                alert("Вітаємо! Ви успішно взяли участь у розіграші!");
+            }, 300);
+
+            return true;
+        } catch (error) {
+            console.error("ПОМИЛКА в newParticipateInRaffle:", error);
+            alert("Виникла помилка при спробі взяти участь у розіграші. Будь ласка, спробуйте ще раз.");
+            return false;
         }
     }
-}
 
-// Автозапуск налаштування каруселі, якщо сторінка вже завантажена
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    setTimeout(() => {
-        if (typeof setupCarousel === 'function') {
-            setupCarousel();
+    // Функція для оновлення кількості учасників та прогресу
+    function increaseParticipants(raffleType) {
+        try {
+            if (raffleType === 'main') {
+                // Оновлюємо кількість учасників головного розіграшу
+                const participantsElement = document.querySelector('.participants-count');
+                if (participantsElement) {
+                    const currentCount = parseInt(participantsElement.textContent) || 0;
+                    const newCount = currentCount + 1;
+                    participantsElement.textContent = newCount.toString();
+                    localStorage.setItem('mainRaffleParticipants', newCount.toString());
+                    console.log(`Оновлено кількість учасників головного розіграшу: ${newCount}`);
+
+                    // Оновлюємо прогрес
+                    const progressElement = document.querySelector('.progress');
+                    if (progressElement) {
+                        let currentWidth = parseInt(progressElement.style.width) || 29;
+                        if (isNaN(currentWidth)) currentWidth = 29;
+                        const newWidth = Math.min(currentWidth + 2, 100);
+                        progressElement.style.width = `${newWidth}%`;
+                        localStorage.setItem('mainRaffleProgress', newWidth.toString());
+                        console.log(`Оновлено прогрес головного розіграшу: ${newWidth}%`);
+                    }
+                }
+
+                // Також оновлюємо в модальному вікні
+                const modalParticipantsElement = document.getElementById('main-participants');
+                if (modalParticipantsElement) {
+                    const currentModalCount = parseInt(modalParticipantsElement.textContent) || 0;
+                    modalParticipantsElement.textContent = (currentModalCount + 1).toString();
+                }
+            } else if (raffleType === 'daily') {
+                // Оновлюємо кількість учасників щоденного розіграшу
+                const dailyParticipantsElement = document.getElementById('daily-participants');
+                if (dailyParticipantsElement) {
+                    const currentCount = parseInt(dailyParticipantsElement.textContent) || 0;
+                    const newCount = currentCount + 1;
+                    dailyParticipantsElement.textContent = newCount.toString();
+                    localStorage.setItem('dailyRaffleParticipants', newCount.toString());
+                    console.log(`Оновлено кількість учасників щоденного розіграшу: ${newCount}`);
+                }
+            }
+        } catch (error) {
+            console.error("Помилка при оновленні кількості учасників:", error);
         }
-    }, 100);
-}
+    }
+
+    // Функція для збереження участі
+    function saveParticipation(raffleId, raffleType, tokenAmount) {
+        try {
+            // Створюємо запис про участь
+            const participation = {
+                id: generateId(),
+                raffleId: raffleId,
+                raffleType: raffleType,
+                tokenAmount: tokenAmount,
+                timestamp: new Date().toISOString()
+            };
+
+            // Отримуємо поточні участі
+            let participations = [];
+            try {
+                const savedParticipations = localStorage.getItem('raffle_participations');
+                if (savedParticipations) {
+                    participations = JSON.parse(savedParticipations);
+                    if (!Array.isArray(participations)) participations = [];
+                }
+            } catch (e) {
+                console.error("Помилка при отриманні поточних участей:", e);
+                participations = [];
+            }
+
+            // Додаємо нову участь
+            participations.push(participation);
+
+            // Зберігаємо оновлений список
+            localStorage.setItem('raffle_participations', JSON.stringify(participations));
+            console.log(`Збережено участь у розіграші: ${raffleId}, тип: ${raffleType}`);
+        } catch (error) {
+            console.error("Помилка при збереженні участі:", error);
+        }
+    }
+
+    // Функція для закриття модального вікна
+    function closeRaffleModal(raffleType) {
+        const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('open');
+            console.log(`Закрито модальне вікно: ${modalId}`);
+        }
+    }
+
+    // Функція для генерації унікального ID
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+    }
+
+    // Функція для перевизначення обробників кнопок
+    function replaceButtonHandlers() {
+        console.log("Перевизначення обробників кнопок розіграшів...");
+
+        // Знаходимо основні кнопки для модальних вікон
+        const mainJoinBtn = document.getElementById('main-join-btn');
+        const dailyJoinBtn = document.getElementById('daily-join-btn');
+
+        // Перевизначаємо обробники основних кнопок
+        if (mainJoinBtn) {
+            console.log("Знайдено кнопку головного розіграшу");
+            const newMainBtn = mainJoinBtn.cloneNode(true);
+            mainJoinBtn.parentNode.replaceChild(newMainBtn, mainJoinBtn);
+
+            newMainBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                console.log("Клік на кнопці головного розіграшу");
+                newParticipateInRaffle(this);
+            });
+        }
+
+        if (dailyJoinBtn) {
+            console.log("Знайдено кнопку щоденного розіграшу");
+            const newDailyBtn = dailyJoinBtn.cloneNode(true);
+            dailyJoinBtn.parentNode.replaceChild(newDailyBtn, dailyJoinBtn);
+
+            newDailyBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                console.log("Клік на кнопці щоденного розіграшу");
+                newParticipateInRaffle(this);
+            });
+        }
+
+        console.log("Перевизначення обробників завершено");
+    }
+
+    // Вішаємо обробник на завантаження DOM
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("DOM завантажено, налаштовуємо обробники кнопок розіграшів");
+        replaceButtonHandlers();
+    });
+
+    // Також запускаємо ініціалізацію відразу, якщо сторінка вже завантажена
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        console.log("Сторінка вже завантажена, негайно налаштовуємо обробники");
+        setTimeout(replaceButtonHandlers, 0);
+    }
+
+    console.log("🎮 WINIX РОЗІГРАШІ: Радикальне виправлення успішно запущено!");
+})();
+
+/**
+ * WINIX Виправлення нагород за перевірку підписок
+ * Цей скрипт забезпечує нарахування нагород (жетони і токени)
+ * при перевірці підписок на канали
+ */
+
+(function() {
+    console.log("📢 WINIX ПІДПИСКИ: Запуск виправлення системи нагород...");
+
+    // Ідентифікуємо кнопку перевірки підписок
+    function findVerifyButton() {
+        // Різні варіанти кнопок перевірки
+        const possibleIds = ['verify-btn', 'verify-subscription-btn', 'verify-folder-btn'];
+        const possibleTexts = ['Перевірити підписки', 'Verify Subscription', 'Перевірити', 'Verify'];
+
+        // Спочатку шукаємо за ID
+        for (const id of possibleIds) {
+            const button = document.getElementById(id);
+            if (button) {
+                console.log(`Знайдено кнопку за ID: ${id}`);
+                return button;
+            }
+        }
+
+        // Якщо не знайшли за ID, шукаємо за текстом
+        for (const text of possibleTexts) {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            for (const button of buttons) {
+                if (button.textContent.includes(text)) {
+                    console.log(`Знайдено кнопку за текстом: ${text}`);
+                    return button;
+                }
+            }
+        }
+
+        console.warn("Не вдалося знайти кнопку перевірки підписок");
+        return null;
+    }
+
+    // Оновлення балансу токенів і жетонів
+    function updateBalances(tokensToAdd, coinsToAdd) {
+        try {
+            console.log(`Спроба додати: ${tokensToAdd} токенів, ${coinsToAdd} жетонів`);
+
+            // Спочатку отримуємо поточні баланси
+            let currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            let currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
+
+            if (isNaN(currentTokens)) currentTokens = 0;
+            if (isNaN(currentCoins)) currentCoins = 0;
+
+            console.log(`Поточні баланси: ${currentTokens} токенів, ${currentCoins} жетонів`);
+
+            // Розраховуємо нові баланси
+            const newTokens = currentTokens + tokensToAdd;
+            const newCoins = currentCoins + coinsToAdd;
+
+            console.log(`Нові баланси: ${newTokens} токенів, ${newCoins} жетонів`);
+
+            // Оновлюємо localStorage
+            localStorage.setItem('userTokens', newTokens.toString());
+            localStorage.setItem('winix_balance', newTokens.toString());
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
+
+            // Оновлюємо відображення в DOM
+            const tokenElement = document.getElementById('user-tokens');
+            const coinElement = document.getElementById('user-coins');
+
+            if (tokenElement) {
+                tokenElement.textContent = newTokens.toFixed(2);
+                console.log(`DOM: Оновлено відображення токенів до ${newTokens.toFixed(2)}`);
+            }
+
+            if (coinElement) {
+                coinElement.textContent = newCoins.toString();
+                console.log(`DOM: Оновлено відображення жетонів до ${newCoins}`);
+            }
+
+            // Спробуємо оновити через WinixCore, якщо він доступний
+            if (window.WinixCore?.Balance) {
+                if (window.WinixCore.Balance.setTokens) {
+                    window.WinixCore.Balance.setTokens(newTokens);
+                }
+                if (window.WinixCore.Balance.setCoins) {
+                    window.WinixCore.Balance.setCoins(newCoins);
+                }
+                console.log("WinixCore: Баланси оновлено");
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Помилка при оновленні балансів:", error);
+            return false;
+        }
+    }
+
+    // Функція перевірки підписок
+    function verifySubscriptions() {
+        console.log("Запущено перевірку підписок");
+
+        try {
+            // Спочатку перевіряємо, чи вже були нараховані винагороди
+            if (localStorage.getItem('subscription_reward_received') === 'true') {
+                console.log("Винагороду вже було нараховано раніше");
+                alert("Ви вже отримали винагороду за підписки!");
+                return false;
+            }
+
+            // Показуємо індикатор завантаження
+            showLoadingIndicator("Перевірка підписок...");
+
+            // Імітуємо асинхронну перевірку (в реальності потрібно перевірити через API Telegram)
+            setTimeout(() => {
+                try {
+                    // В демо-режимі завжди відзначаємо підписки як підтверджені
+                    const isSubscribed = true;
+
+                    if (isSubscribed) {
+                        console.log("Підписку підтверджено, нараховуємо винагороду");
+
+                        // Нарахування винагороди: 500 WINIX і 1 жетон
+                        const tokensToAdd = 500;
+                        const coinsToAdd = 1;
+
+                        // Оновлюємо баланси
+                        const updated = updateBalances(tokensToAdd, coinsToAdd);
+
+                        if (updated) {
+                            // Відзначаємо, що винагороду отримано
+                            localStorage.setItem('subscription_reward_received', 'true');
+
+                            // Оновлюємо стан кнопки
+                            const verifyBtn = findVerifyButton();
+                            if (verifyBtn) {
+                                verifyBtn.textContent = 'Перевірено ✓';
+                                verifyBtn.classList.add('verified');
+                                verifyBtn.disabled = true;
+                            }
+
+                            // Показуємо повідомлення про успіх
+                            hideLoadingIndicator();
+                            alert(`Вітаємо! Ви отримали ${tokensToAdd} WINIX та ${coinsToAdd} жетон за підписку на всі канали!`);
+                        } else {
+                            hideLoadingIndicator();
+                            alert("Виникла помилка при нарахуванні винагороди. Спробуйте ще раз.");
+                        }
+                    } else {
+                        hideLoadingIndicator();
+                        alert("Підписки не знайдено. Будь ласка, підпишіться на всі канали та спробуйте ще раз.");
+                    }
+                } catch (innerError) {
+                    console.error("Помилка під час обробки перевірки:", innerError);
+                    hideLoadingIndicator();
+                    alert("Виникла помилка під час перевірки. Будь ласка, спробуйте ще раз.");
+                }
+            }, 1500);
+
+            return true;
+        } catch (error) {
+            console.error("Глобальна помилка перевірки підписок:", error);
+            hideLoadingIndicator();
+            alert("Виникла помилка під час перевірки. Будь ласка, спробуйте ще раз.");
+            return false;
+        }
+    }
+
+    // Показати індикатор завантаження
+    function showLoadingIndicator(message) {
+        let loadingElement = document.getElementById('verify-loading-indicator');
+
+        if (!loadingElement) {
+            loadingElement = document.createElement('div');
+            loadingElement.id = 'verify-loading-indicator';
+            loadingElement.style.position = 'fixed';
+            loadingElement.style.top = '0';
+            loadingElement.style.left = '0';
+            loadingElement.style.width = '100%';
+            loadingElement.style.height = '100%';
+            loadingElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            loadingElement.style.display = 'flex';
+            loadingElement.style.flexDirection = 'column';
+            loadingElement.style.alignItems = 'center';
+            loadingElement.style.justifyContent = 'center';
+            loadingElement.style.zIndex = '9999';
+
+            const spinner = document.createElement('div');
+            spinner.style.width = '50px';
+            spinner.style.height = '50px';
+            spinner.style.border = '5px solid rgba(255, 255, 255, 0.3)';
+            spinner.style.borderTop = '5px solid #fff';
+            spinner.style.borderRadius = '50%';
+            spinner.style.animation = 'spin 1s linear infinite';
+
+            const messageElement = document.createElement('div');
+            messageElement.style.color = '#fff';
+            messageElement.style.marginTop = '20px';
+            messageElement.style.fontSize = '18px';
+
+            // Додаємо анімацію обертання
+            const styleElement = document.createElement('style');
+            styleElement.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+
+            document.head.appendChild(styleElement);
+            loadingElement.appendChild(spinner);
+            loadingElement.appendChild(messageElement);
+            document.body.appendChild(loadingElement);
+        }
+
+        const messageElement = loadingElement.querySelector('div:nth-child(2)');
+        if (messageElement) {
+            messageElement.textContent = message || 'Завантаження...';
+        }
+
+        loadingElement.style.display = 'flex';
+    }
+
+    // Сховати індикатор завантаження
+    function hideLoadingIndicator() {
+        const loadingElement = document.getElementById('verify-loading-indicator');
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
+    }
+
+    // Функція для підписки на канали
+    function setupSubscribeButtons() {
+        // Знаходимо всі елементи каналів
+        const channelItems = document.querySelectorAll('.channel-item');
+        console.log(`Знайдено ${channelItems.length} елементів каналів`);
+
+        // Відстежуємо підписки для кожного каналу
+        channelItems.forEach((item, index) => {
+            // Перевіряємо, чи вже є обробник
+            if (item.getAttribute('data-has-click-handler') === 'true') {
+                return;
+            }
+
+            const channelId = item.getAttribute('data-channel-id') || `channel-${index + 1}`;
+            const channelName = item.getAttribute('data-channel') || `Channel ${index + 1}`;
+
+            // Додаємо обробник кліку
+            item.addEventListener('click', function() {
+                console.log(`Клік на каналі: ${channelName} (${channelId})`);
+
+                // Зберігаємо стан підписки
+                localStorage.setItem(`${channelId}_subscribed`, 'true');
+
+                // Імітуємо відкриття каналу в Telegram
+                alert(`Відкриваємо канал ${channelName} в Telegram. Підпишіться, будь ласка.`);
+            });
+
+            // Позначаємо, що обробник було додано
+            item.setAttribute('data-has-click-handler', 'true');
+
+            // Додаємо стилі для ефекту при наведенні
+            item.style.cursor = 'pointer';
+            item.style.transition = 'all 0.3s ease';
+
+            item.addEventListener('mouseover', function() {
+                this.style.transform = 'translateY(-5px)';
+                this.style.boxShadow = '0 5px 15px rgba(0, 201, 167, 0.5)';
+            });
+
+            item.addEventListener('mouseout', function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = 'none';
+            });
+        });
+    }
+
+    // Налаштування кнопки перевірки підписок
+    function setupVerifyButton() {
+        const verifyBtn = findVerifyButton();
+
+        if (verifyBtn) {
+            console.log("Налаштування обробника для кнопки перевірки підписок");
+
+            // Перевіряємо, чи вже отримана винагорода
+            if (localStorage.getItem('subscription_reward_received') === 'true') {
+                verifyBtn.textContent = 'Перевірено ✓';
+                verifyBtn.classList.add('verified');
+                verifyBtn.disabled = true;
+                console.log("Кнопку відзначено як перевірену (винагороду вже отримано)");
+                return;
+            }
+
+            // Видаляємо старі обробники
+            const newBtn = verifyBtn.cloneNode(true);
+            verifyBtn.parentNode.replaceChild(newBtn, verifyBtn);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                console.log("Клік на кнопці перевірки підписок");
+                verifySubscriptions();
+            });
+
+            console.log("Обробник для кнопки перевірки підписок успішно додано");
+        } else {
+            console.warn("Кнопку перевірки підписок не знайдено");
+        }
+    }
+
+    // Налаштування кнопки додавання папки (для folder.html)
+    function setupFolderButton() {
+        const folderBtn = document.getElementById('add-folder-btn') || document.getElementById('add-folder-button');
+
+        if (folderBtn) {
+            console.log("Налаштування обробника для кнопки додавання папки");
+
+            // Видаляємо старі обробники
+            const newBtn = folderBtn.cloneNode(true);
+            folderBtn.parentNode.replaceChild(newBtn, folderBtn);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                console.log("Клік на кнопці додавання папки");
+
+                // Відзначаємо, що папку додано
+                localStorage.setItem('folder_added', 'true');
+
+                // Оновлюємо індикатор прогресу, якщо він є
+                const progressIndicator = document.querySelector('.progress-indicator');
+                const progressMarker = document.querySelector('.progress-marker');
+
+                if (progressIndicator) {
+                    progressIndicator.style.width = '50%';
+                    console.log("Індикатор прогресу оновлено до 50%");
+                }
+
+                if (progressMarker) {
+                    progressMarker.style.left = '50%';
+                    console.log("Маркер прогресу оновлено до 50%");
+                }
+
+                alert("Папку додано. Натисніть 'Verify Subscription' для отримання винагороди.");
+            });
+
+            console.log("Обробник для кнопки додавання папки успішно додано");
+        }
+    }
+
+    // Функція для додавання детальних повідомлень про помилки
+    function setupErrorReporting() {
+        window.addEventListener('error', function(event) {
+            console.error("ПОМИЛКА JS:", event.message, "у", event.filename, "рядок:", event.lineno);
+        });
+
+        // Перевизначаємо console.error для більшої видимості
+        const originalError = console.error;
+        console.error = function() {
+            // Спочатку викликаємо оригінальну функцію
+            originalError.apply(console, arguments);
+
+            // Збираємо аргументи у рядок
+            const errorMessage = Array.from(arguments).join(' ');
+
+            // Логуємо в localStorage для подальшого аналізу
+            const errors = JSON.parse(localStorage.getItem('winix_debug_errors') || '[]');
+            errors.push({
+                message: errorMessage,
+                timestamp: new Date().toISOString()
+            });
+            localStorage.setItem('winix_debug_errors', JSON.stringify(errors));
+        };
+    }
+
+    // Ініціалізуємо скрипт
+    function init() {
+        console.log("Ініціалізація виправлення нагород за перевірку підписок");
+
+        // Налаштовуємо звітування про помилки
+        setupErrorReporting();
+
+        // Налаштовуємо кнопки підписки на канали
+        setupSubscribeButtons();
+
+        // Налаштовуємо кнопку перевірки підписок
+        setupVerifyButton();
+
+        // Налаштовуємо кнопку додавання папки (для folder.html)
+        setupFolderButton();
+
+        console.log("Ініціалізацію завершено");
+    }
+
+    // Викликаємо init при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', init);
+
+    // Також викликаємо init відразу, якщо DOM вже завантажений
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        setTimeout(init, 0);
+    }
+
+    console.log("📢 WINIX ПІДПИСКИ: Виправлення системи нагород запущено!");
+})();
+</script>
+    <script>
+/**
+ * winix-conflict-fix.js
+ * Цей скрипт виправляє конфлікти між існуючими скриптами проекту WINIX.
+ * Вирішує проблеми з модальним вікном папки та списанням жетонів при участі в розіграшах.
+ */
+
+(function() {
+    console.log("🛠️ WINIX CONFLICT FIX: Запуск виправлень...");
+
+    // ===== ПАТЧ ДЛЯ МОДАЛЬНОГО ВІКНА ПАПКИ =====
+
+    function fixFolderModal() {
+        // Знаходимо кнопку "Додати папку"
+        const addFolderBtn = document.getElementById('add-folder-btn');
+        if (!addFolderBtn) {
+            console.warn("Кнопка 'Додати папку' не знайдена!");
+            return;
+        }
+
+        console.log("Налаштування кнопки 'Додати папку'...");
+
+        // Створюємо клон кнопки без обробників подій
+        const newAddFolderBtn = addFolderBtn.cloneNode(true);
+        addFolderBtn.parentNode.replaceChild(newAddFolderBtn, addFolderBtn);
+
+        // Додаємо новий обробник подій
+        newAddFolderBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Шукаємо модальне вікно
+            const folderModal = document.getElementById('folder-modal');
+            if (folderModal) {
+                console.log("Відкриваємо існуюче модальне вікно папки");
+                folderModal.classList.add('show');
+
+                // Оновлюємо стан модального вікна на основі даних з localStorage
+                updateFolderModalState();
+            } else {
+                console.warn("Модальне вікно папки не знайдено!");
+            }
+        });
+
+        console.log("Кнопка 'Додати папку' налаштована");
+    }
+
+    // Функція для оновлення стану модального вікна папки
+    function updateFolderModalState() {
+        const folderAdded = localStorage.getItem('folder_added') === 'true';
+        const folderVerified = localStorage.getItem('folder_verified') === 'true';
+
+        const progressIndicator = document.querySelector('.progress-indicator');
+        const progressMarker = document.querySelector('.progress-marker');
+
+        if (progressIndicator && progressMarker) {
+            if (folderVerified) {
+                progressIndicator.style.width = '100%';
+                progressMarker.style.left = '100%';
+            } else if (folderAdded) {
+                progressIndicator.style.width = '50%';
+                progressMarker.style.left = '50%';
+            } else {
+                progressIndicator.style.width = '0%';
+                progressMarker.style.left = '0%';
+            }
+        }
+    }
+
+    // ===== ПАТЧ ДЛЯ КНОПОК В МОДАЛЬНОМУ ВІКНІ ПАПКИ =====
+
+    function fixFolderModalButtons() {
+        // Знаходимо кнопки в модальному вікні папки
+        const addFolderActionBtn = document.getElementById('add-folder-action-btn');
+        const verifyFolderBtn = document.getElementById('verify-folder-btn');
+
+        // Якщо кнопка "ADD FOLDER" існує, налаштовуємо її
+        if (addFolderActionBtn) {
+            console.log("Налаштування кнопки 'ADD FOLDER'...");
+
+            // Створюємо клон кнопки без обробників подій
+            const newAddFolderActionBtn = addFolderActionBtn.cloneNode(true);
+            addFolderActionBtn.parentNode.replaceChild(newAddFolderActionBtn, addFolderActionBtn);
+
+            // Додаємо новий обробник подій
+            newAddFolderActionBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Відкриваємо посилання для додавання папки в Telegram
+                if (window.Telegram && window.Telegram.WebApp) {
+                    window.Telegram.WebApp.openLink('https://t.me/addlist/fpdo93hRYgAxNThi');
+                } else {
+                    window.open('https://t.me/addlist/fpdo93hRYgAxNThi', '_blank');
+                }
+
+                // Зберігаємо прапорець, що папка додана
+                localStorage.setItem('folder_added', 'true');
+
+                // Оновлюємо прогрес-бар до 50%
+                const progressIndicator = document.querySelector('.progress-indicator');
+                const progressMarker = document.querySelector('.progress-marker');
+
+                if (progressIndicator) progressIndicator.style.width = '50%';
+                if (progressMarker) progressMarker.style.left = '50%';
+
+                // Показуємо повідомлення
+                showCustomToast('Папку додано. Натисніть "Verify Subscription" для отримання винагороди');
+            });
+
+            console.log("Кнопка 'ADD FOLDER' налаштована");
+        }
+
+        // Якщо кнопка "Verify Subscription" існує, налаштовуємо її
+        if (verifyFolderBtn) {
+            console.log("Налаштування кнопки 'Verify Subscription'...");
+
+            // Створюємо клон кнопки без обробників подій
+            const newVerifyFolderBtn = verifyFolderBtn.cloneNode(true);
+            verifyFolderBtn.parentNode.replaceChild(newVerifyFolderBtn, verifyFolderBtn);
+
+            // Додаємо новий обробник подій
+            newVerifyFolderBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Перевіряємо, чи була папка додана
+                if (localStorage.getItem('folder_added') !== 'true') {
+                    showCustomToast('Спочатку додайте папку, натиснувши "ADD FOLDER"');
+                    return;
+                }
+
+                // Перевіряємо, чи вже отримували винагороду
+                if (localStorage.getItem('folder_verified') === 'true') {
+                    showCustomToast('Ви вже отримали винагороду за додавання папки!');
+                    return;
+                }
+
+                // Отримуємо поточний баланс з усіх можливих джерел
+                let currentTokens = 0;
+                let currentCoins = 0;
+
+                // 1. Спробуємо отримати з WinixCore
+                if (window.WinixCore && window.WinixCore.Balance) {
+                    currentTokens = window.WinixCore.Balance.getTokens();
+                    currentCoins = window.WinixCore.Balance.getCoins();
+                    console.log(`Баланс з WinixCore: ${currentTokens} WINIX, ${currentCoins} жетонів`);
+                }
+                // 2. Якщо не вдалося, спробуємо отримати з localStorage
+                else {
+                    currentTokens = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+                    currentCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+                    console.log(`Баланс з localStorage: ${currentTokens} WINIX, ${currentCoins} жетонів`);
+                }
+
+                // Додаємо винагороду: +250 WINIX, +1 жетон
+                const newTokens = currentTokens + 250;
+                const newCoins = currentCoins + 1;
+
+                console.log(`Новий баланс: ${newTokens} WINIX, ${newCoins} жетонів`);
+
+                // Зберігаємо новий баланс у ВСІХ можливих місцях
+
+                // 1. В localStorage з усіма можливими ключами
+                localStorage.setItem('userTokens', newTokens.toString());
+                localStorage.setItem('userCoins', newCoins.toString());
+                localStorage.setItem('winix_balance', newTokens.toString());
+                localStorage.setItem('winix_coins', newCoins.toString());
+
+                // 2. В WinixCore, якщо він доступний
+                if (window.WinixCore && window.WinixCore.Balance) {
+                    window.WinixCore.Balance.setTokens(newTokens);
+                    window.WinixCore.Balance.setCoins(newCoins);
+                }
+
+                // Оновлюємо відображення в інтерфейсі
+                updateBalanceDisplay(newTokens, newCoins);
+
+                // Відмічаємо, що винагорода отримана
+                localStorage.setItem('folder_verified', 'true');
+
+                // Оновлюємо прогрес-бар до 100%
+                const progressIndicator = document.querySelector('.progress-indicator');
+                const progressMarker = document.querySelector('.progress-marker');
+
+                if (progressIndicator) progressIndicator.style.width = '100%';
+                if (progressMarker) progressMarker.style.left = '100%';
+
+                // Показуємо повідомлення
+                showCustomToast('Ви отримали 250 WINIX і 1 жетон за додавання папки!');
+
+                // Закриваємо модальне вікно через 2 секунди
+                setTimeout(() => {
+                    const folderModal = document.getElementById('folder-modal');
+                    if (folderModal) {
+                        folderModal.classList.remove('show');
+                    }
+                }, 2000);
+            });
+
+            console.log("Кнопка 'Verify Subscription' налаштована");
+        }
+    }
+
+    // ===== ПАТЧ ДЛЯ УЧАСТІ В РОЗІГРАШАХ =====
+
+    function fixRaffleParticipation() {
+        // Знаходимо всі кнопки участі в розіграшах
+        const raffleButtons = document.querySelectorAll('[id$="-raffle-btn"], [id^="join-"][id$="-raffle-btn"]');
+
+        console.log(`Знайдено ${raffleButtons.length} кнопок розіграшів для патчу`);
+
+        raffleButtons.forEach(button => {
+            console.log(`Налаштування кнопки розіграшу: ${button.id}`);
+
+            // Створюємо клон кнопки без обробників подій
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+
+            // Додаємо новий обробник подій
+            newButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Визначаємо тип розіграшу
+                const isMain = this.id.includes('main');
+                const raffleType = isMain ? 'main' : 'daily';
+
+                console.log(`Клік на кнопці розіграшу: ${this.id} (тип: ${raffleType})`);
+
+                // Викликаємо виправлену функцію участі в розіграші
+                improvedParticipateInRaffle(raffleType);
+            });
+        });
+
+        console.log("Кнопки розіграшів налаштовані");
+    }
+
+    // Покращена функція для участі в розіграші
+    function improvedParticipateInRaffle(raffleType, tokenAmount = 1) {
+        console.log(`Покращена участь у розіграші: тип=${raffleType}, кількість жетонів=${tokenAmount}`);
+
+        try {
+            // Отримуємо поточний баланс жетонів з усіх можливих джерел
+            let currentCoins = 0;
+
+            // 1. Спробуємо отримати з DOM
+            const coinsElement = document.getElementById('user-coins');
+            if (coinsElement && coinsElement.textContent) {
+                currentCoins = parseInt(coinsElement.textContent);
+                console.log(`Баланс жетонів з DOM: ${currentCoins}`);
+            }
+
+            // 2. Якщо не вдалося або отримали 0, спробуємо з WinixCore
+            if (currentCoins <= 0 && window.WinixCore && window.WinixCore.Balance) {
+                currentCoins = window.WinixCore.Balance.getCoins();
+                console.log(`Баланс жетонів з WinixCore: ${currentCoins}`);
+            }
+
+            // 3. Якщо не вдалося або отримали 0, спробуємо з localStorage
+            if (currentCoins <= 0) {
+                currentCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+                console.log(`Баланс жетонів з localStorage: ${currentCoins}`);
+            }
+
+            // Перевіряємо, чи достатньо жетонів
+            if (currentCoins < tokenAmount) {
+                showCustomToast(`Недостатньо жетонів! Потрібно: ${tokenAmount}, у вас: ${currentCoins}`);
+                return false;
+            }
+
+            // Зменшуємо баланс жетонів
+            const newCoins = currentCoins - tokenAmount;
+            console.log(`Новий баланс жетонів: ${newCoins}`);
+
+            // Зберігаємо новий баланс у всіх можливих місцях
+
+            // 1. В localStorage
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
+
+            // 2. В WinixCore, якщо він доступний
+            if (window.WinixCore && window.WinixCore.Balance) {
+                window.WinixCore.Balance.setCoins(newCoins);
+            }
+
+            // 3. Оновлюємо відображення в DOM
+            if (coinsElement) {
+                coinsElement.textContent = newCoins.toString();
+            }
+
+            // Оновлюємо всі інші елементи, які показують кількість жетонів
+            document.querySelectorAll('.coins-value, .coins-amount').forEach(element => {
+                if (element) {
+                    element.textContent = newCoins.toString();
+                }
+            });
+
+            // Оновлюємо кількість учасників розіграшу
+            updateRaffleParticipants(raffleType);
+
+            // Зберігаємо інформацію про участь у розіграші
+            saveRaffleParticipation(raffleType);
+
+            // Показуємо повідомлення про успішну участь
+            showCustomToast('Ви успішно взяли участь у розіграші!');
+
+            // Закриваємо модальне вікно розіграшу, якщо воно відкрите
+            setTimeout(() => {
+                const modalId = raffleType === 'main' ? 'main-raffle-modal' : 'daily-raffle-modal';
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.classList.remove('show');
+                }
+            }, 1000);
+
+            console.log(`Успішна участь у розіграші ${raffleType}`);
+            return true;
+        } catch (error) {
+            console.error("Помилка при участі в розіграші:", error);
+            showCustomToast('Помилка при участі в розіграші. Спробуйте пізніше.');
+            return false;
+        }
+    }
+
+    // Оновлення кількості учасників розіграшу
+    function updateRaffleParticipants(raffleType) {
+        try {
+            if (raffleType === 'main') {
+                // Оновлюємо кількість учасників головного розіграшу
+                const participantsElements = document.querySelectorAll('.participants-count, #main-participants');
+                participantsElements.forEach(element => {
+                    if (element) {
+                        const currentCount = parseInt(element.textContent) || 0;
+                        const newCount = currentCount + 1;
+                        element.textContent = newCount.toString();
+                    }
+                });
+
+                // Зберігаємо в localStorage
+                const currentCount = parseInt(localStorage.getItem('mainRaffleParticipants') || '0');
+                localStorage.setItem('mainRaffleParticipants', (currentCount + 1).toString());
+
+                // Оновлюємо прогрес-бар
+                const progressElement = document.querySelector('.raffle-progress');
+                if (progressElement) {
+                    const currentWidth = parseFloat(progressElement.style.width) || 29;
+                    const newWidth = Math.min(currentWidth + 2, 100);
+                    progressElement.style.width = `${newWidth}%`;
+                    localStorage.setItem('mainRaffleProgress', newWidth.toString());
+                }
+            } else if (raffleType === 'daily') {
+                // Оновлюємо кількість учасників щоденного розіграшу
+                const participantsElements = document.querySelectorAll('.daily-participants-count, #daily-participants');
+                participantsElements.forEach(element => {
+                    if (element) {
+                        const currentCount = parseInt(element.textContent) || 0;
+                        const newCount = currentCount + 1;
+                        element.textContent = newCount.toString();
+                    }
+                });
+
+                // Зберігаємо в localStorage
+                const currentCount = parseInt(localStorage.getItem('dailyRaffleParticipants') || '0');
+                localStorage.setItem('dailyRaffleParticipants', (currentCount + 1).toString());
+            }
+        } catch (error) {
+            console.error("Помилка при оновленні кількості учасників:", error);
+        }
+    }
+
+    // Збереження інформації про участь у розіграші
+    function saveRaffleParticipation(raffleType) {
+        try {
+            // Створюємо запис про участь
+            const participation = {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+                raffleType: raffleType,
+                timestamp: new Date().toISOString()
+            };
+
+            // Отримуємо поточні участі
+            let participations = [];
+            try {
+                const savedParticipations = localStorage.getItem('raffle_participations');
+                if (savedParticipations) {
+                    participations = JSON.parse(savedParticipations);
+                }
+            } catch (e) {
+                console.error("Помилка при отриманні даних про участь:", e);
+            }
+
+            // Якщо participations не є масивом, створюємо новий масив
+            if (!Array.isArray(participations)) {
+                participations = [];
+            }
+
+            // Додаємо нову участь
+            participations.push(participation);
+
+            // Зберігаємо оновлений список
+            localStorage.setItem('raffle_participations', JSON.stringify(participations));
+            console.log(`Збережено участь у розіграші: ${raffleType}`);
+        } catch (error) {
+            console.error("Помилка при збереженні участі:", error);
+        }
+    }
+
+    // ===== ДОПОМІЖНІ ФУНКЦІЇ =====
+
+    // Функція для оновлення відображення балансу
+    function updateBalanceDisplay(tokens, coins) {
+        try {
+            console.log(`Оновлення відображення балансу: ${tokens} WINIX, ${coins} жетонів`);
+
+            // Оновлюємо відображення токенів
+            document.querySelectorAll('#user-tokens, .balance-value, .balance-amount, #current-balance').forEach(element => {
+                if (element) {
+                    element.textContent = typeof tokens === 'number' ? tokens.toFixed(2) : tokens;
+                }
+            });
+
+            // Оновлюємо відображення жетонів
+            document.querySelectorAll('#user-coins, .coins-value, .coins-amount').forEach(element => {
+                if (element) {
+                    element.textContent = typeof coins === 'number' ? coins.toString() : coins;
+                }
+            });
+        } catch (error) {
+            console.error("Помилка при оновленні відображення балансу:", error);
+        }
+    }
+
+    // Показ сповіщення
+    function showCustomToast(message, duration = 3000) {
+        try {
+            console.log(`Показ сповіщення: ${message}`);
+
+            // Перевіряємо наявність різних функцій показу сповіщень
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, duration);
+            } else if (typeof window.showNotification === 'function') {
+                window.showNotification(message, 'info', duration);
+            } else if (typeof window.simpleAlert === 'function') {
+                window.simpleAlert(message);
+            } else {
+                // Якщо жодної функції не знайдено, створюємо власне сповіщення
+                let toast = document.getElementById('toast-message');
+
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = 'toast-message';
+                    toast.className = 'toast-message';
+                    toast.style.position = 'fixed';
+                    toast.style.top = '20px';
+                    toast.style.left = '50%';
+                    toast.style.transform = 'translateX(-50%)';
+                    toast.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+                    toast.style.color = '#ffffff';
+                    toast.style.padding = '12px 24px';
+                    toast.style.borderRadius = '12px';
+                    toast.style.zIndex = '1000';
+                    toast.style.boxShadow = '0 4px 15px rgba(0,0,0,0.5)';
+                    toast.style.border = '1px solid rgba(78, 181, 247, 0.2)';
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'all 0.3s ease';
+                    toast.style.maxWidth = '350px';
+                    toast.style.width = '90%';
+                    toast.style.textAlign = 'center';
+                    document.body.appendChild(toast);
+                }
+
+                toast.textContent = message;
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(-50%) translateY(10px)';
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(0)';
+                }, duration);
+            }
+        } catch (error) {
+            console.error("Помилка при показі сповіщення:", error);
+            alert(message); // Запасний варіант
+        }
+    }
+
+    // ===== ІНІЦІАЛІЗАЦІЯ =====
+
+    // Після завантаження сторінки
+    function initialize() {
+        console.log("Ініціалізація патчів...");
+
+        // Патч для модального вікна папки
+        fixFolderModal();
+
+        // Патч для кнопок в модальному вікні папки
+        setTimeout(fixFolderModalButtons, 500);
+
+        // Патч для участі в розіграшах
+        setTimeout(fixRaffleParticipation, 500);
+
+        console.log("Патчі успішно ініціалізовано");
+    }
+
+    // Запускаємо ініціалізацію при завантаженні DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        // Якщо DOM вже завантажений, ініціалізуємо зараз
+        initialize();
+    }
+
+    // Додаємо обробник для випадку, якщо сторінка вже завантажена, але деякі елементи ще не створені
+    window.addEventListener('load', function() {
+        setTimeout(initialize, 1000);
+    });
+
+    // Також додаємо обробник для подій winix-initialized
+    document.addEventListener('winix-initialized', function() {
+        setTimeout(initialize, 500);
+    });
+
+    // Додаємо обробник для подій winix-core-initialized
+    document.addEventListener('winix-core-initialized', function() {
+        setTimeout(initialize, 500);
+    });
+
+    console.log("🛠️ WINIX CONFLICT FIX: Усі виправлення завантажено");
+})();
+</script>
+    <script>
+/**
+ * WINIX - Заглушка перевірки підписок на канали
+ * Стилізована відповідно до дизайну додатку
+ */
+
+(function() {
+    console.log("🔔 WINIX SUBSCRIPTION CHECK: Ініціалізація заглушки...");
+
+    // Список каналів для перевірки
+    const CHANNELS = [
+        { name: "Крипта скам?!", url: "https://t.me/cryptascam1" },
+        { name: "Львівський Криптан", url: "https://t.me/lvivcriptan22" },
+        { name: "Днепровский Криптан", url: "https://t.me/+5jWLbrocUcFkNzVk" },
+        { name: "Канал Ростіка", url: "https://t.me/crypto_rostik" },
+        { name: "InCrypto", url: "https://t.me/+A2C-S2kfqnVmM2Ri" },
+        { name: "Все про Тапалки🇺🇦", url: "https://t.me/VseProTapalki_UA" }
+    ];
+
+    // HTML для модального вікна перевірки підписок
+    const MODAL_HTML = `
+    <div id="subscription-check-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.75); z-index: 9999; backdrop-filter: blur(5px);">
+        <div style="position: absolute; width: 90%; max-width: 500px; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #1c2142; border-radius: 15px; padding: 25px; color: white; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);">
+            <h2 style="margin-top: 0; font-size: 24px; margin-bottom: 20px; padding-right: 40px;">Потрібно підписатись на всі канали</h2>
+
+            <div style="position: absolute; top: 20px; right: 20px; font-size: 28px; cursor: pointer;" id="subscription-modal-close">×</div>
+
+            <hr style="border: none; height: 1px; background-color: rgba(255, 255, 255, 0.2); margin: 15px 0;">
+
+            <p style="margin-bottom: 15px; font-size: 16px;">Для отримання винагороди потрібно підписатися на всі канали:</p>
+
+            <ul id="channels-list" style="list-style-type: none; padding-left: 5px; margin-bottom: 20px;">
+                <!-- Список каналів буде додано динамічно -->
+            </ul>
+
+            <p style="margin-bottom: 25px; font-size: 16px;">Після підписки на всі канали натисніть кнопку "Перевірити" ще раз.</p>
+
+            <div style="text-align: right;">
+                <button id="subscription-modal-confirm" style="background: linear-gradient(90deg, #4eb5f7, #b251f7); border: none; color: white; padding: 12px 30px; border-radius: 30px; font-size: 16px; cursor: pointer;">Зрозуміло</button>
+            </div>
+        </div>
+    </div>
+    `;
+
+    // HTML для модального вікна успішної перевірки
+    const SUCCESS_MODAL_HTML = `
+    <div id="subscription-success-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.75); z-index: 9999; backdrop-filter: blur(5px);">
+        <div style="position: absolute; width: 90%; max-width: 500px; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #1c2142; border-radius: 15px; padding: 25px; color: white; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3); text-align: center;">
+            <div style="position: absolute; top: 20px; right: 20px; font-size: 28px; cursor: pointer;" id="success-modal-close">×</div>
+
+            <div style="font-size: 70px; margin-bottom: 20px;">✅</div>
+            <h2 style="margin-top: 0; font-size: 24px; margin-bottom: 15px;">Підписки підтверджено!</h2>
+            <p style="margin-bottom: 20px; font-size: 16px;">Ви отримали винагороду:</p>
+
+            <div style="background-color: rgba(0, 0, 0, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px;">
+                <div style="font-size: 18px; color: #ffc107; margin-bottom: 10px;">+ 500 WINIX</div>
+                <div style="font-size: 18px; color: #4eb5f7;">+ 1 жетон</div>
+            </div>
+
+            <button id="success-modal-confirm" style="background: linear-gradient(90deg, #4eb5f7, #b251f7); border: none; color: white; padding: 12px 30px; border-radius: 30px; font-size: 16px; cursor: pointer;">Чудово!</button>
+        </div>
+    </div>
+    `;
+
+    // Додаємо модальні вікна в DOM
+    function injectModals() {
+        if (!document.getElementById('subscription-check-modal')) {
+            document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
+            document.body.insertAdjacentHTML('beforeend', SUCCESS_MODAL_HTML);
+
+            // Додаємо канали до списку
+            const channelsList = document.getElementById('channels-list');
+            if (channelsList) {
+                CHANNELS.forEach(channel => {
+                    const li = document.createElement('li');
+                    li.style.marginBottom = '10px';
+                    li.style.display = 'flex';
+                    li.style.alignItems = 'center';
+
+                    // Створюємо кружок-маркер
+                    const bullet = document.createElement('span');
+                    bullet.style.display = 'inline-block';
+                    bullet.style.width = '6px';
+                    bullet.style.height = '6px';
+                    bullet.style.borderRadius = '50%';
+                    bullet.style.backgroundColor = '#4eb5f7';
+                    bullet.style.marginRight = '10px';
+
+                    // Створюємо посилання на канал
+                    const link = document.createElement('a');
+                    link.href = 'javascript:void(0)';
+                    link.textContent = channel.name;
+                    link.style.color = '#4eb5f7';
+                    link.style.textDecoration = 'none';
+                    link.style.fontSize = '16px';
+                    link.setAttribute('data-channel-url', channel.url);
+
+                    // Додаємо обробник кліку
+                    link.addEventListener('click', function() {
+                        const url = this.getAttribute('data-channel-url');
+                        if (url) {
+                            // Зберігаємо інформацію про клік на канал
+                            localStorage.setItem(`channel_${channel.name}_clicked`, 'true');
+
+                            // Відкриваємо канал
+                            if (window.Telegram && window.Telegram.WebApp) {
+                                window.Telegram.WebApp.openLink(url);
+                            } else {
+                                window.open(url, '_blank');
+                            }
+                        }
+                    });
+
+                    // Додаємо елементи до DOM
+                    li.appendChild(bullet);
+                    li.appendChild(link);
+                    channelsList.appendChild(li);
+                });
+            }
+
+            // Додаємо обробники подій
+            setupModalEventHandlers();
+        }
+    }
+
+    // Налаштування обробників подій для модальних вікон
+    function setupModalEventHandlers() {
+        // Обробник для кнопки закриття модального вікна перевірки
+        const closeBtn = document.getElementById('subscription-modal-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                document.getElementById('subscription-check-modal').style.display = 'none';
+            });
+        }
+
+        // Обробник для кнопки "Зрозуміло"
+        const confirmBtn = document.getElementById('subscription-modal-confirm');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function() {
+                document.getElementById('subscription-check-modal').style.display = 'none';
+            });
+        }
+
+        // Обробник для кнопки закриття модального вікна успіху
+        const successCloseBtn = document.getElementById('success-modal-close');
+        if (successCloseBtn) {
+            successCloseBtn.addEventListener('click', function() {
+                document.getElementById('subscription-success-modal').style.display = 'none';
+            });
+        }
+
+        // Обробник для кнопки "Чудово!"
+        const successConfirmBtn = document.getElementById('success-modal-confirm');
+        if (successConfirmBtn) {
+            successConfirmBtn.addEventListener('click', function() {
+                document.getElementById('subscription-success-modal').style.display = 'none';
+            });
+        }
+    }
+
+    // Відкриття модального вікна перевірки підписок
+    function openSubscriptionCheckModal() {
+        injectModals();
+        document.getElementById('subscription-check-modal').style.display = 'block';
+    }
+
+    // Відкриття модального вікна успішної перевірки
+    function openSuccessModal() {
+        injectModals();
+        document.getElementById('subscription-success-modal').style.display = 'block';
+    }
+
+    // Заглушка перевірки підписок
+    function mockSubscriptionCheck() {
+        console.log("Запуск перевірки підписок...");
+
+        // Показуємо повідомлення про перевірку
+        showCustomToast("Перевірка підписок...");
+
+        // Додаємо елемент з лоадером для показу процесу
+        let loaderElement = document.getElementById('subscription-loader');
+        if (!loaderElement) {
+            loaderElement = document.createElement('div');
+            loaderElement.id = 'subscription-loader';
+            loaderElement.style.position = 'fixed';
+            loaderElement.style.top = '0';
+            loaderElement.style.left = '0';
+            loaderElement.style.width = '100%';
+            loaderElement.style.height = '100%';
+            loaderElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            loaderElement.style.display = 'flex';
+            loaderElement.style.justifyContent = 'center';
+            loaderElement.style.alignItems = 'center';
+            loaderElement.style.zIndex = '9999';
+            loaderElement.style.backdropFilter = 'blur(3px)';
+
+            const spinner = document.createElement('div');
+            spinner.style.width = '50px';
+            spinner.style.height = '50px';
+            spinner.style.border = '5px solid rgba(255, 255, 255, 0.3)';
+            spinner.style.borderTop = '5px solid #fff';
+            spinner.style.borderRadius = '50%';
+            spinner.style.animation = 'spin 1s linear infinite';
+
+            // Додаємо стиль анімації
+            const styleElement = document.createElement('style');
+            styleElement.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(styleElement);
+
+            loaderElement.appendChild(spinner);
+            document.body.appendChild(loaderElement);
+        } else {
+            loaderElement.style.display = 'flex';
+        }
+
+        // Емулюємо затримку перевірки (1.5-2.5 секунди)
+        setTimeout(() => {
+            // Приховуємо лоадер
+            loaderElement.style.display = 'none';
+
+            // Перевіряємо, чи вже була успішна перевірка
+            if (localStorage.getItem('subscription_all_verified') === 'true') {
+                showCustomToast('Ви вже отримали винагороду за підписки!');
+                return;
+            }
+
+            // Перевіряємо кліки на канали (в реальності має бути перевірка підписок через API)
+            let allChannelsClicked = true;
+            let unsubscribedChannels = [];
+
+            // Генеруємо випадковий результат (70% шанс успіху для кожного каналу)
+            // В реальності тут має бути справжня перевірка через API
+            CHANNELS.forEach(channel => {
+                // Перевіряємо, чи користувач клікав на канал
+                const hasClicked = localStorage.getItem(`channel_${channel.name}_clicked`) === 'true';
+
+                // 70% шанс "підтвердження" підписки для каналу
+                const isSubscribed = hasClicked && (Math.random() < 0.7);
+
+                if (!isSubscribed) {
+                    allChannelsClicked = false;
+                    unsubscribedChannels.push(channel.name);
+                }
+            });
+
+            // Якщо всі канали перевірені успішно
+            if (allChannelsClicked && unsubscribedChannels.length === 0) {
+                // Нараховуємо винагороду
+                addReward(500, 1);
+
+                // Позначаємо перевірку як успішну
+                localStorage.setItem('subscription_all_verified', 'true');
+
+                // Показуємо модальне вікно успіху
+                openSuccessModal();
+
+                // Змінюємо текст кнопки, якщо це кнопка "Перевірити підписки"
+                const verifyBtn = document.getElementById('verify-btn');
+                if (verifyBtn) {
+                    verifyBtn.textContent = 'Перевірено ✓';
+                    verifyBtn.classList.add('verified');
+                }
+            } else {
+                // Показуємо модальне вікно з інформацією про необхідність підписатися
+                openSubscriptionCheckModal();
+            }
+        }, 1500 + Math.random() * 1000); // Випадкова затримка від 1.5 до 2.5 секунд
+    }
+
+    // Функція для нарахування винагороди
+    function addReward(tokenAmount, coinAmount) {
+        console.log(`Нарахування винагороди: ${tokenAmount} WINIX, ${coinAmount} жетон(ів)`);
+
+        try {
+            // Отримуємо поточний баланс з усіх можливих джерел
+            let currentTokens = 0;
+            let currentCoins = 0;
+
+            // 1. Спробуємо отримати з WinixCore
+            if (window.WinixCore && window.WinixCore.Balance) {
+                currentTokens = window.WinixCore.Balance.getTokens();
+                currentCoins = window.WinixCore.Balance.getCoins();
+            }
+            // 2. Якщо не вдалося, спробуємо отримати з localStorage
+            else {
+                currentTokens = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+                currentCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+            }
+
+            // Розраховуємо новий баланс
+            const newTokens = currentTokens + tokenAmount;
+            const newCoins = currentCoins + coinAmount;
+
+            console.log(`Новий баланс: ${newTokens} WINIX, ${newCoins} жетонів`);
+
+            // Зберігаємо новий баланс у ВСІХ можливих місцях
+
+            // 1. В localStorage з усіма можливими ключами
+            localStorage.setItem('userTokens', newTokens.toString());
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_balance', newTokens.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
+
+            // 2. В WinixCore, якщо він доступний
+            if (window.WinixCore && window.WinixCore.Balance) {
+                window.WinixCore.Balance.setTokens(newTokens);
+                window.WinixCore.Balance.setCoins(newCoins);
+            }
+
+            // Оновлюємо відображення в DOM
+            updateBalanceDisplay(newTokens, newCoins);
+
+            return true;
+        } catch (error) {
+            console.error("Помилка при нарахуванні винагороди:", error);
+            return false;
+        }
+    }
+
+    // Функція для оновлення відображення балансу
+    function updateBalanceDisplay(tokens, coins) {
+        try {
+            // Оновлюємо відображення токенів
+            document.querySelectorAll('#user-tokens, .balance-value, .balance-amount, #current-balance').forEach(element => {
+                if (element) {
+                    element.textContent = typeof tokens === 'number' ? tokens.toFixed(2) : tokens;
+                }
+            });
+
+            // Оновлюємо відображення жетонів
+            document.querySelectorAll('#user-coins, .coins-value, .coins-amount').forEach(element => {
+                if (element) {
+                    element.textContent = typeof coins === 'number' ? coins.toString() : coins;
+                }
+            });
+        } catch (error) {
+            console.error("Помилка при оновленні відображення балансу:", error);
+        }
+    }
+
+    // Функція для показу сповіщень
+    function showCustomToast(message, duration = 3000) {
+        try {
+            // Перевіряємо наявність різних функцій показу сповіщень
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, duration);
+            } else if (typeof window.showNotification === 'function') {
+                window.showNotification(message, 'info', duration);
+            } else if (typeof window.simpleAlert === 'function') {
+                window.simpleAlert(message);
+            } else {
+                // Якщо жодної функції не знайдено, створюємо власне сповіщення
+                let toast = document.getElementById('toast-message');
+
+                if (!toast) {
+                    toast = document.createElement('div');
+                    toast.id = 'toast-message';
+                    toast.className = 'toast-message';
+                    toast.style.position = 'fixed';
+                    toast.style.top = '20px';
+                    toast.style.left = '50%';
+                    toast.style.transform = 'translateX(-50%)';
+                    toast.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+                    toast.style.color = '#ffffff';
+                    toast.style.padding = '12px 24px';
+                    toast.style.borderRadius = '12px';
+                    toast.style.zIndex = '1000';
+                    toast.style.boxShadow = '0 4px 15px rgba(0,0,0,0.5)';
+                    toast.style.border = '1px solid rgba(78, 181, 247, 0.2)';
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'all 0.3s ease';
+                    toast.style.maxWidth = '350px';
+                    toast.style.width = '90%';
+                    toast.style.textAlign = 'center';
+                    document.body.appendChild(toast);
+                }
+
+                toast.textContent = message;
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateX(-50%) translateY(10px)';
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(-50%) translateY(0)';
+                }, duration);
+            }
+        } catch (error) {
+            console.error("Помилка при показі сповіщення:", error);
+            alert(message); // Запасний варіант
+        }
+    }
+
+    // Функція для налаштування кнопки "Перевірити підписки"
+    function setupVerifyButton() {
+        // Знаходимо кнопку "Перевірити підписки"
+        const verifyBtn = document.getElementById('verify-btn');
+
+        if (verifyBtn) {
+            console.log("Налаштування кнопки 'Перевірити підписки'...");
+
+            // Перевіряємо, чи вже була успішна перевірка
+            if (localStorage.getItem('subscription_all_verified') === 'true') {
+                verifyBtn.textContent = 'Перевірено ✓';
+                verifyBtn.classList.add('verified');
+            } else {
+                // Створюємо клон кнопки без обробників подій
+                const newVerifyBtn = verifyBtn.cloneNode(true);
+                verifyBtn.parentNode.replaceChild(newVerifyBtn, verifyBtn);
+
+                // Додаємо новий обробник подій
+                newVerifyBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Запускаємо перевірку підписок
+                    mockSubscriptionCheck();
+                });
+            }
+
+            console.log("Кнопка 'Перевірити підписки' налаштована");
+        } else {
+            console.warn("Кнопка 'Перевірити підписки' не знайдена!");
+        }
+    }
+
+    // Ініціалізація заглушки
+    function initialize() {
+        console.log("Ініціалізація заглушки перевірки підписок...");
+
+        // Налаштування кнопки "Перевірити підписки"
+        setTimeout(setupVerifyButton, 500);
+
+        console.log("Заглушка перевірки підписок ініціалізована");
+    }
+
+    // Запускаємо ініціалізацію при завантаженні сторінки
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        // Якщо DOM вже завантажений, ініціалізуємо зараз
+        initialize();
+    }
+
+    // Додаємо обробник для випадку, якщо сторінка вже завантажена
+    window.addEventListener('load', function() {
+        setTimeout(initialize, 1000);
+    });
+
+    // Експортуємо функції для можливого використання ззовні
+    window.winixSubscriptionCheck = {
+        check: mockSubscriptionCheck,
+        openModal: openSubscriptionCheckModal,
+        setupButton: setupVerifyButton
+    };
+
+    console.log("🔔 WINIX SUBSCRIPTION CHECK: Заглушка готова");
+})();
+    </script>
+    <script>
+/**
+ * carousel-telegram-fix.js
+ * Спеціальне виправлення для каруселі/банера у Telegram міні-апп
+ * Додайте цей файл ОСТАННІМ у списку скриптів у html файлі
+ */
+
+(function() {
+    console.log("🔧 TELEGRAM CAROUSEL FIX: Запуск виправлення для каруселі в Telegram міні-апп...");
+
+    // Перевіряємо, чи запущено в Telegram
+    const isTelegram = window.Telegram && window.Telegram.WebApp;
+
+    // Функція для виправлення каруселі
+    function fixCarousel() {
+        console.log("🔄 Застосовуємо виправлення для каруселі...");
+
+        // Знаходимо контейнер каруселі
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (!carouselContainer) {
+            console.error("❌ Контейнер каруселі не знайдено!");
+            return;
+        }
+
+        // Перевіряємо видимість
+        if (carouselContainer.offsetHeight === 0 ||
+            carouselContainer.style.display === 'none' ||
+            carouselContainer.style.visibility === 'hidden') {
+            console.log("⚠️ Карусель прихована, виправляємо...");
+
+            // Показуємо контейнер
+            carouselContainer.style.display = 'block';
+            carouselContainer.style.visibility = 'visible';
+            carouselContainer.style.height = 'auto';
+            carouselContainer.style.minHeight = '220px';
+            carouselContainer.style.opacity = '1';
+        }
+
+        // Перевіряємо зображення
+        const slideImages = carouselContainer.querySelectorAll('.carousel-slide img');
+        let hasImageErrors = false;
+
+        slideImages.forEach((img, index) => {
+            if (!img.complete || img.naturalHeight === 0) {
+                hasImageErrors = true;
+                console.warn(`⚠️ Проблема із зображенням в слайді ${index + 1}`);
+
+                // Виправляємо шлях до зображення
+                const currentSrc = img.src;
+                if (currentSrc) {
+                    // Спробуємо різні варіанти шляхів
+                    const fileName = currentSrc.split('/').pop();
+
+                    // Список можливих шляхів для перевірки
+                    const potentialPaths = [
+                        `assets/${fileName}`,
+                        `./assets/${fileName}`,
+                        `../assets/${fileName}`,
+                        `/assets/${fileName}`,
+                        `https://YOUR_SERVER_URL/assets/${fileName}` // Замініть на реальний URL вашого сервера
+                    ];
+
+                    // Встановлюємо запасне зображення
+                    img.onerror = function() {
+                        this.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==';
+                        console.log("🔧 Встановлено запасне зображення для слайду");
+                    };
+
+                    // Намагаємося завантажити зображення з різних шляхів
+                    for (const path of potentialPaths) {
+                        const testImg = new Image();
+                        testImg.onload = function() {
+                            img.src = this.src;
+                            console.log(`✅ Знайдено правильний шлях: ${this.src}`);
+                        };
+                        testImg.src = path;
+                    }
+                }
+            }
+        });
+
+        // Якщо є проблеми з зображеннями, пробуємо перезапустити ініціалізацію каруселі
+        if (hasImageErrors && typeof setupCarousel === 'function') {
+            console.log("🔄 Перезапуск ініціалізації каруселі...");
+            try {
+                setupCarousel();
+            } catch (e) {
+                console.error("❌ Помилка при перезапуску каруселі:", e);
+            }
+        }
+    }
+
+    // Функція для створення запасної каруселі, якщо оригінальна не працює
+    function createFallbackCarousel() {
+        console.log("🔧 Створення запасної каруселі...");
+
+        // Шукаємо контейнер для каруселі або місце для вставки
+        let carouselContainer = document.querySelector('.carousel-container');
+        const actionButton = document.querySelector('.action-button');
+
+        if (!carouselContainer && actionButton) {
+            // Створюємо новий контейнер каруселі
+            carouselContainer = document.createElement('div');
+            carouselContainer.className = 'carousel-container';
+
+            // Вставляємо його перед кнопкою дії
+            actionButton.parentNode.insertBefore(carouselContainer, actionButton);
+
+            // Створюємо структуру каруселі
+            carouselContainer.innerHTML = `
+                <div class="carousel-wrapper" id="carousel-wrapper">
+                    <div class="carousel-slide" id="main-raffle-slide">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==" alt="Гранд Розіграш" class="carousel-image" style="background-color: #4eb5f7;">
+                        <div class="carousel-overlay">
+                            <div class="carousel-title">Гранд Розіграш</div>
+                            <div class="carousel-subtitle">250 USDT + 130,000 WINIX (10 переможців)</div>
+                        </div>
+                    </div>
+                    <div class="carousel-slide" id="daily-raffle-slide">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAADICAYAAABS39xVAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNS1jMDE0IDc5LjE1MTQ4MSwgMjAxMy8wMy8xMy0xMjowOToxNSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIChNYWNpbnRvc2gpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOjRCN0U4RTlDMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1IiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOjRCN0U4RTlEMUFBRDExRTVBQzNFQTkwMDFGODI1MzU1Ij4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6NEI3RThFOUExQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6NEI3RThFOUIxQUFEMTFFNUFDM0VBOTAwMUY4MjUzNTUiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz4F5HwaAAADtElEQVR42uzasU3EQBCG0fOMDwkZ3bdARVRDL/RDCRRAQsAJhpP89cj37F+7nk9rreezp2fd+8O/N//9Xnne7z9cWmutE07rsZ7Xcnvf3h/tPOzb29oYAABAWIgLAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAYQEgLADCAkBYAAgLgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhASAsAIQFgLAAEBYAwgJAWAAICwBhAfBTFyMglLXWrfVcjeJcHnMO+7OXO1bwRPY51r7G/jCJ79ghLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBEJawABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAT13MgDDWfo51ntOYzuVpu02TcMcK/vVhHPvcH8b0A+6EBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAsAYQEgLACEBYCwABAWAMICQFgACAuAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAWAsAAQFgDCAkBYAAgLAGEBICwAhAXAF14FGACTLEXmOmqMTwAAAABJRU5ErkJggg==" alt="Щоденний розіграш" class="carousel-image" style="background-color: #52C0BD;">
+                        <div class="carousel-overlay">
+                            <div class="carousel-title">Щоденний Розіграш</div>
+                            <div class="carousel-subtitle">30,000 WINIX (15 переможців)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-indicators">
+                    <div class="carousel-indicator active" data-slide="0"></div>
+                    <div class="carousel-indicator" data-slide="1"></div>
+                </div>
+
+                <div class="carousel-nav carousel-nav-left" id="carousel-prev">❮</div>
+                <div class="carousel-nav carousel-nav-right" id="carousel-next">❯</div>
+            `;
+
+            console.log("✅ Створено запасний слайдер");
+
+            // Додаємо стилі
+            const style = document.createElement('style');
+            style.textContent = `
+                .carousel-container {
+                    width: 100%;
+                    position: relative;
+                    margin-bottom: 15px;
+                    overflow: hidden;
+                    border-radius: 20px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                    height: 220px;
+                }
+
+                .carousel-wrapper {
+                    display: flex;
+                    transition: transform 0.5s ease;
+                    width: 200%;
+                }
+
+                .carousel-slide {
+                    flex: 0 0 50%;
+                    position: relative;
+                    cursor: pointer;
+                }
+
+                .carousel-slide img {
+                    width: 100%;
+                    height: 220px;
+                    object-fit: cover;
+                }
+
+                .carousel-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 50%);
+                    border-radius: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: flex-end;
+                    padding: 16px;
+                }
+
+                .carousel-title {
+                    color: white;
+                    font-size: 20px;
+                    font-weight: bold;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+                    margin-bottom: 8px;
+                }
+
+                .carousel-subtitle {
+                    color: rgba(255,255,255,0.8);
+                    font-size: 14px;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+                }
+
+                .carousel-indicators {
+                    position: absolute;
+                    bottom: 10px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .carousel-indicator {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: rgba(255,255,255,0.5);
+                    cursor: pointer;
+                }
+
+                .carousel-indicator.active {
+                    background: white;
+                    box-shadow: 0 0 5px rgba(255,255,255,0.8);
+                }
+
+                .carousel-nav {
+                    position: absolute;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    width: 40px;
+                    height: 40px;
+                    background: rgba(0,0,0,0.5);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 24px;
+                    cursor: pointer;
+                    z-index: 2;
+                    transition: all 0.3s ease;
+                }
+
+                .carousel-nav:hover {
+                    background: rgba(0,0,0,0.7);
+                    transform: translateY(-50%) scale(1.1);
+                }
+
+                .carousel-nav-left {
+                    left: 10px;
+                }
+
+                .carousel-nav-right {
+                    right: 10px;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Додаємо простий обробник карусельки
+            setupSimpleCarousel();
+        }
+    }
+
+    // Проста функція для керування каруселлю
+    function setupSimpleCarousel() {
+        const wrapper = document.getElementById('carousel-wrapper');
+        const prevBtn = document.getElementById('carousel-prev');
+        const nextBtn = document.getElementById('carousel-next');
+        const indicators = document.querySelectorAll('.carousel-indicator');
+
+        if (!wrapper || !prevBtn || !nextBtn) return;
+
+        let currentSlide = 0;
+
+        // Функція оновлення каруселі
+        function updateCarousel() {
+            wrapper.style.transform = `translateX(-${currentSlide * 50}%)`;
+
+            indicators.forEach((indicator, index) => {
+                indicator.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        // Кнопки навігації
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentSlide = currentSlide > 0 ? currentSlide - 1 : 1;
+            updateCarousel();
+        });
+
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentSlide = currentSlide < 1 ? currentSlide + 1 : 0;
+            updateCarousel();
+        });
+
+        // Індикатори
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener('click', (e) => {
+                e.stopPropagation();
+                currentSlide = index;
+                updateCarousel();
+            });
+        });
+
+        // Авто-зміна слайдів
+        setInterval(() => {
+            currentSlide = currentSlide < 1 ? currentSlide + 1 : 0;
+            updateCarousel();
+        }, 5000);
+
+        // Відкриття модальних вікон при кліку на слайд
+        const mainSlide = document.getElementById('main-raffle-slide');
+        const dailySlide = document.getElementById('daily-raffle-slide');
+
+        if (mainSlide) {
+            mainSlide.addEventListener('click', () => {
+                try {
+                    if (typeof openModal === 'function') {
+                        openModal('main-raffle-modal');
+                    }
+                } catch (e) {
+                    console.error("❌ Помилка відкриття модального вікна розіграшу:", e);
+                }
+            });
+        }
+
+        if (dailySlide) {
+            dailySlide.addEventListener('click', () => {
+                try {
+                    if (typeof openModal === 'function') {
+                        openModal('daily-raffle-modal');
+                    }
+                } catch (e) {
+                    console.error("❌ Помилка відкриття модального вікна розіграшу:", e);
+                }
+            });
+        }
+    }
+
+    // Запускаємо виправлення
+    function applyFix() {
+        // Спочатку намагаємося виправити існуючу карусель
+        fixCarousel();
+
+        // Перевіряємо, чи виправлення спрацювало
+        setTimeout(() => {
+            const carouselContainer = document.querySelector('.carousel-container');
+            if (!carouselContainer ||
+                carouselContainer.offsetHeight === 0 ||
+                carouselContainer.style.display === 'none' ||
+                carouselContainer.style.visibility === 'hidden') {
+
+                // Якщо не спрацювало, створюємо запасну карусель
+                createFallbackCarousel();
+            }
+        }, 500);
+    }
+
+    // Функція для визначення, чи видимий елемент
+    function isElementVisible(element) {
+        if (!element) return false;
+
+        const style = window.getComputedStyle(element);
+
+        return style.display !== 'none' &&
+               style.visibility !== 'hidden' &&
+               element.offsetHeight > 0;
+    }
+
+    // Запуск виправлення при завантаженні DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyFix);
+    } else {
+        // DOM вже завантажений, застосовуємо виправлення зараз
+        applyFix();
+    }
+
+    // Також запустимо виправлення після повного завантаження сторінки
+    window.addEventListener('load', applyFix);
+
+    // І ще раз через 1 секунду після завантаження
+    window.addEventListener('load', () => {
+        setTimeout(applyFix, 1000);
+    });
+
+    console.log("✅ TELEGRAM CAROUSEL FIX: Виправлення для каруселі готове до застосування");
+})();
 </script>
 </body>
 </html>
