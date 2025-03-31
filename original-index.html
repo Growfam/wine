@@ -1071,11 +1071,15 @@
 }
 @media screen {
     body.telegram-webview .carousel-indicators {
-        bottom: 10px; /* Збільшуємо відстань від нижнього краю, щоб крапки були всередині банера */
-        background: rgba(0, 0, 0, 0.3); /* Додаємо напівпрозорий фон для кращої видимості на темному тлі */
-        padding: 5px 10px; /* Додаємо відступи для естетичного вигляду */
-        border-radius: 20px; /* Закруглені кути для контейнера крапок */
-    }
+        position: absolute;
+    bottom: 10px; /* Відступ від нижнього краю банера */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.3); /* Напівпрозорий фон для кращої видимості */
+    padding: 5px 10px; /* Відступи всередині контейнера */
+    border-radius: 20px; /* Закруглені краї */
+    z-index: 5; /* Переконайтеся, що індикатори над іншими елементами */
+}
 
     body.telegram-webview .carousel-indicator {
         width: 8px; /* Зменшуємо розмір крапок, якщо потрібно */
@@ -1095,6 +1099,16 @@ body.telegram-webview .carousel-container {
 body.telegram-webview .carousel-slide img {
     height: 220px !important; /* Переконуємося, що зображення займає всю висоту */
     object-fit: cover; /* Зображення адаптується без спотворень */
+}
+
+body.telegram-webview .carousel-slide {
+    height: 100%; /* Слайди заповнюють весь контейнер */
+}
+
+body.telegram-webview .carousel-slide img {
+    height: 100%; /* Зображення адаптуються до висоти слайду */
+    width: 100%;
+    object-fit: cover; /* Зображення обрізається без спотворень */
 }
      </style>
 </head>
@@ -4287,6 +4301,11 @@ function openModal(modalId) {
 
     console.log("✅ TELEGRAM CAROUSEL FIX: Виправлення для каруселі готове до застосування");
 })();
+</script>
+    <script>
+if (window.Telegram && window.Telegram.WebApp) {
+    document.body.classList.add('telegram-webview');
+}
 </script>
 </body>
 </html>
