@@ -1053,6 +1053,22 @@
             }
         }
     </style>
+     <style>
+    /* Спеціальні стилі тільки для Telegram WebApp */
+@media screen {
+    /* Видаляємо зайві відступи і керуємо тільки ними без зміни розміру зображення */
+    body.telegram-webview .carousel-container {
+        margin-bottom: 0.3rem !important; /* Зменшуємо нижній відступ */
+        margin-top: 0.3rem !important; /* Зменшуємо верхній відступ, якщо він є */
+    }
+
+    /* Переконуємося, що розмір контейнера точно відповідає розміру зображення */
+    body.telegram-webview .carousel-slide img {
+        display: block !important;
+        height: 220px !important; /* Зберігаємо оригінальну висоту */
+    }
+}
+     </style>
 </head>
 <body>
     <div class="container">
@@ -1394,6 +1410,22 @@
     <div class="toast-message" id="toast-message">Повідомлення</div>
 
     <script>
+        // Перевіряємо, чи відкрито у Telegram WebApp при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Перевіряємо, чи відкрито у Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Додаємо клас до body для специфічних стилів
+        document.body.classList.add('telegram-webview');
+
+        // Також можна точно налаштувати відступи через JavaScript
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (carouselContainer) {
+            carouselContainer.style.marginBottom = '0.3rem';
+            carouselContainer.style.marginTop = '0.3rem';
+            console.log('Встановлено відступи для контейнера каруселі в Telegram WebApp');
+        }
+    }
+});
         // Глобальні змінні для таймерів
         let mainRaffleTimer;
         let dailyRaffleTimer;
@@ -1425,7 +1457,8 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
 }
 
         // Налаштування каруселі
-      function setupCarousel() {
+     // Налаштування каруселі
+function setupCarousel() {
     // Очищаємо всі попередні таймери
     if (window.carouselTimer) {
         clearInterval(window.carouselTimer);
@@ -1437,10 +1470,27 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
     const indicators = document.querySelectorAll('.carousel-indicator');
     const slides = document.querySelectorAll('.carousel-slide');
 
+    // Перевірка на Telegram WebApp
+    const isTelegram = window.Telegram && window.Telegram.WebApp;
+
+    // Якщо в Telegram, коригуємо розмір контейнера та приховуємо тексти
+    if (isTelegram) {
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (carouselContainer) {
+            carouselContainer.style.marginBottom = '0.3rem';
+            carouselContainer.style.marginTop = '0.3rem';
+        }
+
+        // Приховуємо оверлеї з текстом
+        document.querySelectorAll('.carousel-overlay').forEach(overlay => {
+            overlay.style.display = 'none';
+        });
+    }
+
     // Перезавантажуємо змінну поточного слайду
     window.currentSlide = 0;
 
-    // Оновлення каруселі
+    // Оновлення каруселі - винести в окрему функцію
     function updateCarousel() {
         if (!wrapper) return;
         wrapper.style.transform = `translateX(-${window.currentSlide * 50}%)`;
@@ -1494,28 +1544,25 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
         };
     });
 
-    // Автоматична зміна слайдів з меншим інтервалом (4s замість 5s)
+    // Запускаємо автоматичну зміну слайдів
     window.carouselTimer = setInterval(() => {
         window.currentSlide = window.currentSlide < slides.length - 1 ?
             window.currentSlide + 1 : 0;
         updateCarousel();
-    }, 4000);
+    }, 5000);
 
-    // Обробники для модальних вікон
-    const mainSlide = document.getElementById('main-raffle-slide');
-    const dailySlide = document.getElementById('daily-raffle-slide');
-
-    if (mainSlide) {
-        mainSlide.onclick = function() {
+    // Додаємо обробники для модальних вікон
+    document.getElementById('main-raffle-slide').onclick = function() {
+        if (typeof openModal === 'function') {
             openModal('main-raffle-modal');
-        };
-    }
+        }
+    };
 
-    if (dailySlide) {
-        dailySlide.onclick = function() {
+    document.getElementById('daily-raffle-slide').onclick = function() {
+        if (typeof openModal === 'function') {
             openModal('daily-raffle-modal');
-        };
-    }
+        }
+    };
 }
 
         // Налаштування модальних вікон
