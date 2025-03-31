@@ -2020,6 +2020,12 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Завантажуємо дані з сервера
+            loadUserData();
+
+            // Запускаємо періодичне оновлення
+            startPeriodicUpdates();
+
             loadUserSettings();
             loadUserAvatar();
             updateBalanceDisplay();
@@ -2027,6 +2033,12 @@
         });
 
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            // Завантажуємо дані з сервера
+            loadUserData();
+
+            // Запускаємо періодичне оновлення
+            startPeriodicUpdates();
+
             loadUserSettings();
             loadUserAvatar();
             updateBalanceDisplay();
@@ -2071,6 +2083,75 @@
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
         }
+        // Функція для завантаження даних користувача з сервера
+function loadUserData() {
+    console.log("Завантаження даних користувача з сервера...");
+
+    // Показуємо індикатор завантаження (якщо є)
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.style.display = 'flex';
+
+    // Отримуємо ID користувача
+    const userId = localStorage.getItem('userId') || '12345678';
+
+    // Робимо запит до API
+    fetch(`/api/user/${userId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Помилка HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.status === 'success' && result.data) {
+                const userData = result.data;
+                console.log("Отримано дані користувача:", userData);
+
+                // Оновлюємо ID користувача в всіх елементах
+                document.getElementById('user-id').textContent = userData.id;
+                document.getElementById('user-id-profile').textContent = userData.id;
+
+                // Оновлюємо ім'я користувача
+                const username = userData.username || 'WINIX User';
+                document.getElementById('profile-name').textContent = username;
+
+                // Оновлюємо баланс токенів
+                const tokens = userData.balance || 0;
+                document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+
+                // Оновлюємо баланс жетонів
+                const coins = userData.coins || 0;
+                document.getElementById('user-coins').textContent = coins.toString();
+
+                // Оновлюємо аватар
+                updateAvatar(username);
+
+                // Зберігаємо ID для подальших запитів
+                localStorage.setItem('userId', userData.id);
+
+                console.log("✅ Дані користувача успішно оновлено з сервера");
+            } else {
+                console.warn("Отримано некоректні дані:", result);
+                showToast("Помилка отримання даних з сервера", true);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Помилка отримання даних з сервера:', error);
+            showToast("Помилка підключення до сервера. Спробуйте пізніше.", true);
+        })
+        .finally(() => {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
+        });
+}
+
+// Функція періодичного оновлення даних
+function startPeriodicUpdates() {
+    console.log("Запуск періодичного оновлення даних");
+
+    // Оновлюємо дані кожні 30 секунд
+    setInterval(loadUserData, 30000);
+}
     </script>
 </body>
 </html>

@@ -1458,9 +1458,10 @@ body.telegram-webview .carousel-slide img {
 
         // Ініціалізація сторінки
         document.addEventListener('DOMContentLoaded', function() {
-            loadUserAvatar();
+            // Завантажуємо дані користувача з сервера
+            loadUserData();
+
             setupProfileLink();
-            updateBalanceDisplay();
             setupCarousel();
             setupModals();
             setupFolderFunctionality();
@@ -1474,6 +1475,7 @@ body.telegram-webview .carousel-slide img {
 
             // Перевіряємо дані папки
             checkFolderProgress();
+
         });
 
         // Також запускаємо ініціалізацію відразу, якщо сторінка вже завантажена
@@ -4080,6 +4082,117 @@ function openModal(modalId) {
     // Виконання
     runOnLoad(initializeCarousel);
 })();
+   // Функція для завантаження даних користувача з сервера
+function loadUserData() {
+    console.log("Завантаження даних користувача з сервера...");
+
+    // Показуємо індикатор завантаження (якщо є)
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.style.display = 'flex';
+
+    // Отримуємо ID користувача
+    const userId = localStorage.getItem('userId') || '12345678';
+
+    // Робимо запит до API
+    fetch(`/api/user/${userId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Помилка HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.status === 'success' && result.data) {
+                const userData = result.data;
+                console.log("Отримано дані користувача:", userData);
+
+                // Оновлюємо ID користувача
+                document.getElementById('user-id').textContent = userData.id;
+
+                // Оновлюємо баланс токенів
+                const tokens = userData.balance || 0;
+                document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+
+                // Оновлюємо баланс жетонів
+                const coins = userData.coins || 0;
+                document.getElementById('user-coins').textContent = coins.toString();
+
+                // Оновлюємо аватар
+                updateAvatar(userData.username || 'WINIX User');
+
+                // Зберігаємо ID для подальших запитів
+                localStorage.setItem('userId', userData.id);
+
+                console.log("✅ Дані користувача успішно оновлено з сервера");
+            } else {
+                console.warn("Отримано некоректні дані:", result);
+                showToast("Помилка отримання даних з сервера", true);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Помилка отримання даних з сервера:', error);
+            showToast("Помилка підключення до сервера. Спробуйте пізніше.", true);
+        })
+        .finally(() => {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
+        });
+}
+
+// Функція для оновлення аватара
+function updateAvatar(username) {
+    const avatar = document.getElementById('profile-avatar');
+    if (!avatar) return;
+
+    const avatarSrc = localStorage.getItem('userAvatarSrc');
+    const avatarId = localStorage.getItem('selectedAvatarId');
+    avatar.innerHTML = '';
+
+    if (avatarSrc) {
+        const img = new Image();
+        img.src = avatarSrc;
+        img.alt = username;
+        img.onerror = () => avatar.textContent = username[0].toUpperCase();
+        avatar.appendChild(img);
+    } else if (avatarId) {
+        const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
+        const img = new Image();
+        img.src = src;
+        img.alt = username;
+        img.onerror = () => avatar.textContent = username[0].toUpperCase();
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = username[0].toUpperCase();
+    }
+}
+
+// Функція для показу повідомлень
+function showToast(message, isError = false) {
+    const toast = document.getElementById('toast-message');
+
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.classList.add('show');
+
+    if (isError) {
+        toast.classList.add('error');
+    } else {
+        toast.classList.remove('error');
+    }
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// Функція періодичного оновлення даних
+function startPeriodicUpdates() {
+    console.log("Запуск періодичного оновлення даних");
+
+    // Оновлюємо дані кожні 30 секунд
+    setInterval(loadUserData, 30000);
+}
 </script>
 </body>
 </html>
