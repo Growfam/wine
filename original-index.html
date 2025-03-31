@@ -243,20 +243,6 @@
             display: block;
         }
 
-        .carousel-overlay {
-    display: none !important;
-}
-
-.carousel-title, .carousel-subtitle {
-    display: none !important;
-}
-
-        .carousel-subtitle {
-            color: rgba(255,255,255,0.8);
-            font-size: 0.875rem;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-        }
-
         .carousel-indicators {
             position: absolute;
             bottom: 0.625rem;
@@ -1079,6 +1065,37 @@
         height: 220px !important; /* Зберігаємо оригінальну висоту */
     }
 }
+    /* Спеціальні стилі тільки для Telegram WebApp */
+@media screen {
+    /* Видаляємо зайві відступи і керуємо тільки ними без зміни розміру зображення */
+    body.telegram-webview .carousel-container {
+        margin-bottom: 0.3rem !important; /* Зменшуємо нижній відступ */
+        margin-top: 0.3rem !important; /* Зменшуємо верхній відступ, якщо він є */
+    }
+
+    /* Переконуємося, що розмір контейнера точно відповідає розміру зображення */
+    body.telegram-webview .carousel-slide img {
+        display: block !important;
+        height: 220px !important; /* Зберігаємо оригінальну висоту */
+    }
+
+    /* Приховуємо навігаційні елементи, які заважають */
+    body.telegram-webview .carousel-nav {
+        display: none !important;
+    }
+
+    /* Приховуємо оверлей з текстом */
+    body.telegram-webview .carousel-overlay {
+        display: none !important;
+    }
+
+    /* Виправляємо кнопку "Всі розіграші" */
+    body.telegram-webview .action-button {
+        margin-top: 0 !important;
+        position: relative !important;
+        z-index: 5 !important;
+    }
+}
      </style>
 </head>
 <body>
@@ -1467,8 +1484,7 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
     setTimeout(setupCarousel, 100);
 }
 
-        // Налаштування каруселі
-     // Налаштування каруселі
+    // Нова функція налаштування каруселі для Telegram WebApp
 function setupCarousel() {
     // Очищаємо всі попередні таймери
     if (window.carouselTimer) {
@@ -1480,23 +1496,6 @@ function setupCarousel() {
     const nextBtn = document.getElementById('carousel-next');
     const indicators = document.querySelectorAll('.carousel-indicator');
     const slides = document.querySelectorAll('.carousel-slide');
-
-    // Перевірка на Telegram WebApp
-    const isTelegram = window.Telegram && window.Telegram.WebApp;
-
-    // Якщо в Telegram, коригуємо розмір контейнера та приховуємо тексти
-    if (isTelegram) {
-        const carouselContainer = document.querySelector('.carousel-container');
-        if (carouselContainer) {
-            carouselContainer.style.marginBottom = '0.3rem';
-            carouselContainer.style.marginTop = '0.3rem';
-        }
-
-        // Приховуємо оверлеї з текстом
-        document.querySelectorAll('.carousel-overlay').forEach(overlay => {
-            overlay.style.display = 'none';
-        });
-    }
 
     // Перезавантажуємо змінну поточного слайду
     window.currentSlide = 0;
@@ -1574,6 +1573,54 @@ function setupCarousel() {
             openModal('daily-raffle-modal');
         }
     };
+}
+
+// Перевіряємо, чи відкрито у Telegram WebApp при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    // Перевіряємо, чи відкрито у Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Додаємо клас до body для специфічних стилів
+        document.body.classList.add('telegram-webview');
+
+        // Також можна точно налаштувати відступи через JavaScript
+        const carouselContainer = document.querySelector('.carousel-container');
+        if (carouselContainer) {
+            carouselContainer.style.marginBottom = '0.3rem';
+            carouselContainer.style.marginTop = '0.3rem';
+            console.log('Встановлено відступи для контейнера каруселі в Telegram WebApp');
+        }
+    }
+});
+
+// Виправлення GIF у модальних вікнах
+function fixModalGifs() {
+    // Перевіряємо, чи це Telegram WebApp
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Знаходимо всі GIF зображення в модальних вікнах
+        document.querySelectorAll('.modal-container img[src$=".gif"]').forEach(img => {
+            // Створюємо копію оригінального src
+            const originalSrc = img.src;
+
+            // Встановлюємо обробник помилки
+            img.onerror = function() {
+                // Якщо GIF не завантажується, замінюємо на статичне зображення
+                console.log("Помилка завантаження GIF:", originalSrc);
+                this.src = originalSrc.replace(".gif", ".png");
+            };
+
+            // Примусово перезавантажуємо зображення
+            img.src = originalSrc + "?t=" + new Date().getTime();
+        });
+    }
+}
+
+// Викликаємо функцію при відкритті модальних вікон
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // Виправляємо GIF у відкритому модальному вікні
+    fixModalGifs();
 }
 
         // Налаштування модальних вікон
