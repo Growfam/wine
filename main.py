@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ініціалізація Flask з налаштуванням для пошуку шаблонів у кореневій директорії
-app = Flask(__name__, template_folder='./')
+app = Flask(__name__, template_folder='./', static_folder='./static')
 
 # Підключення до Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
