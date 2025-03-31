@@ -590,6 +590,28 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+        .toast-message {
+    position: fixed;
+    top: 1.25rem; /* 20px */
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem; /* 12px 24px */
+    border-radius: 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.9375rem; /* 15px */
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Додаємо це для центрування */
+    max-width: 350px;
+    width: 90%;
+    text-align: center; /* Це центрує текст всередині елемента */
+}
     </style>
 </head>
 <body>
