@@ -450,5 +450,35 @@
         // Ініціалізуємо сторінку
         initPage();
     }
+    // Додаємо функцію для періодичної синхронізації даних
+function setupPeriodicSync() {
+    // Синхронізуємо дані кожні 30 секунд
+    const syncInterval = setInterval(async () => {
+        try {
+            const userId = localStorage.getItem('telegram_user_id');
+            if (!userId) return;
+
+            // Оновлюємо дані користувача
+            const response = await fetch(`/api/user/${userId}`);
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                // Оновлюємо дані в localStorage
+                localStorage.setItem('userTokens', data.data.balance.toString());
+                localStorage.setItem('userCoins', data.data.coins.toString());
+
+                // Оновлюємо інтерфейс
+                UIManager.updateBalanceDisplay();
+            }
+        } catch (error) {
+            console.error("Помилка синхронізації даних:", error);
+        }
+    }, 30000); // 30 секунд
+
+    // Очищаємо інтервал при закритті сторінки
+    window.addEventListener('beforeunload', () => {
+        clearInterval(syncInterval);
+    });
+}
 })();
 
