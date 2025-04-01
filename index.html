@@ -1281,5 +1281,110 @@
             document.getElementById('root')
         );
     </script>
+<!-- Додайте цей скрипт в кінці index.html перед закриваючим тегом </body> -->
+
+<script>
+/**
+ * Скрипт для інтеграції екрана завантаження з Supabase
+ */
+(function() {
+    // Функція, що виконується після повної ініціалізації Telegram WebApp
+    function onTelegramWebAppReady() {
+        console.log("📱 Telegram WebApp готовий, виконуємо авторизацію");
+
+        // Отримання даних користувача з Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        const userData = tg.initDataUnsafe?.user;
+
+        if (!userData) {
+            console.error("❌ Не вдалося отримати дані користувача з Telegram");
+            setTimeout(() => {
+                window.location.href = 'original-index.html';
+            }, 3000);
+            return;
+        }
+
+        console.log("📱 Дані користувача отримано:", userData);
+
+        // Процес авторизації користувача на сервері
+        fetch('/api/auth', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(userData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("✅ Авторизацію успішно завершено:", data);
+
+            // Показуємо прогрес завантаження
+            updateProgressBar(30, "Синхронізація з блокчейном");
+            setTimeout(() => {
+                updateProgressBar(60, "Ініціалізація криптогаманця");
+                setTimeout(() => {
+                    updateProgressBar(85, "Налаштування гаманця");
+                    setTimeout(() => {
+                        updateProgressBar(100, "Підключення смарт-контрактів");
+                        // Після завершення переходимо на головну сторінку
+                        setTimeout(() => {
+                            window.location.href = 'original-index.html';
+                        }, 1000);
+                    }, 800);
+                }, 700);
+            }, 600);
+        })
+        .catch(error => {
+            console.error("❌ Помилка авторизації:", error);
+            // Затримка перед переходом на головну сторінку в разі помилки
+            setTimeout(() => {
+                window.location.href = 'original-index.html';
+            }, 2000);
+        });
+    }
+
+    // Функція для оновлення прогрес-бару
+    function updateProgressBar(progress, phaseText) {
+        const progressBar = document.querySelector('.loading-bar');
+        const percentageElement = document.querySelector('.loading-percentage');
+        const phaseElement = document.querySelector('.loading-phase');
+
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+
+        if (percentageElement) {
+            percentageElement.textContent = `${Math.round(progress)}%`;
+        }
+
+        if (phaseElement && phaseText) {
+            phaseElement.textContent = phaseText;
+        }
+    }
+
+    // Викликаємо після завантаження DOM
+    document.addEventListener('DOMContentLoaded', function() {
+        // Перевіряємо, чи завантажено Telegram WebApp API
+        if (window.Telegram && window.Telegram.WebApp) {
+            // Ініціалізуємо Telegram WebApp
+            window.Telegram.WebApp.ready();
+
+            // Запускаємо процес авторизації
+            onTelegramWebAppReady();
+        } else {
+            console.error("❌ Telegram WebApp API не знайдено");
+            // Після затримки переходимо на головну сторінку
+            setTimeout(() => {
+                window.location.href = 'original-index.html';
+            }, 3000);
+        }
+    });
+})();
+</script>
 </body>
 </html>
