@@ -8,10 +8,6 @@
     <!-- Telegram WebApp API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    <!-- React Libraries -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
     <style>
         /* Змінні для адаптивності */
         :root {
@@ -402,92 +398,6 @@
             text-transform: uppercase;
         }
 
-        /* Селектор мови */
-        .language-selector {
-            width: 100%;
-            max-width: 25rem; /* 400px */
-            background: rgba(21, 24, 48, 0.8);
-            backdrop-filter: blur(0.625rem); /* 10px */
-            -webkit-backdrop-filter: blur(0.625rem); /* 10px */
-            border-radius: 1.25rem; /* 20px */
-            border: 0.0625rem solid rgba(64, 224, 208, 0.2); /* 1px */
-            padding: 1.875rem; /* 30px */
-            animation: cardSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-            transform: translateY(1.875rem); /* 30px */
-            opacity: 0;
-            animation-delay: 1s;
-            box-shadow: 0 0 1.875rem rgba(0, 0, 0, 0.3); /* 30px */
-        }
-
-        @keyframes cardSlideUp {
-            0% {
-                transform: translateY(1.875rem); /* 30px */
-                opacity: 0;
-            }
-            100% {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .selector-title {
-            text-align: center;
-            font-size: 1.5rem; /* 24px */
-            font-weight: 600;
-            margin-bottom: 1.875rem; /* 30px */
-            color: white;
-        }
-
-        .language-options {
-            display: flex;
-            gap: 0.9375rem; /* 15px */
-        }
-
-        .language-option {
-            flex: 1;
-            background: rgba(30, 32, 64, 0.6);
-            border: 0.0625rem solid rgba(64, 224, 208, 0.1); /* 1px */
-            border-radius: 0.9375rem; /* 15px */
-            padding: 0.9375rem; /* 15px */
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .language-option:hover {
-            background: rgba(64, 224, 208, 0.1);
-            border-color: rgba(64, 224, 208, 0.4);
-            transform: translateY(-0.3125rem); /* -5px */
-        }
-
-        .language-option.active {
-            background: linear-gradient(135deg, rgba(64, 224, 208, 0.2), rgba(63, 160, 255, 0.1));
-            border-color: rgba(64, 224, 208, 0.5);
-            box-shadow: 0 0 1.25rem rgba(64, 224, 208, 0.2); /* 20px */
-        }
-
-        .flag-icon {
-            width: 3.75rem; /* 60px */
-            height: 3.75rem; /* 60px */
-            border-radius: 50%;
-            margin-bottom: 0.625rem; /* 10px */
-            object-fit: cover;
-            border: 0.125rem solid rgba(255, 255, 255, 0.2); /* 2px */
-            box-shadow: 0 0.3125rem 0.9375rem rgba(0, 0, 0, 0.3); /* 5px 15px */
-            transition: transform 0.3s ease;
-        }
-
-        .language-option:hover .flag-icon {
-            transform: scale(1.1);
-        }
-
-        .language-name {
-            color: white;
-            font-size: 1rem; /* 16px */
-            font-weight: 500;
-            margin-top: 0.625rem; /* 10px */
-        }
-
         /* Екран завантаження */
         .loading-screen {
             width: 100%;
@@ -503,6 +413,17 @@
             transform: translateY(1.875rem); /* 30px */
             opacity: 0;
             animation-delay: 1s;
+        }
+
+        @keyframes cardSlideUp {
+            0% {
+                transform: translateY(1.875rem); /* 30px */
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         .loading-header {
@@ -578,6 +499,7 @@
             transition: width 0.2s ease;
             position: relative;
             overflow: hidden;
+            width: 10%; /* Початкове значення */
         }
 
         .loading-bar::after {
@@ -632,26 +554,6 @@
             color: #40E0D0;
         }
 
-        /* Blockchain блоки в фоні */
-        .blockchain-blocks {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 3;
-            overflow: hidden;
-        }
-
-        .chain-block {
-            position: absolute;
-            font-family: monospace;
-            font-size: 0.75rem; /* 12px */
-            color: rgba(64, 224, 208, 0.15);
-            white-space: nowrap;
-            animation: blockFloat linear infinite;
-        }
-
         /* Адаптивність */
         @media screen and (max-width: 768px) {
             .orbit-1 { width: 11.25rem; height: 11.25rem; } /* 180px */
@@ -672,7 +574,6 @@
                 letter-spacing: 0.5rem; /* 8px */
             }
 
-            .language-selector,
             .loading-screen {
                 max-width: 21.875rem; /* 350px */
                 padding: 1.5625rem; /* 25px */
@@ -711,22 +612,11 @@
                 font-size: 0.875rem; /* 14px */
             }
 
-            .language-options {
-                flex-direction: column;
-            }
-
-            .flag-icon {
-                width: 3.125rem; /* 50px */
-                height: 3.125rem; /* 50px */
-            }
-
-            .language-selector,
             .loading-screen {
                 max-width: 18.75rem; /* 300px */
                 padding: 1.25rem; /* 20px */
             }
 
-            .selector-title,
             .loading-title {
                 font-size: 1.25rem; /* 20px */
                 margin-bottom: 1.25rem; /* 20px */
@@ -735,15 +625,6 @@
             .cube {
                 width: 4rem; /* 64px */
                 height: 4rem; /* 64px */
-            }
-
-            .cube-face-front,
-            .cube-face-back,
-            .cube-face-right,
-            .cube-face-left,
-            .cube-face-top,
-            .cube-face-bottom {
-                transform: translateZ(2rem); /* 32px */
             }
 
             .loading-spinner {
@@ -756,603 +637,182 @@
                 padding: 0.625rem; /* 10px */
             }
         }
-
-        /* Додаткова адаптивність для надмалих екранів */
-        @media screen and (max-width: 350px) {
-            .logo-container {
-                margin-bottom: 1.875rem; /* 30px */
-            }
-
-            .orbit-1 { width: 9rem; height: 9rem; } /* 144px */
-            .orbit-2 { width: 12rem; height: 12rem; } /* 192px */
-            .orbit-3 { width: 15rem; height: 15rem; } /* 240px */
-
-            .logo-frame {
-                width: 6.25rem; /* 100px */
-                height: 6.25rem; /* 100px */
-            }
-
-            .logo-letter {
-                font-size: 3.125rem; /* 50px */
-            }
-
-            .main-title {
-                font-size: 1.75rem; /* 28px */
-                letter-spacing: 0.25rem; /* 4px */
-            }
-
-            .language-selector,
-            .loading-screen {
-                max-width: 16.25rem; /* 260px */
-                padding: 1rem; /* 16px */
-            }
-
-            .flag-icon {
-                width: 2.5rem; /* 40px */
-                height: 2.5rem; /* 40px */
-            }
-
-            .language-name {
-                font-size: 0.875rem; /* 14px */
-            }
-
-            .cube {
-                width: 3.5rem; /* 56px */
-                height: 3.5rem; /* 56px */
-            }
-        }
-
-        /* Адаптивність для великих екранів */
-        @media screen and (min-width: 1200px) {
-            .orbit-1 { width: 15rem; height: 15rem; } /* 240px */
-            .orbit-2 { width: 20rem; height: 20rem; } /* 320px */
-            .orbit-3 { width: 25rem; height: 25rem; } /* 400px */
-
-            .logo-frame {
-                width: 12.5rem; /* 200px */
-                height: 12.5rem; /* 200px */
-            }
-
-            .logo-letter {
-                font-size: 6.25rem; /* 100px */
-            }
-
-            .main-title {
-                font-size: 3.75rem; /* 60px */
-            }
-
-            .language-selector,
-            .loading-screen {
-                max-width: 31.25rem; /* 500px */
-            }
-        }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div class="app-container">
+            <!-- 3D Сцена з кубами -->
+            <div class="scene">
+                <div class="cube cube-1">
+                    <div class="cube-face cube-face-front"></div>
+                    <div class="cube-face cube-face-back"></div>
+                    <div class="cube-face cube-face-right"></div>
+                    <div class="cube-face cube-face-left"></div>
+                    <div class="cube-face cube-face-top"></div>
+                    <div class="cube-face cube-face-bottom"></div>
+                </div>
+                <div class="cube cube-2">
+                    <div class="cube-face cube-face-front"></div>
+                    <div class="cube-face cube-face-back"></div>
+                    <div class="cube-face cube-face-right"></div>
+                    <div class="cube-face cube-face-left"></div>
+                    <div class="cube-face cube-face-top"></div>
+                    <div class="cube-face cube-face-bottom"></div>
+                </div>
+                <div class="cube cube-3">
+                    <div class="cube-face cube-face-front"></div>
+                    <div class="cube-face cube-face-back"></div>
+                    <div class="cube-face cube-face-right"></div>
+                    <div class="cube-face cube-face-left"></div>
+                    <div class="cube-face cube-face-top"></div>
+                    <div class="cube-face cube-face-bottom"></div>
+                </div>
+                <div class="cube cube-4">
+                    <div class="cube-face cube-face-front"></div>
+                    <div class="cube-face cube-face-back"></div>
+                    <div class="cube-face cube-face-right"></div>
+                    <div class="cube-face cube-face-left"></div>
+                    <div class="cube-face cube-face-top"></div>
+                    <div class="cube-face cube-face-bottom"></div>
+                </div>
+            </div>
+
+            <!-- Контейнер для частинок -->
+            <div class="particles-container" id="particles-container">
+                <!-- Частинки додаються через JS -->
+            </div>
+
+            <!-- Фон сітки -->
+            <div class="grid-background"></div>
+
+            <!-- Радіальний градієнт -->
+            <div class="radial-gradient"></div>
+
+            <!-- Пульсуючі хвилі -->
+            <div class="pulse-waves">
+                <div class="wave wave-1"></div>
+                <div class="wave wave-2"></div>
+                <div class="wave wave-3"></div>
+            </div>
+
+            <!-- Основний контент -->
+            <div class="content-container">
+                <!-- Логотип -->
+                <div class="logo-container">
+                    <!-- Орбіти -->
+                    <div class="logo-orbit orbit-1">
+                        <div class="orbit-dot"></div>
+                    </div>
+                    <div class="logo-orbit orbit-2">
+                        <div class="orbit-dot"></div>
+                    </div>
+                    <div class="logo-orbit orbit-3">
+                        <div class="orbit-dot"></div>
+                    </div>
+
+                    <!-- Центральний логотип -->
+                    <div class="logo-frame">
+                        <div class="hexagon"></div>
+                        <div class="logo-letter">W</div>
+                    </div>
+
+                    <!-- Назва бренду -->
+                    <div class="brand-name">
+                        <div class="main-title">WINIX</div>
+                        <div class="sub-title">Blockchain Ecosystem</div>
+                    </div>
+                </div>
+
+                <!-- Екран завантаження -->
+                <div class="loading-screen">
+                    <div class="loading-header">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-title">Завантаження</div>
+                    </div>
+                    <div class="hash-display" id="hash-display">TX: 0xf8a91b6d3e7c0a87f59a</div>
+                    <div class="loading-progress-container">
+                        <div class="loading-bar-wrapper">
+                            <div class="loading-bar" id="loading-bar"></div>
+                            <div class="loading-glow"></div>
+                        </div>
+                        <div class="loading-info">
+                            <div class="loading-phase" id="loading-phase">Синхронізація з блокчейном</div>
+                            <div class="loading-percentage" id="loading-percentage">10%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Невидимий елемент для ID користувача -->
+                <div id="user-id" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const { useState, useEffect } = React;
+    // Функція для створення частинок
+    function createParticles(count) {
+        const container = document.getElementById('particles-container');
 
-        // Компонент WinixTelegramLoader
-        function WinixTelegramLoader() {
-            const [showLanguageSelector, setShowLanguageSelector] = useState(false);
-            const [selectedLanguage, setSelectedLanguage] = useState('');
-            const [loading, setLoading] = useState(false);
-            const [progress, setProgress] = useState(0);
-            const [animationComplete, setAnimationComplete] = useState(false);
-            const [particles, setParticles] = useState([]);
-            const [chainBlocks, setChainBlocks] = useState([]);
-            const [loadingPhase, setLoadingPhase] = useState(0);
+        for (let i = 0; i < count; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
 
-            // Додаємо стан для адаптивності
-            const [windowSize, setWindowSize] = useState({
-                width: window.innerWidth,
-                height: window.innerHeight
-            });
+            // Випадкові початкові позиції
+            const x = Math.random() * 100;
+            const y = Math.random() * 100;
 
-            // Тексти для різних мов
-            const translations = {
-                uk: {
-                    select: "Оберіть мову",
-                    loading: "Завантаження",
-                    syncing: "Синхронізація з блокчейном",
-                    cryptoInit: "Ініціалізація криптогаманця",
-                    walletSetup: "Налаштування гаманця",
-                    finalizing: "Підключення смарт-контрактів",
-                    welcome: "Вітаємо у WINIX Ecosystem!",
-                    tokens: "Токени",
-                    connecting: "Підключення..."
-                },
-                en: {
-                    select: "Select language",
-                    loading: "Loading",
-                    syncing: "Syncing with blockchain",
-                    cryptoInit: "Initializing crypto wallet",
-                    walletSetup: "Setting up wallet",
-                    finalizing: "Connecting smart contracts",
-                    welcome: "Welcome to WINIX Ecosystem!",
-                    tokens: "Tokens",
-                    connecting: "Connecting..."
-                },
-                ru: {
-                    select: "Выберите язык",
-                    loading: "Загрузка",
-                    syncing: "Синхронизация с блокчейном",
-                    cryptoInit: "Инициализация криптокошелька",
-                    walletSetup: "Настройка кошелька",
-                    finalizing: "Подключение смарт-контрактов",
-                    welcome: "Добро пожаловать в WINIX Ecosystem!",
-                    tokens: "Токены",
-                    connecting: "Подключение..."
-                }
-            };
+            // Випадкові розміри
+            const size = Math.random() * 3 + 1;
 
-            // Функція для адаптивного налаштування елементів
-            const adjustLayout = () => {
-                setWindowSize({
-                    width: window.innerWidth,
-                    height: window.innerHeight
-                });
+            // Випадкові напрямки руху
+            const tx = (Math.random() - 0.5) * 300;
+            const ty = (Math.random() - 0.5) * 300;
 
-                // Тут можна додати додаткову логіку адаптивності
-                console.log(`Розмір вікна змінено: ${window.innerWidth}x${window.innerHeight}`);
-            };
+            // Випадкові тривалості анімації
+            const duration = Math.random() * 30 + 10;
 
-            // Створення частинок та блоків ланцюга при монтуванні
-            useEffect(() => {
-                // Ініціалізація Telegram WebApp з повною інтеграцією
-                if (window.Telegram && window.Telegram.WebApp) {
-                    const tg = window.Telegram.WebApp;
-                    tg.ready();
-                    tg.expand();
+            // Випадкові затримки
+            const delay = Math.random() * 10;
 
-                    // Встановлюємо обробник зміни розміру вікна для Telegram WebApp
-                    tg.onEvent('viewportChanged', adjustLayout);
+            // Випадкові прозорості
+            const opacity = Math.random() * 0.3 + 0.1;
 
-                    // Налаштування стилів для повної інтеграції з Telegram
-                    document.body.style.backgroundColor = 'transparent';
-                    document.documentElement.style.backgroundColor = 'transparent';
+            // Застосовуємо стилі
+            particle.style.left = `${x}%`;
+            particle.style.top = `${y}%`;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            particle.style.setProperty('--tx', `${tx}px`);
+            particle.style.setProperty('--ty', `${ty}px`);
+            particle.style.setProperty('--opacity', opacity);
+            particle.style.animationDuration = `${duration}s`;
+            particle.style.animationDelay = `${delay}s`;
 
-                    // Встановлюємо параметри повної інтеграції
-                    if (tg.platform !== 'unknown') {
-                        console.log("Платформа Telegram: " + tg.platform);
-
-                        // Видалення будь-яких рамок для найбільш нативного вигляду
-                        document.body.style.boxSizing = 'border-box';
-                        document.body.style.padding = '0';
-                        document.body.style.margin = '0';
-                        document.body.style.overflow = 'hidden';
-                    }
-                }
-
-                // Додаємо слухач зміни розміру вікна
-                window.addEventListener('resize', adjustLayout);
-
-                // Генерація частинок
-                const newParticles = [];
-                const particleCount = windowSize.width < 480 ? 30 : 50; // менше частинок на малих екранах
-
-                for (let i = 0; i < particleCount; i++) {
-                    const x = Math.random() * 100;
-                    const y = Math.random() * 100;
-                    const size = Math.random() * 2 + 1;
-                    const duration = Math.random() * 30 + 20;
-                    const delay = Math.random() * 10;
-                    const tx = (Math.random() - 0.5) * 200;
-                    const ty = (Math.random() - 0.5) * 200;
-                    const opacity = Math.random() * 0.3 + 0.1;
-
-                    newParticles.push({
-                        id: i,
-                        x,
-                        y,
-                        size,
-                        duration,
-                        delay,
-                        tx,
-                        ty,
-                        opacity
-                    });
-                }
-                setParticles(newParticles);
-
-                // Генерація блоків ланцюга
-                const newChainBlocks = [];
-                const blockCount = windowSize.width < 480 ? 10 : 15; // менше блоків на малих екранах
-
-                for (let i = 0; i < blockCount; i++) {
-                    const hash = Array.from({ length: 16 }, () =>
-                        Math.floor(Math.random() * 16).toString(16)
-                    ).join('');
-
-                    newChainBlocks.push({
-                        id: i,
-                        hash: `0x${hash}...`,
-                        x: Math.random() * 90 + 5,
-                        y: Math.random() * 90 + 5,
-                        size: Math.random() * 0.3 + 0.7,
-                        opacity: Math.random() * 0.2 + 0.05,
-                        duration: Math.random() * 40 + 60
-                    });
-                }
-                setChainBlocks(newChainBlocks);
-
-                // Запуск анімації та показ селектора мови
-                setTimeout(() => {
-                    setAnimationComplete(true);
-
-                    setTimeout(() => {
-                        const savedLanguage = localStorage.getItem('winixLang');
-
-                        if (savedLanguage) {
-                            setSelectedLanguage(savedLanguage);
-                            startLoading();
-                        } else {
-                            setShowLanguageSelector(true);
-                        }
-                    }, 1000);
-                }, 500);
-
-                // Функція очищення при розмонтуванні
-                return () => {
-                    window.removeEventListener('resize', adjustLayout);
-                    if (window.Telegram && window.Telegram.WebApp) {
-                        const tg = window.Telegram.WebApp;
-                        tg.offEvent('viewportChanged', adjustLayout);
-                    }
-                };
-            }, []);
-
-            // Функція для отримання тексту фази завантаження
-            const getLoadingPhaseText = () => {
-                const phases = ['syncing', 'cryptoInit', 'walletSetup', 'finalizing', 'welcome'];
-                return translations[selectedLanguage || 'uk'][phases[loadingPhase % phases.length]];
-            };
-
-            // Функція для генерації випадкового хешу
-            const generateRandomHash = () => {
-                return Array.from({ length: 16 }, () =>
-                    Math.floor(Math.random() * 16).toString(16)
-                ).join('');
-            };
-
-            // Функція для вибору мови
-            const selectLanguage = (lang) => {
-                localStorage.setItem('winixLang', lang);
-                localStorage.setItem('userLanguage', lang); // Зберігаємо також для інших сторінок
-                setSelectedLanguage(lang);
-                setShowLanguageSelector(false);
-                startLoading();
-            };
-
-            // Функція для запуску завантаження
-            const startLoading = () => {
-                setLoading(true);
-
-                // Змінюємо фазу завантаження кожні 2-3 секунди
-                const phaseInterval = setInterval(() => {
-                    setLoadingPhase(prev => prev + 1);
-                }, 2500);
-
-                // Симулюємо завантаження
-                let currentProgress = 0;
-                const progressInterval = setInterval(() => {
-                    if (currentProgress >= 100) {
-                        clearInterval(progressInterval);
-                        clearInterval(phaseInterval);
-
-                        // Перенаправлення на головну сторінку
-                        setTimeout(() => {
-                            window.location.href = 'original-index.html';
-                        }, 1000);
-                        return;
-                    }
-
-                    // Різні швидкості завантаження для реалістичності
-                    let increment;
-                    if (currentProgress < 30) {
-                        increment = Math.random() * 2 + 0.5; // Повільний початок
-                    } else if (currentProgress < 70) {
-                        increment = Math.random() * 3 + 1; // Середня швидкість
-                    } else if (currentProgress < 90) {
-                        increment = Math.random() * 1 + 0.2; // Сповільнення під кінець
-                    } else {
-                        increment = Math.random() * 0.5 + 0.1; // Дуже повільне закінчення
-                    }
-
-                    currentProgress = Math.min(currentProgress + increment, 100);
-                    setProgress(currentProgress);
-                }, 100);
-            };
-
-            // JSX розмітка з використанням React.createElement
-            return React.createElement('div', { className: 'app-container' }, [
-                // 3D Сцена з кубами
-                React.createElement('div', { className: 'scene', key: 'scene' }, [
-                    // Куб 1
-                    React.createElement('div', { className: 'cube cube-1', key: 'cube-1' }, [
-                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-1-1' }),
-                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-1-2' }),
-                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-1-3' }),
-                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-1-4' }),
-                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-1-5' }),
-                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-1-6' })
-                    ]),
-                    // Куб 2
-                    React.createElement('div', { className: 'cube cube-2', key: 'cube-2' }, [
-                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-2-1' }),
-                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-2-2' }),
-                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-2-3' }),
-                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-2-4' }),
-                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-2-5' }),
-                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-2-6' })
-                    ]),
-                    // Куб 3
-                    React.createElement('div', { className: 'cube cube-3', key: 'cube-3' }, [
-                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-3-1' }),
-                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-3-2' }),
-                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-3-3' }),
-                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-3-4' }),
-                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-3-5' }),
-                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-3-6' })
-                    ]),
-                    // Куб 4
-                    React.createElement('div', { className: 'cube cube-4', key: 'cube-4' }, [
-                        React.createElement('div', { className: 'cube-face cube-face-front', key: 'face-4-1' }),
-                        React.createElement('div', { className: 'cube-face cube-face-back', key: 'face-4-2' }),
-                        React.createElement('div', { className: 'cube-face cube-face-right', key: 'face-4-3' }),
-                        React.createElement('div', { className: 'cube-face cube-face-left', key: 'face-4-4' }),
-                        React.createElement('div', { className: 'cube-face cube-face-top', key: 'face-4-5' }),
-                        React.createElement('div', { className: 'cube-face cube-face-bottom', key: 'face-4-6' })
-                    ])
-                ]),
-
-                // Контейнер для частинок
-                React.createElement('div', { className: 'particles-container', key: 'particles' },
-                    particles.map(particle =>
-                        React.createElement('div', {
-                            key: `particle-${particle.id}`,
-                            className: 'particle',
-                            style: {
-                                left: `${particle.x}%`,
-                                top: `${particle.y}%`,
-                                width: `${particle.size}px`,
-                                height: `${particle.size}px`,
-                                animationDuration: `${particle.duration}s`,
-                                animationDelay: `${particle.delay}s`,
-                                '--tx': `${particle.tx}px`,
-                                '--ty': `${particle.ty}px`,
-                                '--opacity': particle.opacity
-                            }
-                        })
-                    )
-                ),
-
-                // Фон сітки
-                React.createElement('div', { className: 'grid-background', key: 'grid' }),
-
-                // Радіальний градієнт
-                React.createElement('div', { className: 'radial-gradient', key: 'radial' }),
-
-                // Пульсуючі хвилі
-                React.createElement('div', { className: 'pulse-waves', key: 'waves' }, [
-                    React.createElement('div', { className: 'wave wave-1', key: 'wave-1' }),
-                    React.createElement('div', { className: 'wave wave-2', key: 'wave-2' }),
-                    React.createElement('div', { className: 'wave wave-3', key: 'wave-3' })
-                ]),
-
-                // Блоки ланцюга
-                React.createElement('div', { className: 'blockchain-blocks', key: 'blockchain' },
-                    chainBlocks.map(block =>
-                        React.createElement('div', {
-                            key: `block-${block.id}`,
-                            className: 'chain-block',
-                            style: {
-                                left: `${block.x}%`,
-                                top: `${block.y}%`,
-                                opacity: block.opacity,
-                                transform: `scale(${block.size})`,
-                                animationDuration: `${block.duration}s`
-                            }
-                        }, block.hash)
-                    )
-                ),
-
-                // Основний контент
-                React.createElement('div', { className: 'content-container', key: 'content' }, [
-                    // Логотип
-                    React.createElement('div', { className: 'logo-container', key: 'logo' }, [
-                        // Орбіти
-                        React.createElement('div', { className: 'logo-orbit orbit-1', key: 'orbit-1' },
-                            React.createElement('div', { className: 'orbit-dot', key: 'dot-1' })
-                        ),
-                        React.createElement('div', { className: 'logo-orbit orbit-2', key: 'orbit-2' },
-                            React.createElement('div', { className: 'orbit-dot', key: 'dot-2' })
-                        ),
-                        React.createElement('div', { className: 'logo-orbit orbit-3', key: 'orbit-3' },
-                            React.createElement('div', { className: 'orbit-dot', key: 'dot-3' })
-                        ),
-
-                        // Центральний логотип
-                        React.createElement('div', { className: 'logo-frame', key: 'frame' }, [
-                            React.createElement('div', { className: 'hexagon', key: 'hex' }),
-                            React.createElement('div', { className: 'logo-letter', key: 'letter' }, 'W')
-                        ]),
-
-                        // Назва бренду
-                        React.createElement('div', { className: 'brand-name', key: 'brand' }, [
-                            React.createElement('div', { className: 'main-title', key: 'title' }, 'WINIX'),
-                            React.createElement('div', { className: 'sub-title', key: 'subtitle' }, 'Blockchain Ecosystem')
-                        ])
-                    ]),
-
-                    // Селектор мови
-                    showLanguageSelector &&
-                        React.createElement('div', { className: 'language-selector', key: 'lang-selector' }, [
-                            React.createElement('div', { className: 'selector-title', key: 'title' },
-                                translations[selectedLanguage || 'uk'].select
-                            ),
-                            React.createElement('div', { className: 'language-options', key: 'options' }, [
-                                React.createElement('div', {
-                                    className: `language-option ${selectedLanguage === 'uk' ? 'active' : ''}`,
-                                    onClick: () => selectLanguage('uk'),
-                                    key: 'uk'
-                                }, [
-                                    React.createElement('img', {
-                                        src: 'assets/ua_flag.jpg',
-                                        alt: 'Українська',
-                                        className: 'flag-icon',
-                                        key: 'flag-uk'
-                                    }),
-                                    React.createElement('div', { className: 'language-name', key: 'name-uk' }, 'Українська')
-                                ]),
-                                React.createElement('div', {
-                                    className: `language-option ${selectedLanguage === 'en' ? 'active' : ''}`,
-                                    onClick: () => selectLanguage('en'),
-                                    key: 'en'
-                                }, [
-                                    React.createElement('img', {
-                                        src: 'assets/en_flag.jpg',
-                                        alt: 'English',
-                                        className: 'flag-icon',
-                                        key: 'flag-en'
-                                    }),
-                                    React.createElement('div', { className: 'language-name', key: 'name-en' }, 'English')
-                                ]),
-                                React.createElement('div', {
-                                    className: `language-option ${selectedLanguage === 'ru' ? 'active' : ''}`,
-                                    onClick: () => selectLanguage('ru'),
-                                    key: 'ru'
-                                }, [
-                                    React.createElement('img', {
-                                        src: 'assets/ru_flag.jpg',
-                                        alt: 'Русский',
-                                        className: 'flag-icon',
-                                        key: 'flag-ru'
-                                    }),
-                                    React.createElement('div', { className: 'language-name', key: 'name-ru' }, 'Русский')
-                                ])
-                            ])
-                        ]),
-
-                    // Екран завантаження
-                    loading &&
-                        React.createElement('div', { className: 'loading-screen', key: 'loading' }, [
-                            React.createElement('div', { className: 'loading-header', key: 'header' }, [
-                                React.createElement('div', { className: 'loading-spinner', key: 'spinner' }),
-                                React.createElement('div', { className: 'loading-title', key: 'title' },
-                                    translations[selectedLanguage || 'uk'].loading
-                                )
-                            ]),
-                            React.createElement('div', { className: 'hash-display', key: 'hash' },
-                                `TX: 0x${generateRandomHash()}`
-                            ),
-                            React.createElement('div', { className: 'loading-progress-container', key: 'progress-container' }, [
-                                React.createElement('div', { className: 'loading-bar-wrapper', key: 'bar-wrapper' }, [
-                                    React.createElement('div', {
-                                        className: 'loading-bar',
-                                        style: { width: `${progress}%` },
-                                        key: 'bar'
-                                    }),
-                                    React.createElement('div', {
-                                        className: 'loading-glow',
-                                        style: { left: `${progress}%` },
-                                        key: 'glow'
-                                    })
-                                ]),
-                                React.createElement('div', { className: 'loading-info', key: 'info' }, [
-                                    React.createElement('div', { className: 'loading-phase', key: 'phase' },
-                                        getLoadingPhaseText()
-                                    ),
-                                    React.createElement('div', { className: 'loading-percentage', key: 'percentage' },
-                                        `${Math.round(progress)}%`
-                                    )
-                                ])
-                            ])
-                        ])
-                ])
-            ]);
+            container.appendChild(particle);
         }
+    }
 
-        // Рендеринг компонента
-        ReactDOM.render(
-            React.createElement(WinixTelegramLoader),
-            document.getElementById('root')
-        );
-    </script>
-<!-- Додайте цей скрипт в кінці index.html перед закриваючим тегом </body> -->
+    // Функція для генерації випадкового хешу
+    function generateRandomHash() {
+        return Array.from({ length: 16 }, () =>
+            Math.floor(Math.random() * 16).toString(16)
+        ).join('');
+    }
 
-<script>
-/**
- * Скрипт для інтеграції екрана завантаження з Supabase
- */
-(function() {
-    // Функція, що виконується після повної ініціалізації Telegram WebApp
-    function onTelegramWebAppReady() {
-        console.log("📱 Telegram WebApp готовий, виконуємо авторизацію");
-
-        // Отримання даних користувача з Telegram WebApp
-        const tg = window.Telegram.WebApp;
-        const userData = tg.initDataUnsafe?.user;
-
-        if (!userData) {
-            console.error("❌ Не вдалося отримати дані користувача з Telegram");
-            setTimeout(() => {
-                window.location.href = 'original-index.html';
-            }, 3000);
-            return;
+    // Функція для оновлення хешу
+    function updateHash() {
+        const hashDisplay = document.getElementById('hash-display');
+        if (hashDisplay) {
+            hashDisplay.textContent = `TX: 0x${generateRandomHash()}`;
         }
-
-        console.log("📱 Дані користувача отримано:", userData);
-
-        // Процес авторизації користувача на сервері
-        fetch('/api/auth', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(userData)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP помилка! Статус: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log("✅ Авторизацію успішно завершено:", data);
-
-            // Показуємо прогрес завантаження
-            updateProgressBar(30, "Синхронізація з блокчейном");
-            setTimeout(() => {
-                updateProgressBar(60, "Ініціалізація криптогаманця");
-                setTimeout(() => {
-                    updateProgressBar(85, "Налаштування гаманця");
-                    setTimeout(() => {
-                        updateProgressBar(100, "Підключення смарт-контрактів");
-                        // Після завершення переходимо на головну сторінку
-                        setTimeout(() => {
-                            window.location.href = 'original-index.html';
-                        }, 1000);
-                    }, 800);
-                }, 700);
-            }, 600);
-        })
-        .catch(error => {
-            console.error("❌ Помилка авторизації:", error);
-            // Затримка перед переходом на головну сторінку в разі помилки
-            setTimeout(() => {
-                window.location.href = 'original-index.html';
-            }, 2000);
-        });
     }
 
     // Функція для оновлення прогрес-бару
     function updateProgressBar(progress, phaseText) {
-        const progressBar = document.querySelector('.loading-bar');
-        const percentageElement = document.querySelector('.loading-percentage');
-        const phaseElement = document.querySelector('.loading-phase');
+        const progressBar = document.getElementById('loading-bar');
+        const percentageElement = document.getElementById('loading-percentage');
+        const phaseElement = document.getElementById('loading-phase');
 
         if (progressBar) {
             progressBar.style.width = `${progress}%`;
@@ -1365,26 +825,175 @@
         if (phaseElement && phaseText) {
             phaseElement.textContent = phaseText;
         }
+
+        // Оновлюємо хеш при кожному оновленні прогресу
+        updateHash();
     }
 
-    // Викликаємо після завантаження DOM
-    document.addEventListener('DOMContentLoaded', function() {
-        // Перевіряємо, чи завантажено Telegram WebApp API
-        if (window.Telegram && window.Telegram.WebApp) {
-            // Ініціалізуємо Telegram WebApp
-            window.Telegram.WebApp.ready();
+    // Функція для відправлення даних для дебагу
+    function sendDebugData(data) {
+        console.log("📤 Відправлення дебаг-даних:", data);
 
-            // Запускаємо процес авторизації
-            onTelegramWebAppReady();
+        fetch('/api/debug', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            console.log("✅ Дебаг-дані успішно відправлено");
+            return response.json();
+        })
+        .catch(error => console.error("❌ Помилка відправлення дебаг-даних:", error));
+    }
+
+    // Ініціалізація Telegram WebApp та авторизація
+    function initTelegramAuth() {
+        console.log("📱 Ініціалізація Telegram WebApp...");
+
+        // Перевірка наявності Telegram WebApp API
+        if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+
+            // Логуємо ініціалізовані дані
+            sendDebugData({
+                type: "init_data",
+                webAppData: tg.initData || "not available",
+                initDataUnsafe: tg.initDataUnsafe || "not available",
+                timestamp: new Date().toISOString()
+            });
+
+            // Отримання даних користувача
+            const userData = tg.initDataUnsafe?.user;
+
+            if (userData && userData.id) {
+                console.log("✅ Отримано дані користувача:", userData);
+
+                // Зберігаємо ID користувача
+                localStorage.setItem('telegram_user_id', userData.id);
+
+                // Оновлюємо елемент з ID користувача
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = userData.id;
+                }
+
+                // Логуємо отримані дані
+                sendDebugData({
+                    type: "user_data",
+                    userData: userData,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Авторизуємо користувача на сервері
+                fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("✅ Авторизація успішна:", data);
+
+                    // Логуємо успішну авторизацію
+                    sendDebugData({
+                        type: "auth_success",
+                        response: data,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    // Продовжуємо процес завантаження
+                    startLoading();
+                })
+                .catch(error => {
+                    console.error("❌ Помилка авторизації:", error);
+
+                    // Логуємо помилку
+                    sendDebugData({
+                        type: "auth_error",
+                        error: error.toString(),
+                        timestamp: new Date().toISOString()
+                    });
+
+                    // Продовжуємо процес завантаження навіть при помилці
+                    startLoading();
+                });
+            } else {
+                console.error("❌ Не вдалося отримати дані користувача з Telegram WebApp");
+
+                // Логуємо помилку
+                sendDebugData({
+                    type: "user_data_error",
+                    webAppData: tg.initDataUnsafe || "not available",
+                    timestamp: new Date().toISOString()
+                });
+
+                // Починаємо процес завантаження з затримкою
+                setTimeout(startLoading, 1000);
+            }
         } else {
             console.error("❌ Telegram WebApp API не знайдено");
-            // Після затримки переходимо на головну сторінку
-            setTimeout(() => {
-                window.location.href = 'original-index.html';
-            }, 3000);
+
+            // Логуємо помилку
+            sendDebugData({
+                type: "telegram_api_error",
+                navigator: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            });
+
+            // Починаємо процес завантаження з затримкою
+            setTimeout(startLoading, 1000);
         }
+    }
+
+    // Функція імітації процесу завантаження
+    function startLoading() {
+        console.log("🔄 Початок процесу завантаження");
+
+        // Початковий прогрес
+        updateProgressBar(10, "Синхронізація з блокчейном");
+
+        // Імітуємо прогрес завантаження
+        setTimeout(() => {
+            updateProgressBar(30, "Синхронізація з блокчейном");
+            setTimeout(() => {
+                updateProgressBar(60, "Ініціалізація криптогаманця");
+                setTimeout(() => {
+                    updateProgressBar(85, "Налаштування гаманця");
+                    setTimeout(() => {
+                        updateProgressBar(100, "Підключення смарт-контрактів");
+                        setTimeout(() => {
+                            console.log("✅ Завантаження завершено, перехід на головну сторінку");
+                            window.location.href = 'original-index.html';
+                        }, 1000);
+                    }, 800);
+                }, 700);
+            }, 600);
+        }, 500);
+    }
+
+    // Ініціалізація при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("🚀 Сторінка завантажена, початок ініціалізації");
+
+        // Створюємо частинки
+        const particleCount = window.innerWidth < 480 ? 30 : 50;
+        createParticles(particleCount);
+
+        // Запускаємо оновлення хешу кожні 4 секунди
+        setInterval(updateHash, 4000);
+
+        // Ініціалізуємо Telegram WebApp
+        initTelegramAuth();
     });
-})();
-</script>
+    </script>
 </body>
 </html>
