@@ -304,5 +304,10 @@
             });
     });
 
+    if (!userData || !userData.id || userData.id === 12345678) {
+    console.error("❌ AUTH: Отримано некоректний або тестовий telegram_id");
+    return Promise.reject(new Error("Invalid user data received"));
+}
+
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();
