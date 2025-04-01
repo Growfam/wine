@@ -327,6 +327,91 @@
     }
 
     /**
+ * Виконання API-запиту з обробкою помилок
+ * @param {string} endpoint URL API-endpoint
+ * @param {Object} options Параметри запиту
+ * @returns {Promise<Object>} Результат запиту
+ */
+async function apiRequest(endpoint, options = {}) {
+    try {
+        const userId = localStorage.getItem('telegram_user_id');
+
+        // Додаємо заголовок з ID користувача, якщо він є
+        if (userId) {
+            options.headers = options.headers || {};
+            options.headers['X-Telegram-User-Id'] = userId;
+        }
+
+        const response = await fetch(endpoint, options);
+
+        if (!response.ok) {
+            throw new Error(`HTTP помилка! Статус: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        log('error', `Помилка API-запиту на ${endpoint}`, error);
+        throw error;
+    }
+}
+
+/**
+ * Синхронізація даних користувача з сервером
+ * @returns {Promise<boolean>} Успішність синхронізації
+ */
+async function syncUserData() {
+    try {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо синхронізувати дані: ID користувача не знайдено');
+            return false;
+        }
+
+        log('info', 'Початок синхронізації даних з сервером');
+
+        const data = await apiRequest(`/api/user/${userId}`);
+
+        if (data.status === 'success' && data.data) {
+            // Оновлюємо дані балансу
+            if (data.data.balance !== undefined) {
+                safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.balance.toString());
+            }
+
+            if (data.data.coins !== undefined) {
+                safeSetItem(STORAGE_KEYS.USER_COINS, data.data.coins.toString());
+            }
+
+            // Оновлюємо дані стейкінгу, якщо вони доступні
+            if (data.data.staking) {
+                safeSetItem(STORAGE_KEYS.STAKING_DATA, data.data.staking);
+            }
+
+            // Оновлюємо транзакції, якщо вони доступні
+            if (Array.isArray(data.data.transactions)) {
+                safeSetItem(STORAGE_KEYS.TRANSACTIONS, data.data.transactions);
+            }
+
+            log('info', 'Синхронізація даних з сервером успішна');
+            safeSetItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
+
+            // Оновлюємо відображення, якщо доступні відповідні функції
+            if (window.WinixCore && window.WinixCore.UI) {
+                window.WinixCore.UI.updateBalanceDisplay();
+                window.WinixCore.UI.updateStakingDisplay();
+            }
+
+            return true;
+        } else {
+            log('error', 'Помилка отримання даних з сервера', data);
+            return false;
+        }
+    } catch (error) {
+        log('error', 'Помилка синхронізації даних з сервером', error);
+        return false;
+    }
+}
+
+    /**
      * Генерація події системи
      * @param {string} eventName Назва події
      * @param {any} data Дані події
@@ -444,813 +529,1260 @@
     // --------------- ОСНОВНА СИСТЕМА ---------------
 
     /**
-     * Створюємо обгортку для роботи з балансом
+ * Створюємо обгортку для роботи з балансом
+ */
+const BalanceManager = {
+    /**
+     * Отримання балансу WINIX
+     * @returns {number} Поточний баланс
      */
-    const BalanceManager = {
-        /**
-         * Отримання балансу WINIX
-         * @returns {number} Поточний баланс
-         */
-        getTokens: function() {
-            const balance = parseFloat(safeGetItem(STORAGE_KEYS.USER_TOKENS, '0'));
-            return isNaN(balance) ? 0 : balance;
-        },
+    getTokens: function() {
+        // Отримуємо дані з localStorage для швидкої відповіді
+        const balance = parseFloat(safeGetItem(STORAGE_KEYS.USER_TOKENS, '0'));
 
-        /**
-         * Отримання балансу жетонів
-         * @returns {number} Поточний баланс жетонів
-         */
-        getCoins: function() {
-            const coins = parseFloat(safeGetItem(STORAGE_KEYS.USER_COINS, '0'));
-            return isNaN(coins) ? 0 : coins;
-        },
+        // Запускаємо асинхронну синхронізацію з сервером, без очікування результату
+        this._syncBalanceFromServer();
 
-        /**
-         * Встановлення нового балансу WINIX
-         * @param {number} amount Нова сума балансу
-         * @returns {boolean} Успішність операції
-         */
-        setTokens: function(amount) {
-            if (_isUpdatingBalance) {
-                log('warn', 'Спроба встановити баланс під час іншого оновлення');
+        return isNaN(balance) ? 0 : balance;
+    },
+
+    /**
+     * Отримання балансу жетонів
+     * @returns {number} Поточний баланс жетонів
+     */
+    getCoins: function() {
+        const coins = parseFloat(safeGetItem(STORAGE_KEYS.USER_COINS, '0'));
+        return isNaN(coins) ? 0 : coins;
+    },
+
+    /**
+     * Синхронізація балансу з сервером у фоновому режимі
+     * @private
+     */
+    _syncBalanceFromServer: function() {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) return;
+
+        apiRequest(`/api/user/${userId}/balance`)
+            .then(data => {
+                if (data.status === 'success' && data.data && data.data.balance !== undefined) {
+                    // Оновлюємо localStorage лише якщо дані отримано успішно
+                    safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.balance.toString());
+
+                    // Оновлюємо відображення балансу
+                    if (window.WinixCore && window.WinixCore.UI) {
+                        window.WinixCore.UI.updateBalanceDisplay();
+                    }
+                }
+            })
+            .catch(error => {
+                log('error', 'Помилка синхронізації балансу з сервером', error);
+            });
+    },
+
+    /**
+     * Встановлення нового балансу WINIX
+     * @param {number} amount Нова сума балансу
+     * @returns {boolean} Успішність операції
+     */
+    setTokens: function(amount) {
+        if (_isUpdatingBalance) {
+            log('warn', 'Спроба встановити баланс під час іншого оновлення');
+            return false;
+        }
+
+        _isUpdatingBalance = true;
+
+        try {
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount < 0) {
+                log('error', 'Спроба встановити некоректний баланс', amount);
                 return false;
             }
 
-            _isUpdatingBalance = true;
+            const oldBalance = this.getTokens();
 
-            try {
-                amount = parseFloat(amount);
+            // Зберігаємо новий баланс локально
+            safeSetItem(STORAGE_KEYS.USER_TOKENS, amount.toString());
 
-                if (isNaN(amount) || amount < 0) {
-                    log('error', 'Спроба встановити некоректний баланс', amount);
-                    return false;
-                }
-
-                const oldBalance = this.getTokens();
-
-                // Зберігаємо новий баланс
-                safeSetItem(STORAGE_KEYS.USER_TOKENS, amount.toString());
-
-                // Генеруємо подію зміни балансу
-                emitEvent('balanceChanged', {
-                    oldBalance,
-                    newBalance: amount,
-                    diff: amount - oldBalance
+            // Відправляємо дані на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ balance: amount })
+                }).catch(error => {
+                    log('error', 'Помилка оновлення балансу на сервері', error);
                 });
-
-                log('info', `Баланс встановлено: ${amount} WINIX`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка встановлення балансу', e);
-                return false;
-            } finally {
-                _isUpdatingBalance = false;
             }
-        },
 
-        /**
-         * Встановлення балансу жетонів
-         * @param {number} amount Нова кількість жетонів
-         * @returns {boolean} Успішність операції
-         */
-        setCoins: function(amount) {
-            try {
-                amount = parseFloat(amount);
+            // Генеруємо подію зміни балансу
+            emitEvent('balanceChanged', {
+                oldBalance,
+                newBalance: amount,
+                diff: amount - oldBalance
+            });
 
-                if (isNaN(amount) || amount < 0) {
-                    log('error', 'Спроба встановити некоректну кількість жетонів', amount);
-                    return false;
-                }
+            log('info', `Баланс встановлено: ${amount} WINIX`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка встановлення балансу', e);
+            return false;
+        } finally {
+            _isUpdatingBalance = false;
+        }
+    },
 
-                const oldCoins = this.getCoins();
+    /**
+     * Встановлення балансу жетонів
+     * @param {number} amount Нова кількість жетонів
+     * @returns {boolean} Успішність операції
+     */
+    setCoins: function(amount) {
+        try {
+            amount = parseFloat(amount);
 
-                // Зберігаємо нову кількість жетонів
-                safeSetItem(STORAGE_KEYS.USER_COINS, amount.toString());
-
-                log('info', `Баланс жетонів встановлено: ${amount}`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка встановлення балансу жетонів', e);
-                return false;
-            }
-        },
-
-        /**
-         * Додавання токенів до балансу
-         * @param {number} amount Кількість токенів для додавання
-         * @param {string} description Опис транзакції
-         * @returns {boolean} Успішність операції
-         */
-        addTokens: function(amount, description = 'Поповнення балансу') {
-            if (_isUpdatingBalance) {
-                log('warn', 'Спроба додати токени під час іншого оновлення');
+            if (isNaN(amount) || amount < 0) {
+                log('error', 'Спроба встановити некоректну кількість жетонів', amount);
                 return false;
             }
 
-            _isUpdatingBalance = true;
+            const oldCoins = this.getCoins();
 
-            try {
-                amount = parseFloat(amount);
+            // Зберігаємо нову кількість жетонів локально
+            safeSetItem(STORAGE_KEYS.USER_COINS, amount.toString());
 
-                if (isNaN(amount) || amount <= 0) {
-                    log('error', 'Спроба додати некоректну кількість токенів', amount);
-                    return false;
-                }
+            // Відправляємо дані на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/coins`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ coins: amount })
+                }).catch(error => {
+                    log('error', 'Помилка оновлення жетонів на сервері', error);
+                });
+            }
 
-                const currentBalance = this.getTokens();
-                const newBalance = currentBalance + amount;
+            log('info', `Баланс жетонів встановлено: ${amount}`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка встановлення балансу жетонів', e);
+            return false;
+        }
+    },
 
-                // Зберігаємо новий баланс
-                safeSetItem(STORAGE_KEYS.USER_TOKENS, newBalance.toString());
+    /**
+     * Додавання токенів до балансу
+     * @param {number} amount Кількість токенів для додавання
+     * @param {string} description Опис транзакції
+     * @returns {boolean} Успішність операції
+     */
+    addTokens: function(amount, description = 'Поповнення балансу') {
+        if (_isUpdatingBalance) {
+            log('warn', 'Спроба додати токени під час іншого оновлення');
+            return false;
+        }
 
-                // Додаємо транзакцію
+        _isUpdatingBalance = true;
+
+        try {
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount <= 0) {
+                log('error', 'Спроба додати некоректну кількість токенів', amount);
+                return false;
+            }
+
+            const currentBalance = this.getTokens();
+            const newBalance = currentBalance + amount;
+
+            // Зберігаємо новий баланс локально
+            safeSetItem(STORAGE_KEYS.USER_TOKENS, newBalance.toString());
+
+            // Відправляємо транзакцію на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/transaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: TRANSACTION_TYPES.RECEIVE,
+                        amount: amount,
+                        description: description
+                    })
+                }).then(data => {
+                    if (data.status === 'success' && data.data && data.data.transaction) {
+                        // Якщо сервер повернув нову транзакцію, використовуємо її
+                        TransactionManager._addTransactionToLocalList(data.data.transaction);
+                    } else {
+                        // Інакше додаємо транзакцію локально
+                        TransactionManager.addTransaction(
+                            TRANSACTION_TYPES.RECEIVE,
+                            amount,
+                            description
+                        );
+                    }
+                }).catch(error => {
+                    log('error', 'Помилка відправлення транзакції на сервер', error);
+
+                    // При помилці додаємо транзакцію локально
+                    TransactionManager.addTransaction(
+                        TRANSACTION_TYPES.RECEIVE,
+                        amount,
+                        description
+                    );
+                });
+            } else {
+                // Додаємо транзакцію локально, якщо немає ID користувача
                 TransactionManager.addTransaction(
                     TRANSACTION_TYPES.RECEIVE,
                     amount,
                     description
                 );
+            }
 
-                // Генеруємо подію зміни балансу
-                emitEvent('balanceChanged', {
-                    oldBalance: currentBalance,
-                    newBalance,
-                    diff: amount
+            // Генеруємо подію зміни балансу
+            emitEvent('balanceChanged', {
+                oldBalance: currentBalance,
+                newBalance,
+                diff: amount
+            });
+
+            log('info', `Додано ${amount} WINIX до балансу. Новий баланс: ${newBalance}`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання токенів', e);
+            return false;
+        } finally {
+            _isUpdatingBalance = false;
+        }
+    },
+
+    /**
+     * Зняття токенів з балансу
+     * @param {number} amount Кількість токенів для зняття
+     * @param {string} description Опис транзакції
+     * @returns {boolean} Успішність операції
+     */
+    subtractTokens: function(amount, description = 'Зняття коштів') {
+        if (_isUpdatingBalance) {
+            log('warn', 'Спроба зняти токени під час іншого оновлення');
+            return false;
+        }
+
+        _isUpdatingBalance = true;
+
+        try {
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount <= 0) {
+                log('error', 'Спроба зняти некоректну кількість токенів', amount);
+                return false;
+            }
+
+            const currentBalance = this.getTokens();
+
+            // Перевіряємо, чи достатньо коштів
+            if (currentBalance < amount) {
+                log('error', 'Недостатньо коштів для зняття', {
+                    balance: currentBalance,
+                    amount
                 });
-
-                log('info', `Додано ${amount} WINIX до балансу. Новий баланс: ${newBalance}`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка додавання токенів', e);
-                return false;
-            } finally {
-                _isUpdatingBalance = false;
-            }
-        },
-
-        /**
-         * Зняття токенів з балансу
-         * @param {number} amount Кількість токенів для зняття
-         * @param {string} description Опис транзакції
-         * @returns {boolean} Успішність операції
-         */
-        subtractTokens: function(amount, description = 'Зняття коштів') {
-            if (_isUpdatingBalance) {
-                log('warn', 'Спроба зняти токени під час іншого оновлення');
                 return false;
             }
 
-            _isUpdatingBalance = true;
+            const newBalance = currentBalance - amount;
 
-            try {
-                amount = parseFloat(amount);
+            // Зберігаємо новий баланс локально
+            safeSetItem(STORAGE_KEYS.USER_TOKENS, newBalance.toString());
 
-                if (isNaN(amount) || amount <= 0) {
-                    log('error', 'Спроба зняти некоректну кількість токенів', amount);
-                    return false;
-                }
+            // Відправляємо транзакцію на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/transaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: TRANSACTION_TYPES.SEND,
+                        amount: amount,
+                        description: description
+                    })
+                }).then(data => {
+                    if (data.status === 'success' && data.data && data.data.transaction) {
+                        // Якщо сервер повернув нову транзакцію, використовуємо її
+                        TransactionManager._addTransactionToLocalList(data.data.transaction);
+                    } else {
+                        // Інакше додаємо транзакцію локально
+                        TransactionManager.addTransaction(
+                            TRANSACTION_TYPES.SEND,
+                            amount,
+                            description
+                        );
+                    }
+                }).catch(error => {
+                    log('error', 'Помилка відправлення транзакції на сервер', error);
 
-                const currentBalance = this.getTokens();
-
-                // Перевіряємо, чи достатньо коштів
-                if (currentBalance < amount) {
-                    log('error', 'Недостатньо коштів для зняття', {
-                        balance: currentBalance,
-                        amount
-                    });
-                    return false;
-                }
-
-                const newBalance = currentBalance - amount;
-
-                // Зберігаємо новий баланс
-                safeSetItem(STORAGE_KEYS.USER_TOKENS, newBalance.toString());
-
-                // Додаємо транзакцію
+                    // При помилці додаємо транзакцію локально
+                    TransactionManager.addTransaction(
+                        TRANSACTION_TYPES.SEND,
+                        amount,
+                        description
+                    );
+                });
+            } else {
+                // Додаємо транзакцію локально, якщо немає ID користувача
                 TransactionManager.addTransaction(
                     TRANSACTION_TYPES.SEND,
                     amount,
                     description
                 );
-
-                // Генеруємо подію зміни балансу
-                emitEvent('balanceChanged', {
-                    oldBalance: currentBalance,
-                    newBalance,
-                    diff: -amount
-                });
-
-                log('info', `Знято ${amount} WINIX з балансу. Новий баланс: ${newBalance}`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка зняття токенів', e);
-                return false;
-            } finally {
-                _isUpdatingBalance = false;
             }
-        },
 
-        /**
-         * Додавання жетонів до балансу
-         * @param {number} amount Кількість жетонів для додавання
-         * @returns {boolean} Успішність операції
-         */
-        addCoins: function(amount) {
-            try {
-                amount = parseFloat(amount);
+            // Генеруємо подію зміни балансу
+            emitEvent('balanceChanged', {
+                oldBalance: currentBalance,
+                newBalance,
+                diff: -amount
+            });
 
-                if (isNaN(amount) || amount <= 0) {
-                    log('error', 'Спроба додати некоректну кількість жетонів', amount);
-                    return false;
-                }
-
-                const currentCoins = this.getCoins();
-                const newCoins = currentCoins + amount;
-
-                // Зберігаємо нову кількість жетонів
-                safeSetItem(STORAGE_KEYS.USER_COINS, newCoins.toString());
-
-                log('info', `Додано ${amount} жетонів. Новий баланс: ${newCoins}`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка додавання жетонів', e);
-                return false;
-            }
-        },
-
-        /**
-         * Зняття жетонів з балансу
-         * @param {number} amount Кількість жетонів для зняття
-         * @returns {boolean} Успішність операції
-         */
-        subtractCoins: function(amount) {
-            try {
-                amount = parseFloat(amount);
-
-                if (isNaN(amount) || amount <= 0) {
-                    log('error', 'Спроба зняти некоректну кількість жетонів', amount);
-                    return false;
-                }
-
-                const currentCoins = this.getCoins();
-
-                // Перевіряємо, чи достатньо жетонів
-                if (currentCoins < amount) {
-                    log('error', 'Недостатньо жетонів для зняття', {
-                        coins: currentCoins,
-                        amount
-                    });
-                    return false;
-                }
-
-                const newCoins = currentCoins - amount;
-
-                // Зберігаємо нову кількість жетонів
-                safeSetItem(STORAGE_KEYS.USER_COINS, newCoins.toString());
-
-                log('info', `Знято ${amount} жетонів. Новий баланс: ${newCoins}`);
-                return true;
-            } catch (e) {
-                log('error', 'Помилка зняття жетонів', e);
-                return false;
-            }
+            log('info', `Знято ${amount} WINIX з балансу. Новий баланс: ${newBalance}`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка зняття токенів', e);
+            return false;
+        } finally {
+            _isUpdatingBalance = false;
         }
-    };
+    },
+
+    /**
+     * Додавання жетонів до балансу
+     * @param {number} amount Кількість жетонів для додавання
+     * @returns {boolean} Успішність операції
+     */
+    addCoins: function(amount) {
+        try {
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount <= 0) {
+                log('error', 'Спроба додати некоректну кількість жетонів', amount);
+                return false;
+            }
+
+            const currentCoins = this.getCoins();
+            const newCoins = currentCoins + amount;
+
+            // Зберігаємо нову кількість жетонів локально
+            safeSetItem(STORAGE_KEYS.USER_COINS, newCoins.toString());
+
+            // Відправляємо дані на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/coins/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: amount })
+                }).catch(error => {
+                    log('error', 'Помилка додавання жетонів на сервері', error);
+                });
+            }
+
+            log('info', `Додано ${amount} жетонів. Новий баланс: ${newCoins}`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання жетонів', e);
+            return false;
+        }
+    },
+
+    /**
+     * Зняття жетонів з балансу
+     * @param {number} amount Кількість жетонів для зняття
+     * @returns {boolean} Успішність операції
+     */
+    subtractCoins: function(amount) {
+        try {
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount <= 0) {
+                log('error', 'Спроба зняти некоректну кількість жетонів', amount);
+                return false;
+            }
+
+            const currentCoins = this.getCoins();
+
+            // Перевіряємо, чи достатньо жетонів
+            if (currentCoins < amount) {
+                log('error', 'Недостатньо жетонів для зняття', {
+                    coins: currentCoins,
+                    amount
+                });
+                return false;
+            }
+
+            const newCoins = currentCoins - amount;
+
+            // Зберігаємо нову кількість жетонів локально
+            safeSetItem(STORAGE_KEYS.USER_COINS, newCoins.toString());
+
+            // Відправляємо дані на сервер
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                apiRequest(`/api/user/${userId}/coins/subtract`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: amount })
+                }).catch(error => {
+                    log('error', 'Помилка зняття жетонів на сервері', error);
+                });
+            }
+
+            log('info', `Знято ${amount} жетонів. Новий баланс: ${newCoins}`);
+            return true;
+        } catch (e) {
+            log('error', 'Помилка зняття жетонів', e);
+            return false;
+        }
+    }
+};
 
    /**
  * Створюємо обгортку для роботи зі стейкінгом
  */
 const StakingManager = {
-       /**
-        * Перевірка наявності активного стейкінгу
-        * @returns {boolean} Чи є активний стейкінг
-        */
-       hasActiveStaking: function () {
-           const stakingData = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
-
-           // Додаємо логування для діагностики
-           log('info', 'Перевірка наявності стейкінгу', stakingData);
-
-           if (!stakingData) {
-               return false;
-           }
-
-           // Перевіряємо прапорець hasActiveStaking та додатково перевіряємо суму стейкінгу
-           return stakingData.hasActiveStaking === true && stakingData.stakingAmount > 0;
-       },
-
-       /**
-        * Отримання даних активного стейкінгу
-        * @returns {Object|null} Дані стейкінгу або null, якщо стейкінгу немає
-        */
-       getStakingData: function () {
-           const data = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
-
-           // Додаємо логування для діагностики
-           log('info', 'Отримання даних стейкінгу', data);
-
-           // Якщо дані відсутні або структура неправильна, повертаємо значення за замовчуванням
-           if (!data || typeof data !== 'object') {
-               return {
-                   hasActiveStaking: false,
-                   stakingAmount: 0,
-                   rewardPercent: 0,
-                   expectedReward: 0,
-                   remainingDays: 0
-               };
-           }
-
-           // Глибока копія об'єкта, щоб уникнути проблем з посиланнями
-           const result = JSON.parse(JSON.stringify(data));
-
-           // Перевіряємо, чи структура даних містить усі необхідні поля
-           if (result.hasActiveStaking === undefined) {
-               result.hasActiveStaking = false;
-           }
-
-           if (result.stakingAmount === undefined || isNaN(parseFloat(result.stakingAmount))) {
-               result.stakingAmount = 0;
-           } else {
-               // Переконуємось, що це число
-               result.stakingAmount = parseFloat(result.stakingAmount);
-           }
-
-           // Перевіряємо статус стейкінгу
-           if (result.hasActiveStaking && result.endDate) {
-               const endDate = new Date(result.endDate);
-               const now = new Date();
-
-               // Якщо стейкінг завершився, автоматично нараховуємо винагороду
-               if (now >= endDate) {
-                   log('info', 'Стейкінг завершено, нараховуємо винагороду');
-                   this._finalizeStaking(result);
-                   return {
-                       hasActiveStaking: false,
-                       stakingAmount: 0,
-                       rewardPercent: 0,
-                       expectedReward: 0,
-                       remainingDays: 0
-                   };
-               }
-
-               // Оновлюємо кількість днів, що залишилась
-               const diffTime = endDate - now;
-               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-               result.remainingDays = Math.max(0, diffDays);
-
-               // Зберігаємо оновлені дані
-               safeSetItem(STORAGE_KEYS.STAKING_DATA, result);
-           }
-
-           return result;
-       },
-
-       /**
-        * Автоматичне нарахування винагороди при завершенні стейкінгу
-        * @param {Object} stakingData Дані стейкінгу
-        * @returns {boolean} Успішність операції
-        * @private
-        */
-       _finalizeStaking: function (stakingData) {
-           try {
-               if (!stakingData || !stakingData.hasActiveStaking) {
-                   return false;
-               }
-
-               // Рахуємо загальну суму (стейкінг + винагорода)
-               const totalAmount = stakingData.stakingAmount + stakingData.expectedReward;
-
-               // Додаємо суму до балансу
-               BalanceManager.addTokens(
-                   totalAmount,
-                   `Стейкінг завершено: ${stakingData.stakingAmount} + ${stakingData.expectedReward} винагорода`
-               );
-
-               // Зберігаємо стейкінг в історії
-               const historyEntry = {
-                   ...stakingData,
-                   completedDate: new Date().toISOString(),
-                   totalReturned: totalAmount,
-                   status: 'completed'
-               };
-
-               this._addToStakingHistory(historyEntry);
-
-               // Очищаємо дані активного стейкінгу
-               safeSetItem(STORAGE_KEYS.STAKING_DATA, {
-                   hasActiveStaking: false,
-                   stakingAmount: 0,
-                   rewardPercent: 0,
-                   expectedReward: 0,
-                   remainingDays: 0
-               });
-
-               log('info', 'Стейкінг успішно завершено', {
-                   stakingAmount: stakingData.stakingAmount,
-                   reward: stakingData.expectedReward,
-                   total: totalAmount
-               });
-
-               return true;
-           } catch (e) {
-               log('error', 'Помилка завершення стейкінгу', e);
-               return false;
-           }
-       },
-
-       /**
-        * Додавання запису до історії стейкінгу
-        * @param {Object} entry Запис для додавання
-        * @returns {boolean} Успішність операції
-        * @private
-        */
-       _addToStakingHistory: function (entry) {
-           try {
-               // Отримуємо поточну історію
-               const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
-
-               // Додаємо новий запис
-               history.unshift(entry);
-
-               // Обмежуємо розмір історії (зберігаємо останні 20 записів)
-               const trimmedHistory = history.slice(0, 20);
-
-               // Зберігаємо оновлену історію
-               safeSetItem(STORAGE_KEYS.STAKING_HISTORY, trimmedHistory);
-
-               return true;
-           } catch (e) {
-               log('error', 'Помилка додавання запису до історії стейкінгу', e);
-               return false;
-           }
-       },
-
-       /**
-        * Розрахунок очікуваної винагороди за стейкінг
-        * @param {number} amount Сума стейкінгу
-        * @param {number} period Період стейкінгу (днів)
-        * @returns {number} Очікувана винагорода
-        */
-       calculateExpectedReward: function (amount, period) {
-           try {
-               amount = parseFloat(amount);
-               period = parseInt(period);
-
-               if (isNaN(amount) || amount <= 0 || isNaN(period) || period <= 0) {
-                   return 0;
-               }
-
-               // Отримуємо відсоток для обраного періоду
-               const rewardPercent = STAKING_RATES[period] || 7; // За замовчуванням 7%
-
-               // Розраховуємо винагороду
-               const reward = amount * (rewardPercent / 100);
-
-               return parseFloat(reward.toFixed(2));
-           } catch (e) {
-               log('error', 'Помилка розрахунку винагороди', e);
-               return 0;
-           }
-       },
-
-       /**
-        * Створення нового стейкінгу
-        * @param {number} amount Сума стейкінгу
-        * @param {number} period Період стейкінгу (днів)
-        * @returns {Object} Результат операції
-        */
-       createStaking: function (amount, period) {
-           if (_isCreatingStaking) {
-               log('warn', 'Вже виконується створення стейкінгу');
-               return {
-                   success: false,
-                   message: 'Операція вже виконується'
-               };
-           }
-
-           _isCreatingStaking = true;
-
-           try {
-               amount = parseFloat(amount);
-               period = parseInt(period);
-
-               // Перевірка коректності параметрів
-               if (isNaN(amount) || amount <= 0) {
-                   return {
-                       success: false,
-                       message: 'Некоректна сума стейкінгу'
-                   };
-               }
-
-               if (isNaN(period) || ![7, 14, 28].includes(period)) {
-                   return {
-                       success: false,
-                       message: 'Некоректний період стейкінгу'
-                   };
-               }
-
-               // Перевіряємо, чи є вже активний стейкінг
-               if (this.hasActiveStaking()) {
-                   return {
-                       success: false,
-                       message: 'У вас вже є активний стейкінг'
-                   };
-               }
-
-               // Перевіряємо, чи достатньо коштів
-               const balance = BalanceManager.getTokens();
-               if (balance < amount) {
-                   return {
-                       success: false,
-                       message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
-                   };
-               }
-
-               // Визначаємо відсоток відповідно до періоду
-               const rewardPercent = STAKING_RATES[period] || 7;
-
-               // Розрахунок очікуваної винагороди
-               const expectedReward = this.calculateExpectedReward(amount, period);
-
-               // Перевірка адекватності винагороди
-               if (expectedReward > amount * 0.2) {
-                   log('warn', 'Підозріло висока винагорода за стейкінг', {
-                       amount,
-                       period,
-                       reward: expectedReward
-                   });
-               }
-
-               // Знімаємо кошти з балансу
-               const subtracted = BalanceManager.subtractTokens(
-                   amount,
-                   `Стейкінг на ${period} днів (${rewardPercent}%)`
-               );
-
-               if (!subtracted) {
-                   return {
-                       success: false,
-                       message: 'Помилка списання коштів'
-                   };
-               }
-
-               // Створюємо дані стейкінгу
-               const currentDate = new Date();
-               const endDate = new Date(currentDate);
-               endDate.setDate(endDate.getDate() + period);
-
-               const stakingId = generateId();
-
-               const stakingData = {
-                   hasActiveStaking: true,
-                   stakingId,
-                   stakingAmount: amount,
-                   period,
-                   rewardPercent,
-                   expectedReward,
-                   remainingDays: period,
-                   startDate: currentDate.toISOString(),
-                   endDate: endDate.toISOString(),
-                   creationTimestamp: Date.now()
-               };
-
-               // Зберігаємо дані стейкінгу
-               safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
-
-               // Додаємо транзакцію стейкінгу
-               TransactionManager.addTransaction(
-                   TRANSACTION_TYPES.STAKE,
-                   amount,
-                   `Стейкінг на ${period} днів (${rewardPercent}%)`
-               );
-
-               // Генеруємо подію створення стейкінгу
-               emitEvent('stakingCreated', stakingData);
-
-               log('info', 'Стейкінг успішно створено', stakingData);
-
-               return {
-                   success: true,
-                   message: 'Стейкінг успішно створено',
-                   data: stakingData
-               };
-           } catch (e) {
-               log('error', 'Помилка створення стейкінгу', e);
-               return {
-                   success: false,
-                   message: 'Внутрішня помилка при створенні стейкінгу'
-               };
-           } finally {
-               _isCreatingStaking = false;
-           }
-       },
-
-       /**
-        * Додавання коштів до існуючого стейкінгу
-        * @param {number} amount Сума для додавання
-        * @returns {Object} Результат операції
-        */
-       addToStaking: function (amount) {
-           try {
-               amount = parseFloat(amount);
-
-               // Перевірка коректності параметрів
-               if (isNaN(amount) || amount <= 0) {
-                   log('warn', 'Некоректна сума для додавання до стейкінгу', amount);
-                   return {
-                       success: false,
-                       message: 'Некоректна сума для додавання'
-                   };
-               }
-
-               // Отримуємо дані стейкінгу
-               const stakingData = this.getStakingData();
-
-               // Додаємо логування для діагностики
-               log('info', 'Спроба додавання до стейкінгу', {amount, stakingData});
-
-               // Перевіряємо наявність активного стейкінгу
-               if (!stakingData || !stakingData.hasActiveStaking) {
-                   log('warn', 'Спроба додати до неіснуючого стейкінгу', stakingData);
-                   return {
-                       success: false,
-                       message: 'У вас немає активного стейкінгу'
-                   };
-               }
-
-               // Перевіряємо, чи достатньо коштів
-               const balance = BalanceManager.getTokens();
-               if (balance < amount) {
-                   return {
-                       success: false,
-                       message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
-                   };
-               }
-
-               // Знімаємо кошти з балансу
-               const subtracted = BalanceManager.subtractTokens(
-                   amount,
-                   'Додавання до стейкінгу'
-               );
-
-               if (!subtracted) {
-                   return {
-                       success: false,
-                       message: 'Помилка списання коштів'
-                   };
-               }
-
-               // Оновлюємо дані стейкінгу
-               const newAmount = stakingData.stakingAmount + amount;
-               stakingData.stakingAmount = newAmount;
-               stakingData.expectedReward = this.calculateExpectedReward(
-                   newAmount,
-                   stakingData.period
-               );
-
-               // Зберігаємо оновлені дані
-               const storeResult = safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
-               log('info', 'Результат збереження оновлених даних стейкінгу:', storeResult);
-
-               // Додаємо транзакцію
-               TransactionManager.addTransaction(
-                   TRANSACTION_TYPES.STAKE,
-                   amount,
-                   'Додавання до стейкінгу'
-               );
-
-               // Генеруємо подію зміни стейкінгу
-               emitEvent('stakingChanged', stakingData);
-
-               log('info', 'Кошти успішно додано до стейкінгу', {
-                   addedAmount: amount,
-                   newAmount,
-                   stakingData
-               });
-
-               return {
-                   success: true,
-                   message: `Додано ${amount.toFixed(2)} WINIX до стейкінгу`,
-                   data: stakingData
-               };
-           } catch (e) {
-               log('error', 'Помилка додавання до стейкінгу', e);
-               return {
-                   success: false,
-                   message: 'Внутрішня помилка при додаванні до стейкінгу'
-               };
-           }
-       },
-
-       /**
-        * Скасування стейкінгу
-        * @returns {Object} Результат операції
-        */
-       cancelStaking: function () {
-           if (_isCancellingStaking) {
-               log('warn', 'Вже виконується скасування стейкінгу');
-               return {
-                   success: false,
-                   message: 'Операція вже виконується'
-               };
-           }
-
-           _isCancellingStaking = true;
-
-           try {
-               // Отримуємо дані стейкінгу перед перевіркою
-               const stakingData = this.getStakingData();
-
-               // Додаємо логування для діагностики
-               log('info', 'Спроба скасування стейкінгу', stakingData);
-
-               // Перевіряємо наявність активного стейкінгу
-               if (!stakingData || !stakingData.hasActiveStaking || stakingData.stakingAmount <= 0) {
-                   log('warn', 'Спроба скасувати неіснуючий стейкінг', stakingData);
-                   return {
-                       success: false,
-                       message: 'У вас немає активного стейкінгу'
-                   };
-               }
-
-               // Розраховуємо суму для повернення (80% від суми стейкінгу)
-               const returnAmount = stakingData.stakingAmount * (1 - _config.stakingCancelFee);
-               const feeAmount = stakingData.stakingAmount * _config.stakingCancelFee;
-
-               // Зберігаємо в історії
-               const historyEntry = {
-                   ...stakingData,
-                   cancelledDate: new Date().toISOString(),
-                   returnedAmount: returnAmount,
-                   feeAmount,
-                   status: 'cancelled'
-               };
-
-               this._addToStakingHistory(historyEntry);
-
-               // Очищаємо дані стейкінгу в ОБОХ ключах для забезпечення узгодженості
-               const emptyStakingData = {
-                   hasActiveStaking: false,
-                   stakingAmount: 0,
-                   rewardPercent: 0,
-                   expectedReward: 0,
-                   remainingDays: 0
-               };
-
-               // Зберігаємо пусті дані в основному ключі
-               safeSetItem(STORAGE_KEYS.STAKING_DATA, emptyStakingData);
-
-               // Зберігаємо пусті дані в альтернативному ключі
-               localStorage.setItem('stakingData', JSON.stringify(emptyStakingData));
-
-               // Перевірка, що дані дійсно оновились
-               const checkData = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
-               if (checkData && checkData.hasActiveStaking) {
-                   log('error', 'Не вдалося оновити дані стейкінгу після скасування');
-                   return {
-                       success: false,
-                       message: 'Помилка оновлення даних стейкінгу'
-                   };
-               }
-
-               // Додаємо повернуті кошти на баланс
-               BalanceManager.addTokens(
-                   returnAmount,
-                   `Стейкінг скасовано (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`
-               );
-
-               // Генеруємо подію скасування стейкінгу
-               emitEvent('stakingCancelled', {
-                   stakingAmount: stakingData.stakingAmount,
-                   returnAmount,
-                   feeAmount,
-                   feePercentage: _config.stakingCancelFee * 100
-               });
-
-               log('info', 'Стейкінг успішно скасовано', {
-                   stakingAmount: stakingData.stakingAmount,
-                   returnAmount,
-                   feeAmount
-               });
-
-               return {
-                   success: true,
-                   message: `Стейкінг скасовано. Повернено ${returnAmount.toFixed(2)} WINIX (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`,
-                   data: {
-                       returnAmount,
-                       feeAmount,
-                       feePercentage: _config.stakingCancelFee * 100
-                   }
-               };
-           } catch (e) {
-               log('error', 'Помилка скасування стейкінгу', e);
-               return {
-                   success: false,
-                   message: 'Внутрішня помилка при скасуванні стейкінгу'
-               };
-           } finally {
-               _isCancellingStaking = false;
-           }
-       },
+    /**
+     * Перевірка наявності активного стейкінгу
+     * @returns {boolean} Чи є активний стейкінг
+     */
+    hasActiveStaking: function () {
+        const stakingData = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
+
+        // Додаємо логування для діагностики
+        log('info', 'Перевірка наявності стейкінгу', stakingData);
+
+        if (!stakingData) {
+            // Спробуємо синхронізувати з сервером
+            this.syncStakingFromServer();
+            return false;
+        }
+
+        // Перевіряємо прапорець hasActiveStaking та додатково перевіряємо суму стейкінгу
+        return stakingData.hasActiveStaking === true && stakingData.stakingAmount > 0;
+    },
+
+    /**
+     * Отримання даних активного стейкінгу
+     * @returns {Object|null} Дані стейкінгу або null, якщо стейкінгу немає
+     */
+    getStakingData: function () {
+        const data = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
+
+        // Додаємо логування для діагностики
+        log('info', 'Отримання даних стейкінгу', data);
+
+        // Запускаємо асинхронну синхронізацію з сервером
+        this.syncStakingFromServer();
+
+        // Якщо дані відсутні або структура неправильна, повертаємо значення за замовчуванням
+        if (!data || typeof data !== 'object') {
+            return {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+        }
+
+        // Глибока копія об'єкта, щоб уникнути проблем з посиланнями
+        const result = JSON.parse(JSON.stringify(data));
+
+        // Перевіряємо, чи структура даних містить усі необхідні поля
+        if (result.hasActiveStaking === undefined) {
+            result.hasActiveStaking = false;
+        }
+
+        if (result.stakingAmount === undefined || isNaN(parseFloat(result.stakingAmount))) {
+            result.stakingAmount = 0;
+        } else {
+            // Переконуємось, що це число
+            result.stakingAmount = parseFloat(result.stakingAmount);
+        }
+
+        // Перевіряємо статус стейкінгу
+        if (result.hasActiveStaking && result.endDate) {
+            const endDate = new Date(result.endDate);
+            const now = new Date();
+
+            // Якщо стейкінг завершився, автоматично нараховуємо винагороду
+            if (now >= endDate) {
+                log('info', 'Стейкінг завершено, нараховуємо винагороду');
+                this._finalizeStaking(result);
+                return {
+                    hasActiveStaking: false,
+                    stakingAmount: 0,
+                    rewardPercent: 0,
+                    expectedReward: 0,
+                    remainingDays: 0
+                };
+            }
+
+            // Оновлюємо кількість днів, що залишилась
+            const diffTime = endDate - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            result.remainingDays = Math.max(0, diffDays);
+
+            // Зберігаємо оновлені дані
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, result);
+        }
+
+        return result;
+    },
+
+    /**
+     * Синхронізація даних стейкінгу з сервера
+     * @returns {Promise<boolean>} Успішність синхронізації
+     */
+    syncStakingFromServer: async function() {
+        try {
+            const userId = localStorage.getItem('telegram_user_id');
+            if (!userId) {
+                return false;
+            }
+
+            log('info', 'Синхронізація даних стейкінгу з сервера');
+
+            const response = await fetch(`/api/user/${userId}/staking`, {
+                headers: {
+                    'X-Telegram-User-Id': userId
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.status === 'success' && data.data) {
+                // Зберігаємо дані стейкінгу в локальному сховищі
+                safeSetItem(STORAGE_KEYS.STAKING_DATA, data.data);
+
+                log('info', 'Дані стейкінгу успішно синхронізовано з сервера');
+                return true;
+            } else {
+                log('error', 'Помилка отримання даних стейкінгу з сервера', data);
+                return false;
+            }
+        } catch (e) {
+            log('error', 'Помилка синхронізації даних стейкінгу з сервера', e);
+            return false;
+        }
+    },
+
+    /**
+     * Синхронізація історії стейкінгу з сервера
+     * @returns {Promise<boolean>} Успішність синхронізації
+     */
+    syncStakingHistoryFromServer: async function() {
+        try {
+            const userId = localStorage.getItem('telegram_user_id');
+            if (!userId) {
+                return false;
+            }
+
+            log('info', 'Синхронізація історії стейкінгу з сервера');
+
+            const response = await fetch(`/api/user/${userId}/staking/history`, {
+                headers: {
+                    'X-Telegram-User-Id': userId
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.status === 'success' && Array.isArray(data.data)) {
+                // Зберігаємо історію стейкінгу в локальному сховищі
+                safeSetItem(STORAGE_KEYS.STAKING_HISTORY, data.data);
+
+                log('info', `Синхронізовано ${data.data.length} записів історії стейкінгу з сервера`);
+                return true;
+            } else {
+                log('error', 'Помилка отримання історії стейкінгу з сервера', data);
+                return false;
+            }
+        } catch (e) {
+            log('error', 'Помилка синхронізації історії стейкінгу з сервера', e);
+            return false;
+        }
+    },
+
+    /**
+     * Автоматичне нарахування винагороди при завершенні стейкінгу
+     * @param {Object} stakingData Дані стейкінгу
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _finalizeStaking: function (stakingData) {
+        try {
+            if (!stakingData || !stakingData.hasActiveStaking) {
+                return false;
+            }
+
+            // Рахуємо загальну суму (стейкінг + винагорода)
+            const totalAmount = stakingData.stakingAmount + stakingData.expectedReward;
+
+            // Додаємо суму до балансу
+            BalanceManager.addTokens(
+                totalAmount,
+                `Стейкінг завершено: ${stakingData.stakingAmount} + ${stakingData.expectedReward} винагорода`
+            );
+
+            // Зберігаємо стейкінг в історії
+            const historyEntry = {
+                ...stakingData,
+                completedDate: new Date().toISOString(),
+                totalReturned: totalAmount,
+                status: 'completed'
+            };
+
+            this._addToStakingHistory(historyEntry);
+
+            // Очищаємо дані активного стейкінгу
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            });
+
+            // Відправляємо дані про завершення стейкінгу на сервер
+            this._sendStakingFinalizationToServer(stakingData.stakingId, historyEntry);
+
+            log('info', 'Стейкінг успішно завершено', {
+                stakingAmount: stakingData.stakingAmount,
+                reward: stakingData.expectedReward,
+                total: totalAmount
+            });
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка завершення стейкінгу', e);
+            return false;
+        }
+    },
+
+    /**
+     * Відправка даних про завершення стейкінгу на сервер
+     * @param {string} stakingId ID стейкінгу
+     * @param {Object} historyEntry Запис для історії
+     * @private
+     */
+    _sendStakingFinalizationToServer: function(stakingId, historyEntry) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо відправити дані завершення стейкінгу: ID користувача не знайдено');
+            return;
+        }
+
+        fetch(`/api/user/${userId}/staking/${stakingId}/finalize`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(historyEntry)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Дані про завершення стейкінгу успішно відправлено на сервер', data);
+            } else {
+                log('error', 'Помилка відправки даних про завершення стейкінгу', data);
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка відправки даних про завершення стейкінгу', error);
+        });
+    },
+
+    /**
+     * Додавання запису до історії стейкінгу
+     * @param {Object} entry Запис для додавання
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _addToStakingHistory: function (entry) {
+        try {
+            // Отримуємо поточну історію
+            const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
+
+            // Додаємо новий запис
+            history.unshift(entry);
+
+            // Обмежуємо розмір історії (зберігаємо останні 20 записів)
+            const trimmedHistory = history.slice(0, 20);
+
+            // Зберігаємо оновлену історію
+            safeSetItem(STORAGE_KEYS.STAKING_HISTORY, trimmedHistory);
+
+            // Відправляємо запис історії на сервер
+            this._sendHistoryEntryToServer(entry);
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання запису до історії стейкінгу', e);
+            return false;
+        }
+    },
+
+    /**
+     * Відправка запису історії стейкінгу на сервер
+     * @param {Object} entry Запис для відправки
+     * @private
+     */
+    _sendHistoryEntryToServer: function(entry) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо відправити запис історії стейкінгу: ID користувача не знайдено');
+            return;
+        }
+
+        fetch(`/api/user/${userId}/staking/history`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(entry)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Запис історії стейкінгу успішно відправлено на сервер', data);
+            } else {
+                log('error', 'Помилка відправки запису історії стейкінгу', data);
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка відправки запису історії стейкінгу', error);
+        });
+    },
+
+    /**
+     * Розрахунок очікуваної винагороди за стейкінг
+     * @param {number} amount Сума стейкінгу
+     * @param {number} period Період стейкінгу (днів)
+     * @returns {number} Очікувана винагорода
+     */
+    calculateExpectedReward: function (amount, period) {
+        try {
+            amount = parseFloat(amount);
+            period = parseInt(period);
+
+            if (isNaN(amount) || amount <= 0 || isNaN(period) || period <= 0) {
+                return 0;
+            }
+
+            // Отримуємо відсоток для обраного періоду
+            const rewardPercent = STAKING_RATES[period] || 7; // За замовчуванням 7%
+
+            // Розраховуємо винагороду
+            const reward = amount * (rewardPercent / 100);
+
+            return parseFloat(reward.toFixed(2));
+        } catch (e) {
+            log('error', 'Помилка розрахунку винагороди', e);
+            return 0;
+        }
+    },
+
+    /**
+     * Створення нового стейкінгу
+     * @param {number} amount Сума стейкінгу
+     * @param {number} period Період стейкінгу (днів)
+     * @returns {Object} Результат операції
+     */
+    createStaking: function (amount, period) {
+        if (_isCreatingStaking) {
+            log('warn', 'Вже виконується створення стейкінгу');
+            return {
+                success: false,
+                message: 'Операція вже виконується'
+            };
+        }
+
+        _isCreatingStaking = true;
+
+        try {
+            amount = parseFloat(amount);
+            period = parseInt(period);
+
+            // Перевірка коректності параметрів
+            if (isNaN(amount) || amount <= 0) {
+                return {
+                    success: false,
+                    message: 'Некоректна сума стейкінгу'
+                };
+            }
+
+            if (isNaN(period) || ![7, 14, 28].includes(period)) {
+                return {
+                    success: false,
+                    message: 'Некоректний період стейкінгу'
+                };
+            }
+
+            // Перевіряємо, чи є вже активний стейкінг
+            if (this.hasActiveStaking()) {
+                return {
+                    success: false,
+                    message: 'У вас вже є активний стейкінг'
+                };
+            }
+
+            // Перевіряємо, чи достатньо коштів
+            const balance = BalanceManager.getTokens();
+            if (balance < amount) {
+                return {
+                    success: false,
+                    message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
+                };
+            }
+
+            // Визначаємо відсоток відповідно до періоду
+            const rewardPercent = STAKING_RATES[period] || 7;
+
+            // Розрахунок очікуваної винагороди
+            const expectedReward = this.calculateExpectedReward(amount, period);
+
+            // Перевірка адекватності винагороди
+            if (expectedReward > amount * 0.2) {
+                log('warn', 'Підозріло висока винагорода за стейкінг', {
+                    amount,
+                    period,
+                    reward: expectedReward
+                });
+            }
+
+            // Знімаємо кошти з балансу
+            const subtracted = BalanceManager.subtractTokens(
+                amount,
+                `Стейкінг на ${period} днів (${rewardPercent}%)`
+            );
+
+            if (!subtracted) {
+                return {
+                    success: false,
+                    message: 'Помилка списання коштів'
+                };
+            }
+
+            // Створюємо дані стейкінгу
+            const currentDate = new Date();
+            const endDate = new Date(currentDate);
+            endDate.setDate(endDate.getDate() + period);
+
+            const stakingId = generateId();
+
+            const stakingData = {
+                hasActiveStaking: true,
+                stakingId,
+                stakingAmount: amount,
+                period,
+                rewardPercent,
+                expectedReward,
+                remainingDays: period,
+                startDate: currentDate.toISOString(),
+                endDate: endDate.toISOString(),
+                creationTimestamp: Date.now()
+            };
+
+            // Зберігаємо дані стейкінгу
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
+
+            // Додаємо транзакцію стейкінгу
+            TransactionManager.addTransaction(
+                TRANSACTION_TYPES.STAKE,
+                amount,
+                `Стейкінг на ${period} днів (${rewardPercent}%)`
+            );
+
+            // Відправляємо дані стейкінгу на сервер
+            this._sendStakingToServer(stakingData);
+
+            // Генеруємо подію створення стейкінгу
+            emitEvent('stakingCreated', stakingData);
+
+            log('info', 'Стейкінг успішно створено', stakingData);
+
+            return {
+                success: true,
+                message: 'Стейкінг успішно створено',
+                data: stakingData
+            };
+        } catch (e) {
+            log('error', 'Помилка створення стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при створенні стейкінгу'
+            };
+        } finally {
+            _isCreatingStaking = false;
+        }
+    },
+
+    /**
+     * Відправка даних стейкінгу на сервер
+     * @param {Object} stakingData Дані стейкінгу
+     * @private
+     */
+    _sendStakingToServer: function(stakingData) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо відправити дані стейкінгу: ID користувача не знайдено');
+            return;
+        }
+
+        fetch(`/api/user/${userId}/staking`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(stakingData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Дані стейкінгу успішно відправлено на сервер', data);
+
+                // Якщо сервер повернув оновлені дані стейкінгу, оновлюємо локальні
+                if (data.data && data.data.staking) {
+                    safeSetItem(STORAGE_KEYS.STAKING_DATA, data.data.staking);
+                }
+            } else {
+                log('error', 'Помилка відправки даних стейкінгу на сервер', data);
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка відправки даних стейкінгу на сервер', error);
+        });
+    },
+
+    /**
+     * Додавання коштів до існуючого стейкінгу
+     * @param {number} amount Сума для додавання
+     * @returns {Object} Результат операції
+     */
+    addToStaking: function (amount) {
+        try {
+            amount = parseFloat(amount);
+
+            // Перевірка коректності параметрів
+            if (isNaN(amount) || amount <= 0) {
+                log('warn', 'Некоректна сума для додавання до стейкінгу', amount);
+                return {
+                    success: false,
+                    message: 'Некоректна сума для додавання'
+                };
+            }
+
+            // Отримуємо дані стейкінгу
+            const stakingData = this.getStakingData();
+
+            // Додаємо логування для діагностики
+            log('info', 'Спроба додавання до стейкінгу', {amount, stakingData});
+
+            // Перевіряємо наявність активного стейкінгу
+            if (!stakingData || !stakingData.hasActiveStaking) {
+                log('warn', 'Спроба додати до неіснуючого стейкінгу', stakingData);
+                return {
+                    success: false,
+                    message: 'У вас немає активного стейкінгу'
+                };
+            }
+
+            // Перевіряємо, чи достатньо коштів
+            const balance = BalanceManager.getTokens();
+            if (balance < amount) {
+                return {
+                    success: false,
+                    message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
+                };
+            }
+
+            // Знімаємо кошти з балансу
+            const subtracted = BalanceManager.subtractTokens(
+                amount,
+                'Додавання до стейкінгу'
+            );
+
+            if (!subtracted) {
+                return {
+                    success: false,
+                    message: 'Помилка списання коштів'
+                };
+            }
+
+            // Оновлюємо дані стейкінгу
+            const newAmount = stakingData.stakingAmount + amount;
+            stakingData.stakingAmount = newAmount;
+            stakingData.expectedReward = this.calculateExpectedReward(
+                newAmount,
+                stakingData.period
+            );
+
+            // Зберігаємо оновлені дані
+            const storeResult = safeSetItem(STORAGE_KEYS.STAKING_DATA, stakingData);
+            log('info', 'Результат збереження оновлених даних стейкінгу:', storeResult);
+
+            // Додаємо транзакцію
+            TransactionManager.addTransaction(
+                TRANSACTION_TYPES.STAKE,
+                amount,
+                'Додавання до стейкінгу'
+            );
+
+            // Відправляємо оновлені дані на сервер
+            this._updateStakingOnServer(stakingData);
+
+            // Генеруємо подію зміни стейкінгу
+            emitEvent('stakingChanged', stakingData);
+
+            log('info', 'Кошти успішно додано до стейкінгу', {
+                addedAmount: amount,
+                newAmount,
+                stakingData
+            });
+
+            return {
+                success: true,
+                message: `Додано ${amount.toFixed(2)} WINIX до стейкінгу`,
+                data: stakingData
+            };
+        } catch (e) {
+            log('error', 'Помилка додавання до стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при додаванні до стейкінгу'
+            };
+        }
+    },
+
+    /**
+     * Оновлення даних стейкінгу на сервері
+     * @param {Object} stakingData Дані стейкінгу
+     * @private
+     */
+    _updateStakingOnServer: function(stakingData) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо оновити дані стейкінгу: ID користувача не знайдено');
+            return;
+        }
+
+        fetch(`/api/user/${userId}/staking/${stakingData.stakingId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(stakingData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Дані стейкінгу успішно оновлено на сервері', data);
+            } else {
+                log('error', 'Помилка оновлення даних стейкінгу на сервері', data);
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка оновлення даних стейкінгу на сервері', error);
+        });
+    },
+
+    /**
+     * Скасування стейкінгу
+     * @returns {Object} Результат операції
+     */
+    cancelStaking: function () {
+        if (_isCancellingStaking) {
+            log('warn', 'Вже виконується скасування стейкінгу');
+            return {
+                success: false,
+                message: 'Операція вже виконується'
+            };
+        }
+
+        _isCancellingStaking = true;
+
+        try {
+            // Отримуємо дані стейкінгу перед перевіркою
+            const stakingData = this.getStakingData();
+
+            // Додаємо логування для діагностики
+            log('info', 'Спроба скасування стейкінгу', stakingData);
+
+            // Перевіряємо наявність активного стейкінгу
+            if (!stakingData || !stakingData.hasActiveStaking || stakingData.stakingAmount <= 0) {
+                log('warn', 'Спроба скасувати неіснуючий стейкінг', stakingData);
+                return {
+                    success: false,
+                    message: 'У вас немає активного стейкінгу'
+                };
+            }
+
+            // Розраховуємо суму для повернення (80% від суми стейкінгу)
+            const returnAmount = stakingData.stakingAmount * (1 - _config.stakingCancelFee);
+            const feeAmount = stakingData.stakingAmount * _config.stakingCancelFee;
+
+            // Зберігаємо в історії
+            const historyEntry = {
+                ...stakingData,
+                cancelledDate: new Date().toISOString(),
+                returnedAmount: returnAmount,
+                feeAmount,
+                status: 'cancelled'
+            };
+
+            this._addToStakingHistory(historyEntry);
+
+            // Очищаємо дані стейкінгу в ОБОХ ключах для забезпечення узгодженості
+            const emptyStakingData = {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+
+            // Зберігаємо пусті дані в основному ключі
+            safeSetItem(STORAGE_KEYS.STAKING_DATA, emptyStakingData);
+
+            // Зберігаємо пусті дані в альтернативному ключі
+            localStorage.setItem('stakingData', JSON.stringify(emptyStakingData));
+
+            // Перевірка, що дані дійсно оновились
+            const checkData = safeGetItem(STORAGE_KEYS.STAKING_DATA, null, true);
+            if (checkData && checkData.hasActiveStaking) {
+                log('error', 'Не вдалося оновити дані стейкінгу після скасування');
+                return {
+                    success: false,
+                    message: 'Помилка оновлення даних стейкінгу'
+                };
+            }
+
+            // Додаємо повернуті кошти на баланс
+            BalanceManager.addTokens(
+                returnAmount,
+                `Стейкінг скасовано (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`
+            );
+
+            // Відправляємо запит на скасування стейкінгу на сервер
+            this._cancelStakingOnServer(stakingData.stakingId, historyEntry);
+
+            // Генеруємо подію скасування стейкінгу
+            emitEvent('stakingCancelled', {
+                stakingAmount: stakingData.stakingAmount,
+                returnAmount,
+                feeAmount,
+                feePercentage: _config.stakingCancelFee * 100
+            });
+
+            log('info', 'Стейкінг успішно скасовано', {
+                stakingAmount: stakingData.stakingAmount,
+                returnAmount,
+                feeAmount
+            });
+
+            return {
+                success: true,
+                message: `Стейкінг скасовано. Повернено ${returnAmount.toFixed(2)} WINIX (утримано ${(_config.stakingCancelFee * 100).toFixed(0)}% як штраф)`,
+                data: {
+                    returnAmount,
+                    feeAmount,
+                    feePercentage: _config.stakingCancelFee * 100
+                }
+            };
+        } catch (e) {
+            log('error', 'Помилка скасування стейкінгу', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при скасуванні стейкінгу'
+            };
+        } finally {
+            _isCancellingStaking = false;
+        }
+    },
+
+    /**
+     * Відправка запиту на скасування стейкінгу на сервер
+     * @param {string} stakingId ID стейкінгу
+     * @param {Object} historyEntry Запис історії
+     * @private
+     */
+    _cancelStakingOnServer: function(stakingId, historyEntry) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо скасувати стейкінг на сервері: ID користувача не знайдено');
+            return;
+        }
+
+        fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(historyEntry)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Стейкінг успішно скасовано на сервері', data);
+            } else {
+                log('error', 'Помилка скасування стейкінгу на сервері', data);
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка скасування стейкінгу на сервері', error);
+        });
+    },
 
     /**
      * Отримання історії стейкінгу
@@ -1259,6 +1791,9 @@ const StakingManager = {
      */
     getStakingHistory: function(limit = 0) {
         const history = safeGetItem(STORAGE_KEYS.STAKING_HISTORY, [], true);
+
+        // Запускаємо фонову синхронізацію історії з сервером
+        this.syncStakingHistoryFromServer();
 
         if (limit > 0 && history.length > limit) {
             return history.slice(0, limit);
@@ -1269,62 +1804,202 @@ const StakingManager = {
 };
 
     /**
-     * Створюємо обгортку для роботи з транзакціями
+ * Створюємо обгортку для роботи з транзакціями
+ */
+const TransactionManager = {
+    /**
+     * Додавання нової транзакції
+     * @param {string} type Тип транзакції
+     * @param {number} amount Сума транзакції
+     * @param {string} description Опис транзакції
+     * @returns {Object} Результат операції
      */
-    const TransactionManager = {
-        /**
-         * Додавання нової транзакції
-         * @param {string} type Тип транзакції
-         * @param {number} amount Сума транзакції
-         * @param {string} description Опис транзакції
-         * @returns {Object} Результат операції
-         */
-        addTransaction: function(type, amount, description = '') {
-            if (_isProcessingTransaction) {
-                log('warn', 'Вже обробляється інша транзакція');
+    addTransaction: function(type, amount, description = '') {
+        if (_isProcessingTransaction) {
+            log('warn', 'Вже обробляється інша транзакція');
+            return {
+                success: false,
+                message: 'Операція вже виконується'
+            };
+        }
+
+        _isProcessingTransaction = true;
+
+        try {
+            // Валідація параметрів
+            amount = parseFloat(amount);
+
+            if (isNaN(amount) || amount <= 0) {
+                log('error', 'Некоректна сума транзакції', amount);
                 return {
                     success: false,
-                    message: 'Операція вже виконується'
+                    message: 'Некоректна сума транзакції'
                 };
             }
 
-            _isProcessingTransaction = true;
-
-            try {
-                // Валідація параметрів
-                amount = parseFloat(amount);
-
-                if (isNaN(amount) || amount <= 0) {
-                    log('error', 'Некоректна сума транзакції', amount);
-                    return {
-                        success: false,
-                        message: 'Некоректна сума транзакції'
-                    };
-                }
-
-                if (!Object.values(TRANSACTION_TYPES).includes(type)) {
-                    log('error', 'Некоректний тип транзакції', type);
-                    return {
-                        success: false,
-                        message: 'Некоректний тип транзакції'
-                    };
-                }
-
-                // Отримуємо поточний список транзакцій
-                const transactions = this.getTransactions();
-
-                // Створюємо нову транзакцію
-                const newTransaction = {
-                    id: generateId(),
-                    type,
-                    amount,
-                    description: description || this._getDefaultDescription(type),
-                    timestamp: Date.now(),
-                    status: 'completed'
+            if (!Object.values(TRANSACTION_TYPES).includes(type)) {
+                log('error', 'Некоректний тип транзакції', type);
+                return {
+                    success: false,
+                    message: 'Некоректний тип транзакції'
                 };
+            }
 
+            // Створюємо нову транзакцію
+            const newTransaction = {
+                id: generateId(),
+                type,
+                amount,
+                description: description || this._getDefaultDescription(type),
+                timestamp: Date.now(),
+                status: 'completed'
+            };
+
+            // Спочатку локально додаємо транзакцію для швидкого відображення в UI
+            this._addTransactionToLocalStorage(newTransaction);
+
+            // Відправляємо транзакцію на сервер у фоні
+            this._sendTransactionToServer(newTransaction);
+
+            log('info', 'Додано нову транзакцію', newTransaction);
+
+            return {
+                success: true,
+                transaction: newTransaction
+            };
+        } catch (e) {
+            log('error', 'Помилка додавання транзакції', e);
+            return {
+                success: false,
+                message: 'Внутрішня помилка при додаванні транзакції'
+            };
+        } finally {
+            _isProcessingTransaction = false;
+        }
+    },
+
+    /**
+     * Додавання транзакції до локального сховища
+     * @param {Object} transaction Транзакція для додавання
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _addTransactionToLocalStorage: function(transaction) {
+        try {
+            // Отримуємо поточний список транзакцій
+            const transactions = this.getTransactions();
+
+            // Додаємо транзакцію на початок списку
+            transactions.unshift(transaction);
+
+            // Обмежуємо розмір списку
+            const trimmedTransactions = transactions.slice(
+                0,
+                _config.maxTransactionHistory
+            );
+
+            // Зберігаємо список транзакцій
+            safeSetItem(STORAGE_KEYS.TRANSACTIONS, trimmedTransactions);
+
+            // Генеруємо подію додавання транзакції
+            emitEvent('transactionAdded', transaction);
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання транзакції до локального сховища', e);
+            return false;
+        }
+    },
+
+    /**
+     * Відправка транзакції на сервер
+     * @param {Object} transaction Транзакція для відправки
+     * @returns {Promise<boolean>} Успішність операції
+     * @private
+     */
+    _sendTransactionToServer: function(transaction) {
+        const userId = localStorage.getItem('telegram_user_id');
+        if (!userId) {
+            log('warn', 'Неможливо відправити транзакцію: ID користувача не знайдено');
+            return Promise.resolve(false);
+        }
+
+        return fetch(`/api/user/${userId}/transaction`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify(transaction)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                log('info', 'Транзакцію успішно відправлено на сервер', data);
+
+                // Якщо сервер повернув оновлений об'єкт транзакції, оновлюємо локальний
+                if (data.data && data.data.transaction) {
+                    this._updateLocalTransaction(transaction.id, data.data.transaction);
+                }
+                return true;
+            } else {
+                log('error', 'Помилка відправки транзакції на сервер', data);
+                return false;
+            }
+        })
+        .catch(error => {
+            log('error', 'Помилка відправки транзакції на сервер', error);
+            return false;
+        });
+    },
+
+    /**
+     * Оновлення локальної транзакції даними з сервера
+     * @param {string} localId ID локальної транзакції
+     * @param {Object} serverTransaction Транзакція з сервера
+     * @returns {boolean} Успішність операції
+     * @private
+     */
+    _updateLocalTransaction: function(localId, serverTransaction) {
+        try {
+            const transactions = this.getTransactions();
+            const index = transactions.findIndex(tx => tx.id === localId);
+
+            if (index !== -1) {
+                // Зберігаємо локальний ID для посилань в UI
+                serverTransaction.localId = localId;
+                transactions[index] = serverTransaction;
+                safeSetItem(STORAGE_KEYS.TRANSACTIONS, transactions);
+                return true;
+            }
+            return false;
+        } catch (e) {
+            log('error', 'Помилка оновлення локальної транзакції', e);
+            return false;
+        }
+    },
+
+    /**
+     * Додавання транзакції до локального списку з сервера
+     * @param {Object} transaction Об'єкт транзакції
+     * @private
+     */
+    _addTransactionToLocalList: function(transaction) {
+        try {
+            // Отримуємо поточний список транзакцій
+            const transactions = this.getTransactions();
+
+            // Перевіряємо, чи транзакція вже є в списку
+            const exists = transactions.some(tx => tx.id === transaction.id);
+
+            if (!exists) {
                 // Додаємо транзакцію на початок списку
-                transactions.unshift(newTransaction);
+                transactions.unshift(transaction);
 
                 // Обмежуємо розмір списку
                 const trimmedTransactions = transactions.slice(
@@ -1336,153 +2011,193 @@ const StakingManager = {
                 safeSetItem(STORAGE_KEYS.TRANSACTIONS, trimmedTransactions);
 
                 // Генеруємо подію додавання транзакції
-                emitEvent('transactionAdded', newTransaction);
+                emitEvent('transactionAdded', transaction);
 
-                log('info', 'Додано нову транзакцію', newTransaction);
-
-                return {
-                    success: true,
-                    transaction: newTransaction
-                };
-            } catch (e) {
-                log('error', 'Помилка додавання транзакції', e);
-                return {
-                    success: false,
-                    message: 'Внутрішня помилка при додаванні транзакції'
-                };
-            } finally {
-                _isProcessingTransaction = false;
+                log('info', 'Додано нову транзакцію з сервера', transaction);
             }
-        },
 
-        /**
-         * Отримання всіх транзакцій
-         * @returns {Array} Список транзакцій
-         */
-        getTransactions: function() {
-            return safeGetItem(STORAGE_KEYS.TRANSACTIONS, [], true);
-        },
-
-        /**
-         * Отримання останніх транзакцій
-         * @param {number} limit Кількість транзакцій
-         * @returns {Array} Список останніх транзакцій
-         */
-        getRecentTransactions: function(limit = 3) {
-            const transactions = this.getTransactions();
-            return transactions.slice(0, limit);
-        },
-
-        /**
-         * Отримання транзакцій за типом
-         * @param {string} type Тип транзакцій
-         * @returns {Array} Список транзакцій вказаного типу
-         */
-        getTransactionsByType: function(type) {
-            const transactions = this.getTransactions();
-            return transactions.filter(tx => tx.type === type);
-        },
-
-        /**
-         * Отримання транзакції за ID
-         * @param {string} id ID транзакції
-         * @returns {Object|null} Транзакція або null, якщо не знайдено
-         */
-        getTransactionById: function(id) {
-            const transactions = this.getTransactions();
-            return transactions.find(tx => tx.id === id) || null;
-        },
-
-        /**
-         * Отримання опису за замовчуванням для типу транзакції
-         * @param {string} type Тип транзакції
-         * @returns {string} Опис за замовчуванням
-         * @private
-         */
-        _getDefaultDescription: function(type) {
-            switch (type) {
-                case TRANSACTION_TYPES.RECEIVE:
-                    return 'Отримання коштів';
-                case TRANSACTION_TYPES.SEND:
-                    return 'Відправлення коштів';
-                case TRANSACTION_TYPES.STAKE:
-                    return 'Стейкінг коштів';
-                case TRANSACTION_TYPES.UNSTAKE:
-                    return 'Повернення зі стейкінгу';
-                case TRANSACTION_TYPES.REWARD:
-                    return 'Отримання винагороди';
-                case TRANSACTION_TYPES.FEE:
-                    return 'Комісія за операцію';
-                default:
-                    return 'Транзакція';
-            }
-        },
-
-        /**
-         * Отримання тексту для типу транзакції
-         * @param {string} type Тип транзакції
-         * @returns {string} Текст транзакції
-         */
-        getTransactionText: function(type) {
-            switch (type) {
-                case TRANSACTION_TYPES.RECEIVE:
-                    return 'Отримано';
-                case TRANSACTION_TYPES.SEND:
-                    return 'Надіслано';
-                case TRANSACTION_TYPES.STAKE:
-                    return 'Застейкано';
-                case TRANSACTION_TYPES.UNSTAKE:
-                    return 'Розстейкано';
-                case TRANSACTION_TYPES.REWARD:
-                    return 'Винагорода';
-                case TRANSACTION_TYPES.FEE:
-                    return 'Комісія';
-                default:
-                    return 'Транзакція';
-            }
-        },
-
-        /**
-         * Отримання класу CSS для типу транзакції
-         * @param {string} type Тип транзакції
-         * @returns {string} Клас CSS
-         */
-        getTransactionClass: function(type) {
-            switch (type) {
-                case TRANSACTION_TYPES.RECEIVE:
-                case TRANSACTION_TYPES.UNSTAKE:
-                case TRANSACTION_TYPES.REWARD:
-                    return 'transaction-positive';
-                case TRANSACTION_TYPES.SEND:
-                case TRANSACTION_TYPES.FEE:
-                    return 'transaction-negative';
-                case TRANSACTION_TYPES.STAKE:
-                    return 'transaction-neutral';
-                default:
-                    return '';
-            }
-        },
-
-        /**
-         * Отримання префікса для суми транзакції
-         * @param {string} type Тип транзакції
-         * @returns {string} Префікс
-         */
-        getTransactionPrefix: function(type) {
-            switch (type) {
-                case TRANSACTION_TYPES.RECEIVE:
-                case TRANSACTION_TYPES.UNSTAKE:
-                case TRANSACTION_TYPES.REWARD:
-                    return '+';
-                case TRANSACTION_TYPES.SEND:
-                case TRANSACTION_TYPES.STAKE:
-                case TRANSACTION_TYPES.FEE:
-                    return '-';
-                default:
-                    return '';
-            }
+            return true;
+        } catch (e) {
+            log('error', 'Помилка додавання транзакції з сервера до локального списку', e);
+            return false;
         }
-    };
+    },
+
+    /**
+     * Отримання всіх транзакцій
+     * @returns {Array} Список транзакцій
+     */
+    getTransactions: function() {
+        // Отримуємо дані з локального сховища
+        const transactions = safeGetItem(STORAGE_KEYS.TRANSACTIONS, [], true);
+
+        // Запускаємо фонову синхронізацію з сервером
+        this.syncTransactionsFromServer();
+
+        return transactions;
+    },
+
+    /**
+     * Синхронізація транзакцій з сервера
+     * @returns {Promise<boolean>} Успішність синхронізації
+     */
+    syncTransactionsFromServer: async function() {
+        try {
+            const userId = localStorage.getItem('telegram_user_id');
+            if (!userId) {
+                return false;
+            }
+
+            log('info', 'Синхронізація транзакцій з сервера');
+
+            const response = await fetch(`/api/user/${userId}/transactions`, {
+                headers: {
+                    'X-Telegram-User-Id': userId
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.status === 'success' && Array.isArray(data.data)) {
+                // Зберігаємо транзакції в локальному сховищі
+                safeSetItem(STORAGE_KEYS.TRANSACTIONS, data.data);
+
+                log('info', `Синхронізовано ${data.data.length} транзакцій з сервера`);
+                return true;
+            } else {
+                log('error', 'Помилка отримання транзакцій з сервера', data);
+                return false;
+            }
+        } catch (e) {
+            log('error', 'Помилка синхронізації транзакцій з сервера', e);
+            return false;
+        }
+    },
+
+    /**
+     * Отримання останніх транзакцій
+     * @param {number} limit Кількість транзакцій
+     * @returns {Array} Список останніх транзакцій
+     */
+    getRecentTransactions: function(limit = 3) {
+        const transactions = this.getTransactions();
+        return transactions.slice(0, limit);
+    },
+
+    /**
+     * Отримання транзакцій за типом
+     * @param {string} type Тип транзакцій
+     * @returns {Array} Список транзакцій вказаного типу
+     */
+    getTransactionsByType: function(type) {
+        const transactions = this.getTransactions();
+        return transactions.filter(tx => tx.type === type);
+    },
+
+    /**
+     * Отримання транзакції за ID
+     * @param {string} id ID транзакції
+     * @returns {Object|null} Транзакція або null, якщо не знайдено
+     */
+    getTransactionById: function(id) {
+        const transactions = this.getTransactions();
+        return transactions.find(tx => tx.id === id) || null;
+    },
+
+    /**
+     * Отримання опису за замовчуванням для типу транзакції
+     * @param {string} type Тип транзакції
+     * @returns {string} Опис за замовчуванням
+     * @private
+     */
+    _getDefaultDescription: function(type) {
+        switch (type) {
+            case TRANSACTION_TYPES.RECEIVE:
+                return 'Отримання коштів';
+            case TRANSACTION_TYPES.SEND:
+                return 'Відправлення коштів';
+            case TRANSACTION_TYPES.STAKE:
+                return 'Стейкінг коштів';
+            case TRANSACTION_TYPES.UNSTAKE:
+                return 'Повернення зі стейкінгу';
+            case TRANSACTION_TYPES.REWARD:
+                return 'Отримання винагороди';
+            case TRANSACTION_TYPES.FEE:
+                return 'Комісія за операцію';
+            default:
+                return 'Транзакція';
+        }
+    },
+
+    /**
+     * Отримання тексту для типу транзакції
+     * @param {string} type Тип транзакції
+     * @returns {string} Текст транзакції
+     */
+    getTransactionText: function(type) {
+        switch (type) {
+            case TRANSACTION_TYPES.RECEIVE:
+                return 'Отримано';
+            case TRANSACTION_TYPES.SEND:
+                return 'Надіслано';
+            case TRANSACTION_TYPES.STAKE:
+                return 'Застейкано';
+            case TRANSACTION_TYPES.UNSTAKE:
+                return 'Розстейкано';
+            case TRANSACTION_TYPES.REWARD:
+                return 'Винагорода';
+            case TRANSACTION_TYPES.FEE:
+                return 'Комісія';
+            default:
+                return 'Транзакція';
+        }
+    },
+
+    /**
+     * Отримання класу CSS для типу транзакції
+     * @param {string} type Тип транзакції
+     * @returns {string} Клас CSS
+     */
+    getTransactionClass: function(type) {
+        switch (type) {
+            case TRANSACTION_TYPES.RECEIVE:
+            case TRANSACTION_TYPES.UNSTAKE:
+            case TRANSACTION_TYPES.REWARD:
+                return 'transaction-positive';
+            case TRANSACTION_TYPES.SEND:
+            case TRANSACTION_TYPES.FEE:
+                return 'transaction-negative';
+            case TRANSACTION_TYPES.STAKE:
+                return 'transaction-neutral';
+            default:
+                return '';
+        }
+    },
+
+    /**
+     * Отримання префікса для суми транзакції
+     * @param {string} type Тип транзакції
+     * @returns {string} Префікс
+     */
+    getTransactionPrefix: function(type) {
+        switch (type) {
+            case TRANSACTION_TYPES.RECEIVE:
+            case TRANSACTION_TYPES.UNSTAKE:
+            case TRANSACTION_TYPES.REWARD:
+                return '+';
+            case TRANSACTION_TYPES.SEND:
+            case TRANSACTION_TYPES.STAKE:
+            case TRANSACTION_TYPES.FEE:
+                return '-';
+            default:
+                return '';
+        }
+    }
+};
 
     /**
      * Створюємо обгортку для роботи з реферальною системою
@@ -1814,57 +2529,113 @@ const StakingManager = {
      * Публічний API для використання з інших частин програми
      */
     const WinixCore = {
-        /**
-         * Ініціалізація системи
-         * @param {Object} config Конфігурація системи
-         */
-        init: function(config = {}) {
-            try {
-                log('info', 'Ініціалізація WinixCore');
+       /**
+ * Ініціалізація системи
+ * @param {Object} config Конфігурація системи
+ */
+init: async function(config = {}) {
+    try {
+        log('info', 'Ініціалізація WinixCore');
 
-                // Оновлюємо конфігурацію
-                Object.assign(_config, config);
+        // Оновлюємо конфігурацію
+        Object.assign(_config, config);
 
-                // Мігруємо старі дані
-                migrateOldData();
+        // Мігруємо старі дані
+        migrateOldData();
 
-                // Синхронізуємо ключі локального сховища
-                syncStorageKeys();
+        // Синхронізуємо ключі локального сховища
+        syncStorageKeys();
 
-                // Налаштовуємо автоматичну синхронізацію
-                if (_config.autoSync) {
-                    this.startAutoSync();
-                }
-
-                // Запускаємо патчі для сумісності з іншими системами
-                this._applyCompatibilityPatches();
-
-                log('info', 'WinixCore успішно ініціалізовано');
-                return true;
-            } catch (e) {
-                log('error', 'Помилка ініціалізації WinixCore', e);
-                return false;
+        // Спроба початкової синхронізації з сервером
+        try {
+            // Перевіряємо наявність ID користувача
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                // Синхронізуємо дані з сервера
+                await syncUserData();
+                log('info', 'Початкова синхронізація з сервером успішна');
+            } else {
+                log('warn', 'Неможливо синхронізувати дані: ID користувача не знайдено');
             }
-        },
+        } catch (syncError) {
+            log('warn', 'Помилка початкової синхронізації з сервером', syncError);
+            log('info', 'Продовження з локальними даними');
+        }
+
+        // Налаштовуємо автоматичну синхронізацію
+        if (_config.autoSync) {
+            this.startAutoSync();
+        }
+
+        // Запускаємо патчі для сумісності з іншими системами
+        this._applyCompatibilityPatches();
+
+        log('info', 'WinixCore успішно ініціалізовано');
+        return true;
+    } catch (e) {
+        log('error', 'Помилка ініціалізації WinixCore', e);
+        return false;
+    }
+},
 
         
 
-        /**
-         * Запуск автоматичної синхронізації
-         */
-        startAutoSync: function() {
-            // Оновлюємо UI кожні N мілісекунд
-            setInterval(() => {
-                try {
-                    UIManager.updateBalanceDisplay();
-                    UIManager.updateStakingDisplay();
-                } catch (e) {
-                    log('error', 'Помилка автоматичного оновлення', e);
-                }
-            }, _config.syncInterval);
+       /**
+ * Запуск автоматичної синхронізації
+ */
+startAutoSync: function() {
+    // Оновлюємо UI кожні N мілісекунд
+    setInterval(() => {
+        try {
+            UIManager.updateBalanceDisplay();
+            UIManager.updateStakingDisplay();
+        } catch (e) {
+            log('error', 'Помилка автоматичного оновлення UI', e);
+        }
+    }, _config.syncInterval);
 
-            log('info', `Запущено автоматичну синхронізацію з інтервалом ${_config.syncInterval}мс`);
-        },
+    // Синхронізуємо дані з сервером кожні 30 секунд
+    const serverSyncInterval = 30000; // 30 секунд
+    setInterval(() => {
+        try {
+            // Перевіряємо наявність ID користувача
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                // Синхронізуємо дані з сервера
+                syncUserData().then(success => {
+                    if (success) {
+                        log('info', 'Періодична синхронізація з сервером успішна');
+                    }
+                }).catch(error => {
+                    log('error', 'Помилка періодичної синхронізації з сервером', error);
+                });
+            }
+        } catch (e) {
+            log('error', 'Помилка під час спроби періодичної синхронізації', e);
+        }
+    }, serverSyncInterval);
+
+    log('info', `Запущено автоматичну синхронізацію UI з інтервалом ${_config.syncInterval}мс`);
+    log('info', `Запущено періодичну синхронізацію з сервером з інтервалом 30с`);
+
+    // Додаємо обробник для синхронізації при поверненні на вкладку
+    window.addEventListener('focus', () => {
+        try {
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                syncUserData().then(success => {
+                    if (success) {
+                        log('info', 'Синхронізація при поверненні на вкладку успішна');
+                    }
+                }).catch(error => {
+                    log('error', 'Помилка синхронізації при поверненні на вкладку', error);
+                });
+            }
+        } catch (e) {
+            log('error', 'Помилка під час спроби синхронізації при поверненні на вкладку', e);
+        }
+    });
+},
 
         /**
          * Встановлення обробника події

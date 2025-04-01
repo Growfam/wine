@@ -214,17 +214,18 @@
                 }
                 return response.json();
             })
-            .then(data => {
-                if (data.status === 'success') {
-                    // Оновлюємо дані поточного користувача
-                    this.currentUser = { ...this.currentUser, ...data.data };
-                    console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
-                    return this.currentUser;
-                } else {
-                    console.error("❌ AUTH: Помилка отримання даних користувача", data);
-                    throw new Error(data.message || "Помилка отримання даних");
-                }
-            })
+.then(data => {
+    if (data.status === 'success') {
+        // Успішне отримання даних
+        this.currentUser = { ...this.currentUser, ...data.data };
+        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+        return this.currentUser;
+    } else {
+        // Явна обробка випадку, коли статус не "success"
+        console.error("❌ AUTH: Помилка отримання даних користувача", data);
+        throw new Error(data.message || "Помилка отримання даних");
+    }
+})
             .catch(error => {
                 console.error("❌ AUTH: Помилка отримання даних користувача", error);
                 this.showError(this.getLocalizedText('dataError'));
