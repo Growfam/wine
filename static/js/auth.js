@@ -88,17 +88,36 @@
             }
 
             this.isAuthorizing = true;
-            console.log("🔐 AUTH: Запит авторизації на сервері");
+            console.log("🔐 AUTH: Запит авторизації на сервері", userData);
+
+            // Отримуємо ID користувача з різних можливих джерел
+            const userId = userData.id || userData.telegram_id || null;
+
+            // Записуємо ID в localStorage для подальшого використання
+            if (userId) {
+                localStorage.setItem('telegram_user_id', userId);
+
+                // Одразу оновлюємо елемент на сторінці, якщо він існує
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = userId;
+                    console.log(`🔐 AUTH: Оновлено ID користувача на сторінці: ${userId}`);
+                }
+            }
 
             // Показуємо індикатор завантаження, якщо він є
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.add('show');
 
+            // Підготовка розширених заголовків
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId || ''
+            };
+
             return fetch('/api/auth', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(userData)
             })
             .then(response => {
@@ -114,6 +133,17 @@
                 if (data.status === 'success') {
                     this.currentUser = data.data;
                     console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
+
+                    // Зберігаємо ID користувача для інших частин додатку
+                    if (this.currentUser.telegram_id) {
+                        localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
+
+                        // Оновлюємо елемент на сторінці
+                        const userIdElement = document.getElementById('user-id');
+                        if (userIdElement) {
+                            userIdElement.textContent = this.currentUser.telegram_id;
+                        }
+                    }
 
                     // Показуємо вітальне повідомлення для нових користувачів
                     if (data.data.is_new_user) {
@@ -159,35 +189,47 @@
         getUserData: function() {
             if (!this.currentUser) {
                 console.error("❌ AUTH: Немає даних про поточного користувача");
-                return Promise.reject(new Error("No current user"));
+
+                // Спробуємо отримати ID з localStorage як резервний варіант
+                const storedId = localStorage.getItem('telegram_user_id');
+                if (storedId) {
+                    console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
+                    this.currentUser = { telegram_id: storedId };
+                } else {
+                    return Promise.reject(new Error("No current user"));
+                }
             }
 
             const userId = this.currentUser.telegram_id;
             console.log(`🔐 AUTH: Запит даних користувача ${userId}`);
 
-            return fetch(`/api/user/${userId}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP помилка! Статус: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Оновлюємо дані поточного користувача
-                        this.currentUser = { ...this.currentUser, ...data.data };
-                        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
-                        return this.currentUser;
-                    } else {
-                        console.error("❌ AUTH: Помилка отримання даних користувача", data);
-                        throw new Error(data.message || "Помилка отримання даних");
-                    }
-                })
-                .catch(error => {
-                    console.error("❌ AUTH: Помилка отримання даних користувача", error);
-                    this.showError(this.getLocalizedText('dataError'));
-                    throw error;
-                });
+            return fetch(`/api/user/${userId}`, {
+                headers: {
+                    'X-Telegram-User-Id': userId || ''
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Оновлюємо дані поточного користувача
+                    this.currentUser = { ...this.currentUser, ...data.data };
+                    console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+                    return this.currentUser;
+                } else {
+                    console.error("❌ AUTH: Помилка отримання даних користувача", data);
+                    throw new Error(data.message || "Помилка отримання даних");
+                }
+            })
+            .catch(error => {
+                console.error("❌ AUTH: Помилка отримання даних користувача", error);
+                this.showError(this.getLocalizedText('dataError'));
+                throw error;
+            });
         },
 
         /**
@@ -264,6 +306,17 @@
     document.addEventListener('DOMContentLoaded', function() {
         console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
 
+        // Перевіряємо, чи вже є ID в localStorage
+        const storedId = localStorage.getItem('telegram_user_id');
+        if (storedId) {
+            // Оновлюємо елемент на сторінці, якщо він є
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement) {
+                userIdElement.textContent = storedId;
+                console.log(`🔐 AUTH: Відновлено ID користувача зі сховища: ${storedId}`);
+            }
+        }
+
         // Якщо сторінка - екран завантаження, просто виконуємо авторизацію і дочекаємось результату
         if (window.location.pathname === '/' || window.location.pathname.includes('index.html')) {
             window.WinixAuth.init()
@@ -303,11 +356,6 @@
                 console.error("❌ AUTH: Помилка авторизації після telegram-ready", error);
             });
     });
-
-    if (!userData || !userData.id || userData.id === 12345678) {
-    console.error("❌ AUTH: Отримано некоректний або тестовий telegram_id");
-    return Promise.reject(new Error("Invalid user data received"));
-}
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();
