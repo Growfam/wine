@@ -10,6 +10,7 @@
     <script src="static/js/winix-core.js"></script>
     <script src="static/js/winix-connector.js"></script>
     <script src="static/js/winix-all-in-one.js"></script>
+    <script src="static/js/auth.js"></script>
 
     <style>
         :root {
@@ -4193,6 +4194,359 @@ function startPeriodicUpdates() {
     // Оновлюємо дані кожні 30 секунд
     setInterval(loadUserData, 30000);
 }
+</script>
+<!-- Додайте цей скрипт в кінці original-index.html перед закриваючим тегом </body> -->
+
+<script>
+/**
+ * Інтеграція з Supabase на головній сторінці
+ */
+(function() {
+    // Отримання даних поточного користувача
+    function getCurrentUser() {
+        // Отримання ID користувача з елемента на сторінці
+        const userIdElement = document.getElementById('user-id');
+        if (!userIdElement) {
+            console.error("❌ Елемент з ID користувача не знайдено");
+            return null;
+        }
+
+        const userId = userIdElement.textContent.trim();
+        if (!userId) {
+            console.error("❌ ID користувача порожній");
+            return null;
+        }
+
+        return { id: userId };
+    }
+
+    // Оновлення інтерфейсу з даними користувача
+    function updateUIWithUserData(userData) {
+        console.log("🔄 Оновлення інтерфейсу з даними користувача:", userData);
+
+        try {
+            // Оновлюємо баланс WINIX
+            if (userData.balance !== undefined) {
+                const balanceElements = document.querySelectorAll('#user-tokens, #main-balance, .balance-amount, #current-balance, .balance-value');
+                balanceElements.forEach(element => {
+                    if (element) {
+                        if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                            element.innerHTML = `${userData.balance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                        } else {
+                            element.textContent = userData.balance.toFixed(2);
+                        }
+                    }
+                });
+            }
+
+            // Оновлюємо кількість жетонів
+            if (userData.coins !== undefined) {
+                const coinsElements = document.querySelectorAll('#user-coins, .coins-amount, .coins-value');
+                coinsElements.forEach(element => {
+                    if (element) {
+                        element.textContent = userData.coins.toString();
+                    }
+                });
+            }
+
+            // Якщо отримано бонус новачка, позначаємо це на інтерфейсі
+            if (userData.newbie_bonus_claimed) {
+                markNewbieBonus();
+            }
+
+            // Оновлюємо бейджі, якщо вони є
+            if (userData.badges) {
+                updateBadges(userData.badges);
+            }
+
+            // Оновлюємо кількість участей, якщо є
+            if (userData.participationsCount !== undefined) {
+                const participationsElement = document.querySelector('.stat-card:nth-child(1) .stat-value');
+                if (participationsElement) {
+                    participationsElement.textContent = userData.participationsCount.toString();
+                }
+            }
+
+            console.log("✅ Інтерфейс успішно оновлено з даними користувача");
+        } catch (error) {
+            console.error("❌ Помилка оновлення інтерфейсу:", error);
+        }
+    }
+
+    // Позначення отриманого бонусу новачка
+    function markNewbieBonus() {
+        console.log("🎁 Позначення отриманого бонусу новачка");
+
+        // Шукаємо кнопки бонусу новачка
+        const newbieButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-id="newbie"]');
+        newbieButtons.forEach(button => {
+            if (button) {
+                button.textContent = 'Отримано';
+                button.disabled = true;
+                button.style.opacity = '0.6';
+                button.style.cursor = 'default';
+            }
+        });
+
+        // Шукаємо контейнер для додавання водяного знаку
+        newbieButtons.forEach(button => {
+            const container = button.closest('.mini-raffle');
+            if (container) {
+                // Додаємо клас
+                container.classList.add('completed');
+
+                // Створюємо водяний знак
+                const watermark = document.createElement('div');
+                watermark.className = 'danger-watermark';
+                watermark.style.position = 'absolute';
+                watermark.style.top = '0';
+                watermark.style.left = '0';
+                watermark.style.right = '0';
+                watermark.style.bottom = '0';
+                watermark.style.display = 'flex';
+                watermark.style.justifyContent = 'center';
+                watermark.style.alignItems = 'center';
+                watermark.style.pointerEvents = 'none';
+                watermark.style.overflow = 'hidden';
+                watermark.style.zIndex = '5';
+
+                // Додаємо текст
+                const text = document.createElement('div');
+                text.style.position = 'absolute';
+                text.style.transform = 'rotate(-35deg)';
+                text.style.fontSize = '24px';
+                text.style.fontWeight = '900';
+                text.style.color = 'black';
+                text.style.background = 'repeating-linear-gradient(45deg, rgba(255, 205, 0, 0.8), rgba(255, 205, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 20px)';
+                text.style.padding = '10px 0';
+                text.style.width = '250%';
+                text.style.textAlign = 'center';
+                text.textContent = 'ОТРИМАНО';
+
+                // Додаємо темний фон
+                const overlay = document.createElement('div');
+                overlay.style.position = 'absolute';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+
+                // Збираємо все разом
+                watermark.appendChild(overlay);
+                watermark.appendChild(text);
+
+                // Якщо контейнер статичний, додаємо відносне позиціонування
+                if (getComputedStyle(container).position === 'static') {
+                    container.style.position = 'relative';
+                }
+
+                // Додаємо водяний знак до контейнера
+                container.appendChild(watermark);
+            }
+        });
+    }
+
+    // Оновлення бейджів
+    function updateBadges(badges) {
+        console.log("🏆 Оновлення бейджів:", badges);
+
+        // Бейдж переможця
+        if (badges.winner_completed) {
+            const badgeElement = document.querySelector('.badge-item:nth-child(1)');
+            if (badgeElement) {
+                badgeElement.classList.add('badge-completed');
+                if (badgeElement.querySelector('.badge-icon')) {
+                    badgeElement.querySelector('.badge-icon').classList.remove('locked');
+                }
+            }
+        }
+
+        // Бейдж початківця
+        if (badges.beginner_completed) {
+            const badgeElement = document.querySelector('.badge-item:nth-child(2)');
+            if (badgeElement) {
+                badgeElement.classList.add('badge-completed');
+                if (badgeElement.querySelector('.badge-icon')) {
+                    badgeElement.querySelector('.badge-icon').classList.remove('locked');
+                }
+            }
+        }
+
+        // Бейдж багатія
+        if (badges.rich_completed) {
+            const badgeElement = document.querySelector('.badge-item:nth-child(3)');
+            if (badgeElement) {
+                badgeElement.classList.add('badge-completed');
+                if (badgeElement.querySelector('.badge-icon')) {
+                    badgeElement.querySelector('.badge-icon').classList.remove('locked');
+                }
+            }
+        }
+    }
+
+    // Завантаження даних користувача з сервера
+    function loadUserData() {
+        const user = getCurrentUser();
+        if (!user) return;
+
+        console.log("🔄 Завантаження даних користувача з сервера");
+
+        fetch(`/api/user/${user.id}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log("✅ Дані користувача успішно отримано:", data.data);
+                    updateUIWithUserData(data.data);
+                } else {
+                    console.error("❌ Помилка отримання даних користувача:", data);
+                }
+            })
+            .catch(error => {
+                console.error("❌ Помилка завантаження даних користувача:", error);
+            });
+    }
+
+    // Обробник кліку на кнопці отримання бонусу новачка
+    function setupNewbieBonus() {
+        console.log("🎁 Налаштування кнопки бонусу новачка");
+
+        const newbieButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-id="newbie"]');
+        newbieButtons.forEach(button => {
+            // Видаляємо існуючі обробники
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+
+            // Додаємо новий обробник
+            newButton.addEventListener('click', function() {
+                const user = getCurrentUser();
+                if (!user) {
+                    console.error("❌ Не вдалося отримати дані користувача");
+                    return;
+                }
+
+                // Показуємо індикатор завантаження, якщо він є
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) spinner.classList.add('show');
+
+                // Робимо запит на отримання бонусу
+                fetch(`/api/user/${user.id}/claim-newbie-bonus`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
+
+                    if (data.status === 'success') {
+                        console.log("✅ Бонус успішно отримано:", data);
+
+                        // Показуємо повідомлення про успіх
+                        if (window.simpleAlert) {
+                            window.simpleAlert(`Вітаємо! Ви отримали ${data.data.amount} WINIX як бонус новачка!`, false);
+                        } else if (window.showToast) {
+                            window.showToast(`Вітаємо! Ви отримали ${data.data.amount} WINIX як бонус новачка!`);
+                        } else {
+                            alert(`Вітаємо! Ви отримали ${data.data.amount} WINIX як бонус новачка!`);
+                        }
+
+                        // Оновлюємо баланс
+                        const balanceElements = document.querySelectorAll('#user-tokens, #main-balance, .balance-amount, #current-balance, .balance-value');
+                        balanceElements.forEach(element => {
+                            if (element) {
+                                if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                                    element.innerHTML = `${data.data.newBalance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                                } else {
+                                    element.textContent = data.data.newBalance.toFixed(2);
+                                }
+                            }
+                        });
+
+                        // Позначаємо бонус як отриманий
+                        markNewbieBonus();
+
+                    } else if (data.status === 'already_claimed') {
+                        console.log("ℹ️ Бонус вже отримано:", data);
+
+                        // Показуємо повідомлення про те, що бонус вже отримано
+                        if (window.simpleAlert) {
+                            window.simpleAlert('Ви вже отримали бонус новачка!', false);
+                        } else if (window.showToast) {
+                            window.showToast('Ви вже отримали бонус новачка!');
+                        } else {
+                            alert('Ви вже отримали бонус новачка!');
+                        }
+
+                        // Позначаємо бонус як отриманий
+                        markNewbieBonus();
+
+                    } else {
+                        console.error("❌ Помилка отримання бонусу:", data);
+
+                        // Показуємо повідомлення про помилку
+                        if (window.simpleAlert) {
+                            window.simpleAlert(data.message || 'Помилка отримання бонусу новачка', true);
+                        } else if (window.showToast) {
+                            window.showToast(data.message || 'Помилка отримання бонусу новачка');
+                        } else {
+                            alert(data.message || 'Помилка отримання бонусу новачка');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ Помилка отримання бонусу:", error);
+
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
+
+                    // Показуємо повідомлення про помилку
+                    if (window.simpleAlert) {
+                        window.simpleAlert('Помилка з\'єднання з сервером', true);
+                    } else if (window.showToast) {
+                        window.showToast('Помилка з\'єднання з сервером');
+                    } else {
+                        alert('Помилка з\'єднання з сервером');
+                    }
+                });
+            });
+        });
+    }
+
+    // Ініціалізація системи
+    function initialize() {
+        console.log("🚀 Ініціалізація системи інтеграції з Supabase");
+
+        // Завантажуємо дані користувача
+        loadUserData();
+
+        // Налаштовуємо кнопку бонусу новачка
+        setupNewbieBonus();
+    }
+
+    // Запускаємо ініціалізацію після завантаження DOM
+    document.addEventListener('DOMContentLoaded', initialize);
+
+    // Якщо DOM вже завантажено, запускаємо ініціалізацію зараз
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        initialize();
+    }
+
+    // Запускаємо ініціалізацію при подіях, які можуть означати оновлення сторінки
+    document.addEventListener('winix-initialized', initialize);
+})();
 </script>
 </body>
 </html>
