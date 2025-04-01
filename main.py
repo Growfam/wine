@@ -48,33 +48,26 @@ def verify_user(telegram_data):
     Перевіряє дані Telegram WebApp та авторизує користувача
     """
     try:
-        # Отримуємо дані з запиту
         telegram_id = telegram_data.get('id')
         username = telegram_data.get('username', '')
         first_name = telegram_data.get('first_name', '')
         last_name = telegram_data.get('last_name', '')
 
-        logger.info(f"Дані Telegram: id={telegram_id}, username={username}, first_name={first_name}")
+        logger.info(f"Отримані дані Telegram: id={telegram_id}, username={username}, first_name={first_name}")
 
-        # Якщо ID відсутній або 12345678 (тестовий), спробувати отримати з інших джерел
-        if not telegram_id or telegram_id == "12345678":
-            # Можливо, ID є в іншому місці у даних
-            if isinstance(telegram_data, dict) and 'from' in telegram_data:
-                telegram_id = telegram_data['from'].get('id')
-                logger.info(f"Отримано ID з 'from': {telegram_id}")
-
-            # Якщо все ще немає ID, спробувати отримати з заголовків
-            if not telegram_id and request.headers.get('X-Telegram-User-Id'):
-                telegram_id = request.headers.get('X-Telegram-User-Id')
-                logger.info(f"Отримано ID з заголовків: {telegram_id}")
-
-        if not telegram_id:
-            logger.error("Не вдалося отримати telegram_id з даних")
-            return None
+        # Додаткова перевірка ID на валідність
+        if not telegram_id or str(telegram_id) == "12345678":
+            header_id = request.headers.get('X-Telegram-User-Id')
+            if header_id and header_id != "12345678":
+                telegram_id = header_id
+                logger.info(f"Отримано валідний ID з заголовків: {telegram_id}")
+            else:
+                logger.error("Не вдалося отримати валідний telegram_id")
+                return None
 
         logger.info(f"Перевірка користувача з ID: {telegram_id}")
 
-        # Перевіряємо, чи існує користувач у базі
+        # Перевіряємо наявність користувача у базі
         user = get_user(telegram_id)
 
         # Якщо користувача немає, створюємо його
@@ -84,6 +77,7 @@ def verify_user(telegram_data):
             user = create_user(telegram_id, display_name)
 
         return user
+
     except Exception as e:
         logger.error(f"Помилка авторизації користувача: {str(e)}")
         return None
