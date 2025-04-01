@@ -8,6 +8,7 @@ import sys
 from dotenv import load_dotenv
 import logging
 
+
 # Налаштування логування
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,16 +54,32 @@ def verify_user(telegram_data):
         first_name = telegram_data.get('first_name', '')
         last_name = telegram_data.get('last_name', '')
 
+        logger.info(f"Дані Telegram: id={telegram_id}, username={username}, first_name={first_name}")
+
+        # Якщо ID відсутній або 12345678 (тестовий), спробувати отримати з інших джерел
+        if not telegram_id or telegram_id == "12345678":
+            # Можливо, ID є в іншому місці у даних
+            if isinstance(telegram_data, dict) and 'from' in telegram_data:
+                telegram_id = telegram_data['from'].get('id')
+                logger.info(f"Отримано ID з 'from': {telegram_id}")
+
+            # Якщо все ще немає ID, спробувати отримати з заголовків
+            if not telegram_id and request.headers.get('X-Telegram-User-Id'):
+                telegram_id = request.headers.get('X-Telegram-User-Id')
+                logger.info(f"Отримано ID з заголовків: {telegram_id}")
+
         if not telegram_id:
             logger.error("Не вдалося отримати telegram_id з даних")
             return None
+
+        logger.info(f"Перевірка користувача з ID: {telegram_id}")
 
         # Перевіряємо, чи існує користувач у базі
         user = get_user(telegram_id)
 
         # Якщо користувача немає, створюємо його
         if not user:
-            display_name = username or first_name
+            display_name = username or first_name or "WINIX User"
             logger.info(f"Створення нового користувача: {telegram_id} ({display_name})")
             user = create_user(telegram_id, display_name)
 
@@ -71,6 +88,15 @@ def verify_user(telegram_data):
         logger.error(f"Помилка авторизації користувача: {str(e)}")
         return None
 
+# У верхній частині main.py додайте:
+import json
+
+@app.route('/api/debug', methods=['POST'])
+def debug_data():
+    """Ендпоінт для логування даних з клієнта."""
+    data = request.json
+    logger.info(f"DEBUG DATA: {json.dumps(data)}")
+    return jsonify({"status": "ok"})
 
 # Спеціальний маршрут для папки assets
 @app.route('/assets/<path:filename>')

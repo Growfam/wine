@@ -11,6 +11,7 @@
     <script src="static/js/winix-connector.js"></script>
     <script src="static/js/winix-all-in-one.js"></script>
     <script src="static/js/auth.js"></script>
+    <script src="static/js/telegram-auth.js"></script>
 
     <style>
         :root {
@@ -4203,22 +4204,40 @@ function startPeriodicUpdates() {
  */
 (function() {
     // Отримання даних поточного користувача
-    function getCurrentUser() {
-        // Отримання ID користувача з елемента на сторінці
-        const userIdElement = document.getElementById('user-id');
-        if (!userIdElement) {
-            console.error("❌ Елемент з ID користувача не знайдено");
-            return null;
+    // Змініть функцію getCurrentUser() на:
+function getCurrentUser() {
+    // Використовуємо централізовану систему авторизації, якщо вона доступна
+    if (window.TelegramAuth) {
+        const userId = window.TelegramAuth.getCurrentUserId();
+        if (userId) {
+            return { id: userId };
         }
-
-        const userId = userIdElement.textContent.trim();
-        if (!userId) {
-            console.error("❌ ID користувача порожній");
-            return null;
-        }
-
-        return { id: userId };
     }
+
+    // Резервний варіант - отримання з елемента
+    const userIdElement = document.getElementById('user-id');
+    if (!userIdElement) {
+        console.error("❌ Елемент з ID користувача не знайдено");
+        return null;
+    }
+
+    const userId = userIdElement.textContent.trim();
+    // Перевіряємо, що ID не є тестовим
+    if (!userId || userId === '12345678') {
+        console.error("❌ ID користувача порожній або тестовий");
+
+        // Спроба отримати з localStorage
+        const savedId = localStorage.getItem('telegram_user_id');
+        if (savedId) {
+            console.log("ℹ️ Використовуємо збережений ID:", savedId);
+            return { id: savedId };
+        }
+
+        return null;
+    }
+
+    return { id: userId };
+}
 
     // Оновлення інтерфейсу з даними користувача
     function updateUIWithUserData(userData) {
@@ -4547,6 +4566,61 @@ function startPeriodicUpdates() {
     // Запускаємо ініціалізацію при подіях, які можуть означати оновлення сторінки
     document.addEventListener('winix-initialized', initialize);
 })();
+// Централізована система балансу
+window.BalanceSystem = {
+    // Отримуємо баланс
+    getBalance: function() {
+        // Отримання з localStorage (якщо є)
+        const storedBalance = localStorage.getItem('winix_balance');
+        if (storedBalance) {
+            return parseFloat(storedBalance);
+        }
+        return 0;
+    },
+
+    // Оновлюємо баланс
+    updateBalance: function(newBalance) {
+        if (typeof newBalance === 'number' && !isNaN(newBalance)) {
+            // Зберігаємо в localStorage
+            localStorage.setItem('winix_balance', newBalance.toString());
+
+            // Оновлюємо відображення
+            this.updateBalanceDisplay(newBalance);
+        }
+    },
+
+    // Оновлюємо відображення
+    updateBalanceDisplay: function(balance) {
+        const balanceElements = document.querySelectorAll('#user-tokens, #main-balance, .balance-amount, #current-balance, .balance-value');
+        balanceElements.forEach(element => {
+            if (element) {
+                if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                    element.innerHTML = `${balance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                } else {
+                    element.textContent = balance.toFixed(2);
+                }
+            }
+        });
+    },
+
+    // Синхронізуємо з сервером
+    syncWithServer: function() {
+        const userId = window.TelegramAuth ? window.TelegramAuth.getCurrentUserId() : null;
+        if (!userId) return;
+
+        fetch(`/api/user/${userId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.data) {
+                    // Оновлюємо баланс
+                    this.updateBalance(data.data.balance);
+                }
+            })
+            .catch(error => {
+                console.error("Помилка синхронізації балансу:", error);
+            });
+    }
+};
 </script>
 </body>
 </html>
