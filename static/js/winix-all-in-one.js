@@ -805,4 +805,56 @@
             }
         });
     }
+    // Додайте цю функцію в кінець файлу, перед закриваючою дужкою })();
+function restoreStakingData() {
+    try {
+        console.log("🔄 Спроба відновлення даних стейкінгу з сервера");
+
+        // Отримуємо ID користувача
+        const userId = localStorage.getItem('telegram_user_id') ||
+                      document.getElementById('user-id')?.textContent ||
+                      localStorage.getItem('userId');
+
+        if (!userId) {
+            console.warn("⚠️ Не вдалося знайти ID користувача для відновлення даних стейкінгу");
+            return false;
+        }
+
+        // Запитуємо дані стейкінгу з сервера
+        fetch(`/api/user/${userId}/staking`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' && data.data) {
+                    console.log("✅ Отримано дані стейкінгу з сервера:", data.data);
+
+                    // Зберігаємо дані в обох ключах
+                    const stakingStr = JSON.stringify(data.data);
+                    localStorage.setItem('stakingData', stakingStr);
+                    localStorage.setItem('winix_staking', stakingStr);
+
+                    // Оновлюємо інтерфейс, якщо можливо
+                    if (window.updateStakingDisplay) {
+                        window.updateStakingDisplay();
+                    } else if (window.WinixCore && window.WinixCore.UI) {
+                        window.WinixCore.UI.updateStakingDisplay();
+                    }
+
+                    return true;
+                } else {
+                    console.warn("⚠️ Не вдалося отримати дані стейкінгу з сервера", data);
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error("❌ Помилка при відновленні даних стейкінгу:", error);
+                return false;
+            });
+    } catch (e) {
+        console.error("❌ Помилка функції відновлення даних стейкінгу:", e);
+        return false;
+    }
+}
+
+// Викликаємо функцію при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', restoreStakingData);
     })();

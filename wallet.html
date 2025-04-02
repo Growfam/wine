@@ -1062,6 +1062,37 @@ function updateTransactionsList() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log("Ініціалізація сторінки гаманця");
 
+    const stakingDataFromServer = localStorage.getItem('stakingData');
+try {
+    if (stakingDataFromServer) {
+        const parsedData = JSON.parse(stakingDataFromServer);
+        // Перевіряємо, чи є дані потенційно застарілими
+        if (parsedData.endDate) {
+            const endDate = new Date(parsedData.endDate);
+            const now = new Date();
+            // Якщо стейкінг завершився, очищаємо дані
+            if (now >= endDate) {
+                console.log("Знайдено застарілий стейкінг, оновлюємо дані з сервера");
+                localStorage.removeItem('stakingData');
+                localStorage.removeItem('winix_staking');
+                // Запускаємо запит на отримання актуальних даних
+                const userId = document.getElementById('user-id').textContent;
+                fetch(`/api/user/${userId}/staking`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success' && data.data) {
+                            localStorage.setItem('stakingData', JSON.stringify(data.data));
+                            localStorage.setItem('winix_staking', JSON.stringify(data.data));
+                        }
+                    })
+                    .catch(e => console.error("Помилка оновлення даних стейкінгу:", e));
+            }
+        }
+    }
+} catch (e) {
+    console.error("Помилка перевірки даних стейкінгу:", e);
+}
+
     // Завантажуємо аватар і налаштовуємо клік на профіль
     loadUserAvatar();
     setupProfileLink();
