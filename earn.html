@@ -1320,22 +1320,154 @@ function navigateTo(page) {
         }
     }
 
-    // Функція для перемикання між вкладками завдань
-    function switchTab(tabName) {
-        // Приховуємо всі вкладки та деактивуємо всі кнопки
-        document.querySelectorAll('.content-section').forEach(section => {
-            section.classList.remove('active');
-        });
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
+    /**
+ * Функція для перемикання між вкладками
+ * @param {string} tabName - Назва вкладки
+ */
+function switchTab(tabName) {
+    // Приховуємо всі вкладки та деактивуємо всі кнопки
+    document.querySelectorAll('.content-section').forEach(section => {
+        section.classList.remove('active');
+    });
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
 
-        // Активуємо потрібну вкладку та кнопку
-        document.getElementById(`${tabName}-content`).classList.add('active');
-        document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+    // Активуємо потрібну вкладку та кнопку
+    document.getElementById(`${tabName}-content`).classList.add('active');
+    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+
+    // Зберігаємо обрану вкладку в localStorage
+    localStorage.setItem('activeTab', tabName);
+}
+
+/**
+ * Основна функція ініціалізації сторінки при завантаженні
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOMContentLoaded: Ініціалізація сторінки завдань");
+
+    // Перевіряємо, чи є спіннер завантаження
+    if (!document.getElementById('loading-spinner')) {
+        // Створюємо спіннер, якщо його немає
+        const spinner = document.createElement('div');
+        spinner.id = 'loading-spinner';
+        spinner.className = 'spinner';
+        spinner.innerHTML = '<div class="spinner-inner"></div>';
+        document.body.appendChild(spinner);
     }
 
-    // Функція для обробки кнопок соціальних мереж
+    // Завантажуємо дані користувача з сервера
+    loadUserData();
+
+    // Запускаємо періодичне оновлення
+    startPeriodicUpdates();
+
+    // Налаштовуємо перевірку підключення до інтернету
+    setupOnlineStatusDetection();
+
+    // Налаштовуємо перемикання вкладок
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+
+    // Відновлюємо активну вкладку з localStorage (якщо є)
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab && document.getElementById(`${savedTab}-content`)) {
+        switchTab(savedTab);
+    }
+
+    // Ініціалізуємо обробники для кнопок завдань
+    initDailyBonus();
+    handleSocialButtons();
+    updateReferralTasks();
+
+    // Додаємо обробники для елементів навігації
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const section = item.getAttribute('data-section');
+
+            // Перевіряємо, чи це поточна сторінка
+            if (section === 'earn') {
+                console.log('Вже на сторінці Earn');
+                return;
+            }
+
+            // Для інших сторінок використовуємо навігацію
+            switch (section) {
+                case 'home':
+                    navigateTo('index.html');
+                    break;
+                case 'referrals':
+                    navigateTo('referrals.html');
+                    break;
+                case 'wallet':
+                    navigateTo('wallet.html');
+                    break;
+                case 'general':
+                    navigateTo('general.html');
+                    break;
+                default:
+                    navigateTo(`${section}.html`);
+            }
+        });
+    });
+
+    // Додаємо CSS для відображення спіннера завантаження
+    const spinnerStyle = document.createElement('style');
+    spinnerStyle.textContent = `
+        .spinner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        .spinner-inner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(0, 201, 167, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid rgba(0, 201, 167, 1);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(spinnerStyle);
+
+    console.log("✅ Сторінку завдань успішно ініціалізовано");
+});
+
+// Для випадків, коли сторінка завантажується з кешу
+window.addEventListener('pageshow', function(event) {
+    if (event.persisted) {
+        console.log("Сторінка відновлена з кешу, оновлюємо дані");
+        loadUserData();
+    }
+});
+
+// Обробляємо помилки, які можуть виникнути під час виконання скриптів
+window.onerror = function(message, source, lineno, colno, error) {
+    console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+    showToast("Виникла помилка під час виконання скрипту", true);
+    return true; // Запобігаємо виведенню помилки в консоль браузера
+};
+
+   /**
+ * Функція для обробки кнопок соціальних мереж
+ */
 function handleSocialButtons() {
     // Twitter
     const twitterSubscribe = document.getElementById('twitter-subscribe');
@@ -1351,7 +1483,7 @@ function handleSocialButtons() {
 
     if (twitterVerify) {
         twitterVerify.addEventListener('click', function() {
-            verifySubscription('twitter', 50);
+            verifySubscription('twitter');
         });
     }
 
@@ -1369,7 +1501,7 @@ function handleSocialButtons() {
 
     if (telegramVerify) {
         telegramVerify.addEventListener('click', function() {
-            verifySubscription('telegram', 80);
+            verifySubscription('telegram');
         });
     }
 
@@ -1387,18 +1519,93 @@ function handleSocialButtons() {
 
     if (youtubeVerify) {
         youtubeVerify.addEventListener('click', function() {
-            verifySubscription('youtube', 50);
+            verifySubscription('youtube');
         });
     }
+
+    // Discord (якщо є)
+    const discordSubscribe = document.getElementById('discord-subscribe');
+    const discordVerify = document.getElementById('discord-verify');
+
+    if (discordSubscribe) {
+        discordSubscribe.addEventListener('click', function() {
+            window.open('https://discord.gg/Winix_Official', '_blank');
+            localStorage.setItem('discord_link_clicked', 'true');
+        });
+    }
+
+    if (discordVerify) {
+        discordVerify.addEventListener('click', function() {
+            verifySubscription('discord');
+        });
+    }
+
+    // Перевіряємо статус завдань при завантаженні
+    checkCompletedSocialTasks();
 }
 
-// Функція для перевірки підписки через сервер
-function verifySubscription(platform, reward) {
+/**
+ * Функція для перевірки статусу виконаних соціальних завдань
+ */
+function checkCompletedSocialTasks() {
+    const platforms = ['twitter', 'telegram', 'youtube', 'discord', 'instagram'];
+
+    platforms.forEach(platform => {
+        // Перевіряємо статус завдання в localStorage
+        const isCompleted = localStorage.getItem(`${platform}_task_completed`) === 'true';
+
+        if (isCompleted) {
+            // Знаходимо відповідні елементи
+            const verifyButton = document.getElementById(`${platform}-verify`);
+            const subscribeButton = document.getElementById(`${platform}-subscribe`);
+
+            if (verifyButton) {
+                // Деактивуємо кнопку перевірки
+                verifyButton.disabled = true;
+                verifyButton.style.opacity = '0.5';
+
+                // Знаходимо батьківський елемент завдання
+                const taskItem = verifyButton.closest('.task-item');
+                if (taskItem) {
+                    // Додаємо клас виконаного завдання
+                    taskItem.classList.add('completed-task');
+
+                    // Додаємо мітку "Виконано" якщо її ще немає
+                    const taskAction = taskItem.querySelector('.task-action');
+                    if (taskAction && !taskAction.querySelector('.completed-label')) {
+                        const completedLabel = document.createElement('div');
+                        completedLabel.className = 'completed-label';
+                        completedLabel.textContent = 'Виконано';
+                        taskAction.appendChild(completedLabel);
+                    }
+                }
+            }
+
+            if (subscribeButton) {
+                // Деактивуємо кнопку підписки
+                subscribeButton.disabled = true;
+                subscribeButton.style.opacity = '0.5';
+            }
+        }
+    });
+}
+
+/**
+ * Функція для перевірки підписки через сервер
+ * @param {string} platform - Назва платформи (twitter, telegram, youtube)
+ */
+function verifySubscription(platform) {
     console.log(`Перевірка підписки на ${platform}...`);
 
     // Перевіряємо, чи користувач клікнув на посилання підписки
     if (localStorage.getItem(`${platform}_link_clicked`) !== 'true') {
         showToast('Спочатку натисніть кнопку "Підписатись"!', true);
+        return;
+    }
+
+    // Перевіряємо, чи завдання вже виконано
+    if (localStorage.getItem(`${platform}_task_completed`) === 'true') {
+        showToast('Це завдання вже виконано!');
         return;
     }
 
@@ -1429,23 +1636,27 @@ function verifySubscription(platform, reward) {
             // Оновлюємо відображення балансу
             if (data.newBalance !== undefined) {
                 document.getElementById('user-tokens').textContent = data.newBalance.toFixed(2);
+                localStorage.setItem('userTokens', data.newBalance.toString());
             }
 
-            // Оновлюємо вигляд кнопки
+            // Помічаємо завдання як виконане
+            localStorage.setItem(`${platform}_task_completed`, 'true');
+
+            // Оновлюємо вигляд кнопок
             const verifyButton = document.getElementById(`${platform}-verify`);
+            const subscribeButton = document.getElementById(`${platform}-subscribe`);
+
             if (verifyButton) {
                 verifyButton.disabled = true;
                 verifyButton.style.opacity = '0.5';
             }
 
-            // Оновлюємо вигляд кнопки підписки
-            const subscribeButton = document.getElementById(`${platform}-subscribe`);
             if (subscribeButton) {
                 subscribeButton.disabled = true;
                 subscribeButton.style.opacity = '0.5';
             }
 
-            // Позначаємо завдання як виконане
+            // Оновлюємо вигляд завдання
             const taskItem = verifyButton ? verifyButton.closest('.task-item') : null;
             if (taskItem) {
                 taskItem.classList.add('completed-task');
@@ -1461,7 +1672,10 @@ function verifySubscription(platform, reward) {
             }
 
             // Показуємо повідомлення
-            showToast(`Підписку перевірено! Отримано ${data.reward || reward} $WINIX`);
+            showToast(`Підписку перевірено! Отримано ${data.reward || 0} $WINIX`);
+        } else if (data.status === 'already_completed') {
+            localStorage.setItem(`${platform}_task_completed`, 'true');
+            showToast(data.message || 'Це завдання вже виконано');
         } else {
             // Показуємо повідомлення про помилку
             showToast(data.message || 'Підписку не знайдено. Спробуйте пізніше.', true);
@@ -1628,54 +1842,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 /**
- * Функція для обробки виконання завдання
- * @param {HTMLElement} taskItem Елемент завдання
- * @param {string} platform Платформа (twitter, telegram, youtube)
- * @param {number} reward Нагорода за виконання
- */
-function handleTaskCompletion(taskItem, platform, reward) {
-    // Позначаємо завдання як виконане
-    taskItem.classList.add('completed-task');
-
-    // Деактивуємо кнопки
-    const buttons = taskItem.querySelectorAll('button');
-    buttons.forEach(button => {
-        button.disabled = true;
-        button.style.opacity = '0.5';
-        button.style.cursor = 'not-allowed';
-    });
-
-    // Додаємо позначку "Виконано"
-    const taskAction = taskItem.querySelector('.task-action');
-    if (taskAction) {
-        // Перевіряємо, чи вже є мітка "Виконано"
-        if (!taskAction.querySelector('.completed-label')) {
-            const completedLabel = document.createElement('div');
-            completedLabel.className = 'completed-label';
-            completedLabel.textContent = 'Виконано';
-            taskAction.appendChild(completedLabel);
-        }
-    }
-
-    // Позначаємо завдання як виконане в localStorage
-    localStorage.setItem(`${platform}_task_completed`, 'true');
-
-    // Переміщаємо завдання в кінець списку
-    const taskContainer = taskItem.parentElement;
-    if (taskContainer) {
-        // Відкладаємо переміщення для анімації
-        setTimeout(() => {
-            taskContainer.appendChild(taskItem);
-
-            // Плавне переміщення
-            taskItem.style.transition = 'all 0.5s ease';
-            taskItem.style.backgroundColor = 'rgba(0, 201, 167, 0.1)';
-            taskItem.style.borderLeft = '3px solid #00C9A7';
-        }, 500);
-    }
-}
-
-/**
  * Функція для перевірки та відображення статусу завдань при завантаженні
  */
 function initTasksStatus() {
@@ -1747,127 +1913,6 @@ function initTasksStatus() {
 
     // Викликаємо функцію перевірки
     checkCompletedTasks();
-}
-
-/**
- * Функція для встановлення нових обробників кнопок завдань
- */
-function setupTaskButtons() {
-    // Отримуємо всі кнопки перевірки
-    const verifyButtons = [
-        {id: 'twitter-verify', platform: 'twitter', reward: 50},
-        {id: 'telegram-verify', platform: 'telegram', reward: 80},
-        {id: 'youtube-verify', platform: 'youtube', reward: 50}
-    ];
-
-    verifyButtons.forEach(button => {
-        const btnElement = document.getElementById(button.id);
-        if (btnElement) {
-            // Видаляємо всі існуючі обробники подій
-            const newBtn = btnElement.cloneNode(true);
-            btnElement.parentNode.replaceChild(newBtn, btnElement);
-
-            // Додаємо новий обробник
-            newBtn.addEventListener('click', async function() {
-                // Перевіряємо, чи завдання вже виконано
-                if (localStorage.getItem(`${button.platform}_task_completed`) === 'true') {
-                    window.simpleAlert ?
-                        window.simpleAlert('Це завдання вже виконано!') :
-                        window.showToast ? window.showToast('Це завдання вже виконано!') :
-                        alert('Це завдання вже виконано!');
-                    return;
-                }
-
-                // Перевіряємо, чи користувач клікнув на кнопку підписки
-                if (localStorage.getItem(`${button.platform}_link_clicked`) !== 'true') {
-                    window.simpleAlert ?
-                        window.simpleAlert('Спочатку натисніть кнопку "Підписатись"!', true) :
-                        window.showToast ? window.showToast('Спочатку натисніть кнопку "Підписатись"!') :
-                        alert('Спочатку натисніть кнопку "Підписатись"!');
-                    return;
-                }
-
-                // Повідомлення про перевірку
-                window.simpleAlert ?
-                    window.simpleAlert('Перевірка підписки...') :
-                    window.showToast ? window.showToast('Перевірка підписки...') :
-                    alert('Перевірка підписки...');
-
-                // Імітуємо перевірку підписки
-                setTimeout(() => {
-                    const randomSuccess = Math.random() > 0.3; // 70% шанс успіху
-
-                    if (randomSuccess) {
-                        // Нараховуємо винагороду
-                        if (window.WinixCore && window.WinixCore.Balance) {
-                            window.WinixCore.Balance.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
-                        } else if (window.rewardSystem) {
-                            window.rewardSystem.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
-                        } else {
-                            // Якщо немає системи винагород, просто оновлюємо localStorage
-                            const currentTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-                            localStorage.setItem('userTokens', (currentTokens + button.reward).toString());
-
-                            // Оновлюємо відображення балансу, якщо можливо
-                            const userTokensElement = document.getElementById('user-tokens');
-                            if (userTokensElement) {
-                                userTokensElement.textContent = (currentTokens + button.reward).toFixed(2);
-                            }
-                        }
-
-                        // Знаходимо батьківський елемент завдання
-                        const taskItem = newBtn.closest('.task-item');
-
-                        // Обробляємо виконання завдання
-                        if (taskItem) {
-                            handleTaskCompletion(taskItem, button.platform, button.reward);
-                        }
-
-                        // Показуємо повідомлення про успіх
-                        window.simpleAlert ?
-                            window.simpleAlert(`Вітаємо! Отримано ${button.reward} $WINIX`) :
-                            window.showToast ? window.showToast(`Вітаємо! Отримано ${button.reward} $WINIX`) :
-                            alert(`Вітаємо! Отримано ${button.reward} $WINIX`);
-                    } else {
-                        window.simpleAlert ?
-                            window.simpleAlert('Підписку не знайдено. Спробуйте ще раз.', true) :
-                            window.showToast ? window.showToast('Підписку не знайдено. Спробуйте ще раз.') :
-                            alert('Підписку не знайдено. Спробуйте ще раз.');
-                    }
-                }, 1500);
-            });
-        }
-    });
-
-    // Кнопки підписки
-    const subscribeButtons = [
-        {id: 'twitter-subscribe', platform: 'twitter'},
-        {id: 'telegram-subscribe', platform: 'telegram'},
-        {id: 'youtube-subscribe', platform: 'youtube'}
-    ];
-
-    subscribeButtons.forEach(button => {
-        const btnElement = document.getElementById(button.id);
-        if (btnElement) {
-            // Видаляємо всі існуючі обробники подій
-            const newBtn = btnElement.cloneNode(true);
-            btnElement.parentNode.replaceChild(newBtn, btnElement);
-
-            // Додаємо новий обробник
-            newBtn.addEventListener('click', function() {
-                localStorage.setItem(`${button.platform}_link_clicked`, 'true');
-
-                let url = '';
-                switch(button.platform) {
-                    case 'twitter': url = 'https://twitter.com/winix_project'; break;
-                    case 'telegram': url = 'https://t.me/winix_channel'; break;
-                    case 'youtube': url = 'https://youtube.com/@winix_project'; break;
-                }
-
-                window.open(url, '_blank');
-            });
-        }
-    });
 }
 
 // Додаємо стилі для виконаних завдань
@@ -1948,8 +1993,16 @@ function initDailyBonus() {
                 // Отримуємо дані з сервера
                 const currentDay = data.currentDay || 1; // поточний день (1-7)
                 const claimedDays = data.claimedDays || []; // масив днів, за які вже отримано бонуси
+                const canClaim = data.canClaim || false; // чи можна отримати бонус сьогодні
+                const rewardAmount = data.rewardAmount || currentDay * 10; // сума винагороди
 
-                console.log(`📊 Поточний день: ${currentDay}, отримані бонуси: ${claimedDays.join(', ')}`);
+                console.log(`📊 Поточний день: ${currentDay}, отримані бонуси: ${claimedDays.join(', ')}, можна отримати: ${canClaim}`);
+
+                // Зберігаємо данні в localStorage для подальшого використання
+                localStorage.setItem('currentDailyBonus', rewardAmount.toString());
+                localStorage.setItem('currentBonusDay', currentDay.toString());
+                localStorage.setItem('claimedBonusDays', JSON.stringify(claimedDays));
+                localStorage.setItem('canClaimDailyBonus', canClaim.toString());
 
                 // Оновлюємо відображення днів
                 const allDays = document.querySelectorAll('.day-circle');
@@ -1981,7 +2034,20 @@ function initDailyBonus() {
                 });
 
                 // Оновлюємо текст кнопки з правильною сумою винагороди
-                updateClaimButton(currentDay, claimedDays, data.rewardAmount);
+                const claimButton = document.getElementById('claim-daily');
+                if (claimButton) {
+                    if (canClaim) {
+                        claimButton.disabled = false;
+                        claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+                    } else {
+                        claimButton.disabled = true;
+                        claimButton.textContent = 'Отримано';
+                    }
+
+                    // Додаємо обробник події для кнопки
+                    claimButton.removeEventListener('click', handleClaimButtonClick);
+                    claimButton.addEventListener('click', handleClaimButtonClick);
+                }
             } else {
                 console.warn("Отримано некоректні дані щоденного бонусу:", data);
                 showToast("Помилка отримання даних щоденного бонусу", true);
@@ -1994,49 +2060,9 @@ function initDailyBonus() {
 }
 
 /**
- * Оновлення кнопки отримання бонусу
- * @param {number} currentDay - Поточний день (від 1 до 7)
- * @param {Array} claimedDays - Масив днів, за які вже отримано бонуси
- * @param {number} serverReward - Сума винагороди з сервера (якщо є)
- */
-function updateClaimButton(currentDay, claimedDays = [], serverReward = null) {
-    const claimButton = document.getElementById('claim-daily');
-    if (!claimButton) {
-        console.log("❌ Кнопку отримання бонусу не знайдено");
-        return;
-    }
-
-    // Визначаємо винагороду на основі поточного дня або даних з сервера
-    let rewardAmount = serverReward !== null ? serverReward : currentDay * 10; // 10, 20, 30, 40, 50, 60, 70
-
-    // Перевіряємо, чи вже отримано бонус за поточний день
-    const isClaimed = claimedDays.includes(currentDay);
-
-    if (isClaimed) {
-        claimButton.disabled = true;
-        claimButton.textContent = 'Отримано';
-        console.log("🔒 Бонус вже отримано сьогодні");
-    } else {
-        claimButton.disabled = false;
-        claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
-        console.log("✅ Бонус ще не отримано сьогодні");
-    }
-
-    // Видаляємо існуючий обробник подій
-    claimButton.removeEventListener('click', handleClaimButtonClick);
-
-    // Створюємо новий обробник з потрібними даними
-    claimButton.addEventListener('click', function() {
-        handleClaimButtonClick.call(this, currentDay, rewardAmount);
-    });
-}
-
-/**
  * Обробник кліку на кнопці отримання бонусу
- * @param {number} currentDay - Поточний день (від 1 до 7)
- * @param {number} rewardAmount - Сума винагороди
  */
-function handleClaimButtonClick(currentDay, rewardAmount) {
+function handleClaimButtonClick() {
     console.log("🖱️ Клік на кнопці отримання бонусу");
 
     if (this.disabled) {
@@ -2050,6 +2076,7 @@ function handleClaimButtonClick(currentDay, rewardAmount) {
 
     // Отримуємо ID користувача
     const userId = localStorage.getItem('userId') || '12345678';
+    const currentDay = parseInt(localStorage.getItem('currentBonusDay') || '1', 10);
 
     // Запит до сервера для отримання бонусу
     fetch(`/api/user/${userId}/claim-daily-bonus`, {
@@ -2071,11 +2098,18 @@ function handleClaimButtonClick(currentDay, rewardAmount) {
             // Оновлюємо відображення балансу, якщо є нові дані
             if (data.newBalance !== undefined) {
                 document.getElementById('user-tokens').textContent = data.newBalance.toFixed(2);
+                localStorage.setItem('userTokens', data.newBalance.toString());
             }
 
             // Оновлюємо відображення кнопки
             this.disabled = true;
             this.textContent = 'Отримано';
+
+            // Оновлюємо localStorage
+            localStorage.setItem('canClaimDailyBonus', 'false');
+            const claimedDays = JSON.parse(localStorage.getItem('claimedBonusDays') || '[]');
+            claimedDays.push(currentDay);
+            localStorage.setItem('claimedBonusDays', JSON.stringify(claimedDays));
 
             // Оновлюємо кружечок дня на completed
             const dayCircles = document.querySelectorAll('.day-circle');
@@ -2089,8 +2123,14 @@ function handleClaimButtonClick(currentDay, rewardAmount) {
             }
 
             // Показуємо повідомлення про успіх
-            const actualReward = data.reward || rewardAmount;
+            const actualReward = data.reward || data.rewardAmount || localStorage.getItem('currentDailyBonus');
             showToast(`Вітаємо! Щоденний бонус отримано: ${actualReward} $WINIX`);
+        } else if (data.status === 'already_claimed') {
+            // Якщо бонус вже отримано сьогодні
+            this.disabled = true;
+            this.textContent = 'Отримано';
+            localStorage.setItem('canClaimDailyBonus', 'false');
+            showToast(data.message || "Бонус вже отримано сьогодні");
         } else {
             console.warn("Помилка отримання бонусу:", data);
             showToast(data.message || "Помилка отримання бонусу. Спробуйте пізніше.", true);
@@ -2105,32 +2145,364 @@ function handleClaimButtonClick(currentDay, rewardAmount) {
         if (spinner) spinner.style.display = 'none';
     });
 }
+/**
+ * Виправлення проблеми з щоденним бонусом
+ */
+(function() {
+    console.log("🔧 Запуск виправлення щоденного бонусу...");
 
-// Функція для показу повідомлень, якщо вона не визначена в інших місцях
-function showToast(message, isError = false) {
-    if (window.simpleAlert) {
-        window.simpleAlert(message, isError);
-    } else if (window.showToast && typeof window.showToast === 'function') {
-        window.showToast(message, isError);
-    } else {
-        // Створюємо та показуємо власне повідомлення
-        let toast = document.getElementById('toast-message');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'toast-message';
-            toast.className = 'toast-message';
-            document.body.appendChild(toast);
+    // Функція для надійного встановлення щоденного бонусу
+    function setupReliableDailyBonus() {
+        const claimButton = document.getElementById('claim-daily');
+        if (!claimButton) return false;
+
+        console.log("🔄 Налаштування кнопки щоденного бонусу");
+
+        // Перевірка, чи вже було отримано бонус сьогодні
+        const today = new Date().toDateString();
+        const lastClaimDate = localStorage.getItem('lastDailyBonusDate');
+        const isClaimed = lastClaimDate === today;
+
+        // Отримуємо активний день і відповідну винагороду
+        const activeDay = document.querySelector('.day-circle.active');
+        let rewardAmount = 30; // Значення за замовчуванням
+
+        if (activeDay) {
+            const dayMarker = activeDay.closest('.day-marker');
+            if (dayMarker) {
+                const rewardElement = dayMarker.querySelector('.day-reward');
+                if (rewardElement && rewardElement.textContent) {
+                    rewardAmount = parseInt(rewardElement.textContent, 10) || 30;
+                }
+            }
         }
 
-        toast.textContent = message;
-        if (isError) toast.classList.add('error');
-        else toast.classList.remove('error');
+        // Зберігаємо поточну винагороду в localStorage
+        localStorage.setItem('currentDailyBonus', rewardAmount.toString());
 
-        toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
+        // Оновлюємо стан кнопки
+        if (isClaimed) {
+            claimButton.disabled = true;
+            claimButton.textContent = 'Отримано';
+            console.log("🔒 Бонус вже отримано сьогодні");
+        } else {
+            claimButton.disabled = false;
+            claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
+            console.log("✅ Бонус ще не отримано сьогодні");
+        }
+
+        // Створюємо клон кнопки для видалення всіх існуючих обробників
+        const newClaimButton = claimButton.cloneNode(true);
+        claimButton.parentNode.replaceChild(newClaimButton, claimButton);
+
+        // Додаємо новий обробник
+        newClaimButton.addEventListener('click', function(event) {
+            // Запобігаємо повторним кликам
+            event.preventDefault();
+            if (this.disabled) return;
+
+            console.log("🖱️ Клік на кнопці отримання бонусу");
+
+            // Блокуємо кнопку на час обробки
+            this.disabled = true;
+
+            try {
+                // Отримуємо суму винагороди
+                const rewardAmount = parseInt(localStorage.getItem('currentDailyBonus') || '30', 10);
+
+                // Оновлюємо баланс у всіх можливих місцях
+                let currentBalance = 0;
+
+                // 1. В localStorage (userTokens)
+                currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+                const newBalance = currentBalance + rewardAmount;
+                localStorage.setItem('userTokens', newBalance.toString());
+
+                // 2. В localStorage (winix_balance) для WinixCore
+                localStorage.setItem('winix_balance', newBalance.toString());
+
+                // 3. Оновлюємо відображення балансу
+                const userTokensElements = document.querySelectorAll('#user-tokens, .balance-value');
+                userTokensElements.forEach(element => {
+                    if (element) element.textContent = newBalance.toFixed(2);
+                });
+
+                // Зберігаємо дату отримання бонусу
+                const today = new Date().toDateString();
+                localStorage.setItem('lastDailyBonusDate', today);
+
+                // Відзначаємо активний день як завершений
+                const activeDay = document.querySelector('.day-circle.active');
+                if (activeDay) {
+                    activeDay.classList.remove('active');
+                    activeDay.classList.add('completed');
+                }
+
+                // Оновлюємо вигляд кнопки
+                this.textContent = 'Отримано';
+
+                // Додаємо транзакцію, якщо є доступна система
+                if (window.WinixCore && window.WinixCore.Transactions) {
+                    window.WinixCore.Transactions.addTransaction(
+                        window.WinixCore.TRANSACTION_TYPES.REWARD,
+                        rewardAmount,
+                        `Щоденний бонус`
+                    );
+                }
+
+                // Показуємо повідомлення
+                const message = `Отримано ${rewardAmount} $WINIX!`;
+                if (window.showToast) {
+                    window.showToast(message);
+                } else if (window.simpleAlert) {
+                    window.simpleAlert(message);
+                } else {
+                    alert(message);
+                }
+
+                console.log(`✅ Бонус успішно отримано: ${rewardAmount} WINIX`);
+            } catch (error) {
+                console.error("❌ Помилка при отриманні бонусу:", error);
+                this.disabled = false;
+            }
+        });
+
+        return true;
     }
-}
 
+    // Запуск при завантаженні DOM
+    function initOnLoad() {
+        // Викликаємо з невеликою затримкою, щоб DOM був повністю готовий
+        setTimeout(setupReliableDailyBonus, 300);
+    }
+
+    // При будь-якому способі завантаження сторінки
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initOnLoad);
+    } else {
+        initOnLoad();
+    }
+
+    // Повторна ініціалізація при оновленні сторінки
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) { // Якщо сторінка відновлена з кешу
+            initOnLoad();
+        }
+    });
+
+    console.log("✅ Виправлення щоденного бонусу завантажено");
+})();
+
+/**
+ * Виправлення проблеми з дублікацією нагород
+ */
+(function() {
+    console.log("🔧 Запуск виправлення дублікації нагород...");
+
+    // Функція для встановлення надійних обробників для кнопок завдань
+    function setupReliableTaskButtons() {
+        // Масив з кнопками та їх налаштуваннями
+        const verifyButtons = [
+            {id: 'twitter-verify', platform: 'twitter', reward: 50},
+            {id: 'telegram-verify', platform: 'telegram', reward: 80},
+            {id: 'youtube-verify', platform: 'youtube', reward: 50}
+        ];
+
+        // Для всіх кнопок перевірки
+        verifyButtons.forEach(button => {
+            const btnElement = document.getElementById(button.id);
+            if (!btnElement) return;
+
+            console.log(`🔄 Налаштування кнопки перевірки для ${button.platform}`);
+
+            // Запобігаємо повторним нагородам: створюємо клон кнопки без обробників
+            const newBtn = btnElement.cloneNode(true);
+            btnElement.parentNode.replaceChild(newBtn, btnElement);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+
+                // Перевіряємо, чи завдання вже виконано
+                if (localStorage.getItem(`${button.platform}_task_completed`) === 'true') {
+                    const message = 'Це завдання вже виконано!';
+                    if (window.showToast) {
+                        window.showToast(message);
+                    } else if (window.simpleAlert) {
+                        window.simpleAlert(message);
+                    } else {
+                        alert(message);
+                    }
+                    return;
+                }
+
+                // Перевіряємо, чи користувач клікнув на кнопку підписки
+                if (localStorage.getItem(`${button.platform}_link_clicked`) !== 'true') {
+                    const message = 'Спочатку натисніть кнопку "Підписатись"!';
+                    if (window.showToast) {
+                        window.showToast(message);
+                    } else if (window.simpleAlert) {
+                        window.simpleAlert(message, true);
+                    } else {
+                        alert(message);
+                    }
+                    return;
+                }
+
+                // Показуємо повідомлення про перевірку
+                if (window.showToast) {
+                    window.showToast('Перевірка підписки...');
+                } else if (window.simpleAlert) {
+                    window.simpleAlert('Перевірка підписки...');
+                }
+
+                // Імітуємо перевірку підписки
+                setTimeout(() => {
+                    const randomSuccess = Math.random() > 0.3; // 70% шанс успіху
+
+                    if (randomSuccess) {
+                        // Нараховуємо винагороду ТІЛЬКИ ОДИН РАЗ
+                        let currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+                        let newBalance = currentBalance + button.reward;
+
+                        // Оновлюємо баланс у всіх можливих місцях
+                        localStorage.setItem('userTokens', newBalance.toString());
+                        localStorage.setItem('winix_balance', newBalance.toString());
+
+                        // Оновлюємо відображення
+                        const userTokensElement = document.getElementById('user-tokens');
+                        if (userTokensElement) {
+                            userTokensElement.textContent = newBalance.toFixed(2);
+                        }
+
+                        // Позначаємо завдання як виконане
+                        localStorage.setItem(`${button.platform}_task_completed`, 'true');
+
+                        // Змінюємо вигляд кнопки
+                        this.disabled = true;
+                        this.style.opacity = '0.5';
+
+                        // Знаходимо батьківський елемент для позначення як виконаний
+                        const taskItem = this.closest('.task-item');
+                        if (taskItem) {
+                            taskItem.classList.add('completed-task');
+
+                            // Додаємо позначку "Виконано"
+                            const taskAction = taskItem.querySelector('.task-action');
+                            if (taskAction && !taskAction.querySelector('.completed-label')) {
+                                const completedLabel = document.createElement('div');
+                                completedLabel.className = 'completed-label';
+                                completedLabel.textContent = 'Виконано';
+                                taskAction.appendChild(completedLabel);
+                            }
+                        }
+
+                        // Додаємо транзакцію, якщо є доступна система
+                        if (window.WinixCore && window.WinixCore.Transactions) {
+                            window.WinixCore.Transactions.addTransaction(
+                                window.WinixCore.TRANSACTION_TYPES.REWARD,
+                                button.reward,
+                                `Винагорода за підписку на ${button.platform}`
+                            );
+                        }
+
+                        // Показуємо повідомлення про успіх
+                        const message = `Вітаємо! Отримано ${button.reward} $WINIX`;
+                        if (window.showToast) {
+                            window.showToast(message);
+                        } else if (window.simpleAlert) {
+                            window.simpleAlert(message);
+                        } else {
+                            alert(message);
+                        }
+                    } else {
+                        // Повідомлення про невдачу
+                        const message = 'Підписку не знайдено. Спробуйте ще раз.';
+                        if (window.showToast) {
+                            window.showToast(message);
+                        } else if (window.simpleAlert) {
+                            window.simpleAlert(message, true);
+                        } else {
+                            alert(message);
+                        }
+                    }
+                }, 1500);
+            });
+        });
+
+        // Встановлюємо обробники для кнопок підписки
+        const subscribeButtons = [
+            {id: 'twitter-subscribe', platform: 'twitter', url: 'https://twitter.com/winix_project'},
+            {id: 'telegram-subscribe', platform: 'telegram', url: 'https://t.me/winix_channel'},
+            {id: 'youtube-subscribe', platform: 'youtube', url: 'https://youtube.com/@winix_project'}
+        ];
+
+        subscribeButtons.forEach(button => {
+            const btnElement = document.getElementById(button.id);
+            if (!btnElement) return;
+
+            console.log(`🔄 Налаштування кнопки підписки для ${button.platform}`);
+
+            // Створюємо клон кнопки без обробників
+            const newBtn = btnElement.cloneNode(true);
+            btnElement.parentNode.replaceChild(newBtn, btnElement);
+
+            // Додаємо новий обробник
+            newBtn.addEventListener('click', function(event) {
+                event.preventDefault();
+                localStorage.setItem(`${button.platform}_link_clicked`, 'true');
+                window.open(button.url, '_blank');
+            });
+        });
+
+        // Ініціалізуємо вже виконані завдання
+        verifyButtons.forEach(button => {
+            if (localStorage.getItem(`${button.platform}_task_completed`) === 'true') {
+                const btnElement = document.getElementById(button.id);
+                if (!btnElement) return;
+
+                // Знаходимо батьківський елемент для позначення як виконаний
+                const taskItem = btnElement.closest('.task-item');
+                if (taskItem) {
+                    taskItem.classList.add('completed-task');
+
+                    // Деактивуємо кнопки
+                    const buttons = taskItem.querySelectorAll('button');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    });
+
+                    // Додаємо позначку "Виконано"
+                    const taskAction = taskItem.querySelector('.task-action');
+                    if (taskAction && !taskAction.querySelector('.completed-label')) {
+                        const completedLabel = document.createElement('div');
+                        completedLabel.className = 'completed-label';
+                        completedLabel.textContent = 'Виконано';
+                        taskAction.appendChild(completedLabel);
+                    }
+                }
+            }
+        });
+
+        return true;
+    }
+
+    // Запуск при завантаженні DOM
+    function initOnLoad() {
+        // Викликаємо з невеликою затримкою, щоб DOM був повністю готовий
+        setTimeout(setupReliableTaskButtons, 300);
+    }
+
+    // При будь-якому способі завантаження сторінки
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initOnLoad);
+    } else {
+        initOnLoad();
+    }
+
+    console.log("✅ Виправлення дублікації нагород завантажено");
+})();
 /**
  * Функція для оновлення прогресу реферальних завдань
  * Отримує дані з сервера і оновлює прогрес-бари та статуси завдань
@@ -2151,12 +2523,17 @@ function updateReferralTasks() {
             if (data.status === 'success') {
                 const referralCount = data.referralCount || 0;
                 const completedTasks = data.completedTasks || [];
+                const tasks = data.tasks || [];
 
                 console.log(`👥 Кількість запрошених друзів: ${referralCount}`);
                 console.log(`✅ Виконані завдання: ${completedTasks.join(', ')}`);
 
+                // Зберігаємо дані в localStorage
+                localStorage.setItem('referralCount', referralCount.toString());
+                localStorage.setItem('completedReferralTasks', JSON.stringify(completedTasks));
+
                 // Масив завдань з їх цілями
-                const referralTasks = [
+                const referralTasks = tasks.length > 0 ? tasks : [
                     { id: 'invite-friends', target: 5, reward: 300 },
                     { id: 'invite-friends-10', target: 10, reward: 700 },
                     { id: 'invite-friends-25', target: 25, reward: 1500 },
@@ -2195,11 +2572,34 @@ function updateReferralTasks() {
                     if (isCompleted) {
                         if (completedLabel) {
                             completedLabel.style.display = 'block';
-                            if (taskButton) taskButton.style.display = 'none';
+                        }
+                        if (taskButton) {
+                            if (completedTasks.includes(task.id)) {
+                                // Якщо винагорода вже отримана, ховаємо кнопку
+                                taskButton.style.display = 'none';
+                            } else {
+                                // Якщо можна отримати винагороду, показуємо кнопку та змінюємо текст
+                                taskButton.style.display = 'block';
+                                taskButton.textContent = 'Отримати винагороду';
+                                taskButton.classList.add('reward-button');
+
+                                // Видаляємо старі обробники та додаємо новий
+                                taskButton.removeEventListener('click', navigateToReferrals);
+                                taskButton.removeEventListener('click', claimReferralRewardHandler);
+                                taskButton.addEventListener('click', function() {
+                                    claimReferralReward(task.id, task.reward);
+                                });
+                            }
                         }
 
                         // Додаємо стиль виконаного завдання
                         taskItem.classList.add('completed-task');
+                    } else {
+                        // Якщо завдання не виконано, кнопка переводить на сторінку рефералів
+                        if (taskButton) {
+                            taskButton.removeEventListener('click', claimReferralRewardHandler);
+                            taskButton.addEventListener('click', navigateToReferrals);
+                        }
                     }
                 });
             } else {
@@ -2211,6 +2611,19 @@ function updateReferralTasks() {
             console.error("❌ Помилка отримання даних реферальних завдань:", error);
             showToast("Помилка з'єднання з сервером", true);
         });
+}
+
+// Функція-обробник для переходу на сторінку рефералів
+function navigateToReferrals() {
+    navigateTo('referrals.html');
+}
+
+// Функція-обробник для кнопок отримання винагороди
+function claimReferralRewardHandler(e) {
+    e.preventDefault();
+    const taskId = this.id;
+    const reward = this.getAttribute('data-reward') || 0;
+    claimReferralReward(taskId, reward);
 }
 
 /**
@@ -2249,6 +2662,7 @@ function claimReferralReward(taskId, reward) {
             // Оновлюємо відображення балансу
             if (data.newBalance !== undefined) {
                 document.getElementById('user-tokens').textContent = data.newBalance.toFixed(2);
+                localStorage.setItem('userTokens', data.newBalance.toString());
             }
 
             // Оновлюємо відображення завдання
@@ -2256,25 +2670,51 @@ function claimReferralReward(taskId, reward) {
             if (taskButton) {
                 const taskItem = taskButton.closest('.task-item');
                 if (taskItem) {
-                    // Додаємо позначку "Виконано"
+                    // Ховаємо кнопку
+                    taskButton.style.display = 'none';
+
+                    // Додаємо позначку "Виконано", якщо її ще немає
                     const taskAction = taskItem.querySelector('.task-action');
                     if (taskAction && !taskAction.querySelector('.completed-label')) {
                         const completedLabel = document.createElement('div');
                         completedLabel.className = 'completed-label';
                         completedLabel.textContent = 'Виконано';
                         taskAction.appendChild(completedLabel);
+                    } else if (taskAction && taskAction.querySelector('.completed-label')) {
+                        taskAction.querySelector('.completed-label').style.display = 'block';
                     }
-
-                    // Ховаємо кнопку
-                    taskButton.style.display = 'none';
 
                     // Додаємо стиль виконаного завдання
                     taskItem.classList.add('completed-task');
                 }
             }
 
+            // Оновлюємо список виконаних завдань в localStorage
+            const completedTasks = JSON.parse(localStorage.getItem('completedReferralTasks') || '[]');
+            if (!completedTasks.includes(taskId)) {
+                completedTasks.push(taskId);
+                localStorage.setItem('completedReferralTasks', JSON.stringify(completedTasks));
+            }
+
             // Показуємо повідомлення про успіх
             showToast(`Винагороду отримано: ${data.reward || reward} $WINIX`);
+        } else if (data.status === 'already_claimed') {
+            // Якщо винагорода вже отримана
+            const taskButton = document.getElementById(taskId);
+            if (taskButton) {
+                taskButton.style.display = 'none';
+
+                // Оновлюємо список виконаних завдань в localStorage
+                const completedTasks = JSON.parse(localStorage.getItem('completedReferralTasks') || '[]');
+                if (!completedTasks.includes(taskId)) {
+                    completedTasks.push(taskId);
+                    localStorage.setItem('completedReferralTasks', JSON.stringify(completedTasks));
+                }
+            }
+
+            showToast(data.message || "Ви вже отримали винагороду за це завдання");
+        } else if (data.status === 'not_completed') {
+            showToast(data.message || "Недостатньо рефералів для завершення завдання", true);
         } else {
             console.warn("Помилка отримання винагороди:", data);
             showToast(data.message || "Помилка отримання винагороди. Спробуйте пізніше.", true);
@@ -2728,156 +3168,7 @@ document.head.appendChild(tokenVerificationStyles);
 
 console.log("💰 Модуль перевірки токенів та лідерборду завантажено!");
 </script>
-<!-- Виправлення проблеми з щоденним бонусом та дублікацією нагород -->
 <script>
-/**
- * Виправлення проблеми з щоденним бонусом
- */
-(function() {
-    console.log("🔧 Запуск виправлення щоденного бонусу...");
-
-    // Функція для надійного встановлення щоденного бонусу
-    function setupReliableDailyBonus() {
-        const claimButton = document.getElementById('claim-daily');
-        if (!claimButton) return false;
-
-        console.log("🔄 Налаштування кнопки щоденного бонусу");
-
-        // Перевірка, чи вже було отримано бонус сьогодні
-        const today = new Date().toDateString();
-        const lastClaimDate = localStorage.getItem('lastDailyBonusDate');
-        const isClaimed = lastClaimDate === today;
-
-        // Отримуємо активний день і відповідну винагороду
-        const activeDay = document.querySelector('.day-circle.active');
-        let rewardAmount = 30; // Значення за замовчуванням
-
-        if (activeDay) {
-            const dayMarker = activeDay.closest('.day-marker');
-            if (dayMarker) {
-                const rewardElement = dayMarker.querySelector('.day-reward');
-                if (rewardElement && rewardElement.textContent) {
-                    rewardAmount = parseInt(rewardElement.textContent, 10) || 30;
-                }
-            }
-        }
-
-        // Зберігаємо поточну винагороду в localStorage
-        localStorage.setItem('currentDailyBonus', rewardAmount.toString());
-
-        // Оновлюємо стан кнопки
-        if (isClaimed) {
-            claimButton.disabled = true;
-            claimButton.textContent = 'Отримано';
-            console.log("🔒 Бонус вже отримано сьогодні");
-        } else {
-            claimButton.disabled = false;
-            claimButton.textContent = `Отримати ${rewardAmount} $WINIX`;
-            console.log("✅ Бонус ще не отримано сьогодні");
-        }
-
-        // Створюємо клон кнопки для видалення всіх існуючих обробників
-        const newClaimButton = claimButton.cloneNode(true);
-        claimButton.parentNode.replaceChild(newClaimButton, claimButton);
-
-        // Додаємо новий обробник
-        newClaimButton.addEventListener('click', function(event) {
-            // Запобігаємо повторним кликам
-            event.preventDefault();
-            if (this.disabled) return;
-
-            console.log("🖱️ Клік на кнопці отримання бонусу");
-
-            // Блокуємо кнопку на час обробки
-            this.disabled = true;
-
-            try {
-                // Отримуємо суму винагороди
-                const rewardAmount = parseInt(localStorage.getItem('currentDailyBonus') || '30', 10);
-
-                // Оновлюємо баланс у всіх можливих місцях
-                let currentBalance = 0;
-
-                // 1. В localStorage (userTokens)
-                currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
-                const newBalance = currentBalance + rewardAmount;
-                localStorage.setItem('userTokens', newBalance.toString());
-
-                // 2. В localStorage (winix_balance) для WinixCore
-                localStorage.setItem('winix_balance', newBalance.toString());
-
-                // 3. Оновлюємо відображення балансу
-                const userTokensElements = document.querySelectorAll('#user-tokens, .balance-value');
-                userTokensElements.forEach(element => {
-                    if (element) element.textContent = newBalance.toFixed(2);
-                });
-
-                // Зберігаємо дату отримання бонусу
-                const today = new Date().toDateString();
-                localStorage.setItem('lastDailyBonusDate', today);
-
-                // Відзначаємо активний день як завершений
-                const activeDay = document.querySelector('.day-circle.active');
-                if (activeDay) {
-                    activeDay.classList.remove('active');
-                    activeDay.classList.add('completed');
-                }
-
-                // Оновлюємо вигляд кнопки
-                this.textContent = 'Отримано';
-
-                // Додаємо транзакцію, якщо є доступна система
-                if (window.WinixCore && window.WinixCore.Transactions) {
-                    window.WinixCore.Transactions.addTransaction(
-                        window.WinixCore.TRANSACTION_TYPES.REWARD,
-                        rewardAmount,
-                        `Щоденний бонус`
-                    );
-                }
-
-                // Показуємо повідомлення
-                const message = `Отримано ${rewardAmount} $WINIX!`;
-                if (window.showToast) {
-                    window.showToast(message);
-                } else if (window.simpleAlert) {
-                    window.simpleAlert(message);
-                } else {
-                    alert(message);
-                }
-
-                console.log(`✅ Бонус успішно отримано: ${rewardAmount} WINIX`);
-            } catch (error) {
-                console.error("❌ Помилка при отриманні бонусу:", error);
-                this.disabled = false;
-            }
-        });
-
-        return true;
-    }
-
-    // Запуск при завантаженні DOM
-    function initOnLoad() {
-        // Викликаємо з невеликою затримкою, щоб DOM був повністю готовий
-        setTimeout(setupReliableDailyBonus, 300);
-    }
-
-    // При будь-якому способі завантаження сторінки
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initOnLoad);
-    } else {
-        initOnLoad();
-    }
-
-    // Повторна ініціалізація при оновленні сторінки
-    window.addEventListener('pageshow', function(event) {
-        if (event.persisted) { // Якщо сторінка відновлена з кешу
-            initOnLoad();
-        }
-    });
-
-    console.log("✅ Виправлення щоденного бонусу завантажено");
-})();
-
 /**
  * Виправлення проблеми з дублікацією нагород
  */
@@ -3118,22 +3409,30 @@ function loadUserData() {
                 // Оновлюємо баланс токенів
                 const tokens = userData.balance || 0;
                 document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+                localStorage.setItem('userTokens', tokens.toString());
 
                 // Оновлюємо баланс жетонів
                 const coins = userData.coins || 0;
                 document.getElementById('user-coins').textContent = coins.toString();
+                localStorage.setItem('userCoins', coins.toString());
 
-                // Оновлюємо аватар
+                // Оновлюємо аватар і ім'я користувача
                 updateAvatar(userData.username || 'WINIX User');
+                localStorage.setItem('username', userData.username || 'WINIX User');
 
-                // Оновлюємо реферальні завдання, якщо функція доступна
-                if (typeof updateReferralTasks === 'function') {
-                    // Передаємо кількість рефералів для оновлення прогрес-барів
-                    updateReferralTasks(userData.referrals_count || 0);
-                }
+                // Оновлюємо статус реферальних завдань
+                updateReferralTasks();
+
+                // Оновлюємо статус щоденного бонусу
+                initDailyBonus();
 
                 // Зберігаємо ID для подальших запитів
                 localStorage.setItem('userId', userData.id);
+
+                // Зберігаємо інформацію про бейджі
+                if (userData.badges) {
+                    localStorage.setItem('userBadges', JSON.stringify(userData.badges));
+                }
 
                 console.log("✅ Дані користувача успішно оновлено з сервера");
             } else {
@@ -3184,6 +3483,20 @@ function startPeriodicUpdates() {
 
     // Оновлюємо дані кожні 30 секунд
     setInterval(loadUserData, 30000);
+}
+
+// Функція для перевірки підключення до інтернету
+function setupOnlineStatusDetection() {
+    window.addEventListener('online', function() {
+        console.log('З\'явилося підключення до мережі');
+        loadUserData();
+        showToast('З\'єднання з мережею відновлено');
+    });
+
+    window.addEventListener('offline', function() {
+        console.log('Втрачено підключення до мережі');
+        showToast('Відсутнє з\'єднання з мережею', true);
+    });
 }
 </script>
 </body>
