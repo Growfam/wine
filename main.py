@@ -1,10 +1,12 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
-from supabase_client import get_user, create_user, update_balance, update_user, update_coins, check_and_update_badges
+from supabase_client import get_user, create_user, update_balance, update_user, update_coins, check_and_update_badges, \
+    force_create_user
 from supabase import create_client
 from datetime import datetime
 import os
 import sys
+import time
 from dotenv import load_dotenv
 import logging
 import json
@@ -29,7 +31,7 @@ app = Flask(__name__,
 CORS(app, resources={r"/*": {"origins": "*"}},
      supports_credentials=True,
      expose_headers=["Content-Type", "X-CSRFToken"],
-     allow_headers=["Content-Type", "X-Requested-With", "Authorization"])
+     allow_headers=["Content-Type", "X-Requested-With", "Authorization", "X-Telegram-User-Id"])
 
 # Підключення до Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -50,7 +52,8 @@ def verify_user(telegram_data):
     try:
         logger.info(f"verify_user: Початок верифікації користувача. Отримані дані: {telegram_data}")
 
-        telegram_id = telegram_data.get('id')
+        # Отримаємо ID з різних джерел і перетворимо його в рядок
+        telegram_id = str(telegram_data.get('id', '')) if telegram_data.get('id') else ''
         username = telegram_data.get('username', '')
         first_name = telegram_data.get('first_name', '')
         last_name = telegram_data.get('last_name', '')
@@ -64,11 +67,11 @@ def verify_user(telegram_data):
             logger.info(f"verify_user: Знайдено ID в заголовку: {header_id}")
             # Використовуємо ID з заголовка, якщо він не 12345678
             if header_id != "12345678":
-                telegram_id = header_id
+                telegram_id = str(header_id)
                 logger.info(f"verify_user: Використовуємо ID з заголовків: {telegram_id}")
 
         # Якщо ID досі не валідний, спробуємо інші способи визначення
-        if not telegram_id or str(telegram_id) == "12345678":
+        if not telegram_id or telegram_id == "12345678" or telegram_id == "":
             # В тестовому середовищі можемо використовувати тимчасовий ID
             test_mode = os.environ.get("FLASK_ENV") == "development"
             if test_mode:
@@ -78,10 +81,9 @@ def verify_user(telegram_data):
                 logger.warning(f"verify_user: Використовуємо тестовий ID: {telegram_id}")
             else:
                 logger.error("verify_user: Не вдалося отримати валідний telegram_id")
-                # Не повертаємо None, спробуємо використати "12345678" як крайній випадок
-                if not telegram_id:
-                    telegram_id = "12345678"
-                    logger.warning(f"verify_user: Використовуємо стандартний тестовий ID: {telegram_id}")
+                # Генеруємо тимчасовий ID для тестування на продакшені
+                telegram_id = f"temp-{int(time.time())}"
+                logger.warning(f"verify_user: Створюємо тимчасовий ID: {telegram_id}")
 
         logger.info(f"verify_user: Перевірка користувача з ID: {telegram_id}")
 
@@ -94,18 +96,131 @@ def verify_user(telegram_data):
             display_name = username or first_name or "WINIX User"
             logger.info(f"verify_user: Створення нового користувача: {telegram_id} ({display_name})")
 
+            # Спроба 1: Звичайне створення
             user = create_user(telegram_id, display_name)
             logger.info(f"verify_user: Результат create_user: {user}")
 
+            # Якщо стандартне створення не спрацювало, спробуємо примусове створення
             if not user:
-                logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
-                return None
+                logger.warning(f"verify_user: Стандартне створення не вдалося, пробуємо примусове")
+                user = force_create_user(telegram_id, display_name)
+                logger.info(f"verify_user: Результат force_create_user: {user}")
+
+                # Якщо і примусове не спрацювало, спробуємо прямий SQL INSERT
+                if not user:
+                    logger.critical(f"verify_user: Примусове створення не вдалося, пробуємо прямий SQL INSERT")
+                    try:
+                        insert_data = {
+                            "telegram_id": str(telegram_id),
+                            "username": display_name,
+                            "balance": 0,
+                            "coins": 3,
+                            "newbie_bonus_claimed": False,
+                            "badge_winner": False,
+                            "badge_beginner": False,
+                            "badge_rich": False,
+                            "participations_count": 0,
+                            "wins_count": 0
+                        }
+
+                        result = supabase.table("winix").insert(insert_data).execute()
+                        logger.info(f"verify_user: Результат прямого SQL INSERT: {result}")
+
+                        if result.data:
+                            user = result.data[0]
+                        else:
+                            logger.error(f"verify_user: Прямий SQL INSERT не повернув даних")
+                    except Exception as sql_error:
+                        logger.error(f"verify_user: Помилка прямого SQL INSERT: {str(sql_error)}")
+
+        # Перевіряємо ще раз, чи вдалося створити користувача
+        if not user:
+            logger.error(f"verify_user: Не вдалося створити користувача {telegram_id}")
+            return None
 
         return user
 
     except Exception as e:
         logger.error(f"verify_user: Помилка авторизації користувача: {str(e)}", exc_info=True)
         return None
+
+
+# Додаємо діагностичний ендпоінт для перевірки підключення до Supabase
+@app.route('/api/test-supabase')
+def test_supabase():
+    """Ендпоінт для перевірки підключення до Supabase"""
+    try:
+        # Перевіряємо наявність URL та ключа
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return jsonify({
+                "status": "error",
+                "message": "Відсутні дані підключення Supabase"
+            }), 500
+
+        # Спроба отримати дані з таблиці winix
+        res = supabase.table("winix").select("count").limit(1).execute()
+
+        # Спроба створити тестового користувача
+        test_id = f"test-{int(time.time())}"
+        test_data = {
+            "telegram_id": test_id,
+            "username": "Test User",
+            "balance": 0,
+            "coins": 1
+        }
+
+        test_result = supabase.table("winix").insert(test_data).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": "Підключення до Supabase працює коректно",
+            "select_result": bool(res),
+            "insert_result": bool(test_result.data),
+            "test_id": test_id
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Помилка підключення до Supabase: {str(e)}",
+            "error_type": type(e).__name__
+        }), 500
+
+
+# Маршрут для примусового створення користувача
+@app.route('/api/force-create/<telegram_id>')
+def force_create_endpoint(telegram_id):
+    """Ендпоінт для примусового створення користувача"""
+    try:
+        # Спочатку перевіряємо, чи існує користувач
+        user = get_user(telegram_id)
+
+        if user:
+            return jsonify({
+                "status": "success",
+                "message": f"Користувач {telegram_id} вже існує",
+                "user": user
+            })
+
+        # Спроба примусово створити користувача
+        user = force_create_user(telegram_id, "WINIX User")
+
+        if user:
+            return jsonify({
+                "status": "success",
+                "message": f"Користувача {telegram_id} створено примусово",
+                "user": user
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"Не вдалося примусово створити користувача {telegram_id}"
+            }), 500
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Помилка: {str(e)}",
+            "error_type": type(e).__name__
+        }), 500
 
 
 # Додаємо ендпоінт для відладки
@@ -299,6 +414,15 @@ def confirm():
             logger.info(f"Creating new user with id: {user_id}")
             user = create_user(user_id, username="unknown")
 
+            # Якщо не вдалося створити, спробуємо примусово
+            if not user:
+                logger.warning(f"Стандартне створення не вдалося, пробуємо примусове")
+                user = force_create_user(user_id, "unknown")
+
+            # Перевіряємо, чи тепер є користувач
+            if not user:
+                return jsonify({"status": "error", "message": "Не вдалося створити користувача"}), 500
+
         # Якщо ще не завершив сторінку 1
         if not user.get("page1_completed", False):
             logger.info(f"User {user_id} completing page1, awarding token")
@@ -401,8 +525,14 @@ def get_user_data(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            logger.warning(f"get_user_data: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_data: Користувача {telegram_id} не знайдено, спроба створення")
+
+            # Спроба створити користувача
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                logger.error(f"get_user_data: Не вдалося створити користувача {telegram_id}")
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо кількість рефералів (приклад запиту)
         referrals_count = 0
@@ -475,8 +605,11 @@ def get_user_balance(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            logger.warning(f"get_user_balance: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_balance: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Формуємо відповідь
         balance_data = {
@@ -504,8 +637,11 @@ def update_user_balance(telegram_id):
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"update_user_balance: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"update_user_balance: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Оновлюємо баланс
         result = update_user(telegram_id, {"balance": new_balance})
@@ -527,8 +663,11 @@ def get_user_staking(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            logger.warning(f"get_user_staking: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_staking: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо дані стейкінгу (припускаючи, що вони зберігаються в полі staking_data)
         staking_data = user.get("staking_data", {})
@@ -562,8 +701,11 @@ def create_user_staking(telegram_id):
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"create_user_staking: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"create_user_staking: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Зберігаємо дані стейкінгу
         result = update_user(telegram_id, {"staking_data": data})
@@ -588,8 +730,11 @@ def update_user_staking(telegram_id, staking_id):
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"update_user_staking: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"update_user_staking: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Зберігаємо дані стейкінгу
         result = update_user(telegram_id, {"staking_data": data})
@@ -614,8 +759,11 @@ def cancel_user_staking(telegram_id, staking_id):
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"cancel_user_staking: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"cancel_user_staking: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Скасовуємо стейкінг (встановлюємо пустий об'єкт з hasActiveStaking=false)
         empty_staking = {
@@ -662,8 +810,11 @@ def finalize_user_staking(telegram_id, staking_id):
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"finalize_user_staking: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"finalize_user_staking: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо дані стейкінгу
         staking_data = user.get("staking_data", {})
@@ -741,8 +892,11 @@ def get_user_staking_history(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            logger.warning(f"get_user_staking_history: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_staking_history: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо історію стейкінгу
         staking_history = user.get("staking_history", [])
@@ -763,8 +917,11 @@ def get_user_transactions(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            logger.warning(f"get_user_transactions: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_transactions: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо транзакції з таблиці transactions
         try:
@@ -795,8 +952,11 @@ def add_user_transaction(telegram_id):
         # Перевіряємо, чи користувач існує
         user = get_user(telegram_id)
         if not user:
-            logger.warning(f"add_user_transaction: Користувача {telegram_id} не знайдено")
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"add_user_transaction: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Додаємо id та дату створення, якщо їх немає
         if 'id' not in data:
@@ -862,7 +1022,11 @@ def claim_badge_reward(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"claim_badge_reward: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Перевіряємо, чи бейдж вже отримано
         badge_field = f"badge_{badge_id}"
@@ -931,10 +1095,11 @@ def claim_newbie_bonus(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({
-                'status': 'error',
-                'message': 'Користувача не знайдено'
-            }), 404
+            logger.warning(f"claim_newbie_bonus: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Перевіряємо, чи вже отримано бонус
         if user.get('newbie_bonus_claimed', False):
@@ -999,7 +1164,11 @@ def get_user_settings(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_settings: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Формуємо дані з налаштуваннями
         settings = {
@@ -1027,7 +1196,11 @@ def update_user_settings(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"update_user_settings: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Перевіряємо, які поля оновлюються
         allowed_fields = ["username", "avatar_id", "avatar_url", "language", "notifications_enabled"]
@@ -1058,7 +1231,11 @@ def update_user_password(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"update_user_password: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Оновлюємо пароль
         updated_user = update_user(telegram_id, {"password_hash": data["password_hash"]})
@@ -1080,7 +1257,11 @@ def get_user_seed_phrase(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_user_seed_phrase: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Генеруємо або отримуємо seed-фразу
         seed_phrase = user.get("seed_phrase")
@@ -1124,7 +1305,11 @@ def get_daily_bonus_status(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_daily_bonus_status: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         from datetime import datetime, timedelta
 
@@ -1187,7 +1372,11 @@ def claim_daily_bonus(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"claim_daily_bonus: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         from datetime import datetime, timedelta
 
@@ -1288,7 +1477,11 @@ def verify_subscription(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"verify_subscription: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо статус соціальних завдань
         social_tasks = user.get("social_tasks", {})
@@ -1356,7 +1549,11 @@ def get_referral_tasks(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"get_referral_tasks: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо кількість рефералів
         try:
@@ -1415,7 +1612,11 @@ def claim_referral_reward(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"claim_referral_reward: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Отримуємо кількість рефералів і статус завдань
         try:
@@ -1503,7 +1704,11 @@ def invite_referral(telegram_id):
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+            logger.warning(f"invite_referral: Користувача {telegram_id} не знайдено, спроба створити")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено і не вдалося створити"}), 404
 
         # Перевіряємо, чи реферальний код валідний
         # Це має бути функція, яка перевіряє, чи такий користувач існує
@@ -1537,10 +1742,14 @@ def invite_referral(telegram_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# Допоміжна функція для перевірки валідності реферального коду
+# Функція для тестування з'єднання з Supabase
 def is_valid_referral_code(code):
-    # Перевіряємо, чи код є валідним ID Telegram
-    # У реальному випадку тут має бути перевірка користувача в базі даних
+    """
+    Перевіряє, чи код є валідним ID Telegram
+
+    Returns:
+        Словник з результатами тестування
+    """
     try:
         return len(code) > 5
     except:

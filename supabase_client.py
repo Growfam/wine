@@ -116,6 +116,66 @@ def get_user(telegram_id: str):
         return None
 
 
+# Функція для примусового створення користувача (без перевірок)
+def force_create_user(telegram_id: str, username: str, referrer_id: str = None):
+    """
+    Примусово створює нового користувача в Supabase без перевірок
+
+    Args:
+        telegram_id: Ідентифікатор Telegram користувача
+        username: Ім'я користувача (нікнейм)
+        referrer_id: ID того, хто запросив (необов'язково)
+
+    Returns:
+        Дані створеного користувача або None у випадку помилки
+    """
+    try:
+        if not supabase:
+            logger.error("❌ Клієнт Supabase не ініціалізовано")
+            return None
+
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
+        # Створюємо базові дані для нового користувача
+        data = {
+            "telegram_id": telegram_id,
+            "username": username,
+            "balance": 0,
+            "coins": 3,
+            "referrer_id": referrer_id,
+            "page1_completed": False,
+            "newbie_bonus_claimed": False,
+            "participations_count": 0,
+            "badge_winner": False,
+            "badge_beginner": False,
+            "badge_rich": False,
+            "wins_count": 0
+        }
+
+        logger.info(f"force_create_user: Примусове створення користувача: {telegram_id}")
+        logger.debug(f"force_create_user: Дані для створення: {json.dumps(data)}")
+
+        # Спроба вставити дані напряму
+        try:
+            res = supabase.table("winix").insert(data).execute()
+            logger.info(f"force_create_user: Відповідь Supabase: {res}")
+
+            if res.data:
+                logger.info(f"force_create_user: Користувача {telegram_id} успішно створено")
+                return res.data[0]
+            else:
+                logger.warning(f"force_create_user: Supabase повернув пустий результат")
+                return None
+        except Exception as e:
+            logger.error(f"force_create_user: Помилка Supabase: {str(e)}")
+            return None
+
+    except Exception as e:
+        logger.error(f"❌ Помилка примусового створення користувача {telegram_id}: {str(e)}", exc_info=True)
+        return None
+
+
 # Створити користувача
 def create_user(telegram_id: str, username: str, referrer_id: str = None):
     """
@@ -133,6 +193,9 @@ def create_user(telegram_id: str, username: str, referrer_id: str = None):
         if not supabase:
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
+
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
 
         # Перевіряємо, чи користувач вже існує
         existing_user = get_user(telegram_id)
@@ -162,6 +225,10 @@ def create_user(telegram_id: str, username: str, referrer_id: str = None):
         # Виконуємо запит з повторними спробами
         def insert_user():
             res = supabase.table("winix").insert(data).execute()
+            logger.info(f"create_user: Відповідь Supabase: {res}")
+            if not res.data:
+                logger.warning("create_user: Supabase не повернув даних")
+                return None
             logger.info(f"create_user: Створено нового користувача: {telegram_id}")
             return res.data[0] if res.data else None
 
@@ -195,10 +262,20 @@ def update_balance(telegram_id: str, amount: float):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         user = get_user(telegram_id)
         if not user:
             logger.error(f"❌ Користувача {telegram_id} не знайдено")
-            return None
+
+            # Спробуємо створити користувача
+            logger.info(f"update_balance: Спроба створити користувача {telegram_id}")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                logger.error(f"update_balance: Не вдалося створити користувача {telegram_id}")
+                return None
 
         current_balance = float(user.get("balance", 0))
         new_balance = current_balance + amount
@@ -241,10 +318,20 @@ def update_coins(telegram_id: str, amount: int):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         user = get_user(telegram_id)
         if not user:
             logger.error(f"❌ Користувача {telegram_id} не знайдено")
-            return None
+
+            # Спробуємо створити користувача
+            logger.info(f"update_coins: Спроба створити користувача {telegram_id}")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                logger.error(f"update_coins: Не вдалося створити користувача {telegram_id}")
+                return None
 
         current_coins = int(user.get("coins", 0))
         new_coins = current_coins + amount
@@ -281,10 +368,20 @@ def update_user(telegram_id: str, data: dict):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         user = get_user(telegram_id)
         if not user:
             logger.error(f"❌ Користувача {telegram_id} не знайдено")
-            return None
+
+            # Спробуємо створити користувача
+            logger.info(f"update_user: Спроба створити користувача {telegram_id}")
+            user = force_create_user(telegram_id, "WINIX User")
+
+            if not user:
+                logger.error(f"update_user: Не вдалося створити користувача {telegram_id}")
+                return None
 
         logger.info(f"update_user: Оновлення користувача {telegram_id} з полями: {list(data.keys())}")
 
@@ -311,6 +408,9 @@ def check_and_update_badges(telegram_id: str):
         Оновлені дані користувача або None у випадку помилки
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         user = get_user(telegram_id)
         if not user:
             logger.warning(f"check_and_update_badges: Користувача {telegram_id} не знайдено")
@@ -342,141 +442,6 @@ def check_and_update_badges(telegram_id: str):
     except Exception as e:
         logger.error(f"❌ Помилка перевірки бейджів {telegram_id}: {str(e)}", exc_info=True)
         return None
-
-
-# Додати участь у розіграші
-def add_participation(telegram_id: str, raffle_id: str, token_amount: int = 1):
-    """
-    Додає запис про участь користувача в розіграші
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-        raffle_id: Ідентифікатор розіграшу
-        token_amount: Кількість жетонів для участі (за замовчуванням 1)
-
-    Returns:
-        Словник з результатами операції або None у випадку помилки
-    """
-    try:
-        if not supabase:
-            logger.error("❌ Клієнт Supabase не ініціалізовано")
-            return None
-
-        user = get_user(telegram_id)
-        if not user:
-            logger.error(f"❌ Користувача {telegram_id} не знайдено")
-            return None
-
-        # Перевіряємо, чи достатньо жетонів
-        current_coins = int(user.get("coins", 0))
-        if current_coins < token_amount:
-            logger.error(
-                f"❌ Недостатньо жетонів для участі {telegram_id} (наявно {current_coins}, потрібно {token_amount})")
-            return None
-
-        # Знімаємо жетони
-        new_coins = current_coins - token_amount
-
-        # Збільшуємо лічильник участей
-        current_participations = int(user.get("participations_count", 0))
-        new_participations = current_participations + 1
-
-        # Оновлюємо дані користувача
-        updates = {
-            "coins": new_coins,
-            "participations_count": new_participations
-        }
-
-        # Перевіряємо, чи не потрібно активувати бейдж початківця
-        if new_participations >= 5 and not user.get("badge_beginner", False):
-            updates["badge_beginner"] = True
-            logger.info(f"🏆 Користувач {telegram_id} отримує бейдж початківця за 5 участей")
-
-        # Оновлюємо дані
-        logger.info(f"add_participation: Оновлення даних користувача {telegram_id} для участі в розіграші {raffle_id}")
-        res_user = update_user(telegram_id, updates)
-
-        # Додаємо запис про участь у розіграші (якщо є таблиця)
-        res_participation = None
-        try:
-            participation_data = {
-                "telegram_id": telegram_id,
-                "raffle_id": raffle_id,
-                "token_amount": token_amount
-            }
-
-            logger.info(
-                f"add_participation: Додавання запису про участь користувача {telegram_id} в розіграші {raffle_id}")
-
-            # Виконуємо запит з повторними спробами
-            def insert_participation():
-                insert_res = supabase.table("raffleParticipations").insert(participation_data).execute()
-                return insert_res.data[0] if insert_res.data else None
-
-            res_participation = retry_supabase(insert_participation)
-
-            logger.info(f"✅ Користувач {telegram_id} взяв участь у розіграші {raffle_id} з {token_amount} жетонами")
-        except Exception as e:
-            logger.error(f"Помилка додавання запису про участь: {str(e)}", exc_info=True)
-
-        return {
-            "user": res_user,
-            "participation": res_participation
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка додавання участі у розіграші для {telegram_id}: {str(e)}", exc_info=True)
-        return None
-
-
-# Отримати історію розіграшів користувача
-def get_user_raffle_history(telegram_id: str, limit: int = 10):
-    """
-    Отримує історію участі користувача в розіграшах
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-        limit: Максимальна кількість записів (за замовчуванням 10)
-
-    Returns:
-        Список з історією розіграшів або пустий список у випадку помилки
-    """
-    try:
-        if not supabase:
-            logger.error("❌ Клієнт Supabase не ініціалізовано")
-            return []
-
-        logger.info(f"get_user_raffle_history: Отримання історії розіграшів для {telegram_id}")
-
-        # Спочатку спробуємо отримати дані за допомогою функції RPC, якщо вона існує
-        try:
-            def get_history_rpc():
-                rpc_res = supabase.rpc('get_user_raffle_history',
-                                       {'user_id': telegram_id, 'history_limit': limit}).execute()
-                return rpc_res.data or []
-
-            history = retry_supabase(get_history_rpc)
-            if history:
-                logger.info(f"get_user_raffle_history: Отримано {len(history)} записів через RPC")
-                return history
-        except Exception as e:
-            logger.error(f"Помилка виклику RPC get_user_raffle_history: {str(e)}", exc_info=True)
-
-        # Якщо RPC не спрацював, спробуємо прямий запит до таблиці
-        try:
-            def get_history_direct():
-                direct_res = supabase.table("raffleParticipations").select("*").eq("telegram_id", telegram_id).order(
-                    "participated_at", desc=True).limit(limit).execute()
-                return direct_res.data or []
-
-            history = retry_supabase(get_history_direct)
-            logger.info(f"get_user_raffle_history: Отримано {len(history)} записів через прямий запит")
-            return history
-        except Exception as e:
-            logger.error(f"Помилка прямого запиту до таблиці RaffleParticipations: {str(e)}", exc_info=True)
-            return []
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання історії розіграшів {telegram_id}: {str(e)}", exc_info=True)
-        return []
 
 
 # Функція для тестування з'єднання з Supabase
@@ -512,12 +477,31 @@ def test_supabase_connection():
             end_time = time.time()
             response_time = end_time - start_time
 
+            # Спроба вставки тестових даних
+            test_id = f"test-{int(time.time())}"
+            test_data = {
+                "telegram_id": test_id,
+                "username": "Test User",
+                "balance": 0,
+                "coins": 1
+            }
+
+            insert_test = False
+            try:
+                test_insert = supabase.table("winix").insert(test_data).execute()
+                insert_test = bool(test_insert.data)
+            except Exception as e:
+                insert_test = False
+                logger.error(f"test_supabase_connection: Помилка тестової вставки: {str(e)}")
+
             return {
                 "success": True,
                 "message": "З'єднання з Supabase успішне",
                 "details": {
                     "response_time_ms": round(response_time * 1000, 2),
-                    "tables_available": ["winix", "raffleParticipations", "transactions"]
+                    "tables_available": ["winix", "transactions", "raffleParticipations"],
+                    "insert_test": insert_test,
+                    "supabase_url": SUPABASE_URL[:15] + "..." if SUPABASE_URL else None
                 }
             }
         except Exception as e:
@@ -537,494 +521,6 @@ def test_supabase_connection():
         }
 
 
-# Тест створення користувача
-def test_create_user(telegram_id: str, username: str):
-    """
-    Тестує створення користувача
-
-    Args:
-        telegram_id: Тестовий ID Telegram
-        username: Тестове ім'я користувача
-
-    Returns:
-        Словник з результатами тестування
-    """
-    try:
-        # Спочатку перевіряємо з'єднання
-        connection_test = test_supabase_connection()
-        if not connection_test["success"]:
-            return {
-                "success": False,
-                "message": "Неможливо виконати тест створення користувача: проблема з'єднання з Supabase",
-                "details": connection_test
-            }
-
-        start_time = time.time()
-
-        # Спроба створити користувача
-        result = create_user(telegram_id, username)
-
-        end_time = time.time()
-        response_time = end_time - start_time
-
-        if result:
-            return {
-                "success": True,
-                "message": f"Користувача {telegram_id} успішно створено або отримано існуючого",
-                "details": {
-                    "user": result,
-                    "response_time_ms": round(response_time * 1000, 2)
-                }
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"Не вдалося створити користувача {telegram_id}",
-                "details": {
-                    "response_time_ms": round(response_time * 1000, 2)
-                }
-            }
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Неочікувана помилка при тестуванні створення користувача: {str(e)}",
-            "details": {
-                "error_type": type(e).__name__,
-                "error_details": str(e)
-            }
-        }
-
-
-# Отримати налаштування користувача
-def get_user_settings(telegram_id: str):
-    """
-    Отримує налаштування користувача
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-
-    Returns:
-        Словник з налаштуваннями або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        # Формуємо об'єкт з налаштуваннями
-        settings = {
-            "username": user.get("username", "WINIX User"),
-            "avatar_id": user.get("avatar_id"),
-            "avatar_url": user.get("avatar_url"),
-            "language": user.get("language", "uk"),
-            "notifications_enabled": user.get("notifications_enabled", True),
-            "password_hash": user.get("password_hash")
-        }
-
-        return settings
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання налаштувань користувача {telegram_id}: {str(e)}")
-        return None
-
-
-# Отримати статус щоденного бонусу
-def get_daily_bonus_status(telegram_id: str):
-    """
-    Отримує статус щоденного бонусу користувача
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-
-    Returns:
-        Словник зі статусом щоденного бонусу або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        from datetime import datetime
-
-        # Отримуємо інформацію про щоденні бонуси
-        daily_bonuses = user.get("daily_bonuses", {})
-
-        # Якщо немає інформації про бонуси, створюємо її
-        if not daily_bonuses:
-            daily_bonuses = {
-                "last_claimed_date": None,
-                "claimed_days": [],
-                "current_day": 1
-            }
-
-        # Перевіряємо, чи можна отримати бонус сьогодні
-        today = datetime.now().strftime("%Y-%m-%d")
-        last_date = daily_bonuses.get("last_claimed_date")
-
-        # Визначаємо поточний день у циклі (1-7)
-        current_day = daily_bonuses.get("current_day", 1)
-        claimed_days = daily_bonuses.get("claimed_days", [])
-
-        # Визначаємо суму винагороди залежно від дня
-        reward_amount = current_day * 10  # День 1 = 10, День 2 = 20, і т.д.
-
-        # Перевіряємо, чи сьогодні вже отримано бонус
-        can_claim = today != last_date
-
-        return {
-            "currentDay": current_day,
-            "claimedDays": claimed_days,
-            "canClaim": can_claim,
-            "rewardAmount": reward_amount
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання статусу щоденного бонусу для {telegram_id}: {str(e)}")
-        return None
-
-
-# Отримати щоденний бонус
-def claim_daily_bonus(telegram_id: str, day: int):
-    """
-    Нараховує щоденний бонус користувачу
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-        day: День циклу (1-7), який намагаємось отримати
-
-    Returns:
-        Словник з результатом операції або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        from datetime import datetime
-
-        # Отримуємо інформацію про щоденні бонуси
-        daily_bonuses = user.get("daily_bonuses", {})
-
-        # Якщо немає інформації про бонуси, створюємо її
-        if not daily_bonuses:
-            daily_bonuses = {
-                "last_claimed_date": None,
-                "claimed_days": [],
-                "current_day": 1
-            }
-
-        # Перевіряємо, чи можна отримати бонус сьогодні
-        today = datetime.now().strftime("%Y-%m-%d")
-        last_date = daily_bonuses.get("last_claimed_date")
-
-        # Якщо бонус вже отримано сьогодні
-        if last_date == today:
-            return {
-                "status": "already_claimed",
-                "message": "Бонус вже отримано сьогодні"
-            }
-
-        # Визначаємо поточний день у циклі (1-7)
-        current_day = daily_bonuses.get("current_day", 1)
-        claimed_days = daily_bonuses.get("claimed_days", [])
-
-        # Перевіряємо, чи переданий день співпадає з поточним
-        if day != current_day:
-            return {
-                "status": "error",
-                "message": f"Неправильний день! Очікувався день {current_day}, отримано {day}"
-            }
-
-        # Визначаємо суму винагороди залежно від дня
-        reward_amount = current_day * 10  # День 1 = 10, День 2 = 20, і т.д.
-
-        # Нараховуємо винагороду
-        current_balance = float(user.get("balance", 0))
-        new_balance = current_balance + reward_amount
-
-        # Оновлюємо інформацію про бонуси
-        claimed_days.append(current_day)
-
-        # Визначаємо наступний день (циклічно від 1 до 7)
-        next_day = current_day + 1
-        if next_day > 7:
-            next_day = 1
-
-        # Оновлюємо дані в базі
-        updated_bonuses = {
-            "last_claimed_date": today,
-            "claimed_days": claimed_days,
-            "current_day": next_day
-        }
-
-        update_user(telegram_id, {
-            "balance": new_balance,
-            "daily_bonuses": updated_bonuses
-        })
-
-        # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "reward",
-            "amount": reward_amount,
-            "description": f"Щоденний бонус (День {current_day})",
-            "status": "completed"
-        }
-
-        if supabase:
-            supabase.table("transactions").insert(transaction).execute()
-
-        return {
-            "status": "success",
-            "message": f"Щоденний бонус отримано: +{reward_amount} WINIX",
-            "reward": reward_amount,
-            "newBalance": new_balance
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання щоденного бонусу для {telegram_id}: {str(e)}")
-        return None
-
-
-# Перевірити підписку на соціальну мережу
-def verify_social_subscription(telegram_id: str, platform: str):
-    """
-    Перевіряє підписку користувача на соціальну мережу
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-        platform: Платформа (twitter, telegram, youtube, discord, instagram)
-
-    Returns:
-        Словник з результатом перевірки або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        # Отримуємо статус соціальних завдань
-        social_tasks = user.get("social_tasks", {})
-
-        # Якщо завдання вже виконано
-        if social_tasks.get(platform, False):
-            return {
-                "status": "already_completed",
-                "message": "Це завдання вже виконано"
-            }
-
-        # Визначаємо винагороду залежно від платформи
-        reward_amounts = {
-            "twitter": 50,
-            "telegram": 80,
-            "youtube": 50,
-            "discord": 60,
-            "instagram": 70
-        }
-
-        reward_amount = reward_amounts.get(platform, 50)
-
-        # Нараховуємо винагороду
-        current_balance = float(user.get("balance", 0))
-        new_balance = current_balance + reward_amount
-
-        # Оновлюємо статус завдання
-        if not social_tasks:
-            social_tasks = {}
-        social_tasks[platform] = True
-
-        # Оновлюємо дані в базі
-        update_user(telegram_id, {
-            "balance": new_balance,
-            "social_tasks": social_tasks
-        })
-
-        # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "reward",
-            "amount": reward_amount,
-            "description": f"Винагорода за підписку на {platform}",
-            "status": "completed"
-        }
-
-        if supabase:
-            supabase.table("transactions").insert(transaction).execute()
-
-        return {
-            "status": "success",
-            "message": f"Підписку підтверджено! Отримано {reward_amount} WINIX",
-            "reward": reward_amount,
-            "newBalance": new_balance
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка перевірки підписки для {telegram_id}: {str(e)}")
-        return None
-
-
-# Отримати статус реферальних завдань
-def get_referral_tasks_status(telegram_id: str):
-    """
-    Отримує статус реферальних завдань користувача
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-
-    Returns:
-        Словник зі статусом реферальних завдань або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        # Отримуємо кількість рефералів
-        referral_count = 0
-        if supabase:
-            try:
-                referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-                referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
-            except Exception as e:
-                logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
-
-        # Отримуємо статус реферальних завдань
-        referral_tasks = user.get("referral_tasks", {})
-
-        # Визначаємо завдання і їх цілі
-        tasks = [
-            {"id": "invite-friends", "target": 5, "reward": 300},
-            {"id": "invite-friends-10", "target": 10, "reward": 700},
-            {"id": "invite-friends-25", "target": 25, "reward": 1500},
-            {"id": "invite-friends-100", "target": 100, "reward": 5000}
-        ]
-
-        # Визначаємо, які завдання виконані
-        completed_tasks = []
-
-        for task in tasks:
-            task_id = task["id"]
-            target = task["target"]
-
-            # Завдання виконане, якщо кількість рефералів >= цільової або статус в базі = True
-            if referral_count >= target or referral_tasks.get(task_id, False):
-                completed_tasks.append(task_id)
-
-        return {
-            "referralCount": referral_count,
-            "completedTasks": completed_tasks,
-            "tasks": tasks
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання статусу реферальних завдань для {telegram_id}: {str(e)}")
-        return None
-
-
-# Отримати винагороду за реферальне завдання
-def claim_referral_reward(telegram_id: str, task_id: str, reward_amount: float):
-    """
-    Нараховує винагороду за виконане реферальне завдання
-
-    Args:
-        telegram_id: Ідентифікатор Telegram користувача
-        task_id: Ідентифікатор завдання
-        reward_amount: Сума винагороди
-
-    Returns:
-        Словник з результатом операції або None у випадку помилки
-    """
-    try:
-        user = get_user(telegram_id)
-        if not user:
-            return None
-
-        # Отримуємо статус реферальних завдань
-        referral_tasks = user.get("referral_tasks", {})
-
-        # Якщо завдання вже виконано
-        if referral_tasks.get(task_id, False):
-            return {
-                "status": "already_claimed",
-                "message": "Ви вже отримали винагороду за це завдання"
-            }
-
-        # Отримуємо кількість рефералів
-        referral_count = 0
-        if supabase:
-            try:
-                referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-                referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
-            except Exception as e:
-                logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
-
-        # Визначаємо цільову кількість рефералів
-        target_map = {
-            "invite-friends": 5,
-            "invite-friends-10": 10,
-            "invite-friends-25": 25,
-            "invite-friends-100": 100
-        }
-
-        target = target_map.get(task_id, 0)
-
-        # Перевіряємо, чи достатньо рефералів
-        if referral_count < target:
-            return {
-                "status": "not_completed",
-                "message": f"Недостатньо рефералів для завершення завдання. Потрібно {target}, наявно {referral_count}"
-            }
-
-        # Нараховуємо винагороду
-        current_balance = float(user.get("balance", 0))
-        new_balance = current_balance + reward_amount
-
-        # Оновлюємо статус завдання
-        if not referral_tasks:
-            referral_tasks = {}
-        referral_tasks[task_id] = True
-
-        # Оновлюємо дані в базі
-        update_user(telegram_id, {
-            "balance": new_balance,
-            "referral_tasks": referral_tasks
-        })
-
-        # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "reward",
-            "amount": reward_amount,
-            "description": f"Винагорода за реферальне завдання: {task_id}",
-            "status": "completed"
-        }
-
-        if supabase:
-            supabase.table("transactions").insert(transaction).execute()
-
-        return {
-            "status": "success",
-            "message": f"Винагороду отримано: {reward_amount} WINIX",
-            "reward": reward_amount,
-            "newBalance": new_balance
-        }
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання винагороди за реферальне завдання для {telegram_id}: {str(e)}")
-        return None
-
-
-# Перевірити валідність реферального коду
-def is_valid_referral_code(code: str) -> bool:
-    """
-    Перевіряє, чи код є валідним ID Telegram
-
-    Args:
-        code: Реферальний код (Telegram ID)
-
-    Returns:
-        True, якщо код валідний, інакше False
-    """
-    try:
-        return len(code) > 5
-    except:
-        return False
-
-
 # Якщо цей файл запускається напряму, виконати тести з'єднання
 if __name__ == "__main__":
     print("🧪 Запуск тестування з'єднання з Supabase...")
@@ -1034,8 +530,10 @@ if __name__ == "__main__":
     print(f"✓ Повідомлення: {connection_result['message']}")
 
     if connection_result['success']:
-        test_id = "7066583465"  # Тестовий ID
+        test_id = "test-" + str(int(time.time()))
         print(f"\n🧪 Тестування створення користувача з ID {test_id}...")
-        creation_result = test_create_user(test_id, "test_user")
-        print(f"✓ Результат: {creation_result['success']}")
-        print(f"✓ Повідомлення: {creation_result['message']}")
+        test_user = force_create_user(test_id, "test_user")
+        if test_user:
+            print(f"✓ Користувача {test_id} успішно створено!")
+        else:
+            print(f"✗ Не вдалося створити користувача {test_id}")
