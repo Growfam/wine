@@ -1223,14 +1223,26 @@
                 })
                 .then(response => response.json())
                 .then(result => {
-                    // Розблоковуємо кнопку
-                    this.disabled = false;
+    // Розблоковуємо кнопку
+    this.disabled = false;
 
-                    if (result.status === 'success') {
-                        // Оновлюємо дані стейкінгу в localStorage для офлайн-режиму
-                        if (result.data && result.data.staking) {
-                            localStorage.setItem('stakingData', JSON.stringify(result.data.staking));
-                        }
+    if (result.status === 'success') {
+        // Оновлюємо дані стейкінгу в localStorage для офлайн-режиму
+        if (result.data && result.data.staking) {
+            console.log("Отримані дані стейкінгу:", result.data.staking);
+
+            // Переконуємось, що hasActiveStaking встановлено
+            let stakingData = result.data.staking;
+            stakingData.hasActiveStaking = true;
+            stakingData.creationTimestamp = Date.now();
+
+            // Зберігаємо в обох ключах
+            const stakingStr = JSON.stringify(stakingData);
+            localStorage.setItem('stakingData', stakingStr);
+            localStorage.setItem('winix_staking', stakingStr);
+
+            console.log("Дані стейкінгу збережено з примусовим hasActiveStaking=true");
+        }
 
                         // Оновлюємо баланс
                         updateBalanceDisplay();

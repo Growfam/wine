@@ -933,6 +933,21 @@
                 if (userCoinsElement) userCoinsElement.textContent = coins.toFixed(0);
             });
     }
+    function updateStakingDisplay(stakingData) {
+    // Оновлюємо інтерфейс
+    document.getElementById('staking-amount').textContent = stakingData.stakingAmount + ' $WINIX';
+    document.getElementById('staking-period').textContent = stakingData.period + ' ' + getText('days');
+    document.getElementById('staking-reward-percent').textContent = stakingData.rewardPercent + '%';
+    document.getElementById('staking-expected-reward').textContent = stakingData.expectedReward + ' $WINIX';
+    document.getElementById('staking-remaining-days').textContent = stakingData.remainingDays || '0';
+
+    // Оновлюємо відлагодження
+    updateDebugInfo(stakingData);
+
+    // Зберігаємо дані для офлайн-доступу
+    localStorage.setItem('stakingData', JSON.stringify(stakingData));
+    localStorage.setItem('winix_staking', JSON.stringify(stakingData));
+}
 
     // Головна функція ініціалізації сторінки
     function initPage() {
@@ -966,24 +981,72 @@
         fetch(`/api/user/${userId}/staking`)
             .then(response => response.json())
             .then(data => {
-                if (data.status === 'success') {
-                    const stakingData = data.data;
+    console.log("Відповідь API для staking:", data);
 
-                    if (!stakingData || !stakingData.hasActiveStaking) {
-                        // Якщо немає активного стейкінгу, повертаємо на сторінку стейкінгу
-                        const noStakingMsg = getText('no_active_staking');
+    if (data.status === 'success') {
+        const stakingData = data.data;
 
-                        if (window.simpleAlert || (window.winixUI && window.winixUI.simpleAlert)) {
-                            const alertFunc = window.simpleAlert || window.winixUI.simpleAlert;
-                            alertFunc(noStakingMsg, false).then(() => {
-                                window.location.href = "staking.html";
-                            });
+        // Додаткова перевірка - спочатку перевіряємо локальне сховище
+        let localStakingData = null;
+        try {
+            const localData = localStorage.getItem('stakingData');
+            if (localData) {
+                localStakingData = JSON.parse(localData);
+                console.log("Локальні дані стейкінгу:", localStakingData);
+            }
+        } catch (e) {
+            console.error("Помилка при отриманні локальних даних:", e);
+        }
+
+        // Якщо дані є у localStorage, але API їх не повернув - використовуємо локальні
+        if ((!stakingData || !stakingData.hasActiveStaking) && localStakingData && localStakingData.hasActiveStaking) {
+            console.log("Використовую локальні дані замість API");
+
+            // Спробуємо повторити запит через 1 секунду
+            setTimeout(function() {
+                fetch(`/api/user/${userId}/staking`)
+                    .then(response => response.json())
+                    .then(retryData => {
+                        if (retryData.status === 'success' && retryData.data && retryData.data.hasActiveStaking) {
+                            console.log("Повторний запит успішний:", retryData);
+
+                            // Оновлюємо інтерфейс
+                            updateStakingDisplay(retryData.data);
+
+                            // Зберігаємо дані
+                            localStorage.setItem('stakingData', JSON.stringify(retryData.data));
+                            localStorage.setItem('winix_staking', JSON.stringify(retryData.data));
                         } else {
-                            alert(noStakingMsg);
-                            window.location.href = "staking.html";
+                            console.log("Використовую локальні дані після повторної спроби");
+                            updateStakingDisplay(localStakingData);
                         }
-                        return;
-                    }
+                    })
+                    .catch(e => {
+                        console.error("Помилка повторного запиту:", e);
+                        updateStakingDisplay(localStakingData);
+                    });
+            }, 1000);
+
+            // Використовуємо локальні дані поки що
+            updateStakingDisplay(localStakingData);
+            return;
+        }
+
+        if (!stakingData || !stakingData.hasActiveStaking) {
+            // Якщо немає активного стейкінгу, повертаємо на сторінку стейкінгу
+            const noStakingMsg = getText('no_active_staking');
+
+            if (window.simpleAlert || (window.winixUI && window.winixUI.simpleAlert)) {
+                const alertFunc = window.simpleAlert || window.winixUI.simpleAlert;
+                alertFunc(noStakingMsg, false).then(() => {
+                    window.location.href = "staking.html";
+                });
+            } else {
+                alert(noStakingMsg);
+                window.location.href = "staking.html";
+            }
+            return;
+        }
 
                     // Оновлюємо інтерфейс
                     document.getElementById('staking-amount').textContent = stakingData.stakingAmount + ' $WINIX';
