@@ -266,22 +266,44 @@
         })
         .then(response => response.json())
         .then(result => {
-            if (stakeButton) stakeButton.disabled = false;
+    if (stakeButton) stakeButton.disabled = false;
 
-            if (result.status === 'success') {
-                // Оновлюємо дані в localStorage
-                if (result.data && result.data.staking) {
-                    localStorage.setItem('stakingData', JSON.stringify(result.data.staking));
-                    localStorage.setItem('winix_staking', JSON.stringify(result.data.staking));
-                }
+    if (result.status === 'success') {
+        // Оновлюємо дані в localStorage
+        if (result.data && result.data.staking) {
+            // Переконуємось, що hasActiveStaking встановлено
+            let stakingData = result.data.staking;
+            stakingData.hasActiveStaking = true;
 
-                // Оновлюємо баланс
-                updateBalanceDisplay();
+            // Переконуємось, що дані збережені правильно
+            localStorage.setItem('stakingData', JSON.stringify(stakingData));
+            localStorage.setItem('winix_staking', JSON.stringify(stakingData));
 
-                // Повідомлення про успіх
-                window.simpleAlert("Стейкінг успішно створено!", false, function() {
+            console.log("Зберігаю дані стейкінгу:", stakingData);
+        }
+
+        // Оновлюємо баланс
+        updateBalanceDisplay();
+
+        // Повідомлення про успіх з затримкою
+        window.simpleAlert("Стейкінг успішно створено!", false, function() {
+            console.log("Перевіряю збережені дані перед переходом...");
+
+            // Додаткова перевірка перед перенаправленням
+            const savedData = localStorage.getItem('stakingData');
+            try {
+                const parsedData = JSON.parse(savedData);
+                console.log("Дані в localStorage:", parsedData);
+
+                // Додаємо затримку перед переходом
+                setTimeout(function() {
                     window.location.href = "staking-details.html";
-                });
+                }, 1500); // Затримка 1.5 секунди
+            } catch (e) {
+                console.error("Помилка при перевірці даних стейкінгу:", e);
+                window.simpleAlert("Помилка при збереженні даних стейкінгу. Спробуйте ще раз.", true);
+            }
+        });
             } else {
                 window.simpleAlert(result.message || "Помилка створення стейкінгу", true);
             }

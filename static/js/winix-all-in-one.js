@@ -416,16 +416,43 @@
                     if (targetValue !== null && targetValue !== sourceValue) {
                         try {
                             // Для стейкінгу обираємо об'єкт з hasActiveStaking
-                            if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
-                                const sourceData = JSON.parse(sourceValue);
-                                const targetData = JSON.parse(targetValue);
+                           // Для стейкінгу обираємо об'єкт з hasActiveStaking
+if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
+    try {
+        const sourceData = JSON.parse(sourceValue);
+        const targetData = JSON.parse(targetValue);
 
-                                if (sourceData.hasActiveStaking && !targetData.hasActiveStaking) {
-                                    localStorage.setItem(targetKey, sourceValue);
-                                } else if (!sourceData.hasActiveStaking && targetData.hasActiveStaking) {
-                                    localStorage.setItem(sourceKey, targetValue);
-                                }
-                            }
+        console.log(`Синхронізую ключі ${sourceKey} і ${targetKey}`, sourceData, targetData);
+
+        // Перевіряємо, який об'єкт має активний стейкінг
+        const sourceHasActive = sourceData && sourceData.hasActiveStaking;
+        const targetHasActive = targetData && targetData.hasActiveStaking;
+
+        if (sourceHasActive && !targetHasActive) {
+            console.log(`Копіюю активний стейкінг з ${sourceKey} в ${targetKey}`);
+            localStorage.setItem(targetKey, sourceValue);
+        } else if (!sourceHasActive && targetHasActive) {
+            console.log(`Копіюю активний стейкінг з ${targetKey} в ${sourceKey}`);
+            localStorage.setItem(sourceKey, targetValue);
+        } else if (sourceHasActive && targetHasActive) {
+            // Якщо обидва активні, порівнюємо за датою створення або сумою
+            const sourceTime = sourceData.creationTimestamp || 0;
+            const targetTime = targetData.creationTimestamp || 0;
+
+            if (sourceTime > targetTime) {
+                console.log(`Використовую новіший стейкінг з ${sourceKey}`);
+                localStorage.setItem(targetKey, sourceValue);
+            } else if (targetTime > sourceTime) {
+                console.log(`Використовую новіший стейкінг з ${targetKey}`);
+                localStorage.setItem(sourceKey, targetValue);
+            }
+        }
+    } catch (e) {
+        console.error(`Помилка синхронізації ключів стейкінгу (${sourceKey}, ${targetKey}):`, e);
+        // У випадку помилки, безпечно копіюємо одне значення в інше
+        localStorage.setItem(targetKey, sourceValue);
+    }
+}
                             // Для балансу обираємо більше значення
                             else if (sourceKey === 'winix_balance' || sourceKey === 'userTokens') {
                                 const sourceAmount = parseFloat(sourceValue);
