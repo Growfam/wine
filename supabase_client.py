@@ -82,16 +82,33 @@ def get_user(telegram_id: str):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
+        # Перетворюємо на рядок, якщо це не рядок
+        telegram_id = str(telegram_id)
+
         logger.info(f"get_user: Спроба отримати користувача з ID {telegram_id}")
 
         # Виконуємо запит з повторними спробами
         def fetch_user():
-            res = supabase.table("winix").select("*").eq("telegram_id", telegram_id).execute()
-            if not res.data:
-                logger.warning(f"get_user: Користувача з ID {telegram_id} не знайдено")
+            # Виводимо тип для діагностики
+            logger.info(f"fetch_user: Тип telegram_id: {type(telegram_id)}, Значення: {telegram_id}")
+
+            # Явно конвертуємо в рядок ще раз для впевненості
+            telegram_id_str = str(telegram_id)
+
+            # Створюємо запит з детальним логуванням
+            try:
+                res = supabase.table("winix").select("*").eq("telegram_id", telegram_id_str).execute()
+                logger.info(f"fetch_user: Результат запиту: {res}")
+
+                if not res.data:
+                    logger.warning(f"get_user: Користувача з ID {telegram_id} не знайдено")
+                    return None
+
+                logger.info(f"get_user: Користувача з ID {telegram_id} успішно отримано")
+                return res.data[0] if res.data else None
+            except Exception as e:
+                logger.error(f"fetch_user: Помилка запиту до Supabase: {str(e)}")
                 return None
-            logger.info(f"get_user: Користувача з ID {telegram_id} успішно отримано")
-            return res.data[0] if res.data else None
 
         return retry_supabase(fetch_user)
     except Exception as e:
