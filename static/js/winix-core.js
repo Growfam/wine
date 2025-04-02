@@ -1456,42 +1456,47 @@ const StakingManager = {
      * @private
      */
     _sendStakingToServer: function(stakingData) {
-        const userId = localStorage.getItem('telegram_user_id');
-        if (!userId) {
-            log('warn', 'Неможливо відправити дані стейкінгу: ID користувача не знайдено');
-            return;
+    const userId = localStorage.getItem('telegram_user_id') || document.getElementById('user-id').textContent;
+    if (!userId) {
+        log('warn', 'Неможливо відправити дані стейкінгу: ID користувача не знайдено');
+        return Promise.resolve(false);
+    }
+
+    return fetch(`/api/user/${userId}/staking`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-User-Id': userId
+        },
+        body: JSON.stringify(stakingData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP помилка! Статус: ${response.status}`);
         }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            log('info', 'Дані стейкінгу успішно відправлено на сервер', data);
 
-        fetch(`/api/user/${userId}/staking`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Telegram-User-Id': userId
-            },
-            body: JSON.stringify(stakingData)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+            // Якщо сервер повернув оновлені дані стейкінгу, оновлюємо обидва ключі
+            if (data.data && data.data.staking) {
+                const stakingStr = JSON.stringify(data.data.staking);
+                safeSetItem(STORAGE_KEYS.STAKING_DATA, data.data.staking);
+                localStorage.setItem('stakingData', stakingStr);
+                return true;
             }
-            return response.json();
-        })
-        .then(data => {
-            if (data.status === 'success') {
-                log('info', 'Дані стейкінгу успішно відправлено на сервер', data);
-
-                // Якщо сервер повернув оновлені дані стейкінгу, оновлюємо локальні
-                if (data.data && data.data.staking) {
-                    safeSetItem(STORAGE_KEYS.STAKING_DATA, data.data.staking);
-                }
-            } else {
-                log('error', 'Помилка відправки даних стейкінгу на сервер', data);
-            }
-        })
-        .catch(error => {
-            log('error', 'Помилка відправки даних стейкінгу на сервер', error);
-        });
-    },
+        } else {
+            log('error', 'Помилка відправки даних стейкінгу на сервер', data);
+            return false;
+        }
+    })
+    .catch(error => {
+        log('error', 'Помилка відправки даних стейкінгу на сервер', error);
+        return false;
+    });
+},
 
     /**
      * Додавання коштів до існуючого стейкінгу
