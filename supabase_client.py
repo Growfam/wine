@@ -35,7 +35,7 @@ def get_user(telegram_id: str):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
-        res = supabase.table("Winix").select("*").eq("telegram_id", telegram_id).execute()
+        res = supabase.table("winix").select("*").eq("telegram_id", telegram_id).execute()
         return res.data[0] if res.data else None
     except Exception as e:
         logger.error(f"❌ Помилка отримання користувача {telegram_id}: {str(e)}")
@@ -70,7 +70,7 @@ def create_user(telegram_id: str, username: str, referrer_id: str = None):
             "wins_count": 0  # кількість виграшів
         }
 
-        res = supabase.table("Winix").insert(data).execute()
+        res = supabase.table("winix").insert(data).execute()
         logger.info(f"✅ Створено нового користувача: {telegram_id}")
         return res.data[0] if res.data else None
     except Exception as e:
@@ -93,12 +93,12 @@ def update_balance(telegram_id: str, amount: float):
         current_balance = float(user.get("balance", 0))
         new_balance = current_balance + amount
 
-        res = supabase.table("Winix").update({"balance": new_balance}).eq("telegram_id", telegram_id).execute()
+        res = supabase.table("winix").update({"balance": new_balance}).eq("telegram_id", telegram_id).execute()
         logger.info(f"✅ Оновлено баланс користувача {telegram_id}: +{amount}, новий баланс: {new_balance}")
 
         # Перевіряємо, чи потрібно активувати бейдж багатія
         if new_balance >= 50000 and not user.get("badge_rich", False):
-            supabase.table("Winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute()
+            supabase.table("winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute()
             logger.info(f"🏆 Користувач {telegram_id} отримує бейдж багатія")
 
         return res.data[0] if res.data else None
@@ -124,7 +124,7 @@ def update_coins(telegram_id: str, amount: int):
         if new_coins < 0:
             new_coins = 0  # запобігаємо від'ємному значенню
 
-        res = supabase.table("Winix").update({"coins": new_coins}).eq("telegram_id", telegram_id).execute()
+        res = supabase.table("winix").update({"coins": new_coins}).eq("telegram_id", telegram_id).execute()
         logger.info(
             f"✅ Оновлено жетони користувача {telegram_id}: {'+' if amount >= 0 else ''}{amount}, нова кількість: {new_coins}")
         return res.data[0] if res.data else None
@@ -145,7 +145,7 @@ def update_user(telegram_id: str, data: dict):
             logger.error(f"❌ Користувача {telegram_id} не знайдено")
             return None
 
-        res = supabase.table("Winix").update(data).eq("telegram_id", telegram_id).execute()
+        res = supabase.table("winix").update(data).eq("telegram_id", telegram_id).execute()
         logger.info(f"✅ Оновлено дані користувача {telegram_id}")
         return res.data[0] if res.data else None
     except Exception as e:
@@ -224,7 +224,7 @@ def add_participation(telegram_id: str, raffle_id: str, token_amount: int = 1):
             updates["badge_beginner"] = True
 
         # Оновлюємо дані
-        res_user = supabase.table("Winix").update(updates).eq("telegram_id", telegram_id).execute()
+        res_user = supabase.table("winix").update(updates).eq("telegram_id", telegram_id).execute()
 
         # Додаємо запис про участь у розіграші (якщо є таблиця)
         try:
@@ -234,7 +234,7 @@ def add_participation(telegram_id: str, raffle_id: str, token_amount: int = 1):
                 "token_amount": token_amount
             }
 
-            res_participation = supabase.table("RaffleParticipations").insert(participation_data).execute()
+            res_participation = supabase.table("raffleParticipations").insert(participation_data).execute()
             logger.info(f"✅ Користувач {telegram_id} взяв участь у розіграші {raffle_id} з {token_amount} жетонами")
         except Exception as e:
             logger.error(f"Помилка додавання запису про участь: {str(e)}")
@@ -267,7 +267,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
 
         # Якщо RPC не спрацював, спробуємо прямий запит до таблиці
         try:
-            res = supabase.table("RaffleParticipations").select("*").eq("telegram_id", telegram_id).order(
+            res = supabase.table("raffleParticipations").select("*").eq("telegram_id", telegram_id).order(
                 "participated_at", desc=True).limit(limit).execute()
             return res.data if res.data else []
         except Exception as e:
@@ -430,7 +430,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             }
 
             if supabase:
-                supabase.table("Transactions").insert(transaction).execute()
+                supabase.table("transactions").insert(transaction).execute()
 
             return {
                 "status": "success",
@@ -497,7 +497,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             }
 
             if supabase:
-                supabase.table("Transactions").insert(transaction).execute()
+                supabase.table("transactions").insert(transaction).execute()
 
             return {
                 "status": "success",
@@ -522,7 +522,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             referral_count = 0
             if supabase:
                 try:
-                    referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+                    referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
                     referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
                 except Exception as e:
                     logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
@@ -581,7 +581,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             referral_count = 0
             if supabase:
                 try:
-                    referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+                    referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
                     referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
                 except Exception as e:
                     logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
@@ -628,7 +628,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             }
 
             if supabase:
-                supabase.table("Transactions").insert(transaction).execute()
+                supabase.table("transactions").insert(transaction).execute()
 
             return {
                 "status": "success",
@@ -664,7 +664,7 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             referral_count = 0
             if supabase:
                 try:
-                    referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+                    referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
                     referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
                 except Exception as e:
                     logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
