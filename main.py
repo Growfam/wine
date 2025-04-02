@@ -1137,6 +1137,29 @@ def is_valid_referral_code(code):
     except:
         return False
 
+    from flask import request, jsonify
+    from supabase_client import get_user, create_user
+
+    @app.route("/api/auth", methods=["POST"])
+    def auth_user():
+        data = request.json
+        print("📥 AUTH: Прийшов запит:", data)
+
+        telegram_id = data.get("id")
+        username = data.get("username", "")
+
+        if not telegram_id:
+            return jsonify({"status": "error", "message": "немає telegram_id"}), 400
+
+        user = get_user(telegram_id)
+        if not user:
+            created = create_user(telegram_id, username)
+            print(f"✅ Створено юзера: {created}")
+        else:
+            print(f"ℹ️ Юзер уже існує: {telegram_id}")
+
+        return jsonify({"status": "success", "data": data})
+
 # Запуск додатку
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
