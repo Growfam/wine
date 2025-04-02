@@ -284,7 +284,7 @@ def confirm():
             update_balance(user_id, 1)
 
             # Позначаємо, що сторінка 1 завершена
-            supabase.table("Winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
+            supabase.table("winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
 
             updated_user = get_user(user_id)
             return jsonify({"status": "success", "tokens": updated_user["balance"]})
@@ -382,7 +382,7 @@ def get_user_data(telegram_id):
         referral_earnings = 0
         try:
             # У реальному випадку ви б рахували це з бази даних
-            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
             referrals_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
 
             # Тут можна додати логіку обчислення заробітку від рефералів
@@ -405,15 +405,15 @@ def get_user_data(telegram_id):
         # Автоматично позначаємо бейдж, якщо умови виконані
         if not badges["beginner_completed"] and participations_count >= 5:
             badges["beginner_completed"] = True
-            supabase.table("Winix").update({"badge_beginner": True}).eq("telegram_id", telegram_id).execute()
+            supabase.table("winix").update({"badge_beginner": True}).eq("telegram_id", telegram_id).execute()
 
         if not badges["winner_completed"] and wins_count > 0:
             badges["winner_completed"] = True
-            supabase.table("Winix").update({"badge_winner": True}).eq("telegram_id", telegram_id).execute()
+            supabase.table("winix").update({"badge_winner": True}).eq("telegram_id", telegram_id).execute()
 
         if not badges["rich_completed"] and balance >= 50000:
             badges["rich_completed"] = True
-            supabase.table("Winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute()
+            supabase.table("winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute()
 
         # Формуємо дані для відповіді
         user_data = {
@@ -487,7 +487,7 @@ def claim_badge_reward(telegram_id):
             reward_field: True
         }
 
-        supabase.table("Winix").update(updates).eq("telegram_id", telegram_id).execute()
+        supabase.table("winix").update(updates).eq("telegram_id", telegram_id).execute()
 
         # Додаємо транзакцію
         transaction = {
@@ -498,7 +498,7 @@ def claim_badge_reward(telegram_id):
             "status": "completed"
         }
 
-        supabase.table("Transactions").insert(transaction).execute()
+        supabase.table("transactions").insert(transaction).execute()
 
         return jsonify({
             "status": "success",
@@ -555,7 +555,7 @@ def claim_newbie_bonus(telegram_id):
                 "status": "completed"
             }
 
-            supabase.table("Transactions").insert(transaction).execute()
+            supabase.table("transactions").insert(transaction).execute()
 
             return jsonify({
                 'status': 'success',
@@ -851,7 +851,7 @@ def claim_daily_bonus(telegram_id):
             "status": "completed"
         }
 
-        supabase.table("Transactions").insert(transaction).execute()
+        supabase.table("transactions").insert(transaction).execute()
 
         return jsonify({
             "status": "success",
@@ -926,7 +926,7 @@ def verify_subscription(telegram_id):
             "status": "completed"
         }
 
-        supabase.table("Transactions").insert(transaction).execute()
+        supabase.table("transactions").insert(transaction).execute()
 
         return jsonify({
             "status": "success",
@@ -951,7 +951,7 @@ def get_referral_tasks(telegram_id):
 
         # Отримуємо кількість рефералів
         try:
-            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
             referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
         except Exception as e:
             logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
@@ -1010,7 +1010,7 @@ def claim_referral_reward(telegram_id):
 
         # Отримуємо кількість рефералів і статус завдань
         try:
-            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
             referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
         except Exception as e:
             logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
@@ -1066,7 +1066,7 @@ def claim_referral_reward(telegram_id):
             "status": "completed"
         }
 
-        supabase.table("Transactions").insert(transaction).execute()
+        supabase.table("transactions").insert(transaction).execute()
 
         return jsonify({
             "status": "success",
@@ -1106,7 +1106,7 @@ def invite_referral(telegram_id):
 
         # Отримуємо поточну кількість рефералів
         try:
-            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
             current_referrals = referrals_res.count if hasattr(referrals_res, 'count') else 0
         except Exception as e:
             logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
