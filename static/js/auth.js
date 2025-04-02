@@ -164,11 +164,29 @@
             .catch(error => {
                 console.error("❌ AUTH: Помилка авторизації", error);
 
+                // Додаткова діагностична інформація
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
+                } else if (error.status || error.statusText) {
+                    console.error(`❌ AUTH: HTTP помилка (${error.status}): ${error.statusText}`);
+                } else if (typeof error.message === 'string') {
+                    console.error(`❌ AUTH: Деталі помилки: ${error.message}`);
+                }
+
+                // Спроба отримати дані запиту, які викликали помилку
+                console.error("❌ AUTH: ID користувача для діагностики:", localStorage.getItem('telegram_user_id'));
+
                 // Приховуємо індикатор завантаження
                 if (spinner) spinner.classList.remove('show');
 
                 // Показуємо повідомлення про помилку
-                this.showError(this.getLocalizedText('authError'));
+                let errorMessage = this.getLocalizedText('authError');
+                if (error.status === 404) {
+                    errorMessage += ' API не знайдено.';
+                } else if (error.status === 500) {
+                    errorMessage += ' Помилка на сервері.';
+                }
+                this.showError(errorMessage);
 
                 // Відправляємо подію про помилку авторизації
                 document.dispatchEvent(new CustomEvent('auth-error', {
@@ -214,20 +232,29 @@
                 }
                 return response.json();
             })
-.then(data => {
-    if (data.status === 'success') {
-        // Успішне отримання даних
-        this.currentUser = { ...this.currentUser, ...data.data };
-        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
-        return this.currentUser;
-    } else {
-        // Явна обробка випадку, коли статус не "success"
-        console.error("❌ AUTH: Помилка отримання даних користувача", data);
-        throw new Error(data.message || "Помилка отримання даних");
-    }
-})
+            .then(data => {
+                if (data.status === 'success') {
+                    // Успішне отримання даних
+                    this.currentUser = { ...this.currentUser, ...data.data };
+                    console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+                    return this.currentUser;
+                } else {
+                    // Явна обробка випадку, коли статус не "success"
+                    console.error("❌ AUTH: Помилка отримання даних користувача", data);
+                    throw new Error(data.message || "Помилка отримання даних");
+                }
+            })
             .catch(error => {
                 console.error("❌ AUTH: Помилка отримання даних користувача", error);
+
+                // Додаткова діагностика
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
+                } else if (error.status) {
+                    console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
+                }
+                console.error("❌ AUTH: URL запиту:", `/api/user/${userId}`);
+
                 this.showError(this.getLocalizedText('dataError'));
                 throw error;
             });
