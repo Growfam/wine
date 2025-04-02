@@ -691,3 +691,4 @@ def get_user_raffle_history(telegram_id: str, limit: int = 10):
             return len(code) > 5
         except:
             return False
+
