@@ -578,6 +578,565 @@ def claim_newbie_bonus(telegram_id):
         }), 500
 
 
+# Додайте ці ендпоінти до вашого файлу main.py
+
+# Ендпоінти для сторінки налаштувань (general.html)
+
+@app.route('/api/user/<telegram_id>/settings', methods=['GET'])
+def get_user_settings(telegram_id):
+    """Отримати налаштування користувача"""
+    try:
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Формуємо дані з налаштуваннями
+        settings = {
+            "username": user.get("username", "WINIX User"),
+            "avatar_id": user.get("avatar_id"),
+            "avatar_url": user.get("avatar_url"),
+            "language": user.get("language", "uk"),
+            "password_hash": user.get("password_hash"),
+            "notifications_enabled": user.get("notifications_enabled", True)
+        }
+
+        return jsonify({"status": "success", "data": settings})
+    except Exception as e:
+        logger.error(f"Помилка отримання налаштувань користувача {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/settings', methods=['POST'])
+def update_user_settings(telegram_id):
+    """Оновити налаштування користувача"""
+    try:
+        data = request.json
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Перевіряємо, які поля оновлюються
+        allowed_fields = ["username", "avatar_id", "avatar_url", "language", "notifications_enabled"]
+        updates = {k: v for k, v in data.items() if k in allowed_fields}
+
+        # Оновлюємо дані в базі
+        updated_user = update_user(telegram_id, updates)
+
+        if not updated_user:
+            return jsonify({"status": "error", "message": "Помилка оновлення налаштувань"}), 500
+
+        return jsonify({"status": "success", "message": "Налаштування успішно оновлено"})
+    except Exception as e:
+        logger.error(f"Помилка оновлення налаштувань користувача {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/password', methods=['POST'])
+def update_user_password(telegram_id):
+    """Оновити пароль користувача"""
+    try:
+        data = request.json
+
+        if not data or "password_hash" not in data:
+            return jsonify({"status": "error", "message": "Відсутній хеш пароля"}), 400
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Оновлюємо пароль
+        updated_user = update_user(telegram_id, {"password_hash": data["password_hash"]})
+
+        if not updated_user:
+            return jsonify({"status": "error", "message": "Помилка оновлення пароля"}), 500
+
+        return jsonify({"status": "success", "message": "Пароль успішно оновлено"})
+    except Exception as e:
+        logger.error(f"Помилка оновлення пароля користувача {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/seed-phrase', methods=['GET'])
+def get_user_seed_phrase(telegram_id):
+    """Отримати seed-фразу користувача"""
+    try:
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Генеруємо або отримуємо seed-фразу
+        seed_phrase = user.get("seed_phrase")
+
+        # Якщо seed-фрази немає, генеруємо її
+        if not seed_phrase:
+            # Список слів для seed-фрази
+            seed_words = [
+                "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
+                "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
+                "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
+                "final", "curve"
+            ]
+
+            import random
+            # Генеруємо seed-фразу на основі telegram_id
+            random.seed(int(telegram_id) if telegram_id.isdigit() else hash(telegram_id))
+            seed_phrase = " ".join(random.sample(seed_words, 12))
+
+            # Зберігаємо seed-фразу в базі
+            update_user(telegram_id, {"seed_phrase": seed_phrase})
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "seed_phrase": seed_phrase
+            }
+        })
+    except Exception as e:
+        logger.error(f"Помилка отримання seed-фрази користувача {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# Ендпоінти для сторінки завдань (earn.html)
+
+@app.route('/api/user/<telegram_id>/daily-bonus', methods=['GET'])
+def get_daily_bonus_status(telegram_id):
+    """Отримати статус щоденного бонусу"""
+    try:
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        from datetime import datetime, timedelta
+
+        # Отримуємо інформацію про щоденні бонуси
+        daily_bonuses = user.get("daily_bonuses", {})
+
+        # Якщо немає інформації про бонуси, створюємо її
+        if not daily_bonuses:
+            daily_bonuses = {
+                "last_claimed_date": None,
+                "claimed_days": [],
+                "current_day": 1
+            }
+
+        # Перевіряємо, чи можна отримати бонус сьогодні
+        today = datetime.now().strftime("%Y-%m-%d")
+        last_date = daily_bonuses.get("last_claimed_date")
+
+        # Якщо це перший бонус або минув день
+        if not last_date or last_date != today:
+            # Визначаємо поточний день у циклі (1-7)
+            current_day = daily_bonuses.get("current_day", 1)
+            claimed_days = daily_bonuses.get("claimed_days", [])
+
+            # Визначаємо суму винагороди залежно від дня
+            reward_amount = current_day * 10  # День 1 = 10, День 2 = 20, і т.д.
+
+            # Перевіряємо, чи сьогодні вже отримано бонус
+            can_claim = today != last_date
+
+            return jsonify({
+                "status": "success",
+                "currentDay": current_day,
+                "claimedDays": claimed_days,
+                "canClaim": can_claim,
+                "rewardAmount": reward_amount
+            })
+        else:
+            # Бонус вже отримано сьогодні
+            return jsonify({
+                "status": "success",
+                "currentDay": daily_bonuses.get("current_day", 1),
+                "claimedDays": daily_bonuses.get("claimed_days", []),
+                "canClaim": False,
+                "message": "Бонус вже отримано сьогодні"
+            })
+    except Exception as e:
+        logger.error(f"Помилка отримання статусу щоденного бонусу для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/claim-daily-bonus', methods=['POST'])
+def claim_daily_bonus(telegram_id):
+    """Отримати щоденний бонус"""
+    try:
+        data = request.json
+        day = data.get("day", 1) if data else 1
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        from datetime import datetime, timedelta
+
+        # Отримуємо інформацію про щоденні бонуси
+        daily_bonuses = user.get("daily_bonuses", {})
+
+        # Якщо немає інформації про бонуси, створюємо її
+        if not daily_bonuses:
+            daily_bonuses = {
+                "last_claimed_date": None,
+                "claimed_days": [],
+                "current_day": 1
+            }
+
+        # Перевіряємо, чи можна отримати бонус сьогодні
+        today = datetime.now().strftime("%Y-%m-%d")
+        last_date = daily_bonuses.get("last_claimed_date")
+
+        # Якщо бонус вже отримано сьогодні
+        if last_date == today:
+            return jsonify({
+                "status": "already_claimed",
+                "message": "Бонус вже отримано сьогодні"
+            })
+
+        # Визначаємо поточний день у циклі (1-7)
+        current_day = daily_bonuses.get("current_day", 1)
+        claimed_days = daily_bonuses.get("claimed_days", [])
+
+        # Перевіряємо, чи переданий день співпадає з поточним
+        if day != current_day:
+            return jsonify({
+                "status": "error",
+                "message": f"Неправильний день! Очікувався день {current_day}, отримано {day}"
+            }), 400
+
+        # Визначаємо суму винагороди залежно від дня
+        reward_amount = current_day * 10  # День 1 = 10, День 2 = 20, і т.д.
+
+        # Нараховуємо винагороду
+        current_balance = float(user.get("balance", 0))
+        new_balance = current_balance + reward_amount
+
+        # Оновлюємо інформацію про бонуси
+        claimed_days.append(current_day)
+
+        # Визначаємо наступний день (циклічно від 1 до 7)
+        next_day = current_day + 1
+        if next_day > 7:
+            next_day = 1
+
+        # Оновлюємо дані в базі
+        updated_bonuses = {
+            "last_claimed_date": today,
+            "claimed_days": claimed_days,
+            "current_day": next_day
+        }
+
+        update_user(telegram_id, {
+            "balance": new_balance,
+            "daily_bonuses": updated_bonuses
+        })
+
+        # Додаємо транзакцію
+        transaction = {
+            "telegram_id": telegram_id,
+            "type": "reward",
+            "amount": reward_amount,
+            "description": f"Щоденний бонус (День {current_day})",
+            "status": "completed"
+        }
+
+        supabase.table("Transactions").insert(transaction).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Щоденний бонус отримано: +{reward_amount} WINIX",
+            "reward": reward_amount,
+            "newBalance": new_balance
+        })
+    except Exception as e:
+        logger.error(f"Помилка отримання щоденного бонусу для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/verify-subscription', methods=['POST'])
+def verify_subscription(telegram_id):
+    """Перевірити підписку на соціальну мережу"""
+    try:
+        data = request.json
+
+        if not data or "platform" not in data:
+            return jsonify({"status": "error", "message": "Відсутня платформа"}), 400
+
+        platform = data["platform"]
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо статус соціальних завдань
+        social_tasks = user.get("social_tasks", {})
+
+        # Якщо завдання вже виконано
+        if social_tasks.get(platform, False):
+            return jsonify({
+                "status": "already_completed",
+                "message": "Це завдання вже виконано"
+            })
+
+        # Визначаємо винагороду залежно від платформи
+        reward_amounts = {
+            "twitter": 50,
+            "telegram": 80,
+            "youtube": 50,
+            "discord": 60,
+            "instagram": 70
+        }
+
+        reward_amount = reward_amounts.get(platform, 50)
+
+        # Нараховуємо винагороду
+        current_balance = float(user.get("balance", 0))
+        new_balance = current_balance + reward_amount
+
+        # Оновлюємо статус завдання
+        if not social_tasks:
+            social_tasks = {}
+        social_tasks[platform] = True
+
+        # Оновлюємо дані в базі
+        update_user(telegram_id, {
+            "balance": new_balance,
+            "social_tasks": social_tasks
+        })
+
+        # Додаємо транзакцію
+        transaction = {
+            "telegram_id": telegram_id,
+            "type": "reward",
+            "amount": reward_amount,
+            "description": f"Винагорода за підписку на {platform}",
+            "status": "completed"
+        }
+
+        supabase.table("Transactions").insert(transaction).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Підписку підтверджено! Отримано {reward_amount} WINIX",
+            "reward": reward_amount,
+            "newBalance": new_balance
+        })
+    except Exception as e:
+        logger.error(f"Помилка перевірки підписки для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/referral-tasks', methods=['GET'])
+def get_referral_tasks(telegram_id):
+    """Отримати статус реферальних завдань"""
+    try:
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо кількість рефералів
+        try:
+            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
+        except Exception as e:
+            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
+            referral_count = 0
+
+        # Отримуємо статус реферальних завдань
+        referral_tasks = user.get("referral_tasks", {})
+
+        # Визначаємо завдання і їх цілі
+        tasks = [
+            {"id": "invite-friends", "target": 5, "reward": 300},
+            {"id": "invite-friends-10", "target": 10, "reward": 700},
+            {"id": "invite-friends-25", "target": 25, "reward": 1500},
+            {"id": "invite-friends-100", "target": 100, "reward": 5000}
+        ]
+
+        # Визначаємо, які завдання виконані
+        completed_tasks = []
+
+        for task in tasks:
+            task_id = task["id"]
+            target = task["target"]
+
+            # Завдання виконане, якщо кількість рефералів >= цільової або статус в базі = True
+            if referral_count >= target or referral_tasks.get(task_id, False):
+                completed_tasks.append(task_id)
+
+        return jsonify({
+            "status": "success",
+            "referralCount": referral_count,
+            "completedTasks": completed_tasks,
+            "tasks": tasks
+        })
+    except Exception as e:
+        logger.error(f"Помилка отримання статусу реферальних завдань для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/claim-referral-reward', methods=['POST'])
+def claim_referral_reward(telegram_id):
+    """Отримати винагороду за реферальне завдання"""
+    try:
+        data = request.json
+
+        if not data or "taskId" not in data or "reward" not in data:
+            return jsonify({"status": "error", "message": "Відсутні необхідні дані"}), 400
+
+        task_id = data["taskId"]
+        reward_amount = float(data["reward"])
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо кількість рефералів і статус завдань
+        try:
+            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
+        except Exception as e:
+            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
+            referral_count = 0
+
+        referral_tasks = user.get("referral_tasks", {})
+
+        # Визначаємо цільову кількість рефералів
+        target_map = {
+            "invite-friends": 5,
+            "invite-friends-10": 10,
+            "invite-friends-25": 25,
+            "invite-friends-100": 100
+        }
+
+        target = target_map.get(task_id, 0)
+
+        # Перевіряємо, чи завдання вже виконане
+        if referral_tasks.get(task_id, False):
+            return jsonify({
+                "status": "already_claimed",
+                "message": "Ви вже отримали винагороду за це завдання"
+            })
+
+        # Перевіряємо, чи достатньо рефералів
+        if referral_count < target:
+            return jsonify({
+                "status": "not_completed",
+                "message": f"Недостатньо рефералів для завершення завдання. Потрібно {target}, наявно {referral_count}"
+            }), 400
+
+        # Нараховуємо винагороду
+        current_balance = float(user.get("balance", 0))
+        new_balance = current_balance + reward_amount
+
+        # Оновлюємо статус завдання
+        if not referral_tasks:
+            referral_tasks = {}
+        referral_tasks[task_id] = True
+
+        # Оновлюємо дані в базі
+        update_user(telegram_id, {
+            "balance": new_balance,
+            "referral_tasks": referral_tasks
+        })
+
+        # Додаємо транзакцію
+        transaction = {
+            "telegram_id": telegram_id,
+            "type": "reward",
+            "amount": reward_amount,
+            "description": f"Винагорода за реферальне завдання: {task_id}",
+            "status": "completed"
+        }
+
+        supabase.table("Transactions").insert(transaction).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Винагороду отримано: {reward_amount} WINIX",
+            "reward": reward_amount,
+            "newBalance": new_balance
+        })
+    except Exception as e:
+        logger.error(f"Помилка отримання винагороди за реферальне завдання для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/user/<telegram_id>/invite-referral', methods=['POST'])
+def invite_referral(telegram_id):
+    """Запросити нового реферала"""
+    try:
+        data = request.json
+
+        if not data or "referralCode" not in data:
+            return jsonify({"status": "error", "message": "Відсутній реферальний код"}), 400
+
+        referral_code = data["referralCode"]
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Перевіряємо, чи реферальний код валідний
+        # Це має бути функція, яка перевіряє, чи такий користувач існує
+        if not is_valid_referral_code(referral_code):
+            return jsonify({
+                "status": "error",
+                "message": "Невалідний реферальний код"
+            }), 400
+
+        # Отримуємо поточну кількість рефералів
+        try:
+            referrals_res = supabase.table("Winix").select("count").eq("referrer_id", telegram_id).execute()
+            current_referrals = referrals_res.count if hasattr(referrals_res, 'count') else 0
+        except Exception as e:
+            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
+            current_referrals = 0
+
+        # Додаємо нового реферала
+        new_referrals = current_referrals + 1
+
+        # В реальному сценарії тут має бути логіка додавання реферала
+        # Зараз просто симулюємо успішне додавання
+
+        return jsonify({
+            "status": "success",
+            "message": f"Друга успішно запрошено!",
+            "referralCount": new_referrals
+        })
+    except Exception as e:
+        logger.error(f"Помилка запрошення реферала для {telegram_id}: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# Допоміжна функція для перевірки валідності реферального коду
+def is_valid_referral_code(code):
+    # Перевіряємо, чи код є валідним ID Telegram
+    # У реальному випадку тут має бути перевірка користувача в базі даних
+    try:
+        return len(code) > 5
+    except:
+        return False
+
 # Запуск додатку
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
