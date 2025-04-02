@@ -1897,6 +1897,18 @@ def claim_referral_reward(telegram_id):
         logger.error(f"Помилка отримання винагороди за реферальне завдання для {telegram_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Функція для тестування з'єднання з Supabase
+def is_valid_referral_code(code):
+    """
+    Перевіряє, чи код є валідним ID Telegram
+
+    Returns:
+        Словник з результатами тестування
+    """
+    try:
+        return len(code) > 5
+    except:
+        return False
 
 @app.route('/api/user/<telegram_id>/invite-referral', methods=['POST'])
 def invite_referral(telegram_id):
@@ -1928,10 +1940,11 @@ def invite_referral(telegram_id):
             }), 400
 
         # Отримуємо поточну кількість рефералів
+        # Виправлений код
         try:
             referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
             current_referrals = referrals_res.count if hasattr(referrals_res, 'count') else 0
-            except Exception as e:
+        except Exception as e:  # Правильний відступ
             logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
             current_referrals = 0
 
@@ -1949,19 +1962,6 @@ def invite_referral(telegram_id):
     except Exception as e:
         logger.error(f"Помилка запрошення реферала для {telegram_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-    # Функція для тестування з'єднання з Supabase
-    def is_valid_referral_code(code):
-        """
-        Перевіряє, чи код є валідним ID Telegram
-
-        Returns:
-            Словник з результатами тестування
-        """
-        try:
-            return len(code) > 5
-        except:
-            return False
 
     # Запуск додатку
     if __name__ == '__main__':
