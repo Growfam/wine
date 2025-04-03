@@ -21,6 +21,10 @@ STAKING_REWARD_RATES = {
 # Штраф при скасуванні стейкінгу (20%)
 STAKING_CANCELLATION_FEE = 0.2
 
+# Константи для валідації стейкінгу
+MIN_STAKING_AMOUNT = 50  # Мінімальна сума стейкінгу
+MAX_STAKING_PERCENTAGE = 0.9  # Максимально дозволений відсоток балансу для стейкінгу
+
 
 def calculate_staking_reward(amount, period):
     """Розрахунок очікуваної винагороди за стейкінг"""
@@ -171,6 +175,7 @@ def get_user_staking(telegram_id):
 def create_user_staking(telegram_id, data):
     """Створення стейкінгу користувача"""
     try:
+
         if not data:
             return jsonify({"status": "error", "message": "Відсутні дані стейкінгу"}), 400
 
@@ -195,6 +200,17 @@ def create_user_staking(telegram_id, data):
         # Перевіряємо достатність коштів
         current_balance = float(user.get("balance", 0))
         staking_amount = float(data.get("stakingAmount", 0))
+
+        # Перевіряємо мінімальну суму стейкінгу
+        if staking_amount < MIN_STAKING_AMOUNT:
+            return jsonify(
+                {"status": "error", "message": f"Мінімальна сума стейкінгу: {MIN_STAKING_AMOUNT} WINIX"}), 400
+
+        # Перевіряємо максимальну суму стейкінгу відносно балансу
+        max_allowed_amount = current_balance * MAX_STAKING_PERCENTAGE
+        if staking_amount > max_allowed_amount:
+            return jsonify({"status": "error",
+                            "message": f"Максимальна сума стейкінгу: {max_allowed_amount:.2f} WINIX ({int(MAX_STAKING_PERCENTAGE * 100)}% від балансу)"}), 400
 
         if staking_amount <= 0:
             return jsonify({"status": "error", "message": "Сума стейкінгу повинна бути більше 0"}), 400
@@ -359,6 +375,21 @@ def update_user_staking(telegram_id, staking_id, data):
         if current_balance < additional_amount:
             logger.warning(f"update_user_staking: Недостатньо коштів: {current_balance} < {additional_amount}")
             return jsonify({"status": "error", "message": "Недостатньо коштів для додавання до стейкінгу"}), 400
+
+        # Перевіряємо мінімальну суму додавання
+        if additional_amount < MIN_STAKING_AMOUNT:
+            logger.warning(
+                f"update_user_staking: Додаткова сума менша за мінімальну: {additional_amount} < {MIN_STAKING_AMOUNT}")
+            return jsonify(
+                {"status": "error", "message": f"Мінімальна сума додавання: {MIN_STAKING_AMOUNT} WINIX"}), 400
+
+        # Перевіряємо максимальну суму додавання відносно балансу
+        max_allowed_amount = current_balance * MAX_STAKING_PERCENTAGE
+        if additional_amount > max_allowed_amount:
+            logger.warning(
+                f"update_user_staking: Додаткова сума перевищує максимально дозволену: {additional_amount} > {max_allowed_amount}")
+            return jsonify({"status": "error",
+                            "message": f"Максимальна сума додавання: {max_allowed_amount:.2f} WINIX ({int(MAX_STAKING_PERCENTAGE * 100)}% від балансу)"}), 400
 
         # Обробка даних стейкінгу з кількома спробами
         max_attempts = 3
