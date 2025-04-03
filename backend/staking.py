@@ -133,7 +133,7 @@ def create_user_staking(telegram_id, data):
         # Знімаємо кошти з рахунку користувача
         new_balance = current_balance - staking_amount
 
-        # Оновлюємо баланс користувача в транзакції
+        # Оновлюємо баланс користувача та створюємо стейкінг
         try:
             logger.info(f"create_user_staking: Створення стейкінгу для {telegram_id}: {data}")
 
@@ -145,22 +145,35 @@ def create_user_staking(telegram_id, data):
                 return jsonify({"status": "error", "message": "Помилка створення стейкінгу"}), 500
 
             # Додаємо транзакцію
-            transaction = {
-                "telegram_id": telegram_id,
-                "type": "stake",
-                "amount": -staking_amount,
-                "description": f"Стейкінг на {data.get('period')} днів",
-                "status": "completed",
-                "staking_id": data.get("stakingId")
-            }
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "stake",
+                    "amount": -staking_amount,
+                    "description": f"Стейкінг на {data.get('period')} днів (ID: {data.get('stakingId')})",
+                    "status": "completed"
+                    # Прибрано staking_id, додано ID в опис
+                }
 
-            if supabase:
-                supabase.table("transactions").insert(transaction).execute()
+                if supabase:
+                    transaction_res = supabase.table("transactions").insert(transaction).execute()
+                    logger.info(f"create_user_staking: Транзакцію створено")
+            except Exception as e:
+                # Не зупиняємо процес, якщо помилка при створенні транзакції
+                logger.error(f"create_user_staking: Помилка при створенні транзакції: {str(e)}")
+                # Транзакція важлива, але не критична для стейкінгу
 
-            # Після успішного створення перевіряємо, чи було створено стейкінг
-            check_user = get_user(telegram_id)
-            check_staking = check_user.get("staking_data", {})
-            logger.info(f"create_user_staking: Перевірка створеного стейкінгу: {check_staking}")
+            # Перевіряємо, чи стейкінг успішно створено
+            try:
+                check_user = get_user(telegram_id)
+                if check_user:
+                    check_staking = check_user.get("staking_data", {})
+                    logger.info(f"create_user_staking: Перевірка створеного стейкінгу: {check_staking}")
+                else:
+                    logger.warning(f"create_user_staking: Не вдалося отримати користувача для перевірки стейкінгу")
+            except Exception as e:
+                logger.error(f"create_user_staking: Помилка при перевірці створеного стейкінгу: {str(e)}")
+                # Не зупиняємо процес, якщо помилка при перевірці
 
             return jsonify({"status": "success", "data": {"staking": data, "balance": new_balance}})
         except Exception as e:
@@ -225,17 +238,20 @@ def update_user_staking(telegram_id, staking_id, data):
                     return jsonify({"status": "error", "message": "Помилка оновлення стейкінгу"}), 500
 
                 # Додаємо транзакцію
-                transaction = {
-                    "telegram_id": telegram_id,
-                    "type": "stake",
-                    "amount": -additional_amount,
-                    "description": f"Додатковий внесок до стейкінгу",
-                    "status": "completed",
-                    "staking_id": staking_id
-                }
+                try:
+                    transaction = {
+                        "telegram_id": telegram_id,
+                        "type": "stake",
+                        "amount": -additional_amount,
+                        "description": f"Додатковий внесок до стейкінгу (ID: {staking_id})",
+                        "status": "completed"
+                    }
 
-                if supabase:
-                    supabase.table("transactions").insert(transaction).execute()
+                    if supabase:
+                        supabase.table("transactions").insert(transaction).execute()
+                except Exception as e:
+                    logger.error(f"update_user_staking: Помилка при створенні транзакції: {str(e)}")
+                    # Не зупиняємо процес, якщо помилка при створенні транзакції
 
                 return jsonify({
                     "status": "success",
@@ -344,17 +360,20 @@ def cancel_user_staking(telegram_id, staking_id, data):
                 return jsonify({"status": "error", "message": "Помилка скасування стейкінгу"}), 500
 
             # Додаємо транзакцію
-            transaction = {
-                "telegram_id": telegram_id,
-                "type": "unstake",
-                "amount": returned_amount,
-                "description": f"Скасування стейкінгу (повернено {returned_amount} WINIX)",
-                "status": "completed",
-                "staking_id": staking_id
-            }
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "unstake",
+                    "amount": returned_amount,
+                    "description": f"Скасування стейкінгу (повернено {returned_amount} WINIX) (ID: {staking_id})",
+                    "status": "completed"
+                }
 
-            if supabase:
-                supabase.table("transactions").insert(transaction).execute()
+                if supabase:
+                    supabase.table("transactions").insert(transaction).execute()
+            except Exception as e:
+                logger.error(f"cancel_user_staking: Помилка при створенні транзакції: {str(e)}")
+                # Не зупиняємо процес, якщо помилка при створенні транзакції
 
             logger.info(f"cancel_user_staking: Стейкінг успішно скасовано для користувача {telegram_id}")
             return jsonify({
@@ -428,40 +447,47 @@ def finalize_user_staking(telegram_id, staking_id, data):
             "remainingDays": 0
         }
 
-        # Оновлюємо дані користувача
-        result = update_user(telegram_id, {
-            "balance": new_balance,
-            "staking_data": empty_staking,
-            "staking_history": staking_history
-        })
-
-        if not result:
-            return jsonify({"status": "error", "message": "Помилка завершення стейкінгу"}), 500
-
-        # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "unstake",
-            "amount": total_amount,
-            "description": f"Стейкінг завершено: {staking_amount} + {expected_reward} винагорода",
-            "status": "completed",
-            "staking_id": staking_id
-        }
-
-        if supabase:
-            supabase.table("transactions").insert(transaction).execute()
-
-        logger.info(f"finalize_user_staking: Стейкінг успішно завершено для користувача {telegram_id}")
-        return jsonify({
-            "status": "success",
-            "message": "Стейкінг успішно завершено",
-            "data": {
-                "staking": empty_staking,
+        try:
+            # Оновлюємо дані користувача
+            result = update_user(telegram_id, {
                 "balance": new_balance,
-                "reward": expected_reward,
-                "total": total_amount
-            }
-        })
+                "staking_data": empty_staking,
+                "staking_history": staking_history
+            })
+
+            if not result:
+                return jsonify({"status": "error", "message": "Помилка завершення стейкінгу"}), 500
+
+            # Додаємо транзакцію
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "unstake",
+                    "amount": total_amount,
+                    "description": f"Стейкінг завершено: {staking_amount} + {expected_reward} винагорода (ID: {staking_id})",
+                    "status": "completed"
+                }
+
+                if supabase:
+                    supabase.table("transactions").insert(transaction).execute()
+            except Exception as e:
+                logger.error(f"finalize_user_staking: Помилка при створенні транзакції: {str(e)}")
+                # Не зупиняємо процес, якщо помилка при створенні транзакції
+
+            logger.info(f"finalize_user_staking: Стейкінг успішно завершено для користувача {telegram_id}")
+            return jsonify({
+                "status": "success",
+                "message": "Стейкінг успішно завершено",
+                "data": {
+                    "staking": empty_staking,
+                    "balance": new_balance,
+                    "reward": expected_reward,
+                    "total": total_amount
+                }
+            })
+        except Exception as e:
+            logger.error(f"finalize_user_staking: Помилка при завершенні стейкінгу: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         logger.error(f"finalize_user_staking: Помилка завершення стейкінгу користувача {telegram_id}: {str(e)}",
                      exc_info=True)
