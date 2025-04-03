@@ -87,10 +87,10 @@ def login_user(data):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-def get_user_profile(user_id):
+def get_user_profile(telegram_id):
     """Отримання профілю користувача"""
     try:
-        user = get_user(user_id)
+        user = get_user(telegram_id)
 
         if not user:
             return jsonify({"success": False, "error": "Користувача не знайдено"}), 404
@@ -99,11 +99,19 @@ def get_user_profile(user_id):
         referrals_count = 0
         referral_earnings = 0
         try:
-            referrals_res = supabase.table("winix").select("count").eq("referrer_id", user_id).execute()
-            referrals_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
-            referral_earnings = referrals_count * 127.37  # Приклад формули
+            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
+            # Безпечне отримання кількості рефералів
+            if hasattr(referrals_res, 'count'):
+                referrals_count = referrals_res.count or 0
+            else:
+                referrals_count = len(referrals_res.data) if referrals_res.data else 0
+
+            # Безпечне обчислення заробітку від рефералів
+            referral_earnings = float(referrals_count) * 127.37  # Використовуємо float() для безпеки
         except Exception as e:
             logger.error(f"get_user_profile: Помилка отримання даних рефералів: {str(e)}")
+            referrals_count = 0
+            referral_earnings = 0
 
         # Перевіряємо, які бейджі має користувач
         badges = {
@@ -132,7 +140,7 @@ def get_user_profile(user_id):
         return jsonify({"status": "success", "data": user_data})
 
     except Exception as e:
-        logger.error(f"get_user_profile: Помилка отримання профілю користувача {user_id}: {str(e)}")
+        logger.error(f"get_user_profile: Помилка отримання профілю користувача {telegram_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -221,17 +229,26 @@ def claim_badge_reward(telegram_id, data):
             reward_field: True
         }
 
-        supabase.table("winix").update(updates).eq("telegram_id", telegram_id).execute()
+        try:
+            supabase.table("winix").update(updates).eq("telegram_id", telegram_id).execute()
 
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "reward",
-            "amount": reward_amount,
-            "description": f"Нагорода за бейдж '{badge_id}'",
-            "status": "completed"
-        }
+            # Додаємо транзакцію
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "reward",
+                    "amount": reward_amount,
+                    "description": f"Нагорода за бейдж '{badge_id}'",
+                    "status": "completed"
+                }
 
-        supabase.table("transactions").insert(transaction).execute()
+                supabase.table("transactions").insert(transaction).execute()
+            except Exception as e:
+                logger.error(f"claim_badge_reward: Помилка при створенні транзакції: {str(e)}")
+                # Не зупиняємо процес, якщо помилка при створенні транзакції
+        except Exception as e:
+            logger.error(f"claim_badge_reward: Помилка при оновленні бази даних: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
         return jsonify({
             "status": "success",
@@ -269,34 +286,46 @@ def claim_newbie_bonus(telegram_id):
         current_balance = float(user.get('balance', 0))
         new_balance = current_balance + bonus_amount
 
-        updated_user = update_user(telegram_id, {
-            'balance': new_balance,
-            'newbie_bonus_claimed': True
-        })
-
-        if updated_user:
-            transaction = {
-                "telegram_id": telegram_id,
-                "type": "reward",
-                "amount": bonus_amount,
-                "description": "Бонус новачка",
-                "status": "completed"
-            }
-
-            supabase.table("transactions").insert(transaction).execute()
-
-            return jsonify({
-                'status': 'success',
-                'message': f'Ви отримали {bonus_amount} WINIX як бонус новачка!',
-                'data': {
-                    'amount': bonus_amount,
-                    'newBalance': new_balance
-                }
+        try:
+            updated_user = update_user(telegram_id, {
+                'balance': new_balance,
+                'newbie_bonus_claimed': True
             })
-        else:
+
+            if updated_user:
+                # Додаємо транзакцію
+                try:
+                    transaction = {
+                        "telegram_id": telegram_id,
+                        "type": "reward",
+                        "amount": bonus_amount,
+                        "description": "Бонус новачка",
+                        "status": "completed"
+                    }
+
+                    supabase.table("transactions").insert(transaction).execute()
+                except Exception as e:
+                    logger.error(f"claim_newbie_bonus: Помилка при створенні транзакції: {str(e)}")
+                    # Не зупиняємо процес, якщо помилка при створенні транзакції
+
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Ви отримали {bonus_amount} WINIX як бонус новачка!',
+                    'data': {
+                        'amount': bonus_amount,
+                        'newBalance': new_balance
+                    }
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Помилка нарахування бонусу'
+                }), 500
+        except Exception as e:
+            logger.error(f"claim_newbie_bonus: Помилка оновлення даних: {str(e)}")
             return jsonify({
                 'status': 'error',
-                'message': 'Помилка нарахування бонусу'
+                'message': str(e)
             }), 500
 
     except Exception as e:
@@ -342,12 +371,16 @@ def update_user_settings(telegram_id, data):
         allowed_fields = ["username", "avatar_id", "avatar_url", "language", "notifications_enabled"]
         updates = {k: v for k, v in data.items() if k in allowed_fields}
 
-        updated_user = update_user(telegram_id, updates)
+        try:
+            updated_user = update_user(telegram_id, updates)
 
-        if not updated_user:
-            return jsonify({"status": "error", "message": "Помилка оновлення налаштувань"}), 500
+            if not updated_user:
+                return jsonify({"status": "error", "message": "Помилка оновлення налаштувань"}), 500
 
-        return jsonify({"status": "success", "message": "Налаштування успішно оновлено"})
+            return jsonify({"status": "success", "message": "Налаштування успішно оновлено"})
+        except Exception as e:
+            logger.error(f"update_user_settings: Помилка оновлення бази даних: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     except Exception as e:
         logger.error(f"update_user_settings: Помилка оновлення налаштувань користувача {telegram_id}: {str(e)}")
@@ -365,12 +398,16 @@ def update_user_password(telegram_id, data):
         if not user:
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        updated_user = update_user(telegram_id, {"password_hash": data["password_hash"]})
+        try:
+            updated_user = update_user(telegram_id, {"password_hash": data["password_hash"]})
 
-        if not updated_user:
-            return jsonify({"status": "error", "message": "Помилка оновлення пароля"}), 500
+            if not updated_user:
+                return jsonify({"status": "error", "message": "Помилка оновлення пароля"}), 500
 
-        return jsonify({"status": "success", "message": "Пароль успішно оновлено"})
+            return jsonify({"status": "success", "message": "Пароль успішно оновлено"})
+        except Exception as e:
+            logger.error(f"update_user_password: Помилка оновлення бази даних: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     except Exception as e:
         logger.error(f"update_user_password: Помилка оновлення пароля користувача {telegram_id}: {str(e)}")
@@ -388,17 +425,24 @@ def get_user_seed_phrase(telegram_id):
         seed_phrase = user.get("seed_phrase")
 
         if not seed_phrase:
-            seed_words = [
-                "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
-                "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
-                "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
-                "final", "curve"
-            ]
+            try:
+                seed_words = [
+                    "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
+                    "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across",
+                    "act",
+                    "solve", "notable", "quick", "pluck", "tribe", "dinosaur", "cereal", "casino", "rail", "media",
+                    "final", "curve"
+                ]
 
-            random.seed(int(telegram_id) if telegram_id.isdigit() else hash(telegram_id))
-            seed_phrase = " ".join(random.sample(seed_words, 12))
+                # Безпечна генерація seed-фрази
+                seed_value = int(telegram_id) if telegram_id.isdigit() else hash(telegram_id)
+                random.seed(seed_value)
+                seed_phrase = " ".join(random.sample(seed_words, 12))
 
-            update_user(telegram_id, {"seed_phrase": seed_phrase})
+                update_user(telegram_id, {"seed_phrase": seed_phrase})
+            except Exception as e:
+                logger.error(f"get_user_seed_phrase: Помилка генерації seed-фрази: {str(e)}")
+                seed_phrase = "Seed фраза недоступна"
 
         return jsonify({
             "status": "success",
@@ -454,20 +498,24 @@ def verify_user(telegram_data):
         logger.info(f"verify_user: Перевірка користувача з ID: {telegram_id}")
 
         # Перевіряємо наявність користувача у базі
-        user = get_user(telegram_id)
-        logger.info(f"verify_user: Результат get_user: {user}")
+        try:
+            user = get_user(telegram_id)
+            logger.info(f"verify_user: Результат get_user: {user}")
 
-        # Якщо користувача немає, створюємо його
-        if not user:
-            display_name = username or first_name or "WINIX User"
-            logger.info(f"verify_user: Створення нового користувача: {telegram_id} ({display_name})")
-
-            user = create_user(telegram_id, display_name)
-            logger.info(f"verify_user: Результат create_user: {user}")
-
+            # Якщо користувача немає, створюємо його
             if not user:
-                logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
-                return None
+                display_name = username or first_name or "WINIX User"
+                logger.info(f"verify_user: Створення нового користувача: {telegram_id} ({display_name})")
+
+                user = create_user(telegram_id, display_name)
+                logger.info(f"verify_user: Результат create_user: {user}")
+
+                if not user:
+                    logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
+                    return None
+        except Exception as e:
+            logger.error(f"verify_user: Помилка при отриманні/створенні користувача: {str(e)}")
+            return None
 
         return user
 
