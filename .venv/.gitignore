@@ -24,8 +24,6 @@ venv/
 node_modules/
 
 # Railway, Heroku, GitHub Pages специфічне
-*.sqlite3
-*.db
 .cache/
 dist/
 build/
