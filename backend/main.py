@@ -51,7 +51,9 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # Визначаємо базову директорію проекту
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Оскільки main.py знаходиться в backend/, переходимо на один рівень вгору
+BACKEND_DIR = os.path.abspath(os.path.dirname(__file__))
+BASE_DIR = os.path.dirname(BACKEND_DIR)
 
 # Ініціалізація Flask з абсолютними шляхами для шаблонів та статики
 app = Flask(__name__,
@@ -113,6 +115,7 @@ def debug():
 
     # Перевіряємо наявність ключових файлів
     index_html_exists = os.path.exists(os.path.join(template_dir, 'index.html'))
+    original_index_html_exists = os.path.exists(os.path.join(template_dir, 'original-index.html'))
 
     return jsonify({
         "status": "running",
@@ -127,6 +130,7 @@ def debug():
             "assets_exists": assets_exists,
             "chenel_exists": chenel_exists,
             "index_html_exists": index_html_exists,
+            "original_index_html_exists": original_index_html_exists,
             "supabase_test": supabase_test
         }
     })
@@ -187,6 +191,16 @@ def serve_css(filename):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/original-index')
+def original_index():
+    return render_template('original-index.html')
+
+
+@app.route('/original-index.html')
+def original_index_html():
+    return render_template('original-index.html')
 
 
 @app.route('/<path:filename>.html')
@@ -600,7 +614,7 @@ def page_not_found(e):
         "error": "not_found",
         "message": f"Сторінка не знайдена: {request.path}",
         "available_routes": [
-            "/", "/index.html", "/earn.html", "/wallet.html",
+            "/", "/index.html", "/original-index.html", "/earn.html", "/wallet.html",
             "/referrals.html", "/staking.html", "/transactions.html"
         ]
     }), 404
