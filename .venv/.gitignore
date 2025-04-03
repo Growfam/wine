@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# IDE (PyCharm, VSCode тощо)
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Віртуальні середовища
+.venv/
+env/
+venv/
+
+# Файли середовища
+.env
+
+# Node/npm (якщо є фронтенд із js/npm)
+node_modules/
+
+# Railway, Heroku, GitHub Pages специфічне
+*.sqlite3
+*.db
+.cache/
+dist/
+build/
+
+# Інше
+*.bak
+*.swp
+*.tmp
