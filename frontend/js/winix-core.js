@@ -53,6 +53,18 @@
         WARNING: 'warning'
     };
 
+    // Налаштування стейкінгу
+    const STAKING_CONFIG = {
+        minAmount: 50,
+        maxBalancePercentage: 0.9,
+        allowedPeriods: [7, 14, 28],
+        rewardRates: {
+            7: 4,  // 4% за 7 днів
+            14: 9, // 9% за 14 днів
+            28: 15 // 15% за 28 днів
+        }
+    };
+
     // --------------- ПРИВАТНІ ЗМІННІ ---------------
 
     // Прапорці блокування операцій
@@ -147,6 +159,57 @@
             log('error', `Помилка отримання ${key} з localStorage`, e);
             return defaultValue;
         }
+    }
+
+    /**
+     * Функція для валідації суми стейкінгу
+     */
+    function validateStakingAmount(amount, balance) {
+        // Перевірка на число
+        if (isNaN(amount) || amount <= 0) {
+            return {
+                isValid: false,
+                message: "Введіть коректну суму більше нуля"
+            };
+        }
+
+        // Перевірка, що сума є цілим числом
+        if (amount !== Math.floor(amount)) {
+            return {
+                isValid: false,
+                message: "Сума стейкінгу має бути цілим числом"
+            };
+        }
+
+        // Перевірка на мінімальну суму
+        if (amount < STAKING_CONFIG.minAmount) {
+            return {
+                isValid: false,
+                message: `Мінімальна сума стейкінгу: ${STAKING_CONFIG.minAmount} WINIX`
+            };
+        }
+
+        // Перевірка на максимальну суму відносно балансу
+        const maxAllowedAmount = Math.floor(balance * STAKING_CONFIG.maxBalancePercentage);
+        if (amount > maxAllowedAmount) {
+            return {
+                isValid: false,
+                message: `Максимальна сума: ${maxAllowedAmount} WINIX (${STAKING_CONFIG.maxBalancePercentage*100}% від балансу)`
+            };
+        }
+
+        // Перевірка на достатність балансу
+        if (amount > balance) {
+            return {
+                isValid: false,
+                message: `Недостатньо коштів. Ваш баланс: ${balance} WINIX`
+            };
+        }
+
+        return {
+            isValid: true,
+            message: ""
+        };
     }
 
     /**
@@ -409,11 +472,19 @@
                     return { success: false, message: 'ID користувача не знайдено' };
                 }
 
+                // Перевіряємо суму через функцію валідації
+                const balance = BalanceManager.getTokens();
+                const validation = validateStakingAmount(amount, balance);
+
+                if (!validation.isValid) {
+                    return { success: false, message: validation.message };
+                }
+
                 // Надсилаємо запит на сервер
                 const result = await apiRequest(`/api/user/${userId}/staking`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stakingAmount: amount, period: period })
+                    body: JSON.stringify({ stakingAmount: Math.floor(amount), period: period })
                 });
 
                 // Якщо успішно - оновлюємо локальні дані
@@ -478,11 +549,19 @@
                     return { success: false, message: 'ID користувача не знайдено' };
                 }
 
+                // Перевіряємо суму через функцію валідації
+                const balance = BalanceManager.getTokens();
+                const validation = validateStakingAmount(amount, balance);
+
+                if (!validation.isValid) {
+                    return { success: false, message: validation.message };
+                }
+
                 // Надсилаємо запит на сервер
                 const result = await apiRequest(`/api/user/${userId}/staking/${stakingData.stakingId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ additionalAmount: amount })
+                    body: JSON.stringify({ additionalAmount: Math.floor(amount) })
                 });
 
                 // Якщо успішно - оновлюємо локальні дані
@@ -503,7 +582,7 @@
 
                     return {
                         success: true,
-                        message: `Додано ${amount} WINIX до стейкінгу`,
+                        message: `Додано ${Math.floor(amount)} WINIX до стейкінгу`,
                         data: result.data
                     };
                 } else {
@@ -802,7 +881,7 @@
                     const statusElement = document.getElementById('staking-status');
                     if (statusElement) {
                         statusElement.textContent = hasStaking
-                            ? `У стейкінгу: ${stakingData.stakingAmount.toFixed(2)} $WINIX`
+                            ? `У стейкінгу: ${stakingData.stakingAmount} $WINIX`
                             : "Наразі немає активних стейкінгів";
                     }
 
@@ -829,10 +908,10 @@
                     const expectedRewardElement = document.getElementById('staking-expected-reward');
                     const remainingDaysElement = document.getElementById('staking-remaining-days');
 
-                    if (amountElement) amountElement.textContent = `${stakingData.stakingAmount.toFixed(2)} $WINIX`;
+                    if (amountElement) amountElement.textContent = `${stakingData.stakingAmount} $WINIX`;
                     if (periodElement) periodElement.textContent = `${stakingData.period} днів`;
                     if (rewardPercentElement) rewardPercentElement.textContent = `${stakingData.rewardPercent}%`;
-                    if (expectedRewardElement) expectedRewardElement.textContent = `${stakingData.expectedReward.toFixed(2)} $WINIX`;
+                    if (expectedRewardElement) expectedRewardElement.textContent = `${stakingData.expectedReward} $WINIX`;
                     if (remainingDaysElement) remainingDaysElement.textContent = stakingData.remainingDays.toString();
                 }
                 // Якщо ми на головній сторінці гаманця
@@ -842,11 +921,11 @@
                     const stakingRewardsElement = document.getElementById('staking-rewards');
 
                     if (stakingBalanceElement) {
-                        stakingBalanceElement.textContent = `У стейкінгу: ${hasStaking ? stakingData.stakingAmount.toFixed(2) : '0'} $WINIX`;
+                        stakingBalanceElement.textContent = `У стейкінгу: ${hasStaking ? stakingData.stakingAmount : '0'} $WINIX`;
                     }
 
                     if (stakingRewardsElement) {
-                        stakingRewardsElement.textContent = `Нагороди: ${hasStaking ? stakingData.expectedReward.toFixed(2) : '0'} $WINIX`;
+                        stakingRewardsElement.textContent = `Нагороди: ${hasStaking ? stakingData.expectedReward : '0'} $WINIX`;
                     }
                 }
 
@@ -1085,6 +1164,11 @@
         },
 
         /**
+         * Функція валідації суми стейкінгу
+         */
+        validateStakingAmount: validateStakingAmount,
+
+        /**
          * Застосування патчів для сумісності з іншими системами
          */
         _applyCompatibilityPatches: function() {
@@ -1182,7 +1266,8 @@
         // Експортуємо константи
         TRANSACTION_TYPES,
         MESSAGE_TYPES,
-        STORAGE_KEYS
+        STORAGE_KEYS,
+        STAKING_CONFIG
     };
 
     // Збереження екземпляру в глобальній області видимості
