@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 def get_user_staking(telegram_id):
     """Отримання даних стейкінгу користувача"""
     try:
@@ -52,6 +53,7 @@ def get_user_staking(telegram_id):
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 def create_user_staking(telegram_id, data):
     """Створення стейкінгу користувача"""
     try:
@@ -67,11 +69,9 @@ def create_user_staking(telegram_id, data):
             logger.warning(f"create_user_staking: Користувача {telegram_id} не знайдено")
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        # Перевіряємо необхідні поля стейкінгу
-        required_fields = ["stakingAmount", "period", "rewardPercent", "expectedReward"]
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"status": "error", "message": f"Відсутнє обов'язкове поле: {field}"}), 400
+        # Перевіряємо мінімальні необхідні поля
+        if "stakingAmount" not in data or "period" not in data:
+            return jsonify({"status": "error", "message": "Відсутні обов'язкові поля: stakingAmount та period"}), 400
 
         # Перевіряємо достатність коштів
         current_balance = float(user.get("balance", 0))
@@ -82,6 +82,29 @@ def create_user_staking(telegram_id, data):
 
         if current_balance < staking_amount:
             return jsonify({"status": "error", "message": "Недостатньо коштів для стейкінгу"}), 400
+
+        # Розраховуємо відсоток винагороди, якщо не передано
+        if "rewardPercent" not in data:
+            # Визначаємо відсоток на основі періоду та суми
+            period = int(data.get("period", 14))
+            # Наприклад: 14 днів = 7%, 30 днів = 15%
+            if period <= 14:
+                reward_percent = 7
+            elif period <= 30:
+                reward_percent = 15
+            else:
+                reward_percent = 20
+
+            # Додаємо розрахований відсоток
+            data["rewardPercent"] = reward_percent
+            logger.info(f"create_user_staking: Розраховано rewardPercent: {reward_percent}%")
+
+        # Розраховуємо очікувану винагороду, якщо не передано
+        if "expectedReward" not in data:
+            reward_percent = float(data.get("rewardPercent"))
+            expected_reward = staking_amount * (reward_percent / 100)
+            data["expectedReward"] = expected_reward
+            logger.info(f"create_user_staking: Розраховано expectedReward: {expected_reward}")
 
         # Встановлюємо обов'язкові значення
         data["hasActiveStaking"] = True
@@ -102,6 +125,10 @@ def create_user_staking(telegram_id, data):
             period_days = int(data.get("period", 14))
             end_date = datetime.now() + timedelta(days=period_days)
             data["endDate"] = end_date.isoformat()
+
+        # Розраховуємо залишок днів
+        if "remainingDays" not in data:
+            data["remainingDays"] = int(data.get("period", 14))
 
         # Знімаємо кошти з рахунку користувача
         new_balance = current_balance - staking_amount
@@ -143,6 +170,7 @@ def create_user_staking(telegram_id, data):
         logger.error(f"create_user_staking: Помилка створення стейкінгу користувача {telegram_id}: {str(e)}",
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 def update_user_staking(telegram_id, staking_id, data):
     """Оновлення стейкінгу користувача"""
@@ -241,6 +269,7 @@ def update_user_staking(telegram_id, staking_id, data):
         logger.error(f"update_user_staking: Помилка оновлення стейкінгу користувача {telegram_id}: {str(e)}",
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 def cancel_user_staking(telegram_id, staking_id, data):
     """Скасування стейкінгу користувача"""
@@ -345,6 +374,7 @@ def cancel_user_staking(telegram_id, staking_id, data):
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 def finalize_user_staking(telegram_id, staking_id, data):
     """Завершення стейкінгу і нарахування винагороди"""
     try:
@@ -436,6 +466,7 @@ def finalize_user_staking(telegram_id, staking_id, data):
         logger.error(f"finalize_user_staking: Помилка завершення стейкінгу користувача {telegram_id}: {str(e)}",
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 def get_user_staking_history(telegram_id):
     """Отримання історії стейкінгу"""
