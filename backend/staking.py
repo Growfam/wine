@@ -433,38 +433,58 @@ def cancel_user_staking(telegram_id, staking_id, data):
         returned_amount = staking_amount - cancellation_fee
         new_balance = current_balance + returned_amount
 
-        # Оновлюємо дані стейкінгу для історії
-        staking_data["status"] = "cancelled"
-        staking_data["hasActiveStaking"] = False
-        staking_data["cancelledDate"] = datetime.now().isoformat()
-        staking_data["returnedAmount"] = returned_amount
-        staking_data["feeAmount"] = cancellation_fee
+        # Оновлюємо дані стейкінгу для запису в історію
+        staking_for_history = staking_data.copy()  # Створюємо копію, щоб не змінювати оригінальний об'єкт
+        staking_for_history["status"] = "cancelled"
+        staking_for_history["hasActiveStaking"] = False
+        staking_for_history["cancelledDate"] = datetime.now().isoformat()
+        staking_for_history["returnedAmount"] = returned_amount
+        staking_for_history["feeAmount"] = cancellation_fee
 
         # Зберігаємо в історії стейкінгу
         staking_history = user.get("staking_history", [])
-        staking_history.append(staking_data.copy())  # Копіюємо дані, щоб уникнути проблем з посиланнями
+        staking_history.append(staking_for_history)
+        logger.info(f"cancel_user_staking: Додано запис в історію стейкінгу: {staking_for_history}")
 
-        # Створюємо пустий об'єкт для стейкінгу
+        # Створюємо пустий об'єкт для активного стейкінгу
         empty_staking = {
             "hasActiveStaking": False,
+            "status": "cancelled",  # Явно встановлюємо статус "cancelled"
             "stakingAmount": 0,
             "period": 0,
             "rewardPercent": 0,
             "expectedReward": 0,
             "remainingDays": 0
         }
+        logger.info(f"cancel_user_staking: Створено пустий об'єкт стейкінгу з статусом cancelled: {empty_staking}")
 
         try:
             # Оновлюємо дані користувача
+            logger.info(f"cancel_user_staking: Оновлюємо баланс користувача на {new_balance} і очищаємо staking_data")
             result = update_user(telegram_id, {
                 "balance": new_balance,
-                "staking_data": empty_staking,
+                "staking_data": empty_staking,  # Встановлюємо пустий об'єкт з явним статусом "cancelled"
                 "staking_history": staking_history
             })
 
             if not result:
                 logger.error(f"cancel_user_staking: Помилка оновлення даних користувача {telegram_id}")
                 return jsonify({"status": "error", "message": "Помилка скасування стейкінгу"}), 500
+
+            # Перевіряємо, чи оновлення відбулося коректно
+            updated_user = get_user(telegram_id)
+            if updated_user:
+                updated_staking = updated_user.get("staking_data", {})
+                logger.info(
+                    f"cancel_user_staking: Перевірка оновлення - staking_data після оновлення: {updated_staking}")
+
+                # Перевіряємо, що активний стейкінг дійсно скасовано
+                if updated_staking.get("hasActiveStaking") == True:
+                    logger.error(
+                        f"cancel_user_staking: ПОМИЛКА! hasActiveStaking все ще True після скасування: {updated_staking}")
+                    # Спробуємо виправити ще раз
+                    update_user(telegram_id, {"staking_data": empty_staking})
+                    logger.info(f"cancel_user_staking: Спроба повторного оновлення staking_data")
 
             # Додаємо транзакцію
             try:
@@ -477,7 +497,8 @@ def cancel_user_staking(telegram_id, staking_id, data):
                 }
 
                 if supabase:
-                    supabase.table("transactions").insert(transaction).execute()
+                    transaction_res = supabase.table("transactions").insert(transaction).execute()
+                    logger.info(f"cancel_user_staking: Транзакцію успішно створено")
             except Exception as e:
                 logger.error(f"cancel_user_staking: Помилка при створенні транзакції: {str(e)}")
 
