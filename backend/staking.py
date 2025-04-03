@@ -4,6 +4,7 @@ import logging
 import uuid
 import time
 from datetime import datetime, timedelta
+from copy import deepcopy
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -295,14 +296,13 @@ def create_user_staking(telegram_id, data):
 def update_user_staking(telegram_id, staking_id, data):
     """Оновлення стейкінгу користувача (додавання коштів)"""
     try:
-        # Перевірка наявності даних
         if not data:
             return jsonify({"status": "error", "message": "Відсутні дані стейкінгу"}), 400
 
         # Логуємо отримані дані для діагностики
         logger.info(f"update_user_staking: Отримані дані: {data}")
 
-        # Отримуємо інформацію про користувача
+        # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
             logger.warning(f"update_user_staking: Користувача {telegram_id} не знайдено")
@@ -366,14 +366,40 @@ def update_user_staking(telegram_id, staking_id, data):
         logger.info(f"update_user_staking: Оновлюємо баланс з {current_balance} на {new_balance}")
 
         try:
+            # Важливо! Створюємо глибоку копію даних стейкінгу
+            staking_data_copy = deepcopy(staking_data)
+
+            # Переконуємось, що всі числові значення в staking_data мають правильний тип
+            for key in ['stakingAmount', 'expectedReward', 'rewardPercent', 'remainingDays']:
+                if key in staking_data_copy:
+                    try:
+                        # Зберігаємо числа як float або int в залежності від ключа
+                        if key in ['remainingDays', 'period']:
+                            staking_data_copy[key] = int(float(staking_data_copy[key]))
+                        else:
+                            staking_data_copy[key] = float(staking_data_copy[key])
+                    except (ValueError, TypeError):
+                        logger.warning(
+                            f"update_user_staking: Неможливо конвертувати {key}={staking_data_copy[key]} до числа")
+
+            # Переконуємось, що stakingAmount це завжди float
+            staking_data_copy["stakingAmount"] = float(new_staking_amount)
+
+            # Переконуємось, що hasActiveStaking це завжди boolean
+            staking_data_copy["hasActiveStaking"] = True
+
+            # Переконуємось, що status це завжди string
+            staking_data_copy["status"] = "active"
+
             # Підготовка даних для оновлення в Supabase
             update_data = {
                 "balance": new_balance,
-                "staking_data": staking_data
+                "staking_data": staking_data_copy
             }
-            logger.info(f"update_user_staking: Відправляємо дані для оновлення: {update_data}")
 
             # Оновлюємо дані користувача в Supabase
+            logger.info(
+                f"update_user_staking: Відправляємо запит на оновлення з новою сумою стейкінгу {new_staking_amount}")
             result = update_user(telegram_id, update_data)
 
             # Перевіряємо успішність оновлення
@@ -385,21 +411,30 @@ def update_user_staking(telegram_id, staking_id, data):
             updated_user = get_user(telegram_id)
             if updated_user:
                 updated_staking = updated_user.get("staking_data", {})
+                # Логуємо отримані дані для перевірки
+                logger.info(f"update_user_staking: Перевірка після оновлення: {updated_staking}")
+
                 updated_amount = float(updated_staking.get("stakingAmount", 0))
-                updated_reward = float(updated_staking.get("expectedReward", 0))
                 updated_balance = float(updated_user.get("balance", 0))
 
-                logger.info(f"update_user_staking: Перевірка після оновлення:")
                 logger.info(
-                    f"update_user_staking: stakingAmount: {updated_amount}, expectedReward: {updated_reward}, balance: {updated_balance}")
+                    f"update_user_staking: Перевірка оновлення: stakingAmount={updated_amount}, balance={updated_balance}")
 
                 # Перевірка, чи оновилася сума стейкінгу
                 if abs(updated_amount - new_staking_amount) > 0.01:  # Невелика похибка для float
                     logger.error(
-                        f"update_user_staking: Сума стейкінгу не оновилася правильно: {updated_amount} != {new_staking_amount}")
-                    # Спробуємо оновити ще раз
-                    logger.info(f"update_user_staking: Спроба повторного оновлення staking_data")
-                    update_user(telegram_id, {"staking_data": staking_data})
+                        f"update_user_staking: Сума стейкінгу не оновилася! {updated_amount} != {new_staking_amount}")
+
+                    # Спробуємо оновити ще раз, тільки з stakingAmount
+                    logger.info(f"update_user_staking: Спроба повторного оновлення только stakingAmount")
+                    update_user(telegram_id, {"staking_data": {"stakingAmount": new_staking_amount}})
+
+                    # Ще одна перевірка після повторного оновлення
+                    retry_user = get_user(telegram_id)
+                    if retry_user:
+                        retry_staking = retry_user.get("staking_data", {})
+                        retry_amount = float(retry_staking.get("stakingAmount", 0))
+                        logger.info(f"update_user_staking: Після повторної спроби: stakingAmount={retry_amount}")
 
             # Додаємо транзакцію в історію
             try:
@@ -407,7 +442,7 @@ def update_user_staking(telegram_id, staking_id, data):
                     "telegram_id": telegram_id,
                     "type": "stake",
                     "amount": -additional_amount,
-                    "description": f"Додано до активного стейкінгу {additional_amount} токенів (ID: {staking_id})",
+                    "description": f"Додано до активного стейкінгу {additional_amount} WINIX (ID: {staking_id})",
                     "status": "completed"
                 }
 
@@ -420,8 +455,9 @@ def update_user_staking(telegram_id, staking_id, data):
             # Повертаємо успішний результат з детальними даними
             return jsonify({
                 "status": "success",
+                "message": f"Додано {additional_amount} WINIX до стейкінгу",
                 "data": {
-                    "staking": staking_data,
+                    "staking": staking_data_copy,
                     "balance": new_balance,
                     "addedAmount": additional_amount,
                     "previousAmount": current_staking_amount,
@@ -430,7 +466,7 @@ def update_user_staking(telegram_id, staking_id, data):
                 }
             })
         except Exception as e:
-            logger.error(f"update_user_staking: Помилка оновлення стейкінгу: {str(e)}")
+            logger.error(f"update_user_staking: Помилка оновлення стейкінгу: {str(e)}", exc_info=True)
             return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         logger.error(f"update_user_staking: Помилка оновлення стейкінгу користувача {telegram_id}: {str(e)}",

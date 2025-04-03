@@ -192,99 +192,157 @@
     /**
      * Обробник для кнопки додавання до стейкінгу
      */
-    function handleAddToStakeButton() {
-        // Запобігаємо повторному відкриттю
-        if (isProcessingStakingAction) {
-            console.log("🚫 Дія стейкінгу вже обробляється");
+   /**
+ * Обробник для кнопки скасування стейкінгу
+ */
+function handleCancelStakingButton() {
+    // Запобігаємо повторному відкриттю
+    if (isProcessingStakingAction) {
+        console.log("🚫 Дія стейкінгу вже обробляється");
+        return;
+    }
+
+    isProcessingStakingAction = true;
+    console.log("💼 Обробка скасування стейкінгу");
+
+    try {
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            simpleAlert("Не вдалося визначити ID користувача", true);
+            isProcessingStakingAction = false;
             return;
         }
 
-        isProcessingStakingAction = true;
-        console.log("💼 Виклик модального вікна для додавання до стейкінгу");
+        // Показуємо індикатор завантаження, якщо він є
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.classList.add('show');
 
-        try {
-            createInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
-                console.log(`💼 Отримано суму для додавання: ${amount}`);
+        // Перевіряємо наявність активного стейкінгу через API
+        fetch(`/api/user/${userId}/staking`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Приховуємо індикатор завантаження
+                if (spinner) spinner.classList.remove('show');
 
-                // Отримуємо ID користувача
-                const userId = getUserId();
-                if (!userId) {
-                    simpleAlert("Не вдалося визначити ID користувача", true);
+                if (data.status !== 'success' || !data.data || !data.data.hasActiveStaking) {
+                    simpleAlert("У вас немає активного стейкінгу", true);
                     isProcessingStakingAction = false;
                     return;
                 }
 
-                // Перевіряємо наявність активного стейкінгу через API
-                fetch(`/api/user/${userId}/staking`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status !== 'success' || !data.data || !data.data.hasActiveStaking) {
-                            simpleAlert("У вас немає активного стейкінгу", true);
-                            isProcessingStakingAction = false;
-                            return;
+                // Запитуємо підтвердження
+                if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
+                    // Блокуємо всі кнопки стейкінгу
+                    const buttons = document.querySelectorAll('#stake-button, #cancel-staking-button, #add-to-stake-button');
+                    buttons.forEach(btn => {
+                        if (btn) btn.disabled = true;
+                    });
+
+                    // Показуємо індикатор завантаження знову
+                    if (spinner) spinner.classList.add('show');
+
+                    // Відправляємо запит на скасування стейкінгу
+                    console.log("Відправляємо запит на скасування стейкінгу:", data.data.stakingId);
+
+                    fetch(`/api/user/${userId}/staking/${data.data.stakingId}/cancel`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}) // Важливо! Передаємо пустий об'єкт замість всіх даних стейкінгу
+                    })
+                    .then(response => {
+                        // Приховуємо індикатор завантаження
+                        if (spinner) spinner.classList.remove('show');
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP помилка при скасуванні! Статус: ${response.status}`);
                         }
+                        return response.json();
+                    })
+                    .then(result => {
+                        isProcessingStakingAction = false;
 
-                        // Відправляємо запит на додавання до стейкінгу
-                        return fetch(`/api/user/${userId}/staking/${data.data.stakingId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ additionalAmount: amount })
-                        })
-                        .then(response => response.json())
-                        .then(result => {
-                            isProcessingStakingAction = false;
-
-                            if (result.status === 'success') {
-                                // Оновлюємо локальні дані
-                                if (result.data && result.data.staking) {
-                                    // Зберігаємо дані для доступу в офлайні
-                                    localStorage.setItem('stakingData', JSON.stringify(result.data.staking));
-                                    localStorage.setItem('winix_staking', JSON.stringify(result.data.staking));
-                                }
-
-                                // Оновлюємо відображення
-                                if (window.WinixCore && window.WinixCore.UI) {
-                                    window.WinixCore.UI.updateBalanceDisplay();
-                                    window.WinixCore.UI.updateStakingDisplay();
-                                }
-
-                                simpleAlert(`Додано ${amount.toFixed(2)} $WINIX до стейкінгу`, false);
-                            } else {
-                                simpleAlert(result.message || "Помилка додавання до стейкінгу", true);
-                            }
+                        // Розблоковуємо кнопки
+                        buttons.forEach(btn => {
+                            if (btn) btn.disabled = false;
                         });
+
+                        if (result.status === 'success') {
+                            // Видаляємо дані стейкінгу з локального сховища
+                            localStorage.removeItem('stakingData');
+                            localStorage.removeItem('winix_staking');
+
+                            // Оновлюємо відображення
+                            if (window.WinixCore && window.WinixCore.UI) {
+                                window.WinixCore.UI.updateBalanceDisplay();
+                                window.WinixCore.UI.updateStakingDisplay();
+                            }
+
+                            // Показуємо повідомлення про успіх
+                            simpleAlert(result.message || "Стейкінг успішно скасовано", false, function() {
+                                // Переходимо на сторінку гаманця
+                                window.location.href = "wallet.html";
+                            });
+                        } else {
+                            simpleAlert(result.message || "Помилка скасування стейкінгу", true);
+                        }
                     })
                     .catch(error => {
-                        console.error("Помилка при додаванні до стейкінгу:", error);
+                        console.error("Помилка при скасуванні стейкінгу:", error);
+
+                        // Приховуємо індикатор завантаження
+                        if (spinner) spinner.classList.remove('show');
+
+                        // Розблоковуємо кнопки
+                        buttons.forEach(btn => {
+                            if (btn) btn.disabled = false;
+                        });
+
                         simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
                         isProcessingStakingAction = false;
                     });
-            });
-        } catch (error) {
-            console.error("Помилка при обробці кнопки додавання до стейкінгу:", error);
-            simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-        } finally {
-            // Скидаємо прапорець блокування через невеликий проміжок часу
-            setTimeout(function() {
+                } else {
+                    isProcessingStakingAction = false;
+                }
+            })
+            .catch(error => {
+                console.error("Помилка при перевірці стейкінгу:", error);
+
+                // Приховуємо індикатор завантаження
+                if (spinner) spinner.classList.remove('show');
+
+                simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
                 isProcessingStakingAction = false;
-            }, 500);
-        }
+            });
+    } catch (error) {
+        console.error("Помилка при обробці кнопки скасування стейкінгу:", error);
+        simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+        isProcessingStakingAction = false;
+    }
+}
+
+/**
+ * Обробник для кнопки додавання до стейкінгу
+ */
+function handleAddToStakeButton() {
+    // Запобігаємо повторному відкриттю
+    if (isProcessingStakingAction) {
+        console.log("🚫 Дія стейкінгу вже обробляється");
+        return;
     }
 
-    /**
-     * Обробник для кнопки скасування стейкінгу
-     */
-    function handleCancelStakingButton() {
-        // Запобігаємо повторному відкриттю
-        if (isProcessingStakingAction) {
-            console.log("🚫 Дія стейкінгу вже обробляється");
-            return;
-        }
+    isProcessingStakingAction = true;
+    console.log("💼 Виклик модального вікна для додавання до стейкінгу");
 
-        isProcessingStakingAction = true;
-        console.log("💼 Обробка скасування стейкінгу");
+    try {
+        createInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
+            console.log(`💼 Отримано суму для додавання: ${amount}`);
 
-        try {
             // Отримуємо ID користувача
             const userId = getUserId();
             if (!userId) {
@@ -293,65 +351,122 @@
                 return;
             }
 
+            // Показуємо індикатор завантаження, якщо він є
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) spinner.classList.add('show');
+
             // Перевіряємо наявність активного стейкінгу через API
             fetch(`/api/user/${userId}/staking`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.status !== 'success' || !data.data || !data.data.hasActiveStaking) {
+                        // Приховуємо індикатор завантаження
+                        if (spinner) spinner.classList.remove('show');
+
                         simpleAlert("У вас немає активного стейкінгу", true);
                         isProcessingStakingAction = false;
                         return;
                     }
 
-                    // Запитуємо підтвердження
-                    if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
-                        // Відправляємо запит на скасування стейкінгу
-                        return fetch(`/api/user/${userId}/staking/${data.data.stakingId}/cancel`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data.data)
+                    // Блокуємо всі кнопки стейкінгу
+                    const buttons = document.querySelectorAll('#stake-button, #cancel-staking-button, #add-to-stake-button');
+                    buttons.forEach(btn => {
+                        if (btn) btn.disabled = true;
+                    });
+
+                    // Відправляємо запит на додавання до стейкінгу
+                    console.log("Відправляємо запит на додавання до стейкінгу:", data.data.stakingId);
+
+                    fetch(`/api/user/${userId}/staking/${data.data.stakingId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            additionalAmount: amount
                         })
-                        .then(response => response.json())
-                        .then(result => {
-                            isProcessingStakingAction = false;
+                    })
+                    .then(response => {
+                        // Приховуємо індикатор завантаження
+                        if (spinner) spinner.classList.remove('show');
 
-                            if (result.status === 'success') {
-                                // Видаляємо дані стейкінгу з локального сховища
-                                localStorage.removeItem('stakingData');
-                                localStorage.removeItem('winix_staking');
-
-                                // Оновлюємо відображення
-                                if (window.WinixCore && window.WinixCore.UI) {
-                                    window.WinixCore.UI.updateBalanceDisplay();
-                                    window.WinixCore.UI.updateStakingDisplay();
-                                }
-
-                                simpleAlert(result.message || "Стейкінг успішно скасовано", false, function() {
-                                    window.location.href = "wallet.html";
-                                });
-                            } else {
-                                simpleAlert(result.message || "Помилка скасування стейкінгу", true);
-                            }
-                        });
-                    } else {
+                        if (!response.ok) {
+                            throw new Error(`HTTP помилка при додаванні! Статус: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(result => {
                         isProcessingStakingAction = false;
-                    }
+
+                        // Розблоковуємо кнопки
+                        buttons.forEach(btn => {
+                            if (btn) btn.disabled = false;
+                        });
+
+                        if (result.status === 'success') {
+                            // Оновлюємо локальні дані
+                            if (result.data && result.data.staking) {
+                                // Зберігаємо дані для доступу в офлайні
+                                const stakingStr = JSON.stringify(result.data.staking);
+                                localStorage.setItem('stakingData', stakingStr);
+                                localStorage.setItem('winix_staking', stakingStr);
+
+                                // Додатково зберігаємо оновлений баланс
+                                if (result.data.balance !== undefined) {
+                                    localStorage.setItem('userTokens', result.data.balance.toString());
+                                    localStorage.setItem('winix_balance', result.data.balance.toString());
+                                }
+                            }
+
+                            // Оновлюємо відображення
+                            if (window.WinixCore && window.WinixCore.UI) {
+                                window.WinixCore.UI.updateBalanceDisplay();
+                                window.WinixCore.UI.updateStakingDisplay();
+                            }
+
+                            simpleAlert(`Додано ${amount.toFixed(2)} $WINIX до стейкінгу`, false);
+                        } else {
+                            simpleAlert(result.message || "Помилка додавання до стейкінгу", true);
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Помилка при додаванні до стейкінгу:", error);
+
+                        // Приховуємо індикатор завантаження
+                        if (spinner) spinner.classList.remove('show');
+
+                        // Розблоковуємо кнопки
+                        buttons.forEach(btn => {
+                            if (btn) btn.disabled = false;
+                        });
+
+                        simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                        isProcessingStakingAction = false;
+                    });
                 })
                 .catch(error => {
-                    console.error("Помилка при скасуванні стейкінгу:", error);
+                    console.error("Помилка при перевірці стейкінгу:", error);
+
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
+
                     simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
                     isProcessingStakingAction = false;
                 });
-        } catch (error) {
-            console.error("Помилка при обробці кнопки скасування стейкінгу:", error);
-            simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-        } finally {
-            // Скидаємо прапорець блокування через невеликий проміжок часу
-            setTimeout(function() {
-                isProcessingStakingAction = false;
-            }, 500);
-        }
+        });
+    } catch (error) {
+        console.error("Помилка при обробці кнопки додавання до стейкінгу:", error);
+        simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+    } finally {
+        // Скидаємо прапорець блокування через невеликий проміжок часу
+        setTimeout(function() {
+            isProcessingStakingAction = false;
+        }, 500);
     }
+}
 
     /**
      * Обробник для кнопки "Застейкати"
