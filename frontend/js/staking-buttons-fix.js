@@ -885,5 +885,13 @@
         setupDetailsButton: function() { setupCleanButton('details-button', handleDetailsButton); }
     };
 
+    // Перевірка, що сума є цілим числом
+if (amount !== Math.floor(amount)) {
+    return {
+        isValid: false,
+        message: "Сума стейкінгу має бути цілим числом"
+    };
+}
+
     console.log("✅ Систему керування кнопками стейкінгу успішно ініціалізовано");
 })();

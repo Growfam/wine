@@ -626,16 +626,19 @@
             <!-- Кнопка назад у лівому верхньому кутку контейнера -->
             <button class="back-button" id="back-button">←</button>
 
-            <div class="staking-input">
-                <input
-                    type="number"
-                    id="staking-amount"
-                    placeholder="Введіть суму $WINIX"
-                    data-lang-key="staking.amount"
-                    value="850"
-                >
-                <button class="max-button" id="max-button" data-lang-key="staking.max">Max</button>
-            </div>
+<div class="staking-input">
+    <input
+        type="number"
+        id="staking-amount"
+        placeholder="Введіть суму $WINIX"
+        data-lang-key="staking.amount"
+        min="50"
+        step="1"
+        required
+        data-validate="staking-amount"
+    >
+    <button class="max-button" id="max-button" data-lang-key="staking.max">Max</button>
+</div>
 
             <div class="staking-input">
                 <select id="staking-period" class="period-select">
@@ -1029,6 +1032,33 @@
             });
     }
 
+    // Функція для встановлення максимальної суми стейкінгу
+function setMaxStakingAmount() {
+    try {
+        // Отримуємо поточний баланс
+        const balance = parseFloat(localStorage.getItem('userTokens') || '0');
+
+        // Обчислюємо максимально дозволену суму (90% від балансу)
+        const maxAllowed = balance * 0.9;
+
+        // Округлюємо до цілого числа вниз
+        const roundedAmount = Math.floor(maxAllowed);
+
+        // Встановлюємо значення в поле вводу
+        const amountInput = document.getElementById('staking-amount');
+        if (amountInput) {
+            amountInput.value = roundedAmount;
+
+            // Запускаємо перерахунок очікуваної винагороди
+            if (typeof updateExpectedReward === 'function') {
+                updateExpectedReward();
+            }
+        }
+    } catch (e) {
+        console.error('Помилка при встановленні максимальної суми:', e);
+    }
+}
+
     // Головна функція ініціалізації сторінки
     function initPage() {
         console.log("Ініціалізація сторінки стейкінгу");
@@ -1076,16 +1106,9 @@
 
         // Кнопка "Max"
         const maxButton = document.getElementById('max-button');
-        if (maxButton) {
-            maxButton.addEventListener('click', function() {
-                // Отримуємо доступний баланс з локального сховища (оновлений updateBalanceDisplay)
-                const balance = parseFloat(localStorage.getItem('userTokens') || '0');
-                if (amountInput) {
-                    amountInput.value = balance.toFixed(2);
-                    updateExpectedReward();
-                }
-            });
-        }
+if (maxButton) {
+    maxButton.addEventListener('click', setMaxStakingAmount);
+}
 
         // Ініціалізуємо розрахунок винагороди
         updateExpectedReward();
