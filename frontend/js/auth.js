@@ -73,7 +73,13 @@
                 return Promise.reject(new Error("User data not available"));
             }
 
-            return this.authorizeUser(userData);
+            // Додаємо initData до даних користувача для додаткової перевірки на сервері
+            const authData = {
+                ...userData,
+                initData: initData
+            };
+
+            return this.authorizeUser(authData);
         },
 
         /**
@@ -109,7 +115,7 @@
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.add('show');
 
-            // Підготовка розширених заголовків
+            // Підготовка заголовків
             const headers = {
                 'Content-Type': 'application/json',
                 'X-Telegram-User-Id': userId || ''
@@ -143,6 +149,17 @@
                         if (userIdElement) {
                             userIdElement.textContent = this.currentUser.telegram_id;
                         }
+                    }
+
+                    // Зберігаємо баланс і жетони в localStorage
+                    if (this.currentUser.balance !== undefined) {
+                        localStorage.setItem('userTokens', this.currentUser.balance.toString());
+                        localStorage.setItem('winix_balance', this.currentUser.balance.toString());
+                    }
+
+                    if (this.currentUser.coins !== undefined) {
+                        localStorage.setItem('userCoins', this.currentUser.coins.toString());
+                        localStorage.setItem('winix_coins', this.currentUser.coins.toString());
                     }
 
                     // Показуємо вітальне повідомлення для нових користувачів
@@ -237,6 +254,24 @@
                     // Успішне отримання даних
                     this.currentUser = { ...this.currentUser, ...data.data };
                     console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+
+                    // Оновлюємо баланс і жетони в localStorage
+                    if (this.currentUser.balance !== undefined) {
+                        localStorage.setItem('userTokens', this.currentUser.balance.toString());
+                        localStorage.setItem('winix_balance', this.currentUser.balance.toString());
+                    }
+
+                    if (this.currentUser.coins !== undefined) {
+                        localStorage.setItem('userCoins', this.currentUser.coins.toString());
+                        localStorage.setItem('winix_coins', this.currentUser.coins.toString());
+                    }
+
+                    // Оновлюємо дані стейкінгу, якщо вони є
+                    if (this.currentUser.staking_data) {
+                        localStorage.setItem('stakingData', JSON.stringify(this.currentUser.staking_data));
+                        localStorage.setItem('winix_staking', JSON.stringify(this.currentUser.staking_data));
+                    }
+
                     return this.currentUser;
                 } else {
                     // Явна обробка випадку, коли статус не "success"

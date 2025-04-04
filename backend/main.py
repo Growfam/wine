@@ -42,6 +42,12 @@ from admin import (
 )
 import i18n
 
+from balance import (
+    get_user_complete_balance, add_tokens, subtract_tokens,
+    add_coins, subtract_coins, convert_coins_to_tokens,
+    check_sufficient_funds
+)
+
 # Завантажуємо змінні середовища
 load_dotenv()
 
@@ -628,6 +634,43 @@ def server_error(e):
         "message": "Внутрішня помилка сервера",
         "details": str(e)
     }), 500
+
+# Обробники Balance
+
+@app.route('/api/user/<telegram_id>/complete-balance', methods=['GET'])
+def api_get_user_complete_balance(telegram_id):
+    """Отримання повної інформації про баланс користувача"""
+    return get_user_complete_balance(telegram_id)
+
+@app.route('/api/user/<telegram_id>/add-tokens', methods=['POST'])
+def api_add_tokens(telegram_id):
+    """Додавання токенів до балансу користувача"""
+    return add_tokens(telegram_id, request.json)
+
+@app.route('/api/user/<telegram_id>/subtract-tokens', methods=['POST'])
+def api_subtract_tokens(telegram_id):
+    """Віднімання токенів з балансу користувача"""
+    return subtract_tokens(telegram_id, request.json)
+
+@app.route('/api/user/<telegram_id>/add-coins', methods=['POST'])
+def api_add_coins(telegram_id):
+    """Додавання жетонів до балансу користувача"""
+    return add_coins(telegram_id, request.json)
+
+@app.route('/api/user/<telegram_id>/subtract-coins', methods=['POST'])
+def api_subtract_coins(telegram_id):
+    """Віднімання жетонів з балансу користувача"""
+    return subtract_coins(telegram_id, request.json)
+
+@app.route('/api/user/<telegram_id>/convert-coins', methods=['POST'])
+def api_convert_coins_to_tokens(telegram_id):
+    """Конвертація жетонів у токени"""
+    return convert_coins_to_tokens(telegram_id, request.json)
+
+@app.route('/api/user/<telegram_id>/check-funds', methods=['POST'])
+def api_check_sufficient_funds(telegram_id):
+    """Перевірка достатності коштів для транзакції"""
+    return check_sufficient_funds(telegram_id, request.json)
 
 
 # Запуск застосунку

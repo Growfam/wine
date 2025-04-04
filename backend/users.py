@@ -88,57 +88,45 @@ def login_user(data):
 
 
 def get_user_profile(telegram_id):
-    """Отримання профілю користувача"""
+    """Отримання профілю користувача з розширеними даними"""
     try:
         user = get_user(telegram_id)
 
         if not user:
-            return jsonify({"success": False, "error": "Користувача не знайдено"}), 404
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        # Отримуємо кількість рефералів
-        referrals_count = 0
-        referral_earnings = 0
+        # Отримуємо дані стейкінгу
+        staking_data = None
         try:
-            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-            # Безпечне отримання кількості рефералів
-            if hasattr(referrals_res, 'count'):
-                referrals_count = referrals_res.count or 0
-            else:
-                referrals_count = len(referrals_res.data) if referrals_res.data else 0
-
-            # Безпечне обчислення заробітку від рефералів
-            referral_earnings = float(referrals_count) * 127.37  # Використовуємо float() для безпеки
+            from staking import get_user_staking
+            staking_response, _ = get_user_staking(telegram_id)
+            staking_data = staking_response.json.get('data') if hasattr(staking_response, 'json') else None
         except Exception as e:
-            logger.error(f"get_user_profile: Помилка отримання даних рефералів: {str(e)}")
-            referrals_count = 0
-            referral_earnings = 0
+            logger.error(f"get_user_profile: Помилка отримання даних стейкінгу: {str(e)}")
 
-        # Перевіряємо, які бейджі має користувач
-        badges = {
-            "winner_completed": user.get("badge_winner", False),
-            "beginner_completed": user.get("badge_beginner", False),
-            "rich_completed": user.get("badge_rich", False)
-        }
-
-        # Формуємо дані для відповіді
+        # Оновлений формат відповіді з усіма необхідними даними
         user_data = {
-            "id": user["telegram_id"],
+            "telegram_id": user["telegram_id"],
             "username": user.get("username", "WINIX User"),
             "balance": float(user.get("balance", 0)),
-            "coins": int(user.get("coins", 250)),
+            "coins": int(user.get("coins", 0)),
+            "staking_data": staking_data,
+            "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
+            "participations_count": user.get("participations_count", 0),
+            "wins_count": user.get("wins_count", 0),
+            "created_at": user.get("created_at"),
+            "last_login": user.get("last_login"),
             "page1_completed": user.get("page1_completed", False),
-            "referrals_count": referrals_count,
-            "referral_earnings": referral_earnings,
-            "completed_tasks": 7,
-            "total_raffles": 3,
-            "participationsCount": user.get("participations_count", 0),
-            "winsCount": user.get("wins_count", 0),
-            "badges": badges,
-            "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False)
+
+            # Дані про бейджі
+            "badges": {
+                "winner_completed": user.get("badge_winner", False),
+                "beginner_completed": user.get("badge_beginner", False),
+                "rich_completed": user.get("badge_rich", False)
+            }
         }
 
         return jsonify({"status": "success", "data": user_data})
-
     except Exception as e:
         logger.error(f"get_user_profile: Помилка отримання профілю користувача {telegram_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -461,64 +449,55 @@ def verify_user(telegram_data):
     Перевіряє дані Telegram WebApp та авторизує користувача
     """
     try:
-        logger.info(f"verify_user: Початок верифікації користувача. Отримані дані: {telegram_data}")
+        logger.info(f"verify_user: Початок верифікації користувача.")
+
+        # Перевірка initData з Telegram WebApp (якщо надіслано)
+        init_data = telegram_data.get('initData')
+        if init_data:
+            # Тут можна додати логіку перевірки підпису initData
+            # Для безпеки можна використовувати бібліотеку для перевірки HMAC
+            logger.info("verify_user: Отримано initData з Telegram WebApp")
 
         telegram_id = telegram_data.get('id')
         username = telegram_data.get('username', '')
         first_name = telegram_data.get('first_name', '')
         last_name = telegram_data.get('last_name', '')
 
-        logger.info(
-            f"verify_user: Отримані дані Telegram: id={telegram_id}, username={username}, first_name={first_name}")
+        # Додаткова логіка для роботи з різними форматами даних
+        if not telegram_id and 'telegram_id' in telegram_data:
+            telegram_id = telegram_data.get('telegram_id')
 
-        # Додаткова перевірка ID на валідність і отримання з заголовків
         header_id = request.headers.get('X-Telegram-User-Id')
         if header_id:
-            logger.info(f"verify_user: Знайдено ID в заголовку: {header_id}")
-            # Використовуємо ID з заголовка, якщо він не 12345678
-            if header_id != "12345678":
-                telegram_id = header_id
-                logger.info(f"verify_user: Використовуємо ID з заголовків: {telegram_id}")
+            telegram_id = header_id
 
-        # Якщо ID досі не валідний, спробуємо інші способи визначення
-        if not telegram_id or str(telegram_id) == "12345678":
-            # В тестовому середовищі можемо використовувати тимчасовий ID
-            test_mode = os.environ.get("FLASK_ENV") == "development"
-            if test_mode:
-                # Використовуємо якийсь унікальний ID для тестування
-                telegram_id = f"test-{uuid.uuid4().hex[:8]}"
-                logger.warning(f"verify_user: Використовуємо тестовий ID: {telegram_id}")
-            else:
-                logger.error("verify_user: Не вдалося отримати валідний telegram_id")
-                # Не повертаємо None, спробуємо використати "12345678" як крайній випадок
-                if not telegram_id:
-                    telegram_id = "12345678"
-                    logger.warning(f"verify_user: Використовуємо стандартний тестовий ID: {telegram_id}")
-
-        logger.info(f"verify_user: Перевірка користувача з ID: {telegram_id}")
-
-        # Перевіряємо наявність користувача у базі
-        try:
-            user = get_user(telegram_id)
-            logger.info(f"verify_user: Результат get_user: {user}")
-
-            # Якщо користувача немає, створюємо його
-            if not user:
-                display_name = username or first_name or "WINIX User"
-                logger.info(f"verify_user: Створення нового користувача: {telegram_id} ({display_name})")
-
-                user = create_user(telegram_id, display_name)
-                logger.info(f"verify_user: Результат create_user: {user}")
-
-                if not user:
-                    logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
-                    return None
-        except Exception as e:
-            logger.error(f"verify_user: Помилка при отриманні/створенні користувача: {str(e)}")
+        if not telegram_id:
+            logger.error("verify_user: Не вдалося отримати telegram_id")
             return None
 
-        return user
+        # Конвертація ID в рядок
+        telegram_id = str(telegram_id)
 
+        # Перевіряємо існування користувача або створюємо нового
+        user = get_user(telegram_id)
+
+        if not user:
+            display_name = username or first_name or "WINIX User"
+            user = create_user(telegram_id, display_name)
+            if not user:
+                logger.error(f"verify_user: Помилка створення користувача: {telegram_id}")
+                return None
+
+        # Оновлюємо час останнього входу і мову користувача
+        updates = {"last_login": datetime.now().isoformat()}
+
+        # Додаємо мову, якщо вона є в запиті
+        if 'language_code' in telegram_data:
+            updates["language"] = telegram_data.get('language_code')
+
+        update_user(telegram_id, updates)
+
+        return user
     except Exception as e:
         logger.error(f"verify_user: Помилка авторизації користувача: {str(e)}", exc_info=True)
         return None
