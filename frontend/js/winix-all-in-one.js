@@ -5,10 +5,13 @@
  * з winix-fix.js, winix-debug.js, winix-staking-fix.js і winix-ui-fix.js
  * а також додаткові виправлення для навігації та стилів повідомлень.
  *
+ * Використовує єдиний API модуль для всіх запитів до сервера.
+ *
  * Цей файл повинен бути підключений останнім після основних скриптів:
  * - winix-init.js
  * - winix-core.js
  * - winix-connector.js
+ * - api.js
  */
 
 (function() {
@@ -24,6 +27,11 @@
         stakingCancelFee: 0.2,         // Комісія при скасуванні стейкінгу (20%)
         defaultGradient: 'linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7)' // Основний градієнт
     };
+
+    // Перевіряємо наявність API модуля
+    if (!window.WinixAPI) {
+        console.error("❌ WINIX-ALL-IN-ONE: API модуль не знайдено! Підключіть api.js перед цим скриптом.");
+    }
 
     // ====================== ДОПОМІЖНІ ФУНКЦІЇ ======================
 
@@ -416,43 +424,42 @@
                     if (targetValue !== null && targetValue !== sourceValue) {
                         try {
                             // Для стейкінгу обираємо об'єкт з hasActiveStaking
-                           // Для стейкінгу обираємо об'єкт з hasActiveStaking
-if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
-    try {
-        const sourceData = JSON.parse(sourceValue);
-        const targetData = JSON.parse(targetValue);
+                            if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
+                                try {
+                                    const sourceData = JSON.parse(sourceValue);
+                                    const targetData = JSON.parse(targetValue);
 
-        console.log(`Синхронізую ключі ${sourceKey} і ${targetKey}`, sourceData, targetData);
+                                    console.log(`Синхронізую ключі ${sourceKey} і ${targetKey}`, sourceData, targetData);
 
-        // Перевіряємо, який об'єкт має активний стейкінг
-        const sourceHasActive = sourceData && sourceData.hasActiveStaking;
-        const targetHasActive = targetData && targetData.hasActiveStaking;
+                                    // Перевіряємо, який об'єкт має активний стейкінг
+                                    const sourceHasActive = sourceData && sourceData.hasActiveStaking;
+                                    const targetHasActive = targetData && targetData.hasActiveStaking;
 
-        if (sourceHasActive && !targetHasActive) {
-            console.log(`Копіюю активний стейкінг з ${sourceKey} в ${targetKey}`);
-            localStorage.setItem(targetKey, sourceValue);
-        } else if (!sourceHasActive && targetHasActive) {
-            console.log(`Копіюю активний стейкінг з ${targetKey} в ${sourceKey}`);
-            localStorage.setItem(sourceKey, targetValue);
-        } else if (sourceHasActive && targetHasActive) {
-            // Якщо обидва активні, порівнюємо за датою створення або сумою
-            const sourceTime = sourceData.creationTimestamp || 0;
-            const targetTime = targetData.creationTimestamp || 0;
+                                    if (sourceHasActive && !targetHasActive) {
+                                        console.log(`Копіюю активний стейкінг з ${sourceKey} в ${targetKey}`);
+                                        localStorage.setItem(targetKey, sourceValue);
+                                    } else if (!sourceHasActive && targetHasActive) {
+                                        console.log(`Копіюю активний стейкінг з ${targetKey} в ${sourceKey}`);
+                                        localStorage.setItem(sourceKey, targetValue);
+                                    } else if (sourceHasActive && targetHasActive) {
+                                        // Якщо обидва активні, порівнюємо за датою створення або сумою
+                                        const sourceTime = sourceData.creationTimestamp || 0;
+                                        const targetTime = targetData.creationTimestamp || 0;
 
-            if (sourceTime > targetTime) {
-                console.log(`Використовую новіший стейкінг з ${sourceKey}`);
-                localStorage.setItem(targetKey, sourceValue);
-            } else if (targetTime > sourceTime) {
-                console.log(`Використовую новіший стейкінг з ${targetKey}`);
-                localStorage.setItem(sourceKey, targetValue);
-            }
-        }
-    } catch (e) {
-        console.error(`Помилка синхронізації ключів стейкінгу (${sourceKey}, ${targetKey}):`, e);
-        // У випадку помилки, безпечно копіюємо одне значення в інше
-        localStorage.setItem(targetKey, sourceValue);
-    }
-}
+                                        if (sourceTime > targetTime) {
+                                            console.log(`Використовую новіший стейкінг з ${sourceKey}`);
+                                            localStorage.setItem(targetKey, sourceValue);
+                                        } else if (targetTime > sourceTime) {
+                                            console.log(`Використовую новіший стейкінг з ${targetKey}`);
+                                            localStorage.setItem(sourceKey, targetValue);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error(`Помилка синхронізації ключів стейкінгу (${sourceKey}, ${targetKey}):`, e);
+                                    // У випадку помилки, безпечно копіюємо одне значення в інше
+                                    localStorage.setItem(targetKey, sourceValue);
+                                }
+                            }
                             // Для балансу обираємо більше значення
                             else if (sourceKey === 'winix_balance' || sourceKey === 'userTokens') {
                                 const sourceAmount = parseFloat(sourceValue);
@@ -723,7 +730,15 @@ if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
 
                     // Замість цього починаємо пофрагментно переприв'язувати обробники
                     fixNavigation();
-                    fixStakingButtons();
+
+                    // Оновлюємо обробники кнопок стейкінгу, якщо є
+                    if (window.WinixStakingSystem) {
+                        if (typeof window.fixStakingButtons === 'function') {
+                            window.fixStakingButtons();
+                        } else if (typeof window.WinixStakingSystem.updateStakingDisplay === 'function') {
+                            window.WinixStakingSystem.updateStakingDisplay();
+                        }
+                    }
 
                     // Повертаємо оригінальний елемент
                     return this;
@@ -747,6 +762,51 @@ if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
         }
     }
 
+    // ====================== ВІДНОВЛЕННЯ ДАНИХ СТЕЙКІНГУ ======================
+
+    /**
+     * Спроба відновлення даних стейкінгу з сервера
+     */
+    function restoreStakingData() {
+        try {
+            console.log("🔄 Спроба відновлення даних стейкінгу з сервера");
+
+            // Використовуємо API модуль для отримання даних стейкінгу
+            window.WinixAPI.getStakingData()
+                .then(data => {
+                    if (data.status === 'success' && data.data) {
+                        console.log("✅ Отримано дані стейкінгу з сервера:", data.data);
+
+                        // Зберігаємо дані в обох ключах
+                        const stakingStr = JSON.stringify(data.data);
+                        localStorage.setItem('stakingData', stakingStr);
+                        localStorage.setItem('winix_staking', stakingStr);
+
+                        // Оновлюємо інтерфейс, якщо можливо
+                        if (window.updateStakingDisplay) {
+                            window.updateStakingDisplay();
+                        } else if (window.WinixCore && window.WinixCore.UI) {
+                            window.WinixCore.UI.updateStakingDisplay();
+                        } else if (window.WinixStakingSystem && window.WinixStakingSystem.updateStakingDisplay) {
+                            window.WinixStakingSystem.updateStakingDisplay();
+                        }
+
+                        return true;
+                    } else {
+                        console.warn("⚠️ Не вдалося отримати дані стейкінгу з сервера", data);
+                        return false;
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ Помилка при відновленні даних стейкінгу:", error);
+                    return false;
+                });
+        } catch (e) {
+            console.error("❌ Помилка функції відновлення даних стейкінгу:", e);
+            return false;
+        }
+    }
+
     // ====================== ЗАПУСК ВСІХ ВИПРАВЛЕНЬ ======================
 
     /**
@@ -759,6 +819,9 @@ if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
             // 1. Включаємо режим відлагодження, якщо потрібно
             if (WINIX_SETTINGS.debug) {
                 console.log("🔧 WINIX-ALL-IN-ONE: Режим відлагодження увімкнено");
+                if (window.WinixAPI) {
+                    window.WinixAPI.setDebugMode(true);
+                }
             }
 
             // 2. Синхронізуємо ключі локального сховища
@@ -772,6 +835,7 @@ if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
             // 4. Виправляємо дані стейкінгу
             if (WINIX_SETTINGS.autoRestoreStaking) {
                 fixStakingData();
+                restoreStakingData();
             }
 
             // 5. Виправляємо дублікати обробників подій
@@ -832,56 +896,7 @@ if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
             }
         });
     }
-    // Додайте цю функцію в кінець файлу, перед закриваючою дужкою })();
-function restoreStakingData() {
-    try {
-        console.log("🔄 Спроба відновлення даних стейкінгу з сервера");
 
-        // Отримуємо ID користувача
-        const userId = localStorage.getItem('telegram_user_id') ||
-                      document.getElementById('user-id')?.textContent ||
-                      localStorage.getItem('userId');
-
-        if (!userId) {
-            console.warn("⚠️ Не вдалося знайти ID користувача для відновлення даних стейкінгу");
-            return false;
-        }
-
-        // Запитуємо дані стейкінгу з сервера
-        fetch(`/api/user/${userId}/staking`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success' && data.data) {
-                    console.log("✅ Отримано дані стейкінгу з сервера:", data.data);
-
-                    // Зберігаємо дані в обох ключах
-                    const stakingStr = JSON.stringify(data.data);
-                    localStorage.setItem('stakingData', stakingStr);
-                    localStorage.setItem('winix_staking', stakingStr);
-
-                    // Оновлюємо інтерфейс, якщо можливо
-                    if (window.updateStakingDisplay) {
-                        window.updateStakingDisplay();
-                    } else if (window.WinixCore && window.WinixCore.UI) {
-                        window.WinixCore.UI.updateStakingDisplay();
-                    }
-
-                    return true;
-                } else {
-                    console.warn("⚠️ Не вдалося отримати дані стейкінгу з сервера", data);
-                    return false;
-                }
-            })
-            .catch(error => {
-                console.error("❌ Помилка при відновленні даних стейкінгу:", error);
-                return false;
-            });
-    } catch (e) {
-        console.error("❌ Помилка функції відновлення даних стейкінгу:", e);
-        return false;
-    }
-}
-
-// Викликаємо функцію при завантаженні сторінки
-document.addEventListener('DOMContentLoaded', restoreStakingData);
-    })();
+    // Викликаємо функцію при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', restoreStakingData);
+})();

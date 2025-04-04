@@ -2,7 +2,7 @@
  * winix-connector.js
  *
  * Файл для підключення до сторінок HTML для взаємодії з WinixCore.
- * Цей файл має бути доданий на кожну сторінку після включення winix-core.js.
+ * Цей файл має бути доданий на кожну сторінку після включення winix-core.js та api.js.
  */
 
 (function() {
@@ -10,6 +10,11 @@
     if (!window.WinixCore) {
         console.error('❌ Не знайдено WinixCore! Спочатку підключіть winix-core.js');
         return;
+    }
+
+    // Перевіряємо, чи завантажено API модуль
+    if (!window.WinixAPI) {
+        console.warn('⚠️ Не знайдено API модуль! Рекомендуємо підключити api.js');
     }
 
     // Функція ініціалізації сторінки
@@ -121,7 +126,6 @@
 
         // Встановлюємо обробники очікуваної винагороди
         setupStakingRewardCalculation();
-
     }
 
     // Ініціалізація сторінки деталей стейкінгу
@@ -147,8 +151,22 @@
     function initTransactionsPage() {
         console.log('📃 Ініціалізація сторінки транзакцій');
 
-        // Оновлюємо список усіх транзакцій
-        WinixCore.UI.updateTransactionsList('transaction-list', 100);
+        // Використовуємо API модуль для отримання транзакцій
+        if (window.WinixAPI) {
+            window.WinixAPI.getTransactions()
+                .then(data => {
+                    if (data.status === 'success' && Array.isArray(data.data)) {
+                        // Оновлюємо список усіх транзакцій
+                        WinixCore.UI.updateTransactionsList('transaction-list', 100);
+                    }
+                })
+                .catch(error => {
+                    console.error('Помилка отримання транзакцій:', error);
+                });
+        } else {
+            // Запасний варіант, якщо API модуль не завантажений
+            WinixCore.UI.updateTransactionsList('transaction-list', 100);
+        }
     }
 
     // Ініціалізація сторінки заробітку
@@ -166,7 +184,21 @@
         // Оновлюємо реферальне посилання
         const referralLinkElement = document.getElementById('referral-link');
         if (referralLinkElement) {
-            referralLinkElement.textContent = WinixCore.Referrals.getReferralLink();
+            // Використовуємо API модуль для отримання реферального посилання
+            if (window.WinixAPI) {
+                window.WinixAPI.getReferralLink()
+                    .then(data => {
+                        if (data.status === 'success' && data.data && data.data.referral_link) {
+                            referralLinkElement.textContent = data.data.referral_link;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Помилка отримання реферального посилання:', error);
+                    });
+            } else {
+                // Запасний варіант
+                referralLinkElement.textContent = WinixCore.Referrals.getReferralLink();
+            }
         }
 
         // Встановлюємо обробники для кнопок реферальної програми
@@ -230,8 +262,22 @@
         const testRewardBtn = document.getElementById('test-reward-btn');
         if (testRewardBtn) {
             testRewardBtn.addEventListener('click', function() {
-                WinixCore.Balance.addTokens(50, 'Тестова винагорода');
-                WinixCore.UI.showNotification('Додано 50 WINIX!');
+                // Використовуємо API модуль для додавання токенів
+                if (window.WinixAPI) {
+                    window.WinixAPI.addTokens(50, 'Тестова винагорода')
+                        .then(data => {
+                            if (data.status === 'success') {
+                                WinixCore.UI.showNotification('Додано 50 WINIX!');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Помилка додавання токенів:', error);
+                        });
+                } else {
+                    // Запасний варіант
+                    WinixCore.Balance.addTokens(50, 'Тестова винагорода');
+                    WinixCore.UI.showNotification('Додано 50 WINIX!');
+                }
             });
         }
     }
@@ -284,8 +330,27 @@
             const amount = parseFloat(amountInput.value) || 0;
             const period = parseInt(periodSelect.value) || 14;
 
-            const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
-            rewardElement.textContent = reward.toFixed(2);
+            // Використовуємо API модуль для розрахунку очікуваної винагороди
+            if (window.WinixAPI) {
+                window.WinixAPI.calculateExpectedReward(amount, period)
+                    .then(data => {
+                        if (data.status === 'success' && data.data && typeof data.data.reward === 'number') {
+                            rewardElement.textContent = data.data.reward.toFixed(2);
+                        } else {
+                            const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
+                            rewardElement.textContent = reward.toFixed(2);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Помилка розрахунку винагороди:', error);
+                        const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
+                        rewardElement.textContent = reward.toFixed(2);
+                    });
+            } else {
+                // Запасний варіант
+                const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
+                rewardElement.textContent = reward.toFixed(2);
+            }
         };
 
         // Встановлюємо обробники
@@ -363,19 +428,44 @@
                         const randomSuccess = Math.random() > 0.3; // 70% шанс успіху
 
                         if (randomSuccess) {
-                            // Нараховуємо винагороду
-                            WinixCore.Balance.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
+                            // Нараховуємо винагороду використовуючи API модуль
+                            if (window.WinixAPI) {
+                                window.WinixAPI.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`)
+                                    .then(data => {
+                                        if (data.status === 'success') {
+                                            // Позначаємо завдання як виконане
+                                            localStorage.setItem(`${button.platform}_task_completed`, 'true');
 
-                            // Позначаємо завдання як виконане
-                            localStorage.setItem(`${button.platform}_task_completed`, 'true');
+                                            // Оновлюємо стилі
+                                            const taskItem = btnElement.closest('.task-item');
+                                            if (taskItem) {
+                                                taskItem.classList.add('completed-task');
+                                            }
 
-                            // Оновлюємо стилі
-                            const taskItem = btnElement.closest('.task-item');
-                            if (taskItem) {
-                                taskItem.classList.add('completed-task');
+                                            WinixCore.UI.showNotification(`Вітаємо! Отримано ${button.reward} $WINIX`, WinixCore.MESSAGE_TYPES.SUCCESS);
+                                        } else {
+                                            WinixCore.UI.showNotification('Помилка нарахування винагороди. Спробуйте ще раз.', WinixCore.MESSAGE_TYPES.ERROR);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Помилка нарахування винагороди:', error);
+                                        WinixCore.UI.showNotification('Помилка нарахування винагороди. Спробуйте ще раз.', WinixCore.MESSAGE_TYPES.ERROR);
+                                    });
+                            } else {
+                                // Запасний варіант
+                                WinixCore.Balance.addTokens(button.reward, `Винагорода за підписку на ${button.platform}`);
+
+                                // Позначаємо завдання як виконане
+                                localStorage.setItem(`${button.platform}_task_completed`, 'true');
+
+                                // Оновлюємо стилі
+                                const taskItem = btnElement.closest('.task-item');
+                                if (taskItem) {
+                                    taskItem.classList.add('completed-task');
+                                }
+
+                                WinixCore.UI.showNotification(`Вітаємо! Отримано ${button.reward} $WINIX`, WinixCore.MESSAGE_TYPES.SUCCESS);
                             }
-
-                            WinixCore.UI.showNotification(`Вітаємо! Отримано ${button.reward} $WINIX`, WinixCore.MESSAGE_TYPES.SUCCESS);
                         } else {
                             WinixCore.UI.showNotification('Підписку не знайдено. Спробуйте ще раз.', WinixCore.MESSAGE_TYPES.ERROR);
                         }
@@ -399,22 +489,93 @@
             const button = document.getElementById(buttonId);
             if (button) {
                 button.addEventListener('click', function() {
-                    const referralLink = WinixCore.Referrals.getReferralLink();
+                    // Використовуємо API модуль для отримання реферального посилання
+                    if (window.WinixAPI) {
+                        window.WinixAPI.getReferralLink()
+                            .then(data => {
+                                let referralLink = '';
+                                if (data.status === 'success' && data.data && data.data.referral_link) {
+                                    referralLink = data.data.referral_link;
+                                } else {
+                                    // Запасний варіант
+                                    referralLink = window.location.origin + '?ref=' + localStorage.getItem('telegram_user_id');
+                                }
 
-                    if (referralLink) {
-                        // Копіюємо посилання в буфер обміну
-                        navigator.clipboard.writeText(referralLink)
-                            .then(() => {
-                                WinixCore.UI.showNotification('Реферальне посилання скопійовано!', WinixCore.MESSAGE_TYPES.SUCCESS);
+                                if (referralLink) {
+                                    // Копіюємо посилання в буфер обміну
+                                    navigator.clipboard.writeText(referralLink)
+                                        .then(() => {
+                                            WinixCore.UI.showNotification('Реферальне посилання скопійовано!', WinixCore.MESSAGE_TYPES.SUCCESS);
+                                        })
+                                        .catch(() => {
+                                            WinixCore.UI.showNotification('Помилка копіювання посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                                        });
+                                } else {
+                                    WinixCore.UI.showNotification('Не вдалося отримати реферальне посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                                }
                             })
-                            .catch(() => {
-                                WinixCore.UI.showNotification('Помилка копіювання посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                            .catch(error => {
+                                console.error('Помилка отримання реферального посилання:', error);
+                                WinixCore.UI.showNotification('Помилка отримання реферального посилання', WinixCore.MESSAGE_TYPES.ERROR);
                             });
                     } else {
-                        WinixCore.UI.showNotification('Не вдалося отримати реферальне посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                        // Запасний варіант
+                        const referralLink = WinixCore.Referrals.getReferralLink();
+
+                        if (referralLink) {
+                            // Копіюємо посилання в буфер обміну
+                            navigator.clipboard.writeText(referralLink)
+                                .then(() => {
+                                    WinixCore.UI.showNotification('Реферальне посилання скопійовано!', WinixCore.MESSAGE_TYPES.SUCCESS);
+                                })
+                                .catch(() => {
+                                    WinixCore.UI.showNotification('Помилка копіювання посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                                });
+                        } else {
+                            WinixCore.UI.showNotification('Не вдалося отримати реферальне посилання', WinixCore.MESSAGE_TYPES.ERROR);
+                        }
                     }
                 });
             }
+        });
+    }
+
+    // Періодична синхронізація даних
+    function setupPeriodicSync() {
+        // Синхронізуємо дані кожні 30 секунд
+        const syncInterval = setInterval(async () => {
+            try {
+                if (window.WinixAPI) {
+                    const userId = localStorage.getItem('telegram_user_id');
+                    if (!userId) return;
+
+                    // Оновлюємо дані користувача
+                    const data = await window.WinixAPI.getUserData();
+
+                    if (data.status === 'success') {
+                        // Оновлюємо дані в localStorage
+                        if (data.data.balance !== undefined) {
+                            localStorage.setItem('userTokens', data.data.balance.toString());
+                            localStorage.setItem('winix_balance', data.data.balance.toString());
+                        }
+
+                        if (data.data.coins !== undefined) {
+                            localStorage.setItem('userCoins', data.data.coins.toString());
+                            localStorage.setItem('winix_coins', data.data.coins.toString());
+                        }
+
+                        // Оновлюємо інтерфейс
+                        WinixCore.UI.updateBalanceDisplay();
+                    }
+                }
+            } catch (error) {
+                console.error("Помилка синхронізації даних:", error);
+            }
+        }, 30000); // 30 секунд
+
+        // Очищаємо інтервал при закритті сторінки
+        window.addEventListener('beforeunload', () => {
+            clearInterval(syncInterval);
         });
     }
 
@@ -428,6 +589,9 @@
 
         // Ініціалізуємо сторінку
         initPage();
+
+        // Налаштовуємо періодичну синхронізацію
+        setupPeriodicSync();
     });
 
     // Виконуємо дії після повного завантаження сторінки
@@ -449,36 +613,8 @@
 
         // Ініціалізуємо сторінку
         initPage();
+
+        // Налаштовуємо періодичну синхронізацію
+        setupPeriodicSync();
     }
-    // Додаємо функцію для періодичної синхронізації даних
-function setupPeriodicSync() {
-    // Синхронізуємо дані кожні 30 секунд
-    const syncInterval = setInterval(async () => {
-        try {
-            const userId = localStorage.getItem('telegram_user_id');
-            if (!userId) return;
-
-            // Оновлюємо дані користувача
-            const response = await fetch(`/api/user/${userId}`);
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                // Оновлюємо дані в localStorage
-                localStorage.setItem('userTokens', data.data.balance.toString());
-                localStorage.setItem('userCoins', data.data.coins.toString());
-
-                // Оновлюємо інтерфейс
-                UIManager.updateBalanceDisplay();
-            }
-        } catch (error) {
-            console.error("Помилка синхронізації даних:", error);
-        }
-    }, 30000); // 30 секунд
-
-    // Очищаємо інтервал при закритті сторінки
-    window.addEventListener('beforeunload', () => {
-        clearInterval(syncInterval);
-    });
-}
 })();
-
