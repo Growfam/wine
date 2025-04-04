@@ -741,342 +741,509 @@
     </div>
 
     <script>
-    // Словник для перекладів
-    const translations = {
-        // Загальні елементи
-        "WINIX": "WINIX",
-        "$WINIX": "$WINIX",
-        "home": "Головна",
-        "earn": "Заробіток",
-        "referrals": "Реферали",
-        "wallet": "Гаманець",
-        "profile": "Профіль",
-        "general": "Налаштування",
-        "coins": "Жетони",
-        "days": "днів",
-        "hours": "годин",
-        "minutes": "хвилин",
+    // Словник для перекладів (збережіть ваш поточний словник, ця частина не змінюється)
+const translations = {
+    // Загальні елементи
+    "WINIX": "WINIX",
+    "$WINIX": "$WINIX",
+    "home": "Головна",
+    "earn": "Заробіток",
+    "referrals": "Реферали",
+    "wallet": "Гаманець",
+    "profile": "Профіль",
+    "general": "Налаштування",
+    "coins": "Жетони",
+    "days": "днів",
+    "hours": "годин",
+    "minutes": "хвилин",
 
-        // Стейкінг
-        "staking.details.title": "Деталі Стейкінгу",
-        "staking.details.amount": "Сума стейкінгу",
-        "staking.details.period": "Період стейкінгу",
-        "staking.details.reward_percent": "Відсоток прибутку",
-        "staking.details.expected_reward": "Очікувана нагорода",
-        "staking.details.days_left": "Залишилось днів",
-        "staking.details.add": "Додати до стейкінгу",
-        "staking.details.add_amount": "Введіть суму для додавання до стейкінгу:",
-        "staking.cancel_button": "Скасувати стейкінг",
+    // Стейкінг
+    "staking.details.title": "Деталі Стейкінгу",
+    "staking.details.amount": "Сума стейкінгу",
+    "staking.details.period": "Період стейкінгу",
+    "staking.details.reward_percent": "Відсоток прибутку",
+    "staking.details.expected_reward": "Очікувана нагорода",
+    "staking.details.days_left": "Залишилось днів",
+    "staking.details.add": "Додати до стейкінгу",
+    "staking.details.add_amount": "Введіть суму для додавання до стейкінгу:",
+    "staking.cancel_button": "Скасувати стейкінг",
 
-        // Повідомлення
-        "no_active_staking": "Немає активного стейкінгу",
-        "staking_data_not_found": "Дані стейкінгу не знайдено",
-        "error_loading_staking_data": "Помилка при завантаженні даних стейкінгу",
-        "connection_error": "Помилка з'єднання з сервером",
-        "navigation_error": "Помилка навігації"
-    };
+    // Повідомлення
+    "no_active_staking": "Немає активного стейкінгу",
+    "staking_data_not_found": "Дані стейкінгу не знайдено",
+    "error_loading_staking_data": "Помилка при завантаженні даних стейкінгу",
+    "connection_error": "Помилка з'єднання з сервером",
+    "navigation_error": "Помилка навігації"
+};
 
-    // Функція для отримання перекладу
-    function getText(key, defaultText = key) {
-        return translations[key] || defaultText;
-    }
+// Глобальний прапорець для запобігання повторним кліком
+let isProcessingStakingAction = false;
 
-    // Оновлення всіх текстів на сторінці
-    function updatePageTexts() {
-        document.querySelectorAll('[data-lang-key]').forEach(element => {
-            const key = element.getAttribute('data-lang-key');
-            if (key && translations[key]) {
-                element.textContent = translations[key];
-            }
-        });
-    }
+// Функція для отримання перекладу
+function getText(key, defaultText = key) {
+    return translations[key] || defaultText;
+}
 
-    // Функція для завантаження аватара користувача
-    function loadUserAvatar() {
-        const avatar = document.getElementById('profile-avatar');
-        const userId = document.getElementById('user-id');
+// Функція для завантаження аватара користувача
+function loadUserAvatar() {
+    const avatar = document.getElementById('profile-avatar');
+    const userId = document.getElementById('user-id');
 
-        if (!avatar || !userId) return;
+    if (!avatar || !userId) return;
 
-        fetch(`/api/user/${userId.textContent || '12345678'}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    const userData = data.data;
-                    const username = userData.username || 'WINIX User';
+    fetch(`/api/user/${userId.textContent || '12345678'}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const userData = data.data;
+                const username = userData.username || 'WINIX User';
 
-                    // Зберігаємо для офлайн-доступу
-                    localStorage.setItem('username', username);
-                    localStorage.setItem('userId', userData.id || userId.textContent);
+                // Зберігаємо для офлайн-доступу
+                localStorage.setItem('username', username);
+                localStorage.setItem('userId', userData.id || userId.textContent);
 
-                    // Очищаємо вміст аватара
-                    avatar.innerHTML = '';
+                // Очищаємо вміст аватара
+                avatar.innerHTML = '';
 
-                    // Якщо є URL аватара
-                    if (userData.avatar_url) {
-                        const img = new Image();
-                        img.src = userData.avatar_url;
-                        img.alt = username;
-                        img.onerror = () => avatar.textContent = username[0].toUpperCase();
-                        avatar.appendChild(img);
-                        localStorage.setItem('userAvatarSrc', userData.avatar_url);
-                    } else {
-                        // Використовуємо першу літеру імені
-                        avatar.textContent = username[0].toUpperCase();
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Помилка завантаження даних користувача:', error);
-
-                // Використовуємо кешовані дані
-                const username = localStorage.getItem('username') || 'WINIX User';
-                const avatarSrc = localStorage.getItem('userAvatarSrc');
-
-                if (avatarSrc) {
+                // Якщо є URL аватара
+                if (userData.avatar_url) {
                     const img = new Image();
-                    img.src = avatarSrc;
+                    img.src = userData.avatar_url;
                     img.alt = username;
                     img.onerror = () => avatar.textContent = username[0].toUpperCase();
                     avatar.appendChild(img);
+                    localStorage.setItem('userAvatarSrc', userData.avatar_url);
                 } else {
+                    // Використовуємо першу літеру імені
                     avatar.textContent = username[0].toUpperCase();
                 }
-            });
-    }
+            }
+        })
+        .catch(error => {
+            console.error('Помилка завантаження даних користувача:', error);
 
-    // Функція для оновлення блоку відлагодження
-    function updateDebugInfo(data) {
-        const debugDiv = document.getElementById('debug-info');
-        if (debugDiv) {
-            debugDiv.innerHTML = `
-                <strong>Стейкінг дані:</strong><br>
-                hasActiveStaking: ${data.hasActiveStaking}<br>
-                stakingId: ${data.stakingId || 'немає'}<br>
-                Сума: ${data.stakingAmount || 0}<br>
-                Період: ${data.period || 0} днів<br>
-                Відсоток: ${data.rewardPercent || 0}%<br>
-                Очікувана нагорода: ${data.expectedReward || 0}<br>
-                Залишилось днів: ${data.remainingDays || 0}<br>
-            `;
+            // Використовуємо кешовані дані
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const avatarSrc = localStorage.getItem('userAvatarSrc');
 
-            // Показуємо блок відлагодження при утриманні Alt
-            document.addEventListener('keydown', function(e) {
-                if (e.altKey) {
-                    debugDiv.style.display = 'block';
-                }
-            });
+            if (avatarSrc) {
+                const img = new Image();
+                img.src = avatarSrc;
+                img.alt = username;
+                img.onerror = () => avatar.textContent = username[0].toUpperCase();
+                avatar.appendChild(img);
+            } else {
+                avatar.textContent = username[0].toUpperCase();
+            }
+        });
+}
 
-            document.addEventListener('keyup', function(e) {
-                if (!e.altKey) {
-                    debugDiv.style.display = 'none';
-                }
-            });
-        }
-    }
+// Функція для оновлення блоку відлагодження
+function updateDebugInfo(data) {
+    const debugDiv = document.getElementById('debug-info');
+    if (debugDiv) {
+        debugDiv.innerHTML = `
+            <strong>Стейкінг дані:</strong><br>
+            hasActiveStaking: ${data.hasActiveStaking}<br>
+            stakingId: ${data.stakingId || 'немає'}<br>
+            Сума: ${data.stakingAmount || 0}<br>
+            Період: ${data.period || 0} днів<br>
+            Відсоток: ${data.rewardPercent || 0}%<br>
+            Очікувана нагорода: ${data.expectedReward || 0}<br>
+            Залишилось днів: ${data.remainingDays || 0}<br>
+        `;
 
-    // Перевірка наявності об'єкту Telegram WebApp
-    let tg = window.Telegram ? window.Telegram.WebApp : null;
-    if (tg) {
-        tg.ready();
-        tg.expand();
-    }
+        // Показуємо блок відлагодження при утриманні Alt
+        document.addEventListener('keydown', function(e) {
+            if (e.altKey) {
+                debugDiv.style.display = 'block';
+            }
+        });
 
-    // Функція оновлення відображення стейкінгу (тільки UI, без бізнес-логіки)
-    function updateStakingDisplay(stakingData) {
-        // Оновлюємо інтерфейс
-        document.getElementById('staking-amount').textContent = stakingData.stakingAmount + ' $WINIX';
-        document.getElementById('staking-period').textContent = stakingData.period + ' ' + getText('days');
-        document.getElementById('staking-reward-percent').textContent = stakingData.rewardPercent + '%';
-        document.getElementById('staking-expected-reward').textContent = stakingData.expectedReward + ' $WINIX';
-        document.getElementById('staking-remaining-days').textContent = stakingData.remainingDays || '0';
-
-        // Оновлюємо відлагодження
-        updateDebugInfo(stakingData);
-    }
-
-    // Головна функція ініціалізації сторінки
-    function initPage() {
-        console.log("Ініціалізація сторінки деталей стейкінгу");
-
-        // Оновлюємо всі тексти відповідно до мови
-        updatePageTexts();
-
-        // Завантажуємо аватар користувача
-        loadUserAvatar();
-
-        // Встановлюємо обробник кліку по аватару
-        const profileLink = document.getElementById('profile-link');
-        if (profileLink) {
-            profileLink.addEventListener('click', function() {
-                window.location.href = 'profile.html';
-            });
-        }
-
-        // Кнопка "Назад"
-        const backButton = document.getElementById('back-button');
-        if (backButton) {
-            backButton.addEventListener('click', function() {
-                window.location.href = "staking.html";
-            });
-        }
-
-        // Отримуємо ID користувача
-        const userId = document.getElementById('user-id').textContent;
-
-        // Отримуємо дані стейкінгу з сервера
-        fetch(`/api/user/${userId}/staking`)
-            .then(response => response.json())
-            .then(data => {
-                console.log("Відповідь API для staking:", data);
-
-                if (data.status === 'success') {
-                    const stakingData = data.data;
-
-                    // Якщо немає активного стейкінгу, перевіряємо кешовані дані
-                    if (!stakingData || !stakingData.hasActiveStaking) {
-                        try {
-                            const localData = localStorage.getItem('stakingData');
-                            if (localData) {
-                                const localStakingData = JSON.parse(localData);
-                                if (localStakingData && localStakingData.hasActiveStaking) {
-                                    console.log("Використовую локальні дані замість API");
-                                    updateStakingDisplay(localStakingData);
-                                    return;
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Помилка при отриманні локальних даних:", e);
-                        }
-
-                        // Якщо немає активного стейкінгу, повертаємо на сторінку стейкінгу
-                        if (window.simpleAlert) {
-                            window.simpleAlert(getText('no_active_staking'), false, function() {
-                                window.location.href = "staking.html";
-                            });
-                        } else {
-                            alert(getText('no_active_staking'));
-                            window.location.href = "staking.html";
-                        }
-                        return;
-                    }
-
-                    // Оновлюємо інтерфейс з даними API
-                    updateStakingDisplay(stakingData);
-
-                    // Зберігаємо дані для офлайн-доступу
-                    localStorage.setItem('stakingData', JSON.stringify(stakingData));
-                } else {
-                    const noDataMsg = getText('staking_data_not_found');
-                    if (window.simpleAlert) {
-                        window.simpleAlert(noDataMsg, false, function() {
-                            window.location.href = "staking.html";
-                        });
-                    } else {
-                        alert(noDataMsg);
-                        window.location.href = "staking.html";
-                    }
-                }
-            })
-            .catch(error => {
-                console.error("Помилка отримання даних стейкінгу:", error);
-
-                // Перевіряємо наявність кешованих даних
-                try {
-                    const stakingDataStr = localStorage.getItem('stakingData');
-                    if (stakingDataStr) {
-                        const stakingData = JSON.parse(stakingDataStr);
-
-                        if (stakingData && stakingData.hasActiveStaking) {
-                            // Оновлюємо інтерфейс з кешованими даними
-                            updateStakingDisplay(stakingData);
-                            console.warn("Використовуються кешовані дані через помилку з'єднання");
-                        } else {
-                            alert(getText('no_active_staking'));
-                            window.location.href = "staking.html";
-                        }
-                    } else {
-                        alert(getText('error_loading_staking_data'));
-                        window.location.href = "staking.html";
-                    }
-                } catch (e) {
-                    console.error("Помилка при обробці кешованих даних:", e);
-                    alert(getText('error_loading_staking_data'));
-                    window.location.href = "staking.html";
-                }
-            });
-
-        // Налаштовуємо навігаційні кнопки
-        setupNavigationButtons();
-    }
-
-    // Налаштовуємо навігаційні кнопки
-    function setupNavigationButtons() {
-        document.querySelectorAll('.nav-item').forEach(function(item) {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-
-                // Навігація
-                document.querySelectorAll('.nav-item').forEach(function(navItem) {
-                    navItem.classList.remove('active');
-                });
-                this.classList.add('active');
-
-                // Перенаправлення на вибрану сторінку
-                window.location.href = section === 'home' ? 'index.html' : section + '.html';
-            });
+        document.addEventListener('keyup', function(e) {
+            if (!e.altKey) {
+                debugDiv.style.display = 'none';
+            }
         });
     }
+}
 
-    // Функція для адаптації шарів при зміні розміру екрану
-    function adjustLayout() {
-        // Перевірка на малі екрани
-        const isSmallScreen = window.innerWidth <= 450;
-        const container = document.querySelector('.container');
+// Функція для відображення простого сповіщення
+function simpleAlert(message, isError = false, callback = null) {
+    alert(message);
+    if (callback) setTimeout(callback, 100);
+    return Promise.resolve();
+}
 
-        if (isSmallScreen) {
-            container.classList.add('small-screen');
-        } else {
-            container.classList.remove('small-screen');
+// Функція для створення простого модального вікна
+function createInputModal(title, callback) {
+    const amount = prompt(title || "Введіть суму:");
+    if (amount && !isNaN(amount) && parseInt(amount) > 0) {
+        callback(parseInt(amount));
+    }
+}
+
+// Оновлення всіх текстів на сторінці
+function updatePageTexts() {
+    document.querySelectorAll('[data-lang-key]').forEach(element => {
+        const key = element.getAttribute('data-lang-key');
+        if (key && translations[key]) {
+            element.textContent = translations[key];
         }
+    });
+}
+
+// Функція оновлення відображення стейкінгу
+function updateStakingDisplay(stakingData) {
+    // Оновлюємо інтерфейс
+    document.getElementById('staking-amount').textContent = stakingData.stakingAmount + ' $WINIX';
+    document.getElementById('staking-period').textContent = stakingData.period + ' ' + getText('days');
+    document.getElementById('staking-reward-percent').textContent = stakingData.rewardPercent + '%';
+    document.getElementById('staking-expected-reward').textContent = stakingData.expectedReward + ' $WINIX';
+    document.getElementById('staking-remaining-days').textContent = stakingData.remainingDays || '0';
+
+    // Оновлюємо відлагодження
+    updateDebugInfo(stakingData);
+}
+
+// Функція додавання до стейкінгу
+function handleAddToStakeButton() {
+    // Запобігаємо паралельним діям
+    if (isProcessingStakingAction) {
+        console.log("Дія стейкінгу вже обробляється");
+        return;
     }
 
-    // Обробник для зміни розміру вікна
-    window.addEventListener('resize', adjustLayout);
+    isProcessingStakingAction = true;
+    console.log("Підготовка до додавання токенів до стейкінгу");
 
-    // Викликаємо функцію адаптації при старті
-    adjustLayout();
+    // Отримуємо ID користувача
+    const userId = document.getElementById('user-id').textContent;
+    if (!userId) {
+        simpleAlert("Не вдалося визначити ID користувача", true);
+        isProcessingStakingAction = false;
+        return;
+    }
 
-    // Запускаємо після завантаження DOM
-    document.addEventListener('DOMContentLoaded', initPage);
+    // Показуємо модальне вікно для введення суми
+    createInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
+        // Блокуємо кнопки
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => { if (btn) btn.disabled = true; });
 
-    // Здійснюємо повторну перевірку при повному завантаженні сторінки
-    window.addEventListener('load', function() {
-        // Перевіряємо чи відображаються дані стейкінгу
-        const amountElement = document.getElementById('staking-amount');
-        if (amountElement && amountElement.textContent === '0.00 $WINIX') {
-            console.log("Дані не відображаються, запускаємо повторну ініціалізацію");
+        // Перевірка активного стейкінгу
+        fetch(`/api/user/${userId}/staking`)
+            .then(response => response.json())
+            .then(stakingData => {
+                if (!stakingData.status === 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+                    throw new Error("Немає активного стейкінгу");
+                }
 
-            // Повторна ініціалізація через запит даних з сервера
-            const userId = document.getElementById('user-id').textContent;
-            fetch(`/api/user/${userId}/staking`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success' && data.data && data.data.hasActiveStaking) {
-                        updateStakingDisplay(data.data);
+                const stakingId = stakingData.data.stakingId;
+
+                // Додавання до стейкінгу через API
+                return fetch(`/api/user/${userId}/staking/${stakingId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ additionalAmount: Math.floor(amount) })
+                });
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP помилка: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                buttons.forEach(btn => { if (btn) btn.disabled = false; });
+
+                if (result.status === 'success') {
+                    // Оновлюємо локальні дані
+                    if (result.data.balance !== undefined) {
+                        localStorage.setItem('userTokens', result.data.balance.toString());
+                        localStorage.setItem('winix_balance', result.data.balance.toString());
+                    }
+
+                    if (result.data.staking) {
+                        localStorage.setItem('stakingData', JSON.stringify(result.data.staking));
+                        localStorage.setItem('winix_staking', JSON.stringify(result.data.staking));
+                    }
+
+                    // Примусово перезавантажуємо сторінку для повного оновлення стану
+                    simpleAlert(`Додано ${amount} $WINIX до стейкінгу`, false, function() {
+                        window.location.reload();
+                    });
+                } else {
+                    simpleAlert(result.message || "Помилка додавання до стейкінгу", true);
+                }
+
+                isProcessingStakingAction = false;
+            })
+            .catch(error => {
+                console.error("Помилка при додаванні до стейкінгу:", error);
+                buttons.forEach(btn => { if (btn) btn.disabled = false; });
+                simpleAlert(error.message || "Сталася помилка. Спробуйте ще раз.", true);
+                isProcessingStakingAction = false;
+            });
+    });
+}
+
+// Функція для скасування стейкінгу
+function handleCancelStakingButton() {
+    if (isProcessingStakingAction) {
+        console.log("Дія стейкінгу вже обробляється");
+        return;
+    }
+
+    isProcessingStakingAction = true;
+    console.log("Обробка скасування стейкінгу");
+
+    // Отримуємо ID користувача
+    const userId = document.getElementById('user-id').textContent;
+    if (!userId) {
+        simpleAlert("Не вдалося визначити ID користувача", true);
+        isProcessingStakingAction = false;
+        return;
+    }
+
+    // Отримуємо дані стейкінгу
+    fetch(`/api/user/${userId}/staking`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success' || !data.data || !data.data.hasActiveStaking) {
+                simpleAlert("У вас немає активного стейкінгу", true);
+                isProcessingStakingAction = false;
+                return;
+            }
+
+            const stakingData = data.data;
+            const stakingId = stakingData.stakingId;
+
+            // Запитуємо підтвердження
+            if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
+                // Блокуємо всі кнопки
+                const buttons = document.querySelectorAll('button');
+                buttons.forEach(btn => { if (btn) btn.disabled = true; });
+
+                // Відправляємо запит на скасування
+                console.log(`Відправляємо запит на скасування стейкінгу: ${stakingId}`);
+
+                fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP помилка при скасуванні! Статус: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    isProcessingStakingAction = false;
+
+                    // Розблоковуємо кнопки
+                    buttons.forEach(btn => { if (btn) btn.disabled = false; });
+
+                    if (result.status === 'success') {
+                        // Видаляємо дані стейкінгу з локального сховища
+                        localStorage.removeItem('stakingData');
+                        localStorage.removeItem('winix_staking');
+
+                        // Оновлюємо баланс у локальному сховищі
+                        if (result.data && result.data.newBalance !== undefined) {
+                            localStorage.setItem('userTokens', result.data.newBalance.toString());
+                            localStorage.setItem('winix_balance', result.data.newBalance.toString());
+                        }
+
+                        // Переходимо на сторінку гаманця після скасування
+                        simpleAlert(result.message || "Стейкінг успішно скасовано", false, function() {
+                            window.location.href = "wallet.html";
+                        });
+                    } else {
+                        simpleAlert(result.message || "Помилка скасування стейкінгу", true);
                     }
                 })
                 .catch(error => {
-                    console.error("Помилка оновлення даних стейкінгу:", error);
+                    console.error("Помилка при скасуванні стейкінгу:", error);
+                    buttons.forEach(btn => { if (btn) btn.disabled = false; });
+                    simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                    isProcessingStakingAction = false;
                 });
-        }
-    });
+            } else {
+                isProcessingStakingAction = false;
+            }
+        })
+        .catch(error => {
+            console.error("Помилка при перевірці стейкінгу:", error);
+            simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+            isProcessingStakingAction = false;
+        });
+}
 
-    // Глобальний обробник помилок
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
-        return true;
-    };
+// Функція для адаптації шарів при зміні розміру екрану
+function adjustLayout() {
+    // Перевірка на малі екрани
+    const isSmallScreen = window.innerWidth <= 450;
+    const container = document.querySelector('.container');
+
+    if (isSmallScreen) {
+        container.classList.add('small-screen');
+    } else {
+        container.classList.remove('small-screen');
+    }
+}
+
+// Головна функція ініціалізації сторінки
+function initPage() {
+    console.log("Ініціалізація сторінки деталей стейкінгу");
+
+    // Оновлюємо всі тексти відповідно до мови
+    updatePageTexts();
+
+    // Завантажуємо аватар користувача
+    loadUserAvatar();
+
+    // Встановлюємо обробник кліку по аватару
+    const profileLink = document.getElementById('profile-link');
+    if (profileLink) {
+        profileLink.addEventListener('click', function() {
+            window.location.href = 'profile.html';
+        });
+    }
+
+    // Кнопка "Назад"
+    const backButton = document.getElementById('back-button');
+    if (backButton) {
+        backButton.addEventListener('click', function() {
+            window.location.href = "staking.html";
+        });
+    }
+
+    // Кнопка додавання до стейкінгу
+    const addToStakeButton = document.getElementById('add-to-stake-button');
+    if (addToStakeButton) {
+        addToStakeButton.addEventListener('click', handleAddToStakeButton);
+    }
+
+    // Кнопка скасування стейкінгу
+    const cancelButton = document.getElementById('cancel-staking-button');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', handleCancelStakingButton);
+    }
+
+    // Налаштування навігаційних кнопок
+    setupNavigationButtons();
+
+    // Отримуємо ID користувача
+    const userId = document.getElementById('user-id').textContent;
+
+    // Отримуємо дані стейкінгу з сервера
+    fetch(`/api/user/${userId}/staking`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Відповідь API для staking:", data);
+
+            if (data.status === 'success') {
+                const stakingData = data.data;
+
+                // Якщо немає активного стейкінгу, перевіряємо кешовані дані
+                if (!stakingData || !stakingData.hasActiveStaking) {
+                    try {
+                        const localData = localStorage.getItem('stakingData');
+                        if (localData) {
+                            const localStakingData = JSON.parse(localData);
+                            if (localStakingData && localStakingData.hasActiveStaking) {
+                                console.log("Використовую локальні дані замість API");
+                                updateStakingDisplay(localStakingData);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Помилка при отриманні локальних даних:", e);
+                    }
+
+                    // Якщо немає активного стейкінгу, повертаємо на сторінку стейкінгу
+                    simpleAlert(getText('no_active_staking'), false, function() {
+                        window.location.href = "staking.html";
+                    });
+                    return;
+                }
+
+                // Оновлюємо інтерфейс з даними API
+                updateStakingDisplay(stakingData);
+
+                // Зберігаємо дані для офлайн-доступу
+                localStorage.setItem('stakingData', JSON.stringify(stakingData));
+                localStorage.setItem('winix_staking', JSON.stringify(stakingData));
+            } else {
+                const noDataMsg = getText('staking_data_not_found');
+                simpleAlert(noDataMsg, false, function() {
+                    window.location.href = "staking.html";
+                });
+            }
+        })
+        .catch(error => {
+            console.error("Помилка отримання даних стейкінгу:", error);
+
+            // Перевіряємо наявність кешованих даних
+            try {
+                const stakingDataStr = localStorage.getItem('stakingData');
+                if (stakingDataStr) {
+                    const stakingData = JSON.parse(stakingDataStr);
+
+                    if (stakingData && stakingData.hasActiveStaking) {
+                        // Оновлюємо інтерфейс з кешованими даними
+                        updateStakingDisplay(stakingData);
+                        console.warn("Використовуються кешовані дані через помилку з'єднання");
+                    } else {
+                        simpleAlert(getText('no_active_staking'), false, function() {
+                            window.location.href = "staking.html";
+                        });
+                    }
+                } else {
+                    simpleAlert(getText('error_loading_staking_data'), false, function() {
+                        window.location.href = "staking.html";
+                    });
+                }
+            } catch (e) {
+                console.error("Помилка при обробці кешованих даних:", e);
+                simpleAlert(getText('error_loading_staking_data'), false, function() {
+                    window.location.href = "staking.html";
+                });
+            }
+        });
+}
+
+// Налаштовуємо навігаційні кнопки
+function setupNavigationButtons() {
+    document.querySelectorAll('.nav-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            const section = this.getAttribute('data-section');
+
+            // Навігація
+            document.querySelectorAll('.nav-item').forEach(function(navItem) {
+                navItem.classList.remove('active');
+            });
+            this.classList.add('active');
+
+            // Перенаправлення на вибрану сторінку
+            window.location.href = section === 'home' ? 'index.html' : section + '.html';
+        });
+    });
+}
+
+// Обробник для зміни розміру вікна
+window.addEventListener('resize', adjustLayout);
+
+// Запускаємо після завантаження DOM
+document.addEventListener('DOMContentLoaded', initPage);
+
+// Глобальний обробник помилок
+window.onerror = function(message, source, lineno, colno, error) {
+    console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+    return true;
+};
     </script>
 </body>
 </html>
