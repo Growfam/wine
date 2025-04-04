@@ -1032,32 +1032,60 @@
             });
     }
 
-    // Функція для встановлення максимальної суми стейкінгу
+    /// Функція для налаштування поля введення суми та розрахунку винагороди
+function setupStakingAmountInput() {
+    try {
+        const amountInput = document.getElementById('staking-amount');
+        const periodSelect = document.getElementById('staking-period');
+
+        if (amountInput) {
+            // Дозволяємо тільки цілі числа
+            amountInput.addEventListener('input', function() {
+                // Заміна всіх нецифрових символів
+                this.value = this.value.replace(/[^0-9]/g, '');
+
+                // Перевіряємо на негативні значення
+                const value = parseInt(this.value, 10);
+                if (value < 0) this.value = '0';
+
+                // Оновлення розрахунку винагороди
+                updateExpectedReward();
+            });
+        }
+
+        if (periodSelect) {
+            periodSelect.addEventListener('change', updateExpectedReward);
+        }
+
+        // Початковий розрахунок
+        updateExpectedReward();
+    } catch (e) {
+        console.error('Помилка при налаштуванні полів стейкінгу:', e);
+    }
+}
+
+// Функція для встановлення максимальної суми стейкінгу
 function setMaxStakingAmount() {
     try {
         // Отримуємо поточний баланс
         const balance = parseFloat(localStorage.getItem('userTokens') || '0');
 
         // Обчислюємо максимально дозволену суму (90% від балансу)
-        const maxAllowed = balance * 0.9;
-
-        // Округлюємо до цілого числа вниз
-        const roundedAmount = Math.floor(maxAllowed);
+        const maxAllowed = Math.floor(balance * 0.9);
 
         // Встановлюємо значення в поле вводу
         const amountInput = document.getElementById('staking-amount');
         if (amountInput) {
-            amountInput.value = roundedAmount;
+            amountInput.value = maxAllowed;
 
             // Запускаємо перерахунок очікуваної винагороди
-            if (typeof updateExpectedReward === 'function') {
-                updateExpectedReward();
-            }
+            updateExpectedReward();
         }
     } catch (e) {
         console.error('Помилка при встановленні максимальної суми:', e);
     }
 }
+
 
     // Головна функція ініціалізації сторінки
     function initPage() {
@@ -1115,7 +1143,10 @@ if (maxButton) {
 
         // Налаштовуємо навігаційні кнопки
         setupNavigationButtons();
-    }
+
+        // Викликаємо функцію налаштування поля введення суми
+        setupStakingAmountInput();
+}
 
     // Налаштовуємо навігаційні кнопки
     function setupNavigationButtons() {
