@@ -845,3 +845,159 @@ def check_staking_status(telegram_id):
     except Exception as e:
         logger.error(f"check_staking_status: Помилка перевірки статусу стейкінгу: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+    # Додайте цю функцію до staking.py
+
+    def reset_and_repair_staking(telegram_id, force=False):
+        """
+        Скидає та відновлює стан стейкінгу для користувача
+        Виправляє пошкоджені дані та скасовує проблемні стейкінги
+
+        Args:
+            telegram_id: ID користувача
+            force: Якщо True, примусово скасовує активний стейкінг без перевірок
+
+        Returns:
+            Відповідь з результатом операції
+        """
+        try:
+            # Перетворюємо telegram_id на рядок для надійності
+            telegram_id = str(telegram_id)
+            logger.info(
+                f"reset_and_repair_staking: Початок відновлення стейкінгу для користувача {telegram_id} (force={force})")
+
+            # Отримуємо дані користувача
+            user = get_user(telegram_id)
+            if not user:
+                logger.error(f"reset_and_repair_staking: Користувача {telegram_id} не знайдено")
+                return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+            # Аналізуємо поточний стан стейкінгу
+            staking_data = user.get("staking_data", {})
+            has_staking = staking_data and isinstance(staking_data, dict) and staking_data.get(
+                "hasActiveStaking") == True
+
+            # Перевірка історії стейкінгу
+            staking_history = user.get("staking_history", [])
+            if not isinstance(staking_history, list):
+                logger.warning(
+                    f"reset_and_repair_staking: staking_history не є списком, буде ініціалізовано порожнім списком")
+                staking_history = []
+
+            # Створюємо порожній об'єкт стейкінгу
+            empty_staking = {
+                "hasActiveStaking": False,
+                "status": "cancelled",
+                "stakingAmount": 0,
+                "period": 0,
+                "rewardPercent": 0,
+                "expectedReward": 0,
+                "remainingDays": 0
+            }
+
+            # Якщо немає стейкінгу або вимушене скидання, просто скидаємо дані
+            if not has_staking or force:
+                logger.info(f"reset_and_repair_staking: Скидання стану стейкінгу для користувача {telegram_id}")
+
+                # Оновлюємо дані користувача
+                result = update_user(telegram_id, {
+                    "staking_data": empty_staking,
+                    "staking_history": staking_history
+                })
+
+                if not result:
+                    logger.error(
+                        f"reset_and_repair_staking: Помилка оновлення стану стейкінгу для користувача {telegram_id}")
+                    return jsonify({"status": "error", "message": "Помилка оновлення даних користувача"}), 500
+
+                return jsonify({
+                    "status": "success",
+                    "message": "Стан стейкінгу успішно скинуто",
+                    "was_active": has_staking,
+                    "data": {
+                        "staking": empty_staking
+                    }
+                })
+
+            # Якщо є активний стейкінг, спробуємо його скасувати з поверненням коштів
+            logger.info(f"reset_and_repair_staking: Виявлено активний стейкінг, спроба скасування з поверненням коштів")
+
+            # Аналізуємо дані стейкінгу для повернення коштів
+            try:
+                staking_amount = float(staking_data.get("stakingAmount", 0))
+                # Переконуємось, що стейкінг має цілу суму
+                if staking_amount != int(staking_amount):
+                    staking_amount = int(staking_amount)
+                    logger.warning(
+                        f"reset_and_repair_staking: Сума стейкінгу не була цілим числом, округлено до {staking_amount}")
+            except (ValueError, TypeError):
+                logger.error(f"reset_and_repair_staking: Помилка конвертації суми стейкінгу")
+                staking_amount = 0
+
+            current_balance = float(user.get("balance", 0))
+            staking_id = staking_data.get("stakingId", f"st-repair-{uuid.uuid4().hex[:8]}")
+
+            # Розраховуємо штраф та повернення - у цьому випадку БЕЗ ШТРАФУ для виправлення ситуації
+            cancellation_fee = 0  # Без штрафу при відновленні
+            returned_amount = staking_amount
+
+            new_balance = current_balance + returned_amount
+
+            # Зберігаємо копію для історії
+            staking_for_history = staking_data.copy()
+            staking_for_history["status"] = "cancelled"
+            staking_for_history["hasActiveStaking"] = False
+            staking_for_history["cancelledDate"] = datetime.now().isoformat()
+            staking_for_history["returnedAmount"] = returned_amount
+            staking_for_history["feeAmount"] = cancellation_fee
+            staking_for_history["repaired"] = True  # Помітка що це було відновлення
+
+            # Додаємо до історії
+            staking_history.append(staking_for_history)
+
+            # Оновлюємо дані користувача
+            result = update_user(telegram_id, {
+                "balance": new_balance,
+                "staking_data": empty_staking,
+                "staking_history": staking_history
+            })
+
+            if not result:
+                logger.error(f"reset_and_repair_staking: Помилка оновлення даних користувача {telegram_id}")
+                return jsonify({"status": "error", "message": "Помилка оновлення даних користувача"}), 500
+
+            # Додаємо транзакцію
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "unstake",
+                    "amount": returned_amount,
+                    "description": f"Відновлення після помилки стейкінгу (повернено {returned_amount} WINIX без штрафу)",
+                    "status": "completed",
+                    "staking_id": staking_id
+                }
+
+                # Запис транзакції
+                if supabase:
+                    supabase.table("transactions").insert(transaction).execute()
+                    logger.info(f"reset_and_repair_staking: Транзакцію про відновлення стейкінгу створено")
+            except Exception as e:
+                logger.error(f"reset_and_repair_staking: Помилка при створенні транзакції: {str(e)}")
+                # Не зупиняємо процес, якщо помилка при створенні транзакції
+
+            logger.info(
+                f"reset_and_repair_staking: Стейкінг успішно скасовано для користувача {telegram_id} при відновленні")
+            return jsonify({
+                "status": "success",
+                "message": "Стейкінг успішно скасовано і стан відновлено",
+                "data": {
+                    "staking": empty_staking,
+                    "returnedAmount": returned_amount,
+                    "feeAmount": cancellation_fee,
+                    "newBalance": new_balance
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"reset_and_repair_staking: Критична помилка: {str(e)}", exc_info=True)
+            return jsonify({"status": "error", "message": "Сталася технічна помилка при відновленні стейкінгу"}), 500
