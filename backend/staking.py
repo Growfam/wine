@@ -373,41 +373,71 @@ def update_user_staking(telegram_id, staking_id, data):
     """Поліпшена функція додавання до стейкінгу"""
 
     try:
+        # Перетворюємо telegram_id на рядок для надійності
+        telegram_id = str(telegram_id)
+        logger.info(f"update_user_staking: Запит на оновлення стейкінгу {staking_id} для користувача {telegram_id}")
+
         if not data or "additionalAmount" not in data:
+            logger.error(f"update_user_staking: Відсутні необхідні параметри для користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Відсутні необхідні параметри"}), 400
 
         # Чітко конвертуємо додаткову суму в ціле число
         try:
-            additional_amount = int(float(data.get("additionalAmount", 0)))
+            additional_amount = float(data.get("additionalAmount", 0))
+            # Перевіряємо, що сума є цілим числом
+            if additional_amount != int(additional_amount):
+                logger.warning(f"update_user_staking: Сума додавання не була цілим числом, округлено")
+                additional_amount = int(additional_amount)
+
             if additional_amount <= 0:
+                logger.error(f"update_user_staking: Спроба додати нульову або від'ємну суму")
                 return jsonify({"status": "error", "message": "Сума має бути більше нуля"}), 400
         except (ValueError, TypeError):
+            logger.error(f"update_user_staking: Некоректний формат суми: {data.get('additionalAmount')}")
             return jsonify({"status": "error", "message": "Некоректний формат суми"}), 400
 
         # Отримуємо дані користувача
         user = get_user(telegram_id)
         if not user:
+            logger.error(f"update_user_staking: Користувача {telegram_id} не знайдено")
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
         # Отримуємо баланс та конвертуємо до цілого числа
-        current_balance = int(float(user.get("balance", 0)))
+        try:
+            current_balance = float(user.get("balance", 0))
+        except (ValueError, TypeError):
+            logger.error(f"update_user_staking: Помилка конвертації балансу")
+            current_balance = 0
 
         # Перевіряємо, чи достатньо коштів
         if additional_amount > current_balance:
+            logger.error(
+                f"update_user_staking: Недостатньо коштів. Баланс: {current_balance}, запит: {additional_amount}")
             return jsonify(
                 {"status": "error", "message": f"Недостатньо коштів. Ваш баланс: {current_balance} WINIX"}), 400
 
         # Отримуємо дані стейкінгу
         staking_data = user.get("staking_data", {})
         if not staking_data or not staking_data.get("hasActiveStaking"):
+            logger.error(f"update_user_staking: Немає активного стейкінгу для користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Немає активного стейкінгу"}), 404
 
         # Перевіряємо ID стейкінгу
         if staking_data.get("stakingId") != staking_id:
+            logger.error(
+                f"update_user_staking: Неправильний ID стейкінгу: очікувалось {staking_data.get('stakingId')}, отримано {staking_id}")
             return jsonify({"status": "error", "message": "Неправильний ID стейкінгу"}), 400
 
         # Отримуємо поточну суму стейкінгу та конвертуємо до цілого числа
-        current_staking_amount = int(float(staking_data.get("stakingAmount", 0)))
+        try:
+            current_staking_amount = float(staking_data.get("stakingAmount", 0))
+            # Перевіряємо, що сума є цілим числом
+            if current_staking_amount != int(current_staking_amount):
+                current_staking_amount = int(current_staking_amount)
+                logger.warning(f"update_user_staking: Поточна сума стейкінгу не була цілим числом, округлено")
+        except (ValueError, TypeError):
+            logger.error(f"update_user_staking: Помилка конвертації суми стейкінгу")
+            current_staking_amount = 0
 
         # Розраховуємо нову суму стейкінгу
         new_staking_amount = current_staking_amount + additional_amount
@@ -419,12 +449,23 @@ def update_user_staking(telegram_id, staking_id, data):
         # Розраховуємо нову очікувану винагороду
         period = int(new_staking_data.get("period", 14))
         reward_percent = STAKING_REWARD_RATES.get(period, 9)
-        new_reward = new_staking_amount * (reward_percent / 100)
+        new_reward = (new_staking_amount * reward_percent) / 100
         new_staking_data["expectedReward"] = round(new_reward, 2)
         new_staking_data["rewardPercent"] = reward_percent
 
         # Розраховуємо новий баланс
         new_balance = current_balance - additional_amount
+
+        # Логування для відлагодження
+        logger.info(f"""update_user_staking: Додавання до стейкінгу:
+            Поточна сума стейкінгу: {current_staking_amount}
+            Сума додавання: {additional_amount}
+            Нова сума стейкінгу: {new_staking_amount}
+            Відсоток винагороди: {reward_percent}%
+            Нова очікувана винагорода: {new_staking_data["expectedReward"]}
+            Поточний баланс: {current_balance}
+            Новий баланс: {new_balance}
+        """)
 
         # Атомарно оновлюємо обидва значення
         result = update_user(telegram_id, {
@@ -433,19 +474,28 @@ def update_user_staking(telegram_id, staking_id, data):
         })
 
         if not result:
+            logger.error(f"update_user_staking: Помилка оновлення даних користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Помилка оновлення даних"}), 500
 
         # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "stake",
-            "amount": -additional_amount,
-            "description": f"Додано до активного стейкінгу {additional_amount} WINIX (ID: {staking_id})",
-            "status": "completed"
-        }
+        try:
+            transaction = {
+                "telegram_id": telegram_id,
+                "type": "stake",
+                "amount": -additional_amount,
+                "description": f"Додано до активного стейкінгу {additional_amount} WINIX (ID: {staking_id})",
+                "status": "completed",
+                "staking_id": staking_id
+            }
 
-        supabase.table("transactions").insert(transaction).execute()
+            if supabase:
+                supabase.table("transactions").insert(transaction).execute()
+                logger.info(f"update_user_staking: Транзакцію про додавання до стейкінгу створено")
+        except Exception as e:
+            logger.error(f"update_user_staking: Помилка при створенні транзакції: {str(e)}")
+            # Не зупиняємо процес, якщо помилка при створенні транзакції
 
+        logger.info(f"update_user_staking: Успішно додано {additional_amount} WINIX до стейкінгу {staking_id}")
         return jsonify({
             "status": "success",
             "message": f"Додано {additional_amount} WINIX до стейкінгу",
@@ -460,37 +510,70 @@ def update_user_staking(telegram_id, staking_id, data):
         })
     except Exception as e:
         logger.error(f"update_user_staking: Критична помилка: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "Сталася технічна помилка"}), 500
+        return jsonify({"status": "error", "message": "Сталася технічна помилка при додаванні до стейкінгу"}), 500
+
 
 def cancel_user_staking(telegram_id, staking_id, data):
     """Поліпшена функція скасування стейкінгу"""
 
     try:
+        # Перетворюємо telegram_id на рядок для надійності
+        telegram_id = str(telegram_id)
+        logger.info(f"cancel_user_staking: Запит на скасування стейкінгу {staking_id} для користувача {telegram_id}")
+
         # Отримуємо поточні дані користувача
         user = get_user(telegram_id)
         if not user:
+            logger.error(f"cancel_user_staking: Користувача {telegram_id} не знайдено")
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
         # Перевіряємо наявність активного стейкінгу
         staking_data = user.get("staking_data", {})
         if not staking_data or not staking_data.get("hasActiveStaking"):
+            logger.error(f"cancel_user_staking: Активний стейкінг не знайдено для користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Активний стейкінг не знайдено"}), 404
 
         # Перевіряємо ID стейкінгу
         if staking_data.get("stakingId") != staking_id:
+            logger.error(f"cancel_user_staking: Неправильний ID стейкінгу для користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Неправильний ID стейкінгу"}), 400
 
         # Зберігаємо копію для історії
         staking_for_history = staking_data.copy()
 
         # Конвертуємо значення для надійності
-        staking_amount = int(float(staking_data.get("stakingAmount", 0)))
-        current_balance = int(float(user.get("balance", 0)))
+        try:
+            staking_amount = float(staking_data.get("stakingAmount", 0))
+            # Переконуємось, що стейкінг має цілу суму
+            if staking_amount != int(staking_amount):
+                staking_amount = int(staking_amount)
+                logger.warning(
+                    f"cancel_user_staking: Сума стейкінгу не була цілим числом, округлено до {staking_amount}")
+        except (ValueError, TypeError):
+            logger.error(f"cancel_user_staking: Помилка конвертації суми стейкінгу")
+            staking_amount = 0
+
+        current_balance = float(user.get("balance", 0))
 
         # Розраховуємо штраф та повернення
         cancellation_fee = int(staking_amount * STAKING_CANCELLATION_FEE)
         returned_amount = staking_amount - cancellation_fee
+
+        # Перевірка, що сума повернення не від'ємна
+        if returned_amount < 0:
+            returned_amount = 0
+            logger.warning(f"cancel_user_staking: Сума повернення від'ємна, встановлено 0")
+
         new_balance = current_balance + returned_amount
+
+        # Логування для відлагодження
+        logger.info(f"""cancel_user_staking: Розрахунок скасування:
+            Сума стейкінгу: {staking_amount}
+            Штраф (20%): {cancellation_fee}
+            Сума повернення: {returned_amount}
+            Поточний баланс: {current_balance}
+            Новий баланс: {new_balance}
+        """)
 
         # Оновлюємо історичні дані
         staking_for_history["status"] = "cancelled"
@@ -501,6 +584,12 @@ def cancel_user_staking(telegram_id, staking_id, data):
 
         # Додаємо до історії
         staking_history = user.get("staking_history", [])
+
+        # Перевіряємо, що staking_history є списком
+        if not isinstance(staking_history, list):
+            logger.warning(f"cancel_user_staking: staking_history не є списком, створюємо новий")
+            staking_history = []
+
         staking_history.append(staking_for_history)
 
         # Створюємо пустий об'єкт стейкінгу
@@ -522,20 +611,29 @@ def cancel_user_staking(telegram_id, staking_id, data):
         })
 
         if not result:
+            logger.error(f"cancel_user_staking: Помилка оновлення даних користувача {telegram_id}")
             return jsonify({"status": "error", "message": "Помилка оновлення даних користувача"}), 500
 
         # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "unstake",
-            "amount": returned_amount,
-            "description": f"Скасування стейкінгу (повернено {returned_amount} WINIX, утримано {cancellation_fee} WINIX як штраф)",
-            "status": "completed"
-        }
+        try:
+            transaction = {
+                "telegram_id": telegram_id,
+                "type": "unstake",
+                "amount": returned_amount,
+                "description": f"Скасування стейкінгу (повернено {returned_amount} WINIX, утримано {cancellation_fee} WINIX як штраф)",
+                "status": "completed",
+                "staking_id": staking_id
+            }
 
-        # Запис транзакції
-        supabase.table("transactions").insert(transaction).execute()
+            # Запис транзакції
+            if supabase:
+                supabase.table("transactions").insert(transaction).execute()
+                logger.info(f"cancel_user_staking: Транзакцію про скасування стейкінгу створено")
+        except Exception as e:
+            logger.error(f"cancel_user_staking: Помилка при створенні транзакції: {str(e)}")
+            # Не зупиняємо процес, якщо помилка при створенні транзакції
 
+        logger.info(f"cancel_user_staking: Стейкінг {staking_id} успішно скасовано для користувача {telegram_id}")
         return jsonify({
             "status": "success",
             "message": "Стейкінг успішно скасовано",
@@ -547,8 +645,8 @@ def cancel_user_staking(telegram_id, staking_id, data):
             }
         })
     except Exception as e:
-        logger.error(f"cancel_user_staking: Помилка: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "Сталася технічна помилка"}), 500
+        logger.error(f"cancel_user_staking: Критична помилка: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": "Сталася технічна помилка при скасуванні стейкінгу"}), 500
 
 
 def finalize_user_staking(telegram_id, staking_id, data):
