@@ -213,30 +213,116 @@
     }
 
     /**
-     * Виконання API-запиту з обробкою помилок
-     */
-    async function apiRequest(endpoint, options = {}) {
+ * Виконання API-запиту з обробкою помилок та повторними спробами
+ * @param {string} endpoint - URL для запиту
+ * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
+ * @param {Object} data - Дані для відправки (для POST/PUT запитів)
+ * @param {Object} options - Додаткові параметри запиту
+ * @param {number} retries - Кількість повторних спроб при помилці
+ * @returns {Promise<Object>} Результат запиту у форматі JSON
+ */
+async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 3) {
+    // Отримуємо ID користувача з покращеною функцією
+    const userId = getUserId();
+
+    if (!userId) {
+        console.error('⚠️ API-запит неможливий: ID користувача не знайдено');
+        throw new Error('ID користувача не знайдено');
+    }
+
+    // Додаємо мітку часу для запобігання кешуванню
+    const timestamp = Date.now();
+    const url = endpoint.includes('?')
+        ? `${endpoint}&t=${timestamp}`
+        : `${endpoint}?t=${timestamp}`;
+
+    // Підготовка параметрів запиту
+    const requestOptions = {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-User-Id': userId,
+            ...options.headers
+        },
+        ...options
+    };
+
+    // Додаємо тіло запиту для POST/PUT
+    if (data && ['POST', 'PUT'].includes(method.toUpperCase())) {
+        requestOptions.body = JSON.stringify(data);
+    }
+
+    // Функція для повторного запиту при помилці
+    async function tryRequest(attemptsLeft) {
         try {
-            const userId = localStorage.getItem('telegram_user_id') ||
-                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+            console.log(`🔄 Відправка ${method} запиту на ${url}`);
 
-            if (userId) {
-                options.headers = options.headers || {};
-                options.headers['X-Telegram-User-Id'] = userId;
-            }
+            const response = await fetch(url, requestOptions);
 
-            const response = await fetch(endpoint, options);
-
+            // Перевіряємо статус відповіді
             if (!response.ok) {
-                throw new Error(`HTTP помилка! Статус: ${response.status}`);
+                const statusText = response.statusText || '';
+                console.error(`❌ Помилка API-запиту: ${response.status} ${statusText}`);
+
+                // Для 401/403 помилок авторизації очищаємо локальне сховище
+                if (response.status === 401 || response.status === 403) {
+                    console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
+                }
+
+                // Для 404 помилок виводимо детальнішу інформацію
+                if (response.status === 404) {
+                    console.error(`⚠️ Ресурс не знайдено: ${url}`);
+                    throw new Error(`Запитаний ресурс недоступний (404)`);
+                }
+
+                // Якщо залишились спроби, повторюємо запит
+                if (attemptsLeft > 0) {
+                    const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
+                    console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
+
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return tryRequest(attemptsLeft - 1);
+                }
+
+                throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
             }
 
-            return await response.json();
+            // Якщо статус ОК, парсимо JSON
+            let jsonData;
+            try {
+                jsonData = await response.json();
+            } catch (parseError) {
+                console.error('❌ Помилка парсингу JSON відповіді:', parseError);
+                throw new Error('Некоректний формат відповіді');
+            }
+
+            // Перевіряємо, чи є помилка у відповіді
+            if (jsonData && jsonData.status === 'error') {
+                console.error('❌ API повернув помилку:', jsonData.message);
+                throw new Error(jsonData.message || 'Помилка виконання запиту');
+            }
+
+            console.log(`✅ Успішний API-запит на ${url}`);
+            return jsonData;
+
         } catch (error) {
-            log('error', `Помилка API-запиту на ${endpoint}`, error);
+            // Для мережевих помилок пробуємо ще раз
+            if (error.name === 'TypeError' && attemptsLeft > 0) {
+                const delay = Math.pow(2, retries - attemptsLeft) * 500;
+                console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return tryRequest(attemptsLeft - 1);
+            }
+
+            // Якщо всі спроби вичерпані, пробуємо оновити інформацію про користувача і рейтимо помилку
             throw error;
         }
     }
+
+    // Починаємо процес запиту з повторними спробами
+    return tryRequest(retries);
+}
 
     /**
      * Генерація події системи
@@ -740,168 +826,356 @@
     };
 
     /**
-     * Створюємо обгортку для роботи з UI
+ * Створюємо обгортку для роботи з UI
+ */
+const UIManager = {
+    /**
+     * Оновлення відображення балансу на сторінці
      */
-    const UIManager = {
-        /**
-         * Оновлення відображення балансу на сторінці
-         */
-        updateBalanceDisplay: function() {
-            try {
-                // Отримуємо поточний баланс
-                const tokenBalance = BalanceManager.getTokens();
-                const coinsBalance = BalanceManager.getCoins();
+    updateBalanceDisplay: function() {
+        try {
+            // Отримуємо поточний баланс
+            const tokenBalance = BalanceManager.getTokens();
+            const coinsBalance = BalanceManager.getCoins();
 
-                log('info', 'Оновлення відображення балансу', {
-                    tokens: tokenBalance,
-                    coins: coinsBalance
-                });
+            log('info', 'Оновлення відображення балансу', {
+                tokens: tokenBalance,
+                coins: coinsBalance
+            });
 
-                // Оновлюємо всі елементи, які показують баланс токенів
-                const tokenSelectors = [
-                    '#user-tokens',
-                    '#main-balance',
-                    '.balance-amount',
-                    '#current-balance',
-                    '.balance-value'
-                ];
+            // Оновлюємо всі елементи, які показують баланс токенів
+            const tokenSelectors = [
+                '#user-tokens',
+                '#main-balance',
+                '.balance-amount',
+                '#current-balance',
+                '.balance-value'
+            ];
 
-                tokenSelectors.forEach(selector => {
-                    const elements = document.querySelectorAll(selector);
-                    elements.forEach(element => {
-                        if (element) {
-                            // Якщо елемент має спеціальну розмітку для іконки, зберігаємо її
-                            if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
-                                element.innerHTML = `${tokenBalance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
-                            } else {
-                                element.textContent = tokenBalance.toFixed(2);
-                            }
+            tokenSelectors.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(element => {
+                    if (element) {
+                        // Якщо елемент має спеціальну розмітку для іконки, зберігаємо її
+                        if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                            element.innerHTML = `${tokenBalance.toFixed(2)} <span class="main-balance-icon"><img src="assets/token.png" width="100" height="100" alt="WINIX"></span>`;
+                        } else {
+                            element.textContent = tokenBalance.toFixed(2);
                         }
-                    });
-                });
-
-                // Оновлюємо відображення жетонів
-                const coinsSelectors = [
-                    '#user-coins',
-                    '.coins-amount',
-                    '.coins-value'
-                ];
-
-                coinsSelectors.forEach(selector => {
-                    const elements = document.querySelectorAll(selector);
-                    elements.forEach(element => {
-                        if (element) {
-                            element.textContent = coinsBalance.toFixed(0);
-                        }
-                    });
-                });
-
-                return true;
-            } catch (e) {
-                log('error', 'Помилка оновлення відображення балансу', e);
-                return false;
-            }
-        },
-
-        /**
-         * Оновлення списку транзакцій на сторінці
-         */
-        updateTransactionsList: function(elementId = 'transaction-list', limit = 3) {
-            try {
-                const listElement = document.getElementById(elementId);
-                if (!listElement) return false;
-
-                // Отримуємо останні транзакції
-                const recentTransactions = TransactionManager.getRecentTransactions(limit);
-
-                // Очищаємо список
-                listElement.innerHTML = '';
-
-                if (recentTransactions.length === 0) {
-                    listElement.innerHTML = '<div class="empty-message">У вас ще немає транзакцій</div>';
-                    return true;
-                }
-
-                // Додаємо кожну транзакцію
-                recentTransactions.forEach(transaction => {
-                    const transactionElement = document.createElement('div');
-                    transactionElement.className = 'transaction-item';
-                    transactionElement.setAttribute('data-tx-id', transaction.id);
-
-                    const txText = TransactionManager.getTransactionText(transaction.type);
-                    const amountClass = TransactionManager.getTransactionClass(transaction.type);
-                    const amountPrefix = TransactionManager.getTransactionPrefix(transaction.type);
-
-                    transactionElement.innerHTML = `
-                        <div class="transaction-details">${transaction.description || txText}</div>
-                        <div class="transaction-amount ${amountClass}">${amountPrefix}${transaction.amount.toFixed(2)} $WINIX</div>
-                    `;
-
-                    listElement.appendChild(transactionElement);
-                });
-
-                return true;
-            } catch (e) {
-                log('error', 'Помилка оновлення списку транзакцій', e);
-                return false;
-            }
-        },
-
-        /**
-         * Відображення сповіщення
-         */
-        showNotification: function(message, type = MESSAGE_TYPES.SUCCESS, callback = null) {
-            try {
-                // Перевіряємо, чи є вже сповіщення
-                let toastElement = document.getElementById('toast-message');
-
-                if (!toastElement) {
-                    // Створюємо елемент сповіщення
-                    toastElement = document.createElement('div');
-                    toastElement.id = 'toast-message';
-                    toastElement.className = 'toast-message';
-                    document.body.appendChild(toastElement);
-                }
-
-                // Встановлюємо текст і стиль сповіщення
-                toastElement.textContent = message;
-
-                // Встановлюємо колір фону залежно від типу
-                switch (type) {
-                    case MESSAGE_TYPES.SUCCESS:
-                        toastElement.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
-                        break;
-                    case MESSAGE_TYPES.ERROR:
-                        toastElement.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
-                        break;
-                    case MESSAGE_TYPES.WARNING:
-                        toastElement.style.backgroundColor = 'rgba(255, 152, 0, 0.9)';
-                        break;
-                    case MESSAGE_TYPES.INFO:
-                        toastElement.style.backgroundColor = 'rgba(33, 150, 243, 0.9)';
-                        break;
-                }
-
-                // Показуємо сповіщення
-                toastElement.classList.add('show');
-
-                // Автоматично приховуємо через 3 секунди
-                setTimeout(() => {
-                    toastElement.classList.remove('show');
-
-                    // Викликаємо callback після анімації
-                    if (callback) {
-                        setTimeout(callback, 500);
                     }
-                }, 3000);
+                });
+            });
 
-                return true;
-            } catch (e) {
-                log('error', 'Помилка відображення сповіщення', e);
-                return false;
-            }
+            // Оновлюємо відображення жетонів
+            const coinsSelectors = [
+                '#user-coins',
+                '.coins-amount',
+                '.coins-value'
+            ];
+
+            coinsSelectors.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(element => {
+                    if (element) {
+                        element.textContent = coinsBalance.toFixed(0);
+                    }
+                });
+            });
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка оновлення відображення балансу', e);
+            return false;
         }
-    };
+    },
+
+    /**
+     * Оновлення списку транзакцій на сторінці
+     */
+    updateTransactionsList: function(elementId = 'transaction-list', limit = 3) {
+        try {
+            const listElement = document.getElementById(elementId);
+            if (!listElement) return false;
+
+            // Отримуємо останні транзакції
+            const recentTransactions = TransactionManager.getRecentTransactions(limit);
+
+            // Очищаємо список
+            listElement.innerHTML = '';
+
+            if (recentTransactions.length === 0) {
+                listElement.innerHTML = '<div class="empty-message">У вас ще немає транзакцій</div>';
+                return true;
+            }
+
+            // Додаємо кожну транзакцію
+            recentTransactions.forEach(transaction => {
+                const transactionElement = document.createElement('div');
+                transactionElement.className = 'transaction-item';
+                transactionElement.setAttribute('data-tx-id', transaction.id);
+
+                const txText = TransactionManager.getTransactionText(transaction.type);
+                const amountClass = TransactionManager.getTransactionClass(transaction.type);
+                const amountPrefix = TransactionManager.getTransactionPrefix(transaction.type);
+
+                transactionElement.innerHTML = `
+                    <div class="transaction-details">${transaction.description || txText}</div>
+                    <div class="transaction-amount ${amountClass}">${amountPrefix}${transaction.amount.toFixed(2)} $WINIX</div>
+                `;
+
+                listElement.appendChild(transactionElement);
+            });
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка оновлення списку транзакцій', e);
+            return false;
+        }
+    },
+
+    /**
+     * Відображення сповіщення в стилі WINIX
+     */
+    showNotification: function(message, type = 'success', callback = null) {
+        try {
+            // Видаляємо існуючі сповіщення
+            const existingNotifications = document.querySelectorAll('.winix-notification');
+            existingNotifications.forEach(notification => {
+                if (notification.parentNode) {
+                    document.body.removeChild(notification);
+                }
+            });
+
+            // Визначаємо кольори залежно від типу
+            let gradientColors;
+            switch (type) {
+                case 'success':
+                    gradientColors = 'linear-gradient(135deg, #00BFA5, #00CFBB)';
+                    break;
+                case 'error':
+                    gradientColors = 'linear-gradient(135deg, #FF3B58, #FF5C5C)';
+                    break;
+                case 'warning':
+                    gradientColors = 'linear-gradient(135deg, #FFA000, #FFB300)';
+                    break;
+                case 'info':
+                    gradientColors = 'linear-gradient(135deg, #2196F3, #03A9F4)';
+                    break;
+                default:
+                    gradientColors = 'linear-gradient(135deg, #00BFA5, #00CFBB)';
+            }
+
+            // Створюємо елемент сповіщення
+            const notification = document.createElement('div');
+            notification.className = `winix-notification winix-notification-${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                max-width: 80%;
+                padding: 12px 20px;
+                border-radius: 10px;
+                font-weight: 500;
+                font-size: 16px;
+                z-index: 9999;
+                opacity: 0;
+                transform: translateY(-20px);
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                color: white;
+                background: ${gradientColors};
+            `;
+
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            // Запускаємо анімацію показу
+            setTimeout(() => {
+                notification.style.opacity = '1';
+                notification.style.transform = 'translateY(0)';
+            }, 10);
+
+            // Автоматично приховуємо через 3 секунди
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateY(-20px)';
+
+                // Видаляємо елемент після анімації
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        document.body.removeChild(notification);
+                    }
+
+                    // Викликаємо callback після закриття
+                    if (typeof callback === 'function') {
+                        callback();
+                    }
+                }, 300);
+            }, 3000);
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка відображення сповіщення', e);
+
+            // Запасний варіант - звичайний alert
+            alert(message);
+            if (typeof callback === 'function') {
+                setTimeout(callback, 100);
+            }
+
+            return false;
+        }
+    },
+
+    /**
+     * Показує модальне вікно підтвердження в стилі WINIX
+     */
+    showConfirmation: function(message, onConfirm, onCancel) {
+        try {
+            // Створюємо затемнений фон
+            const overlay = document.createElement('div');
+            overlay.className = 'winix-modal-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9998;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+
+            // Створюємо модальне вікно
+            const modal = document.createElement('div');
+            modal.className = 'winix-modal';
+            modal.style.cssText = `
+                background: linear-gradient(135deg, #2B3144, #1A1F2F);
+                border-radius: 15px;
+                padding: 25px;
+                width: 85%;
+                max-width: 350px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+                transform: scale(0.9);
+                transition: transform 0.3s ease;
+                color: white;
+            `;
+
+            // Створюємо повідомлення
+            const modalMessage = document.createElement('div');
+            modalMessage.textContent = message;
+            modalMessage.style.cssText = `
+                margin: 0 0 20px 0;
+                font-size: 16px;
+                text-align: center;
+                line-height: 1.4;
+                color: #ffffff;
+            `;
+
+            // Створюємо кнопки
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                gap: 15px;
+            `;
+
+            const cancelButton = document.createElement('button');
+            cancelButton.textContent = 'Скасувати';
+            cancelButton.style.cssText = `
+                flex: 1;
+                padding: 14px;
+                border: none;
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+                font-size: 15px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: background 0.3s;
+            `;
+
+            const confirmButton = document.createElement('button');
+            confirmButton.textContent = 'Підтвердити';
+            confirmButton.style.cssText = `
+                flex: 1;
+                padding: 14px;
+                border: none;
+                border-radius: 10px;
+                background: linear-gradient(135deg, #00BFA5, #00CFBB);
+                color: white;
+                font-size: 15px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: opacity 0.3s;
+            `;
+
+            // Функція для закриття модального вікна
+            function closeModal() {
+                overlay.style.opacity = '0';
+                modal.style.transform = 'scale(0.9)';
+
+                setTimeout(() => {
+                    if (overlay.parentNode) {
+                        document.body.removeChild(overlay);
+                    }
+                }, 300);
+            }
+
+            // Додаємо обробники подій
+            cancelButton.addEventListener('click', () => {
+                closeModal();
+                if (typeof onCancel === 'function') {
+                    onCancel();
+                }
+            });
+
+            confirmButton.addEventListener('click', () => {
+                closeModal();
+                if (typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            });
+
+            // Створюємо та підключаємо елементи
+            buttonsContainer.appendChild(cancelButton);
+            buttonsContainer.appendChild(confirmButton);
+
+            modal.appendChild(modalMessage);
+            modal.appendChild(buttonsContainer);
+            overlay.appendChild(modal);
+
+            // Додаємо до DOM і запускаємо анімацію
+            document.body.appendChild(overlay);
+
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                modal.style.transform = 'scale(1)';
+            }, 10);
+
+            return true;
+        } catch (e) {
+            log('error', 'Помилка відображення вікна підтвердження', e);
+
+            // Запасний варіант - звичайний confirm
+            if (confirm(message)) {
+                if (typeof onConfirm === 'function') {
+                    onConfirm();
+                }
+            } else {
+                if (typeof onCancel === 'function') {
+                    onCancel();
+                }
+            }
+
+            return false;
+        }
+    }
+};
 
     // --------------- ПУБЛІЧНИЙ API ---------------
 
