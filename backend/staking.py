@@ -5,6 +5,7 @@ import uuid
 import time
 from datetime import datetime, timedelta
 import json
+import math
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -26,6 +27,60 @@ MIN_STAKING_AMOUNT = 50  # Мінімальна сума стейкінгу
 MAX_STAKING_PERCENTAGE = 0.9  # Максимально дозволений відсоток балансу для стейкінгу
 
 
+def validate_staking_amount(telegram_id, amount):
+    """
+    Валідація суми стейкінгу з усіма необхідними перевірками
+
+    Args:
+        telegram_id (str): ID користувача в Telegram
+        amount (float): Сума для стейкінгу
+
+    Returns:
+        dict: Результат валідації {success: bool, message: str}
+    """
+    try:
+        # Перевіряємо тип даних
+        try:
+            amount = float(amount)
+        except (ValueError, TypeError):
+            return {'success': False, 'message': 'Некоректна сума стейкінгу'}
+
+        # Перевірка на позитивне число
+        if amount <= 0:
+            return {'success': False, 'message': 'Сума стейкінгу має бути більше нуля'}
+
+        # Перевірка на ціле число
+        if amount != int(amount):
+            return {'success': False, 'message': 'Сума стейкінгу має бути цілим числом'}
+
+        # Отримуємо користувача для перевірки балансу
+        user = get_user(telegram_id)
+        if not user:
+            return {'success': False, 'message': 'Користувача не знайдено'}
+
+        # Отримуємо поточний баланс
+        current_balance = float(user.get('balance', 0))
+
+        # Перевірка на мінімальну суму
+        if amount < MIN_STAKING_AMOUNT:
+            return {'success': False, 'message': f'Мінімальна сума стейкінгу: {MIN_STAKING_AMOUNT} WINIX'}
+
+        # Перевірка на максимально дозволений відсоток від балансу
+        max_allowed_amount = current_balance * MAX_STAKING_PERCENTAGE
+        if amount > max_allowed_amount:
+            return {'success': False,
+                    'message': f'Максимальна сума: {int(max_allowed_amount)} WINIX ({int(MAX_STAKING_PERCENTAGE * 100)}% від балансу)'}
+
+        # Перевірка на достатність коштів
+        if amount > current_balance:
+            return {'success': False, 'message': f'Недостатньо коштів. Ваш баланс: {current_balance} WINIX'}
+
+        return {'success': True, 'message': ''}
+    except Exception as e:
+        logger.error(f"validate_staking_amount: Помилка валідації суми стейкінгу: {str(e)}")
+        return {'success': False, 'message': 'Помилка валідації суми стейкінгу'}
+
+
 def calculate_staking_reward(amount, period):
     """Розрахунок очікуваної винагороди за стейкінг"""
     try:
@@ -35,6 +90,10 @@ def calculate_staking_reward(amount, period):
 
         if amount <= 0 or period <= 0:
             return 0
+
+        # Перевірка, що сума є цілим числом
+        if amount != int(amount):
+            raise ValueError("Сума стейкінгу має бути цілим числом")
 
         # Визначаємо відсоток на основі періоду
         reward_percent = STAKING_REWARD_RATES.get(period, 9)  # За замовчуванням 9%
@@ -58,6 +117,10 @@ def calculate_staking_reward_api(telegram_id):
         if amount is None or period is None:
             return jsonify({"status": "error", "message": "Відсутні параметри amount або period"}), 400
 
+        # Перевірка, що сума є цілим числом
+        if amount != int(amount):
+            return jsonify({"status": "error", "message": "Сума стейкінгу має бути цілим числом"}), 400
+
         if amount <= 0:
             return jsonify({"status": "error", "message": "Сума стейкінгу повинна бути більше 0"}), 400
 
@@ -76,7 +139,7 @@ def calculate_staking_reward_api(telegram_id):
             "data": {
                 "reward": reward,
                 "rewardPercent": reward_percent,
-                "amount": amount,
+                "amount": int(amount),
                 "period": period
             }
         })
@@ -175,12 +238,35 @@ def get_user_staking(telegram_id):
 def create_user_staking(telegram_id, data):
     """Створення стейкінгу користувача"""
     try:
-
         if not data:
             return jsonify({"status": "error", "message": "Відсутні дані стейкінгу"}), 400
 
         # Логуємо отримані дані для діагностики
         logger.info(f"create_user_staking: Отримані дані: {data}")
+
+        # Перевіряємо мінімальні необхідні поля
+        if "stakingAmount" not in data or "period" not in data:
+            return jsonify({"status": "error", "message": "Відсутні обов'язкові поля: stakingAmount та period"}), 400
+
+        # Сума стейкінгу як ціле число
+        try:
+            staking_amount = float(data.get("stakingAmount", 0))
+            # Перевірка, що сума є цілим числом
+            if staking_amount != int(staking_amount):
+                return jsonify({"status": "error", "message": "Сума стейкінгу має бути цілим числом"}), 400
+            # Конвертуємо до цілого числа
+            staking_amount = int(staking_amount)
+        except (ValueError, TypeError):
+            return jsonify({"status": "error", "message": "Некоректна сума стейкінгу"}), 400
+
+        # Період стейкінгу
+        try:
+            period = int(data.get("period", 14))
+            if period not in STAKING_REWARD_RATES:
+                return jsonify({"status": "error",
+                                "message": f"Некоректний період стейкінгу. Доступні періоди: {', '.join(map(str, STAKING_REWARD_RATES.keys()))}"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"status": "error", "message": "Некоректний період стейкінгу"}), 400
 
         # Отримуємо поточний баланс користувача для перевірки
         user = get_user(telegram_id)
@@ -193,36 +279,13 @@ def create_user_staking(telegram_id, data):
         if current_staking and current_staking.get("hasActiveStaking") == True:
             return jsonify({"status": "error", "message": "У вас вже є активний стейкінг"}), 400
 
-        # Перевіряємо мінімальні необхідні поля
-        if "stakingAmount" not in data or "period" not in data:
-            return jsonify({"status": "error", "message": "Відсутні обов'язкові поля: stakingAmount та period"}), 400
+        # Валідація суми стейкінгу
+        validation_result = validate_staking_amount(telegram_id, staking_amount)
+        if not validation_result['success']:
+            return jsonify({"status": "error", "message": validation_result['message']}), 400
 
-        # Перевіряємо достатність коштів
+        # Отримуємо поточний баланс
         current_balance = float(user.get("balance", 0))
-        staking_amount = float(data.get("stakingAmount", 0))
-
-        # Перевіряємо мінімальну суму стейкінгу
-        if staking_amount < MIN_STAKING_AMOUNT:
-            return jsonify(
-                {"status": "error", "message": f"Мінімальна сума стейкінгу: {MIN_STAKING_AMOUNT} WINIX"}), 400
-
-        # Перевіряємо максимальну суму стейкінгу відносно балансу
-        max_allowed_amount = current_balance * MAX_STAKING_PERCENTAGE
-        if staking_amount > max_allowed_amount:
-            return jsonify({"status": "error",
-                            "message": f"Максимальна сума стейкінгу: {max_allowed_amount:.2f} WINIX ({int(MAX_STAKING_PERCENTAGE * 100)}% від балансу)"}), 400
-
-        if staking_amount <= 0:
-            return jsonify({"status": "error", "message": "Сума стейкінгу повинна бути більше 0"}), 400
-
-        if current_balance < staking_amount:
-            return jsonify({"status": "error", "message": "Недостатньо коштів для стейкінгу"}), 400
-
-        # Перевіряємо валідність періоду
-        period = int(data.get("period", 14))
-        if period not in STAKING_REWARD_RATES:
-            return jsonify({"status": "error",
-                            "message": f"Некоректний період стейкінгу. Доступні періоди: {', '.join(map(str, STAKING_REWARD_RATES.keys()))}"}), 400
 
         # Визначаємо відсоток відповідно до періоду
         reward_percent = STAKING_REWARD_RATES[period]
@@ -238,6 +301,7 @@ def create_user_staking(telegram_id, data):
         data["hasActiveStaking"] = True
         data["status"] = "active"
         data["creationTimestamp"] = int(time.time() * 1000)
+        data["stakingAmount"] = staking_amount
 
         # Якщо це новий стейкінг, генеруємо унікальний ID
         if "stakingId" not in data:
@@ -326,6 +390,22 @@ def update_user_staking(telegram_id, staking_id, data):
         logger.info(f"update_user_staking: Початок транзакції для користувача {telegram_id}, стейкінгу {staking_id}")
         logger.info(f"update_user_staking: Отримані дані: {json.dumps(data, ensure_ascii=False)}")
 
+        # Обробляємо додаткову суму - ВАЖЛИВО ПЕРЕТВОРИТИ У FLOAT
+        try:
+            additional_amount = float(data.get("additionalAmount", 0))
+            # Перевірка, що сума є цілим числом
+            if additional_amount != int(additional_amount):
+                return jsonify({"status": "error", "message": "Сума додавання має бути цілим числом"}), 400
+            # Конвертуємо до цілого числа
+            additional_amount = int(additional_amount)
+
+            if additional_amount <= 0:
+                logger.warning(f"update_user_staking: Додаткова сума повинна бути більше 0: {additional_amount}")
+                return jsonify({"status": "error", "message": "Сума додавання має бути більше 0"}), 400
+        except (ValueError, TypeError):
+            logger.error(f"update_user_staking: Неправильний формат additionalAmount: {data.get('additionalAmount')}")
+            return jsonify({"status": "error", "message": "Неправильний формат суми"}), 400
+
         # Отримуємо дані користувача
         user = get_user(telegram_id)
         if not user:
@@ -361,35 +441,10 @@ def update_user_staking(telegram_id, staking_id, data):
                 f"update_user_staking: Невідповідність ID стейкінгу: {staking_id} != {staking_data.get('stakingId')}")
             return jsonify({"status": "error", "message": "Вказаний ID стейкінгу не відповідає активному"}), 400
 
-        # Обробляємо додаткову суму - ВАЖЛИВО ПЕРЕТВОРИТИ У FLOAT
-        try:
-            additional_amount = float(data.get("additionalAmount", 0))
-            if additional_amount <= 0:
-                logger.warning(f"update_user_staking: Додаткова сума повинна бути більше 0: {additional_amount}")
-                return jsonify({"status": "error", "message": "Сума додавання має бути більше 0"}), 400
-        except (ValueError, TypeError):
-            logger.error(f"update_user_staking: Неправильний формат additionalAmount: {data.get('additionalAmount')}")
-            return jsonify({"status": "error", "message": "Неправильний формат суми"}), 400
-
-        # Перевіряємо достатність коштів
-        if current_balance < additional_amount:
-            logger.warning(f"update_user_staking: Недостатньо коштів: {current_balance} < {additional_amount}")
-            return jsonify({"status": "error", "message": "Недостатньо коштів для додавання до стейкінгу"}), 400
-
-        # Перевіряємо мінімальну суму додавання
-        if additional_amount < MIN_STAKING_AMOUNT:
-            logger.warning(
-                f"update_user_staking: Додаткова сума менша за мінімальну: {additional_amount} < {MIN_STAKING_AMOUNT}")
-            return jsonify(
-                {"status": "error", "message": f"Мінімальна сума додавання: {MIN_STAKING_AMOUNT} WINIX"}), 400
-
-        # Перевіряємо максимальну суму додавання відносно балансу
-        max_allowed_amount = current_balance * MAX_STAKING_PERCENTAGE
-        if additional_amount > max_allowed_amount:
-            logger.warning(
-                f"update_user_staking: Додаткова сума перевищує максимально дозволену: {additional_amount} > {max_allowed_amount}")
-            return jsonify({"status": "error",
-                            "message": f"Максимальна сума додавання: {max_allowed_amount:.2f} WINIX ({int(MAX_STAKING_PERCENTAGE * 100)}% від балансу)"}), 400
+        # Валідація суми додавання
+        validation_result = validate_staking_amount(telegram_id, additional_amount)
+        if not validation_result['success']:
+            return jsonify({"status": "error", "message": validation_result['message']}), 400
 
         # Обробка даних стейкінгу з кількома спробами
         max_attempts = 3
@@ -428,7 +483,7 @@ def update_user_staking(telegram_id, staking_id, data):
                     "stakingId": staking_id,
                     "hasActiveStaking": True,
                     "status": "active",
-                    "stakingAmount": new_staking_amount,
+                    "stakingAmount": int(new_staking_amount),  # Переконуємось, що сума ціла
                     "period": int(staking_data.get("period", 14)),
                     "startDate": staking_data.get("startDate"),
                     "endDate": staking_data.get("endDate"),

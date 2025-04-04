@@ -1,11 +1,11 @@
 /**
  * staking-buttons.js
- * Оптимізована система для керування кнопками стейкінгу у WINIX.
+ * Спрощена версія системи керування кнопками стейкінгу у WINIX.
  * Вся бізнес-логіка виконується на сервері, фронтенд лише відправляє запити.
  */
 
 (function() {
-    console.log("🔒 Запуск оптимізованої системи керування кнопками стейкінгу");
+    console.log("🔒 Запуск спрощеної системи керування кнопками стейкінгу");
 
     // Запобігаємо повторній ініціалізації
     if (window.WinixStakingButtonsFixed) {
@@ -63,7 +63,7 @@
         input.className = 'modal-input';
         input.type = 'number';
         input.min = '0';
-        input.step = 'any';
+        input.step = '1'; // Тільки цілі числа
         input.placeholder = inputPlaceholder;
         input.value = '0';
 
@@ -93,7 +93,7 @@
         });
 
         confirmButton.addEventListener('click', function() {
-            const amount = parseFloat(input.value);
+            const amount = parseInt(input.value, 10);
             if (isNaN(amount) || amount <= 0) {
                 input.classList.add('error');
                 setTimeout(() => input.classList.remove('error'), 500);
@@ -155,56 +155,6 @@
                 resolve();
             });
         });
-    }
-
-    /**
-     * Функція для валідації суми стейкінгу
-     * @param {number} amount - Сума для валідації
-     * @param {number} balance - Поточний баланс користувача
-     * @returns {Object} Результат валідації {isValid, message}
-     */
-    function validateStakingAmount(amount, balance) {
-        // Константи для валідації (синхронізовані з бекендом)
-        const MIN_STAKING_AMOUNT = 50;
-        const MAX_STAKING_PERCENTAGE = 0.9;
-
-        // Перевірка на число
-        if (isNaN(amount) || amount <= 0) {
-            return {
-                isValid: false,
-                message: "Введіть коректну суму більше нуля"
-            };
-        }
-
-        // Перевірка на мінімальну суму
-        if (amount < MIN_STAKING_AMOUNT) {
-            return {
-                isValid: false,
-                message: `Мінімальна сума стейкінгу: ${MIN_STAKING_AMOUNT} WINIX`
-            };
-        }
-
-        // Перевірка на максимальну суму відносно балансу
-        const maxAllowedAmount = balance * MAX_STAKING_PERCENTAGE;
-        if (amount > maxAllowedAmount) {
-            return {
-                isValid: false,
-                message: `Максимальна сума: ${maxAllowedAmount.toFixed(2)} WINIX (${MAX_STAKING_PERCENTAGE*100}% від балансу)`
-            };
-        }
-
-        // Перевірка на достатність балансу
-        if (amount > balance) {
-            return {
-                isValid: false,
-                message: `Недостатньо коштів. Ваш баланс: ${balance.toFixed(2)} WINIX`
-            };
-        }
-
-        return {
-            isValid: true,
-            message: ""
-        };
     }
 
     /**
@@ -302,7 +252,7 @@
                         fetch(`/api/user/${userId}/staking/${stakingData.stakingId}/cancel`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(stakingData) // Важливо! Тепер надсилаємо повні дані стейкінгу!
+                            body: JSON.stringify({}) // Відправляємо порожні дані, бізнес-логіка на бекенді
                         })
                         .then(response => {
                             // Приховуємо індикатор завантаження
@@ -399,10 +349,8 @@
         }
     }
 
-
     /**
-     * Обробник для кнопки додавання до стейкінгу з покращеною логікою
-     * для гарантії узгодженості даних між фронтендом і бекендом
+     * Обробник для кнопки додавання до стейкінгу без власної логіки валідації
      */
     function handleAddToStakeButton() {
         // Запобігаємо паралельним діям
@@ -415,22 +363,16 @@
         console.log("💼 Підготовка до додавання токенів до стейкінгу");
 
         try {
-            // Отримуємо поточний баланс
+            // Отримуємо ID користувача
             const userId = getUserId();
-            const balance = parseFloat(localStorage.getItem('userTokens') || '0');
+            if (!userId) {
+                simpleAlert("Не вдалося визначити ID користувача", true);
+                isProcessingStakingAction = false;
+                return;
+            }
 
+            // Показуємо модальне вікно для введення суми
             createInputModal('Введіть суму для додавання до стейкінгу:', async function(amount) {
-                // Валідація введеної суми
-                const additionalAmount = parseFloat(amount);
-
-                // Поглиблена валідація
-                const validation = validateStakingAmount(additionalAmount, balance);
-                if (!validation.isValid) {
-                    simpleAlert(validation.message, true);
-                    isProcessingStakingAction = false;
-                    return;
-                }
-
                 // Підготовка UI
                 const spinner = document.getElementById('loading-spinner');
                 const buttons = document.querySelectorAll('button');
@@ -449,22 +391,12 @@
                         throw new Error("Немає активного стейкінгу");
                     }
 
-                    // Перевірка балансу
-                    const balanceResponse = await fetch(`/api/user/${userId}/balance`);
-                    const balanceData = await balanceResponse.json();
-
-                    if (!balanceResponse.ok || balanceData.status !== 'success' ||
-                        !balanceData.data || balanceData.data.balance < additionalAmount) {
-                        throw new Error(`Недостатньо коштів. Ваш баланс: ${balanceData.data?.balance.toFixed(2) || 0} WINIX`);
-                    }
-
-                    // Додавання до стейкінгу
+                    // Додавання до стейкінгу (всю валідацію і розрахунки робить сервер)
                     const addStakeResponse = await fetch(`/api/user/${userId}/staking/${stakingData.data.stakingId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            additionalAmount: additionalAmount,
-                            currentStakingAmount: stakingData.data.stakingAmount
+                            additionalAmount: amount  // Просто передаємо суму, всю логіку виконує бекенд
                         })
                     });
 
@@ -497,7 +429,7 @@
                     }
 
                     // Успішне сповіщення
-                    simpleAlert(`Додано ${additionalAmount.toFixed(2)} $WINIX до стейкінгу`, false);
+                    simpleAlert(`Додано ${amount} $WINIX до стейкінгу`, false);
 
                     // Додаткова перевірка через деякий час
                     setTimeout(async () => {
@@ -715,7 +647,7 @@
     }
 
     /**
-     * Обробник для кнопки "Застейкати"
+     * Обробник для кнопки "Застейкати" - всі перевірки та розрахунки на бекенді
      */
     function handleStakeButton() {
         // Запобігаємо повторному відкриттю
@@ -738,24 +670,9 @@
                 return;
             }
 
-            // Валідація суми
-            const amount = parseFloat(amountInput.value);
-            const balance = parseFloat(localStorage.getItem('userTokens') || '0');
-
-            // Валідація суми
-            const validation = validateStakingAmount(amount, balance);
-            if (!validation.isValid) {
-                simpleAlert(validation.message, true);
-                isProcessingStakingAction = false;
-                return;
-            }
-
-            const period = parseInt(periodSelect.value);
-            if (isNaN(period) || ![7, 14, 28].includes(period)) {
-                simpleAlert("Виберіть коректний період стейкінгу", true);
-                isProcessingStakingAction = false;
-                return;
-            }
+            // Отримуємо значення без власної валідації
+            const amount = parseInt(amountInput.value, 10);
+            const period = parseInt(periodSelect.value, 10);
 
             // Блокуємо кнопку
             const stakeButton = document.getElementById('stake-button');
@@ -770,7 +687,7 @@
                 return;
             }
 
-            // Відправляємо запит на створення стейкінгу
+            // Відправляємо запит на створення стейкінгу (всю валідацію робить сервер)
             fetch(`/api/user/${userId}/staking`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -791,7 +708,13 @@
                         localStorage.setItem('winix_staking', JSON.stringify(result.data.staking));
                     }
 
-                    // Оновлюємо баланс і відображення
+                    // Оновлюємо баланс
+                    if (result.data && result.data.balance !== undefined) {
+                        localStorage.setItem('userTokens', result.data.balance.toString());
+                        localStorage.setItem('winix_balance', result.data.balance.toString());
+                    }
+
+                    // Оновлюємо відображення
                     if (window.WinixCore && window.WinixCore.UI) {
                         window.WinixCore.UI.updateBalanceDisplay();
                         window.WinixCore.UI.updateStakingDisplay();
@@ -865,11 +788,84 @@
         }
     }
 
+    /**
+     * Функція для розрахунку очікуваної винагороди від сервера
+     */
+    function updateExpectedReward() {
+        try {
+            const amountInput = document.getElementById('staking-amount');
+            const periodSelect = document.getElementById('staking-period');
+            const rewardDisplay = document.getElementById('expected-reward');
+
+            if (!amountInput || !periodSelect || !rewardDisplay) return;
+
+            const amount = parseInt(amountInput.value, 10) || 0;
+            const period = parseInt(periodSelect.value, 10) || 14;
+
+            if (amount <= 0) {
+                rewardDisplay.textContent = '0.00';
+                return;
+            }
+
+            // Отримуємо ID користувача
+            const userId = getUserId();
+            if (!userId) {
+                console.error("Не вдалося визначити ID користувача для розрахунку винагороди");
+                return;
+            }
+
+            // Запитуємо розрахунок від сервера
+            fetch(`/api/user/${userId}/staking/calculate-reward?amount=${amount}&period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.data) {
+                        rewardDisplay.textContent = data.data.reward.toFixed(2);
+                    } else {
+                        rewardDisplay.textContent = '0.00';
+                    }
+                })
+                .catch(error => {
+                    console.error("Помилка при отриманні розрахунку винагороди:", error);
+                    rewardDisplay.textContent = '0.00';
+                });
+        } catch (error) {
+            console.error("Помилка при розрахунку очікуваної винагороди:", error);
+        }
+    }
+
+    /**
+     * Функція для налаштування поля введення суми та розрахунку винагороди
+     */
+    function setupStakingAmountInput() {
+        const amountInput = document.getElementById('staking-amount');
+        const periodSelect = document.getElementById('staking-period');
+
+        if (amountInput) {
+            // Дозволяємо тільки цілі числа
+            amountInput.addEventListener('input', function() {
+                // Заміна всіх нецифрових символів
+                this.value = this.value.replace(/[^0-9]/g, '');
+                // Оновлення розрахунку винагороди
+                updateExpectedReward();
+            });
+        }
+
+        if (periodSelect) {
+            periodSelect.addEventListener('change', updateExpectedReward);
+        }
+
+        // Початковий розрахунок
+        updateExpectedReward();
+    }
+
     // Додаємо функцію глобального доступу до модалок
     window.createInputModal = createInputModal;
 
     // Додаємо функцію глобального доступу до сповіщень
     window.simpleAlert = simpleAlert;
+
+    // Налаштовуємо поле введення суми при завантаженні
+    document.addEventListener('DOMContentLoaded', setupStakingAmountInput);
 
     // Встановлюємо обробники для всіх кнопок стейкінгу
     setupCleanButton('add-to-stake-button', handleAddToStakeButton);
@@ -882,16 +878,9 @@
         setupAddButton: function() { setupCleanButton('add-to-stake-button', handleAddToStakeButton); },
         setupCancelButton: function() { setupCleanButton('cancel-staking-button', handleCancelStakingButton); },
         setupStakeButton: function() { setupCleanButton('stake-button', handleStakeButton); },
-        setupDetailsButton: function() { setupCleanButton('details-button', handleDetailsButton); }
+        setupDetailsButton: function() { setupCleanButton('details-button', handleDetailsButton); },
+        updateExpectedReward: updateExpectedReward
     };
-
-    // Перевірка, що сума є цілим числом
-if (amount !== Math.floor(amount)) {
-    return {
-        isValid: false,
-        message: "Сума стейкінгу має бути цілим числом"
-    };
-}
 
     console.log("✅ Систему керування кнопками стейкінгу успішно ініціалізовано");
 })();
