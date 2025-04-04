@@ -7,6 +7,7 @@ import uuid
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+from supabase_client import get_user, update_user
 
 # Імпортуємо модулі проєкту
 from supabase_client import supabase, test_supabase_connection
@@ -672,6 +673,91 @@ def api_check_sufficient_funds(telegram_id):
     """Перевірка достатності коштів для транзакції"""
     return check_sufficient_funds(telegram_id, request.json)
 
+
+# API-маршрут для відновлення стейкінгу
+@app.route('/api/user/<telegram_id>/staking/repair', methods=['POST'])
+def api_repair_user_staking(telegram_id):
+    """Відновлення стану стейкінгу після помилок"""
+    try:
+        # Перевірка даних запиту
+        data = request.json or {}
+        force = data.get('force', False)
+
+        # Виклик функції відновлення
+        from staking import reset_and_repair_staking
+        return reset_and_repair_staking(telegram_id, force)
+    except Exception as e:
+        logger.error(f"api_repair_user_staking: Помилка: {str(e)}")
+        return jsonify({"status": "error", "message": "Помилка відновлення стейкінгу"}), 500
+
+
+# Додатковий маршрут для більш глибокого відновлення
+@app.route('/api/user/<telegram_id>/staking/deep-repair', methods=['POST'])
+def api_deep_repair_user_staking(telegram_id):
+    """Глибоке відновлення стану стейкінгу з перевіркою цілісності даних"""
+    try:
+        # Перевірка даних запиту
+        data = request.json or {}
+
+        # Отримуємо користувача
+        user = get_user(telegram_id)
+        if not user:
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Створюємо пустий об'єкт стейкінгу
+        empty_staking = {
+            "hasActiveStaking": False,
+            "status": "cancelled",
+            "stakingAmount": 0,
+            "period": 0,
+            "rewardPercent": 0,
+            "expectedReward": 0,
+            "remainingDays": 0
+        }
+
+        # Оновлюємо одночасно баланс і всі дані стейкінгу
+        balance_adjustment = data.get('balance_adjustment', 0)
+        current_balance = float(user.get("balance", 0))
+        new_balance = current_balance + float(balance_adjustment)
+
+        # Оновлюємо дані користувача
+        result = update_user(telegram_id, {
+            "balance": new_balance,
+            "staking_data": empty_staking,
+            "staking_history": []  # Повне скидання історії
+        })
+
+        if not result:
+            return jsonify({"status": "error", "message": "Помилка глибокого відновлення"}), 500
+
+        # Додаємо інформативну транзакцію
+        if balance_adjustment != 0:
+            try:
+                transaction = {
+                    "telegram_id": telegram_id,
+                    "type": "system",
+                    "amount": balance_adjustment,
+                    "description": f"Системне коригування балансу при глибокому відновленні",
+                    "status": "completed"
+                }
+
+                supabase.table("transactions").insert(transaction).execute()
+            except Exception as e:
+                logger.error(f"api_deep_repair_user_staking: Помилка при створенні транзакції: {str(e)}")
+
+        return jsonify({
+            "status": "success",
+            "message": "Глибоке відновлення стейкінгу успішно завершено",
+            "data": {
+                "previous_balance": current_balance,
+                "new_balance": new_balance,
+                "adjustment": balance_adjustment
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"api_deep_repair_user_staking: Помилка: {str(e)}")
+        return jsonify({"status": "error", "message": "Помилка глибокого відновлення"}), 500
 
 # Запуск застосунку
 if __name__ == '__main__':
