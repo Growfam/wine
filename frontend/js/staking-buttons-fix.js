@@ -791,47 +791,69 @@
     /**
      * Функція для розрахунку очікуваної винагороди від сервера
      */
-    function updateExpectedReward() {
-        try {
-            const amountInput = document.getElementById('staking-amount');
-            const periodSelect = document.getElementById('staking-period');
-            const rewardDisplay = document.getElementById('expected-reward');
+    // Покращений frontend код для розрахунку винагороди
+function updateExpectedReward() {
+    // Отримуємо значення як числа
+    const amountInput = document.getElementById('staking-amount');
+    const periodSelect = document.getElementById('staking-period');
+    const rewardDisplay = document.getElementById('expected-reward');
 
-            if (!amountInput || !periodSelect || !rewardDisplay) return;
+    if (!amountInput || !periodSelect || !rewardDisplay) return;
 
-            const amount = parseInt(amountInput.value, 10) || 0;
-            const period = parseInt(periodSelect.value, 10) || 14;
+    // Перетворюємо на ціле число, використовуючи parseInt з основою 10
+    const amount = parseInt(amountInput.value, 10) || 0;
+    const period = parseInt(periodSelect.value, 10) || 14;
 
-            if (amount <= 0) {
-                rewardDisplay.textContent = '0.00';
-                return;
-            }
-
-            // Отримуємо ID користувача
-            const userId = getUserId();
-            if (!userId) {
-                console.error("Не вдалося визначити ID користувача для розрахунку винагороди");
-                return;
-            }
-
-            // Запитуємо розрахунок від сервера
-            fetch(`/api/user/${userId}/staking/calculate-reward?amount=${amount}&period=${period}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success' && data.data) {
-                        rewardDisplay.textContent = data.data.reward.toFixed(2);
-                    } else {
-                        rewardDisplay.textContent = '0.00';
-                    }
-                })
-                .catch(error => {
-                    console.error("Помилка при отриманні розрахунку винагороди:", error);
-                    rewardDisplay.textContent = '0.00';
-                });
-        } catch (error) {
-            console.error("Помилка при розрахунку очікуваної винагороди:", error);
-        }
+    if (amount <= 0) {
+        rewardDisplay.textContent = '0.00';
+        return;
     }
+
+    // Отримуємо ID користувача
+    const userId = document.getElementById('user-id').textContent;
+
+    // Використовуємо API для точного розрахунку
+    fetch(`/api/user/${userId}/staking/calculate-reward?amount=${amount}&period=${period}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Помилка отримання даних з сервера');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success' && data.data) {
+                // Виводимо з фіксованою точністю
+                rewardDisplay.textContent = parseFloat(data.data.reward).toFixed(2);
+            } else {
+                // Якщо помилка API, використовуємо власний розрахунок
+                let rewardPercent;
+                switch(period) {
+                    case 7: rewardPercent = 4; break;
+                    case 14: rewardPercent = 9; break;
+                    case 28: rewardPercent = 15; break;
+                    default: rewardPercent = 9;
+                }
+
+                const reward = amount * (rewardPercent / 100);
+                rewardDisplay.textContent = reward.toFixed(2);
+            }
+        })
+        .catch(error => {
+            console.error('Помилка розрахунку винагороди:', error);
+
+            // Резервний розрахунок
+            let rewardPercent;
+            switch(period) {
+                case 7: rewardPercent = 4; break;
+                case 14: rewardPercent = 9; break;
+                case 28: rewardPercent = 15; break;
+                default: rewardPercent = 9;
+            }
+
+            const reward = amount * (rewardPercent / 100);
+            rewardDisplay.textContent = reward.toFixed(2);
+        });
+}
 
     /**
      * Функція для налаштування поля введення суми та розрахунку винагороди
