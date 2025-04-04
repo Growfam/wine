@@ -311,58 +311,327 @@
     // --------------- ОСНОВНА СИСТЕМА ---------------
 
     /**
-     * Менеджер балансу - спрощений, всі розрахунки на бекенді
+ * Менеджер балансу - спрощений, всі розрахунки на бекенді
+ */
+const BalanceManager = {
+    /**
+     * Отримання балансу WINIX
      */
-    const BalanceManager = {
-        /**
-         * Отримання балансу WINIX
-         */
-        getTokens: function() {
-            const balance = parseFloat(safeGetItem(STORAGE_KEYS.USER_TOKENS, '0'));
-            return isNaN(balance) ? 0 : balance;
-        },
+    getTokens: function() {
+        const balance = parseFloat(safeGetItem(STORAGE_KEYS.USER_TOKENS, '0'));
+        return isNaN(balance) ? 0 : balance;
+    },
 
-        /**
-         * Отримання балансу жетонів
-         */
-        getCoins: function() {
-            const coins = parseFloat(safeGetItem(STORAGE_KEYS.USER_COINS, '0'));
-            return isNaN(coins) ? 0 : coins;
-        },
+    /**
+     * Отримання балансу жетонів
+     */
+    getCoins: function() {
+        const coins = parseFloat(safeGetItem(STORAGE_KEYS.USER_COINS, '0'));
+        return isNaN(coins) ? 0 : coins;
+    },
 
-        /**
-         * Оновлення балансу з сервера
-         */
-        syncBalanceFromServer: async function() {
-            try {
-                const userId = localStorage.getItem('telegram_user_id') ||
-                              (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+    /**
+     * Оновлення балансу з сервера
+     */
+    syncBalanceFromServer: async function() {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
 
-                if (!userId) return false;
+            if (!userId) return false;
 
-                const data = await apiRequest(`/api/user/${userId}/balance`);
+            const data = await apiRequest(`/api/user/${userId}/balance`);
 
-                if (data.status === 'success' && data.data) {
-                    // Оновлюємо локальне сховище
-                    if (data.data.balance !== undefined) {
-                        safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.balance.toString());
-                    }
-
-                    if (data.data.coins !== undefined) {
-                        safeSetItem(STORAGE_KEYS.USER_COINS, data.data.coins.toString());
-                    }
-
-                    // Оновлюємо відображення
-                    UIManager.updateBalanceDisplay();
-                    return true;
+            if (data.status === 'success' && data.data) {
+                // Оновлюємо локальне сховище
+                if (data.data.balance !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.balance.toString());
                 }
-                return false;
-            } catch (error) {
-                log('error', 'Помилка синхронізації балансу', error);
+
+                if (data.data.coins !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_COINS, data.data.coins.toString());
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            log('error', 'Помилка синхронізації балансу', error);
+            return false;
+        }
+    },
+
+    /**
+     * Додавання токенів до балансу користувача через API
+     * @param {number} amount - Кількість токенів
+     * @param {string} description - Опис транзакції
+     */
+    addTokens: async function(amount, description = 'Додавання токенів') {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                log('error', 'Не знайдено ID користувача');
                 return false;
             }
+
+            const data = await apiRequest(`/api/user/${userId}/add-tokens`, 'POST', {
+                amount: amount,
+                description: description
+            });
+
+            if (data && data.status === 'success') {
+                // Оновлюємо локальний баланс
+                if (data.data && data.data.new_balance !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.new_balance.toString());
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+
+                // Відправляємо подію про зміну балансу
+                emitEvent('balanceChanged', {
+                    previous: data.data.previous_balance,
+                    current: data.data.new_balance,
+                    change: amount
+                });
+
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            log('error', 'Помилка додавання токенів', error);
+            return false;
         }
-    };
+    },
+
+    /**
+     * Віднімання токенів з балансу користувача через API
+     * @param {number} amount - Кількість токенів
+     * @param {string} description - Опис транзакції
+     */
+    subtractTokens: async function(amount, description = 'Віднімання токенів') {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                log('error', 'Не знайдено ID користувача');
+                return false;
+            }
+
+            const data = await apiRequest(`/api/user/${userId}/subtract-tokens`, 'POST', {
+                amount: amount,
+                description: description
+            });
+
+            if (data && data.status === 'success') {
+                // Оновлюємо локальний баланс
+                if (data.data && data.data.new_balance !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.new_balance.toString());
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+
+                // Відправляємо подію про зміну балансу
+                emitEvent('balanceChanged', {
+                    previous: data.data.previous_balance,
+                    current: data.data.new_balance,
+                    change: -amount
+                });
+
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            log('error', 'Помилка віднімання токенів', error);
+            return false;
+        }
+    },
+
+    /**
+     * Додавання жетонів до балансу користувача через API
+     * @param {number} amount - Кількість жетонів
+     */
+    addCoins: async function(amount) {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                log('error', 'Не знайдено ID користувача');
+                return false;
+            }
+
+            const data = await apiRequest(`/api/user/${userId}/add-coins`, 'POST', {
+                amount: amount
+            });
+
+            if (data && data.status === 'success') {
+                // Оновлюємо локальний баланс жетонів
+                if (data.data && data.data.new_coins !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_COINS, data.data.new_coins.toString());
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            log('error', 'Помилка додавання жетонів', error);
+            return false;
+        }
+    },
+
+    /**
+     * Віднімання жетонів з балансу користувача через API
+     * @param {number} amount - Кількість жетонів
+     */
+    subtractCoins: async function(amount) {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                log('error', 'Не знайдено ID користувача');
+                return false;
+            }
+
+            const data = await apiRequest(`/api/user/${userId}/subtract-coins`, 'POST', {
+                amount: amount
+            });
+
+            if (data && data.status === 'success') {
+                // Оновлюємо локальний баланс жетонів
+                if (data.data && data.data.new_coins !== undefined) {
+                    safeSetItem(STORAGE_KEYS.USER_COINS, data.data.new_coins.toString());
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            log('error', 'Помилка віднімання жетонів', error);
+            return false;
+        }
+    },
+
+    /**
+     * Конвертація жетонів у токени через API
+     * @param {number} coinsAmount - Кількість жетонів для конвертації
+     */
+    convertCoinsToTokens: async function(coinsAmount) {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                log('error', 'Не знайдено ID користувача');
+                return false;
+            }
+
+            const data = await apiRequest(`/api/user/${userId}/convert-coins`, 'POST', {
+                coins_amount: coinsAmount
+            });
+
+            if (data && data.status === 'success') {
+                // Оновлюємо локальний баланс
+                if (data.data) {
+                    if (data.data.new_tokens_balance !== undefined) {
+                        safeSetItem(STORAGE_KEYS.USER_TOKENS, data.data.new_tokens_balance.toString());
+                    }
+
+                    if (data.data.new_coins_balance !== undefined) {
+                        safeSetItem(STORAGE_KEYS.USER_COINS, data.data.new_coins_balance.toString());
+                    }
+                }
+
+                // Оновлюємо відображення
+                UIManager.updateBalanceDisplay();
+
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            log('error', 'Помилка конвертації жетонів', error);
+            return false;
+        }
+    },
+
+    /**
+     * Перевірка достатності коштів через API
+     * @param {number} amount - Сума для перевірки
+     * @param {string} type - Тип балансу ('tokens' або 'coins')
+     */
+    checkSufficientFunds: async function(amount, type = 'tokens') {
+        try {
+            // Спочатку спробуємо перевірити локально для швидкості
+            if (type === 'tokens') {
+                const balance = this.getTokens();
+                if (balance >= amount) {
+                    return {
+                        success: true,
+                        data: {
+                            has_sufficient_funds: true,
+                            current_balance: balance,
+                            required_amount: amount,
+                            source: 'local'
+                        }
+                    };
+                }
+            } else if (type === 'coins') {
+                const coins = this.getCoins();
+                if (coins >= amount) {
+                    return {
+                        success: true,
+                        data: {
+                            has_sufficient_funds: true,
+                            current_balance: coins,
+                            required_amount: amount,
+                            source: 'local'
+                        }
+                    };
+                }
+            }
+
+            // Якщо локальна перевірка не пройшла, запитуємо сервер
+            const userId = localStorage.getItem('telegram_user_id') ||
+                          (document.getElementById('user-id') ? document.getElementById('user-id').textContent : null);
+
+            if (!userId) {
+                return { success: false, message: 'Не знайдено ID користувача' };
+            }
+
+            const data = await apiRequest(`/api/user/${userId}/check-funds`, 'POST', {
+                amount: amount,
+                type: type
+            });
+
+            if (data && data.status === 'success') {
+                return { success: true, data: data.data };
+            }
+
+            return { success: false, message: 'Помилка перевірки коштів' };
+        } catch (error) {
+            log('error', 'Помилка перевірки достатності коштів', error);
+            return { success: false, message: error.message };
+        }
+    }
+};
 
     /**
      * Менеджер стейкінгу - оптимізований, використовує лише серверні API
