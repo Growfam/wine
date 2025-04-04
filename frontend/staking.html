@@ -1203,6 +1203,38 @@ if (maxButton) {
         console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
         return true;
     };
+
+    // Функція для відображення простого сповіщення, якщо вона відсутня
+if (typeof simpleAlert !== 'function') {
+    function simpleAlert(message, isError = false, callback = null) {
+        alert(message);
+        if (callback) setTimeout(callback, 100);
+        return Promise.resolve();
+    }
+}
+
+// Функція для створення модального вікна, якщо вона відсутня
+if (typeof createInputModal !== 'function') {
+    function createInputModal(title, callback) {
+        const amount = prompt(title || "Введіть суму:");
+        if (amount && !isNaN(amount) && parseInt(amount) > 0) {
+            callback(parseInt(amount));
+        }
+    }
+}
+
+// Виклик функцій при завантаженні
+document.addEventListener('DOMContentLoaded', function() {
+    initPage();
+    setupStakingAmountInput();
+
+    // Перевіряємо наявність потрібних функцій з staking-buttons-fix.js
+    if (typeof WinixStakingButtons === 'undefined') {
+        console.error("Помилка: WinixStakingButtons не знайдено");
+    } else {
+        console.log("WinixStakingButtons успішно завантажено");
+    }
+});
     </script>
 </body>
 </html>
