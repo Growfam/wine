@@ -820,6 +820,84 @@ function loadUserAvatar() {
     }
 }
 
+// Функція для автоматичного відновлення даних стейкінгу
+async function autoRepairStakingData() {
+    console.log("Запуск автоматичної перевірки даних стейкінгу");
+
+    try {
+        // Перевіряємо наявність активного стейкінгу
+        let stakingData;
+        try {
+            const storedData = localStorage.getItem('stakingData') ||
+                               localStorage.getItem('winix_staking');
+            if (storedData) {
+                stakingData = JSON.parse(storedData);
+            }
+        } catch (parseError) {
+            console.warn("Помилка парсингу даних стейкінгу:", parseError);
+            // Дані пошкоджені, очищаємо їх
+            localStorage.removeItem('stakingData');
+            localStorage.removeItem('winix_staking');
+            localStorage.removeItem('staking_data');
+            return false;
+        }
+
+        // Якщо немає даних стейкінгу або стейкінг не активний
+        if (!stakingData || !stakingData.hasActiveStaking) {
+            console.log("Немає активного стейкінгу, перенаправлення на staking.html");
+            // Тихо перенаправляємо на staking.html з затримкою
+            setTimeout(() => {
+                window.location.href = "staking.html";
+            }, 100);
+            return false;
+        }
+
+        // Якщо є функція для синхронізації стейкінгу з сервера
+        if (window.WinixStakingSystem && window.WinixStakingSystem.syncStakingFromServer) {
+            try {
+                console.log("Спроба синхронізації даних стейкінгу з сервера");
+                await window.WinixStakingSystem.syncStakingFromServer();
+                console.log("Синхронізація даних стейкінгу успішна");
+                return true;
+            } catch (syncError) {
+                console.warn("Помилка синхронізації даних стейкінгу:", syncError);
+
+                // Якщо помилка NotFoundError, спробуємо відновити стейкінг
+                if (syncError.name === 'NotFoundError' ||
+                    (syncError.message && syncError.message.includes("not be found"))) {
+                    console.log("Виявлено NotFoundError, спроба автоматичного відновлення");
+
+                    if (window.WinixStakingSystem && window.WinixStakingSystem.repairStaking) {
+                        try {
+                            const repairResult = await window.WinixStakingSystem.repairStaking(true);
+                            console.log("Результат автоматичного відновлення:", repairResult);
+                            if (repairResult.success) {
+                                // Оновлюємо вигляд після відновлення
+                                updateStakingDetails();
+                                return true;
+                            }
+                        } catch (repairError) {
+                            console.error("Помилка відновлення стейкінгу:", repairError);
+                        }
+                    }
+
+                    // Якщо відновлення не допомогло, перезавантажуємо сторінку
+                    console.log("Автоматичне відновлення не вдалося, перезавантаження сторінки");
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                    return false;
+                }
+            }
+        }
+
+        return false;
+    } catch (error) {
+        console.error("Критична помилка у функції автоматичного відновлення:", error);
+        return false;
+    }
+}
+
 // Оновлення всіх текстів на сторінці
 function updatePageTexts() {
     document.querySelectorAll('[data-lang-key]').forEach(element => {
@@ -922,17 +1000,24 @@ function updateStakingDetails() {
             // Спроба отримати дані з localStorage
             const storedData = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
             if (storedData) {
-                stakingData = JSON.parse(storedData);
+                try {
+                    stakingData = JSON.parse(storedData);
+                } catch (e) {
+                    console.error("Помилка парсингу даних стейкінгу:", e);
+                    // Запускаємо автоматичне відновлення при помилці парсингу
+                    autoRepairStakingData();
+                    return;
+                }
             }
         }
 
+        // Логуємо отримані дані для відлагодження
         console.log("Отримані дані стейкінгу:", stakingData);
 
-        // Якщо немає активного стейкінгу, перенаправляємо на сторінку стейкінгу
+        // Якщо немає активного стейкінгу, запускаємо автоматичне відновлення
         if (!stakingData || !stakingData.hasActiveStaking) {
-            console.log("Немає активного стейкінгу, перенаправлення...");
-            alert("У вас немає активного стейкінгу");
-            window.location.href = "staking.html";
+            console.log("Немає активного стейкінгу, запуск відновлення");
+            autoRepairStakingData();
             return;
         }
 
@@ -950,15 +1035,24 @@ function updateStakingDetails() {
         if (remainingDaysElement) remainingDaysElement.textContent = stakingData.remainingDays ? stakingData.remainingDays.toString() : '0';
     } catch (e) {
         console.error('Помилка оновлення деталей стейкінгу:', e);
+        // При будь-якій помилці запускаємо автоматичне відновлення
+        autoRepairStakingData();
     }
 }
 
-// Викликаємо функції після завантаження всього
-window.addEventListener('load', function() {
-    setupStakingDetailsHandlers();
-    updateStakingDetails();
-});
-
+// Захоплюємо та обробляємо всі помилки DOM, особливо NotFoundError
+const originalRemoveChild = Element.prototype.removeChild;
+Element.prototype.removeChild = function(child) {
+    try {
+        return originalRemoveChild.call(this, child);
+    } catch (e) {
+        if (e.name === 'NotFoundError' || (e.message && e.message.includes("not be found"))) {
+            console.warn("Перехоплено NotFoundError при removeChild. Елемент вже було видалено.");
+            return null;
+        }
+        throw e;
+    }
+};
 
 // Головна функція ініціалізації сторінки
 function initPage() {
@@ -994,14 +1088,26 @@ function initPage() {
 
     // Оновлюємо відображення балансу
     updateBalanceDisplay();
-}
 
-// Додаємо цей виклик у функцію initPage
-const originalInitPage = initPage;
-initPage = function() {
-    originalInitPage();
+    // Налаштовуємо обробники кнопок стейкінгу
     setupStakingDetailsHandlers();
+
+    // Оновлюємо відображення деталей стейкінгу
     updateStakingDetails();
+
+    // Запускаємо автоматичну перевірку та відновлення даних стейкінгу з затримкою
+    setTimeout(autoRepairStakingData, 500);
+
+    // Додаємо слухача помилок на window
+    window.addEventListener('error', function(event) {
+        // Якщо це NotFoundError, намагаємося автоматично відновити
+        if (event.error && (event.error.name === 'NotFoundError' ||
+            (event.error.message && event.error.message.includes("not be found")))) {
+            console.warn("Перехоплено глобальну NotFoundError:", event.error);
+            event.preventDefault(); // Запобігаємо стандартній обробці помилки
+            autoRepairStakingData();
+        }
+    });
 }
 
 // Обробник для зміни розміру вікна
@@ -1010,9 +1116,23 @@ window.addEventListener('resize', adjustLayout);
 // Запускаємо після завантаження DOM
 document.addEventListener('DOMContentLoaded', initPage);
 
-// Глобальний обробник помилок
+// Додаткова перевірка при повному завантаженні сторінки
+window.addEventListener('load', function() {
+    // Запускаємо автоматичну перевірку та відновлення даних стейкінгу
+    autoRepairStakingData();
+});
+
+// Глобальний обробник помилок з автоматичним відновленням
 window.onerror = function(message, source, lineno, colno, error) {
     console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+
+    // Якщо це помилка NotFoundError, спробуємо автоматично відновити
+    if (error && (error.name === 'NotFoundError' || message.includes("not be found"))) {
+        console.warn("Перехоплено NotFoundError в глобальному обробнику, спроба автоматичного відновлення");
+        autoRepairStakingData();
+        return true; // Запобігаємо стандартній обробці помилки
+    }
+
     return true;
 };
 </script>
