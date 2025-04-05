@@ -842,6 +842,98 @@ function updateBalanceDisplay() {
     }
 }
 
+// Додаємо обробники для кнопок та інпутів стейкінгу
+function setupStakingHandlers() {
+    // Кнопка "Застейкати"
+    const stakeButton = document.getElementById('stake-button');
+    if (stakeButton) {
+        stakeButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.handleStakeButton) {
+                window.WinixStakingSystem.handleStakeButton();
+            } else if (window.handleStakeButton) {
+                window.handleStakeButton();
+            } else {
+                console.error("Функція handleStakeButton не знайдена");
+            }
+        });
+    }
+
+    // Кнопка "Max"
+    const maxButton = document.getElementById('max-button');
+    if (maxButton) {
+        maxButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.setMaxStakingAmount) {
+                window.WinixStakingSystem.setMaxStakingAmount();
+            } else if (window.setMaxStakingAmount) {
+                window.setMaxStakingAmount();
+            }
+        });
+    }
+
+    // Кнопка "Деталі стейкінгу"
+    const detailsButton = document.getElementById('details-button');
+    if (detailsButton) {
+        detailsButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.handleDetailsButton) {
+                window.WinixStakingSystem.handleDetailsButton();
+            } else if (window.handleDetailsButton) {
+                window.handleDetailsButton();
+            } else {
+                window.location.href = "staking-details.html";
+            }
+        });
+    }
+
+    // Кнопка "Скасувати стейкінг"
+    const cancelButton = document.getElementById('cancel-staking-button');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.handleCancelStakingButton) {
+                window.WinixStakingSystem.handleCancelStakingButton();
+            } else if (window.handleCancelStakingButton) {
+                window.handleCancelStakingButton();
+            }
+        });
+    }
+
+    // Обробники для розрахунку очікуваної винагороди
+    const amountInput = document.getElementById('staking-amount');
+    const periodSelect = document.getElementById('staking-period');
+
+    if (amountInput && periodSelect) {
+        // Функція оновлення винагороди
+        const updateReward = function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.updateExpectedReward) {
+                window.WinixStakingSystem.updateExpectedReward();
+            } else if (window.updateExpectedReward) {
+                window.updateExpectedReward();
+            }
+        };
+
+        // Додаємо обробники подій
+        amountInput.addEventListener('input', updateReward);
+        periodSelect.addEventListener('change', updateReward);
+
+        // Початковий розрахунок
+        updateReward();
+    }
+}
+
+// Додаємо функцію оновлення стейкінгу
+function updateStakingStatus() {
+    if (window.WinixStakingSystem && window.WinixStakingSystem.updateStakingDisplay) {
+        window.WinixStakingSystem.updateStakingDisplay();
+    } else if (window.updateStakingDisplay) {
+        window.updateStakingDisplay();
+    }
+}
+
+// Викликаємо функції після завантаження всього
+window.addEventListener('load', function() {
+    setupStakingHandlers();
+    updateStakingStatus();
+});
+
 // Головна функція ініціалізації сторінки
 function initPage() {
     console.log("Ініціалізація сторінки стейкінгу");
@@ -876,6 +968,14 @@ function initPage() {
 
     // Налаштовуємо навігаційні кнопки
     setupNavigationButtons();
+}
+
+// Додаємо цей виклик у функцію initPage
+const originalInitPage = initPage;
+initPage = function() {
+    originalInitPage();
+    setupStakingHandlers();
+    updateStakingStatus();
 }
 
 // Обробник для зміни розміру вікна
