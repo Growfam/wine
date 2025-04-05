@@ -180,7 +180,7 @@
             const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
 
             // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
-            if (!options.hideLoader) {
+            if (options && !options.hideLoader) {
                 showLoader();
             }
 
@@ -212,7 +212,7 @@
                     const response = await fetch(url, requestOptions);
 
                     // Приховуємо індикатор завантаження
-                    if (!options.hideLoader) {
+                    if (options && !options.hideLoader) {
                         hideLoader();
                     }
 
@@ -279,7 +279,7 @@
 
                 } catch (error) {
                     // Приховуємо індикатор завантаження у випадку помилки
-                    if (!options.hideLoader) {
+                    if (options && !options.hideLoader) {
                         hideLoader();
                     }
 
