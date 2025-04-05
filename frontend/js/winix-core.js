@@ -941,6 +941,64 @@ const UIManager = {
         }
     },
 
+        // У файлі winix-core.js, додайте цю функцію до об'єкту UIManager
+updateStakingDisplay: function() {
+    try {
+        // Отримуємо дані стейкінгу
+        let stakingData;
+        if (window.WinixStakingSystem && typeof window.WinixStakingSystem.getStakingData === 'function') {
+            stakingData = window.WinixStakingSystem.getStakingData();
+        } else {
+            stakingData = safeGetItem(STORAGE_KEYS.STAKING_DATA, {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                period: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            }, true);
+        }
+
+        const hasStaking = stakingData && stakingData.hasActiveStaking;
+
+        // Визначаємо поточну сторінку
+        const currentUrl = window.location.href;
+
+        // Оновлюємо відображення стейкінгу відповідно до сторінки
+        if (currentUrl.includes('staking.html')) {
+            // Логіка для сторінки стейкінгу
+            const statusElement = document.getElementById('staking-status');
+            if (statusElement) {
+                statusElement.textContent = hasStaking
+                    ? `У стейкінгу: ${stakingData.stakingAmount} $WINIX`
+                    : "Наразі немає активних стейкінгів";
+            }
+        }
+        else if (currentUrl.includes('staking-details.html')) {
+            // Логіка для сторінки деталей стейкінгу
+            // Оновлення елементів
+        }
+        else if (currentUrl.includes('wallet.html')) {
+            // Логіка для сторінки гаманця
+            const stakingBalanceElement = document.getElementById('staking-amount');
+            const stakingRewardsElement = document.getElementById('rewards-amount');
+
+            if (stakingBalanceElement) {
+                stakingBalanceElement.textContent = hasStaking ? stakingData.stakingAmount.toString() : '0';
+            }
+
+            if (stakingRewardsElement) {
+                stakingRewardsElement.textContent = hasStaking ? stakingData.expectedReward.toString() : '0';
+            }
+        }
+
+        return true;
+    } catch (e) {
+        log('error', 'Помилка оновлення відображення стейкінгу', e);
+        return false;
+    }
+},
+
     /**
      * Показує модальне вікно підтвердження в стилі WINIX
      */

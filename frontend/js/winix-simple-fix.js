@@ -96,10 +96,10 @@
                     const userId = getUserId();
 
                     // Якщо запит містить "user/" без ID
-                    if (url.includes('/api/user/') && !url.match(/\/user\/[0-9a-zA-Z]+\//)) {
-                        // Додаємо ID користувача до URL
-                        url = url.replace('/api/user/', `/api/user/${userId}/`);
-                    }
+                    if (url.includes('/api/user/') && !url.includes(`/api/user/${userId}`)) {
+    // Додаємо ID користувача до URL тільки якщо його ще немає
+    url = url.replace('/api/user/', `/api/user/${userId}/`);
+}
 
                     // Додаємо ID в заголовки
                     if (!options.headers) options.headers = {};

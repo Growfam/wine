@@ -2072,6 +2072,36 @@ function hideProgressIndicator() {
     }
 }
 
+/**
+ * Функція для глибокого очищення та відновлення даних стейкінгу
+ */
+function resetStakingData() {
+    // Створюємо порожній об'єкт стейкінгу
+    const emptyStaking = {
+        hasActiveStaking: false,
+        status: "cancelled",
+        stakingAmount: 0,
+        period: 0,
+        rewardPercent: 0,
+        expectedReward: 0,
+        remainingDays: 0
+    };
+
+    // Зберігаємо у всі можливі сховища
+    try {
+        localStorage.setItem('stakingData', JSON.stringify(emptyStaking));
+        localStorage.setItem('winix_staking', JSON.stringify(emptyStaking));
+        sessionStorage.setItem('stakingData', JSON.stringify(emptyStaking));
+        sessionStorage.setItem('winix_staking', JSON.stringify(emptyStaking));
+
+        console.log("✅ Дані стейкінгу успішно скинуто");
+        return true;
+    } catch (e) {
+        console.error("❌ Помилка скидання даних стейкінгу:", e);
+        return false;
+    }
+}
+
     // --------------- ІНІЦІАЛІЗАЦІЯ СИСТЕМИ ---------------
 
     /**
