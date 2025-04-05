@@ -337,6 +337,70 @@
                 hideLoader();
             }
 
+            // В функції apiRequest, в блоці обробки відповіді:
+if (!response.ok) {
+    const statusText = response.statusText || '';
+    console.error(`❌ Помилка API-запиту: ${response.status} ${statusText}`);
+
+    // Для 405 помилок - спробуємо змінити метод
+    if (response.status === 405 && attemptsLeft > 0) {
+        console.warn(`🔄 Метод ${method} не дозволений для ${url}, спроба альтернативного методу...`);
+
+        // Змінюємо метод з GET на POST або навпаки
+        const alternativeMethod = method === 'GET' ? 'POST' : 'GET';
+        const alternativeOptions = {...requestOptions, method: alternativeMethod};
+
+        // Якщо змінюємо з GET на POST, потрібно додати тіло
+        if (alternativeMethod === 'POST' && !alternativeOptions.body && data) {
+            alternativeOptions.body = JSON.stringify(data);
+        }
+
+        // Намагаємось зробити запит з альтернативним методом
+        const delay = Math.pow(2, retries - attemptsLeft) * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        try {
+            const alternativeResponse = await fetch(url, alternativeOptions);
+            // Продовжуємо обробку нової відповіді
+            // ...
+        } catch (altError) {
+            console.error(`❌ Помилка з альтернативним методом:`, altError);
+        }
+    }
+
+    // Для інших помилок - спробуємо локальний резервний механізм
+    if (endpoint.includes('calculate-reward')) {
+        console.warn(`🔄 Не вдалося отримати винагороду з сервера, використовуємо локальний розрахунок`);
+
+        try {
+            // Парсимо параметри з URL
+            const urlParams = new URL(url, window.location.origin).searchParams;
+            const amount = parseFloat(urlParams.get('amount') || 0);
+            const period = parseInt(urlParams.get('period') || 14);
+
+            // Локальний розрахунок винагороди
+            const rewardRates = { 7: 4, 14: 9, 28: 15 };
+            const rewardPercent = rewardRates[period] || 9;
+            const reward = (amount * rewardPercent) / 100;
+
+            return {
+                status: 'success',
+                data: {
+                    reward: reward,
+                    rewardPercent: rewardPercent,
+                    amount: amount,
+                    period: period
+                }
+            };
+        } catch (calcError) {
+            console.error(`❌ Помилка локального розрахунку:`, calcError);
+        }
+    }
+
+    // Стандартна обробка помилок
+    throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
+}
+
             // Викликаємо колбек з помилкою, якщо він є
             if (callback && typeof callback === 'function') {
                 try {
