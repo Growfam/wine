@@ -18,7 +18,7 @@
     // ======== ПРИВАТНІ ЗМІННІ ТА КОНСТАНТИ ========
 
     // Базовий URL API (за замовчуванням пустий для відносних шляхів)
-    const API_BASE_URL = 'https://winix.bot';
+    const API_BASE_URL = 'https://web-production-48e0.up.railway.app';
 
     // Прапорець для логування запитів
     let _debugMode = false;
