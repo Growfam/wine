@@ -1,8 +1,8 @@
 /**
  * WINIX UNIFIED FIXES - Серверна версія системи розіграшів
  *
- * Ця версія скрипту повністю інтегрована з сервером Flask і не використовує
- * локальне сховище для збереження даних. Усі операції виконуються через API.
+ * Ця версія скрипту повністю інтегрована з централізованим API модулем
+ * і не використовує локальне сховище для збереження даних.
  */
 
 (function() {
@@ -145,172 +145,13 @@
     }
 
     /**
-     * Функція для виконання API-запитів
-     * @param {string} url URL ендпоінта
-     * @param {string} method HTTP-метод (GET, POST, etc.)
-     * @param {Object} body Тіло запиту (для POST/PUT)
-     * @param {Function} callback Функція зворотного виклику з результатом
-     */
-    function apiRequest(url, method = 'GET', body = null, callback = null) {
-        // Показуємо індикатор завантаження
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) spinner.classList.add('show');
-
-        // Створюємо заголовки
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-
-        // Налаштування запиту
-        const options = {
-            method: method,
-            headers: headers,
-            credentials: 'same-origin'
-        };
-
-        // Додаємо тіло запиту для POST/PUT/PATCH
-        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-            options.body = JSON.stringify(body);
-        }
-
-        // Виконуємо запит
-        fetch(url, options)
-            .then(response => {
-                // Приховуємо індикатор завантаження
-                if (spinner) spinner.classList.remove('show');
-
-                // Перевіряємо статус відповіді
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Викликаємо callback з результатом, якщо він є
-                if (callback && typeof callback === 'function') {
-                    callback(null, data);
-                }
-            })
-            .catch(error => {
-                // Приховуємо індикатор завантаження у випадку помилки
-                if (spinner) spinner.classList.remove('show');
-
-                console.error('API request error:', error);
-
-                // Викликаємо callback з помилкою
-                if (callback && typeof callback === 'function') {
-                    callback(error, null);
-                }
-            });
-    }
-
-    /**
-     * Отримання даних користувача з сервера
-     * @param {Function} callback Функція зворотного виклику з результатом
-     */
-    function getUserData(callback) {
-        // Отримуємо ID користувача
-        const userId = document.getElementById('user-id')?.textContent || '12345678';
-
-        // Запит до API
-        apiRequest(`/api/user/${userId}`, 'GET', null, (error, data) => {
-            if (error) {
-                console.error('Помилка отримання даних користувача:', error);
-                if (callback) callback(error, null);
-                return;
-            }
-
-            if (data && data.status === 'success' && data.data) {
-                if (callback) callback(null, data.data);
-            } else {
-                if (callback) callback(new Error('Некоректні дані відповіді'), null);
-            }
-        });
-    }
-
-    /**
-     * Отримання списку всіх розіграшів з сервера
-     * @param {Function} callback Функція зворотного виклику з результатом
-     */
-    function getRaffles(callback) {
-        apiRequest('/api/raffles', 'GET', null, (error, data) => {
-            if (error) {
-                console.error('Помилка отримання списку розіграшів:', error);
-                if (callback) callback(error, null);
-                return;
-            }
-
-            if (data && data.status === 'success' && data.data) {
-                if (callback) callback(null, data.data);
-            } else {
-                if (callback) callback(new Error('Некоректні дані відповіді'), null);
-            }
-        });
-    }
-
-    /**
-     * Отримання історії розіграшів для поточного користувача
-     * @param {Function} callback Функція зворотного виклику з результатом
-     */
-    function getRaffleHistory(callback) {
-        const userId = document.getElementById('user-id')?.textContent || '12345678';
-
-        apiRequest(`/api/user/${userId}/raffle-history`, 'GET', null, (error, data) => {
-            if (error) {
-                console.error('Помилка отримання історії розіграшів:', error);
-                if (callback) callback(error, null);
-                return;
-            }
-
-            if (data && data.status === 'success' && data.data) {
-                if (callback) callback(null, data.data);
-            } else {
-                // Якщо немає даних, повертаємо порожній масив
-                if (callback) callback(null, []);
-            }
-        });
-    }
-
-    /**
-     * Участь у розіграші через API
-     * @param {string} raffleId ID розіграшу
-     * @param {string} raffleType Тип розіграшу ('main', 'daily', etc.)
-     * @param {number} tokenAmount Кількість жетонів для участі
-     * @param {Function} callback Функція зворотного виклику з результатом
-     */
-    function participateInRaffleAPI(raffleId, raffleType, tokenAmount, callback) {
-        const userId = document.getElementById('user-id')?.textContent || '12345678';
-
-        const requestBody = {
-            userId: userId,
-            raffleId: raffleId,
-            raffleType: raffleType,
-            tokenAmount: tokenAmount
-        };
-
-        apiRequest('/api/participate', 'POST', requestBody, (error, data) => {
-            if (error) {
-                console.error('Помилка участі в розіграші:', error);
-                if (callback) callback(error, null);
-                return;
-            }
-
-            if (data && data.status === 'success') {
-                if (callback) callback(null, data);
-            } else {
-                if (callback) callback(new Error(data?.message || 'Помилка участі в розіграші'), null);
-            }
-        });
-    }
-
-    /**
      * Оновлення дати закінчення розіграшів
      */
     function updateRaffleEndDates() {
-        // Отримаємо дані розіграшів з сервера
-        getRaffles((error, raffles) => {
+        // Отримаємо дані розіграшів з сервера через централізований API
+        window.WinixAPI.getRaffles((error, raffles) => {
             if (error) {
-                console.error('Помилка оновлення дат закінчення розіграшів:', error);
+                console.error(`❌ Помилка оновлення дат закінчення розіграшів: ${window.WinixAPI.handleApiError(error)}`);
                 return;
             }
 
@@ -356,9 +197,9 @@
      * Оновлення кількості учасників в розіграшах
      */
     function updateRaffleParticipantsCount() {
-        getRaffles((error, raffles) => {
+        window.WinixAPI.getRaffles((error, raffles) => {
             if (error) {
-                console.error('Помилка оновлення кількості учасників:', error);
+                console.error(`❌ Помилка оновлення кількості учасників: ${window.WinixAPI.handleApiError(error)}`);
                 return;
             }
 
@@ -411,10 +252,10 @@
             const allButtons = document.querySelectorAll('.join-button, .mini-raffle-button');
             allButtons.forEach(btn => btn.disabled = true);
 
-            // Викликаємо API для участі в розіграші
-            participateInRaffleAPI(raffleId, raffleType, tokenAmount, (error, result) => {
+            // Викликаємо API для участі в розіграші через централізований API
+            window.WinixAPI.participateInRaffle(raffleId, raffleType, tokenAmount, (error, result) => {
                 if (error) {
-                    console.error('Помилка участі в розіграші:', error);
+                    console.error(`❌ Помилка участі в розіграші: ${window.WinixAPI.handleApiError(error)}`);
                     showToast(getLocalizedText(
                         'Сталася помилка при участі в розіграші. Спробуйте ще раз.',
                         'Произошла ошибка при участии в розыгрыше. Попробуйте еще раз.',
@@ -442,7 +283,7 @@
                 isProcessingRaffle = false;
             });
         } catch (error) {
-            console.error('Критична помилка при участі в розіграші:', error);
+            console.error('❌ Критична помилка при участі в розіграші:', error);
             showToast(getLocalizedText(
                 'Сталася критична помилка. Спробуйте перезавантажити сторінку.',
                 'Произошла критическая ошибка. Попробуйте перезагрузить страницу.',
@@ -511,10 +352,10 @@
         window.openRaffleDetails = function(raffleId, raffleType) {
             console.log(`Відкриття деталей розіграшу: ${raffleId}, тип: ${raffleType}`);
 
-            // Спочатку отримуємо актуальні дані користувача для перевірки балансу
-            getUserData((error, userData) => {
+            // Спочатку отримуємо актуальні дані користувача для перевірки балансу через централізований API
+            window.WinixAPI.getUserData((error, userData) => {
                 if (error) {
-                    console.error('Помилка отримання даних користувача:', error);
+                    console.error(`❌ Помилка отримання даних користувача: ${window.WinixAPI.handleApiError(error)}`);
                     showToast(getLocalizedText(
                         'Помилка отримання даних. Спробуйте ще раз.',
                         'Ошибка получения данных. Попробуйте еще раз.',
@@ -534,10 +375,10 @@
                     return;
                 }
 
-                // Отримуємо дані про розіграші
-                getRaffles((err, raffles) => {
+                // Отримуємо дані про розіграші через централізований API
+                window.WinixAPI.getRaffles((err, raffles) => {
                     if (err) {
-                        console.error('Помилка отримання даних розіграшів:', err);
+                        console.error(`❌ Помилка отримання даних розіграшів: ${window.WinixAPI.handleApiError(err)}`);
                         showToast(getLocalizedText(
                             'Помилка отримання даних розіграшів. Спробуйте ще раз.',
                             'Ошибка получения данных розыгрышей. Попробуйте еще раз.',
@@ -612,19 +453,17 @@
      * Функція для отримання бонусу новачка
      */
     function claimNewbieBonus() {
-        const userId = document.getElementById('user-id')?.textContent || '12345678';
-
         // Показуємо індикатор завантаження
         const spinner = document.getElementById('loading-spinner');
         if (spinner) spinner.classList.add('show');
 
-        // Викликаємо API для отримання бонусу
-        apiRequest(`/api/user/${userId}/claim-newbie-bonus`, 'POST', {}, (error, result) => {
+        // Викликаємо API для отримання бонусу через централізований API
+        window.WinixAPI.claimNewbieBonus((error, result) => {
             // Приховуємо індикатор завантаження
             if (spinner) spinner.classList.remove('show');
 
             if (error) {
-                console.error('Помилка отримання бонусу новачка:', error);
+                console.error(`❌ Помилка отримання бонусу новачка: ${window.WinixAPI.handleApiError(error)}`);
                 showToast(getLocalizedText(
                     'Помилка отримання бонусу. Спробуйте ще раз.',
                     'Ошибка получения бонуса. Попробуйте еще раз.',
@@ -901,10 +740,10 @@
         const historyContainer = document.getElementById('history-container');
         if (!historyContainer) return;
 
-        // Отримуємо історію розіграшів з сервера
-        getRaffleHistory((error, history) => {
+        // Отримуємо історію розіграшів з сервера через централізований API
+        window.WinixAPI.getRaffleHistory((error, history) => {
             if (error) {
-                console.error("Помилка отримання історії розіграшів:", error);
+                console.error(`❌ Помилка отримання історії розіграшів: ${window.WinixAPI.handleApiError(error)}`);
                 return;
             }
 
@@ -1136,12 +975,198 @@
     }
 
     /**
+     * Заміна емоджі бейджів на зображення
+     */
+    function replaceBadgeEmojisWithImages() {
+        console.log("Заміна емоджі на зображення бейджів");
+
+        const badgeImages = [
+            {
+                selector: '.badge-item:nth-child(1) .badge-icon', // Переможець
+                imagePath: 'assets/badge-winner.png',
+                altText: 'Переможець'
+            },
+            {
+                selector: '.badge-item:nth-child(2) .badge-icon', // Початківець
+                imagePath: 'assets/badge-beginner.png',
+                altText: 'Початківець'
+            },
+            {
+                selector: '.badge-item:nth-child(3) .badge-icon', // Багатій
+                imagePath: 'assets/badge-rich.png',
+                altText: 'Багатій'
+            }
+        ];
+
+        badgeImages.forEach(badge => {
+            const badgeIcon = document.querySelector(badge.selector);
+            if (!badgeIcon) return;
+
+            // Перевіряємо, чи є вже зображення
+            if (badgeIcon.querySelector('img')) return;
+
+            // Зберігаємо клас locked, якщо він є
+            const isLocked = badgeIcon.classList.contains('locked');
+
+            // Очищаємо контейнер від емоджі
+            const originalContent = badgeIcon.innerHTML;
+            badgeIcon.innerHTML = '';
+
+            // Створюємо елемент зображення
+            const img = document.createElement('img');
+            img.src = badge.imagePath;
+            img.alt = badge.altText;
+            img.className = 'badge-image';
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'contain';
+
+            // Додаємо обробник помилки для відновлення оригінального контенту
+            img.onerror = function() {
+                console.error(`Помилка завантаження зображення: ${badge.imagePath}`);
+                badgeIcon.innerHTML = originalContent;
+            };
+
+            // Додаємо зображення
+            badgeIcon.appendChild(img);
+
+            // Якщо бейдж був заблокований, додаємо значок замка
+            if (isLocked) {
+                const lockIcon = document.createElement('div');
+                lockIcon.className = 'lock-icon';
+                lockIcon.textContent = '🔒';
+                lockIcon.style.position = 'absolute';
+                lockIcon.style.bottom = '-0.25rem';
+                lockIcon.style.right = '-0.25rem';
+                lockIcon.style.fontSize = '1rem';
+                lockIcon.style.zIndex = '3';
+                badgeIcon.appendChild(lockIcon);
+            }
+        });
+    }
+
+    /**
+     * Позначення отриманих бейджів
+     */
+    function markCompletedBadges() {
+        console.log("Позначення отриманих бейджів");
+
+        // Отримуємо дані користувача з сервера для перевірки отриманих бейджів через централізований API
+        window.WinixAPI.getUserData((error, userData) => {
+            if (error) {
+                console.error(`❌ Помилка отримання даних користувача для бейджів: ${window.WinixAPI.handleApiError(error)}`);
+                return;
+            }
+
+            // Перевіряємо, які бейджі користувач отримав
+            const badges = [
+                {
+                    selector: '.badge-item:nth-child(1)',
+                    id: 'winner',
+                    isCompleted: userData.badges?.winner_completed || false
+                },
+                {
+                    selector: '.badge-item:nth-child(2)',
+                    id: 'beginner',
+                    isCompleted: userData.badges?.beginner_completed || userData.participationsCount >= 5 || false
+                },
+                {
+                    selector: '.badge-item:nth-child(3)',
+                    id: 'rich',
+                    isCompleted: userData.badges?.rich_completed || userData.balance >= 50000 || false
+                }
+            ];
+
+            badges.forEach(badge => {
+                const badgeElement = document.querySelector(badge.selector);
+                if (!badgeElement) return;
+
+                if (badge.isCompleted) {
+                    // Додаємо клас для стилізації
+                    badgeElement.classList.add('badge-completed');
+
+                    // Додаємо водяний знак, якщо його ще немає
+                    if (!badgeElement.querySelector('.badge-watermark')) {
+                        addWatermarkToBadge(badgeElement);
+                    }
+                }
+            });
+
+            // Після позначення, замінюємо емоджі на зображення
+            replaceBadgeEmojisWithImages();
+        });
+    }
+
+    /**
+     * Додавання водяного знаку до бейджа
+     */
+    function addWatermarkToBadge(badgeElement) {
+        // Перевіряємо, чи вже є водяний знак
+        if (badgeElement.querySelector('.badge-watermark')) {
+            return;
+        }
+
+        // Створюємо водяний знак
+        const watermark = document.createElement('div');
+        watermark.className = 'badge-watermark';
+        watermark.style.position = 'absolute';
+        watermark.style.top = '0';
+        watermark.style.left = '0';
+        watermark.style.right = '0';
+        watermark.style.bottom = '0';
+        watermark.style.zIndex = '5';
+        watermark.style.pointerEvents = 'none';
+        watermark.style.display = 'flex';
+        watermark.style.justifyContent = 'center';
+        watermark.style.alignItems = 'center';
+        watermark.style.overflow = 'hidden';
+
+        // Визначаємо текст для водяного знаку
+        const watermarkText = getLocalizedText('ОТРИМАНО', 'ПОЛУЧЕНО', 'RECEIVED');
+
+        // Створюємо елемент тексту
+        const textElement = document.createElement('div');
+        textElement.className = 'badge-watermark-text';
+        textElement.textContent = watermarkText;
+        textElement.style.position = 'absolute';
+        textElement.style.width = '200%';
+        textElement.style.textAlign = 'center';
+        textElement.style.transform = 'rotate(-35deg)';
+        textElement.style.fontFamily = 'Impact, sans-serif';
+        textElement.style.fontSize = '14px';
+        textElement.style.fontWeight = '900';
+        textElement.style.letterSpacing = '1px';
+        textElement.style.color = 'black';
+        textElement.style.background = 'repeating-linear-gradient(45deg, rgba(255, 205, 0, 0.8), rgba(255, 205, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 20px)';
+        textElement.style.padding = '2px 20px';
+        textElement.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
+        textElement.style.textShadow = '0px 0px 2px white';
+        textElement.style.whiteSpace = 'nowrap';
+
+        // Додаємо елементи
+        watermark.appendChild(textElement);
+
+        // Якщо badge-element не має position: relative, додаємо його
+        if (getComputedStyle(badgeElement).position === 'static') {
+            badgeElement.style.position = 'relative';
+        }
+
+        badgeElement.appendChild(watermark);
+    }
+
+    /**
      * Головна функція ініціалізації системи виправлень
      */
     function initSystem() {
         console.log("🚀 Запуск ініціалізації серверної системи розіграшів WINIX");
 
         try {
+            // Перевіряємо наявність об'єкту WinixAPI
+            if (!window.WinixAPI) {
+                console.error("❌ Помилка: Об'єкт WinixAPI не знайдено!");
+                return false;
+            }
+
             // 1. Виправляємо кнопки закриття модальних вікон
             fixCloseButtons();
 
@@ -1165,7 +1190,7 @@
 
             // 6. Позначаємо блоки бонусу новачка, якщо вони є
             // Перевіряємо статус бонусу новачка
-            getUserData((error, userData) => {
+            window.WinixAPI.getUserData((error, userData) => {
                 if (!error && userData && userData.newbie_bonus_claimed) {
                     markNewbieBonus();
                 }
@@ -1237,9 +1262,9 @@
         createRaffleDetailsModal,
         claimNewbieBonus,
         enhanceRaffleHistory,
-        getUserData,
-        getRaffles,
-        getRaffleHistory
+        updateRaffleParticipantsCount,
+        updateRaffleEndDates,
+        fixCloseButtons
     };
 
     // Запускаємо ініціалізацію при завантаженні DOM
@@ -1253,183 +1278,11 @@
     // Повторно запускаємо ініціалізацію через 1.5 секунди для гарантії
     setTimeout(initSystem, 1500);
 
-    /**
- * Заміна емоджі бейджів на зображення
- */
-function replaceBadgeEmojisWithImages() {
-    console.log("Заміна емоджі на зображення бейджів");
-
-    const badgeImages = [
-        {
-            selector: '.badge-item:nth-child(1) .badge-icon', // Переможець
-            imagePath: 'assets/badge-winner.png',
-            altText: 'Переможець'
-        },
-        {
-            selector: '.badge-item:nth-child(2) .badge-icon', // Початківець
-            imagePath: 'assets/badge-beginner.png',
-            altText: 'Початківець'
-        },
-        {
-            selector: '.badge-item:nth-child(3) .badge-icon', // Багатій
-            imagePath: 'assets/badge-rich.png',
-            altText: 'Багатій'
-        }
-    ];
-
-    badgeImages.forEach(badge => {
-        const badgeIcon = document.querySelector(badge.selector);
-        if (!badgeIcon) return;
-
-        // Перевіряємо, чи є вже зображення
-        if (badgeIcon.querySelector('img')) return;
-
-        // Зберігаємо клас locked, якщо він є
-        const isLocked = badgeIcon.classList.contains('locked');
-
-        // Очищаємо контейнер від емоджі
-        const originalContent = badgeIcon.innerHTML;
-        badgeIcon.innerHTML = '';
-
-        // Створюємо елемент зображення
-        const img = document.createElement('img');
-        img.src = badge.imagePath;
-        img.alt = badge.altText;
-        img.className = 'badge-image';
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'contain';
-
-        // Додаємо обробник помилки для відновлення оригінального контенту
-        img.onerror = function() {
-            console.error(`Помилка завантаження зображення: ${badge.imagePath}`);
-            badgeIcon.innerHTML = originalContent;
-        };
-
-        // Додаємо зображення
-        badgeIcon.appendChild(img);
-
-        // Якщо бейдж був заблокований, додаємо значок замка
-        if (isLocked) {
-            const lockIcon = document.createElement('div');
-            lockIcon.className = 'lock-icon';
-            lockIcon.textContent = '🔒';
-            lockIcon.style.position = 'absolute';
-            lockIcon.style.bottom = '-0.25rem';
-            lockIcon.style.right = '-0.25rem';
-            lockIcon.style.fontSize = '1rem';
-            lockIcon.style.zIndex = '3';
-            badgeIcon.appendChild(lockIcon);
-        }
+    // Додаємо подію для синхронізації з WinixInitState
+    document.addEventListener('winix-initialized', function() {
+        console.log("🔄 Отримано подію winix-initialized, додаткова синхронізація");
+        // Оновлюємо розіграші після повної ініціалізації системи
+        updateRaffleParticipantsCount();
+        updateRaffleEndDates();
     });
-}
-
-/**
- * Позначення отриманих бейджів
- */
-function markCompletedBadges() {
-    console.log("Позначення отриманих бейджів");
-
-    // Отримуємо дані користувача з сервера для перевірки отриманих бейджів
-    getUserData((error, userData) => {
-        if (error) {
-            console.error('Помилка отримання даних користувача для бейджів:', error);
-            return;
-        }
-
-        // Перевіряємо, які бейджі користувач отримав
-        const badges = [
-            {
-                selector: '.badge-item:nth-child(1)',
-                id: 'winner',
-                isCompleted: userData.badges?.winner_completed || false
-            },
-            {
-                selector: '.badge-item:nth-child(2)',
-                id: 'beginner',
-                isCompleted: userData.badges?.beginner_completed || userData.participationsCount >= 5 || false
-            },
-            {
-                selector: '.badge-item:nth-child(3)',
-                id: 'rich',
-                isCompleted: userData.badges?.rich_completed || userData.balance >= 50000 || false
-            }
-        ];
-
-        badges.forEach(badge => {
-            const badgeElement = document.querySelector(badge.selector);
-            if (!badgeElement) return;
-
-            if (badge.isCompleted) {
-                // Додаємо клас для стилізації
-                badgeElement.classList.add('badge-completed');
-
-                // Додаємо водяний знак, якщо його ще немає
-                if (!badgeElement.querySelector('.badge-watermark')) {
-                    addWatermarkToBadge(badgeElement);
-                }
-            }
-        });
-
-        // Після позначення, замінюємо емоджі на зображення
-        replaceBadgeEmojisWithImages();
-    });
-}
-
-/**
- * Додавання водяного знаку до бейджа
- */
-function addWatermarkToBadge(badgeElement) {
-    // Перевіряємо, чи вже є водяний знак
-    if (badgeElement.querySelector('.badge-watermark')) {
-        return;
-    }
-
-    // Створюємо водяний знак
-    const watermark = document.createElement('div');
-    watermark.className = 'badge-watermark';
-    watermark.style.position = 'absolute';
-    watermark.style.top = '0';
-    watermark.style.left = '0';
-    watermark.style.right = '0';
-    watermark.style.bottom = '0';
-    watermark.style.zIndex = '5';
-    watermark.style.pointerEvents = 'none';
-    watermark.style.display = 'flex';
-    watermark.style.justifyContent = 'center';
-    watermark.style.alignItems = 'center';
-    watermark.style.overflow = 'hidden';
-
-    // Визначаємо текст для водяного знаку
-    const watermarkText = getLocalizedText('ОТРИМАНО', 'ПОЛУЧЕНО', 'RECEIVED');
-
-    // Створюємо елемент тексту
-    const textElement = document.createElement('div');
-    textElement.className = 'badge-watermark-text';
-    textElement.textContent = watermarkText;
-    textElement.style.position = 'absolute';
-    textElement.style.width = '200%';
-    textElement.style.textAlign = 'center';
-    textElement.style.transform = 'rotate(-35deg)';
-    textElement.style.fontFamily = 'Impact, sans-serif';
-    textElement.style.fontSize = '14px';
-    textElement.style.fontWeight = '900';
-    textElement.style.letterSpacing = '1px';
-    textElement.style.color = 'black';
-    textElement.style.background = 'repeating-linear-gradient(45deg, rgba(255, 205, 0, 0.8), rgba(255, 205, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 10px, rgba(0, 0, 0, 0.8) 20px)';
-    textElement.style.padding = '2px 20px';
-    textElement.style.boxShadow = '0 0 5px rgba(0, 0, 0, 0.5)';
-    textElement.style.textShadow = '0px 0px 2px white';
-    textElement.style.whiteSpace = 'nowrap';
-
-    // Додаємо елементи
-    watermark.appendChild(textElement);
-
-    // Якщо badge-element не має position: relative, додаємо його
-    if (getComputedStyle(badgeElement).position === 'static') {
-        badgeElement.style.position = 'relative';
-    }
-
-    badgeElement.appendChild(watermark);
-}
 })();

@@ -1,6 +1,8 @@
 /**
  * language.js - Система багатомовності для WINIX
  * Підтримує українську (uk), англійську (en) та російську (ru) мови
+ *
+ * Інтегровано з централізованим API модулем
  */
 
 (function() {
@@ -20,6 +22,9 @@
         currentLanguage = DEFAULT_LANGUAGE;
         localStorage.setItem('userLanguage', currentLanguage);
     }
+
+    // Додаткові словники для динамічного завантаження
+    let dynamicDictionaries = {};
 
     // Українська мова
     const DICTIONARY_UK = {
@@ -699,128 +704,439 @@
             ru: DICTIONARY_RU
         },
 
-        // Отримання перекладу за ключем
-        getText: function(key) {
-            const langTexts = this.texts[this.currentLang];
-            if (langTexts && langTexts[key]) {
-                return langTexts[key];
+        // Додаткові словники з сервера
+        dynamicDictionaries: dynamicDictionaries,
+
+        /**
+         * Отримання перекладу за ключем
+         * @param {string} key - Ключ перекладу
+         * @param {Object} params - Параметри для підстановки у переклад
+         * @returns {string} Переклад
+         */
+        getText: function(key, params = null) {
+            try {
+                // Перевіряємо в поточному словнику
+                let text = this.findTextInDictionaries(key, this.currentLang);
+
+                // Якщо текст знайдений і є параметри, робимо підстановку
+                if (text && params) {
+                    // Заміна параметрів виду {param} на значення з об'єкта params
+                    Object.keys(params).forEach(param => {
+                        const regex = new RegExp(`{${param}}`, 'g');
+                        text = text.replace(regex, params[param]);
+                    });
+                }
+
+                return text || key;
+            } catch (error) {
+                console.error(`❌ WinixLanguage: Помилка отримання тексту за ключем "${key}":`, error);
+                return key;
+            }
+        },
+
+        /**
+         * Пошук тексту в усіх доступних словниках
+         * @param {string} key - Ключ перекладу
+         * @param {string} lang - Мова
+         * @returns {string|null} Переклад або null, якщо не знайдено
+         */
+        findTextInDictionaries: function(key, lang) {
+            // 1. Спочатку шукаємо в динамічних словниках (завантажених з сервера)
+            if (this.dynamicDictionaries[lang] && this.dynamicDictionaries[lang][key]) {
+                return this.dynamicDictionaries[lang][key];
             }
 
-            // Якщо ключ не знайдений в поточній мові, спробуємо знайти в українській
-            if (this.currentLang !== 'uk' && this.texts['uk'] && this.texts['uk'][key]) {
+            // 2. Потім шукаємо в статичних словниках
+            if (this.texts[lang] && this.texts[lang][key]) {
+                return this.texts[lang][key];
+            }
+
+            // 3. Якщо не знайдено в поточній мові, і це не українська, шукаємо в українській
+            if (lang !== 'uk' && this.texts['uk'] && this.texts['uk'][key]) {
                 return this.texts['uk'][key];
             }
 
-            // Якщо ніде не знайдено, повертаємо ключ
-            return key;
+            // 4. Якщо ніде не знайдено, повертаємо null
+            return null;
         },
 
-        // Зміна мови
-        changeLang: function(newLang) {
-            if (!AVAILABLE_LANGUAGES.includes(newLang)) {
-                console.error(`Мова ${newLang} не підтримується`);
+        /**
+         * Зміна мови та збереження вибору
+         * @param {string} newLang - Нова мова
+         * @param {boolean} saveToServer - Чи зберігати на сервері
+         * @returns {boolean} Чи вдалося змінити мову
+         */
+        changeLang: function(newLang, saveToServer = true) {
+            try {
+                if (!AVAILABLE_LANGUAGES.includes(newLang)) {
+                    console.error(`❌ WinixLanguage: Мова ${newLang} не підтримується`);
+                    return false;
+                }
+
+                this.currentLang = newLang;
+                localStorage.setItem('userLanguage', newLang);
+
+                // Якщо потрібно зберегти на сервері і є API
+                if (saveToServer && window.WinixAPI && window.WinixAPI.updateUserData) {
+                    try {
+                        window.WinixAPI.updateUserData({ language: newLang }, function(error) {
+                            if (error) {
+                                console.warn(`⚠️ WinixLanguage: Не вдалося зберегти мову на сервері: ${error}`);
+                            }
+                        });
+                    } catch (error) {
+                        console.warn(`⚠️ WinixLanguage: Помилка при спробі зберегти мову на сервері: ${error}`);
+                    }
+                }
+
+                // Оновлюємо всі тексти на сторінці
+                this.updatePageTexts();
+
+                // Відправляємо подію про зміну мови
+                document.dispatchEvent(new CustomEvent('languageChanged', {
+                    detail: { language: newLang }
+                }));
+
+                // Синхронізуємо з WinixInitState, якщо він існує
+                if (window.WinixInitState) {
+                    window.WinixInitState.syncData();
+                }
+
+                console.log(`✅ WinixLanguage: Мову змінено на ${newLang}`);
+                return true;
+            } catch (error) {
+                console.error("❌ WinixLanguage: Помилка при зміні мови:", error);
                 return false;
             }
-
-            this.currentLang = newLang;
-            localStorage.setItem('userLanguage', newLang);
-
-            // Оновлюємо всі тексти на сторінці
-            this.updatePageTexts();
-
-            // Відправляємо подію про зміну мови
-            document.dispatchEvent(new CustomEvent('languageChanged', {
-                detail: { language: newLang }
-            }));
-
-            console.log(`Мову змінено на ${newLang}`);
-            return true;
         },
 
-        // Оновлення всіх текстів на сторінці
+        /**
+         * Оновлення всіх текстів на сторінці
+         */
         updatePageTexts: function() {
-            // Оновлюємо елементи з атрибутом data-lang-key
-            document.querySelectorAll('[data-lang-key]').forEach(element => {
-                const key = element.getAttribute('data-lang-key');
-                element.textContent = this.getText(key);
-            });
+            try {
+                // Оновлюємо елементи з атрибутом data-lang-key
+                document.querySelectorAll('[data-lang-key]').forEach(element => {
+                    try {
+                        const key = element.getAttribute('data-lang-key');
+                        element.textContent = this.getText(key);
+                    } catch (e) {
+                        console.warn(`⚠️ WinixLanguage: Помилка оновлення тексту для елементу з ключем ${element.getAttribute('data-lang-key')}:`, e);
+                    }
+                });
 
-            // Оновлюємо title сторінки, якщо потрібно
-            updatePageTitle();
+                // Оновлюємо placeholder для елементів з атрибутом data-lang-placeholder
+                document.querySelectorAll('[data-lang-placeholder]').forEach(element => {
+                    try {
+                        const key = element.getAttribute('data-lang-placeholder');
+                        element.placeholder = this.getText(key);
+                    } catch (e) {
+                        console.warn(`⚠️ WinixLanguage: Помилка оновлення placeholder для елементу з ключем ${element.getAttribute('data-lang-placeholder')}:`, e);
+                    }
+                });
+
+                // Оновлюємо title сторінки, якщо потрібно
+                updatePageTitle();
+            } catch (error) {
+                console.error("❌ WinixLanguage: Помилка при оновленні текстів на сторінці:", error);
+            }
         },
 
-        // Отримання списку доступних мов
+        /**
+         * Завантаження словника з сервера
+         * @param {string} lang - Мова
+         * @param {Function} callback - Функція зворотного виклику
+         */
+        loadDictionaryFromServer: function(lang, callback) {
+            // Перевіряємо, чи є API
+            if (!window.WinixAPI || !window.WinixAPI.apiRequest) {
+                if (callback) callback(new Error("API не доступне"));
+                return;
+            }
+
+            // Завантажуємо словник з сервера
+            window.WinixAPI.apiRequest(`/api/language/${lang}`, 'GET', null, (error, result) => {
+                if (error) {
+                    console.error(`❌ WinixLanguage: Помилка завантаження словника для мови ${lang}:`, error);
+                    if (callback) callback(error);
+                    return;
+                }
+
+                // Зберігаємо словник
+                try {
+                    if (result && result.data && typeof result.data === 'object') {
+                        this.dynamicDictionaries[lang] = result.data;
+                        console.log(`✅ WinixLanguage: Словник для мови ${lang} успішно завантажено з сервера`);
+
+                        // Оновлюємо тексти, якщо поточна мова співпадає з завантаженою
+                        if (this.currentLang === lang) {
+                            this.updatePageTexts();
+                        }
+
+                        if (callback) callback(null, result.data);
+                    } else {
+                        console.warn(`⚠️ WinixLanguage: Отримано некоректний формат словника для мови ${lang}`);
+                        if (callback) callback(new Error("Некоректний формат словника"));
+                    }
+                } catch (e) {
+                    console.error(`❌ WinixLanguage: Помилка обробки словника для мови ${lang}:`, e);
+                    if (callback) callback(e);
+                }
+            });
+        },
+
+        /**
+         * Додавання перекладу вручну
+         * @param {string} lang - Мова
+         * @param {string} key - Ключ
+         * @param {string} text - Текст перекладу
+         */
+        addTranslation: function(lang, key, text) {
+            try {
+                // Перевіряємо валідність мови
+                if (!AVAILABLE_LANGUAGES.includes(lang)) {
+                    console.error(`❌ WinixLanguage: Мова ${lang} не підтримується`);
+                    return false;
+                }
+
+                // Створюємо словник для мови, якщо його немає
+                if (!this.dynamicDictionaries[lang]) {
+                    this.dynamicDictionaries[lang] = {};
+                }
+
+                // Додаємо переклад
+                this.dynamicDictionaries[lang][key] = text;
+                return true;
+            } catch (error) {
+                console.error(`❌ WinixLanguage: Помилка додавання перекладу для ключа ${key}:`, error);
+                return false;
+            }
+        },
+
+        /**
+         * Отримання списку доступних мов
+         * @returns {Array} Список мов
+         */
         getSupportedLanguages: function() {
             return [...AVAILABLE_LANGUAGES];
         },
 
-        // Отримання поточної мови
+        /**
+         * Отримання поточної мови
+         * @returns {string} Поточна мова
+         */
         getCurrentLanguage: function() {
             return this.currentLang;
+        },
+
+        /**
+         * Форматування дати і часу згідно з поточною мовою
+         * @param {Date|string|number} date - Дата для форматування
+         * @param {Object} options - Опції форматування (як в Intl.DateTimeFormat)
+         * @returns {string} Відформатована дата
+         */
+        formatDate: function(date, options = {}) {
+            try {
+                const dateObj = date instanceof Date ? date : new Date(date);
+
+                // Визначаємо локаль відповідно до мови
+                let locale;
+                switch (this.currentLang) {
+                    case 'uk': locale = 'uk-UA'; break;
+                    case 'en': locale = 'en-US'; break;
+                    case 'ru': locale = 'ru-RU'; break;
+                    default: locale = 'uk-UA';
+                }
+
+                // Опції за замовчуванням
+                const defaultOptions = {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                };
+
+                // Об'єднуємо опції
+                const formatOptions = { ...defaultOptions, ...options };
+
+                // Форматуємо дату
+                return new Intl.DateTimeFormat(locale, formatOptions).format(dateObj);
+            } catch (error) {
+                console.error("❌ WinixLanguage: Помилка форматування дати:", error);
+                return String(date);
+            }
+        },
+
+        /**
+         * Форматування числа згідно з поточною мовою
+         * @param {number} number - Число для форматування
+         * @param {Object} options - Опції форматування (як в Intl.NumberFormat)
+         * @returns {string} Відформатоване число
+         */
+        formatNumber: function(number, options = {}) {
+            try {
+                // Визначаємо локаль відповідно до мови
+                let locale;
+                switch (this.currentLang) {
+                    case 'uk': locale = 'uk-UA'; break;
+                    case 'en': locale = 'en-US'; break;
+                    case 'ru': locale = 'ru-RU'; break;
+                    default: locale = 'uk-UA';
+                }
+
+                // Форматуємо число
+                return new Intl.NumberFormat(locale, options).format(number);
+            } catch (error) {
+                console.error("❌ WinixLanguage: Помилка форматування числа:", error);
+                return String(number);
+            }
         }
     };
 
-    // Функція для оновлення заголовка сторінки
+    /**
+     * Функція для оновлення заголовка сторінки
+     */
     function updatePageTitle() {
-        // Визначаємо, яка сторінка відкрита
-        const path = window.location.pathname;
-        const pageName = path.split('/').pop().replace('.html', '');
+        try {
+            // Визначаємо, яка сторінка відкрита
+            const path = window.location.pathname;
+            const pageName = path.split('/').pop().replace('.html', '');
 
-        // Тайтл для різних сторінок
-        let titleKey = '';
+            // Тайтл для різних сторінок
+            let titleKey = '';
 
-        switch (pageName) {
-            case '':
-            case 'index':
-                titleKey = 'app.name';
-                break;
-            case 'wallet':
-                titleKey = 'wallet.balance';
-                break;
-            case 'staking':
-                titleKey = 'staking.title';
-                break;
-            case 'staking-details':
-                titleKey = 'staking.details.title';
-                break;
-            case 'transactions':
-                titleKey = 'transactions.title';
-                break;
-            case 'receive':
-                titleKey = 'receive.title';
-                break;
-            case 'referrals':
-                titleKey = 'referrals.title';
-                break;
-            case 'earn':
-                titleKey = 'earn.daily_bonus';
-                break;
-            case 'general':
-                titleKey = 'settings.title';
-                break;
-            default:
-                titleKey = 'app.name';
+            switch (pageName) {
+                case '':
+                case 'index':
+                    titleKey = 'app.name';
+                    break;
+                case 'wallet':
+                    titleKey = 'wallet.balance';
+                    break;
+                case 'staking':
+                    titleKey = 'staking.title';
+                    break;
+                case 'staking-details':
+                    titleKey = 'staking.details.title';
+                    break;
+                case 'transactions':
+                    titleKey = 'transactions.title';
+                    break;
+                case 'receive':
+                    titleKey = 'receive.title';
+                    break;
+                case 'referrals':
+                    titleKey = 'referrals.title';
+                    break;
+                case 'earn':
+                    titleKey = 'earn.daily_bonus';
+                    break;
+                case 'general':
+                    titleKey = 'settings.title';
+                    break;
+                default:
+                    titleKey = 'app.name';
+            }
+
+            // Змінюємо заголовок сторінки
+            if (window.WinixLanguage && titleKey) {
+                document.title = `WINIX - ${window.WinixLanguage.getText(titleKey)}`;
+            }
+        } catch (error) {
+            console.error("❌ WinixLanguage: Помилка при оновленні заголовка сторінки:", error);
+        }
+    }
+
+    /**
+     * Автоматичне визначення мови браузера
+     */
+    function detectBrowserLanguage() {
+        try {
+            const browserLang = navigator.language.split('-')[0].toLowerCase();
+            return AVAILABLE_LANGUAGES.includes(browserLang) ? browserLang : DEFAULT_LANGUAGE;
+        } catch (e) {
+            console.warn("⚠️ WinixLanguage: Помилка при визначенні мови браузера:", e);
+            return DEFAULT_LANGUAGE;
+        }
+    }
+
+    /**
+     * Перевірка і отримання мови з сервера
+     */
+    function checkServerLanguage() {
+        // Перевіряємо, чи є API
+        if (!window.WinixAPI || !window.WinixAPI.getUserData) {
+            return;
         }
 
-        // Змінюємо заголовок сторінки
-        if (window.WinixLanguage && titleKey) {
-            document.title = `WINIX - ${window.WinixLanguage.getText(titleKey)}`;
-        }
+        // Отримуємо дані користувача з сервера
+        window.WinixAPI.getUserData((error, userData) => {
+            if (error) {
+                console.warn("⚠️ WinixLanguage: Не вдалося отримати мову з сервера:", error);
+                return;
+            }
+
+            try {
+                // Якщо у користувача є збережена мова на сервері і вона відрізняється від поточної
+                if (userData.language && AVAILABLE_LANGUAGES.includes(userData.language) &&
+                    userData.language !== window.WinixLanguage.currentLang) {
+                    // Змінюємо мову, але не зберігаємо на сервері, щоб уникнути циклічних запитів
+                    window.WinixLanguage.changeLang(userData.language, false);
+                }
+            } catch (e) {
+                console.warn("⚠️ WinixLanguage: Помилка при обробці мови з сервера:", e);
+            }
+        });
     }
 
     // Оновлюємо тексти після завантаження DOM
     document.addEventListener('DOMContentLoaded', function() {
-        window.WinixLanguage.updatePageTexts();
+        try {
+            window.WinixLanguage.updatePageTexts();
+
+            // Спроба завантажити додаткові переклади з сервера
+            if (window.WinixAPI) {
+                window.WinixLanguage.loadDictionaryFromServer(window.WinixLanguage.currentLang);
+
+                // Перевіряємо мову на сервері
+                checkServerLanguage();
+            }
+        } catch (e) {
+            console.error("❌ WinixLanguage: Помилка при ініціалізації після завантаження DOM:", e);
+        }
     });
 
     // Автоматично підв'язуємося до події зміни мови
     document.addEventListener('languageChanged', function(event) {
-        // Оновлюємо активні кнопки вибору мови
-        const lang = event.detail.language;
-        document.querySelectorAll('.language-option').forEach(option => {
-            option.classList.toggle('active', option.getAttribute('data-lang') === lang);
-        });
+        try {
+            // Оновлюємо активні кнопки вибору мови
+            const lang = event.detail.language;
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.classList.toggle('active', option.getAttribute('data-lang') === lang);
+            });
+        } catch (e) {
+            console.warn("⚠️ WinixLanguage: Помилка в обробнику події languageChanged:", e);
+        }
     });
+
+    // Підписуємося на подію ініціалізації WINIX
+    document.addEventListener('winix-initialized', function() {
+        try {
+            // Заново перевіряємо мову з сервера
+            checkServerLanguage();
+
+            // Спроба завантажити додаткові переклади з сервера
+            window.WinixLanguage.loadDictionaryFromServer(window.WinixLanguage.currentLang);
+        } catch (e) {
+            console.warn("⚠️ WinixLanguage: Помилка в обробнику події winix-initialized:", e);
+        }
+    });
+
+    // Створюємо та відправляємо подію про ініціалізацію мовної системи
+    try {
+        document.dispatchEvent(new CustomEvent('winix-language-initialized'));
+    } catch (e) {
+        console.warn("⚠️ WinixLanguage: Помилка при відправці події winix-language-initialized:", e);
+    }
 
     console.log(`🌐 Система багатомовності ініціалізована. Поточна мова: ${currentLanguage}`);
 })();
