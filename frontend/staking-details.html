@@ -879,6 +879,87 @@ function updateBalanceDisplay() {
     }
 }
 
+// Додаємо обробники для кнопок на сторінці деталей стейкінгу
+function setupStakingDetailsHandlers() {
+    // Кнопка "Додати до стейкінгу"
+    const addToStakeButton = document.getElementById('add-to-stake-button');
+    if (addToStakeButton) {
+        addToStakeButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.handleAddToStakeButton) {
+                window.WinixStakingSystem.handleAddToStakeButton();
+            } else if (window.handleAddToStakeButton) {
+                window.handleAddToStakeButton();
+            } else {
+                console.error("Функція handleAddToStakeButton не знайдена");
+            }
+        });
+    }
+
+    // Кнопка "Скасувати стейкінг"
+    const cancelButton = document.getElementById('cancel-staking-button');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function() {
+            if (window.WinixStakingSystem && window.WinixStakingSystem.handleCancelStakingButton) {
+                window.WinixStakingSystem.handleCancelStakingButton();
+            } else if (window.handleCancelStakingButton) {
+                window.handleCancelStakingButton();
+            } else {
+                console.error("Функція handleCancelStakingButton не знайдена");
+            }
+        });
+    }
+}
+
+// Функція для оновлення відображення деталей стейкінгу
+function updateStakingDetails() {
+    try {
+        // Спроба отримати дані стейкінгу
+        let stakingData;
+
+        if (window.WinixStakingSystem && window.WinixStakingSystem.getStakingData) {
+            stakingData = window.WinixStakingSystem.getStakingData();
+        } else {
+            // Спроба отримати дані з localStorage
+            const storedData = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+            if (storedData) {
+                stakingData = JSON.parse(storedData);
+            }
+        }
+
+        console.log("Отримані дані стейкінгу:", stakingData);
+
+        // Якщо немає активного стейкінгу, перенаправляємо на сторінку стейкінгу
+        if (!stakingData || !stakingData.hasActiveStaking) {
+            console.log("Немає активного стейкінгу, перенаправлення...");
+            alert("У вас немає активного стейкінгу");
+            window.location.href = "staking.html";
+            return;
+        }
+
+        // Оновлюємо елементи інтерфейсу
+        const amountElement = document.getElementById('staking-amount');
+        const periodElement = document.getElementById('staking-period');
+        const rewardPercentElement = document.getElementById('staking-reward-percent');
+        const expectedRewardElement = document.getElementById('staking-expected-reward');
+        const remainingDaysElement = document.getElementById('staking-remaining-days');
+
+        if (amountElement) amountElement.textContent = `${stakingData.stakingAmount} $WINIX`;
+        if (periodElement) periodElement.textContent = `${stakingData.period} днів`;
+        if (rewardPercentElement) rewardPercentElement.textContent = `${stakingData.rewardPercent}%`;
+        if (expectedRewardElement) expectedRewardElement.textContent = `${stakingData.expectedReward} $WINIX`;
+        if (remainingDaysElement) remainingDaysElement.textContent = stakingData.remainingDays ? stakingData.remainingDays.toString() : '0';
+    } catch (e) {
+        console.error('Помилка оновлення деталей стейкінгу:', e);
+    }
+}
+
+// Викликаємо функції після завантаження всього
+window.addEventListener('load', function() {
+    setupStakingDetailsHandlers();
+    updateStakingDetails();
+});
+
+
 // Головна функція ініціалізації сторінки
 function initPage() {
     console.log("Ініціалізація сторінки деталей стейкінгу");
@@ -913,6 +994,14 @@ function initPage() {
 
     // Оновлюємо відображення балансу
     updateBalanceDisplay();
+}
+
+// Додаємо цей виклик у функцію initPage
+const originalInitPage = initPage;
+initPage = function() {
+    originalInitPage();
+    setupStakingDetailsHandlers();
+    updateStakingDetails();
 }
 
 // Обробник для зміни розміру вікна

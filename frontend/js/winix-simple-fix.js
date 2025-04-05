@@ -95,7 +95,6 @@
                 try {
                     const userId = getUserId();
 
-                    // Якщо запит містить "user/" без ID
                     if (url.includes('/api/user/') && !url.includes(`/api/user/${userId}`)) {
     // Додаємо ID користувача до URL тільки якщо його ще немає
     url = url.replace('/api/user/', `/api/user/${userId}/`);
