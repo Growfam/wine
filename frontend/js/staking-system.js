@@ -8,6 +8,16 @@
 (function() {
     console.log("🚀 Ініціалізація єдиної системи стейкінгу WINIX");
 
+      window.addEventListener('error', function(event) {
+    const error = event.error || new Error(event.message);
+    if (error.name === 'NotFoundError' ||
+        error.message.includes("not be found")) {
+        console.warn("Глобальна помилка NotFoundError перехоплена:", error);
+        event.preventDefault(); // Запобігаємо стандартній обробці
+        recoveryStakingError(); // Запускаємо відновлення
+    }
+});
+
     // Запобігаємо повторній ініціалізації
     if (window.WinixStakingSystem) {
         console.log("⚠️ Система стейкінгу вже ініціалізована");
@@ -703,62 +713,22 @@ async function recoveryStakingError() {
             console.warn("⚠️ М'яке відновлення не вдалося:", softError);
         }
 
-        // Спроба 2: Жорстке відновлення через API
+        // Спроба 3: ПОВНЕ АВАРІЙНЕ ВІДНОВЛЕННЯ (виконуємо завжди)
+        console.log("🔄 АВАРІЙНЕ СКИДАННЯ: Видалення всіх даних стейкінгу");
+
+        // Очищаємо всі дані стейкінгу в localStorage і sessionStorage
         try {
-            console.log("🔄 Спроба 2: Жорстке відновлення через API");
-            const hardRecoveryResult = await apiRequest(
-                `/api/user/${userId}/staking/repair`,
-                'POST',
-                { force: true, timestamp: Date.now() }
-            );
+            localStorage.removeItem(STORAGE_KEYS.STAKING_DATA);
+            localStorage.removeItem('staking_data');
+            localStorage.removeItem('winix_staking');
+            localStorage.removeItem('stakingData');
 
-            if (hardRecoveryResult.status === 'success') {
-                console.log("✅ Жорстке відновлення успішне:", hardRecoveryResult);
-
-                // Оновлюємо дані в локальному сховищі
-                if (hardRecoveryResult.data && hardRecoveryResult.data.staking) {
-                    updateStorage(STORAGE_KEYS.STAKING_DATA, hardRecoveryResult.data.staking);
-                } else {
-                    // Якщо стейкінг скасовано, видаляємо дані
-                    removeFromStorage(STORAGE_KEYS.STAKING_DATA);
-                }
-
-                // Приховуємо індикатор
-                if (typeof hideProgressIndicator === 'function') {
-                    hideProgressIndicator();
-                }
-
-                return {
-                    success: true,
-                    message: "Стейкінг успішно відновлено",
-                    data: hardRecoveryResult.data
-                };
-            }
-        } catch (hardError) {
-            console.warn("⚠️ Жорстке відновлення не вдалося:", hardError);
-        }
-
-        // Спроба 3: Локальне відновлення з очищенням
-        console.log("🔄 Спроба 3: Локальне відновлення з очищенням");
-
-        // Очищаємо всі дані стейкінгу в localStorage
-        removeFromStorage(STORAGE_KEYS.STAKING_DATA);
-        localStorage.removeItem('staking_data');
-        localStorage.removeItem('winix_staking');
-        sessionStorage.removeItem('staking_data');
-        sessionStorage.removeItem('winix_staking');
-
-        // Синхронізуємо дані користувача
-        try {
-            const userData = await apiRequest(`/api/user/${userId}`);
-            if (userData && userData.data) {
-                // Оновлюємо баланс
-                if (userData.data.balance !== undefined) {
-                    updateStorage(STORAGE_KEYS.USER_TOKENS, userData.data.balance);
-                }
-            }
-        } catch (userDataError) {
-            console.warn("⚠️ Не вдалося синхронізувати дані користувача:", userDataError);
+            try { sessionStorage.removeItem(STORAGE_KEYS.STAKING_DATA); } catch(e) {}
+            try { sessionStorage.removeItem('staking_data'); } catch(e) {}
+            try { sessionStorage.removeItem('winix_staking'); } catch(e) {}
+            try { sessionStorage.removeItem('stakingData'); } catch(e) {}
+        } catch (clearError) {
+            console.warn("⚠️ Помилка при очищенні даних стейкінгу:", clearError);
         }
 
         // Приховуємо індикатор
@@ -768,8 +738,8 @@ async function recoveryStakingError() {
 
         return {
             success: true,
-            message: "Виконано аварійне очищення даних стейкінгу",
-            recoveryType: "local"
+            message: "Виконано аварійне очищення даних стейкінгу. Спробуйте знову.",
+            recoveryType: "deep_clear"
         };
 
     } catch (error) {
@@ -780,17 +750,10 @@ async function recoveryStakingError() {
             hideProgressIndicator();
         }
 
-        // Повне очищення даних як останній захід
-        removeFromStorage(STORAGE_KEYS.STAKING_DATA);
-        localStorage.removeItem('staking_data');
-        localStorage.removeItem('winix_staking');
-        sessionStorage.removeItem('staking_data');
-        sessionStorage.removeItem('winix_staking');
-
         return {
             success: false,
-            message: "Не вдалося відновити стейкінг. Рекомендуємо перезавантажити сторінку.",
-            error: handleStakingError(error, "аварійного відновлення")
+            message: "Не вдалося відновити стейкінг. Перезавантажте сторінку або спробуйте пізніше.",
+            error: error.message || "Невідома помилка"
         };
     }
 }
@@ -802,11 +765,22 @@ async function recoveryStakingError() {
      * @returns {Object} Дані активного стейкінгу
      */
     function getStakingData() {
+    try {
         // Отримуємо дані з локального сховища
         const stakingData = getFromStorage(STORAGE_KEYS.STAKING_DATA, null, true);
 
-        // Синхронізуємо з сервером у фоні
-        syncStakingFromServer().catch(error => console.error("Помилка синхронізації стейкінгу:", error));
+        // Синхронізуємо з сервером у фоні з обробкою помилок
+        syncStakingFromServer()
+            .catch(error => {
+                console.error("Помилка синхронізації стейкінгу:", error);
+
+                // Якщо це NotFoundError, запускаємо автоматичне відновлення
+                if (error.name === 'NotFoundError' ||
+                    (error.message && error.message.includes("not be found"))) {
+                    console.warn("Запуск автоматичного відновлення після помилки синхронізації");
+                    recoveryStakingError();
+                }
+            });
 
         // Якщо немає даних, повертаємо об'єкт за замовчуванням
         if (!stakingData) {
@@ -821,7 +795,22 @@ async function recoveryStakingError() {
         }
 
         return stakingData;
+    } catch (error) {
+        console.error("Помилка отримання даних стейкінгу:", error);
+
+        // При помилці запускаємо відновлення і повертаємо пустий об'єкт
+        setTimeout(() => recoveryStakingError(), 100);
+
+        return {
+            hasActiveStaking: false,
+            stakingAmount: 0,
+            period: 0,
+            rewardPercent: 0,
+            expectedReward: 0,
+            remainingDays: 0
+        };
     }
+}
 
     /**
      * Перевірка наявності активного стейкінгу
@@ -849,7 +838,11 @@ async function recoveryStakingError() {
             animation: winix-spin 1s linear infinite;
             z-index: 9980;
         `;
-        document.body.appendChild(syncIndicator);
+
+        // Перевірка, що body існує перед додаванням індикатора
+        if (document.body) {
+            document.body.appendChild(syncIndicator);
+        }
 
         // Додаємо стилі анімації, якщо ще немає
         if (!document.getElementById('winix-animations')) {
@@ -861,14 +854,19 @@ async function recoveryStakingError() {
                     100% { transform: rotate(360deg); }
                 }
             `;
-            document.head.appendChild(style);
+            if (document.head) {
+                document.head.appendChild(style);
+            }
         }
 
         // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
             console.error("⚠️ Неможливо синхронізувати стейкінг: ID користувача не знайдено");
-            document.body.removeChild(syncIndicator);
+            // Безпечне видалення індикатора
+            if (document.body && syncIndicator.parentNode) {
+                document.body.removeChild(syncIndicator);
+            }
             throw new Error("ID користувача не знайдено");
         }
 
@@ -877,7 +875,10 @@ async function recoveryStakingError() {
         // Використовуємо напряму fetch замість apiRequest
         const response = await fetch(`/api/user/${userId}/staking?t=${Date.now()}`);
         if (!response.ok) {
-            document.body.removeChild(syncIndicator);
+            // Безпечне видалення індикатора
+            if (document.body && syncIndicator.parentNode) {
+                document.body.removeChild(syncIndicator);
+            }
             throw new Error(`HTTP помилка! Статус: ${response.status}`);
         }
 
@@ -893,19 +894,38 @@ async function recoveryStakingError() {
             }
 
             console.log("✅ Успішна синхронізація даних стейкінгу");
-            document.body.removeChild(syncIndicator);
+            // Безпечне видалення індикатора
+            if (document.body && syncIndicator.parentNode) {
+                document.body.removeChild(syncIndicator);
+            }
             return data.data;
         }
 
         console.error("❌ Стейкінг не синхронізовано: некоректна відповідь сервера");
-        document.body.removeChild(syncIndicator);
+        // Безпечне видалення індикатора
+        if (document.body && syncIndicator.parentNode) {
+            document.body.removeChild(syncIndicator);
+        }
         throw new Error("Некоректна відповідь сервера");
     } catch (error) {
+        // Безпечне видалення індикатора
         const syncIndicator = document.querySelector('.winix-sync-indicator');
-        if (syncIndicator) document.body.removeChild(syncIndicator);
+        if (document.body && syncIndicator && syncIndicator.parentNode) {
+            document.body.removeChild(syncIndicator);
+        }
 
         console.error("❌ Помилка синхронізації стейкінгу:", error);
         throw error;
+
+         // Додати автоматичне відновлення при помилці!
+        if (error.name === 'NotFoundError' ||
+            (error.message && error.message.includes("not be found"))) {
+            console.log("🔄 Запуск аварійного відновлення через помилку синхронізації");
+            return await recoveryStakingError();
+        }
+
+        throw error;
+
     }
 }
 
@@ -957,72 +977,84 @@ async function createStaking(amount, period) {
     _isProcessingStakingAction = true;
 
     try {
-        const userId = getUserId();
-        if (!userId) {
-            _isProcessingStakingAction = false;
-            return {
-                success: false,
-                message: "ID користувача не знайдено"
-            };
-        }
-
-        // Перевіряємо суму через функцію валідації
-        const balance = getUserBalance();
-        const validation = validateStakingAmount(amount, balance);
-
-        if (!validation.isValid) {
-            _isProcessingStakingAction = false;
-            return {
-                success: false,
-                message: validation.message
-            };
-        }
-
-        // Показуємо індикатор завантаження
-        showProgressIndicator("Створення стейкінгу...");
-
-        // Відправляємо запит на сервер через покращену функцію apiRequest
-        const result = await apiRequest(
-            `/api/user/${userId}/staking`,
-            'POST',
-            {
-                stakingAmount: Math.floor(amount),
-                period: period
-            }
-        );
-
-        // Приховуємо індикатор
-        hideProgressIndicator();
-
-        if (result.status === 'success') {
-            // Зберігаємо дані стейкінгу
-            if (result.data && result.data.staking) {
-                updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
+        // Використовуємо tryCatchApi для обробки помилок в основній функції
+        return await tryCatchApi(async () => {
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
             }
 
-            // Оновлюємо баланс
-            if (result.data && result.data.balance !== undefined) {
-                updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.balance);
+            // Перевіряємо суму через функцію валідації
+            const balance = getUserBalance();
+            const validation = validateStakingAmount(amount, balance);
+
+            if (!validation.isValid) {
+                return {
+                    success: false,
+                    message: validation.message
+                };
             }
 
-            return {
-                success: true,
-                message: "Стейкінг успішно створено",
-                data: result.data
-            };
-        } else {
+            // Показуємо індикатор завантаження
+            showProgressIndicator("Створення стейкінгу...");
+
+            // Відправляємо запит на сервер
+            const result = await apiRequest(
+                `/api/user/${userId}/staking`,
+                'POST',
+                {
+                    stakingAmount: Math.floor(amount),
+                    period: period
+                }
+            );
+
+            // Приховуємо індикатор
+            hideProgressIndicator();
+
+            if (result.status === 'success') {
+                // Зберігаємо дані стейкінгу
+                if (result.data && result.data.staking) {
+                    updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
+                }
+
+                // Оновлюємо баланс
+                if (result.data && result.data.balance !== undefined) {
+                    updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.balance);
+                }
+
+                return {
+                    success: true,
+                    message: "Стейкінг успішно створено",
+                    data: result.data
+                };
+            } else {
+                return {
+                    success: false,
+                    message: result.message || "Помилка створення стейкінгу"
+                };
+            }
+        }, "Помилка створення стейкінгу", async (error) => {
+            // Спеціальна обробка помилки NotFoundError
+            if (error.name === 'NotFoundError' ||
+                (error.message && error.message.includes("not be found"))) {
+                console.warn("Виявлено помилку NotFoundError, запуск відновлення");
+                await recoveryStakingError();
+                return {
+                    success: false,
+                    message: "Сталася помилка. Спробуйте ще раз."
+                };
+            }
             return {
                 success: false,
-                message: result.message || "Помилка створення стейкінгу"
+                message: error.message || "Помилка з'єднання з сервером"
             };
-        }
+        });
     } catch (error) {
-        console.error("Помилка створення стейкінгу:", error);
+        console.error("Критична помилка створення стейкінгу:", error);
         hideProgressIndicator();
-
         return {
             success: false,
-            message: error.message || "Помилка з'єднання з сервером"
+            message: "Сталася критична помилка. Спробуйте пізніше."
         };
     } finally {
         _isProcessingStakingAction = false;
@@ -1141,26 +1173,24 @@ async function createStaking(amount, period) {
      * @returns {Promise} Проміс з результатом операції
      */
     async function cancelStaking() {
-        if (_isProcessingStakingAction) {
-            return {
-                success: false,
-                message: "Запит вже обробляється"
-            };
-        }
+    if (_isProcessingStakingAction) {
+        return {
+            success: false,
+            message: "Запит вже обробляється"
+        };
+    }
 
-        _isProcessingStakingAction = true;
+    _isProcessingStakingAction = true;
 
-        try {
+    try {
+        // Використовуємо tryCatchApi для обробки помилок
+        return await tryCatchApi(async () => {
             const userId = getUserId();
             if (!userId) {
-                _isProcessingStakingAction = false;
-                return {
-                    success: false,
-                    message: "ID користувача не знайдено"
-                };
+                throw new Error("ID користувача не знайдено");
             }
 
-            // Отримуємо дані стейкінгу
+            // Отримуємо дані стейкінгу з обробкою помилок
             const stakingDataResponse = await fetch(`/api/user/${userId}/staking?t=${Date.now()}`);
             if (!stakingDataResponse.ok) {
                 throw new Error(`Помилка запиту стейкінгу: ${stakingDataResponse.status}`);
@@ -1168,9 +1198,8 @@ async function createStaking(amount, period) {
 
             const stakingDataResult = await stakingDataResponse.json();
 
-            // Перевіряємо наявність активного стейкінгу (виправлена перевірка)
+            // Перевіряємо наявність активного стейкінгу
             if (stakingDataResult.status !== 'success' || !stakingDataResult.data || !stakingDataResult.data.hasActiveStaking) {
-                _isProcessingStakingAction = false;
                 return {
                     success: false,
                     message: "У вас немає активного стейкінгу"
@@ -1180,14 +1209,14 @@ async function createStaking(amount, period) {
             const stakingData = stakingDataResult.data;
             const stakingId = stakingData.stakingId;
 
-            // Відправляємо запит на сервер
+            // Відправляємо запит на скасування
             const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    timestamp: Date.now() // Додаємо timestamp для запобігання кешуванню
+                    timestamp: Date.now()
                 })
             });
 
@@ -1198,7 +1227,7 @@ async function createStaking(amount, period) {
             const result = await response.json();
 
             if (result.status === 'success') {
-                // Видаляємо дані стейкінгу з УСІХ місць
+                // Видаляємо дані стейкінгу
                 removeFromStorage(STORAGE_KEYS.STAKING_DATA);
 
                 // Оновлюємо баланс
@@ -1217,16 +1246,39 @@ async function createStaking(amount, period) {
                     message: result.message || "Помилка скасування стейкінгу"
                 };
             }
-        } catch (error) {
-            console.error("Помилка скасування стейкінгу:", error);
+        }, "Помилка скасування стейкінгу", async (error) => {
+            // Якщо це NotFoundError, запускаємо автоматичне відновлення
+            if (error.name === 'NotFoundError' ||
+                (error.message && error.message.includes("not be found"))) {
+                console.warn("Виявлено помилку NotFoundError при скасуванні, запуск відновлення");
+                await recoveryStakingError();
+
+                // Після відновлення очищаємо дані стейкінгу в будь-якому разі
+                removeFromStorage(STORAGE_KEYS.STAKING_DATA);
+                localStorage.removeItem('stakingData');
+                localStorage.removeItem('winix_staking');
+
+                return {
+                    success: true,
+                    message: "Стейкінг успішно скасовано",
+                };
+            }
+
             return {
                 success: false,
-                message: error.message || "Помилка з'єднання з сервером"
+                message: handleStakingError(error, "скасування стейкінгу")
             };
-        } finally {
-            _isProcessingStakingAction = false;
-        }
+        });
+    } catch (error) {
+        console.error("Критична помилка скасування стейкінгу:", error);
+        return {
+            success: false,
+            message: error.message || "Помилка з'єднання з сервером"
+        };
+    } finally {
+        _isProcessingStakingAction = false;
     }
+}
 
     /**
      * Аварійне відновлення стейкінгу
@@ -1737,10 +1789,18 @@ async function createStaking(amount, period) {
                     stakingRewardsElement.textContent = hasStaking ? stakingData.expectedReward.toString() : '0';
                 }
             }
-        } catch (e) {
-            console.error('Помилка оновлення відображення стейкінгу:', e);
+        } catch (error) {
+        console.error("Помилка оновлення відображення стейкінгу:", error);
+        if (error.name === 'NotFoundError' ||
+            (error.message && error.message.includes("not be found"))) {
+            console.log("🔄 Запуск відновлення через помилку відображення");
+            recoveryStakingError().then(() => {
+                // Після відновлення повторити оновлення відображення
+                setTimeout(updateStakingDisplay, 500);
+            });
         }
     }
+}
 
     /**
      * Функція для налаштування поля введення суми та розрахунку винагороди
@@ -2263,6 +2323,23 @@ function resetStakingData() {
      */
     function initStakingSystem() {
         console.log("🔧 Ініціалізація системи стейкінгу");
+
+         try {
+        // Перевіряємо дані стейкінгу
+        const stakingData = getFromStorage(STORAGE_KEYS.STAKING_DATA, null, true);
+        if (!stakingData) {
+            console.log("Дані стейкінгу відсутні - запуск синхронізації");
+            syncStakingFromServer().catch(error => {
+                console.warn("Помилка при початковій синхронізації:", error);
+                // Запускаємо відновлення при помилці
+                recoveryStakingError();
+            });
+        }
+    } catch (error) {
+        console.error("Помилка перевірки даних при ініціалізації:", error);
+        // Запускаємо відновлення при помилці
+        recoveryStakingError();
+    }
 
         // Визначаємо поточну сторінку
         const currentPage = window.location.pathname.split('/').pop() || 'index.html';
