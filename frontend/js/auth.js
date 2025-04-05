@@ -115,106 +115,91 @@
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.add('show');
 
-            // Підготовка заголовків
-            const headers = {
-                'Content-Type': 'application/json',
-                'X-Telegram-User-Id': userId || ''
-            };
+            // Використання API модуля для авторизації
+            return window.WinixAPI.authorize(userData)
+                .then(data => {
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
 
-            return fetch('/api/auth', {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(userData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP помилка! Статус: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Приховуємо індикатор завантаження
-                if (spinner) spinner.classList.remove('show');
+                    if (data.status === 'success') {
+                        this.currentUser = data.data;
+                        console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
 
-                if (data.status === 'success') {
-                    this.currentUser = data.data;
-                    console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
+                        // Зберігаємо ID користувача для інших частин додатку
+                        if (this.currentUser.telegram_id) {
+                            localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
 
-                    // Зберігаємо ID користувача для інших частин додатку
-                    if (this.currentUser.telegram_id) {
-                        localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
-
-                        // Оновлюємо елемент на сторінці
-                        const userIdElement = document.getElementById('user-id');
-                        if (userIdElement) {
-                            userIdElement.textContent = this.currentUser.telegram_id;
+                            // Оновлюємо елемент на сторінці
+                            const userIdElement = document.getElementById('user-id');
+                            if (userIdElement) {
+                                userIdElement.textContent = this.currentUser.telegram_id;
+                            }
                         }
+
+                        // Зберігаємо баланс і жетони в localStorage
+                        if (this.currentUser.balance !== undefined) {
+                            localStorage.setItem('userTokens', this.currentUser.balance.toString());
+                            localStorage.setItem('winix_balance', this.currentUser.balance.toString());
+                        }
+
+                        if (this.currentUser.coins !== undefined) {
+                            localStorage.setItem('userCoins', this.currentUser.coins.toString());
+                            localStorage.setItem('winix_coins', this.currentUser.coins.toString());
+                        }
+
+                        // Показуємо вітальне повідомлення для нових користувачів
+                        if (data.data.is_new_user) {
+                            this.showWelcomeMessage();
+                        }
+
+                        // Відправляємо подію про успішну авторизацію
+                        document.dispatchEvent(new CustomEvent('auth-success', {
+                            detail: this.currentUser
+                        }));
+
+                        return this.currentUser;
+                    } else {
+                        console.error("❌ AUTH: Помилка авторизації", data);
+                        throw new Error(data.message || "Помилка авторизації");
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ AUTH: Помилка авторизації", error);
+
+                    // Додаткова діагностична інформація
+                    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                        console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
+                    } else if (error.status || error.statusText) {
+                        console.error(`❌ AUTH: HTTP помилка (${error.status}): ${error.statusText}`);
+                    } else if (typeof error.message === 'string') {
+                        console.error(`❌ AUTH: Деталі помилки: ${error.message}`);
                     }
 
-                    // Зберігаємо баланс і жетони в localStorage
-                    if (this.currentUser.balance !== undefined) {
-                        localStorage.setItem('userTokens', this.currentUser.balance.toString());
-                        localStorage.setItem('winix_balance', this.currentUser.balance.toString());
-                    }
+                    // Спроба отримати дані запиту, які викликали помилку
+                    console.error("❌ AUTH: ID користувача для діагностики:", localStorage.getItem('telegram_user_id'));
 
-                    if (this.currentUser.coins !== undefined) {
-                        localStorage.setItem('userCoins', this.currentUser.coins.toString());
-                        localStorage.setItem('winix_coins', this.currentUser.coins.toString());
-                    }
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
 
-                    // Показуємо вітальне повідомлення для нових користувачів
-                    if (data.data.is_new_user) {
-                        this.showWelcomeMessage();
+                    // Показуємо повідомлення про помилку
+                    let errorMessage = this.getLocalizedText('authError');
+                    if (error.status === 404) {
+                        errorMessage += ' API не знайдено.';
+                    } else if (error.status === 500) {
+                        errorMessage += ' Помилка на сервері.';
                     }
+                    this.showError(errorMessage);
 
-                    // Відправляємо подію про успішну авторизацію
-                    document.dispatchEvent(new CustomEvent('auth-success', {
-                        detail: this.currentUser
+                    // Відправляємо подію про помилку авторизації
+                    document.dispatchEvent(new CustomEvent('auth-error', {
+                        detail: error
                     }));
 
-                    return this.currentUser;
-                } else {
-                    console.error("❌ AUTH: Помилка авторизації", data);
-                    throw new Error(data.message || "Помилка авторизації");
-                }
-            })
-            .catch(error => {
-                console.error("❌ AUTH: Помилка авторизації", error);
-
-                // Додаткова діагностична інформація
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
-                } else if (error.status || error.statusText) {
-                    console.error(`❌ AUTH: HTTP помилка (${error.status}): ${error.statusText}`);
-                } else if (typeof error.message === 'string') {
-                    console.error(`❌ AUTH: Деталі помилки: ${error.message}`);
-                }
-
-                // Спроба отримати дані запиту, які викликали помилку
-                console.error("❌ AUTH: ID користувача для діагностики:", localStorage.getItem('telegram_user_id'));
-
-                // Приховуємо індикатор завантаження
-                if (spinner) spinner.classList.remove('show');
-
-                // Показуємо повідомлення про помилку
-                let errorMessage = this.getLocalizedText('authError');
-                if (error.status === 404) {
-                    errorMessage += ' API не знайдено.';
-                } else if (error.status === 500) {
-                    errorMessage += ' Помилка на сервері.';
-                }
-                this.showError(errorMessage);
-
-                // Відправляємо подію про помилку авторизації
-                document.dispatchEvent(new CustomEvent('auth-error', {
-                    detail: error
-                }));
-
-                throw error;
-            })
-            .finally(() => {
-                this.isAuthorizing = false;
-            });
+                    throw error;
+                })
+                .finally(() => {
+                    this.isAuthorizing = false;
+                });
         },
 
         /**
@@ -238,61 +223,52 @@
             const userId = this.currentUser.telegram_id;
             console.log(`🔐 AUTH: Запит даних користувача ${userId}`);
 
-            return fetch(`/api/user/${userId}`, {
-                headers: {
-                    'X-Telegram-User-Id': userId || ''
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP помилка! Статус: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    // Успішне отримання даних
-                    this.currentUser = { ...this.currentUser, ...data.data };
-                    console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+            // Використання API модуля для отримання даних користувача
+            return window.WinixAPI.getUserData(userId)
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Успішне отримання даних
+                        this.currentUser = { ...this.currentUser, ...data.data };
+                        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
 
-                    // Оновлюємо баланс і жетони в localStorage
-                    if (this.currentUser.balance !== undefined) {
-                        localStorage.setItem('userTokens', this.currentUser.balance.toString());
-                        localStorage.setItem('winix_balance', this.currentUser.balance.toString());
+                        // Оновлюємо баланс і жетони в localStorage
+                        if (this.currentUser.balance !== undefined) {
+                            localStorage.setItem('userTokens', this.currentUser.balance.toString());
+                            localStorage.setItem('winix_balance', this.currentUser.balance.toString());
+                        }
+
+                        if (this.currentUser.coins !== undefined) {
+                            localStorage.setItem('userCoins', this.currentUser.coins.toString());
+                            localStorage.setItem('winix_coins', this.currentUser.coins.toString());
+                        }
+
+                        // Оновлюємо дані стейкінгу, якщо вони є
+                        if (this.currentUser.staking_data) {
+                            localStorage.setItem('stakingData', JSON.stringify(this.currentUser.staking_data));
+                            localStorage.setItem('winix_staking', JSON.stringify(this.currentUser.staking_data));
+                        }
+
+                        return this.currentUser;
+                    } else {
+                        // Явна обробка випадку, коли статус не "success"
+                        console.error("❌ AUTH: Помилка отримання даних користувача", data);
+                        throw new Error(data.message || "Помилка отримання даних");
                     }
+                })
+                .catch(error => {
+                    console.error("❌ AUTH: Помилка отримання даних користувача", error);
 
-                    if (this.currentUser.coins !== undefined) {
-                        localStorage.setItem('userCoins', this.currentUser.coins.toString());
-                        localStorage.setItem('winix_coins', this.currentUser.coins.toString());
+                    // Додаткова діагностика
+                    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                        console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
+                    } else if (error.status) {
+                        console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
                     }
+                    console.error("❌ AUTH: URL запиту:", `/api/user/${userId}`);
 
-                    // Оновлюємо дані стейкінгу, якщо вони є
-                    if (this.currentUser.staking_data) {
-                        localStorage.setItem('stakingData', JSON.stringify(this.currentUser.staking_data));
-                        localStorage.setItem('winix_staking', JSON.stringify(this.currentUser.staking_data));
-                    }
-
-                    return this.currentUser;
-                } else {
-                    // Явна обробка випадку, коли статус не "success"
-                    console.error("❌ AUTH: Помилка отримання даних користувача", data);
-                    throw new Error(data.message || "Помилка отримання даних");
-                }
-            })
-            .catch(error => {
-                console.error("❌ AUTH: Помилка отримання даних користувача", error);
-
-                // Додаткова діагностика
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
-                } else if (error.status) {
-                    console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
-                }
-                console.error("❌ AUTH: URL запиту:", `/api/user/${userId}`);
-
-                this.showError(this.getLocalizedText('dataError'));
-                throw error;
-            });
+                    this.showError(this.getLocalizedText('dataError'));
+                    throw error;
+                });
         },
 
         /**
