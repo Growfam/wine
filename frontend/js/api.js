@@ -7,8 +7,6 @@
  * - Реферали
  * - Транзакції
  * - Завдання
- * - Розіграші
- * - Мовні налаштування
  * та інші.
  */
 
@@ -18,66 +16,28 @@
     // ======== ПРИВАТНІ ЗМІННІ ТА КОНСТАНТИ ========
 
     // Базовий URL API (за замовчуванням пустий для відносних шляхів)
-    const API_BASE_URL = 'https://web-production-48e0.up.railway.app';
+    const API_BASE_URL = '';
 
     // Прапорець для логування запитів
     let _debugMode = false;
 
-    // Прапорець готовності API модуля
-    let _isReady = false;
-
-    // Черга запитів, які були зроблені до готовності модуля
-    let _pendingRequests = [];
-
-    // Константи стейкінгу для локальних розрахунків
-    const STAKING_RATES = {
-        7: 4,    // 4% за 7 днів
-        14: 9,   // 9% за 14 днів
-        28: 15   // 15% за 28 днів
-    };
-
-    // Списки проблемних ендпоінтів для локальної обробки
-    const PROBLEMATIC_ENDPOINTS = [
-        'calculate-reward',
-        'staking/history',
-        'repair'
-    ];
-
     // Функція для отримання ID користувача з різних джерел
     function getUserId() {
-        try {
-            // Спочатку пробуємо отримати з localStorage
-            let userId = localStorage.getItem('telegram_user_id');
+        // Спочатку пробуємо отримати з localStorage
+        let userId = localStorage.getItem('telegram_user_id');
 
-            // Перевіряємо валідність ID
+        // Перевіряємо валідність ID
+        if (userId && userId !== 'undefined' && userId !== 'null') {
+            if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", userId);
+            return userId;
+        }
+
+        // Потім пробуємо отримати з DOM елемента
+        const userIdElement = document.getElementById('user-id');
+        if (userIdElement && userIdElement.textContent) {
+            userId = userIdElement.textContent.trim();
             if (userId && userId !== 'undefined' && userId !== 'null') {
-                if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", userId);
-                return userId;
-            }
-
-            // Потім пробуємо отримати з DOM елемента
-            const userIdElement = document.getElementById('user-id');
-            if (userIdElement && userIdElement.textContent) {
-                userId = userIdElement.textContent.trim();
-                if (userId && userId !== 'undefined' && userId !== 'null') {
-                    if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", userId);
-
-                    // Зберігаємо в localStorage для наступних запитів
-                    try {
-                        localStorage.setItem('telegram_user_id', userId);
-                    } catch (e) {
-                        console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
-                    }
-
-                    return userId;
-                }
-            }
-
-            // Пробуємо отримати з URL параметрів
-            const urlParams = new URLSearchParams(window.location.search);
-            userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-            if (userId && userId !== 'undefined' && userId !== 'null') {
-                if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", userId);
+                if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", userId);
 
                 // Зберігаємо в localStorage для наступних запитів
                 try {
@@ -88,14 +48,27 @@
 
                 return userId;
             }
-
-            // Якщо не вдалося знайти валідний ID, повертаємо null
-            console.warn("⚠️ Не вдалося отримати ID користувача");
-            return null;
-        } catch (e) {
-            console.error("❌ Помилка отримання ID користувача:", e);
-            return null;
         }
+
+        // Пробуємо отримати з URL параметрів
+        const urlParams = new URLSearchParams(window.location.search);
+        userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+        if (userId && userId !== 'undefined' && userId !== 'null') {
+            if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", userId);
+
+            // Зберігаємо в localStorage для наступних запитів
+            try {
+                localStorage.setItem('telegram_user_id', userId);
+            } catch (e) {
+                console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+            }
+
+            return userId;
+        }
+
+        // Якщо не вдалося знайти валідний ID, повертаємо null
+        console.warn("⚠️ Не вдалося отримати ID користувача");
+        return null;
     }
 
     // Обробка помилок API
@@ -103,10 +76,10 @@
         console.error(`❌ Помилка ${operation}:`, error);
 
         // Пробуємо отримати текст помилки
-        let errorMessage = error && error.message ? error.message : 'Невідома помилка';
+        let errorMessage = error.message || 'Невідома помилка';
 
         // Перевіряємо тип помилки і формуємо зрозуміле повідомлення
-        if (error && error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
             return `Не вдалося з'єднатися з сервером. Перевірте інтернет-з'єднання та спробуйте знову.`;
         }
 
@@ -134,119 +107,15 @@
         return errorMessage;
     }
 
-    // Перевірка, чи ендпоінт є проблемним
-    function isProblematicEndpoint(endpoint) {
-        return PROBLEMATIC_ENDPOINTS.some(pe => endpoint.includes(pe));
-    }
-
     // Індикатори завантаження
     function showLoader() {
-        try {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) spinner.classList.add('show');
-        } catch (e) {
-            console.warn("⚠️ Помилка показу індикатора завантаження:", e);
-        }
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.classList.add('show');
     }
 
     function hideLoader() {
-        try {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) spinner.classList.remove('show');
-        } catch (e) {
-            console.warn("⚠️ Помилка приховування індикатора завантаження:", e);
-        }
-    }
-
-    // Локальна реалізація розрахунку винагороди стейкінгу
-    function calculateLocalReward(amount, period) {
-        try {
-            amount = parseFloat(amount);
-            period = parseInt(period);
-
-            if (isNaN(amount) || isNaN(period) || amount <= 0) {
-                return 0;
-            }
-
-            const rewardPercent = STAKING_RATES[period] || 9; // За замовчуванням 9%
-            const reward = (amount * rewardPercent) / 100;
-
-            return parseFloat(reward.toFixed(2));
-        } catch (e) {
-            console.error("Помилка локального розрахунку винагороди:", e);
-            return 0;
-        }
-    }
-
-    // Створення локальної відповіді для проблемних ендпоінтів
-    function createLocalResponse(endpoint, method, data) {
-        try {
-            // Для розрахунку винагороди
-            if (endpoint.includes('calculate-reward')) {
-                const urlParams = new URLSearchParams(endpoint.split('?')[1] || '');
-                const amount = parseFloat(urlParams.get('amount') || 0);
-                const period = parseInt(urlParams.get('period') || 14);
-
-                const reward = calculateLocalReward(amount, period);
-
-                return {
-                    status: 'success',
-                    data: {
-                        reward: reward,
-                        rewardPercent: STAKING_RATES[period] || 9,
-                        amount: Math.floor(amount),
-                        period: period
-                    }
-                };
-            }
-
-            // Для історії стейкінгу
-            if (endpoint.includes('staking/history')) {
-                return {
-                    status: 'success',
-                    data: []
-                };
-            }
-
-            // Для відновлення стейкінгу
-            if (endpoint.includes('repair')) {
-                // Отримуємо поточні дані з localStorage
-                let stakingData = null;
-                try {
-                    const stored = localStorage.getItem('stakingData');
-                    if (stored) stakingData = JSON.parse(stored);
-                } catch (e) {}
-
-                // Симулюємо успішне відновлення
-                return {
-                    status: 'success',
-                    message: 'Локальне відновлення даних стейкінгу',
-                    data: {
-                        staking: stakingData || {
-                            hasActiveStaking: false,
-                            stakingAmount: 0,
-                            period: 0,
-                            rewardPercent: 0,
-                            expectedReward: 0,
-                            remainingDays: 0
-                        }
-                    }
-                };
-            }
-
-            // Загальна локальна відповідь для інших ендпоінтів
-            return {
-                status: 'success',
-                message: 'Операція виконана (локально)',
-                data: data || {}
-            };
-        } catch (e) {
-            console.error("Помилка створення локальної відповіді:", e);
-            return {
-                status: 'error',
-                message: 'Не вдалося створити локальну відповідь'
-            };
-        }
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.classList.remove('show');
     }
 
     // ======== ОСНОВНА ФУНКЦІЯ API-ЗАПИТУ ========
@@ -256,339 +125,128 @@
      * @param {string} endpoint - URL ендпоінту відносно базового URL
      * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
      * @param {Object} data - Дані для відправки (для POST/PUT запитів)
-     * @param {Function|Object} callbackOrOptions - Функція зворотного виклику або опції запиту
-     * @param {Object|number} optionsOrRetries - Додаткові параметри запиту або кількість повторних спроб
+     * @param {Object} options - Додаткові параметри запиту
+     * @param {number} retries - Кількість повторних спроб при помилці
      * @returns {Promise<Object>} Результат запиту у форматі JSON
      */
-    async function apiRequest(endpoint, method = 'GET', data = null, callbackOrOptions = null, optionsOrRetries = 3) {
-        // Визначаємо, чи перший аргумент - колбек чи опції
-        let callback = null;
-        let options = {};
-        let retries = 3;
+    async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 3) {
+        // Отримуємо ID користувача
+        const userId = getUserId();
 
-        try {
-            // Для проблемних ендпоінтів відразу повертаємо локальну відповідь
-            if (isProblematicEndpoint(endpoint)) {
-                console.log(`⚠️ Використовуємо локальну відповідь для ${endpoint}`);
-                const localResponse = createLocalResponse(endpoint, method, data);
+        // Додаємо мітку часу для запобігання кешуванню
+        const timestamp = Date.now();
+        const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
 
-                if (typeof callbackOrOptions === 'function') {
-                    callbackOrOptions(null, localResponse);
+        // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
+        if (!options.hideLoader) {
+            showLoader();
+        }
+
+        // Логуємо запит у режимі відлагодження
+        if (_debugMode) {
+            console.log(`🔄 Відправка ${method} запиту на ${url}`);
+            if (data) console.log("📦 Дані запиту:", data);
+        }
+
+        // Підготовка параметрів запиту
+        const requestOptions = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId || '',
+                ...options.headers
+            },
+            ...options
+        };
+
+        // Додаємо тіло запиту для POST/PUT
+        if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            requestOptions.body = JSON.stringify(data);
+        }
+
+        // Функція для повторного запиту при помилці
+        async function tryRequest(attemptsLeft) {
+            try {
+                const response = await fetch(url, requestOptions);
+
+                // Приховуємо індикатор завантаження
+                if (!options.hideLoader) {
+                    hideLoader();
                 }
 
-                return Promise.resolve(localResponse);
-            }
+                // Перевіряємо статус відповіді
+                if (!response.ok) {
+                    const statusText = response.statusText || '';
+                    console.error(`❌ Помилка API-запиту: ${response.status} ${statusText}`);
 
-            if (typeof callbackOrOptions === 'function') {
-                callback = callbackOrOptions;
-                if (typeof optionsOrRetries === 'object' && optionsOrRetries !== null) {
-                    options = optionsOrRetries;
-                } else if (typeof optionsOrRetries === 'number') {
-                    retries = optionsOrRetries;
-                }
-            } else if (typeof callbackOrOptions === 'object' && callbackOrOptions !== null) {
-                options = callbackOrOptions;
-                if (typeof optionsOrRetries === 'number') {
-                    retries = optionsOrRetries;
-                }
-            }
-
-            // Якщо API ще не готовий, додаємо запит у чергу
-            if (!_isReady) {
-                return new Promise((resolve, reject) => {
-                    _pendingRequests.push({
-                        endpoint, method, data, callback, options, retries,
-                        resolve, reject
-                    });
-
-                    if (_debugMode) {
-                        console.log(`⏳ Запит до ${endpoint} доданий до черги до готовності API`);
-                    }
-                });
-            }
-
-            // Отримуємо ID користувача
-            const userId = getUserId();
-
-            // Додаємо мітку часу для запобігання кешуванню
-            const timestamp = Date.now();
-            const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
-
-            // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
-            if (options && options.hideLoader !== true) {
-                showLoader();
-            }
-
-            // Логуємо запит у режимі відлагодження
-            if (_debugMode) {
-                console.log(`🔄 Відправка ${method} запиту на ${url}`);
-                if (data) console.log("📦 Дані запиту:", data);
-            }
-
-            // Підготовка параметрів запиту з безпечною перевіркою options
-            const requestOptions = {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Telegram-User-Id': userId || '',
-                    ...(options && options.headers ? options.headers : {})
-                }
-            };
-
-            // Додаємо інші параметри з options безпечно
-            if (options) {
-                Object.keys(options).forEach(key => {
-                    if (key !== 'headers' && key !== 'body') {
-                        requestOptions[key] = options[key];
-                    }
-                });
-            }
-
-            // Додаємо тіло запиту для POST/PUT
-            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-                requestOptions.body = JSON.stringify(data);
-            }
-
-            // Функція для повторного запиту при помилці
-            async function tryRequest(attemptsLeft) {
-                try {
-                    // Додаємо перехоплення для блокування або програмного падіння
-                    const timeoutController = new AbortController();
-                    const timeoutId = setTimeout(() => timeoutController.abort(), 15000); // 15 секунд таймаут
-
-                    if (!requestOptions.signal) {
-                        requestOptions.signal = timeoutController.signal;
+                    // Для 401/403 помилок авторизації
+                    if (response.status === 401 || response.status === 403) {
+                        console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
                     }
 
-                    const response = await fetch(url, requestOptions);
-                    clearTimeout(timeoutId);
-
-                    // Приховуємо індикатор завантаження
-                    if (options && options.hideLoader !== true) {
-                        hideLoader();
+                    // Для 404 помилок
+                    if (response.status === 404) {
+                        console.error(`⚠️ Ресурс не знайдено: ${url}`);
+                        throw new Error(`Запитаний ресурс недоступний (404)`);
                     }
 
-                    // Перевіряємо статус відповіді
-                    if (!response.ok) {
-                        const statusText = response.statusText || '';
-                        console.error(`❌ Помилка API-запиту: ${response.status} ${statusText}`);
-
-                        // Для HTTP помилок 400/405/429 використовуємо локальну логіку
-                        if ([400, 405, 429].includes(response.status)) {
-                            console.warn(`⚠️ Отримано HTTP помилку ${response.status}, використовуємо локальну відповідь`);
-                            const localResponse = createLocalResponse(endpoint, method, data);
-
-                            if (callback && typeof callback === 'function') {
-                                callback(null, localResponse);
-                            }
-
-                            return localResponse;
+                    // Якщо залишились спроби, повторюємо запит
+                    if (attemptsLeft > 0) {
+                        const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
+                        if (_debugMode) {
+                            console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
                         }
-
-                        // Для 401/403 помилок авторизації
-                        if (response.status === 401 || response.status === 403) {
-                            console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
-                        }
-
-                        // Для 404 помилок
-                        if (response.status === 404) {
-                            console.error(`⚠️ Ресурс не знайдено: ${url}`);
-
-                            // Локальна відповідь для 404
-                            const notFoundResponse = {
-                                status: 'error',
-                                message: 'Ресурс не знайдено',
-                                data: null
-                            };
-
-                            if (callback && typeof callback === 'function') {
-                                callback(null, notFoundResponse);
-                            }
-
-                            return notFoundResponse;
-                        }
-
-                        // Якщо залишились спроби, повторюємо запит
-                        if (attemptsLeft > 0) {
-                            const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
-                            if (_debugMode) {
-                                console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
-                            }
-
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            return tryRequest(attemptsLeft - 1);
-                        }
-
-                        // Якщо всі спроби вичерпано, повертаємо локальну відповідь
-                        console.warn(`⚠️ Всі спроби запиту вичерпано, використовуємо локальну відповідь`);
-                        const fallbackResponse = createLocalResponse(endpoint, method, data);
-
-                        if (callback && typeof callback === 'function') {
-                            callback(null, fallbackResponse);
-                        }
-
-                        return fallbackResponse;
-                    }
-
-                    // Якщо статус ОК, парсимо JSON
-                    let jsonData;
-                    try {
-                        jsonData = await response.json();
-                    } catch (parseError) {
-                        console.error('❌ Помилка парсингу JSON відповіді:', parseError);
-
-                        // Створюємо замінну відповідь при помилці парсингу
-                        const parseErrorResponse = {
-                            status: 'error',
-                            message: 'Некоректний формат відповіді сервера',
-                            data: null
-                        };
-
-                        if (callback && typeof callback === 'function') {
-                            callback(parseError, parseErrorResponse);
-                        }
-
-                        return parseErrorResponse;
-                    }
-
-                    // Перевіряємо, чи є помилка у відповіді
-                    if (jsonData && jsonData.status === 'error') {
-                        console.error('❌ API повернув помилку:', jsonData.message);
-
-                        // Для деяких ендпоінтів створюємо замінні відповіді
-                        if (isProblematicEndpoint(endpoint)) {
-                            const localErrorResponse = createLocalResponse(endpoint, method, data);
-
-                            if (callback && typeof callback === 'function') {
-                                callback(null, localErrorResponse);
-                            }
-
-                            return localErrorResponse;
-                        }
-
-                        // Для інших просто повертаємо отриману помилку
-                        if (callback && typeof callback === 'function') {
-                            callback(new Error(jsonData.message || 'Помилка виконання запиту'), null);
-                        }
-
-                        return jsonData;
-                    }
-
-                    if (_debugMode) {
-                        console.log(`✅ Успішний API-запит на ${url}`);
-                        console.log("📊 Дані відповіді:", jsonData);
-                    }
-
-                    // Викликаємо колбек з результатом, якщо він є
-                    if (callback && typeof callback === 'function') {
-                        try {
-                            callback(null, jsonData);
-                        } catch (callbackError) {
-                            console.error('❌ Помилка виконання колбека:', callbackError);
-                        }
-                    }
-
-                    return jsonData;
-
-                } catch (error) {
-                    // Приховуємо індикатор завантаження у випадку помилки
-                    if (options && options.hideLoader !== true) {
-                        hideLoader();
-                    }
-
-                    // Для помилок таймауту або переривання
-                    if (error.name === 'AbortError') {
-                        console.error('⏱️ Таймаут запиту:', url);
-
-                        // Створюємо локальну відповідь для таймауту
-                        const timeoutResponse = {
-                            status: 'error',
-                            message: 'Час очікування відповіді сервера вичерпано',
-                            data: null
-                        };
-
-                        if (callback && typeof callback === 'function') {
-                            callback(error, timeoutResponse);
-                        }
-
-                        return createLocalResponse(endpoint, method, data);
-                    }
-
-                    // Для мережевих помилок пробуємо ще раз
-                    if ((error.name === 'TypeError' || error.name === 'NetworkError') && attemptsLeft > 0) {
-                        const delay = Math.pow(2, retries - attemptsLeft) * 500;
-                        console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
 
                         await new Promise(resolve => setTimeout(resolve, delay));
                         return tryRequest(attemptsLeft - 1);
                     }
 
-                    // Якщо всі спроби вичерпано, повертаємо локальну відповідь
-                    console.warn('⚠️ Не вдалося виконати запит, використовуємо локальну відповідь');
-                    const errorResponse = createLocalResponse(endpoint, method, data);
-
-                    // Викликаємо колбек з результатом, якщо він є
-                    if (callback && typeof callback === 'function') {
-                        try {
-                            callback(null, errorResponse);
-                        } catch (callbackError) {
-                            console.error('❌ Помилка виконання колбека для помилки:', callbackError);
-                        }
-                    }
-
-                    return errorResponse;
+                    throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
                 }
-            }
 
-            // Починаємо процес запиту з повторними спробами
-            return tryRequest(retries);
-        } catch (error) {
-            // Обробка помилок, які не обробляються у tryRequest
-            console.error("❌ Критична помилка API-запиту:", error);
-
-            // Приховуємо індикатор завантаження у випадку критичної помилки
-            if (options && options.hideLoader !== true) {
-                hideLoader();
-            }
-
-            // Створюємо локальну відповідь для критичної помилки
-            const criticalErrorResponse = createLocalResponse(endpoint, method, data);
-
-            // Викликаємо колбек з локальною відповіддю
-            if (callback && typeof callback === 'function') {
+                // Якщо статус ОК, парсимо JSON
+                let jsonData;
                 try {
-                    callback(null, criticalErrorResponse);
-                } catch (callbackError) {
-                    console.error('❌ Помилка виконання колбека для критичної помилки:', callbackError);
+                    jsonData = await response.json();
+                } catch (parseError) {
+                    console.error('❌ Помилка парсингу JSON відповіді:', parseError);
+                    throw new Error('Некоректний формат відповіді');
                 }
-            }
 
-            return criticalErrorResponse;
-        }
-    }
+                // Перевіряємо, чи є помилка у відповіді
+                if (jsonData && jsonData.status === 'error') {
+                    console.error('❌ API повернув помилку:', jsonData.message);
+                    throw new Error(jsonData.message || 'Помилка виконання запиту');
+                }
 
-    // Функція для обробки черги запитів після ініціалізації
-    function processPendingRequests() {
-        console.log(`⏩ Обробка ${_pendingRequests.length} відкладених запитів...`);
+                if (_debugMode) {
+                    console.log(`✅ Успішний API-запит на ${url}`);
+                    console.log("📊 Дані відповіді:", jsonData);
+                }
 
-        // Копіюємо чергу і очищаємо оригінал
-        const pendingRequests = [..._pendingRequests];
-        _pendingRequests = [];
+                return jsonData;
 
-        // Обробляємо кожен запит
-        pendingRequests.forEach(async request => {
-            try {
-                const { endpoint, method, data, callback, options, retries, resolve, reject } = request;
-                const result = await apiRequest(endpoint, method, data, callback, options || {}, retries);
-                resolve(result);
             } catch (error) {
-                console.error(`❌ Помилка виконання відкладеного запиту:`, error);
+                // Приховуємо індикатор завантаження у випадку помилки
+                if (!options.hideLoader) {
+                    hideLoader();
+                }
 
-                // Створюємо локальну відповідь для критичної помилки
-                const errorResponse = createLocalResponse(request.endpoint, request.method, request.data);
-                request.resolve(errorResponse);
+                // Для мережевих помилок пробуємо ще раз
+                if (error.name === 'TypeError' && attemptsLeft > 0) {
+                    const delay = Math.pow(2, retries - attemptsLeft) * 500;
+                    console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
+
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return tryRequest(attemptsLeft - 1);
+                }
+
+                throw error;
             }
-        });
+        }
+
+        // Починаємо процес запиту з повторними спробами
+        return tryRequest(retries);
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ АВТОРИЗАЦІЇ ТА КОРИСТУВАЧА ========
@@ -596,642 +254,418 @@
     /**
      * Авторизація користувача
      * @param {Object} userData - Дані користувача з Telegram WebApp
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат авторизації
      */
-    function authorize(userData, callback = null) {
-        return apiRequest('/api/auth', 'POST', userData, callback);
+    async function authorize(userData) {
+        return apiRequest('/api/auth', 'POST', userData);
     }
 
     /**
      * Отримання даних користувача
-     * @param {Function|string} callbackOrUserId - Функція зворотного виклику або ID користувача
-     * @param {Function} [callback] - Функція зворотного виклику, якщо перший параметр - ID
+     * @param {string} userId - ID користувача (опціонально, за замовчуванням береться з поточного користувача)
      * @returns {Promise<Object>} - Дані користувача
      */
-    function getUserData(callbackOrUserId = null, callback = null) {
-        let userId = null;
-
-        // Визначаємо тип першого параметра
-        if (typeof callbackOrUserId === 'function') {
-            callback = callbackOrUserId;
-        } else if (typeof callbackOrUserId === 'string') {
-            userId = callbackOrUserId;
-        }
-
-        // Отримуємо ID користувача, якщо його не передано
+    async function getUserData(userId = null) {
         const id = userId || getUserId();
-
         if (!id) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-
-        return apiRequest(`/api/user/${id}`, 'GET', null, callback);
+        return apiRequest(`/api/user/${id}`);
     }
 
     /**
      * Оновлення даних користувача
      * @param {Object} userData - Дані для оновлення
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Оновлені дані користувача
      */
-    function updateUserData(userData, callback = null) {
+    async function updateUserData(userData) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}`, 'PUT', userData, callback);
+        return apiRequest(`/api/user/${userId}`, 'PUT', userData);
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ СТЕЙКІНГУ ========
 
     /**
      * Отримання даних стейкінгу
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Дані стейкінгу
      */
-    function getStakingData(callback = null) {
+    async function getStakingData() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/staking`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/staking`);
     }
 
     /**
      * Отримання історії стейкінгу
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Array>} - Історія стейкінгу
      */
-    function getStakingHistory(callback = null) {
+    async function getStakingHistory() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/staking/history`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/staking/history`);
     }
 
     /**
      * Створення нового стейкінгу
      * @param {number} amount - Сума стейкінгу
      * @param {number} period - Період стейкінгу в днях
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат створення стейкінгу
      */
-    function createStaking(amount, period, callback = null) {
+    async function createStaking(amount, period) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/staking`, 'POST', {
             stakingAmount: Math.floor(amount),
             period: period
-        }, callback);
+        });
     }
 
     /**
      * Додавання коштів до існуючого стейкінгу
      * @param {number} amount - Сума для додавання
-     * @param {string|Function} stakingIdOrCallback - ID стейкінгу (опціонально) або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {string} stakingId - ID стейкінгу (опціонально)
      * @returns {Promise<Object>} - Результат додавання коштів
      */
-    async function addToStaking(amount, stakingIdOrCallback = null, callback = null) {
-        let stakingId = null;
-
-        // Визначаємо типи параметрів
-        if (typeof stakingIdOrCallback === 'function') {
-            callback = stakingIdOrCallback;
-        } else if (typeof stakingIdOrCallback === 'string') {
-            stakingId = stakingIdOrCallback;
-        }
-
+    async function addToStaking(amount, stakingId = null) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
 
         // Якщо ID стейкінгу не передано, отримуємо його з даних стейкінгу
         let targetStakingId = stakingId;
         if (!targetStakingId) {
-            try {
-                const stakingResult = await getStakingData();
-                const stakingData = stakingResult && stakingResult.data ? stakingResult.data : stakingResult;
-
-                if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
-                    const error = new Error("У вас немає активного стейкінгу");
-                    if (callback) callback(error, null);
-                    return Promise.reject(error);
-                }
-
-                targetStakingId = stakingData.stakingId;
-            } catch (error) {
-                if (callback) callback(error, null);
-                return Promise.reject(error);
+            const stakingData = await getStakingData();
+            if (stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+                throw new Error("У вас немає активного стейкінгу");
             }
+            targetStakingId = stakingData.data.stakingId;
         }
 
         return apiRequest(`/api/user/${userId}/staking/${targetStakingId}`, 'PUT', {
             additionalAmount: Math.floor(amount)
-        }, callback);
+        });
     }
 
     /**
      * Скасування стейкінгу
-     * @param {string|Function} stakingIdOrCallback - ID стейкінгу (опціонально) або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {string} stakingId - ID стейкінгу (опціонально)
      * @returns {Promise<Object>} - Результат скасування стейкінгу
      */
-    async function cancelStaking(stakingIdOrCallback = null, callback = null) {
-        let stakingId = null;
-
-        // Визначаємо типи параметрів
-        if (typeof stakingIdOrCallback === 'function') {
-            callback = stakingIdOrCallback;
-        } else if (typeof stakingIdOrCallback === 'string') {
-            stakingId = stakingIdOrCallback;
-        }
-
+    async function cancelStaking(stakingId = null) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
 
         // Якщо ID стейкінгу не передано, отримуємо його з даних стейкінгу
         let targetStakingId = stakingId;
         if (!targetStakingId) {
-            try {
-                const stakingResult = await getStakingData();
-                const stakingData = stakingResult && stakingResult.data ? stakingResult.data : stakingResult;
-
-                if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
-                    const error = new Error("У вас немає активного стейкінгу");
-                    if (callback) callback(error, null);
-                    return Promise.reject(error);
-                }
-
-                targetStakingId = stakingData.stakingId;
-            } catch (error) {
-                if (callback) callback(error, null);
-                return Promise.reject(error);
+            const stakingData = await getStakingData();
+            if (stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+                throw new Error("У вас немає активного стейкінгу");
             }
+            targetStakingId = stakingData.data.stakingId;
         }
 
         return apiRequest(`/api/user/${userId}/staking/${targetStakingId}/cancel`, 'POST', {
             timestamp: Date.now()
-        }, callback);
+        });
     }
 
     /**
-     * Розрахунок очікуваної винагороди за стейкінг (локальна версія)
+     * Розрахунок очікуваної винагороди за стейкінг
      * @param {number} amount - Сума стейкінгу
      * @param {number} period - Період стейкінгу в днях
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Очікувана винагорода
      */
-    function calculateExpectedReward(amount, period, callback = null) {
-        try {
-            // Локальний розрахунок без виклику API
-            // Визначення винагороди на основі періоду
-            const rewardPercent = STAKING_RATES[period] || 9; // За замовчуванням 9%
-
-            // Розрахунок винагороди
-            amount = parseFloat(amount);
-            period = parseInt(period);
-
-            if (isNaN(amount) || isNaN(period) || amount <= 0) {
-                const result = {
-                    status: "error",
-                    message: "Некоректні параметри для розрахунку"
-                };
-
-                if (callback) callback(new Error(result.message), null);
-                return Promise.resolve(result);
-            }
-
-            const reward = (amount * rewardPercent) / 100;
-
-            // Формуємо результат як від API
-            const result = {
-                status: "success",
-                data: {
-                    reward: parseFloat(reward.toFixed(2)),
-                    rewardPercent: rewardPercent,
-                    amount: Math.floor(amount),
-                    period: period
-                }
-            };
-
-            // Викликаємо callback, якщо він є
-            if (callback) callback(null, result);
-
-            // Повертаємо промісом
-            return Promise.resolve(result);
-        } catch (error) {
-            console.error("Помилка локального розрахунку винагороди:", error);
-            const errorResult = {
-                status: "error",
-                message: "Помилка розрахунку винагороди"
-            };
-
-            if (callback) callback(error, null);
-            return Promise.resolve(errorResult);
+    async function calculateExpectedReward(amount, period) {
+        const userId = getUserId();
+        if (!userId) {
+            throw new Error("ID користувача не знайдено");
         }
+        return apiRequest(`/api/user/${userId}/staking/calculate-reward?amount=${amount}&period=${period}`);
     }
 
     /**
      * Відновлення стейкінгу
-     * @param {boolean|Function} forceOrCallback - Примусове відновлення або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {boolean} force - Примусове відновлення
      * @returns {Promise<Object>} - Результат відновлення стейкінгу
      */
-    function repairStaking(forceOrCallback = false, callback = null) {
-        let force = false;
-
-        // Визначаємо типи параметрів
-        if (typeof forceOrCallback === 'function') {
-            callback = forceOrCallback;
-        } else if (typeof forceOrCallback === 'boolean') {
-            force = forceOrCallback;
-        }
-
+    async function repairStaking(force = false) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/staking/repair`, 'POST', {
             force: force,
             timestamp: Date.now()
-        }, callback);
+        });
     }
 
     /**
      * Глибоке відновлення стейкінгу
-     * @param {number|Function} adjustBalanceOrCallback - Коригування балансу або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {number} adjustBalance - Коригування балансу
      * @returns {Promise<Object>} - Результат глибокого відновлення
      */
-    function deepRepairStaking(adjustBalanceOrCallback = 0, callback = null) {
-        let adjustBalance = 0;
-
-        // Визначаємо типи параметрів
-        if (typeof adjustBalanceOrCallback === 'function') {
-            callback = adjustBalanceOrCallback;
-        } else if (typeof adjustBalanceOrCallback === 'number') {
-            adjustBalance = adjustBalanceOrCallback;
-        }
-
+    async function deepRepairStaking(adjustBalance = 0) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/staking/deep-repair`, 'POST', {
             balance_adjustment: adjustBalance,
             timestamp: Date.now()
-        }, callback);
+        });
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ БАЛАНСУ ТА ТРАНЗАКЦІЙ ========
 
     /**
      * Отримання балансу користувача
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Баланс користувача
      */
-    function getBalance(callback = null) {
+    async function getBalance() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/balance`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/balance`);
     }
 
     /**
      * Додавання токенів
      * @param {number} amount - Кількість токенів
-     * @param {string|Function} descriptionOrCallback - Опис транзакції або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {string} description - Опис транзакції
      * @returns {Promise<Object>} - Результат додавання токенів
      */
-    function addTokens(amount, descriptionOrCallback = 'Додавання токенів', callback = null) {
-        let description = 'Додавання токенів';
-
-        // Визначаємо типи параметрів
-        if (typeof descriptionOrCallback === 'function') {
-            callback = descriptionOrCallback;
-        } else if (typeof descriptionOrCallback === 'string') {
-            description = descriptionOrCallback;
-        }
-
+    async function addTokens(amount, description = 'Додавання токенів') {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/add-tokens`, 'POST', {
             amount: amount,
             description: description
-        }, callback);
+        });
     }
 
     /**
      * Віднімання токенів
      * @param {number} amount - Кількість токенів
-     * @param {string|Function} descriptionOrCallback - Опис транзакції або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {string} description - Опис транзакції
      * @returns {Promise<Object>} - Результат віднімання токенів
      */
-    function subtractTokens(amount, descriptionOrCallback = 'Віднімання токенів', callback = null) {
-        let description = 'Віднімання токенів';
-
-        // Визначаємо типи параметрів
-        if (typeof descriptionOrCallback === 'function') {
-            callback = descriptionOrCallback;
-        } else if (typeof descriptionOrCallback === 'string') {
-            description = descriptionOrCallback;
-        }
-
+    async function subtractTokens(amount, description = 'Віднімання токенів') {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/subtract-tokens`, 'POST', {
             amount: amount,
             description: description
-        }, callback);
+        });
     }
 
     /**
      * Додавання жетонів
      * @param {number} amount - Кількість жетонів
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат додавання жетонів
      */
-    function addCoins(amount, callback = null) {
+    async function addCoins(amount) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/add-coins`, 'POST', {
             amount: amount
-        }, callback);
+        });
     }
 
     /**
      * Віднімання жетонів
      * @param {number} amount - Кількість жетонів
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат віднімання жетонів
      */
-    function subtractCoins(amount, callback = null) {
+    async function subtractCoins(amount) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/subtract-coins`, 'POST', {
             amount: amount
-        }, callback);
+        });
     }
 
     /**
      * Конвертація жетонів в токени
      * @param {number} coinsAmount - Кількість жетонів для конвертації
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат конвертації
      */
-    function convertCoinsToTokens(coinsAmount, callback = null) {
+    async function convertCoinsToTokens(coinsAmount) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/convert-coins`, 'POST', {
             coins_amount: coinsAmount
-        }, callback);
+        });
     }
 
     /**
      * Отримання історії транзакцій
-     * @param {number|Function} limitOrCallback - Максимальна кількість транзакцій або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {number} limit - Максимальна кількість транзакцій
      * @returns {Promise<Object>} - Історія транзакцій
      */
-    function getTransactions(limitOrCallback = 100, callback = null) {
-        let limit = 100;
-
-        // Визначаємо типи параметрів
-        if (typeof limitOrCallback === 'function') {
-            callback = limitOrCallback;
-        } else if (typeof limitOrCallback === 'number') {
-            limit = limitOrCallback;
-        }
-
+    async function getTransactions(limit = 100) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/transactions?limit=${limit}`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/transactions?limit=${limit}`);
     }
 
     /**
      * Надсилання токенів іншому користувачу
      * @param {string} recipientId - ID отримувача
      * @param {number} amount - Кількість токенів
-     * @param {string|Function} descriptionOrCallback - Опис транзакції або функція зворотного виклику
-     * @param {Function} callback - Функція зворотного виклику
+     * @param {string} description - Опис транзакції
      * @returns {Promise<Object>} - Результат надсилання
      */
-    function sendTokens(recipientId, amount, descriptionOrCallback = 'Надсилання токенів', callback = null) {
-        let description = 'Надсилання токенів';
-
-        // Визначаємо типи параметрів
-        if (typeof descriptionOrCallback === 'function') {
-            callback = descriptionOrCallback;
-        } else if (typeof descriptionOrCallback === 'string') {
-            description = descriptionOrCallback;
-        }
-
+    async function sendTokens(recipientId, amount, description = 'Надсилання токенів') {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest(`/api/user/${userId}/send-tokens`, 'POST', {
             recipient_id: recipientId,
             amount: amount,
             description: description
-        }, callback);
+        });
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ РЕФЕРАЛЬНОЇ СИСТЕМИ ========
 
     /**
      * Отримання реферального посилання
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Реферальне посилання
      */
-    function getReferralLink(callback = null) {
+    async function getReferralLink() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/referral-link`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/referral-link`);
     }
 
     /**
      * Отримання інформації про рефералів
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Інформація про рефералів
      */
-    function getReferrals(callback = null) {
+    async function getReferrals() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/referrals`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/referrals`);
     }
 
     /**
      * Отримання винагороди за рефералів
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат отримання винагороди
      */
-    function claimReferralReward(callback = null) {
+    async function claimReferralReward() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/claim-referral-reward`, 'POST', null, callback);
+        return apiRequest(`/api/user/${userId}/claim-referral-reward`, 'POST');
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ TODO СИСТЕМИ ========
 
     /**
      * Отримання списку завдань користувача
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Список завдань
      */
-    function getTodoList(callback = null) {
+    async function getTodoList() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/todos`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/todos`);
     }
 
     /**
      * Додавання нового завдання
      * @param {Object} task - Дані завдання
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат додавання завдання
      */
-    function addTodoItem(task, callback = null) {
+    async function addTodoItem(task) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/todos`, 'POST', task, callback);
+        return apiRequest(`/api/user/${userId}/todos`, 'POST', task);
     }
 
     /**
      * Оновлення завдання
      * @param {string} taskId - ID завдання
      * @param {Object} taskData - Дані для оновлення
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Оновлене завдання
      */
-    function updateTodoItem(taskId, taskData, callback = null) {
+    async function updateTodoItem(taskId, taskData) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/todos/${taskId}`, 'PUT', taskData, callback);
+        return apiRequest(`/api/user/${userId}/todos/${taskId}`, 'PUT', taskData);
     }
 
     /**
      * Видалення завдання
      * @param {string} taskId - ID завдання
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат видалення
      */
-    function deleteTodoItem(taskId, callback = null) {
+    async function deleteTodoItem(taskId) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/todos/${taskId}`, 'DELETE', null, callback);
+        return apiRequest(`/api/user/${userId}/todos/${taskId}`, 'DELETE');
     }
 
     /**
      * Позначення завдання як виконаного
      * @param {string} taskId - ID завдання
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Оновлене завдання
      */
-    function completeTodoItem(taskId, callback = null) {
+    async function completeTodoItem(taskId) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/todos/${taskId}/complete`, 'POST', null, callback);
+        return apiRequest(`/api/user/${userId}/todos/${taskId}/complete`, 'POST');
     }
 
     // ======== API ФУНКЦІЇ ДЛЯ РОЗІГРАШІВ ========
 
     /**
      * Отримання списку активних розіграшів
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Список розіграшів
      */
-    function getRaffles(callback = null) {
-        return apiRequest('/api/raffles', 'GET', null, callback);
+    async function getRaffles() {
+        return apiRequest('/api/raffles');
     }
 
     /**
@@ -1239,177 +673,57 @@
      * @param {string} raffleId - ID розіграшу
      * @param {string} raffleType - Тип розіграшу ('main', 'daily', etc.)
      * @param {number} tokenAmount - Кількість жетонів для участі
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат участі
      */
-    function participateInRaffle(raffleId, raffleType, tokenAmount, callback = null) {
+    async function participateInRaffle(raffleId, raffleType, tokenAmount) {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
         return apiRequest('/api/participate', 'POST', {
             userId: userId,
             raffleId: raffleId,
             raffleType: raffleType,
             tokenAmount: tokenAmount
-        }, callback);
+        });
     }
 
     /**
      * Отримання історії розіграшів для поточного користувача
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Історія розіграшів
      */
-    function getRaffleHistory(callback = null) {
+    async function getRaffleHistory() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/raffle-history`, 'GET', null, callback);
-    }
-
-    /**
-     * Отримання переможців розіграшу
-     * @param {string} raffleId - ID розіграшу
-     * @param {Function} callback - Функція зворотного виклику
-     * @returns {Promise<Object>} - Список переможців
-     */
-    function getRaffleWinners(raffleId, callback = null) {
-        return apiRequest(`/api/raffles/${raffleId}/winners`, 'GET', null, callback);
+        return apiRequest(`/api/user/${userId}/raffle-history`);
     }
 
     /**
      * Отримання бонусу новачка
-     * @param {Function} callback - Функція зворотного виклику
      * @returns {Promise<Object>} - Результат отримання бонусу
      */
-    function claimNewbieBonus(callback = null) {
+    async function claimNewbieBonus() {
         const userId = getUserId();
         if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
+            throw new Error("ID користувача не знайдено");
         }
-        return apiRequest(`/api/user/${userId}/claim-newbie-bonus`, 'POST', null, callback);
-    }
-
-    /**
-     * Перевірка підписки на соціальну мережу
-     * @param {string} platform - Платформа (twitter, telegram, youtube)
-     * @param {Function} callback - Функція зворотного виклику
-     * @returns {Promise<Object>} - Результат перевірки
-     */
-    function verifySocialSubscription(platform, callback = null) {
-        const userId = getUserId();
-        if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
-        }
-        return apiRequest(`/api/user/${userId}/verify-social`, 'POST', {
-            platform: platform,
-            timestamp: Date.now()
-        }, callback);
-    }
-
-    // ======== API ФУНКЦІЇ ДЛЯ МОВНОГО МОДУЛЯ ========
-
-    /**
-     * Отримання словника для обраної мови
-     * @param {string} language - Код мови (uk, en, ru)
-     * @param {Function} callback - Функція зворотного виклику
-     * @returns {Promise<Object>} - Словник з перекладами
-     */
-    function getLanguageDictionary(language, callback = null) {
-        return apiRequest(`/api/language/${language}`, 'GET', null, callback);
-    }
-
-    /**
-     * Отримання доступних мов
-     * @param {Function} callback - Функція зворотного виклику
-     * @returns {Promise<Object>} - Список доступних мов
-     */
-    function getAvailableLanguages(callback = null) {
-        return apiRequest('/api/languages', 'GET', null, callback);
-    }
-
-    /**
-     * Збереження мовних налаштувань користувача
-     * @param {string} language - Код мови (uk, en, ru)
-     * @param {Function} callback - Функція зворотного виклику
-     * @returns {Promise<Object>} - Результат збереження
-     */
-    function saveUserLanguage(language, callback = null) {
-        const userId = getUserId();
-        if (!userId) {
-            const error = new Error("ID користувача не знайдено");
-            if (callback) callback(error, null);
-            return Promise.reject(error);
-        }
-        return apiRequest(`/api/user/${userId}/set-language`, 'POST', {
-            language: language
-        }, callback);
-    }
-
-    // ======== ВЗАЄМОДІЯ З СИСТЕМОЮ ПОДІЙ ========
-
-    /**
-     * Ініціалізація API модуля
-     * @param {Function} callback - Функція зворотного виклику після ініціалізації
-     */
-    function initApi(callback = null) {
-        if (_isReady) {
-            if (callback) callback(null, { status: 'success', message: 'API вже ініціалізовано' });
-            return;
-        }
-
-        try {
-            console.log("🚀 Ініціалізація API модуля...");
-
-            // Установлюємо прапорець готовності API
-            _isReady = true;
-
-            // Обробляємо чергу запитів
-            processPendingRequests();
-
-            // Відправляємо подію про ініціалізацію API
-            document.dispatchEvent(new CustomEvent('winix-api-initialized'));
-
-            console.log("✅ API модуль успішно ініціалізовано");
-
-            if (callback) callback(null, { status: 'success', message: 'API успішно ініціалізовано' });
-        } catch (error) {
-            console.error("❌ Помилка ініціалізації API модуля:", error);
-            if (callback) callback(error, null);
-        }
-    }
-
-    /**
-     * Перевірка готовності API модуля
-     * @returns {boolean} Стан готовності API
-     */
-    function isReady() {
-        return _isReady;
+        return apiRequest(`/api/user/${userId}/claim-newbie-bonus`, 'POST');
     }
 
     // ======== ПУБЛІЧНИЙ API МОДУЛЬ ========
 
-    // Об'єкт для експорту API функцій
-    const publicApi = {
-        // Налаштування і утиліти
+    // Експортуємо всі API функції в глобальний об'єкт
+    window.WinixAPI = {
+        // Налаштування
         setDebugMode: function(debug) {
             _debugMode = debug;
             return this;
         },
-        isReady,
-        initApi,
+
+        // Базова функція для API запитів
         apiRequest,
-        getUserId,
-        handleApiError,
 
         // Авторизація та користувач
         authorize,
@@ -1452,24 +766,15 @@
         getRaffles,
         participateInRaffle,
         getRaffleHistory,
-        getRaffleWinners,
         claimNewbieBonus,
-        verifySocialSubscription,
 
-        // Мовний модуль
-        getLanguageDictionary,
-        getAvailableLanguages,
-        saveUserLanguage
+        // Утиліти
+        getUserId,
+        handleApiError
     };
-
-    // Експортуємо всі API функції в глобальний об'єкт
-    window.WinixAPI = publicApi;
 
     // Для зворотної сумісності експортуємо функцію apiRequest глобально
     window.apiRequest = apiRequest;
 
-    // Запускаємо ініціалізацію API модуля
-    setTimeout(initApi, 0);
-
-    console.log("✅ API: Єдиний API модуль успішно підготовлено до ініціалізації");
+    console.log("✅ API: Єдиний API модуль успішно ініціалізовано");
 })();

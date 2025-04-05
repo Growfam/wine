@@ -262,18 +262,6 @@
             gap: 0.9375rem; /* 15px */
         }
 
-        /* ID користувача */
-        .user-id-display {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            background: rgba(0, 0, 0, 0.2);
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.5rem;
-        }
-
         /* Прибираємо додатковий відступ для першого елемента */
         .staking-input:first-of-type {
             margin-top: 0;
@@ -638,22 +626,19 @@
             <!-- Кнопка назад у лівому верхньому кутку контейнера -->
             <button class="back-button" id="back-button">←</button>
 
-            <!-- Додаємо відображення ID користувача для зручності -->
-            <div class="user-id-display">ID: <span id="display-user-id">12345678</span></div>
-
-            <div class="staking-input">
-                <input
-                    type="number"
-                    id="staking-amount"
-                    placeholder="Введіть суму $WINIX"
-                    data-lang-key="staking.amount"
-                    min="50"
-                    step="1"
-                    required
-                    data-validate="staking-amount"
-                >
-                <button class="max-button" id="max-button" data-lang-key="staking.max">Max</button>
-            </div>
+<div class="staking-input">
+    <input
+        type="number"
+        id="staking-amount"
+        placeholder="Введіть суму $WINIX"
+        data-lang-key="staking.amount"
+        min="50"
+        step="1"
+        required
+        data-validate="staking-amount"
+    >
+    <button class="max-button" id="max-button" data-lang-key="staking.max">Max</button>
+</div>
 
             <div class="staking-input">
                 <select id="staking-period" class="period-select">
@@ -763,17 +748,14 @@ function getText(key, defaultText = key) {
 function loadUserAvatar() {
     const avatar = document.getElementById('profile-avatar');
     const userId = document.getElementById('user-id');
-    const displayUserId = document.getElementById('display-user-id');
 
     if (!avatar || !userId) return;
 
     // Отримуємо дані користувача з localStorage
     const username = localStorage.getItem('username') || 'WINIX User';
-    const userIdValue = localStorage.getItem('telegram_user_id') || '12345678';
+    const userIdValue = localStorage.getItem('userId') || '12345678';
 
-    // Встановлюємо ID користувача у всіх місцях
     userId.textContent = userIdValue;
-    if (displayUserId) displayUserId.textContent = userIdValue;
 
     const avatarSrc = localStorage.getItem('userAvatarSrc');
     const avatarId = localStorage.getItem('selectedAvatarId');
