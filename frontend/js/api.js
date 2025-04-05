@@ -16,7 +16,7 @@
     // ======== ПРИВАТНІ ЗМІННІ ТА КОНСТАНТИ ========
 
     // Базовий URL API (за замовчуванням пустий для відносних шляхів)
-    const API_BASE_URL = '';
+    const API_BASE_URL = 'https://winixbot.com';
 
     // Прапорець для логування запитів
     let _debugMode = false;
