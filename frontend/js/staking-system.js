@@ -3,7 +3,6 @@
  *
  * Єдина система управління стейкінгом для WINIX
  * Замінює staking-buttons-fix.js і emergency-staking.js
- * Використовує єдиний API модуль для всіх запитів
  */
 
 (function() {
@@ -43,6 +42,59 @@
     };
 
     // --------------- ДОПОМІЖНІ ФУНКЦІЇ ---------------
+
+    /**
+ * Покращене отримання ідентифікатора користувача з різних можливих джерел
+ * @returns {string|null} ID користувача або null
+ */
+function getUserId() {
+    // Спочатку пробуємо отримати з localStorage
+    let userId = localStorage.getItem('telegram_user_id');
+
+    // Перевіряємо валідність ID
+    if (userId && userId !== 'undefined' && userId !== 'null') {
+        console.log("🆔 ID користувача отримано з localStorage:", userId);
+        return userId;
+    }
+
+    // Потім пробуємо отримати з DOM елемента
+    const userIdElement = document.getElementById('user-id');
+    if (userIdElement && userIdElement.textContent) {
+        userId = userIdElement.textContent.trim();
+        if (userId && userId !== 'undefined' && userId !== 'null') {
+            console.log("🆔 ID користувача отримано з DOM:", userId);
+
+            // Зберігаємо в localStorage для наступних запитів
+            try {
+                localStorage.setItem('telegram_user_id', userId);
+            } catch (e) {
+                console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+            }
+
+            return userId;
+        }
+    }
+
+    // Пробуємо отримати з URL параметрів
+    const urlParams = new URLSearchParams(window.location.search);
+    userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+    if (userId && userId !== 'undefined' && userId !== 'null') {
+        console.log("🆔 ID користувача отримано з URL параметрів:", userId);
+
+        // Зберігаємо в localStorage для наступних запитів
+        try {
+            localStorage.setItem('telegram_user_id', userId);
+        } catch (e) {
+            console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+        }
+
+        return userId;
+    }
+
+    // Якщо не вдалося знайти валідний ID, повертаємо заглушку
+    console.warn("⚠️ Не вдалося отримати ID користувача. Використовується заглушка.");
+    return "guest";
+}
 
     /**
      * Безпечне отримання даних з локального сховища
@@ -131,197 +183,258 @@
     }
 
     /**
-     * Безпечний показ повідомлень
-     */
-    function showAlert(message, isError = false, callback = null) {
-        console.log(`${isError ? "❌" : "✅"} ${message}`);
+ * Показати користувацьке сповіщення в стилі WINIX
+ * @param {string} message - Текст повідомлення
+ * @param {boolean} isError - Чи це помилка
+ * @param {Function} callback - Функція, яка викликається після закриття
+ */
+function showAlert(message, isError = false, callback = null) {
+    console.log(`${isError ? "❌" : "✅"} ${message}`);
 
-        // Спочатку намагаємося використати існуючі функції
-        if (window.simpleAlert) {
-            window.simpleAlert(message, isError, callback);
-            return Promise.resolve();
-        }
+    // Видаляємо існуючі сповіщення
+    const existingAlerts = document.querySelectorAll('.winix-alert');
+    existingAlerts.forEach(alert => {
+        document.body.removeChild(alert);
+    });
 
-        if (window.showToast) {
-            window.showToast(message);
-            if (callback) setTimeout(callback, 3000);
-            return Promise.resolve();
-        }
+    // Створюємо елемент сповіщення
+    const alertElement = document.createElement('div');
+    alertElement.className = `winix-alert ${isError ? 'winix-alert-error' : 'winix-alert-success'}`;
+    alertElement.textContent = message;
 
-        // Запасний варіант - звичайний alert
-        alert(message);
-        if (callback) setTimeout(callback, 500);
-        return Promise.resolve();
-    }
+    // Стилізація через вбудовані стилі
+    alertElement.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        max-width: 80%;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 16px;
+        z-index: 9999;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        color: white;
+        background: ${isError ? 
+            'linear-gradient(135deg, #FF3B58, #FF5C5C)' : 
+            'linear-gradient(135deg, #00BFA5, #00CFBB)'};
+    `;
 
-    /**
-     * Функція для створення модального вікна з введенням суми
-     */
-    function showInputModal(title, onConfirm) {
-        // Використовуємо існуючі функції, якщо вони є
-        if (window.createInputModal) {
-            return window.createInputModal(title, onConfirm);
-        }
+    // Додаємо до DOM
+    document.body.appendChild(alertElement);
 
-        // Запасний варіант - створюємо своє модальне вікно
-        return createCustomInputModal(title, onConfirm);
-    }
+    // Запускаємо анімацію показу
+    setTimeout(() => {
+        alertElement.style.opacity = '1';
+        alertElement.style.transform = 'translateY(0)';
+    }, 10);
 
-    /**
-     * Створення власного модального вікна
-     */
-    function createCustomInputModal(title, onConfirm) {
-        // Створюємо затемнений фон
-        const overlay = document.createElement('div');
-        overlay.className = 'winix-modal-overlay';
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9998;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        `;
+    // Автоматично приховуємо через 3 секунди
+    setTimeout(() => {
+        alertElement.style.opacity = '0';
+        alertElement.style.transform = 'translateY(-20px)';
 
-        // Створюємо модальне вікно
-        const modal = document.createElement('div');
-        modal.className = 'winix-modal';
-        modal.style.cssText = `
-            background: linear-gradient(135deg, #2B3144, #1A1F2F);
-            border-radius: 15px;
-            padding: 25px;
-            width: 85%;
-            max-width: 350px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-            transform: scale(0.9);
-            transition: transform 0.3s ease;
-            color: white;
-        `;
-
-        // Створюємо заголовок
-        const modalTitle = document.createElement('h3');
-        modalTitle.textContent = title || "Введіть суму";
-        modalTitle.style.cssText = `
-            margin: 0 0 20px 0;
-            font-size: 18px;
-            font-weight: 600;
-            text-align: center;
-            color: #ffffff;
-        `;
-
-        // Створюємо поле вводу
-        const inputContainer = document.createElement('div');
-        inputContainer.style.cssText = `
-            position: relative;
-            margin-bottom: 25px;
-        `;
-
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.placeholder = 'Введіть суму';
-        input.style.cssText = `
-            width: 100%;
-            padding: 15px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.3s;
-            box-sizing: border-box;
-        `;
-
-        // Створюємо кнопки
-        const buttonsContainer = document.createElement('div');
-        buttonsContainer.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            gap: 15px;
-        `;
-
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Скасувати';
-        cancelButton.style.cssText = `
-            flex: 1;
-            padding: 14px;
-            border: none;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.3s;
-        `;
-
-        const confirmButton = document.createElement('button');
-        confirmButton.textContent = 'Підтвердити';
-        confirmButton.style.cssText = `
-            flex: 1;
-            padding: 14px;
-            border: none;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #00BFA5, #00CFBB);
-            color: white;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        `;
-
-        // Функція для закриття модального вікна
-        function closeModal() {
-            overlay.style.opacity = '0';
-            modal.style.transform = 'scale(0.9)';
-
-            setTimeout(() => {
-                if (overlay.parentNode) {
-                    document.body.removeChild(overlay);
-                }
-            }, 300);
-        }
-
-        // Додаємо обробники
-        cancelButton.addEventListener('click', closeModal);
-        confirmButton.addEventListener('click', function() {
-            const amount = parseFloat(input.value);
-            if (!isNaN(amount) && amount > 0) {
-                closeModal();
-                onConfirm(amount);
-            } else {
-                input.style.borderColor = '#FF3B58';
-                showAlert('Введіть коректну суму', true);
+        // Видаляємо елемент після анімації
+        setTimeout(() => {
+            if (alertElement.parentNode) {
+                document.body.removeChild(alertElement);
             }
-        });
 
-        // Збираємо модальне вікно
-        inputContainer.appendChild(input);
-        buttonsContainer.appendChild(cancelButton);
-        buttonsContainer.appendChild(confirmButton);
+            // Викликаємо callback після закриття
+            if (typeof callback === 'function') {
+                callback();
+            }
+        }, 300);
+    }, 3000);
 
-        modal.appendChild(modalTitle);
-        modal.appendChild(inputContainer);
-        modal.appendChild(buttonsContainer);
-        overlay.appendChild(modal);
+    // Повертаємо проміс для можливості використання await
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve();
+        }, 3300); // 3000 + 300 для анімації
+    });
+}
 
-        // Додаємо до DOM і запускаємо анімацію
-        document.body.appendChild(overlay);
+    /**
+ * Функція для створення модального вікна з введенням суми в стилі WINIX
+ * @param {string} title - Заголовок вікна
+ * @param {Function} onConfirm - Функція, яка викликається після підтвердження
+ */
+function showInputModal(title, onConfirm) {
+    // Створюємо затемнений фон
+    const overlay = document.createElement('div');
+    overlay.className = 'winix-modal-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9998;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+
+    // Створюємо модальне вікно
+    const modal = document.createElement('div');
+    modal.className = 'winix-modal';
+    modal.style.cssText = `
+        background: linear-gradient(135deg, #2B3144, #1A1F2F);
+        border-radius: 15px;
+        padding: 25px;
+        width: 85%;
+        max-width: 350px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+        color: white;
+    `;
+
+    // Створюємо заголовок
+    const modalTitle = document.createElement('h3');
+    modalTitle.textContent = title || "Введіть суму";
+    modalTitle.style.cssText = `
+        margin: 0 0 20px 0;
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+        color: #ffffff;
+    `;
+
+    // Створюємо поле вводу
+    const inputContainer = document.createElement('div');
+    inputContainer.style.cssText = `
+        position: relative;
+        margin-bottom: 25px;
+    `;
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.placeholder = 'Введіть суму';
+    input.style.cssText = `
+        width: 100%;
+        padding: 15px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        font-size: 16px;
+        outline: none;
+        transition: border-color 0.3s;
+        box-sizing: border-box;
+    `;
+    input.addEventListener('focus', () => {
+        input.style.borderColor = '#00CFBB';
+    });
+    input.addEventListener('blur', () => {
+        input.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+    });
+
+    // Створюємо кнопки
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+    `;
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Скасувати';
+    cancelButton.style.cssText = `
+        flex: 1;
+        padding: 14px;
+        border: none;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.3s;
+    `;
+    cancelButton.addEventListener('mouseover', () => {
+        cancelButton.style.background = 'rgba(255, 255, 255, 0.15)';
+    });
+    cancelButton.addEventListener('mouseout', () => {
+        cancelButton.style.background = 'rgba(255, 255, 255, 0.1)';
+    });
+
+    const confirmButton = document.createElement('button');
+    confirmButton.textContent = 'Підтвердити';
+    confirmButton.style.cssText = `
+        flex: 1;
+        padding: 14px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #00BFA5, #00CFBB);
+        color: white;
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: opacity 0.3s;
+    `;
+    confirmButton.addEventListener('mouseover', () => {
+        confirmButton.style.opacity = '0.9';
+    });
+    confirmButton.addEventListener('mouseout', () => {
+        confirmButton.style.opacity = '1';
+    });
+
+    // Додаємо обробники подій
+    cancelButton.addEventListener('click', () => {
+        closeModal();
+    });
+
+    confirmButton.addEventListener('click', () => {
+        const amount = parseFloat(input.value);
+        if (!isNaN(amount) && amount > 0) {
+            closeModal();
+            onConfirm(amount);
+        } else {
+            input.style.borderColor = '#FF3B58';
+            showAlert('Введіть коректну суму', true);
+        }
+    });
+
+    // Функція для закриття модального вікна
+    function closeModal() {
+        overlay.style.opacity = '0';
+        modal.style.transform = 'scale(0.9)';
 
         setTimeout(() => {
-            overlay.style.opacity = '1';
-            modal.style.transform = 'scale(1)';
-            input.focus();
-        }, 10);
-
-        return overlay;
+            if (overlay.parentNode) {
+                document.body.removeChild(overlay);
+            }
+        }, 300);
     }
+
+    // Збираємо модальне вікно
+    inputContainer.appendChild(input);
+    buttonsContainer.appendChild(cancelButton);
+    buttonsContainer.appendChild(confirmButton);
+
+    modal.appendChild(modalTitle);
+    modal.appendChild(inputContainer);
+    modal.appendChild(buttonsContainer);
+    overlay.appendChild(modal);
+
+    // Додаємо до DOM і запускаємо анімацію
+    document.body.appendChild(overlay);
+
+    // Встановлюємо фокус на поле вводу
+    setTimeout(() => {
+        overlay.style.opacity = '1';
+        modal.style.transform = 'scale(1)';
+        input.focus();
+    }, 10);
+}
 
     /**
      * Функція для валідації суми стейкінгу
@@ -407,92 +520,232 @@
     }
 
     /**
-     * Показати індикатор завантаження
-     */
-    function showProgressIndicator(message) {
-        // Видаляємо попередні індикатори
-        hideProgressIndicator();
+ * Обробка типових помилок стейкінгу з відображенням зрозумілих повідомлень користувачу
+ * @param {Error} error - Об'єкт помилки
+ * @param {string} operation - Назва операції, під час якої виникла помилка
+ * @returns {string} Текст помилки для відображення користувачу
+ */
+function handleStakingError(error, operation = 'операції стейкінгу') {
+    console.error(`❌ Помилка ${operation}:`, error);
 
-        // Створюємо елемент
-        const progressElement = document.createElement('div');
-        progressElement.id = 'winix-progress-indicator';
-        progressElement.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(26, 31, 47, 0.85);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10001;
-            color: white;
-            font-size: 16px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        `;
+    // Пробуємо отримати текст помилки
+    let errorMessage = error.message || 'Невідома помилка';
 
-        // Додаємо спіннер
-        const spinner = document.createElement('div');
-        spinner.className = 'winix-spinner';
-        spinner.style.cssText = `
-            width: 45px;
-            height: 45px;
-            border: 3px solid rgba(0, 207, 187, 0.3);
-            border-radius: 50%;
-            border-top-color: #00CFBB;
-            animation: winix-spin 1s linear infinite;
-            margin-bottom: 20px;
-        `;
-
-        // Додаємо стилі для анімації
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes winix-spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Додаємо повідомлення
-        const messageElement = document.createElement('div');
-        messageElement.textContent = message || 'Завантаження...';
-        messageElement.style.cssText = `
-            font-size: 16px;
-            font-weight: 500;
-            color: white;
-            text-align: center;
-            max-width: 80%;
-        `;
-
-        // Складаємо все разом
-        progressElement.appendChild(spinner);
-        progressElement.appendChild(messageElement);
-        document.body.appendChild(progressElement);
-
-        // Запускаємо анімацію
-        setTimeout(() => {
-            progressElement.style.opacity = '1';
-        }, 10);
+    // Перевіряємо тип помилки і формуємо зрозуміле повідомлення
+    if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        return `Не вдалося з'єднатися з сервером. Перевірте інтернет-з'єднання та спробуйте знову.`;
     }
 
-    /**
-     * Сховати індикатор завантаження
-     */
-    function hideProgressIndicator() {
-        const progressElement = document.getElementById('winix-progress-indicator');
-        if (progressElement) {
-            progressElement.style.opacity = '0';
-            setTimeout(() => {
-                if (progressElement.parentNode) {
-                    progressElement.parentNode.removeChild(progressElement);
-                }
-            }, 300);
+    if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        return `Час очікування відповіді від сервера вичерпано. Спробуйте знову пізніше.`;
+    }
+
+    if (errorMessage.includes('404')) {
+        return `Сервер не може знайти потрібний ресурс. Спробуйте перезавантажити сторінку.`;
+    }
+
+    if (errorMessage.includes('500')) {
+        return `Виникла помилка на сервері. Будь ласка, спробуйте пізніше.`;
+    }
+
+    if (errorMessage.includes('undefined') || errorMessage.includes('null')) {
+        return `Не вдалося отримати дані користувача. Спробуйте перезавантажити сторінку.`;
+    }
+
+    if (errorMessage.includes('ID користувача не знайдено')) {
+        return `Не вдалося визначити ваш ідентифікатор. Спробуйте вийти та увійти знову.`;
+    }
+
+    // Повертаємо оригінальне повідомлення, якщо воно не підходить під типові шаблони
+    return errorMessage;
+}
+
+/**
+ * Перехоплення та обробка помилок API-запитів
+ * @param {Function} apiCall - Функція виклику API
+ * @param {string} errorPrefix - Префікс для повідомлення про помилку
+ * @param {Function} onError - Функція для обробки помилки
+ * @returns {Promise<*>} Результат виконання API-запиту або обробка помилки
+ */
+async function tryCatchApi(apiCall, errorPrefix = 'Помилка', onError = null) {
+    try {
+        return await apiCall();
+    } catch (error) {
+        // Формуємо зрозуміле повідомлення
+        const userMessage = `${errorPrefix}: ${handleStakingError(error)}`;
+
+        // Логуємо помилку
+        console.error(`❌ ${userMessage}`, error);
+
+        // Якщо передана функція обробки помилки, викликаємо її
+        if (typeof onError === 'function') {
+            return onError(error, userMessage);
         }
+
+        // Показуємо повідомлення користувачу
+        if (typeof showAlert === 'function') {
+            showAlert(userMessage, true);
+        } else if (window.WinixCore && window.WinixCore.UI && window.WinixCore.UI.showNotification) {
+            window.WinixCore.UI.showNotification(userMessage, 'error');
+        } else {
+            alert(userMessage);
+        }
+
+        // Повертаємо об'єкт з помилкою
+        return {
+            success: false,
+            message: userMessage,
+            originalError: error
+        };
     }
+}
+
+/**
+ * Аварійне відновлення стейкінгу при помилках
+ * @returns {Promise<Object>} Результат операції відновлення
+ */
+async function recoveryStakingError() {
+    try {
+        console.log("🛠️ Запуск аварійного відновлення стейкінгу");
+
+        // Показуємо індикатор завантаження
+        if (typeof showProgressIndicator === 'function') {
+            showProgressIndicator("Аварійне відновлення стейкінгу...");
+        }
+
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            console.error("⚠️ Не вдалося отримати ID користувача для відновлення");
+            throw new Error("ID користувача не знайдено");
+        }
+
+        // Спроба 1: М'яке відновлення через API
+        try {
+            console.log("🔄 Спроба 1: М'яке відновлення через API");
+            const softRecoveryResult = await apiRequest(
+                `/api/user/${userId}/staking/repair`,
+                'POST',
+                { force: false, timestamp: Date.now() }
+            );
+
+            if (softRecoveryResult.status === 'success') {
+                console.log("✅ М'яке відновлення успішне:", softRecoveryResult);
+
+                // Оновлюємо дані в локальному сховищі
+                if (softRecoveryResult.data && softRecoveryResult.data.staking) {
+                    updateStorage(STORAGE_KEYS.STAKING_DATA, softRecoveryResult.data.staking);
+                } else {
+                    // Якщо стейкінг скасовано, видаляємо дані
+                    removeFromStorage(STORAGE_KEYS.STAKING_DATA);
+                }
+
+                // Приховуємо індикатор
+                if (typeof hideProgressIndicator === 'function') {
+                    hideProgressIndicator();
+                }
+
+                return {
+                    success: true,
+                    message: "Стейкінг успішно відновлено",
+                    data: softRecoveryResult.data
+                };
+            }
+        } catch (softError) {
+            console.warn("⚠️ М'яке відновлення не вдалося:", softError);
+        }
+
+        // Спроба 2: Жорстке відновлення через API
+        try {
+            console.log("🔄 Спроба 2: Жорстке відновлення через API");
+            const hardRecoveryResult = await apiRequest(
+                `/api/user/${userId}/staking/repair`,
+                'POST',
+                { force: true, timestamp: Date.now() }
+            );
+
+            if (hardRecoveryResult.status === 'success') {
+                console.log("✅ Жорстке відновлення успішне:", hardRecoveryResult);
+
+                // Оновлюємо дані в локальному сховищі
+                if (hardRecoveryResult.data && hardRecoveryResult.data.staking) {
+                    updateStorage(STORAGE_KEYS.STAKING_DATA, hardRecoveryResult.data.staking);
+                } else {
+                    // Якщо стейкінг скасовано, видаляємо дані
+                    removeFromStorage(STORAGE_KEYS.STAKING_DATA);
+                }
+
+                // Приховуємо індикатор
+                if (typeof hideProgressIndicator === 'function') {
+                    hideProgressIndicator();
+                }
+
+                return {
+                    success: true,
+                    message: "Стейкінг успішно відновлено",
+                    data: hardRecoveryResult.data
+                };
+            }
+        } catch (hardError) {
+            console.warn("⚠️ Жорстке відновлення не вдалося:", hardError);
+        }
+
+        // Спроба 3: Локальне відновлення з очищенням
+        console.log("🔄 Спроба 3: Локальне відновлення з очищенням");
+
+        // Очищаємо всі дані стейкінгу в localStorage
+        removeFromStorage(STORAGE_KEYS.STAKING_DATA);
+        localStorage.removeItem('staking_data');
+        localStorage.removeItem('winix_staking');
+        sessionStorage.removeItem('staking_data');
+        sessionStorage.removeItem('winix_staking');
+
+        // Синхронізуємо дані користувача
+        try {
+            const userData = await apiRequest(`/api/user/${userId}`);
+            if (userData && userData.data) {
+                // Оновлюємо баланс
+                if (userData.data.balance !== undefined) {
+                    updateStorage(STORAGE_KEYS.USER_TOKENS, userData.data.balance);
+                }
+            }
+        } catch (userDataError) {
+            console.warn("⚠️ Не вдалося синхронізувати дані користувача:", userDataError);
+        }
+
+        // Приховуємо індикатор
+        if (typeof hideProgressIndicator === 'function') {
+            hideProgressIndicator();
+        }
+
+        return {
+            success: true,
+            message: "Виконано аварійне очищення даних стейкінгу",
+            recoveryType: "local"
+        };
+
+    } catch (error) {
+        console.error("❌ Критична помилка аварійного відновлення:", error);
+
+        // Приховуємо індикатор
+        if (typeof hideProgressIndicator === 'function') {
+            hideProgressIndicator();
+        }
+
+        // Повне очищення даних як останній захід
+        removeFromStorage(STORAGE_KEYS.STAKING_DATA);
+        localStorage.removeItem('staking_data');
+        localStorage.removeItem('winix_staking');
+        sessionStorage.removeItem('staking_data');
+        sessionStorage.removeItem('winix_staking');
+
+        return {
+            success: false,
+            message: "Не вдалося відновити стейкінг. Рекомендуємо перезавантажити сторінку.",
+            error: handleStakingError(error, "аварійного відновлення")
+        };
+    }
+}
 
     // --------------- ОСНОВНІ ФУНКЦІЇ СТЕЙКІНГУ ---------------
 
@@ -532,71 +785,79 @@
     }
 
     /**
-     * Функція для синхронізації даних стейкінгу з сервера
-     * @returns {Promise<Object>} Проміс з результатами синхронізації
-     */
-    async function syncStakingFromServer() {
-        try {
-            // Показуємо маленький індикатор завантаження
-            const syncIndicator = document.createElement('div');
-            syncIndicator.className = 'winix-sync-indicator';
-            syncIndicator.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                width: 20px;
-                height: 20px;
-                border: 2px solid rgba(0, 207, 187, 0.3);
-                border-radius: 50%;
-                border-top-color: #00CFBB;
-                animation: winix-spin 1s linear infinite;
-                z-index: 9980;
-            `;
-            document.body.appendChild(syncIndicator);
+ * Функція для синхронізації даних стейкінгу з сервера із зручним відображенням результату
+ * @returns {Promise<Object>} Проміс з результатами синхронізації
+ */
+async function syncStakingFromServer() {
+    try {
+        // Показуємо маленький індикатор завантаження
+        const syncIndicator = document.createElement('div');
+        syncIndicator.className = 'winix-sync-indicator';
+        syncIndicator.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 207, 187, 0.3);
+            border-radius: 50%;
+            border-top-color: #00CFBB;
+            animation: winix-spin 1s linear infinite;
+            z-index: 9980;
+        `;
+        document.body.appendChild(syncIndicator);
 
-            // Додаємо стилі анімації, якщо ще немає
-            if (!document.getElementById('winix-animations')) {
-                const style = document.createElement('style');
-                style.id = 'winix-animations';
-                style.textContent = `
-                    @keyframes winix-spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            console.log("🔄 Синхронізація даних стейкінгу з сервера");
-
-            // Використовуємо API модуль для отримання даних стейкінгу
-            const data = await window.WinixAPI.getStakingData();
-
-            if (data.status === 'success' && data.data) {
-                // Зберігаємо отримані дані
-                updateStorage(STORAGE_KEYS.STAKING_DATA, data.data);
-
-                // Оновлюємо відображення
-                if (typeof updateStakingDisplay === 'function') {
-                    updateStakingDisplay();
+        // Додаємо стилі анімації, якщо ще немає
+        if (!document.getElementById('winix-animations')) {
+            const style = document.createElement('style');
+            style.id = 'winix-animations';
+            style.textContent = `
+                @keyframes winix-spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
                 }
+            `;
+            document.head.appendChild(style);
+        }
 
-                console.log("✅ Успішна синхронізація даних стейкінгу");
-                document.body.removeChild(syncIndicator);
-                return data.data;
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            console.error("⚠️ Неможливо синхронізувати стейкінг: ID користувача не знайдено");
+            document.body.removeChild(syncIndicator);
+            throw new Error("ID користувача не знайдено");
+        }
+
+        console.log("🔄 Синхронізація даних стейкінгу з сервера");
+
+        // Виконуємо запит через покращену функцію
+        const data = await apiRequest(`/api/user/${userId}/staking`, 'GET');
+
+        if (data.status === 'success' && data.data) {
+            // Зберігаємо отримані дані
+            updateStorage(STORAGE_KEYS.STAKING_DATA, data.data);
+
+            // Оновлюємо відображення, якщо існує відповідна функція
+            if (typeof updateStakingDisplay === 'function') {
+                updateStakingDisplay();
             }
 
-            console.error("❌ Стейкінг не синхронізовано: некоректна відповідь сервера");
+            console.log("✅ Успішна синхронізація даних стейкінгу");
             document.body.removeChild(syncIndicator);
-            throw new Error("Некоректна відповідь сервера");
-        } catch (error) {
-            const syncIndicator = document.querySelector('.winix-sync-indicator');
-            if (syncIndicator) document.body.removeChild(syncIndicator);
-
-            console.error("❌ Помилка синхронізації стейкінгу:", error);
-            throw error;
+            return data.data;
         }
+
+        console.error("❌ Стейкінг не синхронізовано: некоректна відповідь сервера");
+        document.body.removeChild(syncIndicator);
+        throw new Error("Некоректна відповідь сервера");
+    } catch (error) {
+        const syncIndicator = document.querySelector('.winix-sync-indicator');
+        if (syncIndicator) document.body.removeChild(syncIndicator);
+
+        console.error("❌ Помилка синхронізації стейкінгу:", error);
+        throw error;
     }
+}
 
     /**
      * Синхронізація історії стейкінгу з сервера
@@ -604,8 +865,17 @@
      */
     async function syncStakingHistoryFromServer() {
         try {
-            // Використовуємо API модуль для отримання історії стейкінгу
-            const data = await window.WinixAPI.getStakingHistory();
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
+            }
+
+            const response = await fetch(`/api/user/${userId}/staking/history?t=${Date.now()}`);
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const data = await response.json();
 
             if (data.status === 'success' && Array.isArray(data.data)) {
                 // Зберігаємо отриману історію
@@ -621,77 +891,93 @@
     }
 
     /**
-     * Створення нового стейкінгу
-     * @param {number} amount - Сума стейкінгу
-     * @param {number} period - Період стейкінгу в днях
-     * @returns {Promise<Object>} Проміс з результатом операції
-     */
-    async function createStaking(amount, period) {
-        if (_isProcessingStakingAction) {
-            return {
-                success: false,
-                message: "Запит вже обробляється"
-            };
-        }
-
-        _isProcessingStakingAction = true;
-
-        try {
-            // Перевіряємо суму через функцію валідації
-            const balance = getUserBalance();
-            const validation = validateStakingAmount(amount, balance);
-
-            if (!validation.isValid) {
-                _isProcessingStakingAction = false;
-                return {
-                    success: false,
-                    message: validation.message
-                };
-            }
-
-            // Показуємо індикатор завантаження
-            showProgressIndicator("Створення стейкінгу...");
-
-            // Використовуємо API модуль для створення стейкінгу
-            const result = await window.WinixAPI.createStaking(Math.floor(amount), period);
-
-            // Приховуємо індикатор
-            hideProgressIndicator();
-
-            if (result.status === 'success') {
-                // Зберігаємо дані стейкінгу
-                if (result.data && result.data.staking) {
-                    updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
-                }
-
-                // Оновлюємо баланс
-                if (result.data && result.data.balance !== undefined) {
-                    updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.balance);
-                }
-
-                return {
-                    success: true,
-                    message: "Стейкінг успішно створено",
-                    data: result.data
-                };
-            } else {
-                return {
-                    success: false,
-                    message: result.message || "Помилка створення стейкінгу"
-                };
-            }
-        } catch (error) {
-            console.error("Помилка створення стейкінгу:", error);
-            hideProgressIndicator();
-
-            return {
-                success: false,
-                message: error.message || "Помилка з'єднання з сервером"
-            };
-        } finally {
-            _isProcessingStakingAction = false;
-        }
+ * Створення нового стейкінгу з покращеною обробкою помилок
+ * @param {number} amount - Сума стейкінгу
+ * @param {number} period - Період стейкінгу в днях
+ * @returns {Promise<Object>} Проміс з результатом операції
+ */
+async function createStaking(amount, period) {
+    if (_isProcessingStakingAction) {
+        return {
+            success: false,
+            message: "Запит вже обробляється"
+        };
     }
+
+    _isProcessingStakingAction = true;
+
+    try {
+        const userId = getUserId();
+        if (!userId) {
+            _isProcessingStakingAction = false;
+            return {
+                success: false,
+                message: "ID користувача не знайдено"
+            };
+        }
+
+        // Перевіряємо суму через функцію валідації
+        const balance = getUserBalance();
+        const validation = validateStakingAmount(amount, balance);
+
+        if (!validation.isValid) {
+            _isProcessingStakingAction = false;
+            return {
+                success: false,
+                message: validation.message
+            };
+        }
+
+        // Показуємо індикатор завантаження
+        showProgressIndicator("Створення стейкінгу...");
+
+        // Відправляємо запит на сервер через покращену функцію apiRequest
+        const result = await apiRequest(
+            `/api/user/${userId}/staking`,
+            'POST',
+            {
+                stakingAmount: Math.floor(amount),
+                period: period
+            }
+        );
+
+        // Приховуємо індикатор
+        hideProgressIndicator();
+
+        if (result.status === 'success') {
+            // Зберігаємо дані стейкінгу
+            if (result.data && result.data.staking) {
+                updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
+            }
+
+            // Оновлюємо баланс
+            if (result.data && result.data.balance !== undefined) {
+                updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.balance);
+            }
+
+            return {
+                success: true,
+                message: "Стейкінг успішно створено",
+                data: result.data
+            };
+        } else {
+            return {
+                success: false,
+                message: result.message || "Помилка створення стейкінгу"
+            };
+        }
+    } catch (error) {
+        console.error("Помилка створення стейкінгу:", error);
+        hideProgressIndicator();
+
+        return {
+            success: false,
+            message: error.message || "Помилка з'єднання з сервером"
+        };
+    } finally {
+        _isProcessingStakingAction = false;
+    }
+}
 
     /**
      * Додавання коштів до стейкінгу
@@ -709,10 +995,25 @@
         _isProcessingStakingAction = true;
 
         try {
-            // Перевіряємо наявність активного стейкінгу
-            const stakingData = await window.WinixAPI.getStakingData();
+            const userId = getUserId();
+            if (!userId) {
+                _isProcessingStakingAction = false;
+                return {
+                    success: false,
+                    message: "ID користувача не знайдено"
+                };
+            }
 
-            if (stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+            // Отримуємо дані стейкінгу
+            const stakingDataResponse = await fetch(`/api/user/${userId}/staking?t=${Date.now()}`);
+            if (!stakingDataResponse.ok) {
+                throw new Error(`Помилка запиту стейкінгу: ${stakingDataResponse.status}`);
+            }
+
+            const stakingDataResult = await stakingDataResponse.json();
+
+            // Перевіряємо наявність активного стейкінгу (виправлена перевірка)
+            if (stakingDataResult.status !== 'success' || !stakingDataResult.data || !stakingDataResult.data.hasActiveStaking) {
                 _isProcessingStakingAction = false;
                 return {
                     success: false,
@@ -720,7 +1021,8 @@
                 };
             }
 
-            const stakingId = stakingData.data.stakingId;
+            const stakingData = stakingDataResult.data;
+            const stakingId = stakingData.stakingId;
 
             // Перевіряємо суму через функцію валідації
             const balance = getUserBalance();
@@ -734,8 +1036,22 @@
                 };
             }
 
-            // Використовуємо API модуль для додавання коштів до стейкінгу
-            const result = await window.WinixAPI.addToStaking(Math.floor(amount), stakingId);
+            // Відправляємо запит на сервер
+            const response = await fetch(`/api/user/${userId}/staking/${stakingId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    additionalAmount: Math.floor(amount)
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             if (result.status === 'success') {
                 // Оновлюємо дані стейкінгу
@@ -785,10 +1101,25 @@
         _isProcessingStakingAction = true;
 
         try {
-            // Перевіряємо наявність активного стейкінгу
-            const stakingData = await window.WinixAPI.getStakingData();
+            const userId = getUserId();
+            if (!userId) {
+                _isProcessingStakingAction = false;
+                return {
+                    success: false,
+                    message: "ID користувача не знайдено"
+                };
+            }
 
-            if (stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+            // Отримуємо дані стейкінгу
+            const stakingDataResponse = await fetch(`/api/user/${userId}/staking?t=${Date.now()}`);
+            if (!stakingDataResponse.ok) {
+                throw new Error(`Помилка запиту стейкінгу: ${stakingDataResponse.status}`);
+            }
+
+            const stakingDataResult = await stakingDataResponse.json();
+
+            // Перевіряємо наявність активного стейкінгу (виправлена перевірка)
+            if (stakingDataResult.status !== 'success' || !stakingDataResult.data || !stakingDataResult.data.hasActiveStaking) {
                 _isProcessingStakingAction = false;
                 return {
                     success: false,
@@ -796,10 +1127,25 @@
                 };
             }
 
-            const stakingId = stakingData.data.stakingId;
+            const stakingData = stakingDataResult.data;
+            const stakingId = stakingData.stakingId;
 
-            // Використовуємо API модуль для скасування стейкінгу
-            const result = await window.WinixAPI.cancelStaking(stakingId);
+            // Відправляємо запит на сервер
+            const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    timestamp: Date.now() // Додаємо timestamp для запобігання кешуванню
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             if (result.status === 'success') {
                 // Видаляємо дані стейкінгу з УСІХ місць
@@ -848,8 +1194,32 @@
         _isProcessingStakingAction = true;
 
         try {
-            // Використовуємо API модуль для відновлення стейкінгу
-            const result = await window.WinixAPI.repairStaking(forceReset);
+            const userId = getUserId();
+            if (!userId) {
+                _isProcessingStakingAction = false;
+                return {
+                    success: false,
+                    message: "ID користувача не знайдено"
+                };
+            }
+
+            // Відправляємо запит на сервер
+            const response = await fetch(`/api/user/${userId}/staking/repair`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    force: forceReset,
+                    timestamp: Date.now()
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             if (result.status === 'success') {
                 // Оновлюємо дані в локальному сховищі
@@ -903,8 +1273,32 @@
         _isProcessingStakingAction = true;
 
         try {
-            // Використовуємо API модуль для глибокого відновлення стейкінгу
-            const result = await window.WinixAPI.deepRepairStaking(adjustBalance);
+            const userId = getUserId();
+            if (!userId) {
+                _isProcessingStakingAction = false;
+                return {
+                    success: false,
+                    message: "ID користувача не знайдено"
+                };
+            }
+
+            // Відправляємо запит на сервер
+            const response = await fetch(`/api/user/${userId}/staking/deep-repair`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    balance_adjustment: adjustBalance,
+                    timestamp: Date.now()
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             if (result.status === 'success') {
                 // Видаляємо всі дані стейкінгу
@@ -945,6 +1339,11 @@
      */
     async function getExpectedRewardFromServer(amount, period) {
         try {
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
+            }
+
             // Базова перевірка даних
             amount = parseInt(amount);
             period = parseInt(period);
@@ -953,8 +1352,14 @@
                 return calculateExpectedReward(amount, period);
             }
 
-            // Використовуємо API модуль для розрахунку очікуваної винагороди
-            const result = await window.WinixAPI.calculateExpectedReward(amount, period);
+            // Відправляємо запит на сервер
+            const response = await fetch(`/api/user/${userId}/staking/calculate-reward?amount=${amount}&period=${period}&t=${Date.now()}`);
+
+            if (!response.ok) {
+                throw new Error(`Помилка запиту: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             if (result.status === 'success' && result.data && typeof result.data.reward === 'number') {
                 return parseFloat(result.data.reward.toFixed(2));
@@ -968,7 +1373,6 @@
             return calculateExpectedReward(amount, period);
         }
     }
-
     // --------------- ОБРОБНИКИ ПОДІЙ ДЛЯ СТОРІНОК ---------------
 
     /**
@@ -1039,6 +1443,14 @@
 
         // Стаємо інтерактивний режим
         _isProcessingStakingAction = true;
+
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            showAlert("Не вдалося визначити ID користувача", true);
+            _isProcessingStakingAction = false;
+            return;
+        }
 
         // Показуємо модальне вікно для введення суми
         showInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
@@ -1570,6 +1982,95 @@
                 _isProcessingStakingAction = false;
             });
     }
+
+    /**
+ * Показати індикатор завантаження в стилі WINIX
+ * @param {string} message - Текст повідомлення
+ */
+function showProgressIndicator(message) {
+    // Видаляємо попередні індикатори
+    hideProgressIndicator();
+
+    // Створюємо елемент
+    const progressElement = document.createElement('div');
+    progressElement.id = 'winix-progress-indicator';
+    progressElement.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(26, 31, 47, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+        color: white;
+        font-size: 16px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+
+    // Додаємо спіннер
+    const spinner = document.createElement('div');
+    spinner.className = 'winix-spinner';
+    spinner.style.cssText = `
+        width: 45px;
+        height: 45px;
+        border: 3px solid rgba(0, 207, 187, 0.3);
+        border-radius: 50%;
+        border-top-color: #00CFBB;
+        animation: winix-spin 1s linear infinite;
+        margin-bottom: 20px;
+    `;
+
+    // Додаємо стилі для анімації
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes winix-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Додаємо повідомлення
+    const messageElement = document.createElement('div');
+    messageElement.textContent = message || 'Завантаження...';
+    messageElement.style.cssText = `
+        font-size: 16px;
+        font-weight: 500;
+        color: white;
+        text-align: center;
+        max-width: 80%;
+    `;
+
+    // Складаємо все разом
+    progressElement.appendChild(spinner);
+    progressElement.appendChild(messageElement);
+    document.body.appendChild(progressElement);
+
+    // Запускаємо анімацію
+    setTimeout(() => {
+        progressElement.style.opacity = '1';
+    }, 10);
+}
+
+/**
+ * Сховати індикатор завантаження
+ */
+function hideProgressIndicator() {
+    const progressElement = document.getElementById('winix-progress-indicator');
+    if (progressElement) {
+        progressElement.style.opacity = '0';
+        setTimeout(() => {
+            if (progressElement.parentNode) {
+                progressElement.parentNode.removeChild(progressElement);
+            }
+        }, 300);
+    }
+}
 
     // --------------- ІНІЦІАЛІЗАЦІЯ СИСТЕМИ ---------------
 
