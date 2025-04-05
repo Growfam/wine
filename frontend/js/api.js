@@ -31,21 +31,39 @@
 
     // Функція для отримання ID користувача з різних джерел
     function getUserId() {
-        // Спочатку пробуємо отримати з localStorage
-        let userId = localStorage.getItem('telegram_user_id');
+        try {
+            // Спочатку пробуємо отримати з localStorage
+            let userId = localStorage.getItem('telegram_user_id');
 
-        // Перевіряємо валідність ID
-        if (userId && userId !== 'undefined' && userId !== 'null') {
-            if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", userId);
-            return userId;
-        }
-
-        // Потім пробуємо отримати з DOM елемента
-        const userIdElement = document.getElementById('user-id');
-        if (userIdElement && userIdElement.textContent) {
-            userId = userIdElement.textContent.trim();
+            // Перевіряємо валідність ID
             if (userId && userId !== 'undefined' && userId !== 'null') {
-                if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", userId);
+                if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", userId);
+                return userId;
+            }
+
+            // Потім пробуємо отримати з DOM елемента
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement && userIdElement.textContent) {
+                userId = userIdElement.textContent.trim();
+                if (userId && userId !== 'undefined' && userId !== 'null') {
+                    if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", userId);
+
+                    // Зберігаємо в localStorage для наступних запитів
+                    try {
+                        localStorage.setItem('telegram_user_id', userId);
+                    } catch (e) {
+                        console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+                    }
+
+                    return userId;
+                }
+            }
+
+            // Пробуємо отримати з URL параметрів
+            const urlParams = new URLSearchParams(window.location.search);
+            userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            if (userId && userId !== 'undefined' && userId !== 'null') {
+                if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", userId);
 
                 // Зберігаємо в localStorage для наступних запитів
                 try {
@@ -56,27 +74,14 @@
 
                 return userId;
             }
+
+            // Якщо не вдалося знайти валідний ID, повертаємо null
+            console.warn("⚠️ Не вдалося отримати ID користувача");
+            return null;
+        } catch (e) {
+            console.error("❌ Помилка отримання ID користувача:", e);
+            return null;
         }
-
-        // Пробуємо отримати з URL параметрів
-        const urlParams = new URLSearchParams(window.location.search);
-        userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-        if (userId && userId !== 'undefined' && userId !== 'null') {
-            if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", userId);
-
-            // Зберігаємо в localStorage для наступних запитів
-            try {
-                localStorage.setItem('telegram_user_id', userId);
-            } catch (e) {
-                console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
-            }
-
-            return userId;
-        }
-
-        // Якщо не вдалося знайти валідний ID, повертаємо null
-        console.warn("⚠️ Не вдалося отримати ID користувача");
-        return null;
     }
 
     // Обробка помилок API
@@ -84,10 +89,10 @@
         console.error(`❌ Помилка ${operation}:`, error);
 
         // Пробуємо отримати текст помилки
-        let errorMessage = error.message || 'Невідома помилка';
+        let errorMessage = error && error.message ? error.message : 'Невідома помилка';
 
         // Перевіряємо тип помилки і формуємо зрозуміле повідомлення
-        if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        if (error && error.name === 'TypeError' && errorMessage.includes('fetch')) {
             return `Не вдалося з'єднатися з сервером. Перевірте інтернет-з'єднання та спробуйте знову.`;
         }
 
@@ -117,13 +122,21 @@
 
     // Індикатори завантаження
     function showLoader() {
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) spinner.classList.add('show');
+        try {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) spinner.classList.add('show');
+        } catch (e) {
+            console.warn("⚠️ Помилка показу індикатора завантаження:", e);
+        }
     }
 
     function hideLoader() {
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) spinner.classList.remove('show');
+        try {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) spinner.classList.remove('show');
+        } catch (e) {
+            console.warn("⚠️ Помилка приховування індикатора завантаження:", e);
+        }
     }
 
     // ======== ОСНОВНА ФУНКЦІЯ API-ЗАПИТУ ========
@@ -143,35 +156,35 @@
         let options = {};
         let retries = 3;
 
-        if (typeof callbackOrOptions === 'function') {
-            callback = callbackOrOptions;
-            if (typeof optionsOrRetries === 'object') {
-                options = optionsOrRetries;
-            } else if (typeof optionsOrRetries === 'number') {
-                retries = optionsOrRetries;
-            }
-        } else if (typeof callbackOrOptions === 'object') {
-            options = callbackOrOptions;
-            if (typeof optionsOrRetries === 'number') {
-                retries = optionsOrRetries;
-            }
-        }
-
-        // Якщо API ще не готовий, додаємо запит у чергу
-        if (!_isReady) {
-            return new Promise((resolve, reject) => {
-                _pendingRequests.push({
-                    endpoint, method, data, callback, options, retries,
-                    resolve, reject
-                });
-
-                if (_debugMode) {
-                    console.log(`⏳ Запит до ${endpoint} доданий до черги до готовності API`);
-                }
-            });
-        }
-
         try {
+            if (typeof callbackOrOptions === 'function') {
+                callback = callbackOrOptions;
+                if (typeof optionsOrRetries === 'object' && optionsOrRetries !== null) {
+                    options = optionsOrRetries;
+                } else if (typeof optionsOrRetries === 'number') {
+                    retries = optionsOrRetries;
+                }
+            } else if (typeof callbackOrOptions === 'object' && callbackOrOptions !== null) {
+                options = callbackOrOptions;
+                if (typeof optionsOrRetries === 'number') {
+                    retries = optionsOrRetries;
+                }
+            }
+
+            // Якщо API ще не готовий, додаємо запит у чергу
+            if (!_isReady) {
+                return new Promise((resolve, reject) => {
+                    _pendingRequests.push({
+                        endpoint, method, data, callback, options, retries,
+                        resolve, reject
+                    });
+
+                    if (_debugMode) {
+                        console.log(`⏳ Запит до ${endpoint} доданий до черги до готовності API`);
+                    }
+                });
+            }
+
             // Отримуємо ID користувача
             const userId = getUserId();
 
@@ -180,7 +193,7 @@
             const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
 
             // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
-            if (options && !options.hideLoader) {
+            if (options && options.hideLoader !== true) {
                 showLoader();
             }
 
@@ -190,16 +203,24 @@
                 if (data) console.log("📦 Дані запиту:", data);
             }
 
-            // Підготовка параметрів запиту
+            // Підготовка параметрів запиту з безпечною перевіркою options
             const requestOptions = {
                 method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Telegram-User-Id': userId || '',
-                    ...options.headers
-                },
-                ...options
+                    ...(options && options.headers ? options.headers : {})
+                }
             };
+
+            // Додаємо інші параметри з options безпечно
+            if (options) {
+                Object.keys(options).forEach(key => {
+                    if (key !== 'headers' && key !== 'body') {
+                        requestOptions[key] = options[key];
+                    }
+                });
+            }
 
             // Додаємо тіло запиту для POST/PUT
             if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
@@ -212,7 +233,7 @@
                     const response = await fetch(url, requestOptions);
 
                     // Приховуємо індикатор завантаження
-                    if (options && !options.hideLoader) {
+                    if (options && options.hideLoader !== true) {
                         hideLoader();
                     }
 
@@ -279,7 +300,7 @@
 
                 } catch (error) {
                     // Приховуємо індикатор завантаження у випадку помилки
-                    if (options && !options.hideLoader) {
+                    if (options && options.hideLoader !== true) {
                         hideLoader();
                     }
 
@@ -311,6 +332,11 @@
             // Обробка помилок, які не обробляються у tryRequest
             console.error("❌ Критична помилка API-запиту:", error);
 
+            // Приховуємо індикатор завантаження у випадку критичної помилки
+            if (options && options.hideLoader !== true) {
+                hideLoader();
+            }
+
             // Викликаємо колбек з помилкою, якщо він є
             if (callback && typeof callback === 'function') {
                 try {
@@ -336,7 +362,7 @@
         pendingRequests.forEach(async request => {
             try {
                 const { endpoint, method, data, callback, options, retries, resolve, reject } = request;
-                const result = await apiRequest(endpoint, method, data, callback, options, retries);
+                const result = await apiRequest(endpoint, method, data, callback, options || {}, retries);
                 resolve(result);
             } catch (error) {
                 console.error(`❌ Помилка виконання відкладеного запиту:`, error);
@@ -482,10 +508,9 @@
         if (!targetStakingId) {
             try {
                 const stakingResult = await getStakingData();
-                const stakingData = stakingResult.data || stakingResult;
+                const stakingData = stakingResult && stakingResult.data ? stakingResult.data : stakingResult;
 
-                if (stakingResult.status !== 'success' && !stakingResult.hasActiveStaking ||
-                    !stakingData || !stakingData.hasActiveStaking) {
+                if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
                     const error = new Error("У вас немає активного стейкінгу");
                     if (callback) callback(error, null);
                     return Promise.reject(error);
@@ -531,10 +556,9 @@
         if (!targetStakingId) {
             try {
                 const stakingResult = await getStakingData();
-                const stakingData = stakingResult.data || stakingResult;
+                const stakingData = stakingResult && stakingResult.data ? stakingResult.data : stakingResult;
 
-                if (stakingResult.status !== 'success' && !stakingResult.hasActiveStaking ||
-                    !stakingData || !stakingData.hasActiveStaking) {
+                if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
                     const error = new Error("У вас немає активного стейкінгу");
                     if (callback) callback(error, null);
                     return Promise.reject(error);
