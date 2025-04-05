@@ -2477,3 +2477,367 @@ function resetStakingData() {
 
     return window.WinixStakingSystem;
 })();
+
+// =============== WINIX STAKING SYSTEM PATCH ===============
+console.log("🔧 Застосування патчу системи стейкінгу WINIX");
+
+// Функція для безпечного доступу до вкладених властивостей
+function safeGet(obj, path, defaultValue = null) {
+    try {
+        const keys = path.split('.');
+        let current = obj;
+
+        for (const key of keys) {
+            if (current === undefined || current === null) return defaultValue;
+            current = current[key];
+        }
+
+        return current !== undefined ? current : defaultValue;
+    } catch (e) {
+        console.warn(`⚠️ Помилка при доступі до ${path}:`, e);
+        return defaultValue;
+    }
+}
+
+// Забезпечуємо наявність необхідних об'єктів
+if (!window.WinixCore) window.WinixCore = {};
+if (!window.WinixCore.Staking) window.WinixCore.Staking = {};
+if (!window.WinixCore.Staking.calculateExpectedReward) {
+    window.WinixCore.Staking.calculateExpectedReward = function(amount, period) {
+        try {
+            // Використовуємо функцію розрахунку з WinixStakingSystem, якщо вона існує
+            if (window.WinixStakingSystem && typeof window.WinixStakingSystem.calculateExpectedReward === 'function') {
+                return window.WinixStakingSystem.calculateExpectedReward(amount, period);
+            }
+
+            // Інакше використовуємо базовий алгоритм розрахунку
+            amount = parseFloat(amount) || 0;
+            period = parseInt(period) || 14;
+
+            // Базові ставки відсотків
+            const rates = {
+                7: 4,    // 4% за 7 днів
+                14: 9,   // 9% за 14 днів
+                28: 15   // 15% за 28 днів
+            };
+
+            const rate = rates[period] || 9; // За замовчуванням 9%
+            const reward = (amount * rate) / 100;
+
+            return parseFloat(reward.toFixed(2));
+        } catch (e) {
+            console.error("❌ Помилка розрахунку очікуваної винагороди:", e);
+            return 0;
+        }
+    };
+}
+
+// Патч для обробки помилок DOM
+const originalRemoveChild = Element.prototype.removeChild;
+Element.prototype.removeChild = function(child) {
+    try {
+        return originalRemoveChild.call(this, child);
+    } catch (e) {
+        if (e.name === 'NotFoundError' || (e.message && e.message.includes("not be found"))) {
+            console.warn("⚠️ Перехоплено NotFoundError при removeChild. Елемент вже було видалено.");
+            return null;
+        }
+        throw e;
+    }
+};
+
+// Автоматичне виправлення помилок синхронізації стейкінгу
+function autoFixStakingSync() {
+    console.log("🧩 Запуск автоматичного виправлення синхронізації стейкінгу");
+
+    // Функція для очищення пошкоджених даних стейкінгу
+    function cleanupStakingData() {
+        try {
+            localStorage.removeItem('stakingData');
+            localStorage.removeItem('winix_staking');
+            localStorage.removeItem('staking_data');
+            try { sessionStorage.removeItem('stakingData'); } catch(e) {}
+            try { sessionStorage.removeItem('winix_staking'); } catch(e) {}
+            try { sessionStorage.removeItem('staking_data'); } catch(e) {}
+            console.log("🧹 Очищення даних стейкінгу завершено");
+            return true;
+        } catch (e) {
+            console.error("❌ Помилка очищення даних стейкінгу:", e);
+            return false;
+        }
+    }
+
+    // Патч для syncStakingFromServer
+    const originalSyncStaking = window.WinixStakingSystem.syncStakingFromServer;
+    window.WinixStakingSystem.syncStakingFromServer = async function() {
+        let syncIndicator = null;
+        try {
+            console.log("🔄 Запуск поліпшеної синхронізації стейкінгу");
+
+            // Створюємо індикатор, якщо DOM доступний
+            if (document.body) {
+                try {
+                    syncIndicator = document.createElement('div');
+                    syncIndicator.className = 'winix-sync-indicator';
+                    syncIndicator.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        width: 20px;
+                        height: 20px;
+                        border: 2px solid rgba(0, 207, 187, 0.3);
+                        border-radius: 50%;
+                        border-top-color: #00CFBB;
+                        animation: winix-spin 1s infinite linear;
+                        z-index: 9980;
+                    `;
+                    document.body.appendChild(syncIndicator);
+
+                    // Додаємо стилі анімації, якщо потрібно
+                    if (!document.getElementById('winix-animations')) {
+                        const style = document.createElement('style');
+                        style.id = 'winix-animations';
+                        style.textContent = `
+                            @keyframes winix-spin {
+                                0% { transform: rotate(0deg); }
+                                100% { transform: rotate(360deg); }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                } catch (indicatorError) {
+                    console.warn("⚠️ Не вдалося створити індикатор синхронізації:", indicatorError);
+                }
+            }
+
+            // Максимальна кількість спроб
+            let attempts = 3;
+            let lastError = null;
+
+            while (attempts > 0) {
+                try {
+                    // Спроба синхронізації через оригінальну функцію
+                    const result = await originalSyncStaking();
+
+                    // Успіх - видаляємо індикатор і повертаємо результат
+                    if (syncIndicator && syncIndicator.parentNode) {
+                        syncIndicator.parentNode.removeChild(syncIndicator);
+                    }
+
+                    return result;
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`⚠️ Спроба синхронізації не вдалася (залишилось ${attempts-1}):`, error);
+
+                    // Спеціальна обробка для NotFoundError
+                    if (error.name === 'NotFoundError' ||
+                        (error.message && error.message.includes("not be found"))) {
+                        console.log("🛠️ Виявлено NotFoundError, спроба очищення даних");
+                        cleanupStakingData();
+                    }
+
+                    attempts--;
+
+                    // Затримка перед наступною спробою
+                    if (attempts > 0) {
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+            }
+
+            // Всі спроби не вдалися
+            console.error("❌ Усі спроби синхронізації не вдалися:", lastError);
+
+            // Якщо в нас є recoveryStakingError, спробуємо його використати
+            if (typeof recoveryStakingError === 'function') {
+                console.log("🚑 Запуск аварійного відновлення стейкінгу");
+                return await recoveryStakingError();
+            }
+
+            throw lastError;
+        } catch (fatalError) {
+            console.error("💥 Критична помилка синхронізації стейкінгу:", fatalError);
+
+            // Очищаємо дані стейкінгу в разі критичної помилки
+            cleanupStakingData();
+
+            // Видаляємо індикатор
+            if (syncIndicator && syncIndicator.parentNode) {
+                try {
+                    syncIndicator.parentNode.removeChild(syncIndicator);
+                } catch (e) {
+                    console.warn("⚠️ Не вдалося видалити індикатор:", e);
+                }
+            }
+
+            throw fatalError;
+        }
+    };
+
+    // Патч для getStakingData
+    const originalGetStakingData = window.WinixStakingSystem.getStakingData;
+    window.WinixStakingSystem.getStakingData = function() {
+        try {
+            return originalGetStakingData();
+        } catch (error) {
+            console.error("❌ Помилка отримання даних стейкінгу:", error);
+
+            // Автоматично запускаємо відновлення при помилці
+            setTimeout(() => {
+                if (typeof recoveryStakingError === 'function') {
+                    recoveryStakingError();
+                } else {
+                    cleanupStakingData();
+                }
+            }, 100);
+
+            // Повертаємо порожній об'єкт для запобігання подальших помилок
+            return {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                period: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+        }
+    };
+
+    // Патч для updateStakingDisplay
+    const originalUpdateStakingDisplay = window.WinixStakingSystem.updateStakingDisplay;
+    window.WinixStakingSystem.updateStakingDisplay = function() {
+        try {
+            return originalUpdateStakingDisplay();
+        } catch (error) {
+            console.error("❌ Помилка оновлення відображення стейкінгу:", error);
+
+            // Спеціальна обробка для NotFoundError
+            if (error.name === 'NotFoundError' ||
+                (error.message && error.message.includes("not be found"))) {
+                setTimeout(() => {
+                    if (typeof recoveryStakingError === 'function') {
+                        recoveryStakingError();
+                    } else {
+                        cleanupStakingData();
+                    }
+                }, 100);
+            }
+
+            return false;
+        }
+    };
+
+    // Додаємо перехоплювач глобальних помилок
+    window.addEventListener('error', function(event) {
+        if (event.error && (
+            event.error.name === 'NotFoundError' ||
+            event.error.name === 'TypeError' ||
+            (event.error.message && (
+                event.error.message.includes("not be found") ||
+                event.error.message.includes("is not an object") ||
+                event.error.message.includes("cannot read property") ||
+                event.error.message.includes("Load failed")
+            ))
+        )) {
+            console.warn("⚠️ Перехоплено глобальну помилку:", event.error);
+
+            // Запускаємо відновлення з затримкою
+            setTimeout(() => {
+                if (typeof recoveryStakingError === 'function') {
+                    recoveryStakingError();
+                } else {
+                    cleanupStakingData();
+
+                    // Перезавантажуємо сторінку при крайній необхідності
+                    if (event.error.message && event.error.message.includes("Load failed")) {
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
+                }
+            }, 500);
+
+            // Запобігаємо стандартній обробці
+            event.preventDefault();
+        }
+    });
+
+    // Додаємо кнопку відновлення (не видиму, але доступну через консоль)
+    const recoveryButton = document.createElement('button');
+    recoveryButton.id = 'winix-recovery-button';
+    recoveryButton.textContent = 'Відновити стейкінг';
+    recoveryButton.style.cssText = `
+        position: fixed;
+        bottom: 120px;
+        right: 20px;
+        background: linear-gradient(90deg, #FF5722, #E91E63);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 20px;
+        border: none;
+        font-weight: bold;
+        z-index: 9999;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        cursor: pointer;
+        display: none;
+    `;
+    recoveryButton.addEventListener('click', function() {
+        if (typeof recoveryStakingError === 'function') {
+            recoveryStakingError();
+        } else {
+            cleanupStakingData();
+            window.location.reload();
+        }
+    });
+
+    // Додаємо кнопку на сторінку коли DOM готовий
+    if (document.body) {
+        document.body.appendChild(recoveryButton);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => {
+            document.body.appendChild(recoveryButton);
+        });
+    }
+
+    console.log("✅ Патч системи стейкінгу успішно застосовано");
+}
+
+// Перевіряємо наявність системи стейкінгу і запускаємо патч
+if (window.WinixStakingSystem) {
+    autoFixStakingSync();
+} else {
+    // Якщо система стейкінгу ще не завантажена, чекаємо її ініціалізації
+    console.log("⏳ Очікування ініціалізації системи стейкінгу для застосування патчу");
+    window.addEventListener('winix-core-initialized', function() {
+        if (window.WinixStakingSystem) {
+            autoFixStakingSync();
+        } else {
+            console.warn("⚠️ Система стейкінгу недоступна після ініціалізації ядра");
+        }
+    });
+
+    document.addEventListener('winix-ready', function() {
+        if (window.WinixStakingSystem) {
+            autoFixStakingSync();
+        } else {
+            console.warn("⚠️ Система стейкінгу недоступна після готовності WINIX");
+        }
+    });
+}
+
+// Автоматична обробка для кнопки "Відновити стейкінг" на сторінці
+document.addEventListener('DOMContentLoaded', function() {
+    const recoveryButtonVisible = document.querySelector('button[id^="відновити"], button[id^="recover"]');
+    if (recoveryButtonVisible) {
+        recoveryButtonVisible.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (typeof recoveryStakingError === 'function') {
+                recoveryStakingError();
+            } else {
+                // Очищаємо дані і перезавантажуємо сторінку
+                localStorage.removeItem('stakingData');
+                localStorage.removeItem('winix_staking');
+                localStorage.removeItem('staking_data');
+                window.location.reload();
+            }
+        });
+    }
+});
