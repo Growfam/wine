@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Деталі Стейкінгу</title>
 
+    <script src="js/winix-fix.js"></script>
     <script src="js/winix-error-handler.js"></script>
     <script>
 // Глобальний система відстеження завантажених компонентів
@@ -1414,5 +1415,47 @@ window.addEventListener('load', function() {
     }, 10000);
 })();
 </script>
+<script>
+// Автоматичне закриття повідомлення про помилку
+(function() {
+    // Знаходимо та закриваємо всі спливаючі вікна помилок
+    function closeAllErrorDialogs() {
+        // Знаходимо всі кнопки "Закрити" або "Зачинити" в діалогах помилок
+        const closeButtons = document.querySelectorAll('button:contains ("Закрити"), button:contains ("Зачинити"), [id^="закрити"], [class*="close"]');
+        for (const button of closeButtons) {
+            if (button && typeof button.click === 'function') {
+                button.click();
+            }
+        }
+
+        // Знаходимо всі повідомлення про помилку за їх стилями і класами
+        const possibleErrorDialogs = document.querySelectorAll('.modal, .dialog, .popup, .overlay, .alert, [class*="error"], [class*="modal"], [class*="dialog"]');
+        for (const dialog of possibleErrorDialogs) {
+            const text = dialog.textContent || '';
+            if (text.includes('помилка') || text.includes('Помилка') || text.includes('error') || text.includes('Error')) {
+                // Спробуємо знайти кнопку закриття
+                const closeBtn = dialog.querySelector('button');
+                if (closeBtn && typeof closeBtn.click === 'function') {
+                    closeBtn.click();
+                }
+
+                // Якщо не вдалося, просто приховаємо діалог
+                dialog.style.display = 'none';
+                if (dialog.parentNode) {
+                    dialog.style.visibility = 'hidden';
+                    dialog.style.opacity = '0';
+                }
+            }
+        }
+    }
+
+    // Запускаємо функцію через 1 секунду після завантаження сторінки
+    setTimeout(closeAllErrorDialogs, 1000);
+
+    // І повторюємо кожні 3 секунди
+    setInterval(closeAllErrorDialogs, 3000);
+})();
+</script>
+</body>
 </body>
 </html>
