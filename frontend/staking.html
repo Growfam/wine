@@ -6,17 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Стейкінг</title>
 
-    <script src="js/api.js"></script>
-    <script src="js/language.js"></script>
-    <script src="js/winix-init.js"></script>
-    <script src="js/winix-core.js"></script>
-    <script src="js/winix-connector.js"></script>
-    <script src="js/modal-fix.js"></script>
-    <script src="js/winix-all-in-one.js"></script>
-    <script src="js/staking-system.js"></script>
-    <script src="js/user-id-manager.js"></script>
-    <script src="js/api-id-patch.js"></script>
-    <script src="js/emergency-id-fix.js"></script>
+<script src="js/api.js"></script>
+<script src="js/language.js"></script>
+<script src="js/user-id-manager.js"></script>
+<script src="js/winix-init.js"></script>
+<script src="js/winix-core.js"></script>
+<script src="js/api-id-patch.js"></script>
+<script src="js/emergency-id-fix.js"></script>
+<script src="js/staking-offline-mode.js"></script>
+<script src="js/staking-system.js"></script>
+<script src="js/winix-connector.js"></script>
+<script src="js/winix-all-in-one.js"></script>
 
     <style>
         :root {
@@ -893,6 +893,70 @@ window.onerror = function(message, source, lineno, colno, error) {
     console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
     return true;
 };
+// Аварійне рішення для обходу проблеми з API
+function emergencyStakingFix() {
+    // Встановлюємо базові дані
+    const emptyStakingData = {
+        hasActiveStaking: false,
+        stakingAmount: 0,
+        period: 0,
+        rewardPercent: 0,
+        expectedReward: 0,
+        remainingDays: 0
+    };
+
+    // Зберігаємо базові дані в localStorage
+    localStorage.setItem('stakingData', JSON.stringify(emptyStakingData));
+    localStorage.setItem('winix_staking', JSON.stringify(emptyStakingData));
+
+    // Оновлюємо відображення
+    const stakingStatus = document.getElementById('staking-status');
+    if (stakingStatus) {
+        stakingStatus.textContent = "Наразі немає активних стейкінгів";
+    }
+
+    // Змінюємо поведінку кнопок
+    const stakeButton = document.getElementById('stake-button');
+    if (stakeButton) {
+        stakeButton.onclick = function() {
+            alert("Сервіс стейкінгу тимчасово недоступний. Спробуйте пізніше.");
+        };
+    }
+
+    const detailsButton = document.getElementById('details-button');
+    if (detailsButton) {
+        detailsButton.style.opacity = '0.5';
+        detailsButton.style.pointerEvents = 'none';
+    }
+
+    const cancelButton = document.getElementById('cancel-staking-button');
+    if (cancelButton) {
+        cancelButton.style.opacity = '0.5';
+        cancelButton.style.pointerEvents = 'none';
+    }
+
+    const pageLoader = document.querySelector('.page-loader');
+    if (pageLoader) {
+        pageLoader.style.display = 'none';
+    }
+
+    // Показуємо повідомлення користувачу
+    alert("Сервіс стейкінгу тимчасово працює в обмеженому режимі. Для вирішення проблеми, будь ласка, спробуйте пізніше або зверніться до служби підтримки.");
+}
+
+// Додайте виклик функції наприкінці файлу або до DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    // ... ваш існуючий код ...
+
+    // Через 5 секунд, якщо сторінка все ще не відреагувала, застосовуємо аварійне рішення
+    setTimeout(function() {
+        if (document.body.classList.contains('loading') ||
+            !document.getElementById('staking-status') ||
+            document.getElementById('staking-status').textContent.includes('Завантаження')) {
+            emergencyStakingFix();
+        }
+    }, 5000);
+});
 </script>
 </body>
 </html>
