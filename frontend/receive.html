@@ -9,6 +9,8 @@
     <script src="js/api.js"></script>
     <script src="js/language.js"></script>
     <script src="js/winix-init.js"></script>
+    <script src="js/winix-id-utils.js"></script>
+    <script src="js/winix-id-monitor.js"></script>
     <script src="js/winix-core.js"></script>
     <script src="js/winix-connector.js"></script>
     <script src="js/winix-all-in-one.js"></script>
@@ -783,26 +785,48 @@
         }
 
         function getUserId() {
+    // Функція перевірки валідності ID
+    function isValidId(id) {
+        return id &&
+               id !== 'undefined' &&
+               id !== 'null' &&
+               id !== undefined &&
+               id !== null &&
+               id.toString().trim() !== '';
+    }
+
     // Пріоритетні джерела отримання ID
     const sources = [
         // 1. Telegram WebApp
         () => {
             const tg = window.Telegram?.WebApp;
-            return tg?.initDataUnsafe?.user?.id?.toString();
+            const userId = tg?.initDataUnsafe?.user?.id;
+            return isValidId(userId) ? userId.toString() : null;
         },
         // 2. WinixCore
         () => {
-            return window.WinixCore?.userData?.userId;
+            const userId = window.WinixCore?.userData?.userId;
+            return isValidId(userId) ? userId.toString() : null;
         },
-        // 3. localStorage
+        // 3. localStorage (перевіряємо всі можливі ключі)
         () => {
-            return localStorage.getItem('winix_user_id') ||
-                   localStorage.getItem('userId') ||
-                   localStorage.getItem('telegram_user_id');
+            const keys = ['winix_user_id', 'userId', 'telegram_user_id'];
+            for (const key of keys) {
+                const userId = localStorage.getItem(key);
+                if (isValidId(userId)) return userId;
+            }
+            return null;
         },
-        // 4. Системні змінні
+        // 4. DOM елемент
         () => {
-            return window.userID || window.USER_ID;
+            const userIdElement = document.getElementById('user-id');
+            const userId = userIdElement?.textContent;
+            return isValidId(userId) ? userId : null;
+        },
+        // 5. Системні змінні
+        () => {
+            const userId = window.userID || window.USER_ID;
+            return isValidId(userId) ? userId.toString() : null;
         }
     ];
 
