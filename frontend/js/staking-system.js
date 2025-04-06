@@ -848,10 +848,45 @@
         _isProcessingStakingAction = true;
 
         try {
-            // Використовуємо API модуль для відновлення стейкінгу
-            const result = await window.WinixAPI.repairStaking(forceReset);
+            console.log("🔧 Запуск відновлення стейкінгу" + (forceReset ? " (примусово)" : ""));
+
+            let result;
+            try {
+                // Використовуємо API модуль для відновлення стейкінгу
+                result = await window.WinixAPI.repairStaking(forceReset);
+            } catch (apiError) {
+                console.error("❌ Помилка API repairStaking:", apiError);
+
+                // Якщо є помилка з API, спробуємо прямий запит
+                console.warn("⚠️ Спроба прямого запиту на /staking/repair");
+                const userId = window.WinixAPI.getUserId();
+
+                if (!userId) {
+                    throw new Error("ID користувача недоступний");
+                }
+
+                // Прямий fetch запит з обробкою помилок
+                const response = await fetch(`/api/user/${userId}/staking/repair`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        force: forceReset,
+                        timestamp: Date.now()
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Прямий запит повернув помилку: ${response.status} ${response.statusText}`);
+                }
+
+                result = await response.json();
+            }
 
             if (result.status === 'success') {
+                console.log("✅ Відновлення стейкінгу успішне:", result);
+
                 // Оновлюємо дані в локальному сховищі
                 if (result.data && result.data.staking) {
                     updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
@@ -871,13 +906,14 @@
                     data: result.data
                 };
             } else {
+                console.error("❌ Відновлення стейкінгу не вдалося:", result);
                 return {
                     success: false,
                     message: result.message || "Помилка відновлення стейкінгу"
                 };
             }
         } catch (error) {
-            console.error("Помилка відновлення стейкінгу:", error);
+            console.error("❌ Критична помилка відновлення стейкінгу:", error);
             return {
                 success: false,
                 message: error.message || "Помилка з'єднання з сервером"
@@ -967,6 +1003,92 @@
             // Якщо помилка, використовуємо локальний розрахунок
             return calculateExpectedReward(amount, period);
         }
+    }
+
+    /**
+     * Система автоматичного моніторингу стейкінгу та автоматичного відновлення
+     */
+    function setupAutoStakingMonitor() {
+        // Інтервал для періодичної перевірки стейкінгу
+        const checkInterval = 60000; // 60 секунд
+
+        // Лічильник помилок
+        let errors = 0;
+        let lastCheckTime = 0;
+
+        // Функція для перевірки стану стейкінгу
+        async function checkStakingStatus() {
+            try {
+                // Перевіряємо, чи ми на сторінці стейкінгу
+                const isStakingPage = window.location.href.includes('staking');
+
+                // На сторінці стейкінгу перевіряємо частіше
+                if (isStakingPage || Date.now() - lastCheckTime > checkInterval) {
+                    // Оновлюємо час останньої перевірки
+                    lastCheckTime = Date.now();
+
+                    // Перевіряємо стан стейкінгу через API
+                    console.log("🔍 Автоматична перевірка стану стейкінгу...");
+
+                    // Отримуємо дані стейкінгу через API
+                    try {
+                        const data = await window.WinixAPI.getStakingData();
+                        if (data.status === 'success') {
+                            // Скидаємо лічильник помилок, якщо все добре
+                            errors = 0;
+                        } else {
+                            errors++;
+                            console.warn(`⚠️ Помилка отримання даних стейкінгу: ${data.message || 'Невідома помилка'}`);
+                        }
+                    } catch (error) {
+                        errors++;
+                        console.error("❌ Помилка перевірки стану стейкінгу:", error);
+
+                        // Якщо є декілька помилок підряд - запускаємо відновлення
+                        if (errors >= 2) {
+                            console.warn("⚠️ Виявлено проблеми зі стейкінгом. Запускаємо автоматичне відновлення...");
+                            try {
+                                // Показуємо повідомлення, якщо є доступна функція
+                                if (window.showToast) {
+                                    window.showToast("Виправляємо проблеми зі стейкінгом...");
+                                }
+
+                                // Запускаємо відновлення
+                                const repairResult = await repairStaking(false);
+
+                                if (repairResult.success) {
+                                    console.log("✅ Стейкінг успішно відновлено");
+                                    errors = 0;
+
+                                    // Оновлюємо відображення
+                                    if (isStakingPage) {
+                                        updateStakingDisplay();
+                                    }
+                                } else {
+                                    console.error("❌ Помилка відновлення стейкінгу:", repairResult.message);
+                                }
+                            } catch (repairError) {
+                                console.error("❌ Критична помилка відновлення стейкінгу:", repairError);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("❌ Помилка моніторингу стейкінгу:", e);
+            }
+        }
+
+        // Запускаємо першу перевірку через 5 секунд після завантаження
+        setTimeout(checkStakingStatus, 5000);
+
+        // Встановлюємо інтервал для подальших перевірок
+        setInterval(checkStakingStatus, checkInterval / 2);
+
+        // Слухаємо події навігації для перевірки при зміні сторінок
+        window.addEventListener('hashchange', checkStakingStatus);
+        window.addEventListener('popstate', checkStakingStatus);
+
+        console.log("✅ Систему автоматичного моніторингу стейкінгу запущено");
     }
 
     // --------------- ОБРОБНИКИ ПОДІЙ ДЛЯ СТОРІНОК ---------------
@@ -1308,269 +1430,6 @@
         }
     }
 
-    /**
-     * Показати кнопку аварійного відновлення стейкінгу
-     */
-    function showEmergencyButton() {
-        // Створюємо кнопку відновлення
-        const recoveryButton = document.createElement('button');
-        recoveryButton.textContent = 'Відновити стейкінг';
-        recoveryButton.className = 'recovery-button';
-        recoveryButton.style.cssText = `
-            position: fixed;
-            bottom: 120px;
-            right: 20px;
-            background: linear-gradient(90deg, #FF5722, #E91E63);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            border: none;
-            font-weight: bold;
-            z-index: 9999;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            cursor: pointer;
-        `;
-
-        // Додаємо обробник події
-        recoveryButton.addEventListener('click', function() {
-            showRecoveryDialog();
-        });
-
-        // Додаємо кнопку на сторінку
-        document.body.appendChild(recoveryButton);
-    }
-
-    /**
-     * Показати діалог аварійного відновлення
-     */
-    function showRecoveryDialog() {
-        // Створюємо модальне вікно
-        const modal = document.createElement('div');
-        modal.className = 'recovery-modal';
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        `;
-
-        // Створюємо контент модального вікна
-        const modalContent = document.createElement('div');
-        modalContent.className = 'recovery-modal-content';
-        modalContent.style.cssText = `
-            background: linear-gradient(135deg, #263238, #37474F);
-            padding: 25px;
-            border-radius: 15px;
-            width: 80%;
-            max-width: 500px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            color: white;
-            text-align: center;
-        `;
-
-        // Заголовок
-        const title = document.createElement('h2');
-        title.textContent = 'Відновлення стейкінгу';
-        title.style.marginBottom = '20px';
-
-        // Опис
-        const description = document.createElement('p');
-        description.textContent = 'Виберіть тип відновлення стейкінгу:';
-        description.style.marginBottom = '20px';
-
-        // Стандартне відновлення
-        const standardButton = document.createElement('button');
-        standardButton.textContent = 'Стандартне відновлення';
-        standardButton.style.cssText = `
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            background: linear-gradient(90deg, #4CAF50, #2196F3);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            cursor: pointer;
-        `;
-
-        // Глибоке відновлення
-        const deepButton = document.createElement('button');
-        deepButton.textContent = 'Глибоке відновлення';
-        deepButton.style.cssText = `
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            background: linear-gradient(90deg, #FF9800, #F44336);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            cursor: pointer;
-        `;
-
-        // Кнопка скасування
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Скасувати';
-        cancelButton.style.cssText = `
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            background: rgba(255,255,255,0.1);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            cursor: pointer;
-        `;
-
-        // Додаємо обробники подій
-        standardButton.addEventListener('click', function() {
-            handleEmergencyRepair(false);
-            modal.remove();
-        });
-
-        deepButton.addEventListener('click', function() {
-            handleDeepEmergencyRepair();
-            modal.remove();
-        });
-
-        cancelButton.addEventListener('click', function() {
-            modal.remove();
-        });
-
-        // Складаємо все разом
-        modalContent.appendChild(title);
-        modalContent.appendChild(description);
-        modalContent.appendChild(standardButton);
-        modalContent.appendChild(deepButton);
-        modalContent.appendChild(cancelButton);
-        modal.appendChild(modalContent);
-
-        // Додаємо до сторінки
-        document.body.appendChild(modal);
-    }
-
-    /**
-     * Обробник стандартного аварійного відновлення
-     */
-    function handleEmergencyRepair(force = false) {
-        if (_isProcessingStakingAction) {
-            console.log("🚫 Дія стейкінгу вже обробляється");
-            return;
-        }
-
-        _isProcessingStakingAction = true;
-
-        // Показуємо індикатор завантаження
-        showProgressIndicator("Відновлення стейкінгу...");
-
-        // Викликаємо функцію аварійного відновлення
-        repairStaking(force)
-            .then(result => {
-                hideProgressIndicator();
-
-                if (result.success) {
-                    // Оновлюємо дані в локальному сховищі
-                    if (result.data && result.data.staking) {
-                        updateStorage(STORAGE_KEYS.STAKING_DATA, result.data.staking);
-                    } else {
-                        removeFromStorage(STORAGE_KEYS.STAKING_DATA);
-                    }
-
-                    // Оновлюємо баланс
-                    if (result.data && result.data.newBalance !== undefined) {
-                        updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.newBalance);
-                    }
-
-                    // Показуємо повідомлення про успіх
-                    showAlert(result.message || "Стейкінг успішно відновлено", false, function() {
-                        window.location.reload();
-                    });
-                } else {
-                    showAlert(result.message || "Помилка відновлення стейкінгу", true);
-                    _isProcessingStakingAction = false;
-                }
-            })
-            .catch(error => {
-                hideProgressIndicator();
-                showAlert("Помилка виконання запиту: " + error.message, true);
-                console.error('Помилка відновлення стейкінгу:', error);
-                _isProcessingStakingAction = false;
-            });
-    }
-
-    /**
-     * Обробник глибокого аварійного відновлення
-     */
-    function handleDeepEmergencyRepair() {
-        if (_isProcessingStakingAction) {
-            console.log("🚫 Дія стейкінгу вже обробляється");
-            return;
-        }
-
-        // Запитуємо користувача про коригування балансу
-        const adjustmentStr = prompt('Введіть суму для коригування балансу (додатна - додати, від\'ємна - відняти, 0 - без змін):', '0');
-        const adjustment = parseFloat(adjustmentStr);
-
-        if (isNaN(adjustment)) {
-            alert('Введено некоректне значення. Спробуйте ще раз.');
-            return;
-        }
-
-        // Запитуємо підтвердження
-        if (!confirm(`Увага! Глибоке відновлення видалить ВСЮ історію стейкінгу і ${
-            adjustment > 0 ? `додасть ${adjustment}` : 
-            adjustment < 0 ? `відніме ${-adjustment}` : 
-            'не змінить'
-        } WINIX до вашого балансу. Продовжити?`)) {
-            return;
-        }
-
-        _isProcessingStakingAction = true;
-
-        // Показуємо індикатор завантаження
-        showProgressIndicator("Виконується глибоке відновлення...");
-
-        // Викликаємо функцію глибокого відновлення
-        deepRepairStaking(adjustment)
-            .then(result => {
-                hideProgressIndicator();
-
-                if (result.success) {
-                    // Видаляємо всі дані стейкінгу
-                    removeFromStorage(STORAGE_KEYS.STAKING_DATA);
-
-                    // Оновлюємо баланс
-                    if (result.data && result.data.new_balance !== undefined) {
-                        updateStorage(STORAGE_KEYS.USER_TOKENS, result.data.new_balance);
-                    }
-
-                    // Показуємо повідомлення про успіх
-                    showAlert(result.message || "Стейкінг успішно відновлено", false, function() {
-                        window.location.reload();
-                    });
-                } else {
-                    showAlert(result.message || "Помилка глибокого відновлення стейкінгу", true);
-                    _isProcessingStakingAction = false;
-                }
-            })
-            .catch(error => {
-                hideProgressIndicator();
-                showAlert("Помилка виконання запиту: " + error.message, true);
-                console.error('Помилка глибокого відновлення стейкінгу:', error);
-                _isProcessingStakingAction = false;
-            });
-    }
-
     // --------------- ІНІЦІАЛІЗАЦІЯ СИСТЕМИ ---------------
 
     /**
@@ -1612,9 +1471,6 @@
 
             // Оновлюємо відображення стейкінгу
             updateStakingDisplay();
-
-            // Показуємо кнопку аварійного відновлення
-            showEmergencyButton();
         }
         else if (currentPage === 'staking-details.html') {
             console.log("📋 Ініціалізація сторінки деталей стейкінгу");
@@ -1632,9 +1488,6 @@
 
             // Оновлюємо відображення стейкінгу
             updateStakingDisplay();
-
-            // Показуємо кнопку аварійного відновлення
-            showEmergencyButton();
         }
         else if (currentPage === 'wallet.html') {
             console.log("📋 Ініціалізація стейкінгу на сторінці гаманця");
@@ -1651,8 +1504,19 @@
             updateStakingDisplay();
         }
 
+        // Запускаємо систему автоматичного моніторингу і відновлення стейкінгу
+        setupAutoStakingMonitor();
+
         // Перевіряємо необхідність ручної синхронізації даних стейкінгу
-        syncStakingFromServer().catch(error => console.error("Помилка синхронізації стейкінгу:", error));
+        syncStakingFromServer().catch(error => {
+            console.error("Помилка синхронізації стейкінгу:", error);
+
+            // При помилці синхронізації спробуємо запустити відновлення
+            setTimeout(() => {
+                console.warn("⚠️ Спроба автоматичного відновлення після помилки синхронізації");
+                repairStaking(false).catch(e => console.error("Не вдалося відновити після помилки:", e));
+            }, 1000);
+        });
     }
 
     // Запускаємо ініціалізацію після завантаження DOM
@@ -1694,9 +1558,8 @@
         updateExpectedReward,
         setMaxStakingAmount,
 
-        // Аварійне відновлення
-        showEmergencyButton,
-        showRecoveryDialog,
+        // Автоматичне відновлення стейкінгу
+        setupAutoStakingMonitor,
 
         // Конфігурація
         CONFIG: STAKING_CONFIG
