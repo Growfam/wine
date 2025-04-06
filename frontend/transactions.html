@@ -761,7 +761,7 @@
                 <div class="profile-avatar" id="profile-avatar">W</div>
                 <div class="user-id-container">
                     <span class="user-id-label">ID:</span>
-                    <span class="user-id-value" id="user-id">12345678</span>
+                    <span class="user-id-value" id="user-id"></span>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
@@ -854,6 +854,16 @@
     <div class="notification-modal" id="notification-modal"></div>
 
     <script>
+
+        // Ініціалізація Telegram WebApp
+document.addEventListener('DOMContentLoaded', function() {
+    // Ініціалізуємо Telegram WebApp, якщо він доступний
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+    }
+});
+
 /**
  * Функція для безпечного отримання ID користувача
  * Перевіряє всі можливі джерела і повертає валідний ID

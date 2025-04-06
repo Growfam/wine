@@ -42,7 +42,12 @@
          * Ініціалізація системи авторизації
          */
         init: function() {
-            console.log("🔐 AUTH: Запуск ініціалізації");
+    console.log("WinixWallet: Ініціалізація...");
+
+    // Видаляємо жорстко закодований ID з localStorage, якщо він там є
+    if (localStorage.getItem('telegram_user_id') === '12345678') {
+        localStorage.removeItem('telegram_user_id');
+    }
 
             if (this.isInitialized) {
                 console.log("🔐 AUTH: Систему вже ініціалізовано");
