@@ -21,22 +21,51 @@
     // Прапорець для логування запитів
     let _debugMode = false;
 
-    // Функція для отримання ID користувача з різних джерел
+    // ЗМІНЕНО: Покращена функція для отримання ID користувача з різних джерел
     function getUserId() {
+        // Допоміжна функція для перевірки валідності ID
+        function isValidId(id) {
+            // ID повинен існувати, не бути невизначеним, не бути null, і не бути рядковим представленням цих значень
+            return id &&
+                id !== 'undefined' &&
+                id !== 'null' &&
+                id !== undefined &&
+                id !== null &&
+                id.toString().trim() !== '';
+        }
+
         // Спочатку пробуємо отримати з localStorage
         let userId = localStorage.getItem('telegram_user_id');
 
         // Перевіряємо валідність ID
-        if (userId && userId !== 'undefined' && userId !== 'null') {
+        if (isValidId(userId)) {
             if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", userId);
             return userId;
+        }
+
+        // ЗМІНЕНО: Додатково пробуємо отримати з Telegram WebApp API напряму
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user) {
+            const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+            if (isValidId(tgUser.id)) {
+                userId = tgUser.id.toString();
+                if (_debugMode) console.log("🆔 ID користувача отримано з Telegram WebApp:", userId);
+
+                // Зберігаємо в localStorage для наступних запитів
+                try {
+                    localStorage.setItem('telegram_user_id', userId);
+                } catch (e) {
+                    console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+                }
+
+                return userId;
+            }
         }
 
         // Потім пробуємо отримати з DOM елемента
         const userIdElement = document.getElementById('user-id');
         if (userIdElement && userIdElement.textContent) {
             userId = userIdElement.textContent.trim();
-            if (userId && userId !== 'undefined' && userId !== 'null') {
+            if (isValidId(userId)) {
                 if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", userId);
 
                 // Зберігаємо в localStorage для наступних запитів
@@ -53,7 +82,7 @@
         // Пробуємо отримати з URL параметрів
         const urlParams = new URLSearchParams(window.location.search);
         userId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-        if (userId && userId !== 'undefined' && userId !== 'null') {
+        if (isValidId(userId)) {
             if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", userId);
 
             // Зберігаємо в localStorage для наступних запитів
@@ -64,6 +93,17 @@
             }
 
             return userId;
+        }
+
+        // ЗМІНЕНО: Додано очищення невалідних значень в localStorage
+        try {
+            const storedId = localStorage.getItem('telegram_user_id');
+            if (storedId && !isValidId(storedId)) {
+                localStorage.removeItem('telegram_user_id');
+                console.warn("⚠️ Видалено невалідний ID з localStorage:", storedId);
+            }
+        } catch (e) {
+            console.warn("⚠️ Проблема з localStorage:", e);
         }
 
         // Якщо не вдалося знайти валідний ID, повертаємо null
@@ -133,6 +173,12 @@
         // Отримуємо ID користувача
         const userId = getUserId();
 
+        // ЗМІНЕНО: Додано перевірку наявності валідного ID користувача
+        if (!userId) {
+            console.error(`❌ API-запит на ${endpoint} скасовано: ID користувача не знайдено`);
+            throw new Error("ID користувача не знайдено");
+        }
+
         // Додаємо мітку часу для запобігання кешуванню
         const timestamp = Date.now();
         const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
@@ -153,7 +199,7 @@
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'X-Telegram-User-Id': userId || '',
+                'X-Telegram-User-Id': userId, // ЗМІНЕНО: Тепер ми завжди маємо валідний userId
                 ...options.headers
             },
             ...options
