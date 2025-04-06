@@ -62,14 +62,34 @@
             tg.ready();
             tg.expand();
 
-            // Отримуємо дані користувача
+            // ЗМІНЕНО: Додано перевірку валідності даних користувача
             const initData = tg.initData || "";
             const userData = tg.initDataUnsafe?.user || null;
 
             console.log("🔐 AUTH: Отримано дані з Telegram WebApp", userData);
 
-            if (!userData) {
-                console.error("❌ AUTH: Не вдалося отримати дані користувача");
+            // ЗМІНЕНО: Додано перевірку, чи id не undefined/null
+            if (!userData || !userData.id) {
+                console.error("❌ AUTH: Не вдалося отримати валідні дані користувача", userData);
+
+                // Пробуємо отримати ID з localStorage як fallback
+                const storedId = localStorage.getItem('telegram_user_id');
+                // ЗМІНЕНО: Додано перевірку валідності ID у localStorage
+                if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
+                    console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
+
+                    // Створюємо мінімальний об'єкт користувача з ID зі сховища
+                    const fallbackUser = {
+                        id: storedId,
+                        telegram_id: storedId
+                    };
+
+                    return this.authorizeUser({
+                        ...fallbackUser,
+                        initData: initData
+                    });
+                }
+
                 return Promise.reject(new Error("User data not available"));
             }
 
@@ -96,11 +116,17 @@
             this.isAuthorizing = true;
             console.log("🔐 AUTH: Запит авторизації на сервері", userData);
 
-            // Отримуємо ID користувача з різних можливих джерел
-            const userId = userData.id || userData.telegram_id || null;
+            // ЗМІНЕНО: Покращено отримання ID користувача з різних джерел
+            let userId = userData.id || userData.telegram_id || null;
 
-            // Записуємо ID в localStorage для подальшого використання
-            if (userId) {
+            // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
+            if (userId && userId !== undefined && userId !== null &&
+                userId.toString() !== 'undefined' && userId.toString() !== 'null') {
+
+                // Переконуємося, що ID - це рядок
+                userId = userId.toString();
+
+                // Зберігаємо в localStorage для подальшого використання
                 localStorage.setItem('telegram_user_id', userId);
 
                 // Одразу оновлюємо елемент на сторінці, якщо він існує
@@ -108,6 +134,22 @@
                 if (userIdElement) {
                     userIdElement.textContent = userId;
                     console.log(`🔐 AUTH: Оновлено ID користувача на сторінці: ${userId}`);
+                }
+            } else {
+                console.warn("⚠️ AUTH: Отримано невалідний ID користувача:", userId);
+
+                // ЗМІНЕНО: Спробуємо отримати ID з localStorage як резервний варіант
+                const storedId = localStorage.getItem('telegram_user_id');
+
+                if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                    userId = storedId;
+                    console.log(`🔐 AUTH: Використовуємо ID з localStorage як резервний: ${userId}`);
+
+                    // Оновлюємо вхідні дані користувача
+                    userData.id = userId;
+                    userData.telegram_id = userId;
+                } else {
+                    console.error("❌ AUTH: Не знайдено валідний ID користувача");
                 }
             }
 
@@ -125,8 +167,11 @@
                         this.currentUser = data.data;
                         console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
 
-                        // Зберігаємо ID користувача для інших частин додатку
-                        if (this.currentUser.telegram_id) {
+                        // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
+                        if (this.currentUser.telegram_id &&
+                            this.currentUser.telegram_id !== 'undefined' &&
+                            this.currentUser.telegram_id !== 'null') {
+
                             localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
 
                             // Оновлюємо елемент на сторінці
@@ -134,6 +179,8 @@
                             if (userIdElement) {
                                 userIdElement.textContent = this.currentUser.telegram_id;
                             }
+                        } else {
+                            console.warn("⚠️ AUTH: API повернув невалідний ID користувача:", this.currentUser.telegram_id);
                         }
 
                         // Зберігаємо баланс і жетони в localStorage
@@ -175,8 +222,10 @@
                         console.error(`❌ AUTH: Деталі помилки: ${error.message}`);
                     }
 
-                    // Спроба отримати дані запиту, які викликали помилку
-                    console.error("❌ AUTH: ID користувача для діагностики:", localStorage.getItem('telegram_user_id'));
+                    // ЗМІНЕНО: Додано перевірку валідності ID при діагностиці
+                    const storedId = localStorage.getItem('telegram_user_id');
+                    console.error("❌ AUTH: ID користувача для діагностики:",
+                        storedId && storedId !== 'undefined' && storedId !== 'null' ? storedId : 'Невалідний ID');
 
                     // Приховуємо індикатор завантаження
                     if (spinner) spinner.classList.remove('show');
@@ -210,12 +259,13 @@
             if (!this.currentUser) {
                 console.error("❌ AUTH: Немає даних про поточного користувача");
 
-                // Спробуємо отримати ID з localStorage як резервний варіант
+                // ЗМІНЕНО: Додано перевірку валідності ID в localStorage
                 const storedId = localStorage.getItem('telegram_user_id');
-                if (storedId) {
+                if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
                     console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
                     this.currentUser = { telegram_id: storedId };
                 } else {
+                    console.error("❌ AUTH: Немає валідного ID в localStorage");
                     return Promise.reject(new Error("No current user"));
                 }
             }
@@ -230,6 +280,13 @@
                         // Успішне отримання даних
                         this.currentUser = { ...this.currentUser, ...data.data };
                         console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+
+                        // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
+                        if (this.currentUser.telegram_id &&
+                            this.currentUser.telegram_id !== 'undefined' &&
+                            this.currentUser.telegram_id !== 'null') {
+                            localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
+                        }
 
                         // Оновлюємо баланс і жетони в localStorage
                         if (this.currentUser.balance !== undefined) {
@@ -338,6 +395,17 @@
 
             // Якщо немає, повертаємо український варіант
             return this.lang.uk[key];
+        },
+
+        // ДОДАНО: Метод для очищення невалідних ID в localStorage
+        cleanInvalidIds: function() {
+            const storedId = localStorage.getItem('telegram_user_id');
+            if (!storedId || storedId === 'undefined' || storedId === 'null' || storedId.trim() === '') {
+                console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage");
+                localStorage.removeItem('telegram_user_id');
+                return true;
+            }
+            return false;
         }
     };
 
@@ -345,15 +413,19 @@
     document.addEventListener('DOMContentLoaded', function() {
         console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
 
-        // Перевіряємо, чи вже є ID в localStorage
+        // ЗМІНЕНО: Перевіряємо, чи валідний ID в localStorage
         const storedId = localStorage.getItem('telegram_user_id');
-        if (storedId) {
+        if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
             // Оновлюємо елемент на сторінці, якщо він є
             const userIdElement = document.getElementById('user-id');
             if (userIdElement) {
                 userIdElement.textContent = storedId;
                 console.log(`🔐 AUTH: Відновлено ID користувача зі сховища: ${storedId}`);
             }
+        } else if (storedId) {
+            // Видаляємо невалідний ID
+            console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage:", storedId);
+            localStorage.removeItem('telegram_user_id');
         }
 
         // Якщо сторінка - екран завантаження, просто виконуємо авторизацію і дочекаємось результату
@@ -373,6 +445,9 @@
         console.log("🔐 AUTH: Документ вже завантажено, запуск авторизації");
 
         setTimeout(() => {
+            // ЗМІНЕНО: Спочатку очищаємо невалідні ID
+            window.WinixAuth.cleanInvalidIds();
+
             window.WinixAuth.init()
                 .then(() => {
                     console.log("✅ AUTH: Авторизація виконана успішно після завантаження");
