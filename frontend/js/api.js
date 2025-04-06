@@ -34,8 +34,28 @@
                 id.toString().trim() !== '';
         }
 
-        // Спочатку пробуємо отримати з localStorage
-        let userId = localStorage.getItem('telegram_user_id');
+        // Спочатку пробуємо отримати з Telegram WebApp API напряму
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user) {
+        const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+        if (isValidId(tgUser.id)) {
+            const userId = tgUser.id.toString();
+
+            // Зберігаємо в localStorage для наступних запитів
+            try {
+                localStorage.setItem('telegram_user_id', userId);
+            } catch (e) {
+                console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+            }
+
+            return userId;
+        }
+    }
+
+    // Потім пробуємо отримати з localStorage
+    let userId = localStorage.getItem('telegram_user_id');
+    if (isValidId(userId)) {
+        return userId;
+    }
 
         // Перевіряємо валідність ID
         if (isValidId(userId)) {

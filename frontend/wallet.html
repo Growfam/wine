@@ -620,7 +620,7 @@
                 <div class="profile-avatar" id="profile-avatar">W</div>
                 <div class="user-id-container">
                     <span class="user-id-label">ID:</span>
-                    <span class="user-id-value" id="user-id">12345678</span>
+                    <span class="user-id-value" id="user-id"></span>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
@@ -718,6 +718,14 @@
     </div>
 
     <script>
+        // Ініціалізація Telegram WebApp
+document.addEventListener('DOMContentLoaded', function() {
+    // Ініціалізуємо Telegram WebApp, якщо він доступний
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+    }
+});
         // Об'єкт для роботи з гаманцем
         const WinixWallet = {
             // Налаштування
@@ -781,19 +789,19 @@
 
             // Забезпечення валідного ID користувача
             ensureValidUserId: function() {
-                // Функція для отримання ID з різних джерел
-                const getUserId = () => {
-                    // 1. Спробуємо отримати з API
-                    if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
-                        const apiId = window.WinixAPI.getUserId();
-                        if (this.isValidUserId(apiId)) return apiId;
-                    }
+                 // Функція для отримання ID з різних джерел
+    const getUserId = () => {
+        // 1. Спочатку спробуємо отримати з Telegram WebApp
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
+            if (this.isValidUserId(tgUserId)) return tgUserId.toString();
+        }
 
-                    // 2. Спробуємо отримати з Telegram WebApp
-                    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
-                        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
-                        if (this.isValidUserId(tgUserId)) return tgUserId.toString();
-                    }
+        // 2. Потім спробуємо отримати з API
+        if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
+            const apiId = window.WinixAPI.getUserId();
+            if (this.isValidUserId(apiId)) return apiId;
+        }
 
                     // 3. Спробуємо отримати з DOM елементів
                     const userIdElement = document.getElementById('user-id');

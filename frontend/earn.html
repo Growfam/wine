@@ -902,7 +902,7 @@
                 <div class="profile-avatar" id="profile-avatar">W</div>
                 <div class="user-id-container">
                     <span class="user-id-label" data-lang-key="user_id">ID:</span>
-                    <span class="user-id-value" id="user-id">12345678</span>
+                    <span class="user-id-value" id="user-id"></span>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
@@ -1223,27 +1223,14 @@
     <div class="toast-message" id="toast-message">Реферальне посилання скопійовано в буфер обміну!</div>
 
 <script>
-    // Ініціалізація Telegram WebApp API
-    let tg;
-    try {
-        tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) {
-            console.log("Telegram WebApp API успішно ініціалізовано");
-            tg.ready();
-            tg.expand();
-
-            // Реагування на зміну теми Telegram
-            tg.onEvent('themeChanged', updateThemeColors);
-
-            // Реагування на зміну розміру вікна
-            tg.onEvent('viewportChanged', adjustLayout);
-        } else {
-            console.error("Telegram WebApp API недоступний");
-        }
-    } catch (error) {
-        console.error("Помилка при ініціалізації Telegram WebApp API:", error.message);
-        tg = null;
+    // Ініціалізація Telegram WebApp
+document.addEventListener('DOMContentLoaded', function() {
+    // Ініціалізуємо Telegram WebApp, якщо він доступний
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
     }
+});
 
     // Функція оновлення кольорів при зміні теми
     function updateThemeColors() {
