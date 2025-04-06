@@ -18,7 +18,8 @@ from users import (
 )
 from staking import (
     get_user_staking, create_user_staking, update_user_staking,
-    cancel_user_staking, finalize_user_staking, get_user_staking_history
+    cancel_user_staking, finalize_user_staking, get_user_staking_history,
+    calculate_staking_reward_api, reset_and_repair_staking
 )
 from transactions import (
     get_user_transactions, add_user_transaction, create_send_transaction, create_receive_transaction
@@ -458,6 +459,29 @@ def api_get_user_staking_history(telegram_id):
     return get_user_staking_history(telegram_id)
 
 
+# ДОДАНО: API-маршрут для розрахунку винагороди стейкінгу
+@app.route('/api/user/<telegram_id>/staking/calculate-reward', methods=['GET'])
+def api_calculate_staking_reward(telegram_id):
+    """Розрахунок очікуваної винагороди за стейкінг"""
+    return calculate_staking_reward_api(telegram_id)
+
+
+# ВИПРАВЛЕНО: API-маршрут для відновлення стейкінгу
+@app.route('/api/user/<telegram_id>/staking/repair', methods=['POST'])
+def api_repair_user_staking(telegram_id):
+    """Відновлення стану стейкінгу після помилок"""
+    try:
+        # Перевірка даних запиту
+        data = request.json or {}
+        force = data.get('force', False)
+
+        # Виклик функції відновлення (тепер на глобальному рівні)
+        return reset_and_repair_staking(telegram_id, force)
+    except Exception as e:
+        logger.error(f"api_repair_user_staking: Помилка: {str(e)}")
+        return jsonify({"status": "error", "message": "Помилка відновлення стейкінгу"}), 500
+
+
 # API-маршрути для транзакцій
 
 @app.route('/api/user/<telegram_id>/transactions', methods=['GET'])
@@ -636,6 +660,7 @@ def server_error(e):
         "details": str(e)
     }), 500
 
+
 # Обробники Balance
 
 @app.route('/api/user/<telegram_id>/complete-balance', methods=['GET'])
@@ -643,52 +668,41 @@ def api_get_user_complete_balance(telegram_id):
     """Отримання повної інформації про баланс користувача"""
     return get_user_complete_balance(telegram_id)
 
+
 @app.route('/api/user/<telegram_id>/add-tokens', methods=['POST'])
 def api_add_tokens(telegram_id):
     """Додавання токенів до балансу користувача"""
     return add_tokens(telegram_id, request.json)
+
 
 @app.route('/api/user/<telegram_id>/subtract-tokens', methods=['POST'])
 def api_subtract_tokens(telegram_id):
     """Віднімання токенів з балансу користувача"""
     return subtract_tokens(telegram_id, request.json)
 
+
 @app.route('/api/user/<telegram_id>/add-coins', methods=['POST'])
 def api_add_coins(telegram_id):
     """Додавання жетонів до балансу користувача"""
     return add_coins(telegram_id, request.json)
+
 
 @app.route('/api/user/<telegram_id>/subtract-coins', methods=['POST'])
 def api_subtract_coins(telegram_id):
     """Віднімання жетонів з балансу користувача"""
     return subtract_coins(telegram_id, request.json)
 
+
 @app.route('/api/user/<telegram_id>/convert-coins', methods=['POST'])
 def api_convert_coins_to_tokens(telegram_id):
     """Конвертація жетонів у токени"""
     return convert_coins_to_tokens(telegram_id, request.json)
 
+
 @app.route('/api/user/<telegram_id>/check-funds', methods=['POST'])
 def api_check_sufficient_funds(telegram_id):
     """Перевірка достатності коштів для транзакції"""
     return check_sufficient_funds(telegram_id, request.json)
-
-
-# API-маршрут для відновлення стейкінгу
-@app.route('/api/user/<telegram_id>/staking/repair', methods=['POST'])
-def api_repair_user_staking(telegram_id):
-    """Відновлення стану стейкінгу після помилок"""
-    try:
-        # Перевірка даних запиту
-        data = request.json or {}
-        force = data.get('force', False)
-
-        # Виклик функції відновлення
-        from staking import reset_and_repair_staking
-        return reset_and_repair_staking(telegram_id, force)
-    except Exception as e:
-        logger.error(f"api_repair_user_staking: Помилка: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка відновлення стейкінгу"}), 500
 
 
 # Додатковий маршрут для більш глибокого відновлення
@@ -750,7 +764,7 @@ def api_deep_repair_user_staking(telegram_id):
             "message": "Глибоке відновлення стейкінгу успішно завершено",
             "data": {
                 "previous_balance": current_balance,
-                "new_balance": new_balance,
+                "newBalance": new_balance,
                 "adjustment": balance_adjustment
             }
         })
@@ -758,6 +772,7 @@ def api_deep_repair_user_staking(telegram_id):
     except Exception as e:
         logger.error(f"api_deep_repair_user_staking: Помилка: {str(e)}")
         return jsonify({"status": "error", "message": "Помилка глибокого відновлення"}), 500
+
 
 # Запуск застосунку
 if __name__ == '__main__':

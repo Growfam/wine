@@ -21,6 +21,10 @@
     // Прапорець для логування запитів
     let _debugMode = false;
 
+    // Прапорець для відстеження проблем зі стейкінгом
+    let _stakingErrorCount = 0;
+    let _lastStakingErrorTime = 0;
+
     // ЗМІНЕНО: Покращена функція для отримання ID користувача з різних джерел
     function getUserId() {
         // Допоміжна функція для перевірки валідності ID
@@ -133,12 +137,65 @@
         return null;
     }
 
-    // Обробка помилок API
+    // Покращена обробка помилок API
     function handleApiError(error, operation = 'API операції') {
         console.error(`❌ Помилка ${operation}:`, error);
 
         // Пробуємо отримати текст помилки
         let errorMessage = error.message || 'Невідома помилка';
+
+        // Перевіряємо, чи це помилка зі стейкінгом
+        const isStakingError = operation.toLowerCase().includes('стейкінг') ||
+            operation.toLowerCase().includes('staking') ||
+            errorMessage.toLowerCase().includes('стейкінг') ||
+            errorMessage.toLowerCase().includes('staking');
+
+        // Відстежуємо помилки стейкінгу для автоматичного відновлення
+        if (isStakingError) {
+            const currentTime = Date.now();
+            // Скидаємо лічильник, якщо минуло більше 5 хвилин з останньої помилки
+            if (currentTime - _lastStakingErrorTime > 5 * 60 * 1000) {
+                _stakingErrorCount = 0;
+            }
+
+            _stakingErrorCount++;
+            _lastStakingErrorTime = currentTime;
+
+            // Автоматичне відновлення при повторних помилках
+            if (_stakingErrorCount >= 2) {
+                console.warn("⚠️ Виявлено повторні помилки стейкінгу. Запускаємо автоматичне відновлення...");
+                // Використовуємо setTimeout, щоб не блокувати поточний потік
+                setTimeout(() => {
+                    try {
+                        if (window.WinixAPI && window.WinixAPI.repairStaking) {
+                            // Показуємо повідомлення користувачу, якщо є функція showToast
+                            if (window.showToast) {
+                                window.showToast("Виправляємо проблеми зі стейкінгом...");
+                            }
+                            window.WinixAPI.repairStaking(false)
+                                .then(result => {
+                                    if (result.success) {
+                                        console.log("✅ Автоматичне відновлення стейкінгу успішне");
+                                        _stakingErrorCount = 0;
+                                        // Перезавантажуємо сторінку, якщо це сторінка стейкінгу
+                                        if (window.location.href.includes('staking')) {
+                                            if (window.showToast) {
+                                                window.showToast("Проблему зі стейкінгом виправлено. Оновлення сторінки...");
+                                            }
+                                            setTimeout(() => window.location.reload(), 1500);
+                                        }
+                                    }
+                                })
+                                .catch(repairError => {
+                                    console.error("❌ Помилка автоматичного відновлення:", repairError);
+                                });
+                        }
+                    } catch (e) {
+                        console.error("❌ Помилка запуску відновлення:", e);
+                    }
+                }, 100);
+            }
+        }
 
         // Перевіряємо тип помилки і формуємо зрозуміле повідомлення
         if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
@@ -151,6 +208,10 @@
 
         if (errorMessage.includes('404')) {
             return `Сервер не може знайти потрібний ресурс (404). Спробуйте перезавантажити сторінку.`;
+        }
+
+        if (errorMessage.includes('405')) {
+            return `Сервер не підтримує цей метод запиту (405). Повідомте про помилку розробникам.`;
         }
 
         if (errorMessage.includes('500')) {
@@ -201,9 +262,17 @@
             throw new Error("ID користувача не знайдено");
         }
 
+        // ВИПРАВЛЕННЯ: Перевіряємо шлях до API стейкінгу
+        let fixedEndpoint = endpoint;
+        // Якщо запит до стейкінгу але без ID користувача - виправляємо
+        if (endpoint.startsWith('/api/staking') && !endpoint.includes('/api/user/')) {
+            fixedEndpoint = `/api/user/${userId}/staking${endpoint.replace('/api/staking', '')}`;
+            console.warn(`⚠️ Виправлено некоректний URL стейкінгу: ${endpoint} -> ${fixedEndpoint}`);
+        }
+
         // Додаємо мітку часу для запобігання кешуванню
         const timestamp = Date.now();
-        const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
+        const url = `${API_BASE_URL}${fixedEndpoint}${fixedEndpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
 
         // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
         if (!options.hideLoader) {
@@ -235,6 +304,22 @@
         // Функція для повторного запиту при помилці
         async function tryRequest(attemptsLeft) {
             try {
+                // ПОКРАЩЕННЯ: Перевірка запиту перед відправкою
+                // Якщо у нас запит до стейкінгу - переконаємося, що метод правильний
+                if (url.includes('/staking')) {
+                    // Загальна перевірка стандартних методів для стейкінгу
+                    if (url.includes('/staking/repair') && method.toUpperCase() !== 'POST') {
+                        console.warn(`⚠️ Виправлено метод для /staking/repair: ${method} -> POST`);
+                        requestOptions.method = 'POST';
+                    } else if (url.includes('/cancel') && method.toUpperCase() !== 'POST') {
+                        console.warn(`⚠️ Виправлено метод для /staking/cancel: ${method} -> POST`);
+                        requestOptions.method = 'POST';
+                    } else if (url.includes('/finalize') && method.toUpperCase() !== 'POST') {
+                        console.warn(`⚠️ Виправлено метод для /staking/finalize: ${method} -> POST`);
+                        requestOptions.method = 'POST';
+                    }
+                }
+
                 const response = await fetch(url, requestOptions);
 
                 // Приховуємо індикатор завантаження
@@ -245,7 +330,7 @@
                 // Перевіряємо статус відповіді
                 if (!response.ok) {
                     const statusText = response.statusText || '';
-                    console.error(`❌ Помилка API-запиту: ${response.status} ${statusText}`);
+                    console.error(`❌ Помилка API-запиту: ${response.status} ${statusText} (${url})`);
 
                     // Для 401/403 помилок авторизації
                     if (response.status === 401 || response.status === 403) {
@@ -256,6 +341,29 @@
                     if (response.status === 404) {
                         console.error(`⚠️ Ресурс не знайдено: ${url}`);
                         throw new Error(`Запитаний ресурс недоступний (404)`);
+                    }
+
+                    // Для 405 помилок (неправильний метод)
+                    if (response.status === 405) {
+                        console.error(`⚠️ Метод не дозволено: ${method} для ${url}`);
+
+                        // Спробуємо виправити метод і повторити запит, якщо це стейкінг
+                        if (url.includes('/staking') && attemptsLeft > 0) {
+                            // Якщо метод POST не працює, спробуємо PUT і навпаки
+                            if (method.toUpperCase() === 'POST') {
+                                console.warn(`🔄 Спроба змінити метод з POST на PUT для ${url}`);
+                                requestOptions.method = 'PUT';
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                return tryRequest(attemptsLeft - 1);
+                            } else if (method.toUpperCase() === 'PUT') {
+                                console.warn(`🔄 Спроба змінити метод з PUT на POST для ${url}`);
+                                requestOptions.method = 'POST';
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                return tryRequest(attemptsLeft - 1);
+                            }
+                        }
+
+                        throw new Error(`Метод ${method} не дозволено для цього ресурсу (405)`);
                     }
 
                     // Якщо залишились спроби, повторюємо запит
