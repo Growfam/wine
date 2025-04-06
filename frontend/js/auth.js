@@ -42,12 +42,20 @@
          * Ініціалізація системи авторизації
          */
         init: function() {
-    console.log("WinixWallet: Ініціалізація...");
+            console.log("🔐 AUTH: Запуск ініціалізації");
 
-    // Видаляємо жорстко закодований ID з localStorage, якщо він там є
-    if (localStorage.getItem('telegram_user_id') === '12345678') {
-        localStorage.removeItem('telegram_user_id');
-    }
+            // Ініціалізуємо Telegram WebApp якомога раніше
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+                console.log("🔐 AUTH: Telegram WebApp ініціалізовано");
+            }
+
+            // Видаляємо жорстко закодований ID з localStorage, якщо він там є
+            if (localStorage.getItem('telegram_user_id') === '12345678') {
+                console.warn("⚠️ AUTH: Видалення захардкодженого ID з localStorage");
+                localStorage.removeItem('telegram_user_id');
+            }
 
             if (this.isInitialized) {
                 console.log("🔐 AUTH: Систему вже ініціалізовано");
@@ -62,49 +70,24 @@
                 return Promise.reject(new Error("Telegram WebApp not available"));
             }
 
-            // Ініціалізуємо Telegram WebApp
-            const tg = window.Telegram.WebApp;
-            tg.ready();
-            tg.expand();
+            // ЗМІНЕНО: Спочатку викликаємо getUserData для отримання ID з Telegram
+            return this.getUserData()
+                .then(userData => {
+                    console.log("✅ AUTH: Отримано дані користувача через getUserData:", userData);
+                    return userData;
+                })
+                .catch(error => {
+                    console.warn("⚠️ AUTH: Помилка під час getUserData, спробуємо authorizeUser:", error);
 
-            // ЗМІНЕНО: Додано перевірку валідності даних користувача
-            const initData = tg.initData || "";
-            const userData = tg.initDataUnsafe?.user || null;
-
-            console.log("🔐 AUTH: Отримано дані з Telegram WebApp", userData);
-
-            // ЗМІНЕНО: Додано перевірку, чи id не undefined/null
-            if (!userData || !userData.id) {
-                console.error("❌ AUTH: Не вдалося отримати валідні дані користувача", userData);
-
-                // Пробуємо отримати ID з localStorage як fallback
-                const storedId = localStorage.getItem('telegram_user_id');
-                // ЗМІНЕНО: Додано перевірку валідності ID у localStorage
-                if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
-                    console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
-
-                    // Створюємо мінімальний об'єкт користувача з ID зі сховища
-                    const fallbackUser = {
-                        id: storedId,
-                        telegram_id: storedId
+                    // Якщо getUserData не спрацював, використовуємо authorizeUser як резервний варіант
+                    const tg = window.Telegram.WebApp;
+                    const authData = {
+                        ...(tg.initDataUnsafe?.user || {}),
+                        initData: tg.initData || ""
                     };
 
-                    return this.authorizeUser({
-                        ...fallbackUser,
-                        initData: initData
-                    });
-                }
-
-                return Promise.reject(new Error("User data not available"));
-            }
-
-            // Додаємо initData до даних користувача для додаткової перевірки на сервері
-            const authData = {
-                ...userData,
-                initData: initData
-            };
-
-            return this.authorizeUser(authData);
+                    return this.authorizeUser(authData);
+                });
         },
 
         /**
@@ -121,8 +104,28 @@
             this.isAuthorizing = true;
             console.log("🔐 AUTH: Запит авторизації на сервері", userData);
 
-            // ЗМІНЕНО: Покращено отримання ID користувача з різних джерел
+            // Перевіряємо чи доступний Telegram WebApp і оновлюємо дані
+            if (window.Telegram && window.Telegram.WebApp &&
+                window.Telegram.WebApp.initDataUnsafe &&
+                window.Telegram.WebApp.initDataUnsafe.user) {
+
+                // Оновлюємо ID користувача з Telegram WebApp
+                const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
+                if (telegramId) {
+                    userData.id = telegramId.toString();
+                    userData.telegram_id = telegramId.toString();
+                    console.log("🔐 AUTH: ID оновлено з Telegram WebApp:", userData.id);
+                }
+            }
+
+            // Валідуємо ID перед надсиланням запиту
             let userId = userData.id || userData.telegram_id || null;
+
+            if (!userId || userId === 'undefined' || userId === 'null' || userId.toString().trim() === '') {
+                console.error("❌ AUTH: Неможливо отримати валідний ID користувача для авторизації");
+                this.isAuthorizing = false;
+                return Promise.reject(new Error("Неможливо отримати валідний ID користувача"));
+            }
 
             // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
             if (userId && userId !== undefined && userId !== null &&
@@ -261,39 +264,110 @@
          * @returns {Promise} - Promise з даними користувача
          */
         getUserData: function() {
-            if (!this.currentUser) {
-                console.error("❌ AUTH: Немає даних про поточного користувача");
+            // Намагаємось отримати ID напряму з Telegram WebApp - найбільш надійне джерело
+            if (window.Telegram && window.Telegram.WebApp &&
+                window.Telegram.WebApp.initDataUnsafe &&
+                window.Telegram.WebApp.initDataUnsafe.user) {
 
-                // ЗМІНЕНО: Додано перевірку валідності ID в localStorage
+                const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
+                if (telegramUser.id) {
+                    const validTelegramId = telegramUser.id.toString();
+                    console.log(`🔐 AUTH: Отримано ID користувача з Telegram WebApp: ${validTelegramId}`);
+
+                    // Якщо об'єкт currentUser ще не існує, створюємо його
+                    if (!this.currentUser) {
+                        this.currentUser = { telegram_id: validTelegramId };
+                    } else {
+                        // Інакше оновлюємо ID у існуючому об'єкті
+                        this.currentUser.telegram_id = validTelegramId;
+                    }
+
+                    // Зберігаємо надійний ID в localStorage
+                    localStorage.setItem('telegram_user_id', validTelegramId);
+
+                    // Оновлюємо елемент на сторінці
+                    const userIdElement = document.getElementById('user-id');
+                    if (userIdElement) {
+                        userIdElement.textContent = validTelegramId;
+                    }
+                }
+            }
+
+            // Перевіряємо, чи є дані користувача після спроби отримання з Telegram
+            if (!this.currentUser) {
+                console.log("ℹ️ AUTH: Спроба отримати ID з localStorage після невдалої спроби з Telegram WebApp");
+
+                // Перевіряємо localStorage
                 const storedId = localStorage.getItem('telegram_user_id');
                 if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
                     console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
                     this.currentUser = { telegram_id: storedId };
+
+                    // Оновлюємо елемент на сторінці
+                    const userIdElement = document.getElementById('user-id');
+                    if (userIdElement) {
+                        userIdElement.textContent = storedId;
+                    }
                 } else {
-                    console.error("❌ AUTH: Немає валідного ID в localStorage");
-                    return Promise.reject(new Error("No current user"));
+                    // Якщо ID не знайдено ніде, спробуємо отримати з URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+
+                    if (urlId && urlId !== 'undefined' && urlId !== 'null' && urlId.trim() !== '') {
+                        console.log(`🔐 AUTH: Використовуємо ID з URL параметрів: ${urlId}`);
+                        this.currentUser = { telegram_id: urlId };
+                        localStorage.setItem('telegram_user_id', urlId);
+
+                        // Оновлюємо елемент на сторінці
+                        const userIdElement = document.getElementById('user-id');
+                        if (userIdElement) {
+                            userIdElement.textContent = urlId;
+                        }
+                    } else {
+                        // Якщо ID не знайдено в жодному джерелі
+                        console.error("❌ AUTH: Не вдалося знайти валідний ID користувача");
+                        return Promise.reject(new Error("Не вдалося отримати ID користувача"));
+                    }
                 }
             }
 
+            // Після всіх спроб перевіряємо фінальний ID на валідність
             const userId = this.currentUser.telegram_id;
-            console.log(`🔐 AUTH: Запит даних користувача ${userId}`);
+            if (!userId || userId === 'undefined' || userId === 'null' || userId.trim() === '') {
+                console.error("❌ AUTH: Фінальний ID користувача невалідний");
+                return Promise.reject(new Error("Невалідний ID користувача"));
+            }
+
+            console.log(`🔐 AUTH: Виконуємо запит даних користувача з ID: ${userId}`);
+
+            // Показуємо індикатор завантаження, якщо він є
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) spinner.classList.add('show');
 
             // Використання API модуля для отримання даних користувача
             return window.WinixAPI.getUserData(userId)
                 .then(data => {
-                    if (data.status === 'success') {
-                        // Успішне отримання даних
-                        this.currentUser = { ...this.currentUser, ...data.data };
-                        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
 
-                        // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
-                        if (this.currentUser.telegram_id &&
-                            this.currentUser.telegram_id !== 'undefined' &&
-                            this.currentUser.telegram_id !== 'null') {
-                            localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
+                    if (data.status === 'success') {
+                        // Успішне отримання даних - зберігаємо, але залишаємо оригінальний telegram_id
+                        const originalId = this.currentUser.telegram_id;
+                        this.currentUser = { ...this.currentUser, ...data.data };
+
+                        // Переконуємося, що ID не замінився на невалідний
+                        if (!this.currentUser.telegram_id ||
+                            this.currentUser.telegram_id === 'undefined' ||
+                            this.currentUser.telegram_id === 'null') {
+                            this.currentUser.telegram_id = originalId;
                         }
 
-                        // Оновлюємо баланс і жетони в localStorage
+                        console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+
+                        // Зберігаємо ID в localStorage
+                        localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
+
+                        // Оновлюємо інші дані в localStorage
                         if (this.currentUser.balance !== undefined) {
                             localStorage.setItem('userTokens', this.currentUser.balance.toString());
                             localStorage.setItem('winix_balance', this.currentUser.balance.toString());
@@ -310,23 +384,33 @@
                             localStorage.setItem('winix_staking', JSON.stringify(this.currentUser.staking_data));
                         }
 
+                        // Подія успішного оновлення даних
+                        document.dispatchEvent(new CustomEvent('user-data-updated', {
+                            detail: this.currentUser
+                        }));
+
                         return this.currentUser;
                     } else {
-                        // Явна обробка випадку, коли статус не "success"
                         console.error("❌ AUTH: Помилка отримання даних користувача", data);
                         throw new Error(data.message || "Помилка отримання даних");
                     }
                 })
                 .catch(error => {
+                    // Приховуємо індикатор завантаження
+                    if (spinner) spinner.classList.remove('show');
+
                     console.error("❌ AUTH: Помилка отримання даних користувача", error);
 
-                    // Додаткова діагностика
+                    // Розширена діагностика
                     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                         console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
                     } else if (error.status) {
                         console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
                     }
+
                     console.error("❌ AUTH: URL запиту:", `/api/user/${userId}`);
+                    console.error("❌ AUTH: Telegram WebApp доступний:", !!window.Telegram?.WebApp);
+                    console.error("❌ AUTH: initDataUnsafe доступний:", !!window.Telegram?.WebApp?.initDataUnsafe);
 
                     this.showError(this.getLocalizedText('dataError'));
                     throw error;
@@ -433,6 +517,19 @@
             localStorage.removeItem('telegram_user_id');
         }
 
+        // ДОДАНО: Безпосередній виклик getUserData для отримання актуального ID
+        if (window.WinixAuth) {
+            window.WinixAuth.getUserData()
+                .then(() => {
+                    console.log("✅ AUTH: Дані користувача оновлено при завантаженні DOM");
+                })
+                .catch(error => {
+                    console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
+                    // Якщо getUserData не спрацював, спробуємо init
+                    window.WinixAuth.init();
+                });
+        }
+
         // Якщо сторінка - екран завантаження, просто виконуємо авторизацію і дочекаємось результату
         if (window.location.pathname === '/' || window.location.pathname.includes('index.html')) {
             window.WinixAuth.init()
@@ -453,13 +550,18 @@
             // ЗМІНЕНО: Спочатку очищаємо невалідні ID
             window.WinixAuth.cleanInvalidIds();
 
-            window.WinixAuth.init()
-                .then(() => {
-                    console.log("✅ AUTH: Авторизація виконана успішно після завантаження");
-                })
-                .catch(error => {
-                    console.error("❌ AUTH: Помилка авторизації після завантаження", error);
-                });
+            // ДОДАНО: Безпосередній виклик getUserData
+            if (window.WinixAuth) {
+                window.WinixAuth.getUserData()
+                    .then(() => {
+                        console.log("✅ AUTH: Дані користувача оновлено після завантаження");
+                    })
+                    .catch(error => {
+                        console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
+                        // Якщо getUserData не спрацював, спробуємо init
+                        window.WinixAuth.init();
+                    });
+            }
         }, 100);
     }
 
@@ -467,14 +569,31 @@
     document.addEventListener('telegram-ready', function() {
         console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
 
-        window.WinixAuth.init()
-            .then(() => {
-                console.log("✅ AUTH: Авторизація виконана успішно після telegram-ready");
-            })
-            .catch(error => {
-                console.error("❌ AUTH: Помилка авторизації після telegram-ready", error);
-            });
+        // ДОДАНО: Безпосередній виклик getUserData
+        if (window.WinixAuth) {
+            window.WinixAuth.getUserData()
+                .then(() => {
+                    console.log("✅ AUTH: Дані користувача оновлено після telegram-ready");
+                })
+                .catch(error => {
+                    console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
+                    // Якщо getUserData не спрацював, спробуємо init
+                    window.WinixAuth.init();
+                });
+        }
     });
+
+    // ДОДАНО: Періодичне оновлення даних
+    (function setupPeriodicUpdate() {
+        // Оновлюємо дані користувача кожні 30 секунд
+        setInterval(function() {
+            if (window.WinixAuth && typeof window.WinixAuth.getUserData === 'function') {
+                window.WinixAuth.getUserData()
+                    .then(() => console.log("✅ Періодичне оновлення даних користувача"))
+                    .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
+            }
+        }, 30000); // 30 секунд
+    })();
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();

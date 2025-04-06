@@ -150,6 +150,14 @@
 
         // Отримання валідного ID користувача з усіх можливих джерел
         getValidUserId: function() {
+
+                // Прямий доступ до WebApp
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user?.id) {
+        const tgId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        console.log("✅ ID Monitor: отримано ID з Telegram WebApp:", tgId);
+        return tgId;
+    }
+
             // 1. Спробуємо отримати з API модуля
             if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
                 const apiId = window.WinixAPI.getUserId();
