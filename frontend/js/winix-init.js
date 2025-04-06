@@ -6,7 +6,12 @@
  *
  * Інтегровано з централізованим API модулем
  */
-
+// Ініціалізуємо Telegram WebApp якомога раніше
+if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+    console.log("Telegram WebApp успішно ініціалізовано");
+}
 (function() {
     console.log("🚀 WINIX-INIT: Запуск координатора ініціалізації...");
 

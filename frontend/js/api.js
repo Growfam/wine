@@ -34,20 +34,22 @@
                 id.toString().trim() !== '';
         }
 
-        // Спочатку пробуємо отримати з Telegram WebApp API напряму
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe?.user) {
-        const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
-        if (isValidId(tgUser.id)) {
-            const userId = tgUser.id.toString();
+        // Спочатку перевіряємо наявність Telegram WebApp і токена
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Перевіряємо, чи WebApp готовий до роботи
+        window.Telegram.WebApp.ready();
 
-            // Зберігаємо в localStorage для наступних запитів
-            try {
+        // Отримуємо дані користувача
+        if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+            const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+            if (tgUser.id) {
+                const userId = tgUser.id.toString();
+                console.log("🆔 ID користувача отримано з Telegram WebApp:", userId);
+
+                // Зберігаємо в localStorage для наступних запитів
                 localStorage.setItem('telegram_user_id', userId);
-            } catch (e) {
-                console.warn("Не вдалося зберегти ID користувача в localStorage:", e);
+                return userId;
             }
-
-            return userId;
         }
     }
 
