@@ -2,7 +2,7 @@
  * language.js - Система багатомовності для WINIX
  * Підтримує українську (uk), англійську (en) та російську (ru) мови
  *
- * Інтегровано з централізованим API модулем
+ * Локальна версія без викликів API
  */
 
 (function() {
@@ -704,7 +704,7 @@
             ru: DICTIONARY_RU
         },
 
-        // Додаткові словники з сервера
+        // Додаткові словники з локального сховища
         dynamicDictionaries: dynamicDictionaries,
 
         /**
@@ -741,7 +741,7 @@
          * @returns {string|null} Переклад або null, якщо не знайдено
          */
         findTextInDictionaries: function(key, lang) {
-            // 1. Спочатку шукаємо в динамічних словниках (завантажених з сервера)
+            // 1. Спочатку шукаємо в динамічних словниках (завантажених з локального сховища)
             if (this.dynamicDictionaries[lang] && this.dynamicDictionaries[lang][key]) {
                 return this.dynamicDictionaries[lang][key];
             }
@@ -763,10 +763,9 @@
         /**
          * Зміна мови та збереження вибору
          * @param {string} newLang - Нова мова
-         * @param {boolean} saveToServer - Чи зберігати на сервері
          * @returns {boolean} Чи вдалося змінити мову
          */
-        changeLang: function(newLang, saveToServer = true) {
+        changeLang: function(newLang) {
             try {
                 if (!AVAILABLE_LANGUAGES.includes(newLang)) {
                     console.error(`❌ WinixLanguage: Мова ${newLang} не підтримується`);
@@ -776,18 +775,7 @@
                 this.currentLang = newLang;
                 localStorage.setItem('userLanguage', newLang);
 
-                // Якщо потрібно зберегти на сервері і є API
-                if (saveToServer && window.WinixAPI && window.WinixAPI.updateUserData) {
-                    try {
-                        window.WinixAPI.updateUserData({ language: newLang }, function(error) {
-                            if (error) {
-                                console.warn(`⚠️ WinixLanguage: Не вдалося зберегти мову на сервері: ${error}`);
-                            }
-                        });
-                    } catch (error) {
-                        console.warn(`⚠️ WinixLanguage: Помилка при спробі зберегти мову на сервері: ${error}`);
-                    }
-                }
+                console.log(`✅ WinixLanguage: Мову змінено на ${newLang} (збережено локально)`);
 
                 // Оновлюємо всі тексти на сторінці
                 this.updatePageTexts();
@@ -802,7 +790,6 @@
                     window.WinixInitState.syncData();
                 }
 
-                console.log(`✅ WinixLanguage: Мову змінено на ${newLang}`);
                 return true;
             } catch (error) {
                 console.error("❌ WinixLanguage: Помилка при зміні мови:", error);
@@ -843,46 +830,61 @@
         },
 
         /**
-         * Завантаження словника з сервера
+         * Завантаження словника з локального сховища
          * @param {string} lang - Мова
          * @param {Function} callback - Функція зворотного виклику
          */
-        loadDictionaryFromServer: function(lang, callback) {
-            // Перевіряємо, чи є API
-            if (!window.WinixAPI || !window.WinixAPI.apiRequest) {
-                if (callback) callback(new Error("API не доступне"));
-                return;
-            }
+        loadDictionaryFromStorage: function(lang, callback) {
+            try {
+                // Спроба завантажити словник з localStorage
+                const storedDict = localStorage.getItem(`lang_dict_${lang}`);
 
-            // Завантажуємо словник з сервера
-            window.WinixAPI.apiRequest(`/api/language/${lang}`, 'GET', null, (error, result) => {
-                if (error) {
-                    console.error(`❌ WinixLanguage: Помилка завантаження словника для мови ${lang}:`, error);
-                    if (callback) callback(error);
-                    return;
-                }
-
-                // Зберігаємо словник
-                try {
-                    if (result && result.data && typeof result.data === 'object') {
-                        this.dynamicDictionaries[lang] = result.data;
-                        console.log(`✅ WinixLanguage: Словник для мови ${lang} успішно завантажено з сервера`);
+                if (storedDict) {
+                    try {
+                        const dictData = JSON.parse(storedDict);
+                        this.dynamicDictionaries[lang] = dictData;
+                        console.log(`✅ WinixLanguage: Словник для мови ${lang} успішно завантажено з локального сховища`);
 
                         // Оновлюємо тексти, якщо поточна мова співпадає з завантаженою
                         if (this.currentLang === lang) {
                             this.updatePageTexts();
                         }
 
-                        if (callback) callback(null, result.data);
-                    } else {
-                        console.warn(`⚠️ WinixLanguage: Отримано некоректний формат словника для мови ${lang}`);
-                        if (callback) callback(new Error("Некоректний формат словника"));
+                        if (callback) callback(null, dictData);
+                    } catch (e) {
+                        console.error(`❌ WinixLanguage: Помилка розбору словника для мови ${lang} з локального сховища:`, e);
+                        if (callback) callback(e);
                     }
-                } catch (e) {
-                    console.error(`❌ WinixLanguage: Помилка обробки словника для мови ${lang}:`, e);
-                    if (callback) callback(e);
+                } else {
+                    console.warn(`⚠️ WinixLanguage: Словник для мови ${lang} не знайдено в локальному сховищі`);
+                    if (callback) callback(new Error("Словник не знайдено"));
                 }
-            });
+            } catch (error) {
+                console.error(`❌ WinixLanguage: Помилка завантаження словника для мови ${lang} з локального сховища:`, error);
+                if (callback) callback(error);
+            }
+        },
+
+        /**
+         * Збереження словника в локальне сховище
+         * @param {string} lang - Мова
+         * @param {Object} dictionary - Словник
+         * @returns {boolean} Чи вдалося зберегти
+         */
+        saveDictionaryToStorage: function(lang, dictionary) {
+            try {
+                if (!AVAILABLE_LANGUAGES.includes(lang)) {
+                    console.error(`❌ WinixLanguage: Мова ${lang} не підтримується`);
+                    return false;
+                }
+
+                localStorage.setItem(`lang_dict_${lang}`, JSON.stringify(dictionary));
+                console.log(`✅ WinixLanguage: Словник для мови ${lang} успішно збережено в локальне сховище`);
+                return true;
+            } catch (error) {
+                console.error(`❌ WinixLanguage: Помилка збереження словника для мови ${lang} в локальне сховище:`, error);
+                return false;
+            }
         },
 
         /**
@@ -906,6 +908,10 @@
 
                 // Додаємо переклад
                 this.dynamicDictionaries[lang][key] = text;
+
+                // Зберігаємо оновлений словник в локальне сховище
+                this.saveDictionaryToStorage(lang, this.dynamicDictionaries[lang]);
+
                 return true;
             } catch (error) {
                 console.error(`❌ WinixLanguage: Помилка додавання перекладу для ключа ${key}:`, error);
@@ -1059,47 +1065,13 @@
         }
     }
 
-    /**
-     * Перевірка і отримання мови з сервера
-     */
-    function checkServerLanguage() {
-        // Перевіряємо, чи є API
-        if (!window.WinixAPI || !window.WinixAPI.getUserData) {
-            return;
-        }
-
-        // Отримуємо дані користувача з сервера
-        window.WinixAPI.getUserData((error, userData) => {
-            if (error) {
-                console.warn("⚠️ WinixLanguage: Не вдалося отримати мову з сервера:", error);
-                return;
-            }
-
-            try {
-                // Якщо у користувача є збережена мова на сервері і вона відрізняється від поточної
-                if (userData.language && AVAILABLE_LANGUAGES.includes(userData.language) &&
-                    userData.language !== window.WinixLanguage.currentLang) {
-                    // Змінюємо мову, але не зберігаємо на сервері, щоб уникнути циклічних запитів
-                    window.WinixLanguage.changeLang(userData.language, false);
-                }
-            } catch (e) {
-                console.warn("⚠️ WinixLanguage: Помилка при обробці мови з сервера:", e);
-            }
-        });
-    }
-
     // Оновлюємо тексти після завантаження DOM
     document.addEventListener('DOMContentLoaded', function() {
         try {
             window.WinixLanguage.updatePageTexts();
 
-            // Спроба завантажити додаткові переклади з сервера
-            if (window.WinixAPI) {
-                window.WinixLanguage.loadDictionaryFromServer(window.WinixLanguage.currentLang);
-
-                // Перевіряємо мову на сервері
-                checkServerLanguage();
-            }
+            // Спроба завантажити додаткові переклади з локального сховища
+            window.WinixLanguage.loadDictionaryFromStorage(window.WinixLanguage.currentLang);
         } catch (e) {
             console.error("❌ WinixLanguage: Помилка при ініціалізації після завантаження DOM:", e);
         }
@@ -1121,11 +1093,8 @@
     // Підписуємося на подію ініціалізації WINIX
     document.addEventListener('winix-initialized', function() {
         try {
-            // Заново перевіряємо мову з сервера
-            checkServerLanguage();
-
-            // Спроба завантажити додаткові переклади з сервера
-            window.WinixLanguage.loadDictionaryFromServer(window.WinixLanguage.currentLang);
+            // Спроба завантажити додаткові переклади з локального сховища
+            window.WinixLanguage.loadDictionaryFromStorage(window.WinixLanguage.currentLang);
         } catch (e) {
             console.warn("⚠️ WinixLanguage: Помилка в обробнику події winix-initialized:", e);
         }

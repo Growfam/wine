@@ -1,14 +1,17 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
- *
- * Цей модуль відповідає за:
- * 1. Отримання даних користувача з Telegram WebApp
- * 2. Авторизацію на сервері
- * 3. Збереження даних користувача для використання в інших частинах додатку
+ * Виправлена версія з усіма виправленнями помилок ID і констант
  */
 
 (function() {
     console.log("🔐 AUTH: Ініціалізація системи авторизації");
+
+    // Ініціалізуємо Telegram WebApp якомога раніше
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        console.log("🔐 AUTH: Telegram WebApp ініціалізовано ранній старт");
+    }
 
     // Глобальний об'єкт для зберігання даних користувача
     window.WinixAuth = {
@@ -36,6 +39,20 @@
                 dataError: "Error retrieving user data.",
                 welcome: "Welcome to WINIX!"
             }
+        },
+
+        /**
+         * Перевірка валідності ID
+         */
+        isValidId: function(id) {
+            return id &&
+                   id !== 'undefined' &&
+                   id !== 'null' &&
+                   id !== undefined &&
+                   id !== null &&
+                   id.toString().trim() !== '' &&
+                   !id.toString().includes('function') &&
+                   !id.toString().includes('=>');
         },
 
         /**
@@ -81,10 +98,18 @@
 
                     // Якщо getUserData не спрацював, використовуємо authorizeUser як резервний варіант
                     const tg = window.Telegram.WebApp;
-                    const authData = {
-                        ...(tg.initDataUnsafe?.user || {}),
-                        initData: tg.initData || ""
-                    };
+                    let authData = {};
+
+                    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                        authData = {
+                            ...tg.initDataUnsafe.user,
+                            initData: tg.initData || ""
+                        };
+                    } else {
+                        authData = {
+                            initData: tg.initData || ""
+                        };
+                    }
 
                     return this.authorizeUser(authData);
                 });
@@ -92,8 +117,6 @@
 
         /**
          * Авторизація користувача на сервері
-         * @param {Object} userData - Дані користувача з Telegram WebApp
-         * @returns {Promise} - Promise з даними користувача
          */
         authorizeUser: function(userData) {
             if (this.isAuthorizing) {
@@ -112,8 +135,12 @@
                 // Оновлюємо ID користувача з Telegram WebApp
                 const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
                 if (telegramId) {
-                    userData.id = telegramId.toString();
-                    userData.telegram_id = telegramId.toString();
+                    // ВИПРАВЛЕНО: Замість модифікації параметра, створюємо нову змінну
+                    userData = {
+                        ...userData,
+                        id: telegramId.toString(),
+                        telegram_id: telegramId.toString()
+                    };
                     console.log("🔐 AUTH: ID оновлено з Telegram WebApp:", userData.id);
                 }
             }
@@ -121,44 +148,23 @@
             // Валідуємо ID перед надсиланням запиту
             let userId = userData.id || userData.telegram_id || null;
 
-            if (!userId || userId === 'undefined' || userId === 'null' || userId.toString().trim() === '') {
+            if (!this.isValidId(userId)) {
                 console.error("❌ AUTH: Неможливо отримати валідний ID користувача для авторизації");
                 this.isAuthorizing = false;
                 return Promise.reject(new Error("Неможливо отримати валідний ID користувача"));
             }
 
-            // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
-            if (userId && userId !== undefined && userId !== null &&
-                userId.toString() !== 'undefined' && userId.toString() !== 'null') {
+            // ВИПРАВЛЕНО: Використовуємо let замість const для userId
+            userId = userId.toString();
 
-                // Переконуємося, що ID - це рядок
-                userId = userId.toString();
+            // Зберігаємо в localStorage для подальшого використання
+            localStorage.setItem('telegram_user_id', userId);
 
-                // Зберігаємо в localStorage для подальшого використання
-                localStorage.setItem('telegram_user_id', userId);
-
-                // Одразу оновлюємо елемент на сторінці, якщо він існує
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement) {
-                    userIdElement.textContent = userId;
-                    console.log(`🔐 AUTH: Оновлено ID користувача на сторінці: ${userId}`);
-                }
-            } else {
-                console.warn("⚠️ AUTH: Отримано невалідний ID користувача:", userId);
-
-                // ЗМІНЕНО: Спробуємо отримати ID з localStorage як резервний варіант
-                const storedId = localStorage.getItem('telegram_user_id');
-
-                if (storedId && storedId !== 'undefined' && storedId !== 'null') {
-                    userId = storedId;
-                    console.log(`🔐 AUTH: Використовуємо ID з localStorage як резервний: ${userId}`);
-
-                    // Оновлюємо вхідні дані користувача
-                    userData.id = userId;
-                    userData.telegram_id = userId;
-                } else {
-                    console.error("❌ AUTH: Не знайдено валідний ID користувача");
-                }
+            // Одразу оновлюємо елемент на сторінці, якщо він існує
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement) {
+                userIdElement.textContent = userId;
+                console.log(`🔐 AUTH: Оновлено ID користувача на сторінці: ${userId}`);
             }
 
             // Показуємо індикатор завантаження, якщо він є
@@ -175,11 +181,8 @@
                         this.currentUser = data.data;
                         console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
 
-                        // ЗМІНЕНО: Додано перевірку валідності ID перед збереженням
-                        if (this.currentUser.telegram_id &&
-                            this.currentUser.telegram_id !== 'undefined' &&
-                            this.currentUser.telegram_id !== 'null') {
-
+                        // Перевіряємо валідність ID перед збереженням
+                        if (this.isValidId(this.currentUser.telegram_id)) {
                             localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
 
                             // Оновлюємо елемент на сторінці
@@ -230,11 +233,6 @@
                         console.error(`❌ AUTH: Деталі помилки: ${error.message}`);
                     }
 
-                    // ЗМІНЕНО: Додано перевірку валідності ID при діагностиці
-                    const storedId = localStorage.getItem('telegram_user_id');
-                    console.error("❌ AUTH: ID користувача для діагностики:",
-                        storedId && storedId !== 'undefined' && storedId !== 'null' ? storedId : 'Невалідний ID');
-
                     // Приховуємо індикатор завантаження
                     if (spinner) spinner.classList.remove('show');
 
@@ -261,9 +259,11 @@
 
         /**
          * Отримання даних користувача з сервера
-         * @returns {Promise} - Promise з даними користувача
          */
         getUserData: function() {
+            let userId = null; // ВИПРАВЛЕНО: Використання let замість const
+            let telegramId = null; // ВИПРАВЛЕНО: Додано нову змінну для ID з Telegram
+
             // Намагаємось отримати ID напряму з Telegram WebApp - найбільш надійне джерело
             if (window.Telegram && window.Telegram.WebApp &&
                 window.Telegram.WebApp.initDataUnsafe &&
@@ -271,51 +271,77 @@
 
                 const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
                 if (telegramUser.id) {
-                    const validTelegramId = telegramUser.id.toString();
-                    console.log(`🔐 AUTH: Отримано ID користувача з Telegram WebApp: ${validTelegramId}`);
+                    telegramId = telegramUser.id.toString();
+                    console.log(`🔐 AUTH: Отримано ID користувача з Telegram WebApp: ${telegramId}`);
 
                     // Якщо об'єкт currentUser ще не існує, створюємо його
                     if (!this.currentUser) {
-                        this.currentUser = { telegram_id: validTelegramId };
+                        this.currentUser = { telegram_id: telegramId };
                     } else {
-                        // Інакше оновлюємо ID у існуючому об'єкті
-                        this.currentUser.telegram_id = validTelegramId;
+                        // ВИПРАВЛЕНО: Використання безпечної зміни об'єкта
+                        this.currentUser = {
+                            ...this.currentUser,
+                            telegram_id: telegramId
+                        };
                     }
 
                     // Зберігаємо надійний ID в localStorage
-                    localStorage.setItem('telegram_user_id', validTelegramId);
+                    localStorage.setItem('telegram_user_id', telegramId);
 
                     // Оновлюємо елемент на сторінці
                     const userIdElement = document.getElementById('user-id');
                     if (userIdElement) {
-                        userIdElement.textContent = validTelegramId;
+                        userIdElement.textContent = telegramId;
                     }
+
+                    userId = telegramId;
                 }
             }
 
-            // Перевіряємо, чи є дані користувача після спроби отримання з Telegram
-            if (!this.currentUser) {
+            // Якщо не змогли отримати ID з Telegram, перевіряємо інші джерела
+            if (!this.isValidId(userId)) {
                 console.log("ℹ️ AUTH: Спроба отримати ID з localStorage після невдалої спроби з Telegram WebApp");
 
                 // Перевіряємо localStorage
                 const storedId = localStorage.getItem('telegram_user_id');
-                if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
+                if (this.isValidId(storedId)) {
                     console.log(`🔐 AUTH: Використовуємо ID з localStorage: ${storedId}`);
-                    this.currentUser = { telegram_id: storedId };
+
+                    // ВИПРАВЛЕНО: Використання корректного присвоєння
+                    if (!this.currentUser) {
+                        this.currentUser = { telegram_id: storedId };
+                    } else {
+                        this.currentUser = {
+                            ...this.currentUser,
+                            telegram_id: storedId
+                        };
+                    }
 
                     // Оновлюємо елемент на сторінці
                     const userIdElement = document.getElementById('user-id');
                     if (userIdElement) {
                         userIdElement.textContent = storedId;
                     }
+
+                    userId = storedId;
                 } else {
-                    // Якщо ID не знайдено ніде, спробуємо отримати з URL
+                    // Якщо ID не знайдено в localStorage, спробуємо отримати з URL
                     const urlParams = new URLSearchParams(window.location.search);
                     const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
 
-                    if (urlId && urlId !== 'undefined' && urlId !== 'null' && urlId.trim() !== '') {
+                    if (this.isValidId(urlId)) {
                         console.log(`🔐 AUTH: Використовуємо ID з URL параметрів: ${urlId}`);
-                        this.currentUser = { telegram_id: urlId };
+
+                        // ВИПРАВЛЕНО: Використання корректного присвоєння
+                        if (!this.currentUser) {
+                            this.currentUser = { telegram_id: urlId };
+                        } else {
+                            this.currentUser = {
+                                ...this.currentUser,
+                                telegram_id: urlId
+                            };
+                        }
+
                         localStorage.setItem('telegram_user_id', urlId);
 
                         // Оновлюємо елемент на сторінці
@@ -323,6 +349,8 @@
                         if (userIdElement) {
                             userIdElement.textContent = urlId;
                         }
+
+                        userId = urlId;
                     } else {
                         // Якщо ID не знайдено в жодному джерелі
                         console.error("❌ AUTH: Не вдалося знайти валідний ID користувача");
@@ -332,8 +360,7 @@
             }
 
             // Після всіх спроб перевіряємо фінальний ID на валідність
-            const userId = this.currentUser.telegram_id;
-            if (!userId || userId === 'undefined' || userId === 'null' || userId.trim() === '') {
+            if (!this.isValidId(userId)) {
                 console.error("❌ AUTH: Фінальний ID користувача невалідний");
                 return Promise.reject(new Error("Невалідний ID користувача"));
             }
@@ -344,6 +371,15 @@
             const spinner = document.getElementById('loading-spinner');
             if (spinner) spinner.classList.add('show');
 
+            // ВИПРАВЛЕНО: Додаткова перевірка типу userId
+            if (typeof userId !== 'string' && typeof userId !== 'number') {
+                console.error("❌ AUTH: userId має неправильний тип:", typeof userId);
+
+                if (spinner) spinner.classList.remove('show');
+
+                return Promise.reject(new Error(`Неправильний тип ID: ${typeof userId}`));
+            }
+
             // Використання API модуля для отримання даних користувача
             return window.WinixAPI.getUserData(userId)
                 .then(data => {
@@ -353,13 +389,20 @@
                     if (data.status === 'success') {
                         // Успішне отримання даних - зберігаємо, але залишаємо оригінальний telegram_id
                         const originalId = this.currentUser.telegram_id;
-                        this.currentUser = { ...this.currentUser, ...data.data };
+
+                        // ВИПРАВЛЕНО: Створення нового об'єкта замість модифікації існуючого
+                        this.currentUser = {
+                            ...this.currentUser,
+                            ...data.data
+                        };
 
                         // Переконуємося, що ID не замінився на невалідний
-                        if (!this.currentUser.telegram_id ||
-                            this.currentUser.telegram_id === 'undefined' ||
-                            this.currentUser.telegram_id === 'null') {
-                            this.currentUser.telegram_id = originalId;
+                        if (!this.isValidId(this.currentUser.telegram_id)) {
+                            // ВИПРАВЛЕНО: Безпечна зміна властивості об'єкта
+                            this.currentUser = {
+                                ...this.currentUser,
+                                telegram_id: originalId
+                            };
                         }
 
                         console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
@@ -408,7 +451,9 @@
                         console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
                     }
 
-                    console.error("❌ AUTH: URL запиту:", `/api/user/${userId}`);
+                    // ВИПРАВЛЕНО: Захист від виведення функції в лог
+                    const safeUserId = typeof userId === 'function' ? '[Function]' : userId;
+                    console.error("❌ AUTH: URL запиту:", `/api/user/${safeUserId}`);
                     console.error("❌ AUTH: Telegram WebApp доступний:", !!window.Telegram?.WebApp);
                     console.error("❌ AUTH: initDataUnsafe доступний:", !!window.Telegram?.WebApp?.initDataUnsafe);
 
@@ -419,7 +464,6 @@
 
         /**
          * Показати повідомлення про помилку
-         * @param {string} message - Текст повідомлення
          */
         showError: function(message) {
             console.error("❌ AUTH: " + message);
@@ -464,8 +508,6 @@
 
         /**
          * Отримати локалізований текст за поточною мовою
-         * @param {string} key - Ключ тексту
-         * @returns {string} - Локалізований текст
          */
         getLocalizedText: function(key) {
             // Спочатку намагаємося визначити мову через існуючу систему
@@ -486,11 +528,13 @@
             return this.lang.uk[key];
         },
 
-        // ДОДАНО: Метод для очищення невалідних ID в localStorage
+        /**
+         * Метод для очищення невалідних ID в localStorage
+         */
         cleanInvalidIds: function() {
             const storedId = localStorage.getItem('telegram_user_id');
-            if (!storedId || storedId === 'undefined' || storedId === 'null' || storedId.trim() === '') {
-                console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage");
+            if (!this.isValidId(storedId)) {
+                console.warn("⚠️ AUTH: Видалення невалідного ID з localStorage:", storedId);
                 localStorage.removeItem('telegram_user_id');
                 return true;
             }
@@ -502,9 +546,9 @@
     document.addEventListener('DOMContentLoaded', function() {
         console.log("🔐 AUTH: DOMContentLoaded, автоматична ініціалізація");
 
-        // ЗМІНЕНО: Перевіряємо, чи валідний ID в localStorage
+        // Перевіряємо, чи валідний ID в localStorage
         const storedId = localStorage.getItem('telegram_user_id');
-        if (storedId && storedId !== 'undefined' && storedId !== 'null' && storedId.trim() !== '') {
+        if (window.WinixAuth.isValidId(storedId)) {
             // Оновлюємо елемент на сторінці, якщо він є
             const userIdElement = document.getElementById('user-id');
             if (userIdElement) {
@@ -547,10 +591,10 @@
         console.log("🔐 AUTH: Документ вже завантажено, запуск авторизації");
 
         setTimeout(() => {
-            // ЗМІНЕНО: Спочатку очищаємо невалідні ID
+            // Спочатку очищаємо невалідні ID
             window.WinixAuth.cleanInvalidIds();
 
-            // ДОДАНО: Безпосередній виклик getUserData
+            // Безпосередній виклик getUserData
             if (window.WinixAuth) {
                 window.WinixAuth.getUserData()
                     .then(() => {
@@ -569,7 +613,7 @@
     document.addEventListener('telegram-ready', function() {
         console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
 
-        // ДОДАНО: Безпосередній виклик getUserData
+        // Безпосередній виклик getUserData
         if (window.WinixAuth) {
             window.WinixAuth.getUserData()
                 .then(() => {
@@ -583,7 +627,7 @@
         }
     });
 
-    // ДОДАНО: Періодичне оновлення даних
+    // Періодичне оновлення даних
     (function setupPeriodicUpdate() {
         // Оновлюємо дані користувача кожні 30 секунд
         setInterval(function() {
