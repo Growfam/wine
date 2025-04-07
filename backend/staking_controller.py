@@ -1,17 +1,28 @@
-from flask import request, jsonify
+"""
+Контролер для обробки HTTP-запитів, пов'язаних зі стейкінгом.
+Виконує валідацію параметрів запиту та передає дані до сервісного шару.
+"""
+from typing import Tuple, Dict, Any, Optional, Union
+from flask import jsonify, request
 import logging
+
 import staking_service as service
-import staking_utils as utils
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def get_user_staking(telegram_id):
+def get_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking [GET]
     Отримання даних стейкінгу користувача
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Перевіряємо наявність активного стейкінгу
@@ -28,7 +39,7 @@ def get_user_staking(telegram_id):
 
             if success:
                 logger.info(f"Автоматичне завершення стейкінгу для користувача {telegram_id}")
-                return jsonify({"status": "success", "data": result["staking"]})
+                return jsonify({"status": "success", "data": result["staking"]}), 200
             else:
                 logger.error(f"Помилка автоматичного завершення стейкінгу: {message}")
 
@@ -43,16 +54,22 @@ def get_user_staking(telegram_id):
                 "remainingDays": 0
             }
 
-        return jsonify({"status": "success", "data": staking_data})
+        return jsonify({"status": "success", "data": staking_data}), 200
     except Exception as e:
         logger.error(f"Помилка отримання даних стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка отримання даних стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка отримання даних стейкінгу: {str(e)}"}), 500
 
 
-def create_user_staking(telegram_id):
+def create_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking [POST]
     Створення нового стейкінгу
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Отримуємо дані запиту
@@ -72,18 +89,25 @@ def create_user_staking(telegram_id):
         success, result, message = service.create_staking(telegram_id, amount, period)
 
         if success:
-            return jsonify({"status": "success", "data": result, "message": message})
+            return jsonify({"status": "success", "data": result, "message": message}), 200
         else:
             return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
         logger.error(f"Помилка створення стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка створення стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка створення стейкінгу: {str(e)}"}), 500
 
 
-def update_user_staking(telegram_id, staking_id):
+def add_to_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/<staking_id> [PUT]
     Додавання коштів до існуючого стейкінгу
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+        staking_id (str): ID стейкінгу
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Отримуємо дані запиту
@@ -98,36 +122,66 @@ def update_user_staking(telegram_id, staking_id):
         success, result, message = service.add_to_staking(telegram_id, staking_id, additional_amount)
 
         if success:
-            return jsonify({"status": "success", "data": result, "message": message})
+            return jsonify({"status": "success", "data": result, "message": message}), 200
         else:
             return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
         logger.error(f"Помилка додавання до стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка додавання до стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка додавання до стейкінгу: {str(e)}"}), 500
 
 
-def cancel_user_staking(telegram_id, staking_id):
+def update_user_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Обробник маршруту /api/user/<telegram_id>/staking/<staking_id> [PUT]
+    Додавання коштів до існуючого стейкінгу
+    (Ця функція є синонімом до add_to_staking для забезпечення сумісності)
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+        staking_id (str): ID стейкінгу
+
+    Returns:
+        tuple: (json_response, status_code)
+    """
+    return add_to_staking(telegram_id, staking_id)
+
+
+def cancel_user_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/<staking_id>/cancel [POST]
     Скасування стейкінгу
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+        staking_id (str): ID стейкінгу
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Скасовуємо стейкінг
         success, result, message = service.cancel_staking(telegram_id, staking_id)
 
         if success:
-            return jsonify({"status": "success", "data": result, "message": message})
+            return jsonify({"status": "success", "data": result, "message": message}), 200
         else:
             return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
         logger.error(f"Помилка скасування стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка скасування стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка скасування стейкінгу: {str(e)}"}), 500
 
 
-def finalize_user_staking(telegram_id, staking_id):
+def finalize_user_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/<staking_id>/finalize [POST]
     Завершення стейкінгу і нарахування винагороди
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+        staking_id (str): ID стейкінгу
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Отримуємо дані запиту
@@ -138,36 +192,45 @@ def finalize_user_staking(telegram_id, staking_id):
         success, result, message = service.finalize_staking(telegram_id, staking_id, force)
 
         if success:
-            return jsonify({"status": "success", "data": result, "message": message})
+            return jsonify({"status": "success", "data": result, "message": message}), 200
         else:
             return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
         logger.error(f"Помилка завершення стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка завершення стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка завершення стейкінгу: {str(e)}"}), 500
 
 
-def get_user_staking_history(telegram_id):
+def get_user_staking_history(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/history [GET]
     Отримання історії стейкінгу
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Отримуємо історію стейкінгу
         success, data, message = service.get_staking_history(telegram_id)
 
         if success:
-            return jsonify({"status": "success", "data": data})
+            return jsonify({"status": "success", "data": data}), 200
         else:
             return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
         logger.error(f"Помилка отримання історії стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка отримання історії стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка отримання історії стейкінгу: {str(e)}"}), 500
 
 
-def calculate_staking_reward_api():
+def calculate_staking_reward_api() -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/calculate-reward [GET]
     Розрахунок очікуваної винагороди за стейкінг
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
         # Отримуємо параметри з запиту
@@ -184,16 +247,20 @@ def calculate_staking_reward_api():
         if amount <= 0:
             return jsonify({"status": "error", "message": "Сума стейкінгу повинна бути більше 0"}), 400
 
-        if period not in utils.STAKING_REWARD_RATES:
-            return jsonify({"status": "error",
-                            "message": f"Некоректний період стейкінгу. Доступні періоди: {', '.join(map(str, utils.STAKING_REWARD_RATES.keys()))}"
-                            }), 400
+        # Перевіряємо доступні періоди
+        from models.staking_session import StakingSession
+        if period not in StakingSession.STAKING_REWARD_RATES:
+            periods_str = ', '.join(map(str, StakingSession.STAKING_REWARD_RATES.keys()))
+            return jsonify({
+                "status": "error",
+                "message": f"Некоректний період стейкінгу. Доступні періоди: {periods_str}"
+            }), 400
 
         # Розраховуємо винагороду
-        reward = utils.calculate_staking_reward(amount, period)
+        reward = service.calculate_staking_reward(amount, period)
 
         # Визначаємо відсоток для вказаного періоду
-        reward_percent = utils.STAKING_REWARD_RATES.get(period, 9)
+        reward_percent = StakingSession.STAKING_REWARD_RATES.get(period, 9)
 
         return jsonify({
             "status": "success",
@@ -203,77 +270,81 @@ def calculate_staking_reward_api():
                 "amount": int(amount),
                 "period": period
             }
-        })
+        }), 200
     except Exception as e:
         logger.error(f"Помилка розрахунку винагороди: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка розрахунку винагороди"}), 500
+        return jsonify({"status": "error", "message": f"Помилка розрахунку винагороди: {str(e)}"}), 500
 
 
-def reset_and_repair_staking(telegram_id):
+def repair_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Обробник маршруту /api/user/<telegram_id>/staking/repair [POST]
     Відновлення стану стейкінгу після помилок
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        tuple: (json_response, status_code)
     """
     try:
-        # Отримуємо дані запиту
+        # Перевірка даних запиту
         data = request.json or {}
-        force = data.get("force", False)
+        force = data.get('force', False)
 
-        # Отримуємо наявність активного стейкінгу
-        has_staking, staking_data = service.check_active_staking(telegram_id)
-
-        if not has_staking:
-            return jsonify({
-                "status": "success",
-                "message": "Відновлення не потрібне. Немає активного стейкінгу."
-            })
-
-        # Якщо є активний стейкінг, але примусово не вказано, перевіряємо його стан
-        if has_staking and not force:
-            # Перевіряємо чи стейкінг завершився
-            end_date = staking_data.get("endDate")
-
-            if end_date and utils.check_staking_finished(end_date):
-                # Стейкінг завершився, автоматично фіналізуємо його
-                success, result, message = service.finalize_staking(
-                    telegram_id,
-                    staking_data.get("stakingId"),
-                    force=True
-                )
-
-                if success:
-                    return jsonify({
-                        "status": "success",
-                        "message": "Стейкінг успішно завершено при відновленні",
-                        "data": result
-                    })
-                else:
-                    return jsonify({"status": "error", "message": message}), 400
-            else:
-                # Стейкінг ще активний і не потребує відновлення
-                return jsonify({
-                    "status": "success",
-                    "message": "Відновлення не потрібне. Стейкінг активний та коректний."
-                })
-
-        # Якщо потрібно примусово скасувати стейкінг
-        if has_staking and force:
-            # Скасовуємо стейкінг без штрафу
-            success, result, message = service.cancel_staking(
-                telegram_id,
-                staking_data.get("stakingId")
-            )
-
-            if success:
-                return jsonify({
-                    "status": "success",
-                    "message": "Стейкінг успішно відновлено (стан скинуто)",
-                    "data": result
-                })
-            else:
-                return jsonify({"status": "error", "message": message}), 400
-
-        return jsonify({"status": "error", "message": "Невідома помилка при відновленні стейкінгу"}), 400
+        # Виклик функції відновлення
+        response, status_code = service.reset_and_repair_staking(telegram_id, force)
+        return jsonify(response), status_code
     except Exception as e:
         logger.error(f"Помилка відновлення стейкінгу: {str(e)}")
-        return jsonify({"status": "error", "message": "Помилка відновлення стейкінгу"}), 500
+        return jsonify({"status": "error", "message": f"Помилка відновлення стейкінгу: {str(e)}"}), 500
+
+
+def reset_and_repair_staking(telegram_id: str, force: bool = False) -> Tuple[Dict[str, Any], int]:
+    """
+    Обробник маршруту /api/user/<telegram_id>/staking/repair [POST]
+    Відновлення стану стейкінгу після помилок
+    (Ця функція є синонімом до repair_user_staking для забезпечення сумісності)
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+        force (bool): Примусове відновлення
+
+    Returns:
+        tuple: (json_response, status_code)
+    """
+    try:
+        # Створюємо оновлений request.json з параметром force
+        if not hasattr(request, '_payload_cache'):
+            setattr(request, '_payload_cache', {})
+        request._payload_cache = {'force': force}
+
+        # Викликаємо repair_user_staking замість прямого виклику сервісу
+        return repair_user_staking(telegram_id)
+    except Exception as e:
+        logger.error(f"Помилка відновлення стейкінгу: {str(e)}")
+        return jsonify({"status": "error", "message": f"Помилка відновлення стейкінгу: {str(e)}"}), 500
+
+
+def deep_repair_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Обробник маршруту /api/user/<telegram_id>/staking/deep-repair [POST]
+    Глибоке відновлення стану стейкінгу з перевіркою цілісності даних
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        tuple: (json_response, status_code)
+    """
+    try:
+        # Перевірка даних запиту
+        data = request.json or {}
+        balance_adjustment = float(data.get('balance_adjustment', 0))
+
+        # Виклик функції глибокого відновлення
+        response, status_code = service.deep_repair_staking(telegram_id, balance_adjustment)
+        return jsonify(response), status_code
+    except Exception as e:
+        logger.error(f"Помилка глибокого відновлення стейкінгу: {str(e)}")
+        return jsonify({"status": "error", "message": f"Помилка глибокого відновлення стейкінгу: {str(e)}"}), 500
