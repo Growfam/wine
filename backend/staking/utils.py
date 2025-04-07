@@ -1,3 +1,7 @@
+"""
+Допоміжні функції для роботи зі стейкінгом.
+Включає розрахунки винагород, дат тощо.
+"""
 import time
 import logging
 from datetime import datetime, timedelta

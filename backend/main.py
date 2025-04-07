@@ -14,15 +14,15 @@ from users import (
     claim_badge_reward, claim_newbie_bonus, get_user_settings,
     update_user_settings, update_user_password, get_user_seed_phrase
 )
-from staking_controller import (
+from staking.controllers import (
     get_user_staking,
     create_user_staking,
-    update_user_staking,  # Замінено add_to_staking на update_user_staking
+    update_user_staking,
     cancel_user_staking,
     finalize_user_staking,
     get_user_staking_history,
     calculate_staking_reward_api,
-    reset_and_repair_staking,  # Додано для сумісності
+    reset_and_repair_staking,
     repair_user_staking,
     deep_repair_user_staking
 )

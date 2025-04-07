@@ -204,6 +204,14 @@
                 if (data) console.log("📦 Дані запиту:", data);
             }
 
+            // Додайте цей код прямо перед створенням requestOptions
+console.log("🔍 Підготовка запиту:", {
+  url,
+  method,
+  userId: userId || "ВІДСУТНІЙ",
+  headers: options.headers || {}
+});
+
             // Підготовка параметрів запиту
             const requestOptions = {
                 method: method,
