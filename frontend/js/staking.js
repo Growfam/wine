@@ -939,3 +939,447 @@ async function cancelStaking() {
         init();
     }
 })();
+/**
+ * Єдина функція для скасування стейкінгу з гарним діалогом підтвердження
+ * Вставте цей код у кінець файлу staking.js
+ */
+(function() {
+    // Блокування повторних запитів
+    let isCancellingStaking = false;
+
+    // Оригінальні функції, які ми будемо замінювати
+    let originalCancelStaking;
+    if (window.WinixStakingSystem && window.WinixStakingSystem.cancelStaking) {
+        originalCancelStaking = window.WinixStakingSystem.cancelStaking;
+    }
+
+    /**
+     * Нова функція скасування стейкінгу - показує гарний діалог і обробляє результат
+     */
+    function enhancedCancelStaking() {
+        // Запобігання повторним викликам
+        if (isCancellingStaking) {
+            if (typeof window.showNotification === 'function') {
+                window.showNotification('Зачекайте, запит уже обробляється', true);
+            }
+            return Promise.reject(new Error('Запит вже обробляється'));
+        }
+
+        isCancellingStaking = true;
+
+        // Приховуємо всі відкриті модальні вікна
+        const modals = document.querySelectorAll('.modal-overlay, #staking-modal');
+        modals.forEach(modal => {
+            modal.classList.remove('active', 'open', 'show');
+        });
+
+        // Показуємо гарний діалог підтвердження
+        return new Promise((resolve, reject) => {
+            // Створюємо елемент діалогу, якщо його не існує
+            let confirmDialog = document.getElementById('premium-confirm-dialog');
+            if (!confirmDialog) {
+                // Створюємо стилі для діалогу, якщо їх немає
+                if (!document.getElementById('premium-confirm-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'premium-confirm-styles';
+                    style.textContent = `
+                        .premium-confirm-overlay {
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            background: rgba(0, 0, 0, 0.7);
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            z-index: 10000;
+                            opacity: 0;
+                            visibility: hidden;
+                            transition: opacity 0.3s, visibility 0.3s;
+                            backdrop-filter: blur(8px);
+                        }
+                        
+                        .premium-confirm-overlay.show {
+                            opacity: 1;
+                            visibility: visible;
+                        }
+                        
+                        .premium-confirm-dialog {
+                            background: rgba(30, 39, 70, 0.90);
+                            border-radius: 20px;
+                            padding: 24px;
+                            width: 90%;
+                            max-width: 380px;
+                            transform: scale(0.95);
+                            opacity: 0;
+                            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset, 0 6px 12px rgba(0, 0, 0, 0.25);
+                            text-align: center;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            overflow: hidden;
+                            position: relative;
+                        }
+                        
+                        .premium-confirm-overlay.show .premium-confirm-dialog {
+                            transform: scale(1);
+                            opacity: 1;
+                        }
+                        
+                        .premium-confirm-icon {
+                            width: 70px;
+                            height: 70px;
+                            background: rgba(244, 67, 54, 0.15);
+                            border-radius: 50%;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            font-size: 36px;
+                            color: #FF5252;
+                            margin-bottom: 16px;
+                        }
+                        
+                        .premium-confirm-title {
+                            font-size: 20px;
+                            font-weight: 600;
+                            margin-bottom: 12px;
+                            color: white;
+                        }
+                        
+                        .premium-confirm-message {
+                            font-size: 16px;
+                            line-height: 1.5;
+                            margin-bottom: 24px;
+                            color: rgba(255, 255, 255, 0.9);
+                        }
+                        
+                        .premium-confirm-buttons {
+                            display: flex;
+                            justify-content: center;
+                            gap: 12px;
+                            width: 100%;
+                        }
+                        
+                        .premium-confirm-button {
+                            flex-basis: 45%;
+                            padding: 12px;
+                            border-radius: 12px;
+                            border: none;
+                            font-size: 16px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                        }
+                        
+                        .premium-confirm-button:active {
+                            transform: scale(0.97);
+                        }
+                        
+                        .premium-confirm-button-cancel {
+                            background: rgba(255, 255, 255, 0.1);
+                            color: white;
+                        }
+                        
+                        .premium-confirm-button-confirm {
+                            background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
+                            color: white;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+
+                // Створюємо структуру діалогу
+                confirmDialog = document.createElement('div');
+                confirmDialog.id = 'premium-confirm-dialog';
+                confirmDialog.className = 'premium-confirm-overlay';
+                confirmDialog.innerHTML = `
+                    <div class="premium-confirm-dialog">
+                        <div class="premium-confirm-icon">⚠️</div>
+                        <div class="premium-confirm-title">Скасування стейкінгу</div>
+                        <div class="premium-confirm-message">Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.</div>
+                        <div class="premium-confirm-buttons">
+                            <button class="premium-confirm-button premium-confirm-button-cancel" id="cancel-staking-no">Скасувати</button>
+                            <button class="premium-confirm-button premium-confirm-button-confirm" id="cancel-staking-yes">Підтвердити</button>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(confirmDialog);
+            }
+
+            // Показуємо діалог
+            confirmDialog.classList.add('show');
+
+            // Налаштовуємо кнопки
+            const cancelButton = document.getElementById('cancel-staking-no');
+            const confirmButton = document.getElementById('cancel-staking-yes');
+
+            // Видаляємо старі обробники
+            const newCancelButton = cancelButton.cloneNode(true);
+            const newConfirmButton = confirmButton.cloneNode(true);
+
+            cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+            confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+
+            // Додаємо нові обробники
+            newCancelButton.addEventListener('click', () => {
+                confirmDialog.classList.remove('show');
+                isCancellingStaking = false;
+                resolve(false);
+            });
+
+            newConfirmButton.addEventListener('click', () => {
+                confirmDialog.classList.remove('show');
+
+                // Показуємо індикатор завантаження
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading('Скасування стейкінгу...');
+                }
+
+                // Викликаємо оригінальну функцію
+                if (originalCancelStaking) {
+                    originalCancelStaking()
+                        .then(result => {
+                            if (typeof window.hideLoading === 'function') {
+                                window.hideLoading();
+                            }
+                            resolve(result);
+                        })
+                        .catch(error => {
+                            if (typeof window.hideLoading === 'function') {
+                                window.hideLoading();
+                            }
+                            reject(error);
+                        })
+                        .finally(() => {
+                            isCancellingStaking = false;
+                        });
+                } else {
+                    // Якщо оригінальної функції немає, виконуємо прямий запит
+                    executeCancelRequest()
+                        .then(result => {
+                            if (typeof window.hideLoading === 'function') {
+                                window.hideLoading();
+                            }
+                            resolve(result);
+                        })
+                        .catch(error => {
+                            if (typeof window.hideLoading === 'function') {
+                                window.hideLoading();
+                            }
+                            reject(error);
+                        })
+                        .finally(() => {
+                            isCancellingStaking = false;
+                        });
+                }
+            });
+        });
+    }
+
+    /**
+     * Виконує API-запит для скасування стейкінгу
+     * @returns {Promise<Object>} Promise з результатом запиту
+     */
+    async function executeCancelRequest() {
+        try {
+            // Отримуємо ID стейкінгу
+            const stakingId = await getStakingId();
+
+            // Отримуємо ID користувача
+            const userId = getUserId();
+
+            if (!userId) {
+                throw new Error("Не вдалося отримати ID користувача");
+            }
+
+            if (!stakingId) {
+                throw new Error("Не вдалося отримати ID стейкінгу");
+            }
+
+            // Виконуємо запит
+            const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    confirm: true,
+                    timestamp: Date.now()
+                })
+            });
+
+            // Обробляємо відповідь
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.message || `Помилка сервера: ${response.status}`);
+            }
+
+            // Оновлюємо баланс
+            if (result.data && result.data.newBalance !== undefined) {
+                localStorage.setItem('userTokens', result.data.newBalance.toString());
+                localStorage.setItem('winix_balance', result.data.newBalance.toString());
+
+                // Оновлюємо відображення балансу, якщо функція доступна
+                if (typeof window.updateBalanceDisplay === 'function') {
+                    window.updateBalanceDisplay();
+                } else if (window.WinixCore && typeof window.WinixCore.updateBalanceDisplay === 'function') {
+                    window.WinixCore.updateBalanceDisplay();
+                }
+            }
+
+            // Очищаємо кеш стейкінгу
+            localStorage.removeItem('stakingData');
+            localStorage.removeItem('winix_staking');
+
+            // Показуємо повідомлення про успіх
+            const message = result.data && result.data.returnedAmount && result.data.feeAmount
+                ? `Стейкінг скасовано. Повернено: ${result.data.returnedAmount} WINIX. Комісія: ${result.data.feeAmount} WINIX.`
+                : "Стейкінг успішно скасовано";
+
+            // Показуємо повідомлення
+            if (typeof window.showNotification === 'function') {
+                window.showNotification(message, false);
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(message);
+            } else {
+                alert(message);
+            }
+
+            // Перезавантажуємо сторінку після невеликої затримки
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+
+            return {
+                success: true,
+                data: result.data,
+                message: message
+            };
+        } catch (error) {
+            console.error("Помилка при скасуванні стейкінгу:", error);
+
+            // Показуємо повідомлення про помилку
+            const errorMessage = error.message || "Помилка скасування стейкінгу";
+
+            if (typeof window.showNotification === 'function') {
+                window.showNotification(errorMessage, true);
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(errorMessage);
+            } else {
+                alert(errorMessage);
+            }
+
+            return {
+                success: false,
+                message: errorMessage
+            };
+        }
+    }
+
+    /**
+     * Отримання ID користувача з усіх можливих джерел
+     * @returns {string|null} ID користувача або null
+     */
+    function getUserId() {
+        // Спочатку перевіряємо API
+        if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
+            const apiId = window.WinixAPI.getUserId();
+            if (apiId) return apiId;
+        }
+
+        // Перевіряємо Telegram WebApp
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+            return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        }
+
+        // Перевіряємо localStorage
+        const storedId = localStorage.getItem('telegram_user_id');
+        if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+            return storedId;
+        }
+
+        // Перевіряємо DOM
+        const userIdElement = document.getElementById('user-id');
+        if (userIdElement && userIdElement.textContent.trim()) {
+            return userIdElement.textContent.trim();
+        }
+
+        return null;
+    }
+
+    /**
+     * Отримання ID стейкінгу з усіх можливих джерел
+     * @returns {Promise<string|null>} Promise з ID стейкінгу або null
+     */
+    async function getStakingId() {
+        // Перевіряємо наявність системи стейкінгу
+        if (window.WinixStakingSystem && typeof window.WinixStakingSystem.getStakingData === 'function') {
+            const stakingData = window.WinixStakingSystem.getStakingData();
+            if (stakingData && stakingData.stakingId) {
+                return stakingData.stakingId;
+            }
+        }
+
+        // Перевіряємо localStorage
+        try {
+            const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+            if (stakingDataStr) {
+                const localData = JSON.parse(stakingDataStr);
+                if (localData && localData.stakingId) {
+                    return localData.stakingId;
+                }
+            }
+        } catch (e) {
+            console.error("Помилка при парсингу даних стейкінгу:", e);
+        }
+
+        return null;
+    }
+
+    // Замінюємо оригінальну функцію нашою вдосконаленою
+    if (window.WinixStakingSystem) {
+        window.WinixStakingSystem.cancelStaking = enhancedCancelStaking;
+    }
+
+    // Замінюємо обробники кнопок скасування
+    function updateCancelButtons() {
+        // Кнопка скасування на сторінці
+        const pageButton = document.getElementById('cancel-staking-button');
+        if (pageButton) {
+            const newPageButton = pageButton.cloneNode(true);
+            pageButton.parentNode.replaceChild(newPageButton, pageButton);
+            newPageButton.addEventListener('click', enhancedCancelStaking);
+        }
+
+        // Кнопка скасування в модальному вікні
+        const modalButton = document.getElementById('modal-cancel-staking-button');
+        if (modalButton) {
+            const newModalButton = modalButton.cloneNode(true);
+            modalButton.parentNode.replaceChild(newModalButton, modalButton);
+            newModalButton.addEventListener('click', () => {
+                // Приховуємо модальне вікно
+                const modal = document.getElementById('staking-modal');
+                if (modal) modal.classList.remove('active');
+
+                // Викликаємо функцію скасування
+                enhancedCancelStaking();
+            });
+        }
+    }
+
+    // Запускаємо оновлення кнопок після завантаження DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateCancelButtons);
+    } else {
+        updateCancelButtons();
+    }
+
+    // Глобальна функція для виклику ззовні
+    window.cancelStakingEnhanced = enhancedCancelStaking;
+
+    console.log("✅ Встановлено удосконалену функцію скасування стейкінгу");
+})();
