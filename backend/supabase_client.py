@@ -5,7 +5,7 @@ import logging
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -453,7 +453,7 @@ def create_staking_session(user_id, amount_staked, staking_days, reward_percent=
     Створення нової сесії стейкінгу в окремій таблиці staking_sessions
 
     Args:
-        user_id (str): ID користувача
+        user_id (str): ID користувача (Telegram ID)
         amount_staked (float): Сума токенів для стейкінгу
         staking_days (int): Кількість днів стейкінгу (7, 14, 28)
         reward_percent (float, optional): Відсоток винагороди.
@@ -472,6 +472,9 @@ def create_staking_session(user_id, amount_staked, staking_days, reward_percent=
             logger.error("create_staking_session: Відсутні обов'язкові параметри")
             return None
 
+        # Переконуємося, що user_id - рядок
+        user_id = str(user_id)
+
         # Визначаємо відсоток винагороди, якщо не вказаний
         if reward_percent is None:
             if staking_days == 7:
@@ -483,18 +486,19 @@ def create_staking_session(user_id, amount_staked, staking_days, reward_percent=
             else:
                 reward_percent = 9.0  # За замовчуванням
 
-        # Розраховуємо дати
-        started_at = datetime.now()
+        # Розраховуємо дати з урахуванням часових поясів
+        started_at = datetime.now(timezone.utc)
         ends_at = started_at + timedelta(days=staking_days)
 
         # Форматуємо дати для Supabase
         started_at_str = started_at.isoformat()
         ends_at_str = ends_at.isoformat()
 
-        # Створюємо запис
+        # Створюємо запис з правильними типами даних
         staking_data = {
-            "id": str(uuid.uuid4()),
-            "user_id": user_id,
+            "id": str(uuid.uuid4()),  # UUID як рядок
+            "user_id": user_id,  # Тепер очікується TEXT
+            "telegram_id": user_id,  # Додаємо для зворотної сумісності
             "amount_staked": float(amount_staked),
             "staking_days": int(staking_days),
             "reward_percent": float(reward_percent),
@@ -506,6 +510,7 @@ def create_staking_session(user_id, amount_staked, staking_days, reward_percent=
         }
 
         logger.info(f"create_staking_session: Створення нової сесії стейкінгу для {user_id}")
+        logger.info(f"create_staking_session: Дані: {staking_data}")
 
         # Виконуємо запит з повторними спробами
         def insert_staking():
@@ -525,7 +530,7 @@ def create_staking_session(user_id, amount_staked, staking_days, reward_percent=
 
         return result
     except Exception as e:
-        logger.error(f"create_staking_session: Помилка: {str(e)}", exc_info=True)
+        logger.error(f"create_staking_session: Критична помилка: {str(e)}", exc_info=True)
         return None
 
 
@@ -534,7 +539,7 @@ def get_user_staking_sessions(user_id, active_only=False):
     Отримання всіх сесій стейкінгу користувача
 
     Args:
-        user_id (str): ID користувача
+        user_id (str): ID користувача (Telegram ID)
         active_only (bool): Якщо True, повертає лише активні сесії
 
     Returns:
@@ -545,12 +550,15 @@ def get_user_staking_sessions(user_id, active_only=False):
             logger.error("❌ Клієнт Supabase не ініціалізовано")
             return None
 
+        # Переконуємося, що user_id - рядок
+        user_id = str(user_id)
+
         logger.info(f"get_user_staking_sessions: Отримання сесій стейкінгу для {user_id}, active_only={active_only}")
 
         # Виконуємо запит з повторними спробами
         def fetch_staking_sessions():
-            # Створюємо базовий запит
-            query = supabase.table("staking_sessions").select("*").eq("user_id", user_id)
+            # Спершу спробуємо за полем telegram_id (для зворотної сумісності)
+            query = supabase.table("staking_sessions").select("*").eq("telegram_id", user_id)
 
             # Якщо потрібні лише активні сесії, додаємо фільтр
             if active_only:
@@ -561,6 +569,16 @@ def get_user_staking_sessions(user_id, active_only=False):
 
             # Виконуємо запит
             res = query.execute()
+
+            if not res.data:
+                # Якщо не знайдено за telegram_id, спробуємо за user_id
+                query = supabase.table("staking_sessions").select("*").eq("user_id", user_id)
+
+                if active_only:
+                    query = query.eq("is_active", True)
+
+                query = query.order("started_at", desc=True)
+                res = query.execute()
 
             logger.info(f"get_user_staking_sessions: Отримано {len(res.data) if res.data else 0} сесій")
 
@@ -631,7 +649,7 @@ def update_staking_session(session_id, update_data):
             return None
 
         # Перевіряємо поля, які не можна змінювати
-        protected_fields = ["id", "user_id", "started_at"]
+        protected_fields = ["id", "user_id", "telegram_id", "started_at"]
         for field in protected_fields:
             if field in update_data:
                 logger.warning(f"update_staking_session: Поле {field} не може бути змінено, видаляємо з update_data")
@@ -703,7 +721,8 @@ def complete_staking_session(session_id, final_amount=None, cancelled_early=Fals
         update_data = {
             "is_active": False,
             "cancelled_early": cancelled_early,
-            "final_amount_paid": float(final_amount)
+            "final_amount_paid": float(final_amount),
+            "completed_at": datetime.now(timezone.utc).isoformat()  # Додаємо дату завершення
         }
 
         logger.info(
@@ -801,8 +820,8 @@ def check_and_complete_expired_staking_sessions():
             logger.info("check_and_complete_expired_staking_sessions: Немає активних сесій")
             return 0
 
-        # Поточний час
-        now = datetime.now()
+        # Поточний час з часовим поясом
+        now = datetime.now(timezone.utc)
         completed_count = 0
 
         # Перевіряємо кожну сесію
@@ -813,15 +832,14 @@ def check_and_complete_expired_staking_sessions():
                 if not ends_at_str:
                     continue
 
-                # Парсимо дату завершення
+                # Парсимо дату завершення і забезпечуємо наявність часового поясу
                 try:
                     ends_at = datetime.fromisoformat(ends_at_str.replace('Z', '+00:00'))
+                    if ends_at.tzinfo is None:
+                        ends_at = ends_at.replace(tzinfo=timezone.utc)
                 except ValueError:
-                    # Пробуємо інший формат
-                    try:
-                        ends_at = datetime.strptime(ends_at_str, "%Y-%m-%dT%H:%M:%S.%f")
-                    except ValueError:
-                        ends_at = datetime.strptime(ends_at_str, "%Y-%m-%dT%H:%M:%S")
+                    logger.error(f"Помилка парсингу дати {ends_at_str}")
+                    continue
 
                 # Перевіряємо, чи сесія прострочена
                 if now >= ends_at:
@@ -832,6 +850,31 @@ def check_and_complete_expired_staking_sessions():
 
                     if result:
                         completed_count += 1
+
+                        # Отримуємо Telegram ID користувача
+                        user_id = session.get('telegram_id') or session.get('user_id')
+
+                        # Нараховуємо кошти на баланс
+                        amount_staked = float(session.get("amount_staked", 0))
+                        reward_percent = float(session.get("reward_percent", 0))
+                        reward = amount_staked * (reward_percent / 100)
+                        total_amount = amount_staked + reward
+
+                        update_balance(user_id, total_amount)
+
+                        # Додаємо транзакцію
+                        try:
+                            transaction = {
+                                "telegram_id": user_id,
+                                "type": "unstake",
+                                "amount": total_amount,
+                                "description": f"Стейкінг завершено: {amount_staked} + {reward} винагорода (ID: {session.get('id')})",
+                                "status": "completed"
+                            }
+                            if supabase:
+                                supabase.table("transactions").insert(transaction).execute()
+                        except Exception as e:
+                            logger.error(f"Помилка створення транзакції: {str(e)}")
             except Exception as e:
                 logger.error(f"Помилка обробки сесії {session.get('id')}: {str(e)}")
                 continue
@@ -841,6 +884,83 @@ def check_and_complete_expired_staking_sessions():
     except Exception as e:
         logger.error(f"check_and_complete_expired_staking_sessions: Помилка: {str(e)}", exc_info=True)
         return 0
+
+
+def verify_staking_consistency(telegram_id):
+    """
+    Перевіряє цілісність даних стейкінгу та виправляє їх при необхідності.
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        bool: True, якщо перевірка успішна, False у випадку помилки
+    """
+    try:
+        # Отримуємо активні сесії для користувача
+        active_sessions = get_user_staking_sessions(telegram_id, active_only=True)
+
+        if not active_sessions:
+            logger.info(f"verify_staking_consistency: Користувач {telegram_id} не має активних сесій стейкінгу")
+            return True
+
+        # Якщо є більше однієї активної сесії - це помилка
+        if len(active_sessions) > 1:
+            logger.warning(
+                f"verify_staking_consistency: Користувач {telegram_id} має {len(active_sessions)} активних сесій. Залишаємо тільки найновішу.")
+
+            # Сортуємо за датою створення (спочатку найновіші)
+            sorted_sessions = sorted(active_sessions, key=lambda x: x.get("started_at", ""), reverse=True)
+
+            # Залишаємо тільки найновішу сесію
+            newest_session = sorted_sessions[0]
+
+            # Скасовуємо всі інші сесії
+            for session in sorted_sessions[1:]:
+                try:
+                    # Завершуємо сесію як скасовану
+                    complete_staking_session(
+                        session_id=session["id"],
+                        final_amount=0,
+                        cancelled_early=True
+                    )
+                    logger.info(f"verify_staking_consistency: Автоматично скасовано дублікат сесії {session['id']}")
+                except Exception as e:
+                    logger.error(
+                        f"verify_staking_consistency: Помилка скасування дублікату сесії {session['id']}: {str(e)}")
+
+        # Перевіряємо дату завершення стейкінгу
+        for session in active_sessions:
+            try:
+                # Отримуємо кінцеву дату
+                ends_at_str = session.get("ends_at")
+                if ends_at_str:
+                    try:
+                        # Парсимо дату з урахуванням часового поясу
+                        ends_at = datetime.fromisoformat(ends_at_str.replace('Z', '+00:00'))
+                        if ends_at.tzinfo is None:
+                            ends_at = ends_at.replace(tzinfo=timezone.utc)
+
+                        # Перевіряємо, чи не закінчився термін стейкінгу
+                        now = datetime.now(timezone.utc)
+                        if now >= ends_at:
+                            logger.info(
+                                f"verify_staking_consistency: Знайдено простроченую сесію {session['id']}, автоматичне завершення")
+
+                            # Автоматичне завершення стейкінгу
+                            complete_staking_session(
+                                session_id=session["id"],
+                                cancelled_early=False
+                            )
+                    except ValueError:
+                        logger.error(f"verify_staking_consistency: Неможливо розпарсити дату завершення: {ends_at_str}")
+            except Exception as e:
+                logger.error(f"verify_staking_consistency: Помилка перевірки сесії {session.get('id')}: {str(e)}")
+
+        return True
+    except Exception as e:
+        logger.error(f"verify_staking_consistency: Помилка: {str(e)}", exc_info=True)
+        return False
 
 
 def calculate_total_staking_stats():
@@ -892,6 +1012,116 @@ def calculate_total_staking_stats():
     except Exception as e:
         logger.error(f"msg: calculate_total_staking_stats: Помилка: {str(e)}", exc_info=True)
         return {}
+
+
+def repair_staking_session(telegram_id: str):
+    """
+    Знаходить і відновлює пошкоджені сесії стейкінгу.
+
+    Args:
+        telegram_id (str): ID користувача Telegram
+
+    Returns:
+        dict: Результат відновлення
+    """
+    try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
+        logger.info(f"repair_staking_session: Запуск відновлення сесій стейкінгу для користувача {telegram_id}")
+
+        # Спочатку перевіряємо наявність активних сесій
+        active_sessions = get_user_staking_sessions(telegram_id, active_only=True)
+
+        if active_sessions and len(active_sessions) > 0:
+            logger.info(
+                f"repair_staking_session: Знайдено {len(active_sessions)} активних сесій, перевіряємо їх цілісність")
+
+            # Викликаємо перевірку цілісності
+            verify_staking_consistency(telegram_id)
+
+            return {
+                "status": "success",
+                "message": "Перевірка та відновлення активних сесій стейкінгу завершено",
+                "active_sessions": len(active_sessions)
+            }
+
+        # Якщо немає активних сесій, перевіряємо останню сесію
+        all_sessions = get_user_staking_sessions(telegram_id, active_only=False)
+
+        if not all_sessions or len(all_sessions) == 0:
+            logger.info(f"repair_staking_session: Користувач {telegram_id} не має жодних сесій стейкінгу")
+            return {
+                "status": "success",
+                "message": "Сесії стейкінгу не знайдено",
+                "active_sessions": 0
+            }
+
+        # Сортуємо за датою (спочатку найновіші)
+        sorted_sessions = sorted(all_sessions, key=lambda x: x.get("started_at", ""), reverse=True)
+
+        # Перевіряємо останню сесію
+        latest_session = sorted_sessions[0]
+
+        # Перевіряємо, чи не була вона випадково деактивована
+        if not latest_session.get("is_active", False):
+            # Перевіряємо, чи не завершена сесія коректно
+            if not latest_session.get("final_amount_paid", 0) > 0 and not latest_session.get("cancelled_early", False):
+                logger.info(f"repair_staking_session: Відновлення випадково деактивованої сесії {latest_session['id']}")
+
+                # Отримуємо дату завершення
+                ends_at_str = latest_session.get("ends_at")
+                if ends_at_str:
+                    try:
+                        # Парсимо дату
+                        ends_at = datetime.fromisoformat(ends_at_str.replace('Z', '+00:00'))
+                        if ends_at.tzinfo is None:
+                            ends_at = ends_at.replace(tzinfo=timezone.utc)
+
+                        # Перевіряємо, чи не закінчився термін стейкінгу
+                        now = datetime.now(timezone.utc)
+
+                        if now < ends_at:
+                            # Реактивуємо сесію, якщо термін ще не вийшов
+                            update_staking_session(latest_session["id"], {"is_active": True})
+
+                            logger.info(f"repair_staking_session: Сесію {latest_session['id']} успішно відновлено")
+
+                            return {
+                                "status": "success",
+                                "message": "Виявлено та відновлено пошкоджену сесію стейкінгу",
+                                "recovered_session": latest_session["id"]
+                            }
+                        else:
+                            # Якщо термін вже вийшов, завершуємо сесію коректно
+                            logger.info(
+                                f"repair_staking_session: Сесія {latest_session['id']} вже закінчилася, завершуємо її")
+
+                            complete_staking_session(
+                                session_id=latest_session["id"],
+                                cancelled_early=False
+                            )
+
+                            return {
+                                "status": "success",
+                                "message": "Знайдено та завершено прострочену сесію стейкінгу",
+                                "completed_session": latest_session["id"]
+                            }
+                    except ValueError:
+                        logger.error(f"repair_staking_session: Неможливо розпарсити дату завершення: {ends_at_str}")
+
+        logger.info(f"repair_staking_session: Відновлення не потрібне для користувача {telegram_id}")
+
+        return {
+            "status": "success",
+            "message": "Відновлення не потрібне. Останній стейкінг коректно завершено."
+        }
+    except Exception as e:
+        logger.error(f"repair_staking_session: Помилка: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Помилка відновлення стейкінгу: {str(e)}"
+        }
 
 
 # Функція для тестування з'єднання з Supabase

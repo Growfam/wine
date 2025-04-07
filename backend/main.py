@@ -724,6 +724,7 @@ def api_check_sufficient_funds(telegram_id):
     return check_sufficient_funds(telegram_id, request.json)
 
 
+
 # Запуск застосунку
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))

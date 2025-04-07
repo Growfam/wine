@@ -4,12 +4,13 @@
 Використовує таблицю staking_sessions для збереження даних стейкінгу.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 from typing import Tuple, Dict, Union, Any, Optional, List
 import sys
 import os
 import importlib.util
+import traceback
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -36,6 +37,8 @@ update_staking_session = supabase_client.update_staking_session
 complete_staking_session = supabase_client.complete_staking_session
 check_and_complete_expired_staking_sessions = supabase_client.check_and_complete_expired_staking_sessions
 delete_staking_session = supabase_client.delete_staking_session
+verify_staking_consistency = supabase_client.verify_staking_consistency
+repair_staking_session = supabase_client.repair_staking_session
 
 # Імпортуємо константи з моделі StakingSession
 try:
@@ -75,6 +78,14 @@ def check_active_staking(telegram_id: str) -> Tuple[bool, Optional[Dict[str, Any
         tuple: (has_staking: bool, staking_data: dict або None)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
+        logger.info(f"check_active_staking: Перевірка активного стейкінгу для користувача {telegram_id}")
+
+        # Перевірка цілісності даних стейкінгу
+        verify_staking_consistency(telegram_id)
+
         # Отримуємо активні сесії стейкінгу користувача
         active_sessions = get_user_staking_sessions(telegram_id, active_only=True)
 
@@ -85,10 +96,30 @@ def check_active_staking(telegram_id: str) -> Tuple[bool, Optional[Dict[str, Any
         # Беремо найновішу активну сесію
         session = active_sessions[0]  # Сесії відсортовані за датою початку (спочатку найновіші)
 
-        # Перевіряємо, чи не закінчився термін стейкінгу
-        started_at = datetime.fromisoformat(session["started_at"].replace('Z', '+00:00')) if isinstance(session["started_at"], str) else session["started_at"]
-        ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '+00:00')) if isinstance(session["ends_at"], str) else session["ends_at"]
-        now = datetime.now()
+        # Перевіряємо, чи не закінчився термін стейкінгу з урахуванням часових поясів
+        try:
+            started_at = datetime.fromisoformat(session["started_at"].replace('Z', '+00:00')) if isinstance(session["started_at"], str) else session["started_at"]
+            ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '+00:00')) if isinstance(session["ends_at"], str) else session["ends_at"]
+
+            # Забезпечуємо, що дати мають часовий пояс
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            if ends_at.tzinfo is None:
+                ends_at = ends_at.replace(tzinfo=timezone.utc)
+
+            # Поточний час з часовим поясом
+            now = datetime.now(timezone.utc)
+        except Exception as e:
+            logger.error(f"Помилка обробки дат: {str(e)}")
+            # Використовуємо "naive" дати як запасний варіант
+            started_at = datetime.fromisoformat(session["started_at"].replace('Z', '')) if isinstance(session["started_at"], str) else session["started_at"]
+            ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '')) if isinstance(session["ends_at"], str) else session["ends_at"]
+            # Видаляємо часовий пояс, якщо він є
+            if hasattr(started_at, 'tzinfo') and started_at.tzinfo is not None:
+                started_at = started_at.replace(tzinfo=None)
+            if hasattr(ends_at, 'tzinfo') and ends_at.tzinfo is not None:
+                ends_at = ends_at.replace(tzinfo=None)
+            now = datetime.now()
 
         # Розраховуємо залишок днів
         remaining_days = max(0, (ends_at - now).days)
@@ -118,6 +149,7 @@ def check_active_staking(telegram_id: str) -> Tuple[bool, Optional[Dict[str, Any
 
     except Exception as e:
         logger.error(f"Помилка перевірки активного стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None
 
 
@@ -135,6 +167,9 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         tuple: (success: bool, result: dict, message: str)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         # Перетворюємо параметри на числа
         amount = float(amount)
         period = int(period)
@@ -174,9 +209,9 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         if not balance_update:
             return False, None, "Помилка оновлення балансу"
 
-        # Створюємо сесію стейкінгу
+        # Створюємо сесію стейкінгу з правильним типом даних для user_id
         staking_session = create_staking_session(
-            user_id=telegram_id,
+            user_id=telegram_id,  # передаємо Telegram ID як рядок
             amount_staked=amount,
             staking_days=period,
             reward_percent=reward_percent
@@ -191,8 +226,20 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         expected_reward = calculate_staking_reward(amount, period)
 
         # Формуємо дані для відповіді
-        started_at = datetime.fromisoformat(staking_session["started_at"].replace('Z', '+00:00')) if isinstance(staking_session["started_at"], str) else staking_session["started_at"]
-        ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(staking_session["ends_at"], str) else staking_session["ends_at"]
+        try:
+            started_at = datetime.fromisoformat(staking_session["started_at"].replace('Z', '+00:00')) if isinstance(staking_session["started_at"], str) else staking_session["started_at"]
+            ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(staking_session["ends_at"], str) else staking_session["ends_at"]
+
+            # Забезпечуємо наявність часового поясу
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            if ends_at.tzinfo is None:
+                ends_at = ends_at.replace(tzinfo=timezone.utc)
+        except Exception as e:
+            logger.error(f"Помилка парсингу дат: {str(e)}")
+            # Використовуємо дати як є
+            started_at = staking_session["started_at"]
+            ends_at = staking_session["ends_at"]
 
         staking_data = {
             "hasActiveStaking": True,
@@ -226,6 +273,7 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
 
     except Exception as e:
         logger.error(f"Помилка створення стейкінгу для користувача {telegram_id}: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
 
 
@@ -243,10 +291,17 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
         tuple: (success: bool, result: dict, message: str)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
+        # Додаткове логування
+        logger.info(f"add_to_staking: Додавання {additional_amount} до стейкінгу {staking_id} користувача {telegram_id}")
+
         # Перетворюємо додаткову суму на число
         try:
             additional_amount = float(additional_amount)
             if additional_amount != int(additional_amount):
+                logger.warning(f"add_to_staking: Сума {additional_amount} не є цілим числом, округляємо")
                 return False, None, "Сума додавання має бути цілим числом"
             additional_amount = int(additional_amount)
         except (ValueError, TypeError):
@@ -260,8 +315,9 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
         if not staking_session:
             return False, None, f"Стейкінг з ID {staking_id} не знайдено"
 
-        # Перевіряємо, чи стейкінг належить користувачу
-        if str(staking_session["user_id"]) != str(telegram_id):
+        # Перевіряємо, чи стейкінг належить користувачу (перевіряємо обидва поля)
+        if str(staking_session.get("user_id", "")) != telegram_id and str(staking_session.get("telegram_id", "")) != telegram_id:
+            logger.error(f"add_to_staking: Стейкінг {staking_id} не належить користувачу {telegram_id}. user_id={staking_session.get('user_id')}, telegram_id={staking_session.get('telegram_id')}")
             return False, None, "Ви не маєте прав на цей стейкінг"
 
         # Перевіряємо, чи стейкінг активний
@@ -295,15 +351,44 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
             update_balance(telegram_id, additional_amount)
             return False, None, "Помилка оновлення стейкінгу"
 
+        # Перевіряємо, чи відбулося оновлення
+        check_session = get_staking_session(staking_id)
+        if float(check_session["amount_staked"]) != new_amount:
+            logger.error(f"add_to_staking: Сума після оновлення не відповідає очікуваній: {check_session['amount_staked']} != {new_amount}")
+            # Повертаємо кошти
+            update_balance(telegram_id, additional_amount)
+            return False, None, "Помилка оновлення суми стейкінгу"
+
         # Розраховуємо нову очікувану винагороду
         period = int(updated_session["staking_days"])
         reward_percent = float(updated_session["reward_percent"])
         expected_reward = calculate_staking_reward(new_amount, period)
 
-        # Формуємо дані для відповіді
-        started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '+00:00')) if isinstance(updated_session["started_at"], str) else updated_session["started_at"]
-        ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '+00:00')) if isinstance(updated_session["ends_at"], str) else updated_session["ends_at"]
-        now = datetime.now()
+        # Формуємо дані для відповіді з коректною обробкою дат
+        try:
+            started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '+00:00')) if isinstance(updated_session["started_at"], str) else updated_session["started_at"]
+            ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '+00:00')) if isinstance(updated_session["ends_at"], str) else updated_session["ends_at"]
+
+            # Забезпечуємо наявність часового поясу
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            if ends_at.tzinfo is None:
+                ends_at = ends_at.replace(tzinfo=timezone.utc)
+
+            # Поточний час з часовим поясом
+            now = datetime.now(timezone.utc)
+        except Exception as e:
+            logger.error(f"Помилка парсингу дат: {str(e)}")
+            # Використовуємо "naive" дати
+            started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '')) if isinstance(updated_session["started_at"], str) else updated_session["started_at"]
+            ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '')) if isinstance(updated_session["ends_at"], str) else updated_session["ends_at"]
+            # Видаляємо часовий пояс, якщо він є
+            if hasattr(started_at, 'tzinfo') and started_at.tzinfo is not None:
+                started_at = started_at.replace(tzinfo=None)
+            if hasattr(ends_at, 'tzinfo') and ends_at.tzinfo is not None:
+                ends_at = ends_at.replace(tzinfo=None)
+            now = datetime.now()
+
         remaining_days = max(0, (ends_at - now).days)
 
         staking_data = {
@@ -346,6 +431,7 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
 
     except Exception as e:
         logger.error(f"Помилка додавання до стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
 
 
@@ -361,13 +447,16 @@ def cancel_staking(telegram_id: str, staking_id: str) -> Tuple[bool, Optional[Di
         tuple: (success: bool, result: dict, message: str)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         # Отримуємо сесію стейкінгу
         staking_session = get_staking_session(staking_id)
         if not staking_session:
             return False, None, f"Стейкінг з ID {staking_id} не знайдено"
 
-        # Перевіряємо, чи стейкінг належить користувачу
-        if str(staking_session["user_id"]) != str(telegram_id):
+        # Перевіряємо, чи стейкінг належить користувачу (перевіряємо обидва поля)
+        if str(staking_session.get("user_id", "")) != telegram_id and str(staking_session.get("telegram_id", "")) != telegram_id:
             return False, None, "Ви не маєте прав на цей стейкінг"
 
         # Перевіряємо, чи стейкінг активний
@@ -439,6 +528,7 @@ def cancel_staking(telegram_id: str, staking_id: str) -> Tuple[bool, Optional[Di
 
     except Exception as e:
         logger.error(f"Помилка скасування стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
 
 
@@ -456,13 +546,17 @@ def finalize_staking(telegram_id: str, staking_id: str, force: bool = False) -> 
         tuple: (success: bool, result: dict, message: str)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         # Отримуємо сесію стейкінгу
         staking_session = get_staking_session(staking_id)
         if not staking_session:
             return False, None, f"Стейкінг з ID {staking_id} не знайдено"
 
-        # Перевіряємо, чи стейкінг належить користувачу
-        if str(staking_session["user_id"]) != str(telegram_id):
+        # Перевіряємо, чи стейкінг належить користувачу (перевіряємо обидва поля)
+        if str(staking_session.get("user_id", "")) != telegram_id and str(
+                staking_session.get("telegram_id", "")) != telegram_id:
             return False, None, "Ви не маєте прав на цей стейкінг"
 
         # Перевіряємо, чи стейкінг активний
@@ -471,8 +565,20 @@ def finalize_staking(telegram_id: str, staking_id: str, force: bool = False) -> 
 
         # Перевіряємо, чи можна завершити стейкінг (якщо не force)
         if not force:
-            ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(staking_session["ends_at"], str) else staking_session["ends_at"]
-            now = datetime.now()
+            try:
+                ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(
+                    staking_session["ends_at"], str) else staking_session["ends_at"]
+                if ends_at.tzinfo is None:
+                    ends_at = ends_at.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка парсингу дат: {str(e)}")
+                # Використовуємо "naive" дати у випадку помилки
+                ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '')) if isinstance(
+                    staking_session["ends_at"], str) else staking_session["ends_at"]
+                if hasattr(ends_at, 'tzinfo') and ends_at.tzinfo is not None:
+                    ends_at = ends_at.replace(tzinfo=None)
+                now = datetime.now()
 
             if now < ends_at:
                 remaining_days = (ends_at - now).days
@@ -507,6 +613,44 @@ def finalize_staking(telegram_id: str, staking_id: str, force: bool = False) -> 
             # Повертаємо кошти у випадку помилки
             update_balance(telegram_id, -total_amount)
             return False, None, "Помилка завершення стейкінгу"
+
+        # ДОДАНО: Перевірка зарахування коштів на баланс та повторна спроба
+        # Перевіряємо баланс користувача після оновлення
+        updated_user = get_user(telegram_id)
+        if updated_user:
+            updated_balance = float(updated_user.get("balance", 0))
+
+            # Якщо баланс користувача не збільшився на очікувану суму,
+            # можливо, що гроші не були зараховані правильно
+            if abs(updated_balance - new_balance) > 0.01:  # Допускаємо невелику похибку
+                logger.warning(f"finalize_staking: Виявлено розбіжність у балансі після завершення стейкінгу. "
+                               f"Очікуваний: {new_balance}, Фактичний: {updated_balance}")
+
+                # Розраховуємо різницю для коригування
+                balance_diff = new_balance - updated_balance
+
+                # Повторна спроба оновлення балансу
+                retry_update = update_balance(telegram_id, balance_diff)
+                if retry_update:
+                    logger.info(f"finalize_staking: Успішно виконано коригування балансу на {balance_diff} WINIX")
+
+                    # Додаємо транзакцію про коригування
+                    try:
+                        correction_transaction = {
+                            "telegram_id": telegram_id,
+                            "type": "correction",
+                            "amount": balance_diff,
+                            "description": f"Коригування балансу після завершення стейкінгу (ID: {staking_id})",
+                            "status": "completed"
+                        }
+
+                        if supabase:
+                            supabase.table("transactions").insert(correction_transaction).execute()
+                            logger.info(f"Транзакцію про коригування балансу створено")
+                    except Exception as e:
+                        logger.error(f"Помилка при створенні транзакції коригування: {str(e)}")
+        else:
+            logger.warning(f"finalize_staking: Не вдалося отримати оновлені дані користувача для перевірки балансу")
 
         # Формуємо пустий об'єкт стейкінгу для відповіді
         empty_staking = {
@@ -543,8 +687,8 @@ def finalize_staking(telegram_id: str, staking_id: str, force: bool = False) -> 
 
     except Exception as e:
         logger.error(f"Помилка завершення стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
-
 
 def get_staking_history(telegram_id: str) -> Tuple[bool, Optional[List[Dict[str, Any]]], str]:
     """
@@ -557,6 +701,9 @@ def get_staking_history(telegram_id: str) -> Tuple[bool, Optional[List[Dict[str,
         tuple: (success: bool, data: list, message: str)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         # Отримуємо всі сесії стейкінгу користувача (включно з неактивними)
         all_sessions = get_user_staking_sessions(telegram_id, active_only=False)
 
@@ -567,9 +714,21 @@ def get_staking_history(telegram_id: str) -> Tuple[bool, Optional[List[Dict[str,
         history_items = []
 
         for session in all_sessions:
-            # Формуємо дані для кожної сесії
-            started_at = datetime.fromisoformat(session["started_at"].replace('Z', '+00:00')) if isinstance(session["started_at"], str) else session["started_at"]
-            ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '+00:00')) if isinstance(session["ends_at"], str) else session["ends_at"]
+            # Формуємо дані для кожної сесії з коректною обробкою дат
+            try:
+                started_at = datetime.fromisoformat(session["started_at"].replace('Z', '+00:00')) if isinstance(session["started_at"], str) else session["started_at"]
+                ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '+00:00')) if isinstance(session["ends_at"], str) else session["ends_at"]
+
+                # Забезпечуємо наявність часового поясу
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+                if ends_at.tzinfo is None:
+                    ends_at = ends_at.replace(tzinfo=timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка парсингу дат: {str(e)}")
+                # Використовуємо дати як є
+                started_at = session["started_at"]
+                ends_at = session["ends_at"]
 
             # Визначаємо статус
             status = "active" if session["is_active"] else ("cancelled" if session["cancelled_early"] else "completed")
@@ -607,8 +766,11 @@ def get_staking_history(telegram_id: str) -> Tuple[bool, Optional[List[Dict[str,
 
             # Додаємо дату завершення/скасування якщо є
             if not session["is_active"]:
-                # Використовуємо поле updated_at як дату завершення/скасування якщо воно є
-                if "updated_at" in session:
+                # Перевіряємо наявність поля completed_at
+                if "completed_at" in session and session["completed_at"]:
+                    history_item["completedDate"] = session["completed_at"]
+                # Якщо немає completed_at, використовуємо updated_at
+                elif "updated_at" in session:
                     history_item["completedDate"] = session["updated_at"]
                     if session["cancelled_early"]:
                         history_item["cancelledDate"] = session["updated_at"]
@@ -619,6 +781,7 @@ def get_staking_history(telegram_id: str) -> Tuple[bool, Optional[List[Dict[str,
 
     except Exception as e:
         logger.error(f"Помилка отримання історії стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
 
 
@@ -666,79 +829,50 @@ def reset_and_repair_staking(telegram_id: str, force: bool = False) -> Tuple[Dic
         tuple: (response_json: dict, status_code: int)
     """
     try:
-        # Отримуємо активні сесії стейкінгу
-        active_sessions = get_user_staking_sessions(telegram_id, active_only=True)
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
 
-        if not active_sessions or len(active_sessions) == 0:
-            return {
-                "status": "success",
-                "message": "Відновлення не потрібне. Немає активного стейкінгу."
-            }, 200
+        # Спочатку виконуємо перевірку цілісності даних стейкінгу
+        verify_staking_consistency(telegram_id)
 
-        # Якщо є активні сесії, але не потрібно примусово скасовувати
-        if not force:
-            # Перевіряємо чи не закінчилися сесії
-            now = datetime.now()
-            completed_count = 0
+        # Викликаємо покращену функцію відновлення сесії стейкінгу
+        repair_result = repair_staking_session(telegram_id)
 
-            for session in active_sessions:
-                try:
-                    # Отримуємо дату завершення
-                    ends_at = datetime.fromisoformat(session["ends_at"].replace('Z', '+00:00')) if isinstance(session["ends_at"], str) else session["ends_at"]
+        if repair_result.get("status") == "success":
+            # Отримуємо активні сесії стейкінгу
+            active_sessions = get_user_staking_sessions(telegram_id, active_only=True)
 
-                    # Якщо сесія закінчилася, завершуємо її
-                    if now >= ends_at:
-                        success, result, message = finalize_staking(
+            # Примусове скасування всіх сесій, якщо вказано force=True
+            if force and active_sessions and len(active_sessions) > 0:
+                cancelled_count = 0
+
+                for session in active_sessions:
+                    try:
+                        success, result, message = cancel_staking(
                             telegram_id=telegram_id,
-                            staking_id=session["id"],
-                            force=True
+                            staking_id=session["id"]
                         )
 
                         if success:
-                            completed_count += 1
-                except Exception as e:
-                    logger.error(f"Помилка перевірки сесії {session['id']}: {str(e)}")
+                            cancelled_count += 1
+                    except Exception as e:
+                        logger.error(f"Помилка скасування сесії {session['id']}: {str(e)}")
 
-            if completed_count > 0:
-                return {
-                    "status": "success",
-                    "message": f"Відновлення виконано. Завершено {completed_count} прострочених сесій."
-                }, 200
+                if cancelled_count > 0:
+                    return {
+                        "status": "success",
+                        "message": f"Примусове відновлення виконано. Скасовано {cancelled_count} активних сесій."
+                    }, 200
 
-            # Якщо немає прострочених сесій і не потрібно примусово скасовувати
-            return {
-                "status": "success",
-                "message": "Відновлення не потрібне. Активні сесії стейкінгу в нормальному стані."
-            }, 200
-
-        # Якщо потрібно примусово скасувати всі активні сесії
-        cancelled_count = 0
-
-        for session in active_sessions:
-            try:
-                success, result, message = cancel_staking(
-                    telegram_id=telegram_id,
-                    staking_id=session["id"]
-                )
-
-                if success:
-                    cancelled_count += 1
-            except Exception as e:
-                logger.error(f"Помилка скасування сесії {session['id']}: {str(e)}")
-
-        if cancelled_count > 0:
-            return {
-                "status": "success",
-                "message": f"Відновлення виконано. Скасовано {cancelled_count} активних сесій."
-            }, 200
+            # Повертаємо результат ремонту
+            return repair_result, 200
         else:
-            return {
-                "status": "error",
-                "message": "Не вдалося скасувати жодної активної сесії."
-            }, 400
+            # Якщо ремонт не вдався, повертаємо помилку
+            return repair_result, 500
 
     except Exception as e:
         logger.error(f"Помилка відновлення стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return {"status": "error", "message": f"Помилка відновлення стейкінгу: {str(e)}"}, 500
 
 
@@ -754,6 +888,9 @@ def deep_repair_staking(telegram_id: str, balance_adjustment: float = 0) -> Tupl
         tuple: (response_json: dict, status_code: int)
     """
     try:
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
         # Отримуємо користувача
         user = get_user(telegram_id)
         if not user:
@@ -816,4 +953,5 @@ def deep_repair_staking(telegram_id: str, balance_adjustment: float = 0) -> Tupl
 
     except Exception as e:
         logger.error(f"Помилка глибокого відновлення стейкінгу: {str(e)}")
+        logger.error(traceback.format_exc())
         return {"status": "error", "message": f"Помилка глибокого відновлення: {str(e)}"}, 500

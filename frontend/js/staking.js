@@ -1106,4 +1106,194 @@
     } else {
         init();
     }
+
+    /**
+ * Функція для автоматичного виправлення стейкінгу при завантаженні сторінки
+ */
+async function autoRepairStaking() {
+    try {
+        console.log("🔧 Запуск автоматичного виправлення стейкінгу...");
+
+        // Перевіряємо наявність API
+        if (!window.WinixAPI || !window.WinixAPI.repairStaking) {
+            console.warn("⚠️ API виправлення стейкінгу недоступне");
+            return;
+        }
+
+        // Отримуємо ID користувача
+        const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+        if (!userId) {
+            console.warn("⚠️ Не вдалося отримати ID користувача для виправлення стейкінгу");
+            return;
+        }
+
+        console.log(`🔍 Запуск виправлення стейкінгу для користувача ${userId}...`);
+
+        // Запускаємо легке відновлення без скасування
+        const result = await window.WinixAPI.repairStaking(false);
+        console.log("✅ Результат автоматичного виправлення:", result);
+
+        // Оновлюємо дані після виправлення
+        if (window.WinixStakingSystem && window.WinixStakingSystem.refresh) {
+            console.log("🔄 Оновлення даних стейкінгу після ремонту...");
+            await window.WinixStakingSystem.refresh();
+        }
+
+        // Додаємо додаткову перевірку на історію стейкінгу, якщо є
+        if (window.WinixAPI && window.WinixAPI.getStakingHistory) {
+            try {
+                const historyResult = await window.WinixAPI.getStakingHistory();
+                console.log("📚 Історія стейкінгу перевірена:",
+                            historyResult.status === 'success' ? "успішно" : "з помилками");
+            } catch (e) {
+                console.warn("⚠️ Помилка перевірки історії стейкінгу:", e);
+            }
+        }
+    } catch (e) {
+        console.error("❌ Критична помилка автоматичного виправлення стейкінгу:", e);
+    }
+}
+
+// Запускаємо автоматичне виправлення через 2 секунди після завантаження
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("📝 Встановлено таймер автоматичного виправлення стейкінгу");
+    setTimeout(autoRepairStaking, 2000);
+});
+
+// Додаємо обробник для Telegram WebApp події viewportChanged
+if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.onEvent('viewportChanged', function() {
+        console.log("📱 Розмір вікна змінено, додаткова перевірка стейкінгу...");
+        setTimeout(async function() {
+            // Оновлюємо дані стейкінгу
+            if (window.WinixStakingSystem && window.WinixStakingSystem.refresh) {
+                await window.WinixStakingSystem.refresh();
+            }
+        }, 500);
+    });
+}
+
+/**
+ * Додавання кошти до стейкінгу з обробкою помилок
+ * @param {number} amount - Сума для додавання
+ * @returns {Promise<boolean>} - Результат операції
+ */
+async function safeAddToStaking(amount) {
+    try {
+        // Перевіряємо наявність API
+        if (!window.WinixAPI || !window.WinixAPI.addToStaking) {
+            throw new Error("API додавання до стейкінгу недоступне");
+        }
+
+        // Отримуємо ID користувача
+        const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+        if (!userId) {
+            throw new Error("Не вдалося отримати ID користувача");
+        }
+
+        // Перевіряємо, чи є активний стейкінг
+        const stakingData = await window.WinixAPI.getStakingData();
+        if (!stakingData || !stakingData.data || !stakingData.data.hasActiveStaking) {
+            throw new Error("У вас немає активного стейкінгу");
+        }
+
+        // Перевіряємо валідність суми
+        amount = parseInt(amount);
+        if (isNaN(amount) || amount <= 0) {
+            throw new Error("Сума має бути додатним цілим числом");
+        }
+
+        // Додаємо до стейкінгу
+        const result = await window.WinixAPI.addToStaking(amount, stakingData.data.stakingId);
+
+        // Перевіряємо результат
+        if (result.status !== 'success') {
+            throw new Error(result.message || "Помилка додавання до стейкінгу");
+        }
+
+        // Оновлюємо відображення
+        if (window.WinixStakingSystem && window.WinixStakingSystem.refresh) {
+            await window.WinixStakingSystem.refresh();
+        }
+
+        return true;
+    } catch (error) {
+        console.error("❌ Помилка безпечного додавання до стейкінгу:", error);
+
+        // Показуємо повідомлення про помилку
+        if (window.simpleAlert) {
+            window.simpleAlert(error.message || "Помилка додавання до стейкінгу", true);
+        } else if (window.showToast) {
+            window.showToast(error.message || "Помилка додавання до стейкінгу", "error");
+        } else {
+            alert(error.message || "Помилка додавання до стейкінгу");
+        }
+
+        return false;
+    }
+}
+
+// Оновлення існуючих функцій у WinixStakingSystem (якщо доступні)
+if (window.WinixStakingSystem) {
+    // Зберігаємо оригінальні функції
+    const originalAddToStaking = window.WinixStakingSystem.addToStaking;
+    const originalRefresh = window.WinixStakingSystem.refresh;
+
+    // Покращуємо функцію додавання до стейкінгу
+    window.WinixStakingSystem.addToStaking = async function(amount) {
+        try {
+            // Спершу спробуємо безпечне додавання
+            const result = await safeAddToStaking(amount);
+            if (result === true) {
+                return {success: true, message: "Додано до стейкінгу"};
+            }
+
+            // Якщо не вдалося, спробуємо оригінальну функцію
+            if (originalAddToStaking && typeof originalAddToStaking === 'function') {
+                return originalAddToStaking.call(this, amount);
+            } else {
+                throw new Error("Оригінальна функція додавання недоступна");
+            }
+        } catch (error) {
+            console.error("Помилка перехопленого додавання до стейкінгу:", error);
+            return {success: false, message: error.message || "Помилка додавання до стейкінгу"};
+        }
+    };
+
+    // Покращуємо функцію оновлення
+    window.WinixStakingSystem.refresh = async function() {
+        try {
+            // Спершу викликаємо оригінальну функцію
+            if (originalRefresh && typeof originalRefresh === 'function') {
+                await originalRefresh.call(this);
+            }
+
+            // Додаємо додаткову перевірку цілісності
+            if (window.WinixAPI && window.WinixAPI.repairStaking) {
+                await window.WinixAPI.repairStaking(false);
+            }
+
+            // Оновлюємо інтерфейс
+            if (this.updateUI && typeof this.updateUI === 'function') {
+                this.updateUI();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Помилка перехопленого оновлення стейкінгу:", error);
+            return false;
+        }
+    };
+
+    console.log("✅ Функції стейкінгу успішно вдосконалені");
+}
+
+// Експорт додаткових функцій
+window.winixStakingFixes = {
+    autoRepairStaking,
+    safeAddToStaking
+};
+
+console.log("✅ Модуль виправлення стейкінгу успішно ініціалізовано");
+
 })();
