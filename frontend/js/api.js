@@ -158,215 +158,403 @@
 
     // ======== ОСНОВНА ФУНКЦІЯ API-ЗАПИТУ ========
 
-    /**
-     * Універсальна функція для виконання API-запитів
-     * @param {string} endpoint - URL ендпоінту відносно базового URL
-     * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
-     * @param {Object} data - Дані для відправки (для POST/PUT запитів)
-     * @param {Object} options - Додаткові параметри запиту
-     * @param {number} retries - Кількість повторних спроб при помилці
-     * @returns {Promise<Object>} Результат запиту у форматі JSON
-     */
-    async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 3) {
-        // Перевіряємо, чи не виконується вже запит з тими ж параметрами
-        // Це допоможе уникнути дублюючих запитів через подвійний клік
-        if (_apiRequestInProgress) {
-            console.warn(`⚠️ API запит вже виконується, очікуйте: ${endpoint}`);
-            await new Promise(resolve => setTimeout(resolve, 500));
+   /**
+ * Універсальна функція для виконання API-запитів з покращеною обробкою помилок
+ * @param {string} endpoint - URL ендпоінту відносно базового URL
+ * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
+ * @param {Object} data - Дані для відправки (для POST/PUT запитів)
+ * @param {Object} options - Додаткові параметри запиту
+ * @param {number} retries - Кількість повторних спроб при помилці
+ * @returns {Promise<Object>} Результат запиту у форматі JSON
+ */
+async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 3) {
+    // Ідентифікатор запиту для логування
+    const requestId = Math.random().toString(36).substring(2, 8);
+    const operationName = options.operationName || `${method} ${endpoint}`;
+
+    // Перевіряємо, чи не виконується вже запит з тими ж параметрами
+    if (_apiRequestInProgress && !options.skipProgressCheck) {
+        console.warn(`⚠️ [${requestId}] API запит вже виконується, очікуйте: ${endpoint}`);
+
+        // Можливість продовжити без очікування
+        if (options.forceContinue) {
+            console.warn(`⚠️ [${requestId}] Примусове продовження запиту ${endpoint}`);
+        } else {
+            try {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                // Рекурсивно викликаємо apiRequest з меншою кількістю спроб
+                if (retries > 1) {
+                    return apiRequest(endpoint, method, data, {
+                        ...options,
+                        forceContinue: true
+                    }, retries - 1);
+                }
+            } catch (e) {
+                console.warn(`⚠️ [${requestId}] Помилка під час очікування:`, e.message);
+            }
+        }
+    }
+
+    // Блокуємо паралельні запити (якщо не вказано інше)
+    if (!options.allowParallel) {
+        _apiRequestInProgress = true;
+    }
+
+    try {
+        // Отримуємо ID користувача
+        const userId = getUserId();
+
+        // Перевіряємо наявність валідного ID користувача
+        if (!userId && !options.skipUserIdCheck) {
+            const error = new Error("ID користувача не знайдено");
+            console.error(`❌ [${requestId}] API-запит ${operationName} скасовано: ${error.message}`);
+            _apiRequestInProgress = false;
+
+            // Якщо вказана опція обробки помилок
+            if (typeof handleApiError === 'function' && !options.skipErrorHandling) {
+                handleApiError(error, operationName, options.showToast !== false);
+            }
+
+            // Генеруємо подію для можливої обробки
+            document.dispatchEvent(new CustomEvent('api-error', {
+                detail: { error, endpoint, method, requestId }
+            }));
+
+            throw error;
         }
 
-        _apiRequestInProgress = true;
+        // Додаємо мітку часу для запобігання кешуванню
+        const timestamp = Date.now();
+        const hasQuery = endpoint.includes('?');
+        const url = `${API_BASE_URL}${endpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
 
-        try {
-            // Отримуємо ID користувача
-            const userId = getUserId();
-
-            // Перевіряємо наявність валідного ID користувача
-            if (!userId && !options.skipUserIdCheck) {
-                const error = new Error("ID користувача не знайдено");
-                console.error(`❌ API-запит на ${endpoint} скасовано: ${error.message}`);
-                _apiRequestInProgress = false;
-                throw error;
-            }
-
-            // Додаємо мітку часу для запобігання кешуванню
-            const timestamp = Date.now();
-            const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
-
-            // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
-            if (!options.hideLoader) {
+        // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
+        if (!options.hideLoader) {
+            if (typeof showLoader === 'function') {
                 showLoader();
+            } else if (typeof window.showLoading === 'function') {
+                window.showLoading();
             }
+        }
 
-            // Логуємо запит у режимі відлагодження
-            if (_debugMode) {
-                console.log(`🔄 Відправка ${method} запиту на ${url}`);
-                if (data) console.log("📦 Дані запиту:", data);
+        // Логуємо запит у режимі відлагодження
+        if (_debugMode) {
+            console.log(`🔄 [${requestId}] Відправка ${method} запиту на ${url}`);
+            if (data) {
+                console.log(`📦 [${requestId}] Дані запиту:`, data);
             }
+        }
 
-            // Додайте цей код прямо перед створенням requestOptions
-console.log("🔍 Підготовка запиту:", {
-  url,
-  method,
-  userId: userId || "ВІДСУТНІЙ",
-  headers: options.headers || {}
-});
+        // Підготовка параметрів запиту
+        const requestOptions = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(userId && {'X-Telegram-User-Id': userId}),
+                ...options.headers
+            },
+            ...options
+        };
 
-            // Підготовка параметрів запиту
-            const requestOptions = {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(userId && {'X-Telegram-User-Id': userId}),
-                    ...options.headers
-                },
-                ...options
-            };
+        // Додаємо тіло запиту для POST/PUT/PATCH
+        if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            requestOptions.body = JSON.stringify(data);
+        }
 
-            // Додаємо тіло запиту для POST/PUT/PATCH
-            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-                requestOptions.body = JSON.stringify(data);
-            }
+        // Функція для повторного запиту при помилці
+        async function tryRequest(attemptsLeft) {
+            try {
+                // Додаємо timeout для запиту
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                }, options.timeout || 20000); // 20 секунд за замовчуванням
 
-            // Функція для повторного запиту при помилці
-            async function tryRequest(attemptsLeft) {
-                try {
-                    const response = await fetch(url, requestOptions);
+                // Додаємо signal до requestOptions, якщо ще немає
+                if (!requestOptions.signal) {
+                    requestOptions.signal = controller.signal;
+                }
 
-                    // Приховуємо індикатор завантаження
-                    if (!options.hideLoader) {
+                // Виконуємо запит
+                const response = await fetch(url, requestOptions);
+
+                // Очищаємо timeout
+                clearTimeout(timeoutId);
+
+                // Приховуємо індикатор завантаження
+                if (!options.hideLoader) {
+                    if (typeof hideLoader === 'function') {
                         hideLoader();
+                    } else if (typeof window.hideLoading === 'function') {
+                        window.hideLoading();
+                    }
+                }
+
+                // Перевіряємо статус відповіді
+                if (!response.ok) {
+                    const statusText = response.statusText || '';
+                    console.error(`❌ [${requestId}] Помилка API-запиту: ${response.status} ${statusText} (${url})`);
+
+                    // Додаткові дії для різних кодів помилок
+                    if (response.status === 401 || response.status === 403) {
+                        console.warn(`🔐 [${requestId}] Помилка авторизації, спроба оновити дані користувача`);
+
+                        // Генеруємо подію для можливого оновлення авторизації
+                        document.dispatchEvent(new CustomEvent('auth-error', {
+                            detail: { endpoint, method, status: response.status }
+                        }));
                     }
 
-                    // Перевіряємо статус відповіді
-                    if (!response.ok) {
-                        const statusText = response.statusText || '';
-                        console.error(`❌ Помилка API-запиту: ${response.status} ${statusText} (${url})`);
-
-                        // Перевіряємо типові помилки
-                        if (response.status === 401 || response.status === 403) {
-                            console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
-                        }
-
-                        if (response.status === 404) {
-                            throw new Error(`Запитаний ресурс недоступний (404)`);
-                        }
-
-                        if (response.status === 405) {
-                            throw new Error(`Метод ${method} не дозволено для цього ресурсу (405)`);
-                        }
-
-                        // Якщо залишились спроби, повторюємо запит
-                        if (attemptsLeft > 0) {
-                            const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
-                            if (_debugMode) {
-                                console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
-                            }
-
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            return tryRequest(attemptsLeft - 1);
-                        }
-
-                        throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
+                    if (response.status === 404) {
+                        throw new Error(`Запитаний ресурс недоступний (404)`);
                     }
 
-                    // Якщо статус ОК, парсимо JSON
-                    let jsonData;
+                    if (response.status === 405) {
+                        throw new Error(`Метод ${method} не дозволено для цього ресурсу (405)`);
+                    }
+
+                    // Спробуємо отримати більше інформації з відповіді
+                    let responseData;
                     try {
-                        jsonData = await response.json();
+                        responseData = await response.json();
+                        if (responseData && responseData.message) {
+                            throw new Error(responseData.message);
+                        }
                     } catch (parseError) {
-                        console.error('❌ Помилка парсингу JSON відповіді:', parseError);
-                        throw new Error('Некоректний формат відповіді');
+                        // Ігноруємо помилки парсингу для нетекстових відповідей
                     }
 
-                    // Перевіряємо, чи є помилка у відповіді
-                    if (jsonData && jsonData.status === 'error') {
-                        console.error('❌ API повернув помилку:', jsonData.message);
-                        throw new Error(jsonData.message || 'Помилка виконання запиту');
-                    }
-
-                    if (_debugMode) {
-                        console.log(`✅ Успішний API-запит на ${url}`);
-                        console.log("📊 Дані відповіді:", jsonData);
-                    }
-
-                    _apiRequestInProgress = false;
-                    return jsonData;
-
-                } catch (error) {
-                    // Приховуємо індикатор завантаження у випадку помилки
-                    if (!options.hideLoader) {
-                        hideLoader();
-                    }
-
-                    // Для мережевих помилок пробуємо ще раз
-                    if ((error.name === 'TypeError' || error.message.includes("Failed to fetch")) && attemptsLeft > 0) {
-                        const delay = Math.pow(2, retries - attemptsLeft) * 500;
-                        console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
+                    // Якщо залишились спроби, повторюємо запит
+                    if (attemptsLeft > 0) {
+                        const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
+                        if (_debugMode) {
+                            console.log(`⏱️ [${requestId}] Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
+                        }
 
                         await new Promise(resolve => setTimeout(resolve, delay));
                         return tryRequest(attemptsLeft - 1);
                     }
 
-                    _apiRequestInProgress = false;
-                    throw error;
+                    throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
                 }
-            }
 
-            // Починаємо процес запиту з повторними спробами
-            return tryRequest(retries);
-        } catch (e) {
-            _apiRequestInProgress = false;
-            throw e;
+                // Якщо статус ОК, парсимо JSON
+                let jsonData;
+                try {
+                    jsonData = await response.json();
+                } catch (parseError) {
+                    console.error(`❌ [${requestId}] Помилка парсингу JSON відповіді:`, parseError);
+                    throw new Error('Некоректний формат відповіді');
+                }
+
+                // Перевіряємо, чи є помилка у відповіді
+                if (jsonData && jsonData.status === 'error') {
+                    console.error(`❌ [${requestId}] API повернув помилку:`, jsonData.message);
+                    throw new Error(jsonData.message || 'Помилка виконання запиту');
+                }
+
+                if (_debugMode) {
+                    console.log(`✅ [${requestId}] Успішний API-запит на ${url}`);
+                    console.log(`📊 [${requestId}] Дані відповіді:`, jsonData);
+                }
+
+                // Кешуємо відповідь, якщо потрібно
+                if (options.cache && typeof options.cacheKey === 'string') {
+                    try {
+                        // Зберігаємо результат у localStorage або sessionStorage
+                        const storage = options.sessionCache ? sessionStorage : localStorage;
+                        const cacheData = {
+                            data: jsonData,
+                            timestamp: Date.now(),
+                            expires: options.cacheTime || 60000 // 1 хвилина за замовчуванням
+                        };
+                        storage.setItem(options.cacheKey, JSON.stringify(cacheData));
+                    } catch (cacheError) {
+                        console.warn(`⚠️ [${requestId}] Помилка кешування:`, cacheError.message);
+                    }
+                }
+
+                _apiRequestInProgress = false;
+                return jsonData;
+
+            } catch (error) {
+                // Приховуємо індикатор завантаження у випадку помилки
+                if (!options.hideLoader) {
+                    if (typeof hideLoader === 'function') {
+                        hideLoader();
+                    } else if (typeof window.hideLoading === 'function') {
+                        window.hideLoading();
+                    }
+                }
+
+                // Перевіряємо на помилку Abort контролера (timeout)
+                if (error.name === 'AbortError') {
+                    error.message = `Час очікування відповіді від сервера вичерпано (${options.timeout || 20000}мс)`;
+                }
+
+                // Для мережевих помилок пробуємо ще раз
+                const isNetworkError = error.name === 'TypeError' ||
+                                      error.message.includes("Failed to fetch") ||
+                                      error.message.includes("Network error");
+
+                if (isNetworkError && attemptsLeft > 0) {
+                    const delay = Math.pow(2, retries - attemptsLeft) * 500;
+                    console.log(`⚠️ [${requestId}] Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
+
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return tryRequest(attemptsLeft - 1);
+                }
+
+                _apiRequestInProgress = false;
+                throw error;
+            }
         }
+
+        // Спочатку перевіряємо кеш, якщо увімкнено кешування
+        if (options.cache && typeof options.cacheKey === 'string') {
+            try {
+                const storage = options.sessionCache ? sessionStorage : localStorage;
+                const cachedDataStr = storage.getItem(options.cacheKey);
+
+                if (cachedDataStr) {
+                    const cachedData = JSON.parse(cachedDataStr);
+                    const now = Date.now();
+
+                    // Перевіряємо, чи кеш не застарів
+                    if (cachedData && cachedData.timestamp &&
+                        (now - cachedData.timestamp < cachedData.expires)) {
+
+                        if (_debugMode) {
+                            console.log(`🔄 [${requestId}] Використовуємо кешовані дані для ${url}`);
+                        }
+
+                        // Приховуємо індикатор завантаження
+                        if (!options.hideLoader) {
+                            if (typeof hideLoader === 'function') {
+                                hideLoader();
+                            } else if (typeof window.hideLoading === 'function') {
+                                window.hideLoading();
+                            }
+                        }
+
+                        _apiRequestInProgress = false;
+                        return cachedData.data;
+                    }
+                }
+            } catch (cacheError) {
+                console.warn(`⚠️ [${requestId}] Помилка читання кешу:`, cacheError.message);
+            }
+        }
+
+        // Починаємо процес запиту з повторними спробами
+        return await tryRequest(retries);
+    } catch (e) {
+        _apiRequestInProgress = false;
+
+        // Централізована обробка помилок
+        if (typeof handleApiError === 'function' && !options.skipErrorHandling) {
+            handleApiError(e, operationName, options.showToast !== false);
+        } else {
+            console.error(`❌ [${requestId}] Помилка API-запиту ${operationName}:`, e.message);
+        }
+
+        // Якщо вказана опція suppressErrors, повертаємо стандартний об'єкт помилки
+        if (options.suppressErrors) {
+            return {
+                status: 'error',
+                message: e.message || 'Сталася помилка при виконанні запиту',
+                error: e,
+                requestId
+            };
+        }
+
+        throw e;
     }
+}
 
     // ======== ФУНКЦІЇ ДЛЯ ОБРОБКИ ПОМИЛОК ТА ЗАВАНТАЖЕННЯ ========
 
     /**
-     * Обробка помилок API
-     * @param {Error} error - Об'єкт помилки
-     * @param {string} operation - Назва операції для логування
-     * @returns {string} Користувацьке повідомлення про помилку
-     */
-    function handleApiError(error, operation = 'API операції') {
+ * Централізована обробка помилок API
+ * @param {Error} error - Об'єкт помилки
+ * @param {string} operation - Назва операції для логування
+ * @param {boolean} showToast - Чи показувати повідомлення користувачу
+ * @returns {string} Користувацьке повідомлення про помилку
+ */
+function handleApiError(error, operation = 'API операції', showToast = true) {
+    // Запобігаємо дублюванню помилок - логуємо тільки один раз
+    if (!error._logged) {
         console.error(`❌ Помилка ${operation}:`, error);
-
-        // Отримуємо текст помилки
-        let errorMessage = error.message || 'Невідома помилка';
-
-        // Формуємо зрозуміле повідомлення залежно від типу помилки
-        if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
-            return `Не вдалося з'єднатися з сервером. Перевірте інтернет-з'єднання та спробуйте знову.`;
-        }
-
-        if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-            return `Час очікування відповіді від сервера вичерпано. Спробуйте знову пізніше.`;
-        }
-
-        if (errorMessage.includes('404')) {
-            return `Сервер не може знайти потрібний ресурс (404). Спробуйте перезавантажити сторінку.`;
-        }
-
-        if (errorMessage.includes('405')) {
-            return `Сервер не підтримує цей метод запиту (405). Повідомте про помилку розробникам.`;
-        }
-
-        if (errorMessage.includes('500')) {
-            return `Виникла помилка на сервері (500). Будь ласка, спробуйте пізніше.`;
-        }
-
-        if (errorMessage.includes('undefined') || errorMessage.includes('null')) {
-            return `Не вдалося отримати дані. Спробуйте перезавантажити сторінку.`;
-        }
-
-        if (errorMessage.includes('ID користувача не знайдено')) {
-            return `Не вдалося визначити ваш ідентифікатор. Спробуйте вийти та увійти знову.`;
-        }
-
-        // Повертаємо оригінальне повідомлення
-        return errorMessage;
+        error._logged = true;
     }
+
+    // Щоб уникнути повторних сповіщень про ту саму помилку
+    const now = Date.now();
+    const lastErrorTime = window._lastErrorNotificationTime || 0;
+    const lastErrorMessage = window._lastErrorMessage || '';
+    const errorMessage = error.message || 'Невідома помилка';
+
+    // Не показуємо те саме повідомлення частіше, ніж раз на 3 секунди
+    const shouldShowToast = showToast &&
+                           (now - lastErrorTime > 3000 || lastErrorMessage !== errorMessage);
+
+    // Формуємо зрозуміле повідомлення залежно від типу помилки
+    let userFriendlyMessage = '';
+
+    if (error.name === 'TypeError' && errorMessage.includes('fetch')) {
+        userFriendlyMessage = `Не вдалося з'єднатися з сервером. Перевірте інтернет-з'єднання та спробуйте знову.`;
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        userFriendlyMessage = `Час очікування відповіді від сервера вичерпано. Спробуйте знову пізніше.`;
+    } else if (errorMessage.includes('404')) {
+        userFriendlyMessage = `Сервер не може знайти потрібний ресурс. Спробуйте перезавантажити сторінку.`;
+    } else if (errorMessage.includes('405')) {
+        userFriendlyMessage = `Помилка API: метод не дозволений. Повідомте про помилку розробникам.`;
+    } else if (errorMessage.includes('500')) {
+        userFriendlyMessage = `Виникла помилка на сервері. Будь ласка, спробуйте пізніше.`;
+    } else if (errorMessage.includes('undefined') || errorMessage.includes('null')) {
+        userFriendlyMessage = `Не вдалося отримати дані. Спробуйте перезавантажити сторінку.`;
+    } else if (errorMessage.includes('ID користувача не знайдено')) {
+        userFriendlyMessage = `Не вдалося визначити ваш ідентифікатор. Спробуйте вийти та увійти знову.`;
+    } else {
+        // Якщо немає спеціального обробника, використовуємо оригінальне повідомлення
+        userFriendlyMessage = errorMessage;
+    }
+
+    // Показуємо повідомлення про помилку у випадку необхідності
+    if (shouldShowToast) {
+        // Зберігаємо час і текст останньої помилки
+        window._lastErrorNotificationTime = now;
+        window._lastErrorMessage = errorMessage;
+
+        // Показуємо повідомлення з використанням доступних функцій
+        if (typeof window.showModernNotification === 'function') {
+            window.showModernNotification(userFriendlyMessage, true);
+        } else if (typeof window.showToast === 'function') {
+            window.showToast(userFriendlyMessage, 'error');
+        } else if (typeof window.simpleAlert === 'function') {
+            window.simpleAlert(userFriendlyMessage, true);
+        } else if (typeof window.showMessage === 'function') {
+            window.showMessage(userFriendlyMessage, true);
+        } else {
+            // Уникаємо надмірних спливаючих вікон - використовуємо alert тільки для критичних помилок
+            if (operation.includes('critical') || error.critical) {
+                alert(userFriendlyMessage);
+            }
+        }
+    }
+
+    // Відправляємо подію для можливого логування на сервері або інших обробників
+    document.dispatchEvent(new CustomEvent('api-error', {
+        detail: {
+            errorType: error.name,
+            message: errorMessage,
+            operation: operation,
+            timestamp: now
+        }
+    }));
+
+    return userFriendlyMessage;
+}
 
     /**
      * Показати індикатор завантаження
@@ -903,4 +1091,187 @@ async function cancelStaking(stakingId = null) {
     window.getUserId = getUserId;
 
     console.log("✅ API: Єдиний API модуль успішно ініціалізовано");
+
+    /**
+ * Уніфіковане збереження даних користувача в localStorage
+ * @param {Object} userData - Об'єкт з даними користувача
+ * @param {Object} options - Додаткові опції
+ * @returns {boolean} Успішність збереження
+ */
+function saveUserDataLocally(userData, options = {}) {
+    try {
+        if (!userData) {
+            console.warn("❌ saveUserDataLocally: Отримано порожні дані");
+            return false;
+        }
+
+        const storedData = {};
+        const timestamp = Date.now();
+
+        // Журналювання, якщо увімкнено режим відлагодження
+        if (_debugMode) {
+            console.log("💾 Збереження даних користувача в localStorage:", userData);
+        }
+
+        // Функція для безпечного збереження в localStorage
+        const safeSetItem = (key, value) => {
+            try {
+                if (value !== undefined && value !== null) {
+                    // Перетворення нечислових значень у рядки
+                    const stringValue = typeof value === 'object'
+                                      ? JSON.stringify(value)
+                                      : String(value);
+
+                    localStorage.setItem(key, stringValue);
+                    storedData[key] = value;
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                console.warn(`❌ Помилка збереження "${key}" в localStorage:`, e);
+                return false;
+            }
+        };
+
+        // Збереження загальних даних користувача
+        if (userData.telegram_id) {
+            safeSetItem('telegram_user_id', userData.telegram_id);
+            safeSetItem('userId', userData.telegram_id);
+        }
+
+        if (userData.username) {
+            safeSetItem('username', userData.username);
+        }
+
+        // Збереження балансів
+        if (userData.balance !== undefined) {
+            safeSetItem('userTokens', userData.balance);
+            safeSetItem('winix_balance', userData.balance);
+        }
+
+        if (userData.coins !== undefined) {
+            safeSetItem('userCoins', userData.coins);
+            safeSetItem('winix_coins', userData.coins);
+        }
+
+        // Збереження даних стейкінгу
+        if (userData.staking) {
+            safeSetItem('stakingData', userData.staking);
+            safeSetItem('winix_staking', userData.staking);
+            safeSetItem('stakingDataCacheTime', timestamp);
+        }
+
+        // Збереження історії транзакцій
+        if (userData.transactions) {
+            safeSetItem('transactionsData', userData.transactions);
+            safeSetItem('transactionsDataCacheTime', timestamp);
+        }
+
+        // Збереження налаштувань
+        if (userData.settings) {
+            safeSetItem('userSettings', userData.settings);
+        }
+
+        // Збереження додаткових даних, якщо вони є
+        if (userData.additionalData) {
+            Object.keys(userData.additionalData).forEach(key => {
+                safeSetItem(key, userData.additionalData[key]);
+            });
+        }
+
+        // Збереження часової мітки оновлення
+        safeSetItem('userDataTimestamp', timestamp);
+
+        // Генеруємо подію про оновлення даних
+        document.dispatchEvent(new CustomEvent('user-data-updated', {
+            detail: {
+                updatedFields: Object.keys(storedData),
+                timestamp: timestamp
+            }
+        }));
+
+        return true;
+    } catch (error) {
+        console.error("❌ Критична помилка збереження даних користувача:", error);
+        return false;
+    }
+}
+
+/**
+ * Отримання всіх збережених даних користувача з localStorage
+ * @returns {Object} Об'єкт з даними користувача
+ */
+function getUserDataFromStorage() {
+    try {
+        const userData = {
+            telegram_id: localStorage.getItem('telegram_user_id') || localStorage.getItem('userId'),
+            username: localStorage.getItem('username'),
+            balance: parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0'),
+            coins: parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0'),
+            timestamp: parseInt(localStorage.getItem('userDataTimestamp') || '0')
+        };
+
+        // Спроба отримати дані стейкінгу
+        try {
+            const stakingData = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+            if (stakingData) {
+                userData.staking = JSON.parse(stakingData);
+            }
+        } catch (e) {
+            console.warn("❌ Помилка при отриманні даних стейкінгу з localStorage:", e);
+        }
+
+        // Спроба отримати історію транзакцій
+        try {
+            const transactionsData = localStorage.getItem('transactionsData');
+            if (transactionsData) {
+                userData.transactions = JSON.parse(transactionsData);
+            }
+        } catch (e) {
+            console.warn("❌ Помилка при отриманні історії транзакцій з localStorage:", e);
+        }
+
+        return userData;
+    } catch (error) {
+        console.error("❌ Помилка при отриманні даних користувача з localStorage:", error);
+        return {
+            telegram_id: null,
+            balance: 0,
+            coins: 0,
+            error: error.message
+        };
+    }
+}
+/**
+ * Очищення всіх даних користувача з localStorage
+ * @returns {boolean} Успішність очищення
+ */
+function clearUserDataStorage() {
+    try {
+        // Список ключів для очищення
+        const keysToRemove = [
+            'telegram_user_id', 'userId', 'username',
+            'userTokens', 'winix_balance',
+            'userCoins', 'winix_coins',
+            'stakingData', 'winix_staking', 'stakingDataCacheTime',
+            'transactionsData', 'transactionsDataCacheTime',
+            'userDataTimestamp', 'userSettings'
+        ];
+
+        // Видаляємо всі ключі
+        keysToRemove.forEach(key => {
+            try {
+                localStorage.removeItem(key);
+            } catch (e) {
+                console.warn(`Помилка при очищенні ${key}:`, e);
+            }
+        });
+
+        console.log("🧹 Дані користувача успішно очищено з localStorage");
+        return true;
+    } catch (error) {
+        console.error("❌ Помилка при очищенні даних користувача з localStorage:", error);
+        return false;
+    }
+}
 })();
