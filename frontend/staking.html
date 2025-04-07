@@ -395,6 +395,36 @@
             font-weight: bold;
             color: #00C9A7;
             text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
+            transition: color 0.5s ease, text-shadow 0.5s ease;
+            position: relative;
+            display: inline-block;
+        }
+
+        #expected-reward.calculating {
+            position: relative;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        #expected-reward.calculating::after {
+            content: "";
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00C9A7, transparent);
+            animation: loadingBar 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes loadingBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .staking-button {
@@ -452,6 +482,36 @@
             padding: 0.625rem; /* 10px */
             font-size: 0.875rem; /* 14px */
             color: var(--text-secondary);
+            min-height: 2.5rem; /* 40px - для стабільного розміру при оновленні */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* Анімація пульсації для завантаження */
+        .loading-pulse {
+            position: relative;
+            display: inline-block;
+            animation: textPulse 1.5s infinite ease-in-out;
+        }
+
+        .loading-pulse::after {
+            content: "...";
+            opacity: 1;
+            animation: dotAnimation 1.5s infinite ease-in-out;
+        }
+
+        @keyframes textPulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+
+        @keyframes dotAnimation {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
         }
 
         .nav-bar {
@@ -1106,6 +1166,285 @@
     to {
         transform: rotate(360deg);
     }
+}
+/* Додай ці стилі до розділу <style> в staking.html */
+
+/* Глобальні анімації та переходи */
+body * {
+    transition: background-color 0.3s ease,
+                color 0.3s ease,
+                border-color 0.3s ease,
+                box-shadow 0.3s ease,
+                transform 0.3s ease,
+                opacity 0.3s ease;
+}
+
+/* Покращене плавне з'явлення контенту */
+.container {
+    animation: smoothFadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: opacity, transform;
+}
+
+@keyframes smoothFadeIn {
+    from {
+        opacity: 0.2;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Плавне з'явлення елементів з затримкою */
+.wallet-card {
+    animation: cardAppear 0.7s cubic-bezier(0.19, 1, 0.22, 1) 0.1s both;
+    will-change: opacity, transform;
+}
+
+@keyframes cardAppear {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow: 0 10px 30px var(--shadow-color);
+    }
+}
+
+/* Плавна поява елементів форми */
+.staking-input, .period-select, #expected-reward-display {
+    animation: elementAppear 0.5s ease both;
+    animation-delay: calc(var(--item-index, 0) * 0.1s + 0.3s);
+    will-change: opacity, transform;
+}
+
+.staking-input:nth-child(1) { --item-index: 1; }
+.staking-input:nth-child(2) { --item-index: 2; }
+#expected-reward-display { --item-index: 3; }
+.staking-button { --item-index: 4; }
+.active-staking-button { --item-index: 5; }
+.cancel-button { --item-index: 6; }
+
+@keyframes elementAppear {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Удосконалені плавні анімації для кнопок */
+.staking-button,
+.active-staking-button,
+.cancel-button,
+.max-button,
+.details-button,
+.back-button,
+.nav-item {
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                box-shadow 0.3s ease,
+                opacity 0.3s ease,
+                background-color 0.3s ease !important;
+    will-change: transform, box-shadow;
+}
+
+/* Покращений ефект натискання з тактильним відгуком */
+.staking-button:active,
+.active-staking-button:active,
+.cancel-button:active,
+.max-button:active,
+.details-button:active,
+.back-button:active {
+    transform: scale(0.97) translateY(1px) !important;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3) !important;
+    transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+
+/* Покращений ефект при наведенні */
+.staking-button:hover,
+.active-staking-button:hover,
+.cancel-button:hover:not(:disabled),
+.max-button:hover,
+.details-button:hover,
+.back-button:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-3px) scale(1.02);
+}
+
+/* Додавання ефекту "хвилі" при кліку */
+.staking-button::after,
+.active-staking-button::after,
+.cancel-button::after,
+.max-button::after,
+.details-button::after,
+.back-button::after {
+    content: '';
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 60%);
+    background-repeat: no-repeat;
+    background-position: 50%;
+    transform: scale(10, 10);
+    opacity: 0;
+    transition: transform 0.5s, opacity 1s;
+}
+
+.staking-button:active::after,
+.active-staking-button:active::after,
+.cancel-button:active::after,
+.max-button:active::after,
+.details-button:active::after,
+.back-button:active::after {
+    transform: scale(0, 0);
+    opacity: 0.3;
+    transition: 0s;
+}
+
+/* Покращена анімація блимання для кнопки активного стейкінгу */
+.active-staking-button:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0.2),
+        rgba(255, 255, 255, 0.1),
+        rgba(255, 255, 255, 0));
+    animation: smoothShine 3s infinite ease-in-out;
+}
+
+@keyframes smoothShine {
+    0% { left: -100%; }
+    40% { left: 100%; }
+    100% { left: 100%; }
+}
+
+/* Плавне оновлення полів вводу */
+.staking-input input,
+.period-select {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.staking-input input:focus,
+.period-select:focus {
+    animation: softGlow 2s infinite alternate;
+}
+
+@keyframes softGlow {
+    from { box-shadow: 0 0 5px rgba(0, 201, 167, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.2); }
+    to { box-shadow: 0 0 10px rgba(0, 201, 167, 0.6), inset 0 2px 5px rgba(0, 0, 0, 0.2); }
+}
+
+/* Плавне оновлення для елементів, що оновлюються */
+#user-tokens,
+#user-coins,
+#expected-reward,
+#staking-status {
+    transition: all 0.5s ease-in-out;
+}
+
+/* Анімація для оновлення значень */
+.value-updated {
+    animation: highlight 1s ease;
+}
+
+@keyframes highlight {
+    0% { color: inherit; transform: scale(1); }
+    30% { color: #4DB6AC; transform: scale(1.1); text-shadow: 0 0 15px rgba(77, 182, 172, 0.7); }
+    100% { color: inherit; transform: scale(1); }
+}
+
+/* Новий стиль для модальних вікон */
+.modal-overlay {
+    backdrop-filter: blur(8px);
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.modal-container {
+    transform: scale(0.8);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.modal-overlay.active .modal-container {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* Плавний скролінг */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Скелетон-завантажувачі для даних, що завантажуються */
+.skeleton-loading {
+    position: relative;
+    background: linear-gradient(90deg, rgba(20, 30, 60, 0.7), rgba(30, 40, 70, 0.7), rgba(20, 30, 60, 0.7));
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+    min-height: 1.2em;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+
+/* Покращені елементи форми */
+.staking-input,
+#expected-reward-display {
+    transition: transform 0.3s ease;
+}
+
+.staking-input:focus-within {
+    transform: scale(1.02);
+}
+
+/* Покращений статус завантаження */
+.global-loader {
+    backdrop-filter: blur(8px);
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.loader-content {
+    transform: scale(0.8);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.global-loader.show .loader-content {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* Стилі для сповіщень */
+.modern-notification {
+    transform: translateX(-50%) translateY(-100px);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                opacity 0.4s ease;
+}
+
+.modern-notification.show {
+    transform: translateX(-50%) translateY(0);
 }
     </style>
 </head>
@@ -1995,14 +2334,9 @@ window.hideLoading = hideLoading;
                     }
 
                     if (response.status === 'success') {
-                        // Оновлюємо локальні дані про стейкінг
+                        // Очищаємо дані стейкінгу
                         localStorage.removeItem('stakingData');
                         localStorage.removeItem('winix_staking');
-
-                        // Оновлюємо інтерфейс
-                        if (window.WinixStakingSystem && window.WinixStakingSystem.refresh) {
-                            window.WinixStakingSystem.refresh();
-                        }
 
                         // Оновлюємо баланс
                         if (response.data && response.data.newBalance) {
