@@ -1717,93 +1717,39 @@
 
         // Покращений обробник скасування стейкінгу
         function enhancedCancelStaking() {
-            // Приховуємо модальне вікно, якщо воно відкрито
-            hideStakingModal();
+    // Приховуємо модальне вікно, якщо воно відкрито
+    hideStakingModal();
 
-            // Показуємо діалог підтвердження
-            const confirmDialog = document.getElementById('premium-confirm-dialog');
-            confirmDialog.classList.add('show');
+    // Використовуємо нову функцію скасування з WinixStakingSystem
+    if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('spinner-overlay');
+        if (spinner) spinner.classList.add('show');
 
-            // Налаштовуємо кнопки діалогу
-            const noButton = document.getElementById('cancel-staking-no');
-            const yesButton = document.getElementById('cancel-staking-yes');
+        window.WinixStakingSystem.cancelStaking()
+            .then(result => {
+                // Приховуємо індикатор завантаження
+                if (spinner) spinner.classList.remove('show');
 
-            // Видаляємо старі обробники подій
-            const newNoButton = noButton.cloneNode(true);
-            const newYesButton = yesButton.cloneNode(true);
-            noButton.parentNode.replaceChild(newNoButton, noButton);
-            yesButton.parentNode.replaceChild(newYesButton, yesButton);
-
-            // Додаємо нові обробники
-            newNoButton.addEventListener('click', function() {
-                confirmDialog.classList.remove('show');
-            });
-
-            newYesButton.addEventListener('click', function() {
-                confirmDialog.classList.remove('show');
-
-                // Показуємо індикатор завантаження
-                const spinner = document.getElementById('spinner-overlay');
-                if (spinner) spinner.classList.add('show');
-
-                // Викликаємо функцію скасування стейкінгу
-                if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
-                    window.WinixStakingSystem.cancelStaking()
-                        .then(result => {
-                            // Приховуємо індикатор завантаження
-                            if (spinner) spinner.classList.remove('show');
-
-                            if (result.success) {
-                                // Показуємо повідомлення про успіх
-                                if (typeof window.showNotification === 'function') {
-                                    window.showNotification(result.message || "Стейкінг успішно скасовано", false, function() {
-                                        // Перезавантажуємо сторінку
-                                        setTimeout(() => {
-                                            window.location.reload();
-                                        }, 1500);
-                                    });
-                                } else {
-                                    alert(result.message || "Стейкінг успішно скасовано");
-                                    // Перезавантажуємо сторінку
-                                    setTimeout(() => {
-                                        window.location.reload();
-                                    }, 1500);
-                                }
-                            } else {
-                                // Показуємо повідомлення про помилку
-                                if (typeof window.showNotification === 'function') {
-                                    window.showNotification(result.message || "Помилка скасування стейкінгу", true);
-                                } else {
-                                    alert(result.message || "Помилка скасування стейкінгу");
-                                }
-                            }
-                        })
-                        .catch(error => {
-                            // Приховуємо індикатор завантаження
-                            if (spinner) spinner.classList.remove('show');
-
-                            // Показуємо повідомлення про помилку
-                            if (typeof window.showNotification === 'function') {
-                                window.showNotification("Сталася помилка при скасуванні стейкінгу", true);
-                            } else {
-                                alert("Сталася помилка при скасуванні стейкінгу");
-                            }
-
-                            console.error("Помилка при скасуванні стейкінгу:", error);
-                        });
-                } else {
-                    // Приховуємо індикатор завантаження
-                    if (spinner) spinner.classList.remove('show');
-
-                    // Показуємо повідомлення про помилку
-                    if (typeof window.showNotification === 'function') {
-                        window.showNotification("Функція скасування стейкінгу недоступна", true);
-                    } else {
-                        alert("Функція скасування стейкінгу недоступна");
-                    }
+                if (result.success) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
                 }
+            })
+            .catch(error => {
+                // Приховуємо індикатор завантаження
+                if (spinner) spinner.classList.remove('show');
+                console.error("Помилка при скасуванні стейкінгу:", error);
             });
+    } else {
+        if (typeof window.showNotification === 'function') {
+            window.showNotification("Функція скасування стейкінгу недоступна", true);
+        } else {
+            alert("Функція скасування стейкінгу недоступна");
         }
+    }
+}
 
         // Функція для оновлення очікуваної винагороди
         function updateExpectedReward() {
@@ -1950,13 +1896,13 @@
             // Кнопка "Скасувати стейкінг" в модальному вікні
             const modalCancelButton = document.getElementById('modal-cancel-staking-button');
             if (modalCancelButton) {
-                modalCancelButton.addEventListener('click', enhancedCancelStaking);
+                newBtn.addEventListener('click', enhancedCancelStaking);
             }
 
             // Кнопка "Скасувати стейкінг" на сторінці
             const cancelStakingButton = document.getElementById('cancel-staking-button');
             if (cancelStakingButton) {
-                cancelStakingButton.addEventListener('click', enhancedCancelStaking);
+                newBtn.addEventListener('click', enhancedCancelStaking);
             }
 
             // Оновлюємо кнопки стейкінгу залежно від наявності активного стейкінгу
@@ -1995,12 +1941,142 @@
                     e.preventDefault();
                 }
 
+
+
                 if (stakingModal && stakingModal.classList.contains('active')) {
                     stakingModal.classList.remove('active');
                     e.preventDefault();
                 }
             }
         });
+        /**
+ * Додатковий скрипт для виправлення проблеми зі скасуванням стейкінгу
+ * Цей файл потрібно додати до сторінки staking.html після завантаження всіх
+ * основних скриптів або додати його вміст у тег <script> в кінці сторінки
+ */
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("📋 Ініціалізація виправлень для стейкінгу...");
+
+    try {
+        // 1. Виправлення конфлікту між локальними функціями та функціями WinixStakingSystem
+
+        // Перевіряємо, чи існує глобальна функція showNotification
+        if (typeof window.showNotification !== 'function') {
+            window.showNotification = function(message, isError = false, callback = null) {
+                console.log(`Показ сповіщення: ${message} (${isError ? 'помилка' : 'успіх'})`);
+                if (isError) {
+                    alert(message);
+                } else if (typeof alert === 'function') {
+                    alert(message);
+                }
+                if (callback) setTimeout(callback, 100);
+            };
+        }
+
+        // Перевіряємо, чи є функції для модального вікна
+        if (typeof window.showModernConfirm !== 'function') {
+            window.showModernConfirm = function(message, onConfirm, onCancel) {
+                const result = confirm(message);
+                if (result) {
+                    if (onConfirm) onConfirm();
+                } else {
+                    if (onCancel) onCancel();
+                }
+            };
+        }
+
+        // Заміна обробників кнопок скасування
+        function updateCancelButtons() {
+            const cancelButtons = [
+                document.getElementById('cancel-staking-button'),
+                document.getElementById('modal-cancel-staking-button')
+            ];
+
+            cancelButtons.forEach(btn => {
+                if (btn) {
+                    // Перевіряємо, чи не було вже встановлено нашого обробника
+                    const hasHandler = btn.getAttribute('data-fixed-handler');
+                    if (hasHandler) return;
+
+                    // Видаляємо всі існуючі обробники
+                    const newBtn = btn.cloneNode(true);
+                    btn.parentNode.replaceChild(newBtn, btn);
+
+                    // Додаємо новий обробник з маркером
+                    newBtn.setAttribute('data-fixed-handler', 'true');
+                    newBtn.addEventListener('click', function() {
+                        if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
+                            console.log("Виклик WinixStakingSystem.cancelStaking...");
+
+                            // Приховуємо модальне вікно стейкінгу, якщо воно відкрите
+                            const modal = document.getElementById('staking-modal');
+                            if (modal) modal.classList.remove('active');
+
+                            // Показуємо індикатор завантаження
+                            if (typeof window.showLoading === 'function') {
+                                window.showLoading('Скасування стейкінгу...');
+                            }
+
+                            // Викликаємо функцію скасування
+                            window.WinixStakingSystem.cancelStaking()
+                                .then(result => {
+                                    // Приховуємо індикатор завантаження
+                                    if (typeof window.hideLoading === 'function') {
+                                        window.hideLoading();
+                                    }
+
+                                    console.log("Результат скасування стейкінгу:", result);
+
+                                    if (result.success) {
+                                        // Додаємо затримку перед перезавантаженням для показу сповіщення
+                                        setTimeout(() => {
+                                            window.location.reload();
+                                        }, 1500);
+                                    }
+                                })
+                                .catch(error => {
+                                    // Приховуємо індикатор завантаження
+                                    if (typeof window.hideLoading === 'function') {
+                                        window.hideLoading();
+                                    }
+
+                                    console.error("Помилка при скасуванні стейкінгу:", error);
+
+                                    if (typeof window.showNotification === 'function') {
+                                        window.showNotification("Помилка при скасуванні стейкінгу", true);
+                                    } else {
+                                        alert("Помилка при скасуванні стейкінгу");
+                                    }
+                                });
+                        } else {
+                            console.error("Функція cancelStaking не знайдена в WinixStakingSystem");
+
+                            if (typeof window.showNotification === 'function') {
+                                window.showNotification("Функція скасування стейкінгу недоступна", true);
+                            } else {
+                                alert("Функція скасування стейкінгу недоступна");
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // Запускаємо оновлення кнопок через невелику затримку для повної ініціалізації сторінки
+        setTimeout(updateCancelButtons, 1000);
+
+        // Підписуємося на подію ініціалізації стейкінгу для повторного оновлення кнопок
+        document.addEventListener('staking-initialized', function() {
+            console.log("Отримано подію staking-initialized, оновлюємо кнопки...");
+            setTimeout(updateCancelButtons, 500);
+        });
+
+        console.log("✅ Виправлення для стейкінгу успішно ініціалізовано");
+    } catch (error) {
+        console.error("❌ Помилка ініціалізації виправлень для стейкінгу:", error);
+    }
+});
     </script>
 </body>
 </html>

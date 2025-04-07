@@ -1,5 +1,15 @@
 /**
- * Преміальна версія сповіщень
+ * Єдиний модуль утиліт для WINIX
+ * Включає всі допоміжні функції для сповіщень та інтерфейсу
+ */
+
+// Прапорці для контролю стану сповіщень
+let _isShowingNotification = false;
+let _notificationsQueue = [];
+const MAX_NOTIFICATIONS = 1; // Максимальна кількість одночасних сповіщень
+
+/**
+ * Уніфікована функція для показу сповіщень в преміум-стилі
  * @param {string} message - Текст повідомлення
  * @param {boolean} isError - Чи є повідомлення помилкою
  * @param {Function} callback - Функція зворотного виклику
@@ -11,17 +21,23 @@ function showNotification(message, isError = false, callback = null) {
         return;
     }
 
-    try {
-        // Запобігаємо рекурсивним викликам
-        if (_isShowingNotification) {
-            // Якщо рекурсивний виклик, використовуємо alert
+    // Якщо уже показується сповіщення, додаємо в чергу
+    if (_isShowingNotification) {
+        if (_notificationsQueue.length < MAX_NOTIFICATIONS) {
+            _notificationsQueue.push({ message, isError, callback });
+            console.log(`Added notification to queue: "${message}". Queue length: ${_notificationsQueue.length}`);
+        } else {
+            // Якщо черга переповнена, і це повідомлення про помилку, показуємо його через alert
             if (isError) alert(message);
             if (callback) setTimeout(callback, 100);
-            return;
         }
+        return;
+    }
 
-        _isShowingNotification = true;
+    _isShowingNotification = true;
+    console.log(`Showing notification: "${message}"`);
 
+    try {
         // Перевіряємо, чи контейнер для повідомлень вже існує
         let container = document.getElementById('premium-notification-container');
 
@@ -231,35 +247,42 @@ function showNotification(message, isError = false, callback = null) {
             notification.classList.add('show');
         }, 10);
 
-        // Закриття при кліку на кнопку
-        closeBtn.addEventListener('click', () => {
+        // Функція закриття сповіщення
+        const closeNotification = () => {
             notification.classList.remove('show');
             notification.classList.add('hide');
+
             setTimeout(() => {
                 notification.remove();
-                if (callback) callback();
+                _isShowingNotification = false;
+
+                // Показуємо наступне повідомлення з черги
+                if (_notificationsQueue.length > 0) {
+                    const nextNotification = _notificationsQueue.shift();
+                    console.log(`Processing next notification from queue. Remaining: ${_notificationsQueue.length}`);
+                    showNotification(nextNotification.message, nextNotification.isError, nextNotification.callback);
+                } else if (callback) {
+                    callback();
+                }
             }, 300);
-        });
+        };
+
+        // Закриття при кліку на кнопку
+        closeBtn.addEventListener('click', closeNotification);
 
         // Автоматичне закриття
         setTimeout(() => {
-            notification.classList.remove('show');
-            notification.classList.add('hide');
-            setTimeout(() => {
-                notification.remove();
-                if (callback) callback();
-            }, 300);
+            if (notification.parentNode) {
+                closeNotification();
+            }
         }, 5000);
-
-        _isShowingNotification = false;
     } catch (e) {
         console.error('Помилка показу повідомлення:', e);
 
         // Якщо не вдалося створити повідомлення, використовуємо alert
         alert(message);
-        if (callback) callback();
-
         _isShowingNotification = false;
+        if (callback) callback();
     }
 }
 
@@ -458,6 +481,17 @@ function showModernConfirm(message, onConfirm, onCancel) {
             if (onConfirm) onConfirm();
         };
 
+        // Обробка клавіші Escape
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeDialog();
+                if (onCancel) onCancel();
+                document.removeEventListener('keydown', handleKeyDown);
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
         // Показуємо діалог
         setTimeout(() => {
             overlay.classList.add('show');
@@ -564,6 +598,15 @@ function showInputModal(message, callback) {
                 if (callback) callback(value);
             }
         });
+
+        // Обробка Escape
+        document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        });
     } catch (e) {
         console.error('Помилка відображення діалогу введення:', e);
 
@@ -572,3 +615,148 @@ function showInputModal(message, callback) {
         if (callback) callback(value);
     }
 }
+
+/**
+ * Показ індикатора завантаження
+ * @param {string} message - Повідомлення (опціонально)
+ */
+function showLoading(message) {
+    try {
+        let spinner = document.getElementById('loading-spinner');
+
+        if (!spinner) {
+            // Створюємо індикатор завантаження
+            const spinnerContainer = document.createElement('div');
+            spinnerContainer.id = 'loading-spinner';
+            spinnerContainer.className = 'spinner-overlay';
+
+            spinnerContainer.innerHTML = `
+                <div class="spinner-content">
+                    <div class="spinner"></div>
+                    ${message ? `<div class="spinner-message">${message}</div>` : ''}
+                </div>
+            `;
+
+            // Додаємо стилі, якщо їх немає
+            if (!document.getElementById('spinner-styles')) {
+                const style = document.createElement('style');
+                style.id = 'spinner-styles';
+                style.textContent = `
+                    .spinner-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.7);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 9999;
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.3s ease, visibility 0.3s ease;
+                        backdrop-filter: blur(3px);
+                    }
+                    
+                    .spinner-overlay.show {
+                        opacity: 1;
+                        visibility: visible;
+                    }
+                    
+                    .spinner-content {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 16px;
+                    }
+                    
+                    .spinner {
+                        width: 50px;
+                        height: 50px;
+                        border: 5px solid rgba(0, 201, 167, 0.3);
+                        border-radius: 50%;
+                        border-top-color: rgb(0, 201, 167);
+                        animation: spin 1s linear infinite;
+                    }
+                    
+                    .spinner-message {
+                        color: white;
+                        font-size: 16px;
+                        text-align: center;
+                        max-width: 300px;
+                    }
+                    
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            document.body.appendChild(spinnerContainer);
+            spinner = spinnerContainer;
+        } else {
+            // Оновлюємо повідомлення, якщо воно передане
+            if (message) {
+                const messageEl = spinner.querySelector('.spinner-message');
+                if (messageEl) {
+                    messageEl.textContent = message;
+                } else {
+                    const newMessageEl = document.createElement('div');
+                    newMessageEl.className = 'spinner-message';
+                    newMessageEl.textContent = message;
+
+                    const content = spinner.querySelector('.spinner-content');
+                    if (content) {
+                        content.appendChild(newMessageEl);
+                    }
+                }
+            }
+        }
+
+        // Показуємо індикатор
+        spinner.classList.add('show');
+
+    } catch (e) {
+        console.error('Помилка показу індикатора завантаження:', e);
+    }
+}
+
+/**
+ * Приховування індикатора завантаження
+ */
+function hideLoading() {
+    try {
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.classList.remove('show');
+        }
+    } catch (e) {
+        console.error('Помилка приховування індикатора завантаження:', e);
+    }
+}
+
+/**
+ * Проста функція для показу тостів
+ * Використовує преміум-сповіщення для уніфікації стилю
+ */
+function showToast(message, isError = false) {
+    showNotification(message, isError);
+}
+
+/**
+ * Простий алерт (використовує преміум-сповіщення)
+ */
+function simpleAlert(message, isError = false) {
+    showNotification(message, isError);
+}
+
+// Експортуємо функції як глобальні
+window.showNotification = showNotification;
+window.showModernConfirm = showModernConfirm;
+window.showInputModal = showInputModal;
+window.showLoading = showLoading;
+window.hideLoading = hideLoading;
+window.showToast = showToast;
+window.simpleAlert = simpleAlert;
