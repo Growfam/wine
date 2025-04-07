@@ -1827,6 +1827,7 @@ function fixConflicts() {
             // Перевіряємо, чи не виконується вже скасування
             if (window._cancelingStaking) {
                 console.warn("⚠️ Скасування стейкінгу вже виконується");
+                safeShowMessage("Зачекайте, виконується попередній запит", true);
                 return {
                     success: false,
                     message: "Скасування стейкінгу вже виконується"
@@ -1880,13 +1881,24 @@ function fixConflicts() {
 
                 if (!targetStakingId) {
                     try {
-                        // Спробуємо отримати ID з localStorage як резервний варіант
-                        const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
-                        if (stakingDataStr) {
-                            const localData = JSON.parse(stakingDataStr);
-                            if (localData && localData.stakingId) {
-                                targetStakingId = localData.stakingId;
-                                console.log(`🔍 Отримано ID стейкінгу з localStorage: ${targetStakingId}`);
+                        // Спочатку спробуємо отримати з активного стейкінгу
+                        if (window.WinixStakingSystem && typeof window.WinixStakingSystem.getStakingData === 'function') {
+                            const stakingData = window.WinixStakingSystem.getStakingData();
+                            if (stakingData && stakingData.stakingId) {
+                                targetStakingId = stakingData.stakingId;
+                                console.log(`🔍 Отримано ID стейкінгу з WinixStakingSystem: ${targetStakingId}`);
+                            }
+                        }
+
+                        // Якщо не вдалося, спробуємо з localStorage
+                        if (!targetStakingId) {
+                            const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+                            if (stakingDataStr) {
+                                const localData = JSON.parse(stakingDataStr);
+                                if (localData && localData.stakingId) {
+                                    targetStakingId = localData.stakingId;
+                                    console.log(`🔍 Отримано ID стейкінгу з localStorage: ${targetStakingId}`);
+                                }
                             }
                         }
 
@@ -1901,12 +1913,11 @@ function fixConflicts() {
 
                 console.log(`🔄 Скасування стейкінгу з ID: ${targetStakingId}`);
 
-                // Виконуємо запит прямо, без використання apiRequest
-                const response = await fetch(`/api/user/${userId}/staking/${targetStakingId}/cancel?t=${Date.now()}`, {
+                // Виконуємо запит напряму, без використання apiRequest
+                const response = await fetch(`/api/user/${userId}/staking/${targetStakingId}/cancel`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Telegram-User-Id': userId
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         confirm: true,
@@ -1996,16 +2007,86 @@ function fixConflicts() {
         console.log("✅ Функцію cancelStaking модифіковано");
     }
 
+    // 4. Виправляємо кнопку скасування стейкінгу
+    try {
+        const cancelButton = document.getElementById('cancel-staking-button');
+        if (cancelButton) {
+            console.log("🔄 Виправлення кнопки скасування стейкінгу");
+
+            // Клонуємо кнопку для видалення старих обробників
+            const newCancelButton = cancelButton.cloneNode(true);
+            cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+
+            // Додаємо новий обробник
+            newCancelButton.addEventListener('click', function() {
+                if (window.WinixAPI && typeof window.WinixAPI.cancelStaking === 'function') {
+                    window.WinixAPI.cancelStaking();
+                } else if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
+                    window.WinixStakingSystem.cancelStaking();
+                } else {
+                    safeShowMessage("Не вдалося знайти функцію скасування стейкінгу", true);
+                }
+            });
+
+            console.log("✅ Кнопку скасування стейкінгу виправлено");
+        }
+
+        // Аналогічно виправляємо кнопку в модальному вікні
+        const modalCancelButton = document.getElementById('modal-cancel-staking-button');
+        if (modalCancelButton) {
+            const newModalCancelButton = modalCancelButton.cloneNode(true);
+            modalCancelButton.parentNode.replaceChild(newModalCancelButton, modalCancelButton);
+
+            newModalCancelButton.addEventListener('click', function() {
+                // Закриваємо модальне вікно
+                const modal = document.getElementById('staking-modal');
+                if (modal) modal.classList.remove('active');
+
+                // Викликаємо функцію скасування
+                if (window.WinixAPI && typeof window.WinixAPI.cancelStaking === 'function') {
+                    window.WinixAPI.cancelStaking();
+                } else if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
+                    window.WinixStakingSystem.cancelStaking();
+                } else {
+                    safeShowMessage("Не вдалося знайти функцію скасування стейкінгу", true);
+                }
+            });
+        }
+    } catch (e) {
+        console.error("❌ Помилка виправлення кнопок скасування стейкінгу:", e);
+    }
+
+    // 5. Додаємо перехоплення глобальних помилок
+    try {
+        window.onerror = function(message, source, lineno, colno, error) {
+            // Перехоплюємо помилки скасування стейкінгу
+            if (message && message.includes('staking') && (message.includes('cancel') || message.includes('скасува'))) {
+                console.warn("⚠️ Перехоплено помилку скасування стейкінгу:", message);
+
+                // Скидаємо блокування
+                window._cancelingStaking = false;
+
+                // Прибираємо індикатор завантаження
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
+                // Показуємо повідомлення про помилку
+                setTimeout(() => {
+                    safeShowMessage("Виникла помилка при скасуванні стейкінгу. Спробуйте ще раз.", true);
+                }, 300);
+
+                return true; // Запобігаємо стандартній обробці помилки
+            }
+
+            return false; // Дозволяємо стандартну обробку для інших помилок
+        };
+    } catch (e) {
+        console.error("❌ Помилка налаштування глобального обробника помилок:", e);
+    }
+
     console.log("✅ Виправлення конфліктів завершено");
 }
-
-// Запускаємо виправлення після повного завантаження сторінки
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(fixConflicts, 500);
-});
-
-// Для більш надійного виправлення, запускаємо через таймаут
-setTimeout(fixConflicts, 1000);
     </script>
 </body>
 </html>
