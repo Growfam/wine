@@ -1,375 +1,577 @@
 /**
- * utils.js
- *
- * Хелперні функції для роботи з датами, форматуванням та розрахунками,
- * які використовуються в системі стейкінгу WINIX
+ * ui.js - Елементи інтерфейсу WINIX
  */
 
 (function() {
     'use strict';
 
-    // ================= ФУНКЦІЇ ДЛЯ РОБОТИ З ДАТАМИ =================
+    console.log("🔄 UI: Ініціалізація елементів інтерфейсу");
+
+    // ======== ПРИВАТНІ ЗМІННІ ========
+
+    // Прапорець для індикатора завантаження
+    let _loaderVisible = false;
+
+    // Прапорець для запобігання рекурсивним сповіщенням
+    let _isShowingNotification = false;
+
+    // Остання показана помилка
+    let _lastErrorNotificationTime = 0;
+    let _lastErrorMessage = '';
+
+    // ======== ІНДИКАТОРИ ЗАВАНТАЖЕННЯ ========
 
     /**
-     * Форматування дати у зручний для користувача формат
-     * @param {string|Date} date - Дата для форматування
-     * @param {string} format - Формат виводу (default: 'DD.MM.YYYY')
-     * @returns {string} - Форматована дата
+     * Показати індикатор завантаження
+     * @param {string} message - Повідомлення
      */
-    function formatDate(date, format = 'DD.MM.YYYY') {
+    function showLoading(message = 'Завантаження...') {
         try {
-            // Якщо дата передана як рядок, конвертуємо в об'єкт Date
-            const dateObj = typeof date === 'string' ? new Date(date) : date;
-
-            // Перевіряємо валідність дати
-            if (!(dateObj instanceof Date) || isNaN(dateObj)) {
-                return '';
+            // Якщо індикатор вже показаний, просто оновлюємо повідомлення
+            if (_loaderVisible) {
+                const loaderMessage = document.querySelector('#loading-spinner .message');
+                if (loaderMessage) loaderMessage.textContent = message;
+                return;
             }
 
-            const day = dateObj.getDate().toString().padStart(2, '0');
-            const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-            const year = dateObj.getFullYear();
-            const hours = dateObj.getHours().toString().padStart(2, '0');
-            const minutes = dateObj.getMinutes().toString().padStart(2, '0');
-            const seconds = dateObj.getSeconds().toString().padStart(2, '0');
+            // Створюємо індикатор, якщо його немає
+            let loader = document.getElementById('loading-spinner');
 
-            // Заміна плейсхолдерів
-            return format
-                .replace('DD', day)
-                .replace('MM', month)
-                .replace('YYYY', year)
-                .replace('HH', hours)
-                .replace('mm', minutes)
-                .replace('ss', seconds);
-        } catch (e) {
-            console.error('Помилка форматування дати:', e);
-            return '';
-        }
-    }
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'loading-spinner';
+                loader.innerHTML = `
+                    <div class="spinner"></div>
+                    <div class="message">${message}</div>
+                `;
 
-    /**
-     * Розрахунок різниці в днях між двома датами
-     * @param {string|Date} startDate - Початкова дата
-     * @param {string|Date} endDate - Кінцева дата
-     * @returns {number} - Кількість днів
-     */
-    function getDaysDifference(startDate, endDate) {
-        try {
-            // Конвертуємо рядки в об'єкти Date, якщо потрібно
-            const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
-            const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+                // Додаємо стилі
+                loader.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 9999;
+                `;
 
-            // Перевіряємо валідність дат
-            if (!(start instanceof Date) || !(end instanceof Date) || isNaN(start) || isNaN(end)) {
-                return 0;
-            }
+                // Додаємо лічильник використань
+                loader.dataset.useCount = '1';
 
-            // Розраховуємо різницю в мілісекундах і конвертуємо в дні
-            const diffTime = Math.abs(end - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            return diffDays;
-        } catch (e) {
-            console.error('Помилка розрахунку різниці в днях:', e);
-            return 0;
-        }
-    }
-
-    /**
-     * Розрахунок залишку часу до завершення стейкінгу
-     * @param {string|Date} endDate - Дата завершення стейкінгу
-     * @returns {Object} - Об'єкт з кількістю днів, годин, хвилин
-     */
-    function getTimeRemaining(endDate) {
-        try {
-            // Конвертуємо рядок в об'єкт Date, якщо потрібно
-            const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
-
-            // Перевіряємо валідність дати
-            if (!(end instanceof Date) || isNaN(end)) {
-                return {
-                    days: 0,
-                    hours: 0,
-                    minutes: 0,
-                    seconds: 0,
-                    total: 0
-                };
-            }
-
-            const now = new Date();
-
-            // Якщо стейкінг вже завершився, повертаємо нулі
-            if (end < now) {
-                return {
-                    days: 0,
-                    hours: 0,
-                    minutes: 0,
-                    seconds: 0,
-                    total: 0
-                };
-            }
-
-            // Розраховуємо різницю в мілісекундах
-            const total = end - now;
-
-            // Конвертуємо в дні, години, хвилини, секунди
-            const seconds = Math.floor((total / 1000) % 60);
-            const minutes = Math.floor((total / 1000 / 60) % 60);
-            const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
-            const days = Math.floor(total / (1000 * 60 * 60 * 24));
-
-            return {
-                days,
-                hours,
-                minutes,
-                seconds,
-                total
-            };
-        } catch (e) {
-            console.error('Помилка розрахунку залишку часу:', e);
-            return {
-                days: 0,
-                hours: 0,
-                minutes: 0,
-                seconds: 0,
-                total: 0
-            };
-        }
-    }
-
-    /**
-     * Форматування залишку часу у зручний для користувача формат
-     * @param {Object} timeRemaining - Об'єкт з кількістю днів, годин, хвилин
-     * @returns {string} - Форматований залишок часу
-     */
-    function formatTimeRemaining(timeRemaining) {
-        try {
-            if (!timeRemaining) {
-                return '0 днів';
-            }
-
-            const { days, hours, minutes } = timeRemaining;
-
-            if (days > 0) {
-                return `${days} ${pluralize(days, 'день', 'дня', 'днів')}`;
-            }
-
-            if (hours > 0) {
-                return `${hours} ${pluralize(hours, 'година', 'години', 'годин')}`;
-            }
-
-            return `${minutes} ${pluralize(minutes, 'хвилина', 'хвилини', 'хвилин')}`;
-        } catch (e) {
-            console.error('Помилка форматування залишку часу:', e);
-            return '0 днів';
-        }
-    }
-
-    // ================= ФУНКЦІЇ ФОРМАТУВАННЯ ТА РОЗРАХУНКІВ =================
-
-    /**
-     * Форматування числа як грошової суми
-     * @param {number} amount - Сума для форматування
-     * @param {number} decimals - Кількість знаків після коми
-     * @param {string} currency - Валюта
-     * @returns {string} - Форматована сума
-     */
-    function formatCurrency(amount, decimals = 2, currency = 'WINIX') {
-        try {
-            // Перевіряємо валідність суми
-            if (isNaN(amount)) {
-                return `0 ${currency}`;
-            }
-
-            // Форматуємо суму
-            const formattedAmount = parseFloat(amount).toFixed(decimals);
-
-            // Додаємо розділювачі для тисяч
-            const parts = formattedAmount.split('.');
-            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-
-            // Повертаємо форматовану суму з валютою
-            return `${parts.join('.')} ${currency}`;
-        } catch (e) {
-            console.error('Помилка форматування суми:', e);
-            return `0 ${currency}`;
-        }
-    }
-
-    /**
-     * Розрахунок відсотків на клієнті
-     * @param {number} amount - Сума
-     * @param {number} percent - Відсоток
-     * @param {number} decimals - Кількість знаків після коми
-     * @returns {number} - Результат розрахунку
-     */
-    function calculatePercent(amount, percent, decimals = 2) {
-        try {
-            // Перевіряємо валідність параметрів
-            if (isNaN(amount) || isNaN(percent)) {
-                return 0;
-            }
-
-            // Розраховуємо відсоток
-            const result = (amount * percent) / 100;
-
-            // Округлюємо до вказаної кількості знаків після коми
-            return parseFloat(result.toFixed(decimals));
-        } catch (e) {
-            console.error('Помилка розрахунку відсотків:', e);
-            return 0;
-        }
-    }
-
-    /**
-     * Розрахунок дохідності стейкінгу
-     * @param {number} amount - Сума стейкінгу
-     * @param {number} reward - Винагорода
-     * @param {number} days - Кількість днів
-     * @returns {number} - Річна дохідність у відсотках
-     */
-    function calculateAPY(amount, reward, days) {
-        try {
-            // Перевіряємо валідність параметрів
-            if (isNaN(amount) || isNaN(reward) || isNaN(days) || amount <= 0 || days <= 0) {
-                return 0;
-            }
-
-            // Розраховуємо відсоток за період
-            const periodPercent = (reward / amount) * 100;
-
-            // Розраховуємо річну дохідність
-            const periodsInYear = 365 / days;
-            const apy = periodPercent * periodsInYear;
-
-            // Округлюємо до двох знаків після коми
-            return parseFloat(apy.toFixed(2));
-        } catch (e) {
-            console.error('Помилка розрахунку річної дохідності:', e);
-            return 0;
-        }
-    }
-
-    // ================= ДОПОМІЖНІ ФУНКЦІЇ =================
-
-    /**
-     * Вибір правильної форми слова залежно від числа
-     * @param {number} count - Число
-     * @param {string} form1 - Форма для 1 (день)
-     * @param {string} form2 - Форма для 2-4 (дня)
-     * @param {string} form3 - Форма для 5+ (днів)
-     * @returns {string} - Правильна форма слова
-     */
-    function pluralize(count, form1, form2, form3) {
-        try {
-            // Перевіряємо валідність числа
-            count = Math.abs(count);
-
-            // Особливі випадки для чисел з 11 по 19
-            if (count % 100 >= 11 && count % 100 <= 19) {
-                return form3;
-            }
-
-            // Визначаємо форму за останньою цифрою
-            const lastDigit = count % 10;
-
-            if (lastDigit === 1) {
-                return form1;
-            }
-
-            if (lastDigit >= 2 && lastDigit <= 4) {
-                return form2;
-            }
-
-            return form3;
-        } catch (e) {
-            console.error('Помилка вибору форми слова:', e);
-            return form3;
-        }
-    }
-
-    /**
-     * Зберігання даних у локальному сховищі
-     * @param {string} key - Ключ
-     * @param {any} value - Значення
-     * @returns {boolean} - Результат операції
-     */
-    function saveToStorage(key, value) {
-        try {
-            // Для об'єктів і масивів використовуємо JSON.stringify
-            if (typeof value === 'object' && value !== null) {
-                localStorage.setItem(key, JSON.stringify(value));
+                document.body.appendChild(loader);
             } else {
-                localStorage.setItem(key, value);
+                // Якщо індикатор вже існує, оновлюємо повідомлення
+                const loaderMessage = loader.querySelector('.message');
+                if (loaderMessage) loaderMessage.textContent = message;
+
+                // Оновлюємо лічильник використань
+                const useCount = parseInt(loader.dataset.useCount || '0') + 1;
+                loader.dataset.useCount = useCount.toString();
+
+                // Показуємо індикатор
+                loader.style.display = 'flex';
             }
 
-            return true;
+            _loaderVisible = true;
         } catch (e) {
-            console.error(`Помилка збереження ${key} в localStorage:`, e);
-            return false;
+            console.error('Помилка показу індикатора завантаження:', e);
         }
     }
 
     /**
-     * Отримання даних з локального сховища
-     * @param {string} key - Ключ
-     * @param {any} defaultValue - Значення за замовчуванням
-     * @param {boolean} isJSON - Чи парсити як JSON
-     * @returns {any} - Отримане значення
+     * Приховати індикатор завантаження
      */
-    function getFromStorage(key, defaultValue = null, isJSON = false) {
+    function hideLoading() {
         try {
-            const value = localStorage.getItem(key);
-
-            if (value === null) {
-                return defaultValue;
+            const loader = document.getElementById('loading-spinner');
+            if (!loader) {
+                _loaderVisible = false;
+                return;
             }
 
-            if (isJSON) {
-                return JSON.parse(value);
-            }
+            // Зменшуємо лічильник використань
+            let useCount = parseInt(loader.dataset.useCount || '1') - 1;
 
-            return value;
+            // Якщо лічильник досяг нуля, приховуємо індикатор
+            if (useCount <= 0) {
+                loader.style.display = 'none';
+                loader.dataset.useCount = '0';
+                _loaderVisible = false;
+            } else {
+                // Інакше просто оновлюємо лічильник
+                loader.dataset.useCount = useCount.toString();
+            }
         } catch (e) {
-            console.error(`Помилка отримання ${key} з localStorage:`, e);
-            return defaultValue;
+            console.error('Помилка приховування індикатора завантаження:', e);
+            _loaderVisible = false;
+        }
+    }
+
+    // ======== ПОВІДОМЛЕННЯ ========
+
+    /**
+     * Показати повідомлення користувачу
+     * @param {string} message - Текст повідомлення
+     * @param {boolean} isError - Чи є повідомлення помилкою
+     * @param {Function} callback - Функція зворотного виклику
+     */
+    function showNotification(message, isError = false, callback = null) {
+        // Запобігаємо показу порожніх повідомлень
+        if (!message || message.trim() === '') {
+            if (callback) setTimeout(callback, 100);
+            return;
+        }
+
+        try {
+            // Запобігаємо рекурсивним викликам
+            if (_isShowingNotification) {
+                // Якщо рекурсивний виклик, використовуємо alert
+                if (isError) alert(message);
+                if (callback) setTimeout(callback, 100);
+                return;
+            }
+
+            _isShowingNotification = true;
+
+            // Перевіряємо, чи контейнер для повідомлень вже існує
+            let container = document.getElementById('notification-container');
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'notification-container';
+                container.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 9999;
+                    width: 300px;
+                `;
+                document.body.appendChild(container);
+            }
+
+            // Створюємо повідомлення
+            const notification = document.createElement('div');
+            notification.className = `notification ${isError ? 'error' : 'success'}`;
+            notification.innerHTML = message;
+            notification.style.cssText = `
+                padding: 15px 20px;
+                margin-bottom: 10px;
+                border-radius: 8px;
+                color: white;
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+                cursor: pointer;
+                background-color: ${isError ? '#e74c3c' : '#2ecc71'};
+            `;
+
+            // Додаємо анімацію
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes fadeOut {
+                    from { opacity: 1; }
+                    to { opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Додаємо повідомлення до контейнера
+            container.appendChild(notification);
+
+            // Закриття повідомлення при кліку
+            notification.addEventListener('click', () => {
+                notification.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            });
+
+            // Автоматичне закриття
+            setTimeout(() => {
+                notification.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => {
+                    notification.remove();
+                    if (callback) callback();
+                }, 300);
+            }, 5000);
+
+            _isShowingNotification = false;
+        } catch (e) {
+            console.error('Помилка показу повідомлення:', e);
+
+            // Якщо не вдалося створити повідомлення, використовуємо alert
+            alert(message);
+            if (callback) callback();
+
+            _isShowingNotification = false;
         }
     }
 
     /**
-     * Генерація унікального ідентифікатора
-     * @returns {string} - Унікальний ідентифікатор
+     * Показати модерне повідомлення з підтвердженням
+     * @param {string} message - Повідомлення
+     * @param {Function} onConfirm - Функція для підтвердження
+     * @param {Function} onCancel - Функція для скасування
      */
-    function generateUniqueId() {
+    function showModernConfirm(message, onConfirm, onCancel) {
         try {
-            return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+            // Перевіряємо, чи overlay вже існує
+            let overlay = document.getElementById('dialog-overlay');
+
+            if (!overlay) {
+                // Створюємо основні елементи
+                overlay = document.createElement('div');
+                overlay.id = 'dialog-overlay';
+                overlay.className = 'modern-dialog-overlay';
+
+                const dialog = document.createElement('div');
+                dialog.id = 'dialog';
+                dialog.className = 'modern-dialog';
+
+                const title = document.createElement('div');
+                title.id = 'dialog-title';
+                title.className = 'modern-dialog-title';
+                title.textContent = 'Підтвердження';
+
+                const content = document.createElement('div');
+                content.id = 'dialog-content';
+                content.className = 'modern-dialog-content';
+
+                const buttons = document.createElement('div');
+                buttons.className = 'modern-dialog-buttons';
+
+                const cancelButton = document.createElement('button');
+                cancelButton.id = 'dialog-cancel';
+                cancelButton.className = 'modern-dialog-button modern-dialog-button-secondary';
+                cancelButton.textContent = 'Скасувати';
+
+                const confirmButton = document.createElement('button');
+                confirmButton.id = 'dialog-confirm';
+                confirmButton.className = 'modern-dialog-button modern-dialog-button-primary';
+                confirmButton.textContent = 'Підтвердити';
+
+                // Збираємо структуру
+                buttons.appendChild(cancelButton);
+                buttons.appendChild(confirmButton);
+                dialog.appendChild(title);
+                dialog.appendChild(content);
+                dialog.appendChild(buttons);
+                overlay.appendChild(dialog);
+                document.body.appendChild(overlay);
+
+                // Додаємо стилі для модального вікна
+                const style = document.createElement('style');
+                style.textContent = `
+                    .modern-dialog-overlay {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(0, 0, 0, 0.7);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 2000;
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.3s, visibility 0.3s;
+                    }
+                    .modern-dialog-overlay.active {
+                        opacity: 1;
+                        visibility: visible;
+                    }
+                    .modern-dialog {
+                        background: rgba(30, 39, 70, 0.8);
+                        border-radius: 1.5rem;
+                        padding: 1.5rem;
+                        width: 90%;
+                        max-width: 350px;
+                        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                        border: 1px solid rgba(78, 181, 247, 0.2);
+                        transform: scale(0.9);
+                        opacity: 0;
+                        transition: transform 0.3s, opacity 0.3s;
+                    }
+                    .modern-dialog-overlay.active .modern-dialog {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                    .modern-dialog-title {
+                        font-size: 1.25rem;
+                        font-weight: bold;
+                        margin-bottom: 1rem;
+                        color: #4eb5f7;
+                        text-align: center;
+                    }
+                    .modern-dialog-content {
+                        margin-bottom: 1.5rem;
+                        text-align: center;
+                        color: white;
+                    }
+                    .modern-dialog-buttons {
+                        display: flex;
+                        justify-content: center;
+                        gap: 1rem;
+                    }
+                    .modern-dialog-button {
+                        padding: 0.75rem 1.25rem;
+                        border: none;
+                        border-radius: 0.75rem;
+                        font-size: 1rem;
+                        font-weight: bold;
+                        cursor: pointer;
+                        transition: transform 0.2s, background-color 0.2s;
+                    }
+                    .modern-dialog-button:active {
+                        transform: scale(0.98);
+                    }
+                    .modern-dialog-button-primary {
+                        background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+                        color: white;
+                    }
+                    .modern-dialog-button-secondary {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: white;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Отримуємо елементи діалогу
+            const dialog = document.getElementById('dialog');
+            const dialogTitle = document.getElementById('dialog-title');
+            const dialogContent = document.getElementById('dialog-content');
+            const dialogCancel = document.getElementById('dialog-cancel');
+            const dialogConfirm = document.getElementById('dialog-confirm');
+
+            // Оновлюємо вміст
+            dialogContent.textContent = message;
+
+            // Оновлюємо обробники подій
+            const closeDialog = () => {
+                overlay.classList.remove('active');
+            };
+
+            dialogCancel.onclick = () => {
+                closeDialog();
+                if (onCancel) onCancel();
+            };
+
+            dialogConfirm.onclick = () => {
+                closeDialog();
+                if (onConfirm) onConfirm();
+            };
+
+            // Відображаємо діалог
+            overlay.classList.add('active');
         } catch (e) {
-            console.error('Помилка генерації унікального ідентифікатора:', e);
-            return Date.now().toString();
+            console.error('Помилка відображення підтвердження:', e);
+
+            // Резервний варіант - стандартний confirm
+            if (confirm(message)) {
+                if (onConfirm) onConfirm();
+            } else {
+                if (onCancel) onCancel();
+            }
         }
     }
 
-    // ================= ЕКСПОРТ ФУНКЦІЙ =================
+    /**
+     * Показати діалог введення
+     * @param {string} message - Повідомлення
+     * @param {Function} callback - Функція зворотного виклику з введеним значенням
+     */
+    function showInputModal(message, callback) {
+        try {
+            // Створюємо overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'modern-dialog-overlay active';
 
-    // Експортуємо функції для використання в інших модулях
-    window.WinixUtils = {
-        // Функції для роботи з датами
-        formatDate,
-        getDaysDifference,
-        getTimeRemaining,
-        formatTimeRemaining,
+            // Створюємо діалог
+            const dialog = document.createElement('div');
+            dialog.className = 'modern-input-dialog';
 
-        // Функції форматування та розрахунків
-        formatCurrency,
-        calculatePercent,
-        calculateAPY,
+            // Заголовок
+            const title = document.createElement('div');
+            title.className = 'modern-input-dialog-title';
+            title.textContent = message;
 
-        // Допоміжні функції
-        pluralize,
-        saveToStorage,
-        getFromStorage,
-        generateUniqueId
-    };
+            // Поле введення
+            const input = document.createElement('input');
+            input.className = 'modern-input-field';
+            input.type = 'text';
+            input.placeholder = 'Введіть значення';
 
-    console.log("✅ Утиліти WINIX успішно ініціалізовано");
+            // Кнопки
+            const buttons = document.createElement('div');
+            buttons.className = 'modern-dialog-buttons';
+
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'modern-dialog-button modern-dialog-button-secondary';
+            cancelButton.textContent = 'Скасувати';
+
+            const confirmButton = document.createElement('button');
+            confirmButton.className = 'modern-dialog-button modern-dialog-button-primary';
+            confirmButton.textContent = 'Підтвердити';
+
+            // Збираємо структуру
+            buttons.appendChild(cancelButton);
+            buttons.appendChild(confirmButton);
+            dialog.appendChild(title);
+            dialog.appendChild(input);
+            dialog.appendChild(buttons);
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            // Додаємо стилі для поля введення
+            const style = document.createElement('style');
+            style.textContent = `
+                .modern-input-dialog {
+                    background: rgba(30, 39, 70, 0.8);
+                    border-radius: 1.5rem;
+                    padding: 1.5rem;
+                    width: 90%;
+                    max-width: 350px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                    border: 1px solid rgba(78, 181, 247, 0.2);
+                }
+                .modern-input-dialog-title {
+                    font-size: 1.125rem;
+                    font-weight: bold;
+                    margin-bottom: 1rem;
+                    color: #4eb5f7;
+                    text-align: center;
+                }
+                .modern-input-field {
+                    width: 100%;
+                    padding: 0.75rem 1rem;
+                    background: rgba(20, 30, 60, 0.7);
+                    color: white;
+                    border: 1px solid rgba(0, 201, 167, 0.3);
+                    border-radius: 0.75rem;
+                    margin-bottom: 1.25rem;
+                    font-size: 1rem;
+                    box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+                    transition: all 0.3s ease;
+                }
+                .modern-input-field:focus {
+                    outline: none;
+                    border-color: rgba(0, 201, 167, 0.8);
+                    box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Обробники подій
+            const closeModal = () => {
+                overlay.remove();
+            };
+
+            cancelButton.onclick = () => {
+                closeModal();
+            };
+
+            confirmButton.onclick = () => {
+                const value = input.value.trim();
+                closeModal();
+                if (callback) callback(value);
+            };
+
+            // Фокус на полі введення
+            setTimeout(() => input.focus(), 100);
+
+            // Обробка Enter
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const value = input.value.trim();
+                    closeModal();
+                    if (callback) callback(value);
+                }
+            });
+        } catch (e) {
+            console.error('Помилка відображення діалогу введення:', e);
+
+            // Резервний варіант - стандартний prompt
+            const value = prompt(message);
+            if (callback) callback(value);
+        }
+    }
+
+    /**
+     * Обробка помилок API
+     * @param {Error} error - Об'єкт помилки
+     * @param {string} operation - Назва операції
+     * @param {boolean} showToast - Чи показувати повідомлення
+     */
+    function handleApiError(error, operation = 'API операції', showToast = true) {
+        // Запобігаємо дублюванню помилок
+        if (!error._logged) {
+            console.error(`❌ Помилка ${operation}:`, error.message || error);
+            // Безпечно встановлюємо властивість _logged
+            try {
+                error._logged = true;
+            } catch (e) {}
+        }
+
+        // Уникаємо повторних повідомлень
+        const now = Date.now();
+        const errorMessage = error.message || 'Невідома помилка';
+
+        // Показуємо повідомлення не частіше, ніж раз на 3 секунди
+        const shouldShowToast = showToast &&
+                               (now - _lastErrorNotificationTime > 3000 ||
+                                _lastErrorMessage !== errorMessage);
+
+        // Форматуємо зрозуміле повідомлення
+        let userFriendlyMessage = '';
+
+        if (errorMessage.includes('fetch') || errorMessage.includes('network')) {
+            userFriendlyMessage = "Не вдалося з'єднатися з сервером. Перевірте з'єднання з інтернетом.";
+        } else if (errorMessage.includes('timeout')) {
+            userFriendlyMessage = "Час очікування відповіді від сервера вичерпано. Спробуйте знову.";
+        } else if (errorMessage.includes('404')) {
+            userFriendlyMessage = "Запитаний ресурс недоступний.";
+        } else if (errorMessage.includes('500')) {
+            userFriendlyMessage = "Виникла помилка на сервері. Спробуйте пізніше.";
+        } else if (errorMessage.includes('користувача не знайдено')) {
+            userFriendlyMessage = "Не вдалося ідентифікувати користувача. Спробуйте перезавантажити сторінку.";
+        } else {
+            userFriendlyMessage = errorMessage;
+        }
+
+        // Показуємо повідомлення
+        if (shouldShowToast) {
+            _lastErrorNotificationTime = now;
+            _lastErrorMessage = errorMessage;
+
+            showNotification(userFriendlyMessage, true);
+        }
+
+        return userFriendlyMessage;
+    }
+
+    // ======== ГЛОБАЛЬНІ ФУНКЦІЇ ========
+
+    // Експортуємо функції для використання іншими модулями
+    window.showLoading = showLoading;
+    window.hideLoading = hideLoading;
+    window.showNotification = showNotification;
+    window.showToast = showNotification; // Для сумісності
+    window.simpleAlert = showNotification; // Для сумісності
+    window.showMessage = showNotification; // Для сумісності
+    window.showModernNotification = showNotification; // Для сумісності
+    window.showModernConfirm = showModernConfirm;
+    window.showInputModal = showInputModal;
+    window.handleApiError = handleApiError;
+
+    console.log("✅ UI: Елементи інтерфейсу успішно ініціалізовано");
 })();
