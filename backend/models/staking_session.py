@@ -28,6 +28,9 @@ class StakingSession:
     MAX_STAKING_PERCENTAGE = 0.9  # Максимальний відсоток від балансу для стейкінгу
     CANCELLATION_FEE = 0.2  # Комісія за дострокове скасування (20%)
 
+    # Додаємо альтернативну назву для сумісності з існуючим кодом
+    STAKING_CANCELLATION_FEE = CANCELLATION_FEE
+
     def __init__(self, telegram_id, staking_id=None, amount=0, period=14,
                  start_date=None, end_date=None, status="active"):
         """
