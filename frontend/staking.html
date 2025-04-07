@@ -41,6 +41,7 @@
     <!-- Потім усі інші скрипти -->
     <script src="js/winix-init.js"></script>
     <script src="js/api.js"></script>
+    <script src="js/winixapi-updates.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/language.js"></script>
     <script src="js/utils.js"></script>
@@ -52,7 +53,7 @@
     <script src="js/winix-all-in-one.js"></script>
     <script src="js/staking.js"></script>
     <script src="js/ui-fixes.js"></script>
-
+    
     <style>
         :root {
             /* Основні кольори для теми */
@@ -83,6 +84,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -124,11 +126,9 @@
         .container::-webkit-scrollbar {
             width: 0.375rem; /* 6px */
         }
-
         .container::-webkit-scrollbar-track {
             background: transparent;
         }
-
         .container::-webkit-scrollbar-thumb {
             background-color: var(--secondary-color);
             border-radius: 1.25rem; /* 20px */
@@ -140,6 +140,7 @@
             100% { background-position: 0% 0%; }
         }
 
+        /* Стилі для хедера */
         .header {
             background: var(--primary-gradient);
             border-radius: 1.5625rem; /* 25px */
@@ -172,40 +173,33 @@
             cursor: pointer;
             transition: transform 0.2s ease;
         }
-
         .header .profile-avatar:hover {
             transform: scale(1.1);
         }
-
         .header .profile-avatar img {
             width: 100%;
             height: 100%;
             object-fit: cover;
             border-radius: 50%;
         }
-
         .header .user-profile {
             display: flex;
             align-items: center;
             gap: 0.5rem; /* 8px */
             cursor: pointer;
         }
-
         .header .user-id-container {
             display: flex;
             flex-direction: column;
             align-items: flex-start;
             font-size: 0.75rem; /* 12px */
         }
-
         .header .user-id-label {
             color: var(--text-secondary);
         }
-
         .header .user-id-value {
             font-weight: bold;
         }
-
         .header .winix-title {
             font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             font-size: 1.5rem; /* 24px */
@@ -217,38 +211,28 @@
             text-align: center;
             flex-grow: 1;
         }
-
         @keyframes glow {
             0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
             72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
             100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
-
         .header .balance-container {
             display: flex;
             gap: 0.875rem; /* 14px */
             align-items: center;
         }
-
         .header .jeton-balance, .header .winix-balance {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-
         .header .jeton-balance .balance-value, .header .winix-balance .balance-value {
             font-size: 0.875rem; /* 14px */
             font-weight: bold;
         }
-
         .header .jeton-balance .balance-label, .header .winix-balance .balance-label {
             font-size: 0.75rem; /* 12px */
             font-weight: normal;
-        }
-
-        /* Приховуємо іконку жетона */
-        .header .jeton-icon {
-            display: none;
         }
 
         /* Кнопка назад */
@@ -271,12 +255,10 @@
             transition: all 0.3s ease;
             z-index: 5;
         }
-
         .back-button:hover {
             transform: scale(1.05);
             box-shadow: 0 0.375rem 0.75rem var(--shadow-color); /* 0 6px 12px */
         }
-
         .back-button:active {
             transform: scale(0.98);
         }
@@ -289,7 +271,6 @@
             width: 90%;
             max-width: 34.375rem; /* 550px */
             padding: 1.5625rem 1.25rem; /* 25px 20px */
-            /* Збільшуємо верхній відступ для заголовків і кнопки назад */
             padding-top: 5.3125rem; /* 85px */
             margin: 0.625rem auto; /* 10px auto */
             box-shadow: 0 0.625rem 1.875rem var(--shadow-color); /* 0 10px 30px */
@@ -300,18 +281,16 @@
             gap: 0.9375rem; /* 15px */
         }
 
-        /* Прибираємо додатковий відступ для першого елемента */
+        /* Стилі для полів введення */
         .staking-input:first-of-type {
             margin-top: 0;
         }
-
         .staking-input {
             width: 100%;
             position: relative;
             display: flex;
             align-items: center;
         }
-
         .staking-input input {
             flex-grow: 1;
             width: calc(100% - 4rem); /* Резервує місце для кнопки Max */
@@ -324,13 +303,11 @@
             box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
             transition: all 0.3s ease;
         }
-
         .staking-input input:focus {
             outline: none;
             border-color: rgba(0, 201, 167, 0.8);
             box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
         }
-
         .max-button {
             width: auto;
             flex-shrink: 0;
@@ -345,7 +322,6 @@
             transition: all 0.3s ease;
             cursor: pointer;
         }
-
         .max-button:active {
             transform: scale(0.97);
             box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
@@ -369,18 +345,17 @@
             background-position: right 0.9375rem center; /* right 15px center */
             padding-right: 1.875rem; /* 30px */
         }
-
         .period-select:focus {
             outline: none;
             border-color: rgba(0, 201, 167, 0.8);
             box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
         }
-
         .period-select option {
             background-color: rgba(20, 30, 60, 0.9);
             color: white;
         }
 
+        /* Очікувана винагорода */
         #expected-reward-display {
             background: rgba(20, 30, 60, 0.5);
             padding: 0.75rem; /* 12px */
@@ -390,43 +365,44 @@
             border: 0.0625rem solid rgba(0, 201, 167, 0.2); /* 1px */
             font-weight: 500;
         }
-
         #expected-reward {
             font-weight: bold;
             color: #00C9A7;
             text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
-            transition: color 0.5s ease, text-shadow 0.5s ease;
-            position: relative;
-            display: inline-block;
         }
 
-        #expected-reward.calculating {
+        /* Анімації для полів */
+        .calculating {
             position: relative;
-            animation: pulse 1.5s infinite ease-in-out;
         }
-
-        #expected-reward.calculating::after {
-            content: "";
+        .calculating::after {
+            content: '';
             position: absolute;
-            bottom: -4px;
+            top: 0;
             left: 0;
             width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #00C9A7, transparent);
-            animation: loadingBar 1.5s infinite ease-in-out;
+            height: 100%;
+            background: linear-gradient(90deg,
+                transparent 0%,
+                rgba(0, 201, 167, 0.2) 50%,
+                transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
         }
-
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .value-updated {
+            animation: pulse 0.5s;
+        }
         @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
 
-        @keyframes loadingBar {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-
+        /* Стилі для кнопок */
         .staking-button {
             width: 100%;
             padding: 0.9375rem; /* 15px */
@@ -444,13 +420,10 @@
             align-items: center;
             justify-content: center;
         }
-
         .staking-button:active {
             transform: scale(0.98);
             box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
         }
-
-        /* Стиль для кнопки деталей стейкінгу */
         .details-button {
             width: 100%;
             padding: 0.9375rem; /* 15px */
@@ -470,50 +443,70 @@
             margin-top: 0.625rem; /* 10px */
             opacity: 0.8;
         }
-
         .details-button:active {
             transform: scale(0.98);
             box-shadow: 0 0.125rem 0.25rem var(--shadow-color); /* 0 2px 4px */
         }
+        .cancel-button {
+            background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
+            margin-top: 0.3125rem; /* 5px */
+        }
 
+        /* Стилі для статусу стейкінгу */
         .staking-status {
             width: 100%;
             text-align: center;
             padding: 0.625rem; /* 10px */
             font-size: 0.875rem; /* 14px */
             color: var(--text-secondary);
-            min-height: 2.5rem; /* 40px - для стабільного розміру при оновленні */
+            transition: all 0.3s ease;
+        }
+
+        /* Спеціальна кнопка "Активний стейкінг" */
+        .active-staking-button {
+            width: 100%;
+            padding: 0.9375rem;
+            background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
+            border: none;
+            border-radius: 0.9375rem;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: color 0.3s ease, background-color 0.3s ease;
-        }
-
-        /* Анімація пульсації для завантаження */
-        .loading-pulse {
             position: relative;
-            display: inline-block;
-            animation: textPulse 1.5s infinite ease-in-out;
+            overflow: hidden;
+        }
+        .active-staking-button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shine 3s infinite;
+        }
+        @keyframes shine {
+            to { left: 100%; }
+        }
+        .active-staking-button:active {
+            transform: scale(0.98);
+        }
+        .active-staking-button.disabled {
+            background: rgba(128, 128, 128, 0.5);
+            cursor: not-allowed;
+        }
+        .active-staking-button.disabled:before {
+            animation: none;
         }
 
-        .loading-pulse::after {
-            content: "...";
-            opacity: 1;
-            animation: dotAnimation 1.5s infinite ease-in-out;
-        }
-
-        @keyframes textPulse {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
-        }
-
-        @keyframes dotAnimation {
-            0% { opacity: 0.3; }
-            50% { opacity: 1; }
-            100% { opacity: 0.3; }
-        }
-
+        /* Нижня навігація */
         .nav-bar {
             background: var(--primary-gradient);
             border-radius: 1.5625rem; /* 25px */
@@ -525,12 +518,11 @@
             height: var(--nav-height);
             box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
             position: fixed;
-            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
+            bottom: 1.875rem; /* 30px */
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
         }
-
         .nav-item {
             text-align: center;
             color: var(--text-color);
@@ -543,7 +535,6 @@
             width: 20%;
             position: relative;
         }
-
         .nav-item .icon-wrapper {
             width: 3.75rem; /* 60px */
             height: 3.75rem;
@@ -556,49 +547,21 @@
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
             transition: transform 0.3s ease;
         }
-
         .nav-item.active .icon-wrapper {
             background: var(--bg-active);
             box-shadow: 0 0 0.9375rem var(--glow-color);
         }
-
         .nav-item img {
             width: 2.1875rem; /* 35px */
             height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
         }
-
         .nav-item.active img {
             filter: brightness(1.2) invert(1);
         }
-
         .nav-item:hover .icon-wrapper {
             transform: scale(1.1);
-        }
-
-        /* Стиль для кнопки скасування стейкінгу */
-        .cancel-button {
-            background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
-            margin-top: 0.3125rem; /* 5px */
-        }
-
-        /* Стилі для відлагодження */
-        .debug-info {
-            position: fixed;
-            bottom: 5rem; /* 80px */
-            right: 0.625rem; /* 10px */
-            background: rgba(0, 0, 0, 0.7);
-            color: lime;
-            padding: 0.625rem; /* 10px */
-            border-radius: 0.3125rem; /* 5px */
-            font-family: monospace;
-            font-size: 0.625rem; /* 10px */
-            max-width: 18.75rem; /* 300px */
-            max-height: 12.5rem; /* 200px */
-            overflow: auto;
-            z-index: 999;
-            display: none;
         }
 
         /* Стилі для модального вікна активного стейкінгу */
@@ -616,16 +579,13 @@
             backdrop-filter: blur(5px);
             animation: fadeIn 0.3s ease;
         }
-
         .modal-overlay.active {
             display: flex;
         }
-
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-
         .modal-container {
             width: 90%;
             max-width: 350px;
@@ -637,12 +597,10 @@
             animation: scaleIn 0.3s ease;
             position: relative;
         }
-
         @keyframes scaleIn {
             from { transform: scale(0.9); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
-
         .modal-title {
             text-align: center;
             font-size: 1.25rem;
@@ -650,7 +608,6 @@
             margin-bottom: 1rem;
             color: var(--secondary-color);
         }
-
         .modal-close {
             position: absolute;
             top: 1rem;
@@ -669,11 +626,9 @@
             background: rgba(0, 0, 0, 0.2);
             transition: all 0.3s;
         }
-
         .modal-close:hover {
             background: rgba(255, 255, 255, 0.1);
         }
-
         .staking-detail {
             background: var(--bg-item);
             border-radius: 0.625rem; /* 10px */
@@ -684,12 +639,10 @@
             margin-bottom: 0.625rem;
             width: 100%;
         }
-
         .staking-detail-value {
             font-weight: bold;
             color: var(--text-color);
         }
-
         .modal-buttons {
             display: flex;
             flex-direction: column;
@@ -697,7 +650,6 @@
             margin-top: 1rem;
             width: 100%;
         }
-
         .modal-button {
             width: 100%;
             padding: 0.9375rem;
@@ -708,116 +660,259 @@
             cursor: pointer;
             transition: all 0.3s;
         }
-
         .add-button {
             background: var(--primary-gradient);
             color: white;
         }
-
         .cancel-modal-button {
             background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
             color: white;
         }
 
-        /* Спеціальна кнопка "Активний стейкінг" */
-        .active-staking-button {
+        /* Стилі для тост-повідомлень */
+        .toast-container {
+            position: fixed;
+            top: 1.25rem; /* 20px */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            width: 90%;
+            max-width: 21.875rem; /* 350px */
+            display: flex;
+            flex-direction: column;
+            gap: 0.625rem; /* 10px */
+            pointer-events: none;
+        }
+        .toast {
+            background: var(--bg-card);
+            border-radius: 0.9375rem; /* 15px */
+            padding: 0.9375rem 1.25rem; /* 15px 20px */
+            color: var(--text-color);
+            font-size: 0.9375rem; /* 15px */
+            box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             width: 100%;
-            padding: 0.9375rem;
-            background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
+            opacity: 0;
+            transform: translateY(-20px);
+            animation: toast-in 0.3s forwards, toast-out 0.3s forwards 3s;
+            border-left: 0.25rem solid var(--secondary-color);
+            pointer-events: auto;
+        }
+        .toast.error {
+            border-left-color: var(--negative-color);
+            background: rgba(244, 67, 54, 0.1);
+        }
+        .toast.success {
+            border-left-color: var(--positive-color);
+            background: rgba(76, 175, 80, 0.1);
+        }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+        .toast-icon {
+            margin-right: 0.625rem; /* 10px */
+            font-size: 1.25rem; /* 20px */
+        }
+        .toast-message {
+            flex-grow: 1;
+        }
+        .toast-close {
+            background: transparent;
             border: none;
-            border-radius: 0.9375rem;
-            color: white;
+            color: var(--text-secondary);
+            font-size: 1.25rem; /* 20px */
+            cursor: pointer;
+            margin-left: 0.625rem; /* 10px */
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Стилі для сучасних діалогів підтвердження */
+        .modern-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modern-dialog-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modern-dialog {
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 21.875rem; /* 350px */
+            box-shadow: 0 0.625rem 1.875rem var(--shadow-color);
+            border: 0.0625rem solid var(--border-color);
+            transform: scale(0.9);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+        }
+        .modern-dialog-overlay.active .modern-dialog {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .modern-dialog-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: var(--secondary-color);
+            text-align: center;
+        }
+        .modern-dialog-content {
+            margin-bottom: 1.5rem;
+            text-align: center;
+            color: var(--text-color);
+        }
+        .modern-dialog-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+        .modern-dialog-button {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 0.75rem;
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
+            transition: transform 0.2s, background-color 0.2s;
         }
-
-        .active-staking-button:before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            animation: shine 3s infinite;
-        }
-
-        @keyframes shine {
-            to {
-                left: 100%;
-            }
-        }
-
-        .active-staking-button:active {
+        .modern-dialog-button:active {
             transform: scale(0.98);
         }
-
-        .active-staking-button.disabled {
-            background: rgba(128, 128, 128, 0.5);
-            cursor: not-allowed;
+        .modern-dialog-button-primary {
+            background: var(--primary-gradient);
+            color: white;
+        }
+        .modern-dialog-button-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
         }
 
-        .active-staking-button.disabled:before {
-            animation: none;
+        /* Стилі для вікна введення */
+        .modern-input-dialog {
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 21.875rem; /* 350px */
+        }
+        .modern-input-dialog-title {
+            font-size: 1.125rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: var(--secondary-color);
+            text-align: center;
+        }
+        .modern-input-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-item);
+            color: var(--text-color);
+            border: 0.0625rem solid rgba(0, 201, 167, 0.3);
+            border-radius: 0.75rem;
+            margin-bottom: 1.25rem;
+            font-size: 1rem;
+            box-shadow: inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        .modern-input-field:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.8);
+            box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4), inset 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.2);
         }
 
-        /* Медіа-запити для адаптивності */
+        /* Стиль для індикатора завантаження */
+        .spinner-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+            backdrop-filter: blur(3px);
+        }
+        .spinner-overlay.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        .spinner {
+            width: 3.125rem; /* 50px */
+            height: 3.125rem; /* 50px */
+            border: 0.3125rem solid rgba(0, 201, 167, 0.3);
+            border-radius: 50%;
+            border-top-color: rgb(0, 201, 167);
+            animation: rotate 1s linear infinite;
+        }
+        @keyframes rotate {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Адаптивність */
         @media (max-width: 450px) {
             :root {
                 /* Зменшуємо розміри для маленьких екранів */
                 --header-height: 3rem; /* 48px */
                 --nav-height: 4rem; /* 64px */
             }
-
             .header .profile-avatar {
                 width: 2.1875rem; /* 35px */
                 height: 2.1875rem;
                 font-size: 1.125rem; /* 18px */
             }
-
             .header .user-id-container {
                 font-size: 0.6875rem; /* 11px */
             }
-
             .header .winix-title {
                 font-size: 1.25rem; /* 20px */
             }
-
-
             .staking-input {
-                flex-direction: row; /* Змінено з column */
+                flex-direction: row;
                 align-items: center;
                 gap: 0.5rem;
             }
-
             .max-button {
                 align-self: initial;
                 margin-left: 0.5rem;
             }
-
             .period-select, #expected-reward-display {
                 font-size: 0.875rem; /* 14px */
             }
-
             .staking-button, .details-button {
                 font-size: 0.875rem; /* 14px */
                 padding: 0.75rem; /* 12px */
             }
-
             .nav-item .icon-wrapper {
                 width: 3.125rem; /* 50px */
                 height: 3.125rem;
             }
-
             .nav-item img {
                 width: 1.875rem; /* 30px */
                 height: 1.875rem;
@@ -828,24 +923,19 @@
             .header .user-id-container {
                 display: none;
             }
-
             .header .jeton-balance {
                 margin-left: 0;
             }
-
             .header .balance-label {
                 font-size: 0.6875rem; /* 11px */
             }
-
             .wallet-card {
                 padding: 1.25rem 0.9375rem; /* 20px 15px */
                 padding-top: 4.375rem; /* 70px */
             }
-
             .staking-input input {
                 font-size: 0.875rem; /* 14px */
             }
-
             .max-button {
                 padding: 0.625rem 0.9375rem; /* 10px 15px */
                 font-size: 0.75rem; /* 12px */
@@ -856,7 +946,6 @@
             body {
                 background: linear-gradient(135deg, #141e30, #243b55);
             }
-
             .container {
                 box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
                 margin: 1.25rem auto; /* 20px auto */
@@ -864,592 +953,32 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
-
-        /* Додайте ці стилі до розділу <style> в staking.html */
-
-/* Стилі для сучасних сповіщень */
-.modern-notification {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-100px);
-    background: rgba(20, 30, 60, 0.9);
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
-    color: white;
-    z-index: 9999;
-    max-width: 90%;
-    width: 320px;
-    backdrop-filter: blur(5px);
-    opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    border: 1px solid rgba(0, 201, 167, 0.3);
-}
-
-.modern-notification.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-}
-
-.modern-notification.success {
-    border: 1px solid rgba(0, 201, 167, 0.5);
-}
-
-.modern-notification.error {
-    border: 1px solid rgba(244, 67, 54, 0.5);
-}
-
-.notification-icon {
-    margin-right: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.notification-message {
-    flex-grow: 1;
-    font-size: 14px;
-}
-
-.notification-close {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    margin-left: 12px;
-    cursor: pointer;
-    font-size: 18px;
-    background: rgba(255, 255, 255, 0.1);
-    transition: background 0.2s ease;
-}
-
-.notification-close:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.success .notification-icon svg {
-    stroke: #4DB6AC;
-}
-
-.error .notification-icon svg {
-    stroke: #FF5252;
-}
-
-/* Стилі для вікна підтвердження */
-.modern-confirm {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    backdrop-filter: blur(5px);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    visibility: hidden;
-}
-
-.modern-confirm.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-.confirm-content {
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-    border-radius: 16px;
-    padding: 24px;
-    width: 90%;
-    max-width: 340px;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(78, 181, 247, 0.2);
-    transform: scale(0.9);
-    transition: transform 0.3s ease;
-}
-
-.modern-confirm.show .confirm-content {
-    transform: scale(1);
-}
-
-.confirm-message {
-    margin-bottom: 24px;
-    text-align: center;
-    font-size: 16px;
-    color: white;
-    line-height: 1.5;
-}
-
-.confirm-buttons {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.confirm-button {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: white;
-}
-
-.confirm-cancel {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.confirm-ok {
-    background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
-}
-
-.confirm-button:active {
-    transform: scale(0.98);
-}
-
-/* Стилі для вікна вводу */
-.modern-prompt {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    backdrop-filter: blur(5px);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    visibility: hidden;
-}
-
-.modern-prompt.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-.prompt-content {
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-    border-radius: 16px;
-    padding: 24px;
-    width: 90%;
-    max-width: 340px;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(78, 181, 247, 0.2);
-    transform: scale(0.9);
-    transition: transform 0.3s ease;
-}
-
-.modern-prompt.show .prompt-content {
-    transform: scale(1);
-}
-
-.prompt-message {
-    margin-bottom: 16px;
-    text-align: center;
-    font-size: 16px;
-    color: white;
-    line-height: 1.5;
-}
-
-.prompt-input {
-    width: 100%;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid rgba(0, 201, 167, 0.3);
-    background: rgba(20, 30, 60, 0.7);
-    color: white;
-    font-size: 16px;
-    margin-bottom: 24px;
-    outline: none;
-    transition: border-color 0.2s ease;
-}
-
-.prompt-input:focus {
-    border-color: rgba(0, 201, 167, 0.8);
-    box-shadow: 0 0 10px rgba(0, 201, 167, 0.4);
-}
-
-.prompt-buttons {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.prompt-button {
-    flex: 1;
-    padding: 12px;
-    border: none;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: white;
-}
-
-.prompt-cancel {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.prompt-ok {
-    background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
-}
-
-.prompt-button:active {
-    transform: scale(0.98);
-}
-
-/* Стилі для індикатора завантаження */
-.global-loader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-    backdrop-filter: blur(5px);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    visibility: hidden;
-}
-
-.global-loader.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-.loader-content {
-    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-    border-radius: 16px;
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(78, 181, 247, 0.2);
-}
-
-.loader-spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid rgba(0, 201, 167, 0.1);
-    border-top-color: rgba(0, 201, 167, 0.8);
-    border-radius: 50%;
-    animation: spinner 1s linear infinite;
-    margin-bottom: 16px;
-}
-
-.loader-text {
-    color: white;
-    font-size: 16px;
-}
-
-@keyframes spinner {
-    to {
-        transform: rotate(360deg);
-    }
-}
-/* Додай ці стилі до розділу <style> в staking.html */
-
-/* Глобальні анімації та переходи */
-body * {
-    transition: background-color 0.3s ease,
-                color 0.3s ease,
-                border-color 0.3s ease,
-                box-shadow 0.3s ease,
-                transform 0.3s ease,
-                opacity 0.3s ease;
-}
-
-/* Покращене плавне з'явлення контенту */
-.container {
-    animation: smoothFadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1);
-    will-change: opacity, transform;
-}
-
-@keyframes smoothFadeIn {
-    from {
-        opacity: 0.2;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Плавне з'явлення елементів з затримкою */
-.wallet-card {
-    animation: cardAppear 0.7s cubic-bezier(0.19, 1, 0.22, 1) 0.1s both;
-    will-change: opacity, transform;
-}
-
-@keyframes cardAppear {
-    from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.98);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        box-shadow: 0 10px 30px var(--shadow-color);
-    }
-}
-
-/* Плавна поява елементів форми */
-.staking-input, .period-select, #expected-reward-display {
-    animation: elementAppear 0.5s ease both;
-    animation-delay: calc(var(--item-index, 0) * 0.1s + 0.3s);
-    will-change: opacity, transform;
-}
-
-.staking-input:nth-child(1) { --item-index: 1; }
-.staking-input:nth-child(2) { --item-index: 2; }
-#expected-reward-display { --item-index: 3; }
-.staking-button { --item-index: 4; }
-.active-staking-button { --item-index: 5; }
-.cancel-button { --item-index: 6; }
-
-@keyframes elementAppear {
-    from {
-        opacity: 0;
-        transform: translateY(15px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Удосконалені плавні анімації для кнопок */
-.staking-button,
-.active-staking-button,
-.cancel-button,
-.max-button,
-.details-button,
-.back-button,
-.nav-item {
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-                box-shadow 0.3s ease,
-                opacity 0.3s ease,
-                background-color 0.3s ease !important;
-    will-change: transform, box-shadow;
-}
-
-/* Покращений ефект натискання з тактильним відгуком */
-.staking-button:active,
-.active-staking-button:active,
-.cancel-button:active,
-.max-button:active,
-.details-button:active,
-.back-button:active {
-    transform: scale(0.97) translateY(1px) !important;
-    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3) !important;
-    transition: transform 0.1s ease, box-shadow 0.1s ease !important;
-}
-
-/* Покращений ефект при наведенні */
-.staking-button:hover,
-.active-staking-button:hover,
-.cancel-button:hover:not(:disabled),
-.max-button:hover,
-.details-button:hover,
-.back-button:hover {
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
-    transform: translateY(-3px) scale(1.02);
-}
-
-/* Додавання ефекту "хвилі" при кліку */
-.staking-button::after,
-.active-staking-button::after,
-.cancel-button::after,
-.max-button::after,
-.details-button::after,
-.back-button::after {
-    content: '';
-    display: block;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 60%);
-    background-repeat: no-repeat;
-    background-position: 50%;
-    transform: scale(10, 10);
-    opacity: 0;
-    transition: transform 0.5s, opacity 1s;
-}
-
-.staking-button:active::after,
-.active-staking-button:active::after,
-.cancel-button:active::after,
-.max-button:active::after,
-.details-button:active::after,
-.back-button:active::after {
-    transform: scale(0, 0);
-    opacity: 0.3;
-    transition: 0s;
-}
-
-/* Покращена анімація блимання для кнопки активного стейкінгу */
-.active-staking-button:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg,
-        rgba(255, 255, 255, 0),
-        rgba(255, 255, 255, 0.2),
-        rgba(255, 255, 255, 0.1),
-        rgba(255, 255, 255, 0));
-    animation: smoothShine 3s infinite ease-in-out;
-}
-
-@keyframes smoothShine {
-    0% { left: -100%; }
-    40% { left: 100%; }
-    100% { left: 100%; }
-}
-
-/* Плавне оновлення полів вводу */
-.staking-input input,
-.period-select {
-    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
-}
-
-.staking-input input:focus,
-.period-select:focus {
-    animation: softGlow 2s infinite alternate;
-}
-
-@keyframes softGlow {
-    from { box-shadow: 0 0 5px rgba(0, 201, 167, 0.4), inset 0 2px 5px rgba(0, 0, 0, 0.2); }
-    to { box-shadow: 0 0 10px rgba(0, 201, 167, 0.6), inset 0 2px 5px rgba(0, 0, 0, 0.2); }
-}
-
-/* Плавне оновлення для елементів, що оновлюються */
-#user-tokens,
-#user-coins,
-#expected-reward,
-#staking-status {
-    transition: all 0.5s ease-in-out;
-}
-
-/* Анімація для оновлення значень */
-.value-updated {
-    animation: highlight 1s ease;
-}
-
-@keyframes highlight {
-    0% { color: inherit; transform: scale(1); }
-    30% { color: #4DB6AC; transform: scale(1.1); text-shadow: 0 0 15px rgba(77, 182, 172, 0.7); }
-    100% { color: inherit; transform: scale(1); }
-}
-
-/* Новий стиль для модальних вікон */
-.modal-overlay {
-    backdrop-filter: blur(8px);
-    transition: opacity 0.4s ease, visibility 0.4s ease;
-}
-
-.modal-container {
-    transform: scale(0.8);
-    opacity: 0;
-    transition: transform 0.4s ease, opacity 0.4s ease;
-}
-
-.modal-overlay.active .modal-container {
-    transform: scale(1);
-    opacity: 1;
-}
-
-/* Плавний скролінг */
-html {
-    scroll-behavior: smooth;
-}
-
-/* Скелетон-завантажувачі для даних, що завантажуються */
-.skeleton-loading {
-    position: relative;
-    background: linear-gradient(90deg, rgba(20, 30, 60, 0.7), rgba(30, 40, 70, 0.7), rgba(20, 30, 60, 0.7));
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 8px;
-    min-height: 1.2em;
-}
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-
-/* Покращені елементи форми */
-.staking-input,
-#expected-reward-display {
-    transition: transform 0.3s ease;
-}
-
-.staking-input:focus-within {
-    transform: scale(1.02);
-}
-
-/* Покращений статус завантаження */
-.global-loader {
-    backdrop-filter: blur(8px);
-    transition: opacity 0.4s ease, visibility 0.4s ease;
-}
-
-.loader-content {
-    transform: scale(0.8);
-    opacity: 0;
-    transition: transform 0.4s ease, opacity 0.4s ease;
-}
-
-.global-loader.show .loader-content {
-    transform: scale(1);
-    opacity: 1;
-}
-
-/* Стилі для сповіщень */
-.modern-notification {
-    transform: translateX(-50%) translateY(-100px);
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-                opacity 0.4s ease;
-}
-
-.modern-notification.show {
-    transform: translateX(-50%) translateY(0);
-}
     </style>
 </head>
 <body>
+    <!-- Контейнер для сповіщень (тостів) -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Контейнер для модальних діалогів -->
+    <div class="modern-dialog-overlay" id="dialog-overlay">
+        <div class="modern-dialog" id="dialog">
+            <div class="modern-dialog-title" id="dialog-title">Підтвердження</div>
+            <div class="modern-dialog-content" id="dialog-content">Текст підтвердження</div>
+            <div class="modern-dialog-buttons">
+                <button class="modern-dialog-button modern-dialog-button-secondary" id="dialog-cancel">Скасувати</button>
+                <button class="modern-dialog-button modern-dialog-button-primary" id="dialog-confirm">Підтвердити</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Спінер завантаження -->
+    <div class="spinner-overlay" id="spinner-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Основний контейнер -->
     <div class="container">
+        <!-- Хедер -->
         <div class="header">
             <div class="user-profile" id="profile-link">
                 <div class="profile-avatar" id="profile-avatar">W</div>
@@ -1471,10 +1000,12 @@ html {
             </div>
         </div>
 
+        <!-- Картка стейкінгу -->
         <div class="wallet-card">
-            <!-- Кнопка назад у лівому верхньому кутку контейнера -->
+            <!-- Кнопка "Назад" -->
             <button class="back-button" id="back-button">←</button>
 
+            <!-- Форма стейкінгу -->
             <div class="staking-input">
                 <input
                     type="number"
@@ -1503,7 +1034,7 @@ html {
 
             <button class="staking-button" id="stake-button" data-lang-key="staking.stake_button">Застейкати</button>
 
-            <!-- НОВА кнопка "Активний стейкінг" замість "Деталі стейкінгу" -->
+            <!-- Кнопка "Активний стейкінг" -->
             <button class="active-staking-button" id="active-staking-button" data-lang-key="staking.active_staking">Активний стейкінг</button>
 
             <!-- Кнопка скасування стейкінгу -->
@@ -1514,7 +1045,7 @@ html {
             </div>
         </div>
 
-        <!-- НОВЕ модальне вікно для деталей активного стейкінгу -->
+        <!-- Модальне вікно деталей стейкінгу -->
         <div class="modal-overlay" id="staking-modal">
             <div class="modal-container">
                 <button class="modal-close" id="modal-close">&times;</button>
@@ -1548,6 +1079,7 @@ html {
             </div>
         </div>
 
+        <!-- Нижня навігація -->
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
@@ -1580,9 +1112,6 @@ html {
                 <span data-lang-key="general">General</span>
             </div>
         </div>
-
-        <!-- Блок для відлагодження -->
-        <div id="debug-info" class="debug-info"></div>
     </div>
 
     <script>
@@ -1594,281 +1123,6 @@ html {
                 window.Telegram.WebApp.expand();
             }
         });
-
-        /**
- * Сучасні сповіщення замість стандартних alert і confirm
- * Додайте цей код у верхню частину staking.html в розділі <script>
- */
-
-/**
- * Показати сучасне сповіщення з можливістю вибору
- * @param {string} message - Повідомлення
- * @param {boolean} isError - Це повідомлення про помилку?
- * @param {Function} callback - Функція зворотного виклику після закриття
- */
-function showModernNotification(message, isError = false, callback = null) {
-    // Перевірка, чи елемент уже існує
-    let notificationElement = document.getElementById('modern-notification');
-    if (notificationElement) {
-        document.body.removeChild(notificationElement);
-    }
-
-    // Створюємо елемент сповіщення
-    notificationElement = document.createElement('div');
-    notificationElement.id = 'modern-notification';
-    notificationElement.classList.add('modern-notification');
-
-    if (isError) {
-        notificationElement.classList.add('error');
-    } else {
-        notificationElement.classList.add('success');
-    }
-
-    // Додаємо значок
-    const iconHtml = isError ?
-        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>' :
-        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
-
-    // Встановлюємо вміст
-    notificationElement.innerHTML = `
-        <div class="notification-icon">${iconHtml}</div>
-        <div class="notification-message">${message}</div>
-        <div class="notification-close">×</div>
-    `;
-
-    // Додаємо до body
-    document.body.appendChild(notificationElement);
-
-    // Анімація появи
-    setTimeout(() => {
-        notificationElement.classList.add('show');
-    }, 10);
-
-    // Обробник закриття
-    const closeBtn = notificationElement.querySelector('.notification-close');
-    closeBtn.addEventListener('click', () => {
-        closeNotification();
-    });
-
-    // Автоматичне закриття через 5 секунд
-    const autoCloseTimeout = setTimeout(() => {
-        closeNotification();
-    }, 5000);
-
-    // Функція закриття
-    function closeNotification() {
-        clearTimeout(autoCloseTimeout);
-        notificationElement.classList.remove('show');
-        setTimeout(() => {
-            if (notificationElement.parentNode) {
-                document.body.removeChild(notificationElement);
-            }
-            if (callback) callback();
-        }, 300);
-    }
-
-    // Повертаємо функцію закриття для можливості швидкого закриття
-    return closeNotification;
-}
-
-/**
- * Показати модальне вікно підтвердження
- * @param {string} message - Повідомлення
- * @param {Function} onConfirm - Функція при підтвердженні
- * @param {Function} onCancel - Функція при скасуванні
- */
-function showModernConfirm(message, onConfirm, onCancel = null) {
-    // Перевірка, чи елемент уже існує
-    let confirmElement = document.getElementById('modern-confirm');
-    if (confirmElement) {
-        document.body.removeChild(confirmElement);
-    }
-
-    // Створюємо елемент підтвердження
-    confirmElement = document.createElement('div');
-    confirmElement.id = 'modern-confirm';
-    confirmElement.classList.add('modern-confirm');
-
-    // Встановлюємо вміст
-    confirmElement.innerHTML = `
-        <div class="confirm-content">
-            <div class="confirm-message">${message}</div>
-            <div class="confirm-buttons">
-                <button class="confirm-button confirm-cancel">Скасувати</button>
-                <button class="confirm-button confirm-ok">Підтвердити</button>
-            </div>
-        </div>
-    `;
-
-    // Додаємо до body
-    document.body.appendChild(confirmElement);
-
-    // Анімація появи
-    setTimeout(() => {
-        confirmElement.classList.add('show');
-    }, 10);
-
-    // Обробники кнопок
-    const okButton = confirmElement.querySelector('.confirm-ok');
-    const cancelButton = confirmElement.querySelector('.confirm-cancel');
-
-    okButton.addEventListener('click', () => {
-        closeConfirm();
-        if (onConfirm) onConfirm();
-    });
-
-    cancelButton.addEventListener('click', () => {
-        closeConfirm();
-        if (onCancel) onCancel();
-    });
-
-    // Функція закриття
-    function closeConfirm() {
-        confirmElement.classList.remove('show');
-        setTimeout(() => {
-            if (confirmElement.parentNode) {
-                document.body.removeChild(confirmElement);
-            }
-        }, 300);
-    }
-}
-
-/**
- * Показати сучасне модальне вікно з полем введення
- * @param {string} message - Повідомлення
- * @param {Function} onSubmit - Функція при підтвердженні з введеним значенням
- * @param {string} placeholder - Текст-заповнювач для поля введення
- * @param {string} defaultValue - Значення за замовчуванням
- */
-function showModernPrompt(message, onSubmit, placeholder = 'Введіть значення', defaultValue = '') {
-    // Перевірка, чи елемент уже існує
-    let promptElement = document.getElementById('modern-prompt');
-    if (promptElement) {
-        document.body.removeChild(promptElement);
-    }
-
-    // Створюємо елемент
-    promptElement = document.createElement('div');
-    promptElement.id = 'modern-prompt';
-    promptElement.classList.add('modern-prompt');
-
-    // Встановлюємо вміст
-    promptElement.innerHTML = `
-        <div class="prompt-content">
-            <div class="prompt-message">${message}</div>
-            <input type="text" class="prompt-input" placeholder="${placeholder}" value="${defaultValue}">
-            <div class="prompt-buttons">
-                <button class="prompt-button prompt-cancel">Скасувати</button>
-                <button class="prompt-button prompt-ok">Підтвердити</button>
-            </div>
-        </div>
-    `;
-
-    // Додаємо до body
-    document.body.appendChild(promptElement);
-
-    // Анімація появи
-    setTimeout(() => {
-        promptElement.classList.add('show');
-        // Фокус на поле введення
-        const inputField = promptElement.querySelector('.prompt-input');
-        inputField.focus();
-    }, 10);
-
-    // Обробники кнопок
-    const okButton = promptElement.querySelector('.prompt-ok');
-    const cancelButton = promptElement.querySelector('.prompt-cancel');
-    const inputField = promptElement.querySelector('.prompt-input');
-
-    okButton.addEventListener('click', () => {
-        const value = inputField.value;
-        closePrompt();
-        if (onSubmit) onSubmit(value);
-    });
-
-    cancelButton.addEventListener('click', () => {
-        closePrompt();
-    });
-
-    // Підтвердження при натисканні Enter
-    inputField.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            const value = inputField.value;
-            closePrompt();
-            if (onSubmit) onSubmit(value);
-        }
-    });
-
-    // Функція закриття
-    function closePrompt() {
-        promptElement.classList.remove('show');
-        setTimeout(() => {
-            if (promptElement.parentNode) {
-                document.body.removeChild(promptElement);
-            }
-        }, 300);
-    }
-}
-
-// Перевизначаємо глобальні функції для зворотної сумісності
-window.simpleAlert = function(message, isError = false, callback = null) {
-    return showModernNotification(message, isError, callback);
-};
-
-window.showToast = function(message, type = 'success', duration = 5000) {
-    return showModernNotification(message, type === 'error', null);
-};
-
-window.showInputModal = function(message, callback, placeholder = '', defaultValue = '') {
-    return showModernPrompt(message, callback, placeholder, defaultValue);
-};
-
-// Глобальний індикатор завантаження
-function showLoading() {
-    // Перевірка, чи елемент уже існує
-    let loader = document.getElementById('global-loader');
-    if (loader) {
-        loader.classList.add('show');
-        return;
-    }
-
-    // Створюємо елемент
-    loader = document.createElement('div');
-    loader.id = 'global-loader';
-    loader.classList.add('global-loader');
-
-    // Встановлюємо вміст
-    loader.innerHTML = `
-        <div class="loader-content">
-            <div class="loader-spinner"></div>
-            <div class="loader-text">Завантаження...</div>
-        </div>
-    `;
-
-    // Додаємо до body
-    document.body.appendChild(loader);
-
-    // Анімація появи
-    setTimeout(() => {
-        loader.classList.add('show');
-    }, 10);
-}
-
-function hideLoading() {
-    const loader = document.getElementById('global-loader');
-    if (loader) {
-        loader.classList.remove('show');
-        setTimeout(() => {
-            if (loader.parentNode) {
-                document.body.removeChild(loader);
-            }
-        }, 300);
-    }
-}
-
-// Експортуємо функції в глобальний об'єкт
-window.showLoading = showLoading;
-window.hideLoading = hideLoading;
 
         // Словник для перекладів
         const translations = {
@@ -2302,94 +1556,88 @@ window.hideLoading = hideLoading;
             }
         }
 
-       function handleCancelStakingFromModal() {
-    try {
-        // Приховуємо модальне вікно
-        hideStakingModal();
+        // Функція для скасування стейкінгу з модального вікна
+        function handleCancelStakingFromModal() {
+            try {
+                // Приховуємо модальне вікно
+                hideStakingModal();
 
-        // Отримуємо дані про активний стейкінг
-        const stakingData = getStakingData();
-        if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
-            if (window.simpleAlert) {
-                window.simpleAlert("Не вдалося знайти активний стейкінг", true);
-            } else {
-                alert("Не вдалося знайти активний стейкінг");
-            }
-            return;
-        }
-
-        // Запитуємо підтвердження лише один раз
-        if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
-            // Показуємо індикатор завантаження
-            if (typeof showLoading === 'function') {
-                showLoading();
-            }
-
-            // Використовуємо WinixAPI напряму з передачею ID стейкінгу
-            window.WinixAPI.cancelStaking(stakingData.stakingId)
-                .then(response => {
-                    // Приховуємо індикатор завантаження
-                    if (typeof hideLoading === 'function') {
-                        hideLoading();
-                    }
-
-                    if (response.status === 'success') {
-                        // Очищаємо дані стейкінгу
-                        localStorage.removeItem('stakingData');
-                        localStorage.removeItem('winix_staking');
-
-                        // Оновлюємо баланс
-                        if (response.data && response.data.newBalance) {
-                            localStorage.setItem('userTokens', response.data.newBalance.toString());
-                            localStorage.setItem('winix_balance', response.data.newBalance.toString());
-
-                            // Оновлюємо відображення балансу
-                            updateBalanceDisplay();
-                        }
-
-                        // Показуємо повідомлення про успіх
-                        if (window.simpleAlert) {
-                            window.simpleAlert("Стейкінг успішно скасовано", false);
-                        } else {
-                            alert("Стейкінг успішно скасовано");
-                        }
-
-                        // Оновлюємо кнопки стейкінгу
-                        setTimeout(updateStakingButtons, 500);
+                // Запитуємо підтвердження
+                if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
+                    // Перевіряємо наявність функції в WinixStakingSystem
+                    if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
+                        window.WinixStakingSystem.cancelStaking()
+                            .then(result => {
+                                if (result.success) {
+                                    if (window.simpleAlert) {
+                                        window.simpleAlert(result.message || "Стейкінг успішно скасовано", false, function() {
+                                            window.location.reload();
+                                        });
+                                    } else {
+                                        alert(result.message || "Стейкінг успішно скасовано");
+                                        window.location.reload();
+                                    }
+                                } else {
+                                    if (window.simpleAlert) {
+                                        window.simpleAlert(result.message || "Помилка скасування стейкінгу", true);
+                                    } else {
+                                        alert(result.message || "Помилка скасування стейкінгу");
+                                    }
+                                }
+                            })
+                            .catch(error => {
+                                console.error("Помилка при скасуванні стейкінгу:", error);
+                                if (window.simpleAlert) {
+                                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                                } else {
+                                    alert("Сталася помилка. Спробуйте ще раз.");
+                                }
+                            });
+                    } else if (window.WinixAPI && typeof window.WinixAPI.cancelStaking === 'function') {
+                        window.WinixAPI.cancelStaking()
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    if (window.simpleAlert) {
+                                        window.simpleAlert(data.message || "Стейкінг успішно скасовано", false, function() {
+                                            window.location.reload();
+                                        });
+                                    } else {
+                                        alert(data.message || "Стейкінг успішно скасовано");
+                                        window.location.reload();
+                                    }
+                                } else {
+                                    if (window.simpleAlert) {
+                                        window.simpleAlert(data.message || "Помилка скасування стейкінгу", true);
+                                    } else {
+                                        alert(data.message || "Помилка скасування стейкінгу");
+                                    }
+                                }
+                            })
+                            .catch(error => {
+                                console.error("Помилка при скасуванні стейкінгу:", error);
+                                if (window.simpleAlert) {
+                                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                                } else {
+                                    alert("Сталася помилка. Спробуйте ще раз.");
+                                }
+                            });
                     } else {
-                        // Показуємо повідомлення про помилку
                         if (window.simpleAlert) {
-                            window.simpleAlert(response.message || "Помилка скасування стейкінгу", true);
+                            window.simpleAlert("Функціональність скасування стейкінгу недоступна", true);
                         } else {
-                            alert(response.message || "Помилка скасування стейкінгу");
+                            alert("Функціональність скасування стейкінгу недоступна");
                         }
                     }
-                })
-                .catch(error => {
-                    // Приховуємо індикатор завантаження
-                    if (typeof hideLoading === 'function') {
-                        hideLoading();
-                    }
-
-                    console.error("Помилка при скасуванні стейкінгу:", error);
-
-                    if (window.simpleAlert) {
-                        window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-                    } else {
-                        alert("Сталася помилка. Спробуйте ще раз.");
-                    }
-                });
+                }
+            } catch (e) {
+                console.error('Помилка при скасуванні стейкінгу з модального вікна:', e);
+                if (window.simpleAlert) {
+                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                } else {
+                    alert("Сталася помилка. Спробуйте ще раз.");
+                }
+            }
         }
-    } catch (e) {
-        console.error('Помилка при скасуванні стейкінгу з модального вікна:', e);
-
-        if (window.simpleAlert) {
-            window.simpleAlert("Сталася неочікувана помилка. Спробуйте ще раз.", true);
-        } else {
-            alert("Сталася неочікувана помилка. Спробуйте ще раз.");
-        }
-    }
-}
 
         // Головна функція ініціалізації сторінки
         function initPage() {

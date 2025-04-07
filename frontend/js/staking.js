@@ -900,138 +900,91 @@
     }
 
     /**
-     * Скасування стейкінгу
-     * @returns {Promise<Object>} Результат операції
-     */
-    async function cancelStaking() {
+ * Скасування стейкінгу
+ * @returns {Promise<Object>} Результат операції
+ */
+async function cancelStaking() {
+    if (_isProcessingRequest) {
+        showMessage('Зачекайте, виконується попередній запит', true);
+        return { success: false, message: 'Вже виконується запит' };
+    }
+
+    _isProcessingRequest = true;
+
+    try {
         // Показуємо індикатор завантаження
         if (typeof showLoading === 'function') {
             showLoading();
         }
 
-        try {
+        // Перевіряємо наявність активного стейкінгу
+        if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
+            // Спробуємо оновити дані стейкінгу
+            await fetchStakingData(true);
+
+            if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
+                throw new Error('У вас немає активного стейкінгу');
+            }
+        }
+
+        const stakingId = _currentStakingData.stakingId;
+        if (!stakingId) {
+            throw new Error('Не вдалося визначити ID стейкінгу');
+        }
+
+        console.log(`Скасування стейкінгу з ID: ${stakingId}`);
+
+        // Запитуємо підтвердження
+        let userConfirmed = false;
+
+        if (window.showModernConfirm) {
+            // Використовуємо сучасне підтвердження
+            userConfirmed = await new Promise(resolve => {
+                window.showModernConfirm(
+                    "Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.",
+                    () => resolve(true),
+                    () => resolve(false)
+                );
+            });
+        } else {
+            // Використовуємо звичайний confirm
+            userConfirmed = confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.");
+        }
+
+        if (!userConfirmed) {
+            if (typeof hideLoading === 'function') {
+                hideLoading();
+            }
+            _isProcessingRequest = false;
+            return { success: false, message: "Скасовано користувачем" };
+        }
+
+        // Використовуємо WinixAPI для скасування стейкінгу
+        let result;
+        if (window.WinixAPI && window.WinixAPI.apiRequest) {
             // Отримуємо ID користувача
             const userId = window.WinixAPI.getUserId();
             if (!userId) {
                 throw new Error("Не вдалося отримати ID користувача");
             }
 
-            // Отримуємо дані стейкінгу для визначення ID стейкінгу
-            const stakingData = await window.WinixAPI.getStakingData();
-            if (!stakingData || !stakingData.data || !stakingData.data.hasActiveStaking || !stakingData.data.stakingId) {
-                throw new Error("Активний стейкінг не знайдено");
-            }
-
-            const stakingId = stakingData.data.stakingId;
-            console.log(`Скасування стейкінгу з ID: ${stakingId}`);
-
-            // Запитуємо підтвердження (тільки один раз)
-            if (!window.showModernConfirm) {
-                // Якщо немає сучасного підтвердження, використовуємо звичайний confirm
-                if (!confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
-                    if (typeof hideLoading === 'function') {
-                        hideLoading();
-                    }
-                    return { success: false, message: "Скасовано користувачем" };
+            // Використовуємо apiRequest замість прямого fetch
+            result = await window.WinixAPI.apiRequest(
+                `/api/user/${userId}/staking/${stakingId}/cancel`,
+                'POST',
+                {
+                    confirm: true,
+                    timestamp: Date.now()
                 }
-            } else {
-                // Використовуємо сучасне підтвердження
-                return new Promise((resolve) => {
-                    window.showModernConfirm(
-                        "Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.",
-                        async () => {
-                            try {
-                                // Безпосередній запит до API
-                                const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        confirm: true,
-                                        timestamp: Date.now()
-                                    })
-                                });
-
-                                // Приховуємо індикатор завантаження
-                                if (typeof hideLoading === 'function') {
-                                    hideLoading();
-                                }
-
-                                if (!response.ok) {
-                                    // Спроба отримати текст помилки з відповіді
-                                    let errorText = "";
-                                    try {
-                                        const errorData = await response.json();
-                                        errorText = errorData.message || `Помилка сервера: ${response.status}`;
-                                    } catch {
-                                        errorText = `Помилка сервера: ${response.status}`;
-                                    }
-
-                                    console.error(`Помилка скасування стейкінгу: ${errorText}`);
-                                    window.showModernNotification(errorText, true);
-                                    resolve({ success: false, message: errorText });
-                                    return;
-                                }
-
-                                const data = await response.json();
-
-                                if (data.status === 'success') {
-                                    // Очищаємо дані стейкінгу
-                                    localStorage.removeItem('stakingData');
-                                    localStorage.removeItem('winix_staking');
-
-                                    // Оновлюємо баланс
-                                    if (data.data && data.data.newBalance !== undefined) {
-                                        localStorage.setItem('userTokens', data.data.newBalance.toString());
-                                        localStorage.setItem('winix_balance', data.data.newBalance.toString());
-
-                                        // Оновлюємо відображення
-                                        if (typeof updateBalanceDisplay === 'function') {
-                                            updateBalanceDisplay();
-                                        }
-                                    }
-
-                                    // Показуємо повідомлення про успіх
-                                    let message = "Стейкінг успішно скасовано";
-                                    if (data.data && data.data.returnedAmount && data.data.feeAmount) {
-                                        message = `Стейкінг скасовано. Повернено: ${data.data.returnedAmount} WINIX. Комісія: ${data.data.feeAmount} WINIX.`;
-                                    }
-
-                                    window.showModernNotification(message, false, () => {
-                                        // Плавно перезавантажуємо сторінку для оновлення даних
-                                        smoothReload();
-                                    });
-
-                                    resolve({ success: true, data: data.data, message });
-                                } else {
-                                    window.showModernNotification(data.message || "Помилка скасування стейкінгу", true);
-                                    resolve({ success: false, message: data.message || "Помилка скасування стейкінгу" });
-                                }
-                            } catch (error) {
-                                // Приховуємо індикатор завантаження
-                                if (typeof hideLoading === 'function') {
-                                    hideLoading();
-                                }
-
-                                console.error("Помилка під час скасування стейкінгу:", error);
-                                window.showModernNotification(error.message || "Сталася помилка під час скасування стейкінгу", true);
-                                resolve({ success: false, message: error.message });
-                            }
-                        },
-                        () => {
-                            // Приховуємо індикатор завантаження
-                            if (typeof hideLoading === 'function') {
-                                hideLoading();
-                            }
-                            resolve({ success: false, message: "Скасовано користувачем" });
-                        }
-                    );
-                });
+            );
+        } else {
+            // Резервний варіант, якщо WinixAPI недоступний
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error("Не вдалося отримати ID користувача");
             }
 
-            // Для випадку, коли використовується звичайний confirm
-            // Безпосередній запит до API
+            // Виконуємо прямий запит до API
             const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
                 method: 'POST',
                 headers: {
@@ -1043,76 +996,77 @@
                 })
             });
 
-            // Приховуємо індикатор завантаження
-            if (typeof hideLoading === 'function') {
-                hideLoading();
-            }
-
             if (!response.ok) {
-                throw new Error(`Помилка сервера: ${response.status}`);
+                throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
             }
 
-            const data = await response.json();
-
-            if (data.status === 'success') {
-                // Очищаємо дані стейкінгу
-                localStorage.removeItem('stakingData');
-                localStorage.removeItem('winix_staking');
-
-                // Оновлюємо баланс
-                if (data.data && data.data.newBalance !== undefined) {
-                    localStorage.setItem('userTokens', data.data.newBalance.toString());
-                    localStorage.setItem('winix_balance', data.data.newBalance.toString());
-
-                    // Оновлюємо відображення
-                    if (typeof updateBalanceDisplay === 'function') {
-                        updateBalanceDisplay();
-                    }
-                }
-
-                // Показуємо повідомлення про успіх
-                let message = "Стейкінг успішно скасовано";
-                if (data.data && data.data.returnedAmount && data.data.feeAmount) {
-                    message = `Стейкінг скасовано. Повернено: ${data.data.returnedAmount} WINIX. Комісія: ${data.data.feeAmount} WINIX.`;
-                }
-
-                if (typeof window.showModernNotification === 'function') {
-                    window.showModernNotification(message, false, () => {
-                        // Плавно перезавантажуємо сторінку для оновлення даних
-                        smoothReload();
-                    });
-                } else {
-                    alert(message);
-                    smoothReload();
-                }
-
-                return { success: true, data: data.data, message };
-            } else {
-                if (typeof window.showModernNotification === 'function') {
-                    window.showModernNotification(data.message || "Помилка скасування стейкінгу", true);
-                } else {
-                    alert(data.message || "Помилка скасування стейкінгу");
-                }
-
-                return { success: false, message: data.message || "Помилка скасування стейкінгу" };
-            }
-        } catch (error) {
-            // Приховуємо індикатор завантаження
-            if (typeof hideLoading === 'function') {
-                hideLoading();
-            }
-
-            console.error("Помилка під час скасування стейкінгу:", error);
-
-            if (typeof window.showModernNotification === 'function') {
-                window.showModernNotification(error.message || "Сталася помилка під час скасування стейкінгу", true);
-            } else {
-                alert(error.message || "Сталася помилка під час скасування стейкінгу");
-            }
-
-            return { success: false, message: error.message };
+            result = await response.json();
         }
+
+        // Приховуємо індикатор завантаження
+        if (typeof hideLoading === 'function') {
+            hideLoading();
+        }
+
+        if (result.status === 'success') {
+            // Очищаємо дані стейкінгу
+            _currentStakingData = {
+                hasActiveStaking: false,
+                stakingAmount: 0,
+                period: 0,
+                rewardPercent: 0,
+                expectedReward: 0,
+                remainingDays: 0
+            };
+
+            localStorage.removeItem('stakingData');
+            localStorage.removeItem('winix_staking');
+
+            // Оновлюємо баланс
+            if (result.data && result.data.newBalance !== undefined) {
+                localStorage.setItem('userTokens', result.data.newBalance.toString());
+                localStorage.setItem('winix_balance', result.data.newBalance.toString());
+
+                // Оновлюємо відображення
+                if (typeof updateBalanceDisplay === 'function') {
+                    updateBalanceDisplay();
+                }
+            }
+
+            // Оновлюємо інтерфейс
+            updateUI(true);
+
+            // Показуємо повідомлення про успіх
+            let message = "Стейкінг успішно скасовано";
+            if (result.data && result.data.returnedAmount && result.data.feeAmount) {
+                message = `Стейкінг скасовано. Повернено: ${result.data.returnedAmount} WINIX. Комісія: ${result.data.feeAmount} WINIX.`;
+            }
+
+            showMessage(message, false, () => {
+                // Плавно перезавантажуємо сторінку для оновлення даних
+                smoothReload();
+            });
+
+            return { success: true, data: result.data, message };
+        } else {
+            throw new Error(result.message || "Помилка скасування стейкінгу");
+        }
+    } catch (error) {
+        console.error("Помилка під час скасування стейкінгу:", error);
+
+        // Приховуємо індикатор завантаження
+        if (typeof hideLoading === 'function') {
+            hideLoading();
+        }
+
+        // Показуємо повідомлення про помилку
+        showMessage(error.message || "Сталася помилка під час скасування стейкінгу", true);
+
+        return { success: false, message: error.message };
+    } finally {
+        _isProcessingRequest = false;
     }
+}
 
     /**
      * Ініціалізація обробників подій з покращеним debouncing та throttling
