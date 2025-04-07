@@ -8,7 +8,7 @@ import logging
 import traceback
 from datetime import datetime, timezone
 
-# Виправлений імпорт сервісного шару
+# Виправлений імпорт сервісного шару з необхідними функціями
 from .services import (
     check_active_staking,
     create_staking,
@@ -19,7 +19,9 @@ from .services import (
     calculate_staking_reward,
     reset_and_repair_staking as service_reset_repair,
     deep_repair_staking,
-    verify_staking_consistency
+    verify_staking_consistency,
+    get_user_staking_sessions,
+    get_staking_session
 )
 
 # Імпортуємо константи з сервісного шару
@@ -231,6 +233,62 @@ def cancel_user_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, An
         # Логування початку обробки
         logger.info(f"cancel_user_staking: Початок обробки для користувача {telegram_id}, стейкінг {staking_id}")
 
+        # Додаткове логування тіла запиту
+        try:
+            data = request.json
+            logger.info(f"cancel_user_staking: Отримані дані запиту: {data}")
+        except Exception as e:
+            logger.warning(f"cancel_user_staking: Помилка отримання JSON даних запиту: {str(e)}")
+            data = {}
+
+        # Запобігаємо випадковим натисканням
+        confirm = data.get('confirm', False)
+        if not confirm and 'confirm' in data:
+            logger.warning(f"cancel_user_staking: Не отримано підтвердження скасування")
+            return jsonify({
+                "status": "error",
+                "message": "Необхідне підтвердження скасування стейкінгу"
+            }), 400
+
+        # Перевіряємо наявність активного стейкінгу
+        current_session = None
+        try:
+            all_sessions = get_user_staking_sessions(telegram_id, active_only=True)
+
+            # Шукаємо сесію з вказаним ID
+            for session in all_sessions:
+                if session["id"] == staking_id:
+                    current_session = session
+                    break
+
+            # Якщо не знайдено, перевіряємо ще раз за ID стейкінгу напряму
+            if not current_session:
+                current_session = get_staking_session(staking_id)
+
+                # Перевіряємо відповідність користувача
+                if current_session and (str(current_session.get("user_id")) != telegram_id and
+                                        str(current_session.get("telegram_id")) != telegram_id):
+                    logger.warning(f"cancel_user_staking: Сесія {staking_id} належить іншому користувачу")
+                    current_session = None
+        except Exception as e:
+            logger.error(f"cancel_user_staking: Помилка отримання стейкінг-сесій: {str(e)}")
+            current_session = None
+
+        if not current_session:
+            logger.warning(f"cancel_user_staking: Стейкінг {staking_id} для користувача {telegram_id} не знайдено")
+            return jsonify({
+                "status": "error",
+                "message": f"Стейкінг не знайдено або він не належить вам"
+            }), 404
+
+        # Додаткова перевірка активності сесії
+        if not current_session.get("is_active", False):
+            logger.warning(f"cancel_user_staking: Спроба скасувати неактивний стейкінг {staking_id}")
+            return jsonify({
+                "status": "error",
+                "message": "Неможливо скасувати неактивний стейкінг"
+            }), 400
+
         # Скасовуємо стейкінг
         success, result, message = cancel_staking(telegram_id, staking_id)
 
@@ -393,15 +451,7 @@ def repair_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
         force = data.get('force', False)
 
         # Виклик функції відновлення
-        response, status_code = service_reset_repair(telegram_id, force)
-
-        # Додаткове логування результату
-        if status_code == 200:
-            logger.info(f"repair_user_staking: Успішне відновлення для {telegram_id}: {response.get('message')}")
-        else:
-            logger.warning(f"repair_user_staking: Помилка відновлення для {telegram_id}: {response.get('message')}")
-
-        return jsonify(response), status_code
+        return service_reset_repair(telegram_id, force)
     except Exception as e:
         logger.error(f"Помилка відновлення стейкінгу: {str(e)}")
         logger.error(traceback.format_exc())
