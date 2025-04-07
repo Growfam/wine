@@ -16,7 +16,7 @@ from users import (
     claim_badge_reward, claim_newbie_bonus, get_user_settings,
     update_user_settings, update_user_password, get_user_seed_phrase
 )
-from staking import (
+from staking_controller import (
     get_user_staking, create_user_staking, update_user_staking,
     cancel_user_staking, finalize_user_staking, get_user_staking_history,
     calculate_staking_reward_api, reset_and_repair_staking
