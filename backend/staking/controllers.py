@@ -6,10 +6,11 @@ from typing import Tuple, Dict, Any, Optional, Union
 from flask import jsonify, request
 import logging
 
+# Виправлений імпорт сервісного шару
 from .services import (
     check_active_staking,
     create_staking,
-    add_to_staking,
+    add_to_staking as service_add_to_staking,
     cancel_staking,
     finalize_staking,
     get_staking_history,
@@ -129,7 +130,7 @@ def add_to_staking(telegram_id: str, staking_id: str) -> Tuple[Dict[str, Any], i
         additional_amount = data.get("additionalAmount")
 
         # Додаємо до стейкінгу
-        success, result, message = add_to_staking(telegram_id, staking_id, additional_amount)
+        success, result, message = service_add_to_staking(telegram_id, staking_id, additional_amount)
 
         if success:
             return jsonify({"status": "success", "data": result, "message": message}), 200
@@ -257,31 +258,21 @@ def calculate_staking_reward_api() -> Tuple[Dict[str, Any], int]:
         if amount <= 0:
             return jsonify({"status": "error", "message": "Сума стейкінгу повинна бути більше 0"}), 400
 
-        # Перевіряємо доступні періоди
-        try:
-            from models.staking_session import StakingSession
-            if period not in StakingSession.STAKING_REWARD_RATES:
-                periods_str = ', '.join(map(str, StakingSession.STAKING_REWARD_RATES.keys()))
-                return jsonify({
-                    "status": "error",
-                    "message": f"Некоректний період стейкінгу. Доступні періоди: {periods_str}"
-                }), 400
-            # Визначаємо відсоток для вказаного періоду
-            reward_percent = StakingSession.STAKING_REWARD_RATES.get(period, 9)
-        except ImportError:
-            # Альтернативний варіант, якщо модель недоступна
-            from .services import STAKING_REWARD_RATES
-            if period not in STAKING_REWARD_RATES:
-                periods_str = ', '.join(map(str, STAKING_REWARD_RATES.keys()))
-                return jsonify({
-                    "status": "error",
-                    "message": f"Некоректний період стейкінгу. Доступні періоди: {periods_str}"
-                }), 400
-            # Визначаємо відсоток для вказаного періоду
-            reward_percent = STAKING_REWARD_RATES.get(period, 9)
+        # Перевіряємо доступні періоди - імпортуємо з services
+        from .services import STAKING_REWARD_RATES
+
+        if period not in STAKING_REWARD_RATES:
+            periods_str = ', '.join(map(str, STAKING_REWARD_RATES.keys()))
+            return jsonify({
+                "status": "error",
+                "message": f"Некоректний період стейкінгу. Доступні періоди: {periods_str}"
+            }), 400
 
         # Розраховуємо винагороду
         reward = calculate_staking_reward(amount, period)
+
+        # Визначаємо відсоток для вказаного періоду
+        reward_percent = STAKING_REWARD_RATES.get(period, 9)
 
         return jsonify({
             "status": "success",
@@ -323,7 +314,7 @@ def repair_user_staking(telegram_id: str) -> Tuple[Dict[str, Any], int]:
 
 def reset_and_repair_staking(telegram_id: str, force: bool = False) -> Tuple[Dict[str, Any], int]:
     """
-    Обробник маршруту /api/user/<telegram_id>/staking/reset-repair [POST]
+    Обробник маршруту /api/user/<telegram_id>/staking/repair [POST]
     Відновлення стану стейкінгу після помилок
     (Ця функція є синонімом до repair_user_staking для забезпечення сумісності)
 
@@ -335,10 +326,12 @@ def reset_and_repair_staking(telegram_id: str, force: bool = False) -> Tuple[Dic
         tuple: (json_response, status_code)
     """
     try:
-        # Викликаємо repair_user_staking з параметром force
-        data = request.json or {}
-        data['force'] = force
-        request.json = data
+        # Створюємо оновлений request.json з параметром force
+        if not hasattr(request, '_payload_cache'):
+            setattr(request, '_payload_cache', {})
+        request._payload_cache = {'force': force}
+
+        # Викликаємо repair_user_staking замість прямого виклику сервісу
         return repair_user_staking(telegram_id)
     except Exception as e:
         logger.error(f"Помилка відновлення стейкінгу: {str(e)}")
