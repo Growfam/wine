@@ -903,28 +903,28 @@
  * Скасування стейкінгу
  * @returns {Promise<Object>} Результат операції
  */
+// Оновлена функція cancelStaking в файлі staking.js
 async function cancelStaking() {
+    // Запобігаємо паралельним запитам
     if (_isProcessingRequest) {
-        showMessage('Зачекайте, виконується попередній запит', true);
-        return { success: false, message: 'Вже виконується запит' };
+        console.warn('⚠️ Запит на скасування стейкінгу вже виконується');
+        if (typeof showMessage === 'function') {
+            showMessage('Зачекайте, скасування стейкінгу виконується', true);
+        }
+        return { success: false, message: 'Запит вже виконується' };
     }
 
     _isProcessingRequest = true;
 
     try {
-        // Показуємо індикатор завантаження
-        if (typeof showLoading === 'function') {
-            showLoading();
+        // Показуємо індикатор завантаження, перевіряємо що він ще не активний
+        if (typeof showLoading === 'function' && !window._loaderVisible) {
+            showLoading("Скасування стейкінгу...");
         }
 
         // Перевіряємо наявність активного стейкінгу
         if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
-            // Спробуємо оновити дані стейкінгу
-            await fetchStakingData(true);
-
-            if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
-                throw new Error('У вас немає активного стейкінгу');
-            }
+            throw new Error('У вас немає активного стейкінгу');
         }
 
         const stakingId = _currentStakingData.stakingId;
@@ -934,10 +934,10 @@ async function cancelStaking() {
 
         console.log(`Скасування стейкінгу з ID: ${stakingId}`);
 
-        // Запитуємо підтвердження
+        // Запитуємо підтвердження від користувача
         let userConfirmed = false;
 
-        if (window.showModernConfirm) {
+        if (typeof window.showModernConfirm === 'function') {
             // Використовуємо сучасне підтвердження
             userConfirmed = await new Promise(resolve => {
                 window.showModernConfirm(
@@ -959,53 +959,42 @@ async function cancelStaking() {
             return { success: false, message: "Скасовано користувачем" };
         }
 
-        // Використовуємо WinixAPI для скасування стейкінгу
+        // Отримуємо ID користувача
+        const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+        if (!userId) {
+            throw new Error("Не вдалося отримати ID користувача");
+        }
+
+        // Виконуємо запит для скасування стейкінгу
+        // Використовуємо пряму функцію API замість всіх проміжних викликів
+        const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel?t=${Date.now()}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Telegram-User-Id': userId
+            },
+            body: JSON.stringify({
+                confirm: true,
+                timestamp: Date.now()
+            })
+        });
+
+        // Парсимо відповідь сервера
         let result;
-        if (window.WinixAPI && window.WinixAPI.apiRequest) {
-            // Отримуємо ID користувача
-            const userId = window.WinixAPI.getUserId();
-            if (!userId) {
-                throw new Error("Не вдалося отримати ID користувача");
-            }
-
-            // Використовуємо apiRequest замість прямого fetch
-            result = await window.WinixAPI.apiRequest(
-                `/api/user/${userId}/staking/${stakingId}/cancel`,
-                'POST',
-                {
-                    confirm: true,
-                    timestamp: Date.now()
-                }
-            );
-        } else {
-            // Резервний варіант, якщо WinixAPI недоступний
-            const userId = getUserId();
-            if (!userId) {
-                throw new Error("Не вдалося отримати ID користувача");
-            }
-
-            // Виконуємо прямий запит до API
-            const response = await fetch(`/api/user/${userId}/staking/${stakingId}/cancel`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    confirm: true,
-                    timestamp: Date.now()
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
-            }
-
+        try {
             result = await response.json();
+        } catch (e) {
+            console.error("Помилка парсингу відповіді:", e);
+            throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
         }
 
         // Приховуємо індикатор завантаження
         if (typeof hideLoading === 'function') {
             hideLoading();
+        }
+
+        if (!response.ok) {
+            throw new Error(`Помилка сервера: ${response.status} ${response.statusText}. ${result.message || ''}`);
         }
 
         if (result.status === 'success') {
@@ -1019,15 +1008,16 @@ async function cancelStaking() {
                 remainingDays: 0
             };
 
+            // Очищуємо кеш
             localStorage.removeItem('stakingData');
             localStorage.removeItem('winix_staking');
 
-            // Оновлюємо баланс
+            // Оновлюємо баланс, якщо є у відповіді
             if (result.data && result.data.newBalance !== undefined) {
                 localStorage.setItem('userTokens', result.data.newBalance.toString());
                 localStorage.setItem('winix_balance', result.data.newBalance.toString());
 
-                // Оновлюємо відображення
+                // Оновлюємо відображення балансу
                 if (typeof updateBalanceDisplay === 'function') {
                     updateBalanceDisplay();
                 }
@@ -1036,16 +1026,31 @@ async function cancelStaking() {
             // Оновлюємо інтерфейс
             updateUI(true);
 
-            // Показуємо повідомлення про успіх
+            // Генеруємо подію про оновлення стейкінгу
+            document.dispatchEvent(new CustomEvent('staking-updated', {
+                detail: {
+                    stakingData: _currentStakingData,
+                    hasActiveStaking: false,
+                    timestamp: Date.now()
+                }
+            }));
+
+            // Показуємо повідомлення про успіх БЕЗ рекурсивних викликів
             let message = "Стейкінг успішно скасовано";
             if (result.data && result.data.returnedAmount && result.data.feeAmount) {
                 message = `Стейкінг скасовано. Повернено: ${result.data.returnedAmount} WINIX. Комісія: ${result.data.feeAmount} WINIX.`;
             }
 
-            showMessage(message, false, () => {
-                // Плавно перезавантажуємо сторінку для оновлення даних
-                smoothReload();
-            });
+            console.log("✅ " + message);
+
+            // Безпечно показуємо повідомлення
+            try {
+                if (typeof alert === 'function' && !window._isShowingNotification) {
+                    alert(message);
+                }
+            } catch (e) {
+                console.error("Помилка під час показу повідомлення:", e);
+            }
 
             return { success: true, data: result.data, message };
         } else {
@@ -1059,8 +1064,14 @@ async function cancelStaking() {
             hideLoading();
         }
 
-        // Показуємо повідомлення про помилку
-        showMessage(error.message || "Сталася помилка під час скасування стейкінгу", true);
+        // Безпечно показуємо повідомлення про помилку
+        try {
+            if (typeof alert === 'function' && !window._isShowingNotification) {
+                alert(error.message || "Сталася помилка під час скасування стейкінгу");
+            }
+        } catch (e) {
+            console.error("Помилка під час показу повідомлення про помилку:", e);
+        }
 
         return { success: false, message: error.message };
     } finally {
@@ -1079,82 +1090,81 @@ async function cancelStaking() {
             const expectedReward = getElement(DOM.expectedReward);
 
             if (amountInput && periodSelect && expectedReward) {
-                // Покращена функція оновлення очікуваної винагороди з оптимізованим дебаунсингом
-                let updateRewardDebounceTimer;
-                let lastCalculationTime = 0;
-                let lastAmountValue = '';
-                let lastPeriodValue = '';
-                let pendingCalculation = false;
+            // Оптимізована функція updateReward з файлу staking.js
+// Спрощена версія без надмірних оптимізацій та дебаунсингу
 
-                const updateReward = () => {
-                    // Отримуємо поточні значення
-                    const amount = amountInput.value || '0';
-                    const period = periodSelect.value || '14';
+function setupProfitCalculation() {
+    // Отримуємо необхідні елементи
+    const amountInput = document.getElementById('staking-amount');
+    const periodSelect = document.getElementById('staking-period');
+    const expectedReward = document.getElementById('expected-reward');
 
-                    // Якщо значення не змінилися, не оновлюємо
-                    if (amount === lastAmountValue && period === lastPeriodValue && !pendingCalculation) {
-                        return;
-                    }
+    if (!amountInput || !periodSelect || !expectedReward) {
+        console.error("Не знайдено необхідні елементи для розрахунку профіту");
+        return;
+    }
 
-                    // Зберігаємо поточні значення
-                    lastAmountValue = amount;
-                    lastPeriodValue = period;
+    // Проста функція для розрахунку очікуваної винагороди
+    function calculateReward(amount, period) {
+        // Базові відсотки для стейкінгу
+        const rewardRates = {
+            7: 4,    // 4% за 7 днів
+            14: 9,   // 9% за 14 днів
+            28: 15   // 15% за 28 днів
+        };
 
-                    // Очищаємо попередній таймер
-                    clearTimeout(updateRewardDebounceTimer);
+        // Розраховуємо винагороду
+        const rewardPercent = rewardRates[period] || 9;
+        const reward = (amount * rewardPercent) / 100;
 
-                    // Перевіряємо, чи треба застосувати throttling
-                    const now = Date.now();
-                    const elapsed = now - lastCalculationTime;
+        return parseFloat(reward.toFixed(2));
+    }
 
-                    // Показуємо анімацію завантаження
-                    if (!pendingCalculation) {
-                        expectedReward.classList.add('calculating');
-                        pendingCalculation = true;
-                    }
+    // Функція оновлення відображення винагороди
+    function updateRewardDisplay() {
+        // Отримуємо значення
+        const amount = parseInt(amountInput.value) || 0;
+        const period = parseInt(periodSelect.value) || 14;
 
-                    // Встановлюємо затримку залежно від часу, що минув
-                    const debounceDelay = elapsed < 1000 ? INPUT_DEBOUNCE_MS : 50;
+        // Показуємо стан завантаження
+        expectedReward.classList.add('calculating');
 
-                    updateRewardDebounceTimer = setTimeout(async () => {
-                        try {
-                            // Оновлюємо час останнього обчислення
-                            lastCalculationTime = Date.now();
+        try {
+            // Розраховуємо винагороду
+            const reward = calculateReward(amount, period);
 
-                            const numAmount = parseInt(amount) || 0;
-                            const numPeriod = parseInt(period) || 14;
+            // Оновлюємо відображення
+            expectedReward.textContent = reward.toFixed(2);
+            expectedReward.classList.remove('calculating');
+            expectedReward.classList.add('value-updated');
 
-                            // Викликаємо API для розрахунку
-                            const reward = await calculateExpectedReward(numAmount, numPeriod);
+            // Видаляємо клас анімації через деякий час
+            setTimeout(() => {
+                expectedReward.classList.remove('value-updated');
+            }, 500);
+        } catch (error) {
+            console.error("Помилка розрахунку винагороди:", error);
+            expectedReward.textContent = "0.00";
+            expectedReward.classList.remove('calculating');
+        }
+    }
 
-                            if (expectedReward) {
-                                // Плавно оновлюємо значення з анімацією
-                                const oldValue = parseFloat(expectedReward.textContent) || 0;
-                                const newValue = reward;
+    // Додаємо обробники подій
+    amountInput.addEventListener('input', updateRewardDisplay);
+    periodSelect.addEventListener('change', updateRewardDisplay);
 
-                                // Видаляємо клас завантаження
-                                expectedReward.classList.remove('calculating');
+    // Початкове оновлення
+    updateRewardDisplay();
 
-                                // Додаємо анімацію оновлення значення
-                                expectedReward.classList.add('value-updated');
+    // Зберігаємо функцію у глобальній області для можливості виклику з інших місць
+    window.updateExpectedReward = updateRewardDisplay;
+}
 
-                                // Оновлюємо значення з плавною анімацією
-                                animateNumberChange(expectedReward, oldValue, newValue, 500);
+// Викликати цю функцію після завантаження DOM
+document.addEventListener('DOMContentLoaded', setupProfitCalculation);
 
-                                // Видаляємо клас анімації через деякий час
-                                setTimeout(() => {
-                                    expectedReward.classList.remove('value-updated');
-                                }, 1500);
-                            }
-
-                            pendingCalculation = false;
-                        } catch (e) {
-                            console.error("Помилка при оновленні очікуваної винагороди:", e);
-                            expectedReward.classList.remove('calculating');
-                            pendingCalculation = false;
-                        }
-                    }, debounceDelay);
-                };
+// Для швидкого виправлення, можна також викликати її зараз
+setTimeout(setupProfitCalculation, 500);
 
                 /**
                  * Функція для плавної анімації зміни числа

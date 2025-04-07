@@ -145,101 +145,59 @@
      * @param {string} type - Тип повідомлення ('success', 'error', 'info')
      * @param {Function} callback - Функція зворотного виклику
      */
-    function showNotification(message, type = 'success', callback = null) {
-        // Шукаємо глобальні функції для показу повідомлень
-        if (window.showToast) {
-            window.showToast(message, type);
-            if (callback) setTimeout(callback, 2000);
+    // Оновлена версія функції showNotification у winix-core.js
+function showNotification(message, type = 'success', callback = null) {
+    // Запобігаємо показу порожніх повідомлень
+    if (!message || message.trim() === '') {
+        console.warn("Спроба показати порожнє повідомлення");
+        if (callback) setTimeout(callback, 100);
+        return;
+    }
+
+    try {
+        // Перевіряємо чи це не рекурсивний виклик
+        if (window._isShowingNotification) {
+            console.warn("Запобігання рекурсивному виклику showNotification");
             return;
         }
 
-        if (window.simpleAlert) {
+        window._isShowingNotification = true;
+
+        // Спочатку перевіряємо наявність сучасних повідомлень
+        if (typeof window.showModernNotification === 'function') {
+            window._isShowingNotification = false;
+            window.showModernNotification(message, type === 'error', callback);
+            return;
+        }
+
+        // Інакше використовуємо інші доступні методи
+        if (typeof window.showToast === 'function' && window.showToast !== window.showNotification) {
+            window._isShowingNotification = false;
+            window.showToast(message, type);
+            if (callback) setTimeout(callback, 1500);
+            return;
+        }
+
+        if (typeof window.simpleAlert === 'function') {
+            window._isShowingNotification = false;
             window.simpleAlert(message, type === 'error', callback);
             return;
         }
 
-        // Створюємо власне повідомлення, якщо немає глобальних функцій
-        try {
-            // Перевіряємо наявність контейнера для повідомлень
-            let notifContainer = document.getElementById('notification-container');
+        // ВАЖЛИВО: НЕ використовуємо window.showMessage тут, щоб уникнути рекурсії
 
-            if (!notifContainer) {
-                notifContainer = document.createElement('div');
-                notifContainer.id = 'notification-container';
-                notifContainer.style.cssText = `
-                    position: fixed;
-                    top: 10px;
-                    right: 10px;
-                    z-index: 9999;
-                    width: 300px;
-                `;
-                document.body.appendChild(notifContainer);
-            }
+        // Як останній варіант використовуємо стандартний alert
+        alert(message);
+        if (callback) callback();
 
-            // Створюємо повідомлення
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.innerHTML = message;
-            notification.style.cssText = `
-                padding: 12px 16px;
-                margin-bottom: 10px;
-                border-radius: 8px;
-                color: white;
-                animation: slideIn 0.3s ease;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-                cursor: pointer;
-            `;
-
-            // Встановлюємо колір фону залежно від типу
-            if (type === 'error') {
-                notification.style.backgroundColor = '#e74c3c';
-            } else if (type === 'success') {
-                notification.style.backgroundColor = '#2ecc71';
-            } else {
-                notification.style.backgroundColor = '#3498db';
-            }
-
-            // Додаємо анімацію
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes slideIn {
-                    from { transform: translateX(100%); opacity: 0; }
-                    to { transform: translateX(0); opacity: 1; }
-                }
-                @keyframes fadeOut {
-                    from { opacity: 1; }
-                    to { opacity: 0; }
-                }
-            `;
-            document.head.appendChild(style);
-
-            // Додаємо повідомлення до контейнера
-            notifContainer.appendChild(notification);
-
-            // Закриття повідомлення при кліку
-            notification.addEventListener('click', () => {
-                notification.style.animation = 'fadeOut 0.3s ease';
-                setTimeout(() => {
-                    notification.remove();
-                }, 300);
-            });
-
-            // Автоматичне закриття
-            setTimeout(() => {
-                notification.style.animation = 'fadeOut 0.3s ease';
-                setTimeout(() => {
-                    notification.remove();
-                    if (callback) callback();
-                }, 300);
-            }, 5000);
-        } catch (e) {
-            console.error('Помилка показу повідомлення:', e);
-            // Якщо не вдалося створити повідомлення, використовуємо alert
-            alert(message);
-            if (callback) callback();
-        }
+        window._isShowingNotification = false;
+    } catch (e) {
+        window._isShowingNotification = false;
+        console.error("Помилка при показі повідомлення:", e);
+        alert(message);
+        if (callback) callback();
     }
-
+}
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З КОРИСТУВАЧЕМ ========
 
     /**
@@ -501,93 +459,97 @@
      * Показати індикатор завантаження
      * @param {string} message - Повідомлення під індикатором
      */
-    function showLoading(message = 'Завантаження...') {
-        try {
+    // Виправлена функція showLoading в winix-core.js
+function showLoading(message = 'Завантаження...') {
+    try {
+        // Запобігаємо повторному показу індикатора
+        if (window._loaderVisible) {
             // Якщо індикатор вже показаний, просто оновлюємо повідомлення
-            if (_loaderVisible) {
-                const loaderMessage = document.querySelector('#loading-spinner .message');
-                if (loaderMessage) loaderMessage.textContent = message;
-                return;
-            }
-
-            // Створюємо індикатор, якщо його немає
-            let loader = getElement(`#${DOM.loader}`);
-
-            if (!loader) {
-                loader = document.createElement('div');
-                loader.id = DOM.loader;
-                loader.innerHTML = `
-                    <div class="spinner"></div>
-                    <div class="message">${message}</div>
-                `;
-
-                // Додаємо стилі
-                loader.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0, 0, 0, 0.5);
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 9999;
-                `;
-
-                // Стилі для спінера
-                const spinnerStyle = document.createElement('style');
-                spinnerStyle.textContent = `
-                    #${DOM.loader} .spinner {
-                        width: 50px;
-                        height: 50px;
-                        border: 5px solid rgba(255, 255, 255, 0.3);
-                        border-radius: 50%;
-                        border-top-color: #fff;
-                        animation: spin 1s ease-in-out infinite;
-                    }
-                    #${DOM.loader} .message {
-                        margin-top: 15px;
-                        color: white;
-                        font-size: 16px;
-                    }
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(spinnerStyle);
-
-                document.body.appendChild(loader);
-            } else {
-                // Якщо індикатор вже існує, оновлюємо повідомлення
-                const loaderMessage = loader.querySelector('.message');
-                if (loaderMessage) loaderMessage.textContent = message;
-
-                // Показуємо його
-                loader.style.display = 'flex';
-            }
-
-            _loaderVisible = true;
-        } catch (e) {
-            console.error('Помилка показу індикатора завантаження:', e);
+            const loaderMessage = document.querySelector('#loading-spinner .message');
+            if (loaderMessage) loaderMessage.textContent = message;
+            return;
         }
+
+        window._loaderVisible = true;
+
+        // Створюємо індикатор, якщо його немає
+        let loader = document.getElementById('loading-spinner');
+
+        if (!loader) {
+            loader = document.createElement('div');
+            loader.id = 'loading-spinner';
+            loader.innerHTML = `
+                <div class="spinner"></div>
+                <div class="message">${message}</div>
+            `;
+
+            // Додаємо стилі
+            loader.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+            `;
+
+            // Додаємо лічильник використань для відстеження повторних викликів
+            loader.dataset.useCount = '1';
+
+            document.body.appendChild(loader);
+        } else {
+            // Якщо індикатор вже існує, оновлюємо повідомлення і збільшуємо лічильник
+            const useCount = parseInt(loader.dataset.useCount || '0') + 1;
+            loader.dataset.useCount = useCount.toString();
+
+            const loaderMessage = loader.querySelector('.message');
+            if (loaderMessage) loaderMessage.textContent = message;
+
+            // Показуємо індикатор
+            loader.style.display = 'flex';
+        }
+
+        console.log("🔄 Показано індикатор завантаження");
+    } catch (e) {
+        console.error('Помилка показу індикатора завантаження:', e);
+        window._loaderVisible = false;
     }
+}
 
     /**
      * Приховати індикатор завантаження
      */
-    function hideLoading() {
-        try {
-            const loader = getElement(`#${DOM.loader}`);
-            if (loader) {
-                loader.style.display = 'none';
-            }
-            _loaderVisible = false;
-        } catch (e) {
-            console.error('Помилка приховування індикатора завантаження:', e);
+function hideLoading() {
+    try {
+        const loader = document.getElementById('loading-spinner');
+        if (!loader) {
+            window._loaderVisible = false;
+            return;
         }
+
+        // Зменшуємо лічильник використань
+        let useCount = parseInt(loader.dataset.useCount || '1') - 1;
+
+        // Якщо лічильник досяг нуля, приховуємо індикатор
+        if (useCount <= 0) {
+            loader.style.display = 'none';
+            loader.dataset.useCount = '0';
+            window._loaderVisible = false;
+            console.log("✅ Приховано індикатор завантаження");
+        } else {
+            // Інакше просто оновлюємо лічильник
+            loader.dataset.useCount = useCount.toString();
+        }
+    } catch (e) {
+        console.error('Помилка приховування індикатора завантаження:', e);
+        window._loaderVisible = false;
     }
+}
 
     // ======== ФУНКЦІЇ ДЛЯ УПРАВЛІННЯ ЧЕРГОЮ ЗАПИТІВ ========
 

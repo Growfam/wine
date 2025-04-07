@@ -1771,6 +1771,249 @@
 
         // Запускаємо модифікацію обробників стейкінгу після повної ініціалізації
         setTimeout(fixStakingHandlers, 500);
+
+        // Вставте цей скрипт у кінець HTML для усунення дублювання функцій та уникнення конфліктів
+
+// Функція для виправлення конфліктів між різними модулями
+function fixConflicts() {
+    console.log("🔧 Виправлення конфліктів між модулями...");
+
+    // 1. Встановлюємо єдиний набір функцій показу/приховування індикатора завантаження
+    if (typeof window.WinixCore !== 'undefined' && typeof window.WinixCore.showLoading === 'function') {
+        // Використовуємо функції з WinixCore як базові
+        window.showLoading = window.WinixCore.showLoading;
+        window.hideLoading = window.WinixCore.hideLoading;
+        console.log("✅ Функції завантаження стандартизовано");
+    }
+
+    // 2. Стандартизуємо функції повідомлень
+    function safeShowMessage(message, isError = false, callback = null) {
+        try {
+            // Запобігаємо рекурсії
+            if (window._isShowingMessage) {
+                console.warn("Запобігання рекурсивному виклику showMessage");
+                alert(message);
+                if (callback) setTimeout(callback, 100);
+                return;
+            }
+
+            window._isShowingMessage = true;
+
+            if (typeof window.showModernNotification === 'function') {
+                window.showModernNotification(message, isError, callback);
+            } else if (typeof window.showToast === 'function') {
+                window.showToast(message, isError ? 'error' : 'success');
+                if (callback) setTimeout(callback, 1500);
+            } else {
+                alert(message);
+                if (callback) setTimeout(callback, 100);
+            }
+
+            setTimeout(() => {
+                window._isShowingMessage = false;
+            }, 100);
+        } catch (e) {
+            console.error("Помилка показу повідомлення:", e);
+            alert(message);
+            if (callback) setTimeout(callback, 100);
+            window._isShowingMessage = false;
+        }
+    }
+
+    // Замінюємо всі функції показу повідомлень на безпечну версію
+    window.showMessage = safeShowMessage;
+    window.simpleAlert = safeShowMessage;
+    console.log("✅ Функції повідомлень стандартизовано");
+
+    // 3. Виправлення проблеми з WinixAPI.cancelStaking
+    if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.cancelStaking === 'function') {
+        const originalCancelStaking = window.WinixAPI.cancelStaking;
+
+        window.WinixAPI.cancelStaking = async function(stakingId = null) {
+            console.log("🔄 Виклик модифікованої функції cancelStaking");
+
+            // Перевіряємо, чи не виконується вже скасування
+            if (window._cancelingStaking) {
+                console.warn("⚠️ Скасування стейкінгу вже виконується");
+                return {
+                    success: false,
+                    message: "Скасування стейкінгу вже виконується"
+                };
+            }
+
+            window._cancelingStaking = true;
+
+            try {
+                // Показуємо індикатор завантаження
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading("Скасування стейкінгу...");
+                }
+
+                // Запитуємо підтвердження користувача
+                let confirmed = false;
+
+                if (typeof window.showModernConfirm === 'function') {
+                    confirmed = await new Promise(resolve => {
+                        window.showModernConfirm(
+                            "Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.",
+                            () => resolve(true),
+                            () => resolve(false)
+                        );
+                    });
+                } else {
+                    confirmed = confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.");
+                }
+
+                if (!confirmed) {
+                    console.log("❌ Користувач скасував операцію");
+                    if (typeof window.hideLoading === 'function') {
+                        window.hideLoading();
+                    }
+                    window._cancelingStaking = false;
+                    return {
+                        success: false,
+                        message: "Скасовано користувачем"
+                    };
+                }
+
+                // Отримуємо ID користувача
+                const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+
+                if (!userId) {
+                    throw new Error("Не вдалося отримати ID користувача");
+                }
+
+                // Якщо ID стейкінгу не передано, отримуємо його з даних стейкінгу
+                let targetStakingId = stakingId;
+
+                if (!targetStakingId) {
+                    try {
+                        // Спробуємо отримати ID з localStorage як резервний варіант
+                        const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+                        if (stakingDataStr) {
+                            const localData = JSON.parse(stakingDataStr);
+                            if (localData && localData.stakingId) {
+                                targetStakingId = localData.stakingId;
+                                console.log(`🔍 Отримано ID стейкінгу з localStorage: ${targetStakingId}`);
+                            }
+                        }
+
+                        if (!targetStakingId) {
+                            throw new Error("Не вдалося отримати ID стейкінгу");
+                        }
+                    } catch (localError) {
+                        console.error("Помилка читання з localStorage:", localError);
+                        throw new Error("Не вдалося отримати ID стейкінгу");
+                    }
+                }
+
+                console.log(`🔄 Скасування стейкінгу з ID: ${targetStakingId}`);
+
+                // Виконуємо запит прямо, без використання apiRequest
+                const response = await fetch(`/api/user/${userId}/staking/${targetStakingId}/cancel?t=${Date.now()}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Telegram-User-Id': userId
+                    },
+                    body: JSON.stringify({
+                        confirm: true,
+                        timestamp: Date.now()
+                    })
+                });
+
+                // Приховуємо індикатор завантаження
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
+                // Парсимо відповідь
+                let result;
+
+                try {
+                    result = await response.json();
+                } catch (e) {
+                    console.error("Помилка парсингу відповіді:", e);
+                    throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
+                }
+
+                // Обробляємо успішну відповідь
+                if (result && result.status === 'success') {
+                    console.log("✅ Стейкінг успішно скасовано");
+
+                    // Очищаємо дані стейкінгу
+                    localStorage.removeItem('stakingData');
+                    localStorage.removeItem('winix_staking');
+
+                    // Оновлюємо баланс
+                    if (result.data && result.data.newBalance !== undefined) {
+                        localStorage.setItem('userTokens', result.data.newBalance.toString());
+                        localStorage.setItem('winix_balance', result.data.newBalance.toString());
+
+                        if (typeof window.updateBalanceDisplay === 'function') {
+                            window.updateBalanceDisplay();
+                        }
+                    }
+
+                    // Показуємо повідомлення про успіх
+                    let message = "Стейкінг успішно скасовано";
+
+                    if (result.data && result.data.returnedAmount && result.data.feeAmount) {
+                        message = `Стейкінг скасовано. Повернено: ${result.data.returnedAmount} WINIX. Комісія: ${result.data.feeAmount} WINIX.`;
+                    }
+
+                    safeShowMessage(message, false, () => {
+                        // Перезавантажуємо сторінку
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    });
+
+                    return {
+                        success: true,
+                        data: result.data,
+                        message
+                    };
+                } else {
+                    throw new Error(result.message || "Помилка скасування стейкінгу");
+                }
+            } catch (error) {
+                console.error("❌ Помилка скасування стейкінгу:", error);
+
+                // Приховуємо індикатор завантаження
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
+                // Показуємо повідомлення про помилку
+                safeShowMessage(error.message || "Сталася помилка при скасуванні стейкінгу", true);
+
+                return {
+                    success: false,
+                    message: error.message || "Сталася помилка при скасуванні стейкінгу"
+                };
+            } finally {
+                window._cancelingStaking = false;
+            }
+        };
+
+        console.log("✅ Функцію cancelStaking модифіковано");
+    }
+
+    console.log("✅ Виправлення конфліктів завершено");
+}
+
+// Запускаємо виправлення після повного завантаження сторінки
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(fixConflicts, 500);
+});
+
+// Для більш надійного виправлення, запускаємо через таймаут
+setTimeout(fixConflicts, 1000);
     </script>
 </body>
 </html>
