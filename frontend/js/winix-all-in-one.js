@@ -17,6 +17,12 @@
 (function() {
     console.log("🚀 WINIX-ALL-IN-ONE: Запуск єдиної системи виправлень...");
 
+    // Запобігаємо повторній ініціалізації
+    if (window.WinixAllInOneInitialized) {
+        console.log("ℹ️ WINIX-ALL-IN-ONE: Вже ініціалізовано");
+        return;
+    }
+
     // Глобальні налаштування
     const WINIX_SETTINGS = {
         debug: false,                  // Режим відлагодження
@@ -30,7 +36,7 @@
 
     // Перевіряємо наявність API модуля
     if (!window.WinixAPI) {
-        console.error("❌ WINIX-ALL-IN-ONE: API модуль не знайдено! Підключіть api.js перед цим скриптом.");
+        console.warn("⚠️ WINIX-ALL-IN-ONE: API модуль не знайдено! Рекомендуємо підключити api.js");
     }
 
     // ====================== ДОПОМІЖНІ ФУНКЦІЇ ======================
@@ -117,6 +123,20 @@
         return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
     }
 
+    /**
+     * Перевірка валідності ID
+     * @param {any} id - ID для перевірки
+     * @returns {boolean} Результат перевірки
+     */
+    function isValidId(id) {
+        return id &&
+            id !== 'undefined' &&
+            id !== 'null' &&
+            id !== undefined &&
+            id !== null &&
+            id.toString().trim() !== '';
+    }
+
     // ====================== СТИЛЬНІ ПОВІДОМЛЕННЯ ======================
 
     /**
@@ -143,124 +163,241 @@
              * @returns {Promise} Promise, який виконається після закриття повідомлення
              */
             window.simpleAlert = window.winixUI.simpleAlert = function(message, isError = false, callback) {
+                if (!message || typeof message !== 'string') {
+                    log('warn', 'Спроба показати порожнє або невалідне повідомлення');
+                    message = 'Помилка відображення повідомлення';
+                }
+
                 return new Promise((resolve) => {
-                    // Видаляємо попередні повідомлення, якщо вони є
-                    const existingOverlays = document.querySelectorAll('.alert-overlay');
-                    existingOverlays.forEach(overlay => {
-                        overlay.parentNode.removeChild(overlay);
-                    });
+                    try {
+                        // Видаляємо попередні повідомлення, якщо вони є
+                        const existingOverlays = document.querySelectorAll('.alert-overlay');
+                        existingOverlays.forEach(overlay => {
+                            try {
+                                overlay.parentNode.removeChild(overlay);
+                            } catch (e) {
+                                log('warn', 'Помилка видалення існуючого overlay:', e);
+                            }
+                        });
 
-                    // Створюємо елементи повідомлення
-                    const overlay = document.createElement('div');
-                    overlay.className = 'alert-overlay';
+                        // Створюємо елементи повідомлення
+                        const overlay = document.createElement('div');
+                        overlay.className = 'alert-overlay';
 
-                    const container = document.createElement('div');
-                    container.className = 'alert-container ' + (isError ? 'error' : 'success');
+                        const container = document.createElement('div');
+                        container.className = 'alert-container ' + (isError ? 'error' : 'success');
 
-                    const messageElement = document.createElement('div');
-                    messageElement.className = 'alert-message';
-                    messageElement.textContent = message;
+                        const messageElement = document.createElement('div');
+                        messageElement.className = 'alert-message';
+                        messageElement.textContent = message;
 
-                    const button = document.createElement('button');
-                    button.className = 'alert-button';
-                    button.textContent = 'OK';
+                        const button = document.createElement('button');
+                        button.className = 'alert-button';
+                        button.textContent = 'OK';
 
-                    // Додаємо стилі (взяті з наданих файлів)
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        /* Стилі для сповіщень */
-                        .alert-overlay {
-                            position: fixed;
-                            top: 0;
-                            left: 0;
-                            right: 0;
-                            bottom: 0;
-                            background: rgba(0, 0, 0, 0.5);
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            z-index: 1000;
-                            backdrop-filter: blur(0.1875rem); /* 3px */
-                            animation: fadeIn 0.2s ease-out;
+                        // Додаємо стилі
+                        if (!document.getElementById('winix-styled-alerts-css')) {
+                            const style = document.createElement('style');
+                            style.id = 'winix-styled-alerts-css';
+                            style.textContent = `
+                                /* Стилі для сповіщень */
+                                .alert-overlay {
+                                    position: fixed;
+                                    top: 0;
+                                    left: 0;
+                                    right: 0;
+                                    bottom: 0;
+                                    background: rgba(0, 0, 0, 0.5);
+                                    display: flex;
+                                    justify-content: center;
+                                    align-items: center;
+                                    z-index: 1000;
+                                    backdrop-filter: blur(0.1875rem); /* 3px */
+                                    animation: fadeIn 0.2s ease-out;
+                                }
+
+                                @keyframes fadeIn {
+                                    from { opacity: 0; }
+                                    to { opacity: 1; }
+                                }
+
+                                .alert-container {
+                                    width: 85%;
+                                    max-width: 21.875rem; /* 350px */
+                                    border-radius: 0.9375rem; /* 15px */
+                                    padding: 1.25rem; /* 20px */
+                                    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4);
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 1.25rem; /* 20px */
+                                    animation: bounceIn 0.3s ease-out;
+                                }
+
+                                .alert-container.success {
+                                    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+                                    border: 0.0625rem solid rgba(0, 201, 167, 0.5); /* 1px */
+                                    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4), 0 0 0.9375rem rgba(0, 201, 167, 0.3);
+                                }
+
+                                .alert-container.error {
+                                    background: linear-gradient(135deg, rgba(46, 26, 26, 0.95), rgba(96, 15, 15, 0.95));
+                                    border: 0.0625rem solid rgba(201, 0, 0, 0.5); /* 1px */
+                                    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4), 0 0 0.9375rem rgba(201, 0, 0, 0.3);
+                                }
+
+                                @keyframes bounceIn {
+                                    0% { transform: scale(0.5); opacity: 0; }
+                                    70% { transform: scale(1.05); }
+                                    100% { transform: scale(1); opacity: 1; }
+                                }
+
+                                .alert-message {
+                                    text-align: center;
+                                    font-size: 1rem; /* 16px */
+                                    color: #fff;
+                                }
+
+                                .alert-button {
+                                    align-self: center;
+                                    width: 6.25rem; /* 100px */
+                                    height: 2.5rem; /* 40px */
+                                    border-radius: 0.625rem; /* 10px */
+                                    font-size: 1rem; /* 16px */
+                                    font-weight: 500;
+                                    cursor: pointer;
+                                    transition: all 0.3s ease;
+                                    border: none;
+                                    background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+                                    color: #fff;
+                                    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
+                                }
+
+                                .alert-button:active {
+                                    transform: scale(0.97);
+                                }
+                            `;
+                            document.head.appendChild(style);
                         }
 
-                        @keyframes fadeIn {
-                            from { opacity: 0; }
-                            to { opacity: 1; }
-                        }
+                        // Додаємо елементи та стилі на сторінку
+                        container.appendChild(messageElement);
+                        container.appendChild(button);
+                        overlay.appendChild(container);
+                        document.body.appendChild(overlay);
 
-                        .alert-container {
-                            width: 85%;
-                            max-width: 21.875rem; /* 350px */
-                            border-radius: 0.9375rem; /* 15px */
-                            padding: 1.25rem; /* 20px */
-                            box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4);
-                            display: flex;
-                            flex-direction: column;
-                            gap: 1.25rem; /* 20px */
-                            animation: bounceIn 0.3s ease-out;
-                        }
+                        // Обробник для кнопки OK
+                        button.addEventListener('click', function() {
+                            try {
+                                overlay.parentNode.removeChild(overlay);
+                            } catch (e) {
+                                log('warn', 'Помилка видалення overlay:', e);
+                            }
 
-                        .alert-container.success {
-                            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-                            border: 0.0625rem solid rgba(0, 201, 167, 0.5); /* 1px */
-                            box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4), 0 0 0.9375rem rgba(0, 201, 167, 0.3);
-                        }
+                            if (typeof callback === 'function') {
+                                callback();
+                            }
+                            resolve();
+                        });
+                    } catch (e) {
+                        log('error', 'Помилка при показі стильного повідомлення:', e);
 
-                        .alert-container.error {
-                            background: linear-gradient(135deg, rgba(46, 26, 26, 0.95), rgba(96, 15, 15, 0.95));
-                            border: 0.0625rem solid rgba(201, 0, 0, 0.5); /* 1px */
-                            box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.4), 0 0 0.9375rem rgba(201, 0, 0, 0.3);
-                        }
+                        // Резервний варіант - звичайний alert
+                        alert(message);
 
-                        @keyframes bounceIn {
-                            0% { transform: scale(0.5); opacity: 0; }
-                            70% { transform: scale(1.05); }
-                            100% { transform: scale(1); opacity: 1; }
-                        }
-
-                        .alert-message {
-                            text-align: center;
-                            font-size: 1rem; /* 16px */
-                            color: #fff;
-                        }
-
-                        .alert-button {
-                            align-self: center;
-                            width: 6.25rem; /* 100px */
-                            height: 2.5rem; /* 40px */
-                            border-radius: 0.625rem; /* 10px */
-                            font-size: 1rem; /* 16px */
-                            font-weight: 500;
-                            cursor: pointer;
-                            transition: all 0.3s ease;
-                            border: none;
-                            background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
-                            color: #fff;
-                            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.2);
-                        }
-
-                        .alert-button:active {
-                            transform: scale(0.97);
-                        }
-                    `;
-
-                    // Додаємо елементи та стилі на сторінку
-                    container.appendChild(messageElement);
-                    container.appendChild(button);
-                    overlay.appendChild(container);
-                    document.head.appendChild(style);
-                    document.body.appendChild(overlay);
-
-                    // Обробник для кнопки OK
-                    button.addEventListener('click', function() {
-                        overlay.parentNode.removeChild(overlay);
                         if (typeof callback === 'function') {
                             callback();
                         }
                         resolve();
-                    });
+                    }
                 });
+            };
+
+            // Додаємо функцію сповіщень
+            window.showToast = window.winixUI.showToast = function(message, type = 'success', duration = 3000) {
+                if (!message || typeof message !== 'string') {
+                    log('warn', 'Спроба показати порожнє або невалідне сповіщення');
+                    message = 'Помилка відображення сповіщення';
+                }
+
+                try {
+                    // Видаляємо попередні сповіщення
+                    const existingToasts = document.querySelectorAll('.winix-toast');
+                    existingToasts.forEach(toast => {
+                        try {
+                            toast.parentNode.removeChild(toast);
+                        } catch (e) {
+                            log('warn', 'Помилка видалення існуючого toast:', e);
+                        }
+                    });
+
+                    // Додаємо стилі для сповіщень, якщо вони ще не додані
+                    if (!document.getElementById('winix-toast-css')) {
+                        const style = document.createElement('style');
+                        style.id = 'winix-toast-css';
+                        style.textContent = `
+                            .winix-toast {
+                                position: fixed;
+                                bottom: 20px;
+                                left: 50%;
+                                transform: translateX(-50%);
+                                padding: 12px 20px;
+                                border-radius: 10px;
+                                color: white;
+                                font-size: 16px;
+                                z-index: 1000;
+                                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+                                animation: toast-in-out 0.5s ease-in-out;
+                            }
+                            
+                            .winix-toast.success {
+                                background: linear-gradient(90deg, #00C9A7, #0F3460);
+                                border-left: 4px solid #00C9A7;
+                            }
+                            
+                            .winix-toast.error {
+                                background: linear-gradient(90deg, #CF0A0A, #7E1717);
+                                border-left: 4px solid #CF0A0A;
+                            }
+                            
+                            .winix-toast.info {
+                                background: linear-gradient(90deg, #4285F4, #0F3460);
+                                border-left: 4px solid #4285F4;
+                            }
+                            
+                            .winix-toast.warning {
+                                background: linear-gradient(90deg, #FFC107, #FF8F00);
+                                border-left: 4px solid #FFC107;
+                            }
+                            
+                            @keyframes toast-in-out {
+                                0% { opacity: 0; transform: translate(-50%, 20px); }
+                                10% { opacity: 1; transform: translate(-50%, 0); }
+                                90% { opacity: 1; transform: translate(-50%, 0); }
+                                100% { opacity: 0; transform: translate(-50%, -20px); }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+
+                    // Створюємо елемент сповіщення
+                    const toast = document.createElement('div');
+                    toast.className = `winix-toast ${type}`;
+                    toast.textContent = message;
+                    document.body.appendChild(toast);
+
+                    // Автоматичне видалення сповіщення
+                    setTimeout(() => {
+                        try {
+                            if (toast.parentNode) {
+                                toast.parentNode.removeChild(toast);
+                            }
+                        } catch (e) {
+                            log('warn', 'Помилка видалення toast:', e);
+                        }
+                    }, duration);
+                } catch (e) {
+                    log('error', 'Помилка при показі toast:', e);
+                }
             };
 
             // Якщо в системі є WinixCore, замінюємо його функцію показу повідомлень
@@ -268,15 +405,21 @@
                 const originalShowNotification = window.WinixCore.UI.showNotification;
 
                 window.WinixCore.UI.showNotification = function(message, type, callback) {
-                    // Визначаємо, чи це помилка
-                    const isError = (
-                        type === 'error' ||
-                        type === 'ERROR' ||
-                        (window.WinixCore.MESSAGE_TYPES && type === window.WinixCore.MESSAGE_TYPES.ERROR)
-                    );
+                    try {
+                        // Визначаємо, чи це помилка
+                        const isError = (
+                            type === 'error' ||
+                            type === 'ERROR' ||
+                            (window.WinixCore.MESSAGE_TYPES && type === window.WinixCore.MESSAGE_TYPES.ERROR)
+                        );
 
-                    // Викликаємо нашу стильну функцію
-                    return window.simpleAlert(message, isError, callback);
+                        // Викликаємо нашу стильну функцію
+                        return window.simpleAlert(message, isError, callback);
+                    } catch (e) {
+                        log('error', 'Помилка при заміні функції showNotification:', e);
+                        // Викликаємо оригінальну функцію як запасний варіант
+                        return originalShowNotification.call(window.WinixCore.UI, message, type, callback);
+                    }
                 };
             }
 
@@ -340,11 +483,11 @@
             // Перевіряємо очікувану винагороду
             if (stakingData.expectedReward === undefined && stakingData.stakingAmount > 0 && stakingData.period) {
                 // Розраховуємо винагороду
-                let rewardPercent = 7; // За замовчуванням
-
+                let rewardPercent;
                 if (stakingData.period === 7) rewardPercent = 4;
                 else if (stakingData.period === 14) rewardPercent = 9;
                 else if (stakingData.period === 28) rewardPercent = 15;
+                else rewardPercent = 7; // За замовчуванням
 
                 stakingData.rewardPercent = rewardPercent;
                 stakingData.expectedReward = stakingData.stakingAmount * (rewardPercent / 100);
@@ -417,12 +560,12 @@
 
             // Синхронізуємо ключі
             for (const [sourceKey, targetKey] of Object.entries(keyMappings)) {
-                const sourceValue = localStorage.getItem(sourceKey);
-                if (sourceValue !== null) {
-                    const targetValue = localStorage.getItem(targetKey);
-                    // Якщо значення вже існує і відрізняється, беремо більш нове/логічне
-                    if (targetValue !== null && targetValue !== sourceValue) {
-                        try {
+                try {
+                    const sourceValue = localStorage.getItem(sourceKey);
+                    if (sourceValue !== null) {
+                        const targetValue = localStorage.getItem(targetKey);
+                        // Якщо значення вже існує і відрізняється, беремо більш нове/логічне
+                        if (targetValue !== null && targetValue !== sourceValue) {
                             // Для стейкінгу обираємо об'єкт з hasActiveStaking
                             if (sourceKey === 'winix_staking' || sourceKey === 'stakingData') {
                                 try {
@@ -477,16 +620,14 @@
                             else {
                                 localStorage.setItem(targetKey, sourceValue);
                             }
-                        } catch (e) {
-                            log('error', `Помилка синхронізації ${sourceKey} з ${targetKey}:`, e);
-                            // У випадку помилки просто копіюємо
+                        }
+                        // Якщо цільового значення немає, просто копіюємо
+                        else if (targetValue === null) {
                             localStorage.setItem(targetKey, sourceValue);
                         }
                     }
-                    // Якщо цільового значення немає, просто копіюємо
-                    else if (targetValue === null) {
-                        localStorage.setItem(targetKey, sourceValue);
-                    }
+                } catch (e) {
+                    log('error', `Помилка синхронізації ${sourceKey} з ${targetKey}:`, e);
                 }
             }
 
@@ -518,7 +659,9 @@
             if (backButton) {
                 // Видаляємо всі існуючі обробники з кнопки "Назад"
                 const newBackButton = backButton.cloneNode(true);
-                backButton.parentNode.replaceChild(newBackButton, backButton);
+                if (backButton.parentNode) {
+                    backButton.parentNode.replaceChild(newBackButton, backButton);
+                }
 
                 // Додаємо новий обробник
                 newBackButton.addEventListener('click', function() {
@@ -554,60 +697,76 @@
             const navItems = document.querySelectorAll('.nav-item');
             navItems.forEach(navItem => {
                 // Видаляємо всі існуючі обробники з елементів навігації
-                const newNavItem = navItem.cloneNode(true);
-                navItem.parentNode.replaceChild(newNavItem, navItem);
+                try {
+                    const newNavItem = navItem.cloneNode(true);
+                    if (navItem.parentNode) {
+                        navItem.parentNode.replaceChild(newNavItem, navItem);
+                    }
 
-                // Додаємо новий обробник
-                newNavItem.addEventListener('click', function() {
-                    const section = this.getAttribute('data-section');
-                    log('info', `Клік на елементі навігації "${section}"`);
+                    // Додаємо новий обробник
+                    newNavItem.addEventListener('click', function() {
+                        const section = this.getAttribute('data-section');
+                        if (!section) return;
 
-                    // Оновлюємо класи активності
-                    document.querySelectorAll('.nav-item').forEach(item => {
-                        item.classList.remove('active');
+                        log('info', `Клік на елементі навігації "${section}"`);
+
+                        // Оновлюємо класи активності
+                        document.querySelectorAll('.nav-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        this.classList.add('active');
+
+                        // Зберігаємо поточний баланс перед навігацією
+                        if (window.WinixCore && window.WinixCore.Balance) {
+                            const tokens = window.WinixCore.Balance.getTokens();
+                            const coins = window.WinixCore.Balance.getCoins();
+                            sessionStorage.setItem('lastBalance', tokens.toString());
+                            sessionStorage.setItem('lastCoins', coins.toString());
+                        } else if (window.balanceSystem) {
+                            const tokens = window.balanceSystem.getTokens();
+                            const coins = window.balanceSystem.getCoins();
+                            sessionStorage.setItem('lastBalance', tokens.toString());
+                            sessionStorage.setItem('lastCoins', coins.toString());
+                        }
+
+                        sessionStorage.setItem('navigationTime', Date.now().toString());
+
+                        // Визначаємо URL для переходу
+                        let url = '';
+                        switch (section) {
+                            case 'home':
+                                url = 'original-index.html';
+                                break;
+                            case 'earn':
+                                url = 'earn.html';
+                                break;
+                            case 'referrals':
+                                url = 'referrals.html';
+                                break;
+                            case 'wallet':
+                                url = 'wallet.html';
+                                break;
+                            case 'general':
+                                if (window.simpleAlert) {
+                                    window.simpleAlert("Ця функція буде доступна пізніше");
+                                    return; // Запобігаємо навігації
+                                } else if (window.WinixCore && window.WinixCore.UI && window.WinixCore.UI.showNotification) {
+                                    window.WinixCore.UI.showNotification("Ця функція буде доступна пізніше", window.WinixCore.MESSAGE_TYPES ? window.WinixCore.MESSAGE_TYPES.INFO : 'info');
+                                    return; // Запобігаємо навігації
+                                } else {
+                                    alert("Ця функція буде доступна пізніше");
+                                    return; // Запобігаємо навігації
+                                }
+                            default:
+                                url = section + '.html';
+                        }
+
+                        // Переходимо за посиланням
+                        window.location.href = url;
                     });
-                    this.classList.add('active');
-
-                    // Зберігаємо поточний баланс перед навігацією
-                    if (window.WinixCore && window.WinixCore.Balance) {
-                        const tokens = window.WinixCore.Balance.getTokens();
-                        const coins = window.WinixCore.Balance.getCoins();
-                        sessionStorage.setItem('lastBalance', tokens.toString());
-                        sessionStorage.setItem('lastCoins', coins.toString());
-                    } else if (window.balanceSystem) {
-                        const tokens = window.balanceSystem.getTokens();
-                        const coins = window.balanceSystem.getCoins();
-                        sessionStorage.setItem('lastBalance', tokens.toString());
-                        sessionStorage.setItem('lastCoins', coins.toString());
-                    }
-
-                    sessionStorage.setItem('navigationTime', Date.now().toString());
-
-                    // Визначаємо URL для переходу
-                    let url = '';
-                    switch (section) {
-                        case 'home':
-                            url = 'original-index.html';
-                            break;
-                        case 'earn':
-                            url = 'earn.html';
-                            break;
-                        case 'referrals':
-                            url = 'referrals.html';
-                            break;
-                        case 'wallet':
-                            url = 'wallet.html';
-                            break;
-                        case 'general':
-                            url = 'general.html';
-                            break;
-                        default:
-                            url = section + '.html';
-                    }
-
-                    // Переходимо за посиланням
-                    window.location.href = url;
-                });
+                } catch (e) {
+                    log('error', 'Помилка обробки навігаційного елемента:', e);
+                }
             });
 
             log('info', 'Навігаційне меню успішно налаштовано');
@@ -621,15 +780,25 @@
 
                         // Зберігаємо поточний баланс перед навігацією
                         if (window.WinixCore && window.WinixCore.Balance) {
-                            const tokens = window.WinixCore.Balance.getTokens();
-                            const coins = window.WinixCore.Balance.getCoins();
-                            sessionStorage.setItem('lastBalance', tokens.toString());
-                            sessionStorage.setItem('lastCoins', coins.toString());
+                            if (typeof window.WinixCore.Balance.getTokens === 'function') {
+                                const tokens = window.WinixCore.Balance.getTokens();
+                                sessionStorage.setItem('lastBalance', tokens.toString());
+                            }
+
+                            if (typeof window.WinixCore.Balance.getCoins === 'function') {
+                                const coins = window.WinixCore.Balance.getCoins();
+                                sessionStorage.setItem('lastCoins', coins.toString());
+                            }
                         } else if (window.balanceSystem) {
-                            const tokens = window.balanceSystem.getTokens();
-                            const coins = window.balanceSystem.getCoins();
-                            sessionStorage.setItem('lastBalance', tokens.toString());
-                            sessionStorage.setItem('lastCoins', coins.toString());
+                            if (typeof window.balanceSystem.getTokens === 'function') {
+                                const tokens = window.balanceSystem.getTokens();
+                                sessionStorage.setItem('lastBalance', tokens.toString());
+                            }
+
+                            if (typeof window.balanceSystem.getCoins === 'function') {
+                                const coins = window.balanceSystem.getCoins();
+                                sessionStorage.setItem('lastCoins', coins.toString());
+                            }
                         }
 
                         sessionStorage.setItem('navigationTime', Date.now().toString());
@@ -715,49 +884,39 @@
                 'staking-period'
             ];
 
+            // Створюємо функцію для безпечного клонування елементів
+            const safeClone = function(element) {
+                if (!element || !element.parentNode) return element;
+
+                try {
+                    const clone = element.cloneNode(true);
+                    element.parentNode.replaceChild(clone, element);
+                    return clone;
+                } catch (e) {
+                    log('error', `Помилка при клонуванні елемента ${element.id || 'без ID'}:`, e);
+                    return element;
+                }
+            };
+
             // Запобігаємо глобальному клонуванню документа, яке призводить до втрати всіх обробників
             window.dangerousCloneDocument = function() {
                 log('warn', 'Спроба клонування всього документа заблокована - це може призвести до втрати всіх обробників подій');
                 return false;
             };
 
-            // Замінюємо оригінальний метод Node.prototype.cloneNode більш безпечною версією
-            const originalCloneNode = Node.prototype.cloneNode;
-            Node.prototype.cloneNode = function(deep) {
-                // Якщо хтось намагається клонувати цілий документ або html-елемент
-                if (this === document || this === document.documentElement) {
-                    log('warn', 'Спроба клонування documentElement заблокована');
-
-                    // Замість цього починаємо пофрагментно переприв'язувати обробники
-                    fixNavigation();
-
-                    // Оновлюємо обробники кнопок стейкінгу, якщо є
-                    if (window.WinixStakingSystem) {
-                        if (typeof window.fixStakingButtons === 'function') {
-                            window.fixStakingButtons();
-                        } else if (typeof window.WinixStakingSystem.updateStakingDisplay === 'function') {
-                            window.WinixStakingSystem.updateStakingDisplay();
-                        }
-                    }
-
-                    // Повертаємо оригінальний елемент
-                    return this;
+            // Обробляємо важливі елементи і видаляємо всі дублюючі обробники
+            importantElements.forEach(elementId => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    safeClone(element);
+                    log('info', `Очищено обробники для елемента ${elementId}`);
                 }
-
-                // В інших випадках дозволяємо клонування
-                return originalCloneNode.call(this, deep);
-            };
+            });
 
             log('info', 'Виправлення дублікатів обробників подій успішно застосовано');
             return true;
         } catch (e) {
             log('error', 'Помилка виправлення дублікатів обробників подій:', e);
-
-            // Відновлюємо оригінальний метод
-            if (originalCloneNode) {
-                Node.prototype.cloneNode = originalCloneNode;
-            }
-
             return false;
         }
     }
@@ -771,6 +930,18 @@
         try {
             console.log("🔄 Спроба відновлення даних стейкінгу з сервера");
 
+            // Перевіряємо наявність API модуля
+            if (!window.WinixAPI || typeof window.WinixAPI.getStakingData !== 'function') {
+                console.warn("⚠️ API модуль не знайдено або відсутня функція getStakingData");
+                return false;
+            }
+
+            // Перевіряємо наявність валідного ID користувача
+            if (window.WinixAPI.getUserId && !isValidId(window.WinixAPI.getUserId())) {
+                console.warn("⚠️ Відсутній валідний ID користувача");
+                return false;
+            }
+
             // Використовуємо API модуль для отримання даних стейкінгу
             window.WinixAPI.getStakingData()
                 .then(data => {
@@ -779,15 +950,19 @@
 
                         // Зберігаємо дані в обох ключах
                         const stakingStr = JSON.stringify(data.data);
-                        localStorage.setItem('stakingData', stakingStr);
-                        localStorage.setItem('winix_staking', stakingStr);
+                        try {
+                            localStorage.setItem('stakingData', stakingStr);
+                            localStorage.setItem('winix_staking', stakingStr);
+                        } catch (e) {
+                            console.error("❌ Помилка збереження даних стейкінгу в localStorage:", e);
+                        }
 
                         // Оновлюємо інтерфейс, якщо можливо
                         if (window.updateStakingDisplay) {
                             window.updateStakingDisplay();
-                        } else if (window.WinixCore && window.WinixCore.UI) {
+                        } else if (window.WinixCore && window.WinixCore.UI && typeof window.WinixCore.UI.updateStakingDisplay === 'function') {
                             window.WinixCore.UI.updateStakingDisplay();
-                        } else if (window.WinixStakingSystem && window.WinixStakingSystem.updateStakingDisplay) {
+                        } else if (window.WinixStakingSystem && typeof window.WinixStakingSystem.updateStakingDisplay === 'function') {
                             window.WinixStakingSystem.updateStakingDisplay();
                         }
 
@@ -801,6 +976,8 @@
                     console.error("❌ Помилка при відновленні даних стейкінгу:", error);
                     return false;
                 });
+
+            return true;
         } catch (e) {
             console.error("❌ Помилка функції відновлення даних стейкінгу:", e);
             return false;
@@ -835,7 +1012,8 @@
             // 4. Виправляємо дані стейкінгу
             if (WINIX_SETTINGS.autoRestoreStaking) {
                 fixStakingData();
-                restoreStakingData();
+                // Асинхронно відновлюємо дані стейкінгу з сервера
+                setTimeout(restoreStakingData, 1000);
             }
 
             // 5. Виправляємо дублікати обробників подій
@@ -847,10 +1025,16 @@
             // 7. Встановлюємо глобальні функції для сумісності
             window.fixNavigation = fixNavigation;
             window.fixStakingData = fixStakingData;
-            window.simpleAlert = window.simpleAlert || function(message, isError, callback) {
-                alert(message);
-                if (callback) callback();
-            };
+
+            if (!window.simpleAlert) {
+                window.simpleAlert = function(message, isError, callback) {
+                    alert(message);
+                    if (callback) callback();
+                };
+            }
+
+            // Встановлюємо флаг успішної ініціалізації
+            window.WinixAllInOneInitialized = true;
 
             log('info', 'Всі виправлення успішно запущено');
             return true;
@@ -861,42 +1045,35 @@
     }
 
     // Виконуємо всі виправлення при завантаженні сторінки
-    window.addEventListener('load', function() {
-        // Запускаємо всі виправлення
-        runAllFixes();
+    if (document.readyState === 'loading') {
+        window.addEventListener('load', function() {
+            // Запускаємо всі виправлення
+            runAllFixes();
 
-        // Встановлюємо глобальний обробник помилок
-        window.onerror = function(message, source, lineno, colno, error) {
-            if (WINIX_SETTINGS.debug) {
-                console.error(`🔧 WINIX-ALL-IN-ONE: Помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
-            }
-            return true;
-        };
+            // Встановлюємо глобальний обробник помилок
+            window.onerror = function(message, source, lineno, colno, error) {
+                if (WINIX_SETTINGS.debug) {
+                    console.error(`🔧 WINIX-ALL-IN-ONE: Помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
+                }
+                return true;
+            };
 
-        console.log("✅ WINIX-ALL-IN-ONE: Всі виправлення успішно застосовано");
-    });
-
+            console.log("✅ WINIX-ALL-IN-ONE: Всі виправлення успішно застосовано");
+        });
+    }
     // Якщо сторінка вже завантажена
-    if (document.readyState === 'complete') {
+    else {
         runAllFixes();
         console.log("✅ WINIX-ALL-IN-ONE: Всі виправлення успішно застосовано (сторінка вже завантажена)");
     }
 
+    // Також виконаємо відновлення даних стейкінгу при повному завантаженні DOM
+    document.addEventListener('DOMContentLoaded', function() {
+        if (WINIX_SETTINGS.autoRestoreStaking) {
+            // Відновлюємо дані стейкінгу за розкладом
+            setTimeout(restoreStakingData, 2000);
+        }
+    });
+
     console.log("✅ WINIX-ALL-IN-ONE: Модуль виправлень ініціалізовано");
-
-    // Запобігання дублюванню обробників подій для важливих елементів
-    function preventDuplicateEventListeners(elementIds) {
-        elementIds.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                // Клонуємо елемент, щоб видалити всі попередні обробники
-                const newElement = element.cloneNode(true);
-                element.parentNode.replaceChild(newElement, element);
-                console.log(`Обробники подій очищено для елемента '${id}'`);
-            }
-        });
-    }
-
-    // Викликаємо функцію при завантаженні сторінки
-    document.addEventListener('DOMContentLoaded', restoreStakingData);
 })();

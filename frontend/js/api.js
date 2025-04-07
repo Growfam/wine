@@ -26,110 +26,134 @@
     let _userCacheTime = 0;
     const USER_CACHE_TTL = 60000; // 1 хвилина
 
+    // Прапорець для запобігання рекурсивним викликам
+    let _gettingUserId = false;
+    let _apiRequestInProgress = false;
+
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
 
     /**
      * Отримати ID користувача з доступних джерел
+     * @param {number} attempts - Кількість спроб (для запобігання нескінченній рекурсії)
      * @returns {string|null} ID користувача або null, якщо не знайдено
      */
-    function getUserId() {
-        // Функція для перевірки валідності ID
-        function isValidId(id) {
-            return id &&
-                   id !== 'undefined' &&
-                   id !== 'null' &&
-                   id !== undefined &&
-                   id !== null &&
-                   id.toString().trim() !== '';
+    function getUserId(attempts = 0) {
+        // Обмеження кількості спроб для запобігання нескінченній рекурсії
+        if (attempts > 3 || _gettingUserId) {
+            console.warn("⚠️ Досягнуто ліміт спроб отримання ID користувача або вже виконується");
+            return null;
         }
 
-        // 1. Спочатку перевіряємо наявність Telegram WebApp
-        if (window.Telegram && window.Telegram.WebApp) {
+        _gettingUserId = true;
+
+        try {
+            // Функція для перевірки валідності ID
+            function isValidId(id) {
+                return id &&
+                       id !== 'undefined' &&
+                       id !== 'null' &&
+                       id !== undefined &&
+                       id !== null &&
+                       id.toString().trim() !== '';
+            }
+
+            // 1. Спочатку перевіряємо наявність Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    // Переконуємося, що WebApp готовий до роботи
+                    window.Telegram.WebApp.ready();
+
+                    // Отримуємо дані користувача
+                    if (window.Telegram.WebApp.initDataUnsafe &&
+                        window.Telegram.WebApp.initDataUnsafe.user &&
+                        window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+
+                        if (isValidId(tgUserId)) {
+                            if (_debugMode) console.log("🆔 ID користувача отримано з Telegram WebApp:", tgUserId);
+
+                            // Зберігаємо в localStorage для наступних запитів
+                            try {
+                                localStorage.setItem('telegram_user_id', tgUserId);
+                            } catch (e) {
+                                console.warn("Не вдалося зберегти ID в localStorage:", e);
+                            }
+
+                            _gettingUserId = false;
+                            return tgUserId;
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Помилка отримання ID з Telegram WebApp:", e);
+                }
+            }
+
+            // 2. Перевіряємо localStorage
             try {
-                // Переконуємося, що WebApp готовий до роботи
-                window.Telegram.WebApp.ready();
+                const localId = localStorage.getItem('telegram_user_id');
+                if (isValidId(localId)) {
+                    if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", localId);
+                    _gettingUserId = false;
+                    return localId;
+                }
+            } catch (e) {
+                console.warn("Помилка доступу до localStorage:", e);
+            }
 
-                // Отримуємо дані користувача
-                if (window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user &&
-                    window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-                    const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-
-                    if (isValidId(tgUserId)) {
-                        if (_debugMode) console.log("🆔 ID користувача отримано з Telegram WebApp:", tgUserId);
+            // 3. Перевіряємо DOM елемент
+            try {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement && userIdElement.textContent) {
+                    const domId = userIdElement.textContent.trim();
+                    if (isValidId(domId)) {
+                        if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", domId);
 
                         // Зберігаємо в localStorage для наступних запитів
                         try {
-                            localStorage.setItem('telegram_user_id', tgUserId);
+                            localStorage.setItem('telegram_user_id', domId);
                         } catch (e) {
                             console.warn("Не вдалося зберегти ID в localStorage:", e);
                         }
 
-                        return tgUserId;
+                        _gettingUserId = false;
+                        return domId;
                     }
                 }
             } catch (e) {
-                console.warn("Помилка отримання ID з Telegram WebApp:", e);
+                console.warn("Помилка отримання ID з DOM:", e);
             }
-        }
 
-        // 2. Перевіряємо localStorage
-        try {
-            const localId = localStorage.getItem('telegram_user_id');
-            if (isValidId(localId)) {
-                if (_debugMode) console.log("🆔 ID користувача отримано з localStorage:", localId);
-                return localId;
-            }
-        } catch (e) {
-            console.warn("Помилка доступу до localStorage:", e);
-        }
-
-        // 3. Перевіряємо DOM елемент
-        try {
-            const userIdElement = document.getElementById('user-id');
-            if (userIdElement && userIdElement.textContent) {
-                const domId = userIdElement.textContent.trim();
-                if (isValidId(domId)) {
-                    if (_debugMode) console.log("🆔 ID користувача отримано з DOM:", domId);
+            // 4. Перевіряємо URL параметри
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+                if (isValidId(urlId)) {
+                    if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", urlId);
 
                     // Зберігаємо в localStorage для наступних запитів
                     try {
-                        localStorage.setItem('telegram_user_id', domId);
+                        localStorage.setItem('telegram_user_id', urlId);
                     } catch (e) {
                         console.warn("Не вдалося зберегти ID в localStorage:", e);
                     }
 
-                    return domId;
+                    _gettingUserId = false;
+                    return urlId;
                 }
+            } catch (e) {
+                console.warn("Помилка отримання ID з URL параметрів:", e);
             }
+
+            // Повертаємо null, якщо ID не знайдено
+            console.warn("⚠️ Не вдалося отримати ID користувача");
+            _gettingUserId = false;
+            return null;
         } catch (e) {
-            console.warn("Помилка отримання ID з DOM:", e);
+            console.error("❌ Критична помилка в getUserId:", e);
+            _gettingUserId = false;
+            return null;
         }
-
-        // 4. Перевіряємо URL параметри
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-            if (isValidId(urlId)) {
-                if (_debugMode) console.log("🆔 ID користувача отримано з URL параметрів:", urlId);
-
-                // Зберігаємо в localStorage для наступних запитів
-                try {
-                    localStorage.setItem('telegram_user_id', urlId);
-                } catch (e) {
-                    console.warn("Не вдалося зберегти ID в localStorage:", e);
-                }
-
-                return urlId;
-            }
-        } catch (e) {
-            console.warn("Помилка отримання ID з URL параметрів:", e);
-        }
-
-        // Повертаємо null, якщо ID не знайдено
-        console.warn("⚠️ Не вдалося отримати ID користувача");
-        return null;
     }
 
     // ======== ОСНОВНА ФУНКЦІЯ API-ЗАПИТУ ========
@@ -144,132 +168,149 @@
      * @returns {Promise<Object>} Результат запиту у форматі JSON
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 3) {
-        // Отримуємо ID користувача
-        const userId = getUserId();
-
-        // Перевіряємо наявність валідного ID користувача
-        if (!userId && !options.skipUserIdCheck) {
-            const error = new Error("ID користувача не знайдено");
-            console.error(`❌ API-запит на ${endpoint} скасовано: ${error.message}`);
-            throw error;
+        // Перевіряємо, чи не виконується вже запит з тими ж параметрами
+        // Це допоможе уникнути дублюючих запитів через подвійний клік
+        if (_apiRequestInProgress) {
+            console.warn(`⚠️ API запит вже виконується, очікуйте: ${endpoint}`);
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        // Додаємо мітку часу для запобігання кешуванню
-        const timestamp = Date.now();
-        const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
+        _apiRequestInProgress = true;
 
-        // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
-        if (!options.hideLoader) {
-            showLoader();
-        }
+        try {
+            // Отримуємо ID користувача
+            const userId = getUserId();
 
-        // Логуємо запит у режимі відлагодження
-        if (_debugMode) {
-            console.log(`🔄 Відправка ${method} запиту на ${url}`);
-            if (data) console.log("📦 Дані запиту:", data);
-        }
+            // Перевіряємо наявність валідного ID користувача
+            if (!userId && !options.skipUserIdCheck) {
+                const error = new Error("ID користувача не знайдено");
+                console.error(`❌ API-запит на ${endpoint} скасовано: ${error.message}`);
+                _apiRequestInProgress = false;
+                throw error;
+            }
 
-        // Підготовка параметрів запиту
-        const requestOptions = {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                ...(userId && {'X-Telegram-User-Id': userId}),
-                ...options.headers
-            },
-            ...options
-        };
+            // Додаємо мітку часу для запобігання кешуванню
+            const timestamp = Date.now();
+            const url = `${API_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${timestamp}`;
 
-        // Додаємо тіло запиту для POST/PUT/PATCH
-        if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-            requestOptions.body = JSON.stringify(data);
-        }
+            // Показуємо індикатор завантаження, якщо він не вимкнений в опціях
+            if (!options.hideLoader) {
+                showLoader();
+            }
 
-        // Функція для повторного запиту при помилці
-        async function tryRequest(attemptsLeft) {
-            try {
-                const response = await fetch(url, requestOptions);
+            // Логуємо запит у режимі відлагодження
+            if (_debugMode) {
+                console.log(`🔄 Відправка ${method} запиту на ${url}`);
+                if (data) console.log("📦 Дані запиту:", data);
+            }
 
-                // Приховуємо індикатор завантаження
-                if (!options.hideLoader) {
-                    hideLoader();
-                }
+            // Підготовка параметрів запиту
+            const requestOptions = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(userId && {'X-Telegram-User-Id': userId}),
+                    ...options.headers
+                },
+                ...options
+            };
 
-                // Перевіряємо статус відповіді
-                if (!response.ok) {
-                    const statusText = response.statusText || '';
-                    console.error(`❌ Помилка API-запиту: ${response.status} ${statusText} (${url})`);
+            // Додаємо тіло запиту для POST/PUT/PATCH
+            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+                requestOptions.body = JSON.stringify(data);
+            }
 
-                    // Перевіряємо типові помилки
-                    if (response.status === 401 || response.status === 403) {
-                        console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
+            // Функція для повторного запиту при помилці
+            async function tryRequest(attemptsLeft) {
+                try {
+                    const response = await fetch(url, requestOptions);
+
+                    // Приховуємо індикатор завантаження
+                    if (!options.hideLoader) {
+                        hideLoader();
                     }
 
-                    if (response.status === 404) {
-                        throw new Error(`Запитаний ресурс недоступний (404)`);
-                    }
+                    // Перевіряємо статус відповіді
+                    if (!response.ok) {
+                        const statusText = response.statusText || '';
+                        console.error(`❌ Помилка API-запиту: ${response.status} ${statusText} (${url})`);
 
-                    if (response.status === 405) {
-                        throw new Error(`Метод ${method} не дозволено для цього ресурсу (405)`);
-                    }
-
-                    // Якщо залишились спроби, повторюємо запит
-                    if (attemptsLeft > 0) {
-                        const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
-                        if (_debugMode) {
-                            console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
+                        // Перевіряємо типові помилки
+                        if (response.status === 401 || response.status === 403) {
+                            console.warn('🔐 Помилка авторизації, спроба оновити дані користувача');
                         }
+
+                        if (response.status === 404) {
+                            throw new Error(`Запитаний ресурс недоступний (404)`);
+                        }
+
+                        if (response.status === 405) {
+                            throw new Error(`Метод ${method} не дозволено для цього ресурсу (405)`);
+                        }
+
+                        // Якщо залишились спроби, повторюємо запит
+                        if (attemptsLeft > 0) {
+                            const delay = Math.pow(2, retries - attemptsLeft) * 500; // Експоненційна затримка
+                            if (_debugMode) {
+                                console.log(`⏱️ Повтор запиту через ${delay}мс (залишилось спроб: ${attemptsLeft})`);
+                            }
+
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return tryRequest(attemptsLeft - 1);
+                        }
+
+                        throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
+                    }
+
+                    // Якщо статус ОК, парсимо JSON
+                    let jsonData;
+                    try {
+                        jsonData = await response.json();
+                    } catch (parseError) {
+                        console.error('❌ Помилка парсингу JSON відповіді:', parseError);
+                        throw new Error('Некоректний формат відповіді');
+                    }
+
+                    // Перевіряємо, чи є помилка у відповіді
+                    if (jsonData && jsonData.status === 'error') {
+                        console.error('❌ API повернув помилку:', jsonData.message);
+                        throw new Error(jsonData.message || 'Помилка виконання запиту');
+                    }
+
+                    if (_debugMode) {
+                        console.log(`✅ Успішний API-запит на ${url}`);
+                        console.log("📊 Дані відповіді:", jsonData);
+                    }
+
+                    _apiRequestInProgress = false;
+                    return jsonData;
+
+                } catch (error) {
+                    // Приховуємо індикатор завантаження у випадку помилки
+                    if (!options.hideLoader) {
+                        hideLoader();
+                    }
+
+                    // Для мережевих помилок пробуємо ще раз
+                    if ((error.name === 'TypeError' || error.message.includes("Failed to fetch")) && attemptsLeft > 0) {
+                        const delay = Math.pow(2, retries - attemptsLeft) * 500;
+                        console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
 
                         await new Promise(resolve => setTimeout(resolve, delay));
                         return tryRequest(attemptsLeft - 1);
                     }
 
-                    throw new Error(`Помилка сервера: ${response.status} ${statusText}`);
+                    _apiRequestInProgress = false;
+                    throw error;
                 }
-
-                // Якщо статус ОК, парсимо JSON
-                let jsonData;
-                try {
-                    jsonData = await response.json();
-                } catch (parseError) {
-                    console.error('❌ Помилка парсингу JSON відповіді:', parseError);
-                    throw new Error('Некоректний формат відповіді');
-                }
-
-                // Перевіряємо, чи є помилка у відповіді
-                if (jsonData && jsonData.status === 'error') {
-                    console.error('❌ API повернув помилку:', jsonData.message);
-                    throw new Error(jsonData.message || 'Помилка виконання запиту');
-                }
-
-                if (_debugMode) {
-                    console.log(`✅ Успішний API-запит на ${url}`);
-                    console.log("📊 Дані відповіді:", jsonData);
-                }
-
-                return jsonData;
-
-            } catch (error) {
-                // Приховуємо індикатор завантаження у випадку помилки
-                if (!options.hideLoader) {
-                    hideLoader();
-                }
-
-                // Для мережевих помилок пробуємо ще раз
-                if ((error.name === 'TypeError' || error.message.includes("Failed to fetch")) && attemptsLeft > 0) {
-                    const delay = Math.pow(2, retries - attemptsLeft) * 500;
-                    console.log(`⚠️ Мережева помилка, повтор через ${delay}мс (залишилось спроб: ${attemptsLeft}):`, error.message);
-
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return tryRequest(attemptsLeft - 1);
-                }
-
-                throw error;
             }
-        }
 
-        // Починаємо процес запиту з повторними спробами
-        return tryRequest(retries);
+            // Починаємо процес запиту з повторними спробами
+            return tryRequest(retries);
+        } catch (e) {
+            _apiRequestInProgress = false;
+            throw e;
+        }
     }
 
     // ======== ФУНКЦІЇ ДЛЯ ОБРОБКИ ПОМИЛОК ТА ЗАВАНТАЖЕННЯ ========
