@@ -1177,6 +1177,52 @@
         }
     };
 
+    // Патч для роботи з помилками 500 при розрахунку винагороди за стейкінг
+    (function patchStakingRewardCalculation() {
+        if (!window.WinixAPI) return;
+
+        // Зберігаємо оригінальну функцію
+        const originalCalculateExpectedReward = window.WinixAPI.calculateExpectedReward;
+
+        // Замінюємо новою, яка обробляє помилки
+        window.WinixAPI.calculateExpectedReward = function(amount, period) {
+            // Локальний розрахунок винагороди
+            function calculateLocalReward(amount, period) {
+                amount = parseFloat(amount);
+                period = parseInt(period);
+                if (isNaN(amount) || isNaN(period)) return 0;
+
+                const rewardRates = { 7: 4, 14: 9, 28: 15 };
+                const rewardPercent = rewardRates[period] || 9;
+                return parseFloat(((amount * rewardPercent) / 100).toFixed(2));
+            }
+
+            return new Promise((resolve) => {
+                // Спробуємо оригінальну функцію
+                originalCalculateExpectedReward(amount, period)
+                    .then(result => {
+                        resolve(result);
+                    })
+                    .catch(error => {
+                        console.warn('⚠️ Помилка API розрахунку винагороди, використовуємо локальний розрахунок:', error);
+
+                        // Повертаємо локально розраховану винагороду
+                        resolve({
+                            status: 'success',
+                            data: {
+                                amount: amount,
+                                period: period,
+                                reward: calculateLocalReward(amount, period),
+                                source: 'local_calculation'
+                            }
+                        });
+                    });
+            });
+        };
+
+        console.log('✅ Патч для розрахунку стейкінг-винагороди застосовано');
+    })();
+
     // Перевірка працездатності виправлень
     const userId = window.WinixAPI.getUserId();
     console.log("✅ API-FIX: Отримано валідний ID користувача:", userId);

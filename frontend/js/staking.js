@@ -966,7 +966,7 @@
     // ================= ПУБЛІЧНЕ API =================
 
     // Експортуємо публічні функції
-    window.StakingSystem = {
+    window.WinixStakingSystem = {
         // API запити
         createStaking,
         addToStaking,
@@ -1000,4 +1000,36 @@
     }
 
     console.log("✅ Модуль стейкінгу успішно ініціалізовано");
+
+    /**
+ * Локальний розрахунок очікуваної винагороди за стейкінг без API
+ * @param {number} amount - Сума стейкінгу
+ * @param {number} period - Період стейкінгу в днях
+ * @returns {number} - Очікувана винагорода
+ */
+function calculateExpectedReward(amount, period) {
+    try {
+        // Перевірка параметрів
+        amount = parseFloat(amount);
+        period = parseInt(period);
+
+        if (isNaN(amount) || isNaN(period) || amount <= 0 || period <= 0) {
+            return 0;
+        }
+
+        // Отримуємо відсоток відповідно до періоду
+        const rewardPercent = STAKING_CONFIG.rewardRates[period] || 9; // За замовчуванням 9%
+
+        // Розраховуємо винагороду
+        const reward = (amount * rewardPercent) / 100;
+        return parseFloat(reward.toFixed(2));
+    } catch (e) {
+        console.error('Помилка локального розрахунку винагороди:', e);
+        return 0;
+    }
+}
+
+// Додаємо функцію до WinixStakingSystem
+window.WinixStakingSystem.calculateExpectedReward = calculateExpectedReward;
+
 })();

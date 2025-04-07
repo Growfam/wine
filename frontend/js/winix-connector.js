@@ -509,35 +509,84 @@
                 }
 
                 function calculateReward() {
-                    // Перевіряємо ID
-                    const userId = localStorage.getItem('telegram_user_id');
-                    if (!isValidId(userId)) {
-                        console.warn('⚠️ Не вдалося розрахувати винагороду: невалідний ID користувача');
+                    try {
+                        // Перевіряємо ID
+                        const userId = localStorage.getItem('telegram_user_id');
+                        if (!isValidId(userId)) {
+                            console.warn('⚠️ Не вдалося розрахувати винагороду: невалідний ID користувача');
 
-                        // Намагаємося використати getUserId для отримання валідного ID
-                        const validId = window.WinixAPI.getUserId();
-                        if (!validId) {
-                            // Використовуємо локальний розрахунок як запасний варіант
-                            const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
-                            rewardElement.textContent = reward.toFixed(2);
-                            return;
-                        }
-                    }
+                            // Намагаємося використати getUserId для отримання валідного ID
+                            const validId = window.WinixAPI.getUserId();
+                            if (!validId) {
+                                // Використовуємо локальний розрахунок як запасний варіант
+                                let reward = 0;
 
-                    window.WinixAPI.calculateExpectedReward(amount, period)
-                        .then(data => {
-                            if (data.status === 'success' && data.data && typeof data.data.reward === 'number') {
-                                rewardElement.textContent = data.data.reward.toFixed(2);
-                            } else {
-                                const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
-                                rewardElement.textContent = reward.toFixed(2);
+                                // Спочатку спробуємо WinixStakingSystem
+                                if (window.WinixStakingSystem && typeof window.WinixStakingSystem.calculateExpectedReward === 'function') {
+                                    reward = window.WinixStakingSystem.calculateExpectedReward(amount, period);
+                                }
+                                // Потім спробуємо WinixCore
+                                else if (window.WinixCore && window.WinixCore.Staking &&
+                                        typeof window.WinixCore.Staking.calculateExpectedReward === 'function') {
+                                    reward = window.WinixCore.Staking.calculateExpectedReward(amount, period);
+                                }
+                                // Власний розрахунок як останній варіант
+                                else {
+                                    // Стандартні відсотки
+                                    const rates = {
+                                        7: 4,   // 4% за 7 днів
+                                        14: 9,  // 9% за 14 днів
+                                        28: 15  // 15% за 28 днів
+                                    };
+                                    const percent = rates[period] || 9;
+                                    reward = (amount * percent) / 100;
+                                }
+
+                                rewardElement.textContent = parseFloat(reward).toFixed(2);
+                                return;
                             }
-                        })
-                        .catch(error => {
-                            console.error('Помилка розрахунку винагороди:', error);
-                            const reward = WinixCore.Staking.calculateExpectedReward(amount, period);
-                            rewardElement.textContent = reward.toFixed(2);
-                        });
+                        }
+
+                        window.WinixAPI.calculateExpectedReward(amount, period)
+                            .then(data => {
+                                if (data.status === 'success' && data.data && typeof data.data.reward === 'number') {
+                                    rewardElement.textContent = data.data.reward.toFixed(2);
+                                } else {
+                                    // Локальний розрахунок при помилці даних
+                                    let reward = 0;
+
+                                    if (window.WinixStakingSystem && typeof window.WinixStakingSystem.calculateExpectedReward === 'function') {
+                                        reward = window.WinixStakingSystem.calculateExpectedReward(amount, period);
+                                    } else if (window.WinixCore && window.WinixCore.Staking) {
+                                        reward = window.WinixCore.Staking.calculateExpectedReward(amount, period);
+                                    }
+
+                                    rewardElement.textContent = parseFloat(reward).toFixed(2);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Помилка розрахунку винагороди:', error);
+
+                                // Локальний розрахунок при помилці запиту
+                                let reward = 0;
+
+                                if (window.WinixStakingSystem && typeof window.WinixStakingSystem.calculateExpectedReward === 'function') {
+                                    reward = window.WinixStakingSystem.calculateExpectedReward(amount, period);
+                                } else if (window.WinixCore && window.WinixCore.Staking) {
+                                    reward = window.WinixCore.Staking.calculateExpectedReward(amount, period);
+                                } else {
+                                    // Стандартні відсотки якщо інші методи недоступні
+                                    const rates = { 7: 4, 14: 9, 28: 15 };
+                                    const percent = rates[period] || 9;
+                                    reward = (amount * percent) / 100;
+                                }
+
+                                rewardElement.textContent = parseFloat(reward).toFixed(2);
+                            });
+                    } catch (e) {
+                        console.error('Помилка при спробі розрахунку винагороди:', e);
+                        rewardElement.textContent = '0.00';
+                    }
                 }
             } else {
                 // Запасний варіант
