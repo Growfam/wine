@@ -804,6 +804,309 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+
+        /* Додайте ці стилі до розділу <style> в staking.html */
+
+/* Стилі для сучасних сповіщень */
+.modern-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: rgba(20, 30, 60, 0.9);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    color: white;
+    z-index: 9999;
+    max-width: 90%;
+    width: 320px;
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+}
+
+.modern-notification.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.modern-notification.success {
+    border: 1px solid rgba(0, 201, 167, 0.5);
+}
+
+.modern-notification.error {
+    border: 1px solid rgba(244, 67, 54, 0.5);
+}
+
+.notification-icon {
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-message {
+    flex-grow: 1;
+    font-size: 14px;
+}
+
+.notification-close {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-left: 12px;
+    cursor: pointer;
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.2s ease;
+}
+
+.notification-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.success .notification-icon svg {
+    stroke: #4DB6AC;
+}
+
+.error .notification-icon svg {
+    stroke: #FF5252;
+}
+
+/* Стилі для вікна підтвердження */
+.modern-confirm {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    visibility: hidden;
+}
+
+.modern-confirm.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.confirm-content {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 340px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modern-confirm.show .confirm-content {
+    transform: scale(1);
+}
+
+.confirm-message {
+    margin-bottom: 24px;
+    text-align: center;
+    font-size: 16px;
+    color: white;
+    line-height: 1.5;
+}
+
+.confirm-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.confirm-button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.confirm-cancel {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.confirm-ok {
+    background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
+}
+
+.confirm-button:active {
+    transform: scale(0.98);
+}
+
+/* Стилі для вікна вводу */
+.modern-prompt {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    visibility: hidden;
+}
+
+.modern-prompt.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.prompt-content {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 340px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modern-prompt.show .prompt-content {
+    transform: scale(1);
+}
+
+.prompt-message {
+    margin-bottom: 16px;
+    text-align: center;
+    font-size: 16px;
+    color: white;
+    line-height: 1.5;
+}
+
+.prompt-input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+    background: rgba(20, 30, 60, 0.7);
+    color: white;
+    font-size: 16px;
+    margin-bottom: 24px;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.prompt-input:focus {
+    border-color: rgba(0, 201, 167, 0.8);
+    box-shadow: 0 0 10px rgba(0, 201, 167, 0.4);
+}
+
+.prompt-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.prompt-button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.prompt-cancel {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.prompt-ok {
+    background: linear-gradient(90deg, #00796B, #009688, #4DB6AC);
+}
+
+.prompt-button:active {
+    transform: scale(0.98);
+}
+
+/* Стилі для індикатора завантаження */
+.global-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    visibility: hidden;
+}
+
+.global-loader.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loader-content {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+}
+
+.loader-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(0, 201, 167, 0.1);
+    border-top-color: rgba(0, 201, 167, 0.8);
+    border-radius: 50%;
+    animation: spinner 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+.loader-text {
+    color: white;
+    font-size: 16px;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
     </style>
 </head>
 <body>
@@ -952,6 +1255,281 @@
                 window.Telegram.WebApp.expand();
             }
         });
+
+        /**
+ * Сучасні сповіщення замість стандартних alert і confirm
+ * Додайте цей код у верхню частину staking.html в розділі <script>
+ */
+
+/**
+ * Показати сучасне сповіщення з можливістю вибору
+ * @param {string} message - Повідомлення
+ * @param {boolean} isError - Це повідомлення про помилку?
+ * @param {Function} callback - Функція зворотного виклику після закриття
+ */
+function showModernNotification(message, isError = false, callback = null) {
+    // Перевірка, чи елемент уже існує
+    let notificationElement = document.getElementById('modern-notification');
+    if (notificationElement) {
+        document.body.removeChild(notificationElement);
+    }
+
+    // Створюємо елемент сповіщення
+    notificationElement = document.createElement('div');
+    notificationElement.id = 'modern-notification';
+    notificationElement.classList.add('modern-notification');
+
+    if (isError) {
+        notificationElement.classList.add('error');
+    } else {
+        notificationElement.classList.add('success');
+    }
+
+    // Додаємо значок
+    const iconHtml = isError ?
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>' :
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+
+    // Встановлюємо вміст
+    notificationElement.innerHTML = `
+        <div class="notification-icon">${iconHtml}</div>
+        <div class="notification-message">${message}</div>
+        <div class="notification-close">×</div>
+    `;
+
+    // Додаємо до body
+    document.body.appendChild(notificationElement);
+
+    // Анімація появи
+    setTimeout(() => {
+        notificationElement.classList.add('show');
+    }, 10);
+
+    // Обробник закриття
+    const closeBtn = notificationElement.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+        closeNotification();
+    });
+
+    // Автоматичне закриття через 5 секунд
+    const autoCloseTimeout = setTimeout(() => {
+        closeNotification();
+    }, 5000);
+
+    // Функція закриття
+    function closeNotification() {
+        clearTimeout(autoCloseTimeout);
+        notificationElement.classList.remove('show');
+        setTimeout(() => {
+            if (notificationElement.parentNode) {
+                document.body.removeChild(notificationElement);
+            }
+            if (callback) callback();
+        }, 300);
+    }
+
+    // Повертаємо функцію закриття для можливості швидкого закриття
+    return closeNotification;
+}
+
+/**
+ * Показати модальне вікно підтвердження
+ * @param {string} message - Повідомлення
+ * @param {Function} onConfirm - Функція при підтвердженні
+ * @param {Function} onCancel - Функція при скасуванні
+ */
+function showModernConfirm(message, onConfirm, onCancel = null) {
+    // Перевірка, чи елемент уже існує
+    let confirmElement = document.getElementById('modern-confirm');
+    if (confirmElement) {
+        document.body.removeChild(confirmElement);
+    }
+
+    // Створюємо елемент підтвердження
+    confirmElement = document.createElement('div');
+    confirmElement.id = 'modern-confirm';
+    confirmElement.classList.add('modern-confirm');
+
+    // Встановлюємо вміст
+    confirmElement.innerHTML = `
+        <div class="confirm-content">
+            <div class="confirm-message">${message}</div>
+            <div class="confirm-buttons">
+                <button class="confirm-button confirm-cancel">Скасувати</button>
+                <button class="confirm-button confirm-ok">Підтвердити</button>
+            </div>
+        </div>
+    `;
+
+    // Додаємо до body
+    document.body.appendChild(confirmElement);
+
+    // Анімація появи
+    setTimeout(() => {
+        confirmElement.classList.add('show');
+    }, 10);
+
+    // Обробники кнопок
+    const okButton = confirmElement.querySelector('.confirm-ok');
+    const cancelButton = confirmElement.querySelector('.confirm-cancel');
+
+    okButton.addEventListener('click', () => {
+        closeConfirm();
+        if (onConfirm) onConfirm();
+    });
+
+    cancelButton.addEventListener('click', () => {
+        closeConfirm();
+        if (onCancel) onCancel();
+    });
+
+    // Функція закриття
+    function closeConfirm() {
+        confirmElement.classList.remove('show');
+        setTimeout(() => {
+            if (confirmElement.parentNode) {
+                document.body.removeChild(confirmElement);
+            }
+        }, 300);
+    }
+}
+
+/**
+ * Показати сучасне модальне вікно з полем введення
+ * @param {string} message - Повідомлення
+ * @param {Function} onSubmit - Функція при підтвердженні з введеним значенням
+ * @param {string} placeholder - Текст-заповнювач для поля введення
+ * @param {string} defaultValue - Значення за замовчуванням
+ */
+function showModernPrompt(message, onSubmit, placeholder = 'Введіть значення', defaultValue = '') {
+    // Перевірка, чи елемент уже існує
+    let promptElement = document.getElementById('modern-prompt');
+    if (promptElement) {
+        document.body.removeChild(promptElement);
+    }
+
+    // Створюємо елемент
+    promptElement = document.createElement('div');
+    promptElement.id = 'modern-prompt';
+    promptElement.classList.add('modern-prompt');
+
+    // Встановлюємо вміст
+    promptElement.innerHTML = `
+        <div class="prompt-content">
+            <div class="prompt-message">${message}</div>
+            <input type="text" class="prompt-input" placeholder="${placeholder}" value="${defaultValue}">
+            <div class="prompt-buttons">
+                <button class="prompt-button prompt-cancel">Скасувати</button>
+                <button class="prompt-button prompt-ok">Підтвердити</button>
+            </div>
+        </div>
+    `;
+
+    // Додаємо до body
+    document.body.appendChild(promptElement);
+
+    // Анімація появи
+    setTimeout(() => {
+        promptElement.classList.add('show');
+        // Фокус на поле введення
+        const inputField = promptElement.querySelector('.prompt-input');
+        inputField.focus();
+    }, 10);
+
+    // Обробники кнопок
+    const okButton = promptElement.querySelector('.prompt-ok');
+    const cancelButton = promptElement.querySelector('.prompt-cancel');
+    const inputField = promptElement.querySelector('.prompt-input');
+
+    okButton.addEventListener('click', () => {
+        const value = inputField.value;
+        closePrompt();
+        if (onSubmit) onSubmit(value);
+    });
+
+    cancelButton.addEventListener('click', () => {
+        closePrompt();
+    });
+
+    // Підтвердження при натисканні Enter
+    inputField.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            const value = inputField.value;
+            closePrompt();
+            if (onSubmit) onSubmit(value);
+        }
+    });
+
+    // Функція закриття
+    function closePrompt() {
+        promptElement.classList.remove('show');
+        setTimeout(() => {
+            if (promptElement.parentNode) {
+                document.body.removeChild(promptElement);
+            }
+        }, 300);
+    }
+}
+
+// Перевизначаємо глобальні функції для зворотної сумісності
+window.simpleAlert = function(message, isError = false, callback = null) {
+    return showModernNotification(message, isError, callback);
+};
+
+window.showToast = function(message, type = 'success', duration = 5000) {
+    return showModernNotification(message, type === 'error', null);
+};
+
+window.showInputModal = function(message, callback, placeholder = '', defaultValue = '') {
+    return showModernPrompt(message, callback, placeholder, defaultValue);
+};
+
+// Глобальний індикатор завантаження
+function showLoading() {
+    // Перевірка, чи елемент уже існує
+    let loader = document.getElementById('global-loader');
+    if (loader) {
+        loader.classList.add('show');
+        return;
+    }
+
+    // Створюємо елемент
+    loader = document.createElement('div');
+    loader.id = 'global-loader';
+    loader.classList.add('global-loader');
+
+    // Встановлюємо вміст
+    loader.innerHTML = `
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <div class="loader-text">Завантаження...</div>
+        </div>
+    `;
+
+    // Додаємо до body
+    document.body.appendChild(loader);
+
+    // Анімація появи
+    setTimeout(() => {
+        loader.classList.add('show');
+    }, 10);
+}
+
+function hideLoading() {
+    const loader = document.getElementById('global-loader');
+    if (loader) {
+        loader.classList.remove('show');
+        setTimeout(() => {
+            if (loader.parentNode) {
+                document.body.removeChild(loader);
+            }
+        }, 300);
+    }
+}
+
+// Експортуємо функції в глобальний об'єкт
+window.showLoading = showLoading;
+window.hideLoading = hideLoading;
 
         // Словник для перекладів
         const translations = {
@@ -1385,88 +1963,99 @@
             }
         }
 
-        // Функція для скасування стейкінгу з модального вікна
-        function handleCancelStakingFromModal() {
-            try {
-                // Приховуємо модальне вікно
-                hideStakingModal();
+       function handleCancelStakingFromModal() {
+    try {
+        // Приховуємо модальне вікно
+        hideStakingModal();
 
-                // Запитуємо підтвердження
-                if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
-                    // Перевіряємо наявність функції в WinixStakingSystem
-                    if (window.WinixStakingSystem && typeof window.WinixStakingSystem.cancelStaking === 'function') {
-                        window.WinixStakingSystem.cancelStaking()
-                            .then(result => {
-                                if (result.success) {
-                                    if (window.simpleAlert) {
-                                        window.simpleAlert(result.message || "Стейкінг успішно скасовано", false, function() {
-                                            window.location.reload();
-                                        });
-                                    } else {
-                                        alert(result.message || "Стейкінг успішно скасовано");
-                                        window.location.reload();
-                                    }
-                                } else {
-                                    if (window.simpleAlert) {
-                                        window.simpleAlert(result.message || "Помилка скасування стейкінгу", true);
-                                    } else {
-                                        alert(result.message || "Помилка скасування стейкінгу");
-                                    }
-                                }
-                            })
-                            .catch(error => {
-                                console.error("Помилка при скасуванні стейкінгу:", error);
-                                if (window.simpleAlert) {
-                                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-                                } else {
-                                    alert("Сталася помилка. Спробуйте ще раз.");
-                                }
-                            });
-                    } else if (window.WinixAPI && typeof window.WinixAPI.cancelStaking === 'function') {
-                        window.WinixAPI.cancelStaking()
-                            .then(data => {
-                                if (data.status === 'success') {
-                                    if (window.simpleAlert) {
-                                        window.simpleAlert(data.message || "Стейкінг успішно скасовано", false, function() {
-                                            window.location.reload();
-                                        });
-                                    } else {
-                                        alert(data.message || "Стейкінг успішно скасовано");
-                                        window.location.reload();
-                                    }
-                                } else {
-                                    if (window.simpleAlert) {
-                                        window.simpleAlert(data.message || "Помилка скасування стейкінгу", true);
-                                    } else {
-                                        alert(data.message || "Помилка скасування стейкінгу");
-                                    }
-                                }
-                            })
-                            .catch(error => {
-                                console.error("Помилка при скасуванні стейкінгу:", error);
-                                if (window.simpleAlert) {
-                                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-                                } else {
-                                    alert("Сталася помилка. Спробуйте ще раз.");
-                                }
-                            });
-                    } else {
+        // Отримуємо дані про активний стейкінг
+        const stakingData = getStakingData();
+        if (!stakingData || !stakingData.hasActiveStaking || !stakingData.stakingId) {
+            if (window.simpleAlert) {
+                window.simpleAlert("Не вдалося знайти активний стейкінг", true);
+            } else {
+                alert("Не вдалося знайти активний стейкінг");
+            }
+            return;
+        }
+
+        // Запитуємо підтвердження лише один раз
+        if (confirm("Ви впевнені, що хочете скасувати стейкінг? Буде утримано комісію за дострокове скасування.")) {
+            // Показуємо індикатор завантаження
+            if (typeof showLoading === 'function') {
+                showLoading();
+            }
+
+            // Використовуємо WinixAPI напряму з передачею ID стейкінгу
+            window.WinixAPI.cancelStaking(stakingData.stakingId)
+                .then(response => {
+                    // Приховуємо індикатор завантаження
+                    if (typeof hideLoading === 'function') {
+                        hideLoading();
+                    }
+
+                    if (response.status === 'success') {
+                        // Оновлюємо локальні дані про стейкінг
+                        localStorage.removeItem('stakingData');
+                        localStorage.removeItem('winix_staking');
+
+                        // Оновлюємо інтерфейс
+                        if (window.WinixStakingSystem && window.WinixStakingSystem.refresh) {
+                            window.WinixStakingSystem.refresh();
+                        }
+
+                        // Оновлюємо баланс
+                        if (response.data && response.data.newBalance) {
+                            localStorage.setItem('userTokens', response.data.newBalance.toString());
+                            localStorage.setItem('winix_balance', response.data.newBalance.toString());
+
+                            // Оновлюємо відображення балансу
+                            updateBalanceDisplay();
+                        }
+
+                        // Показуємо повідомлення про успіх
                         if (window.simpleAlert) {
-                            window.simpleAlert("Функціональність скасування стейкінгу недоступна", true);
+                            window.simpleAlert("Стейкінг успішно скасовано", false);
                         } else {
-                            alert("Функціональність скасування стейкінгу недоступна");
+                            alert("Стейкінг успішно скасовано");
+                        }
+
+                        // Оновлюємо кнопки стейкінгу
+                        setTimeout(updateStakingButtons, 500);
+                    } else {
+                        // Показуємо повідомлення про помилку
+                        if (window.simpleAlert) {
+                            window.simpleAlert(response.message || "Помилка скасування стейкінгу", true);
+                        } else {
+                            alert(response.message || "Помилка скасування стейкінгу");
                         }
                     }
-                }
-            } catch (e) {
-                console.error('Помилка при скасуванні стейкінгу з модального вікна:', e);
-                if (window.simpleAlert) {
-                    window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
-                } else {
-                    alert("Сталася помилка. Спробуйте ще раз.");
-                }
-            }
+                })
+                .catch(error => {
+                    // Приховуємо індикатор завантаження
+                    if (typeof hideLoading === 'function') {
+                        hideLoading();
+                    }
+
+                    console.error("Помилка при скасуванні стейкінгу:", error);
+
+                    if (window.simpleAlert) {
+                        window.simpleAlert("Сталася помилка. Спробуйте ще раз.", true);
+                    } else {
+                        alert("Сталася помилка. Спробуйте ще раз.");
+                    }
+                });
         }
+    } catch (e) {
+        console.error('Помилка при скасуванні стейкінгу з модального вікна:', e);
+
+        if (window.simpleAlert) {
+            window.simpleAlert("Сталася неочікувана помилка. Спробуйте ще раз.", true);
+        } else {
+            alert("Сталася неочікувана помилка. Спробуйте ще раз.");
+        }
+    }
+}
 
         // Головна функція ініціалізації сторінки
         function initPage() {

@@ -162,43 +162,115 @@
     }
 
     /**
-     * Оновлення інтерфейсу після зміни даних стейкінгу
-     */
-    function updateUI() {
-        // Запобігання рекурсивним викликам
-        if (_isUpdatingDisplay) {
-            console.warn("Вже виконується оновлення інтерфейсу стейкінгу");
-            return;
-        }
-
-        _isUpdatingDisplay = true;
-
-        try {
-            const hasActiveStaking = _currentStakingData && _currentStakingData.hasActiveStaking;
-
-            // Оновлення статусу стейкінгу
-            const statusElement = getElement(DOM.stakingStatus);
-            if (statusElement) {
-                if (hasActiveStaking) {
-                    statusElement.textContent = `У стейкінгу: ${_currentStakingData.stakingAmount} $WINIX`;
-                } else {
-                    statusElement.textContent = "Наразі немає активних стейкінгів";
-                }
-            }
-
-            // Оновлюємо активність кнопок
-            updateButtonsState(hasActiveStaking);
-
-            // Викликаємо глобальну подію оновлення стейкінгу
-            document.dispatchEvent(new CustomEvent('staking-updated', {
-                detail: { stakingData: _currentStakingData }
-            }));
-        } catch (e) {
-            console.error('Помилка оновлення інтерфейсу стейкінгу:', e);
-        } finally {
-            _isUpdatingDisplay = false;
-        }
+ * Оновлення інтерфейсу після зміни даних стейкінгу
+ * @param {boolean} forceRefresh - Примусово оновити дані з сервера
+ */
+async function updateUI(forceRefresh = false) {
+    // Запобігання рекурсивним викликам
+    if (_isUpdatingDisplay) {
+        console.warn("Вже виконується оновлення інтерфейсу стейкінгу");
+        return;
     }
+
+    _isUpdatingDisplay = true;
+
+    try {
+        // Якщо потрібно, оновлюємо дані з сервера
+        if (forceRefresh) {
+            try {
+                await fetchStakingData(true);
+            } catch (error) {
+                console.warn("Помилка оновлення даних стейкінгу:", error);
+                // Продовжуємо з наявними даними
+            }
+        }
+
+        const hasActiveStaking = _currentStakingData && _currentStakingData.hasActiveStaking;
+
+        // Оновлення статусу стейкінгу
+        const statusElement = getElement(DOM.stakingStatus);
+        if (statusElement) {
+            if (hasActiveStaking) {
+                // Додаємо анімацію для привернення уваги
+                statusElement.style.transition = 'all 0.3s ease';
+                statusElement.style.color = '#4DB6AC';
+                statusElement.style.fontWeight = 'bold';
+                statusElement.textContent = `У стейкінгу: ${_currentStakingData.stakingAmount} $WINIX`;
+
+                // Додаємо інформацію про очікувану винагороду
+                if (_currentStakingData.expectedReward) {
+                    statusElement.textContent += ` | Винагорода: ${_currentStakingData.expectedReward} $WINIX`;
+                }
+
+                // Додаємо інформацію про залишок днів
+                if (_currentStakingData.remainingDays !== undefined) {
+                    statusElement.textContent += ` | Залишилось: ${_currentStakingData.remainingDays} дн.`;
+                }
+
+                // Повертаємо початковий стиль через певний час
+                setTimeout(() => {
+                    statusElement.style.color = '';
+                    statusElement.style.fontWeight = '';
+                }, 2000);
+            } else {
+                statusElement.style.color = '';
+                statusElement.style.fontWeight = '';
+                statusElement.textContent = "Наразі немає активних стейкінгів";
+            }
+        }
+
+        // Оновлюємо активність кнопок
+        updateButtonsState(hasActiveStaking);
+
+        // Оновлюємо введення даних стейкінгу, якщо немає активного стейкінгу
+        if (!hasActiveStaking) {
+            const amountInput = getElement(DOM.amountInput);
+            const periodSelect = getElement(DOM.periodSelect);
+            const expectedReward = getElement(DOM.expectedReward);
+
+            if (amountInput && periodSelect && expectedReward) {
+                // Скидаємо введені значення
+                amountInput.value = '';
+
+                // Встановлюємо значення селекта за замовчуванням
+                periodSelect.value = '14'; // Або інше значення за замовчуванням
+
+                // Оновлюємо очікувану винагороду
+                calculateExpectedReward(0, parseInt(periodSelect.value))
+                    .then(reward => {
+                        expectedReward.textContent = reward.toFixed(2);
+                    })
+                    .catch(error => {
+                        console.error("Помилка розрахунку очікуваної винагороди:", error);
+                        expectedReward.textContent = '0.00';
+                    });
+            }
+        }
+
+        // Викликаємо глобальну подію оновлення стейкінгу з більш детальними даними
+        document.dispatchEvent(new CustomEvent('staking-updated', {
+            detail: {
+                stakingData: _currentStakingData,
+                hasActiveStaking: hasActiveStaking,
+                timestamp: new Date().toISOString()
+            }
+        }));
+
+        // Викликаємо додаткові функції оновлення, якщо вони є
+        if (window.updateStakingButtons && typeof window.updateStakingButtons === 'function') {
+            window.updateStakingButtons();
+        }
+
+        // Якщо є функція оновлення балансу, викликаємо її
+        if (window.updateBalanceDisplay && typeof window.updateBalanceDisplay === 'function') {
+            window.updateBalanceDisplay();
+        }
+    } catch (e) {
+        console.error('Помилка оновлення інтерфейсу стейкінгу:', e);
+    } finally {
+        _isUpdatingDisplay = false;
+    }
+}
 
     /**
      * Оновлення стану кнопок залежно від наявності активного стейкінгу
@@ -239,75 +311,120 @@
     // ======== ОСНОВНІ ФУНКЦІЇ СТЕЙКІНГУ ========
 
     /**
-     * Отримання даних стейкінгу з сервера
-     * @param {boolean} silent - Чи потрібно приховувати індикатор завантаження
-     * @returns {Promise<Object>} Дані стейкінгу
-     */
-    async function fetchStakingData(silent = false) {
-        try {
-            // Перевірка наявності API та ID користувача
-            if (!window.WinixAPI || !window.WinixAPI.getStakingData) {
-                throw new Error("API модуль не знайдено");
-            }
+ * Отримання даних стейкінгу з сервера з оптимізацією кешування
+ * @param {boolean} silent - Чи потрібно приховувати індикатор завантаження
+ * @param {boolean} forceRefresh - Примусово оновити дані (ігнорує кеш)
+ * @returns {Promise<Object>} Дані стейкінгу
+ */
+async function fetchStakingData(silent = false, forceRefresh = false) {
+    try {
+        // Перевірка кешу
+        const now = Date.now();
+        const cacheTime = parseInt(localStorage.getItem('stakingDataCacheTime') || '0');
+        const cacheTTL = 30000; // 30 секунд
 
-            // Отримуємо ID користувача
-            const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
-
-            if (!isValidId(userId)) {
-                throw new Error("ID користувача не знайдено");
-            }
-
-            const response = await window.WinixAPI.getStakingData();
-
-            if (response.status === 'success' && response.data) {
-                // Зберігаємо дані стейкінгу
-                _currentStakingData = response.data;
-
-                // Зберігаємо також в localStorage для сумісності з іншими скриптами
-                localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
-                localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
-
-                // Оновлюємо інтерфейс
-                updateUI();
-
-                return _currentStakingData;
-            } else {
-                throw new Error(response.message || 'Не вдалося отримати дані стейкінгу');
-            }
-        } catch (error) {
-            console.error('Помилка отримання даних стейкінгу:', error);
-
-            // Якщо запит не silent, показуємо помилку
-            if (!silent) {
-                showMessage('Не вдалося отримати дані стейкінгу. ' + error.message, true);
-            }
-
-            // Намагаємося отримати дані з localStorage
-            try {
-                const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
-                if (stakingDataStr) {
-                    _currentStakingData = JSON.parse(stakingDataStr);
-                    updateUI();
-                    return _currentStakingData;
-                }
-            } catch (localError) {
-                console.error('Помилка отримання даних стейкінгу з localStorage:', localError);
-            }
-
-            // Якщо не вдалося отримати дані ні з сервера, ні з localStorage
-            _currentStakingData = {
-                hasActiveStaking: false,
-                stakingAmount: 0,
-                period: 0,
-                rewardPercent: 0,
-                expectedReward: 0,
-                remainingDays: 0
-            };
-
-            updateUI();
+        if (!forceRefresh && _currentStakingData && (now - cacheTime < cacheTTL)) {
+            console.log("Використовуємо кешовані дані стейкінгу");
             return _currentStakingData;
         }
+
+        // Перевірка наявності API та ID користувача
+        if (!window.WinixAPI || !window.WinixAPI.getStakingData) {
+            throw new Error("API модуль не знайдено");
+        }
+
+        // Отримуємо ID користувача
+        const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+
+        if (!isValidId(userId)) {
+            throw new Error("ID користувача не знайдено");
+        }
+
+        // Показуємо індикатор завантаження, якщо не silent режим
+        if (!silent) {
+            if (typeof showLoading === 'function') {
+                showLoading();
+            } else {
+                showLoader();
+            }
+        }
+
+        // Відправляємо запит з обмеженням часу очікування
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Таймаут запиту даних стейкінгу')), 10000);
+        });
+
+        const fetchPromise = window.WinixAPI.getStakingData();
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+        // Приховуємо індикатор завантаження
+        if (!silent) {
+            if (typeof hideLoading === 'function') {
+                hideLoading();
+            } else {
+                hideLoader();
+            }
+        }
+
+        if (response.status === 'success' && response.data) {
+            // Зберігаємо дані стейкінгу
+            _currentStakingData = response.data;
+
+            // Оновлюємо кеш
+            localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
+            localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
+            localStorage.setItem('stakingDataCacheTime', now.toString());
+
+            // Оновлюємо інтерфейс
+            updateUI();
+
+            return _currentStakingData;
+        } else {
+            throw new Error(response.message || 'Не вдалося отримати дані стейкінгу');
+        }
+    } catch (error) {
+        // Приховуємо індикатор завантаження
+        if (!silent) {
+            if (typeof hideLoading === 'function') {
+                hideLoading();
+            } else {
+                hideLoader();
+            }
+        }
+
+        console.warn('Помилка отримання даних стейкінгу:', error);
+
+        // Якщо запит не silent, показуємо помилку лише для серйозних проблем
+        if (!silent && error.message !== 'Таймаут запиту даних стейкінгу') {
+            showMessage('Не вдалося отримати дані стейкінгу. ' + error.message, true);
+        }
+
+        // Намагаємося отримати дані з localStorage
+        try {
+            const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+            if (stakingDataStr) {
+                _currentStakingData = JSON.parse(stakingDataStr);
+                updateUI();
+                return _currentStakingData;
+            }
+        } catch (localError) {
+            console.error('Помилка отримання даних стейкінгу з localStorage:', localError);
+        }
+
+        // Якщо не вдалося отримати дані ні з сервера, ні з localStorage
+        _currentStakingData = {
+            hasActiveStaking: false,
+            stakingAmount: 0,
+            period: 0,
+            rewardPercent: 0,
+            expectedReward: 0,
+            remainingDays: 0
+        };
+
+        updateUI();
+        return _currentStakingData;
     }
+}
 
     /**
      * Створення нового стейкінгу
@@ -520,120 +637,124 @@
      * Скасування стейкінгу
      * @returns {Promise<Object>} Результат операції
      */
-    async function cancelStaking() {
-        if (_isProcessingRequest) {
-            showMessage('Зачекайте, виконується попередній запит', true);
-            return { success: false, message: 'Вже виконується запит' };
+    async function cancelStaking(skipConfirmation = false) {
+    if (_isProcessingRequest) {
+        showMessage('Зачекайте, виконується попередній запит', true);
+        return { success: false, message: 'Вже виконується запит' };
+    }
+
+    _isProcessingRequest = true;
+
+    try {
+        // Перевіряємо наявність активного стейкінгу
+        if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
+            // Спробуємо оновити дані стейкінгу
+            await fetchStakingData(true);
+
+            if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
+                throw new Error('У вас немає активного стейкінгу');
+            }
         }
 
-        _isProcessingRequest = true;
-
-        try {
-            // Перевіряємо наявність активного стейкінгу
-            if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
-                // Спробуємо оновити дані стейкінгу
-                await fetchStakingData(true);
-
-                if (!_currentStakingData || !_currentStakingData.hasActiveStaking) {
-                    throw new Error('У вас немає активного стейкінгу');
-                }
-            }
-
-            // Запитуємо підтвердження у користувача
+        // Запитуємо підтвердження у користувача тільки якщо не передано skipConfirmation
+        if (!skipConfirmation) {
             if (!confirm(`Ви впевнені, що хочете скасувати стейкінг?\n\nБуде утримано комісію ${CONFIG.cancellationFee * 100}% за дострокове скасування.`)) {
                 _isProcessingRequest = false;
                 return { success: false, message: 'Скасування відмінено користувачем' };
             }
+        }
 
-            // Перевірка наявності API та ID користувача
-            if (!window.WinixAPI || !window.WinixAPI.cancelStaking) {
-                throw new Error("API модуль не знайдено");
-            }
+        // Перевірка наявності API та ID користувача
+        if (!window.WinixAPI || !window.WinixAPI.cancelStaking) {
+            throw new Error("API модуль не знайдено");
+        }
 
-            // Отримуємо ID користувача
-            const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
+        // Отримуємо ID користувача
+        const userId = window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null;
 
-            if (!isValidId(userId)) {
-                throw new Error("ID користувача не знайдено");
-            }
+        if (!isValidId(userId)) {
+            throw new Error("ID користувача не знайдено");
+        }
 
-            // Скасовуємо стейкінг через API
-            const response = await window.WinixAPI.cancelStaking(_currentStakingData.stakingId);
+        // Скасовуємо стейкінг через API
+        const response = await window.WinixAPI.cancelStaking(_currentStakingData.stakingId);
 
-            if (response.status !== 'success') {
-                throw new Error(response.message || 'Помилка скасування стейкінгу');
-            }
+        if (response.status !== 'success') {
+            throw new Error(response.message || 'Помилка скасування стейкінгу');
+        }
 
-            // Оновлюємо дані стейкінгу
-            if (response.data) {
-                // Якщо є дані стейкінгу, оновлюємо їх
-                if (response.data.staking) {
-                    _currentStakingData = response.data.staking;
+        // Оновлюємо дані стейкінгу
+        if (response.data) {
+            // Якщо є дані стейкінгу, оновлюємо їх
+            if (response.data.staking) {
+                _currentStakingData = response.data.staking;
 
-                    // Оновлюємо localStorage
-                    localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
-                    localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
-                } else {
-                    // Якщо немає даних стейкінгу, створюємо порожній об'єкт
-                    _currentStakingData = {
-                        hasActiveStaking: false,
-                        stakingAmount: 0,
-                        period: 0,
-                        rewardPercent: 0,
-                        expectedReward: 0,
-                        remainingDays: 0
-                    };
-
-                    // Оновлюємо localStorage
-                    localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
-                    localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
-                }
-
-                // Оновлюємо баланс, якщо він є в відповіді
-                if (response.data.newBalance !== undefined) {
-                    localStorage.setItem('userTokens', response.data.newBalance.toString());
-                    localStorage.setItem('winix_balance', response.data.newBalance.toString());
-
-                    // Додатково викликаємо оновлення балансу, якщо є така функція
-                    if (window.WinixCore && window.WinixCore.updateBalanceDisplay) {
-                        window.WinixCore.updateBalanceDisplay();
-                    } else if (window.WinixCore && window.WinixCore.UI && window.WinixCore.UI.updateBalanceDisplay) {
-                        window.WinixCore.UI.updateBalanceDisplay();
-                    }
-                }
-
-                // Оновлюємо інтерфейс
-                updateUI();
-
-                // Формуємо повідомлення про успіх з деталями
-                let message = 'Стейкінг успішно скасовано';
-                if (response.data.returnedAmount && response.data.feeAmount) {
-                    message += `. Повернено: ${response.data.returnedAmount} WINIX. Комісія: ${response.data.feeAmount} WINIX.`;
-                }
-
-                // Показуємо повідомлення про успіх
-                showMessage(message);
-
-                return {
-                    success: true,
-                    data: response.data,
-                    message: message
-                };
+                // Оновлюємо localStorage
+                localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
+                localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
             } else {
-                throw new Error('Відповідь сервера не містить даних');
+                // Якщо немає даних стейкінгу, створюємо порожній об'єкт
+                _currentStakingData = {
+                    hasActiveStaking: false,
+                    stakingAmount: 0,
+                    period: 0,
+                    rewardPercent: 0,
+                    expectedReward: 0,
+                    remainingDays: 0
+                };
+
+                // Оновлюємо localStorage
+                localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
+                localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
             }
-        } catch (error) {
-            console.error('Помилка скасування стейкінгу:', error);
-            showMessage(error.message || 'Помилка скасування стейкінгу', true);
+
+            // Оновлюємо баланс, якщо він є в відповіді
+            if (response.data.newBalance !== undefined) {
+                localStorage.setItem('userTokens', response.data.newBalance.toString());
+                localStorage.setItem('winix_balance', response.data.newBalance.toString());
+
+                // Додатково викликаємо оновлення балансу, якщо є така функція
+                if (window.WinixCore && window.WinixCore.updateBalanceDisplay) {
+                    window.WinixCore.updateBalanceDisplay();
+                } else if (window.WinixCore && window.WinixCore.UI && window.WinixCore.UI.updateBalanceDisplay) {
+                    window.WinixCore.UI.updateBalanceDisplay();
+                } else if (typeof updateBalanceDisplay === 'function') {
+                    updateBalanceDisplay();
+                }
+            }
+
+            // Оновлюємо інтерфейс без перезавантаження сторінки
+            updateUI();
+
+            // Формуємо повідомлення про успіх з деталями
+            let message = 'Стейкінг успішно скасовано';
+            if (response.data.returnedAmount && response.data.feeAmount) {
+                message += `. Повернено: ${response.data.returnedAmount} WINIX. Комісія: ${response.data.feeAmount} WINIX.`;
+            }
+
+            // Показуємо повідомлення про успіх
+            showMessage(message);
 
             return {
-                success: false,
-                message: error.message || 'Помилка скасування стейкінгу'
+                success: true,
+                data: response.data,
+                message: message
             };
-        } finally {
-            _isProcessingRequest = false;
+        } else {
+            throw new Error('Відповідь сервера не містить даних');
         }
+    } catch (error) {
+        console.error('Помилка скасування стейкінгу:', error);
+        showMessage(error.message || 'Помилка скасування стейкінгу', true);
+
+        return {
+            success: false,
+            message: error.message || 'Помилка скасування стейкінгу'
+        };
+    } finally {
+        _isProcessingRequest = false;
     }
+}
 
     /**
      * Розрахунок очікуваної винагороди

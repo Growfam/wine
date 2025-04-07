@@ -623,14 +623,28 @@ console.log("🔍 Підготовка запиту:", {
     }
 
     /**
-     * Скасування стейкінгу
-     * @param {string} stakingId - ID стейкінгу (опціонально)
-     * @returns {Promise<Object>} - Результат скасування стейкінгу
-     */
-    async function cancelStaking(stakingId = null) {
+ * Скасування стейкінгу
+ * @param {string} stakingId - ID стейкінгу (опціонально)
+ * @returns {Promise<Object>} - Результат скасування стейкінгу
+ */
+async function cancelStaking(stakingId = null) {
+    if (_apiRequestInProgress) {
+        console.warn(`⚠️ API запит вже виконується, очікуйте: скасування стейкінгу`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    _apiRequestInProgress = true;
+
+    try {
+        // Отримуємо ID користувача
         const userId = getUserId();
+
+        // Перевіряємо наявність валідного ID користувача
         if (!userId) {
-            throw new Error("ID користувача не знайдено");
+            const error = new Error("ID користувача не знайдено");
+            console.error(`❌ API-запит скасування стейкінгу скасовано: ${error.message}`);
+            _apiRequestInProgress = false;
+            throw error;
         }
 
         // Якщо ID стейкінгу не передано, отримуємо його з даних стейкінгу
@@ -638,17 +652,80 @@ console.log("🔍 Підготовка запиту:", {
         if (!targetStakingId) {
             try {
                 const stakingData = await getStakingData();
-                if (stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
+                if (!stakingData || stakingData.status !== 'success' || !stakingData.data || !stakingData.data.hasActiveStaking) {
                     throw new Error("У вас немає активного стейкінгу");
                 }
                 targetStakingId = stakingData.data.stakingId;
+
+                if (!targetStakingId) {
+                    throw new Error("Не вдалося визначити ID стейкінгу");
+                }
+
+                console.log(`🔍 Отримано ID стейкінгу: ${targetStakingId}`);
             } catch (error) {
-                throw new Error("Не вдалося отримати ID стейкінгу: " + error.message);
+                console.error("Помилка отримання ID стейкінгу:", error);
+
+                // Спробуємо отримати ID з localStorage як резервний варіант
+                try {
+                    const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
+                    if (stakingDataStr) {
+                        const localData = JSON.parse(stakingDataStr);
+                        if (localData && localData.stakingId) {
+                            targetStakingId = localData.stakingId;
+                            console.log(`🔍 Отримано ID стейкінгу з localStorage: ${targetStakingId}`);
+                        }
+                    }
+                } catch (localError) {
+                    console.error("Помилка читання з localStorage:", localError);
+                }
+
+                if (!targetStakingId) {
+                    _apiRequestInProgress = false;
+                    throw new Error("Не вдалося отримати ID стейкінгу");
+                }
             }
         }
 
-        return apiRequest(`/api/user/${userId}/staking/${targetStakingId}/cancel`, 'POST');
+        // Показуємо індикатор завантаження
+        showLoader();
+
+        console.log(`🔄 Виконання запиту скасування стейкінгу для ID: ${targetStakingId}`);
+
+        // Виконуємо запит з більшою кількістю повторних спроб
+        const response = await apiRequest(`/api/user/${userId}/staking/${targetStakingId}/cancel`, 'POST', null, {}, 5);
+
+        // Приховуємо індикатор завантаження
+        hideLoader();
+
+        // Якщо запит успішний, оновлюємо кеш стейкінгу
+        if (response && response.status === 'success') {
+            // Скидаємо кеш даних стейкінгу
+            localStorage.removeItem('stakingData');
+            localStorage.removeItem('winix_staking');
+
+            // Якщо є оновлений баланс, оновлюємо його в localStorage
+            if (response.data && response.data.newBalance !== undefined) {
+                localStorage.setItem('userTokens', response.data.newBalance.toString());
+                localStorage.setItem('winix_balance', response.data.newBalance.toString());
+            }
+        }
+
+        // Відпускаємо блокування API
+        _apiRequestInProgress = false;
+
+        return response;
+    } catch (error) {
+        // Приховуємо індикатор завантаження у випадку помилки
+        hideLoader();
+
+        console.error("❌ Помилка скасування стейкінгу:", error);
+
+        // Відпускаємо блокування API
+        _apiRequestInProgress = false;
+
+        throw error;
     }
+}
 
     /**
      * Розрахунок очікуваної винагороди за стейкінг
