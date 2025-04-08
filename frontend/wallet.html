@@ -1297,23 +1297,23 @@
                 </div>
 
                 <!-- Покращений селектор фільтрації транзакцій -->
-                <div class="filter-selector">
-                    <div class="filter-select-wrapper">
-                        <select id="transaction-filter" class="filter-select">
-                            <option value="All" selected>Всі</option>
-                            <option value="Receive">Отримання</option>
-                            <option value="Send">Відправлення</option>
-                            <option value="Stake">Стейкінг</option>
-                            <option value="Unstake">Розстейкінг</option>
-                            <option value="Reward">Нагороди</option>
-                        </select>
-                        <div class="filter-select-arrow">
-                            <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M1 1.5L6 6.5L11 1.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                    </div>
-                </div>
+<div class="filter-selector">
+    <div class="filter-select-wrapper">
+        <select id="transaction-filter" class="filter-select">
+            <option value="all" selected>Всі</option>
+            <option value="receive">Отримання</option>
+            <option value="send">Відправлення</option>
+            <option value="stake">Стейкінг</option>
+            <option value="unstake">Розстейкінг</option>
+            <option value="reward">Нагороди</option>
+        </select>
+        <div class="filter-select-arrow">
+            <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 1.5L6 6.5L11 1.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+    </div>
+</div>
                 <div class="history-list" id="history-list">
                     <!-- Історія транзакцій буде додана динамічно через JavaScript -->
                     <div class="empty-message" data-lang-key="Завантаження історії транзакцій">Loading History</div>
