@@ -258,7 +258,10 @@ const WinixWallet = {
         this.elements.sendForm = document.getElementById('send-form');
         this.elements.recipientId = document.getElementById('recipient-id');
         this.elements.sendAmount = document.getElementById('send-amount');
+
+        // Поле нотатки може бути відсутнім в деяких реалізаціях (наприклад в Telegram WebApp)
         this.elements.sendNote = document.getElementById('send-note');
+
         this.elements.availableBalance = document.getElementById('available-balance');
 
         // Елементи вікна отримання
@@ -523,9 +526,11 @@ const WinixWallet = {
     // Обробка відправки форми переказу
     handleSendFormSubmit: function() {
         // Отримуємо дані з форми
-        const recipientId = this.elements.recipientId.value.trim();
-        const amount = parseFloat(this.elements.sendAmount.value);
-        const note = this.elements.sendNote.value.trim();
+        const recipientId = this.elements.recipientId ? this.elements.recipientId.value.trim() : '';
+        const amount = this.elements.sendAmount ? parseFloat(this.elements.sendAmount.value) : 0;
+
+        // Поле примітки може бути відсутнім (в Telegram WebApp)
+        const note = this.elements.sendNote ? this.elements.sendNote.value.trim() : '';
 
         // Валідація даних
         if (!recipientId) {
@@ -564,7 +569,7 @@ const WinixWallet = {
 
                 if (response.status === 'success') {
                     // Оновлюємо баланс
-                    this.state.balance = parseFloat(response.data.sender_balance);
+                    this.state.balance = parseFloat(response.data.sender_balance || response.data.newBalance);
                     this.updateBalanceDisplay();
 
                     // Закриваємо модальне вікно
@@ -621,9 +626,13 @@ const WinixWallet = {
             const data = {
                 sender_id: this.state.userId,
                 receiver_id: recipientId,
-                amount: amount,
-                note: note
+                amount: amount
             };
+
+            // Додаємо примітку тільки якщо вона не порожня
+            if (note) {
+                data.note = note;
+            }
 
             // Спроба використати WinixAPI, якщо він доступний
             if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
@@ -631,6 +640,11 @@ const WinixWallet = {
                     .then(resolve)
                     .catch(reject);
                 return;
+            }
+
+            // Перевірка на Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log('Використовуємо Telegram WebApp для надсилання токенів', data);
             }
 
             // Якщо WinixAPI недоступний, використовуємо fetch API
