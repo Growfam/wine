@@ -24,7 +24,8 @@ const WinixWallet = {
         filteredTransactions: [], // Додане нове поле для відфільтрованих транзакцій
         transactionsSource: null, // 'api', 'localStorage', або 'demo'
         currentFilter: 'all',  // Поточний фільтр для історії транзакцій
-        hasShownCacheMessage: false // Прапорець для повідомлення про кешовані дані
+        hasShownCacheMessage: false, // Прапорець для повідомлення про кешовані дані
+        historyModalLoaded: false // Прапорець для відстеження чи були завантажені дані для історії
     },
 
     // DOM-елементи
@@ -364,10 +365,16 @@ const WinixWallet = {
         if (!container) return;
 
         container.addEventListener('touchstart', (e) => {
+            // Не застосовуємо pull-to-refresh, якщо відкрите модальне вікно історії
+            if (document.querySelector('.modal-overlay.show')) return;
+
             touchStartY = e.touches[0].clientY;
         }, { passive: true });
 
         container.addEventListener('touchmove', (e) => {
+            // Не застосовуємо pull-to-refresh, якщо відкрите модальне вікно історії
+            if (document.querySelector('.modal-overlay.show')) return;
+
             touchEndY = e.touches[0].clientY;
 
             // Якщо скрол досяг верху і користувач тягне вниз
@@ -381,6 +388,9 @@ const WinixWallet = {
         }, { passive: true });
 
         container.addEventListener('touchend', () => {
+            // Не застосовуємо pull-to-refresh, якщо відкрите модальне вікно історії
+            if (document.querySelector('.modal-overlay.show')) return;
+
             // Якщо скрол досяг верху і користувач потягнув достатньо вниз
             if (container.scrollTop === 0 && touchEndY > touchStartY && touchEndY - touchStartY > 100) {
                 // Оновлюємо дані
@@ -464,11 +474,14 @@ const WinixWallet = {
     // Налаштування автоматичного оновлення даних
     setupAutoUpdates: function() {
         setInterval(() => {
-            // Оновлюємо дані користувача
-            this.loadUserData(true); // true = тихе оновлення
+            // Оновлюємо дані користувача тільки якщо модальне вікно історії не відкрите
+            if (!document.querySelector('.modal-overlay.show')) {
+                // Оновлюємо дані користувача
+                this.loadUserData(true); // true = тихе оновлення
 
-            // Оновлюємо транзакції
-            this.loadTransactions(true); // true = тихе оновлення
+                // Оновлюємо транзакції
+                this.loadTransactions(true); // true = тихе оновлення
+            }
         }, this.config.autoUpdateInterval);
     },
 
@@ -499,6 +512,11 @@ const WinixWallet = {
     closeModal: function(modal) {
         if (modal) {
             modal.classList.remove('show');
+
+            // Скидаємо прапорець завантаження історії, якщо закривається вікно історії
+            if (modal.id === 'history-modal') {
+                this.state.historyModalLoaded = false;
+            }
         }
     },
 
@@ -682,26 +700,33 @@ const WinixWallet = {
 
     // Відкриття модального вікна історії транзакцій
     openHistoryModal: function() {
-        // Показуємо індикатор завантаження
-        this.showLoading('Завантаження історії транзакцій...');
-
-        // Завантажуємо всі транзакції і оновлюємо список в модальному вікні
-        this.loadTransactions(false, 100).then(() => {
-            this.hideLoading();
-
-            // Явне оновлення списку історії транзакцій
-            this.updateTransactionsList(true);
-
-            // Очищаємо фільтр
-            if (this.elements.filterSelect) {
-                this.elements.filterSelect.value = 'all';
-            }
-            this.state.currentFilter = 'all';
-        });
-
         // Відкриваємо модальне вікно
         if (this.elements.historyModal) {
             this.elements.historyModal.classList.add('show');
+        }
+
+        // Перевіряємо, чи вже завантажували дані для історії
+        if (!this.state.historyModalLoaded) {
+            // Показуємо індикатор завантаження
+            this.showLoading('Завантаження історії транзакцій...');
+
+            // Завантажуємо всі транзакції і оновлюємо список в модальному вікні
+            this.loadTransactions(false, 100).then(() => {
+                this.hideLoading();
+                this.state.historyModalLoaded = true;
+
+                // Явне оновлення списку історії транзакцій
+                this.updateTransactionsList(true);
+
+                // Встановлюємо фільтр "all" і оновлюємо селектор
+                this.state.currentFilter = 'all';
+                if (this.elements.filterSelect) {
+                    this.elements.filterSelect.value = 'all';
+                }
+            });
+        } else {
+            // Якщо дані вже були завантажені, просто оновлюємо відображення
+            this.updateTransactionsList(true);
         }
     },
 
@@ -711,7 +736,7 @@ const WinixWallet = {
 
         // Синхронізуємо значення нового селектора
         if (this.elements.filterSelect && this.elements.filterSelect.value.toLowerCase() !== filter) {
-            this.elements.filterSelect.value = filter.charAt(0).toUpperCase() + filter.slice(1);
+            this.elements.filterSelect.value = filter;
         }
 
         // Якщо це фільтрація "all", просто оновлюємо відображення
