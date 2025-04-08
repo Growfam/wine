@@ -44,7 +44,8 @@
         modalExpectedReward: 'modal-staking-expected-reward',
         modalRemainingDays: 'modal-staking-remaining-days',
         modalAddButton: 'modal-add-to-stake-button',
-        modalCancelButton: 'modal-cancel-staking-button'
+        modalCancelButton: 'modal-cancel-staking-button',
+        modalAddAmount: 'modal-add-amount' // Нове поле для суми додавання
     };
 
     // ======== ПРИВАТНІ ЗМІННІ ========
@@ -107,6 +108,66 @@
         } catch (e) {
             console.error('Помилка розрахунку очікуваної винагороди:', e);
             return 0;
+        }
+    }
+
+    /**
+     * Оновлення відображення балансу на всіх можливих елементах UI
+     * @param {number} newBalance - Новий баланс
+     */
+    function updateBalanceUI(newBalance) {
+        try {
+            // 1. Оновлюємо через WinixCore, якщо він доступний
+            if (window.WinixCore && typeof window.WinixCore.updateBalanceDisplay === 'function') {
+                window.WinixCore.updateBalanceDisplay();
+            }
+
+            // 2. Безпосередньо оновлюємо DOM-елементи
+            const balanceElements = [
+                document.getElementById('user-tokens'),
+                document.getElementById('main-balance'),
+                document.querySelector('.balance-amount'),
+                document.getElementById('current-balance'),
+                ...document.querySelectorAll('[data-balance-display]')
+            ];
+
+            balanceElements.forEach(element => {
+                if (element) {
+                    // Для основного балансу з іконкою
+                    if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                        const iconPart = element.querySelector('.main-balance-icon')?.outerHTML || '';
+                        element.innerHTML = `${parseFloat(newBalance).toFixed(2)} ${iconPart}`;
+                    } else {
+                        element.textContent = parseFloat(newBalance).toFixed(2);
+                    }
+
+                    // Додаємо клас для анімації оновлення
+                    element.classList.add('balance-updated');
+                    setTimeout(() => {
+                        element.classList.remove('balance-updated');
+                    }, 1000);
+                }
+            });
+
+            // 3. Оновлюємо змінну стану, якщо вона є
+            if (window.WinixCore && window.WinixCore.state) {
+                if (window.WinixCore.state.balanceTokens !== undefined) {
+                    window.WinixCore.state.balanceTokens = parseFloat(newBalance);
+                }
+            }
+
+            // 4. Зберігаємо в localStorage
+            localStorage.setItem('userTokens', newBalance.toString());
+            localStorage.setItem('winix_balance', newBalance.toString());
+
+            // 5. Генеруємо подію для інших модулів
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: { newBalance: parseFloat(newBalance) }
+            }));
+
+            console.log("Баланс оновлено до:", newBalance);
+        } catch (error) {
+            console.error('Помилка оновлення відображення балансу:', error);
         }
     }
 
@@ -293,6 +354,16 @@
                         
                         .premium-notification-message {
                             opacity: 0.9;
+                        }
+                        
+                        @keyframes balance-highlight {
+                            0% { color: inherit; text-shadow: none; }
+                            50% { color: #4eb5f7; text-shadow: 0 0 8px rgba(78, 181, 247, 0.6); }
+                            100% { color: inherit; text-shadow: none; }
+                        }
+                        
+                        .balance-updated {
+                            animation: balance-highlight 1s ease;
                         }
                     `;
                     document.head.appendChild(style);
@@ -823,14 +894,16 @@
      * @param {number} period - Період стейкінгу в днях
      */
     async function createStaking(amount, period) {
+        // Якщо запит вже виконується, просто ігноруємо нові натискання
         if (_isProcessingRequest) {
-            if (typeof window.showNotification === 'function') {
-                window.showNotification('Зачекайте, виконується попередній запит', true);
-            }
-            return { success: false, message: 'Вже виконується запит' };
+            return { success: false, message: 'in_progress' };
         }
 
         _isProcessingRequest = true;
+
+        // Блокуємо кнопку (запобігання подвійним натисканням)
+        const stakeButton = getElement(DOM.stakeButton);
+        if (stakeButton) stakeButton.disabled = true;
 
         try {
             // Валідація параметрів
@@ -855,7 +928,7 @@
                 throw new Error(`Максимальна сума: ${maxAllowedAmount} WINIX (${Math.round(CONFIG.maxBalancePercentage * 100)}% від балансу)`);
             }
 
-            // Показуємо індикатор завантаження
+            // Показуємо індикатор завантаження (одразу, без повідомлення про очікування)
             if (typeof window.showLoading === 'function') {
                 window.showLoading('Створення стейкінгу...');
             }
@@ -880,15 +953,9 @@
                 localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
                 localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
 
-                // Оновлюємо баланс, якщо він є в відповіді
+                // Оновлюємо баланс негайно
                 if (response.data.balance !== undefined) {
-                    localStorage.setItem('userTokens', response.data.balance.toString());
-                    localStorage.setItem('winix_balance', response.data.balance.toString());
-
-                    // Оновлюємо баланс, якщо є така функція
-                    if (window.WinixCore && typeof window.WinixCore.updateBalanceDisplay === 'function') {
-                        window.WinixCore.updateBalanceDisplay();
-                    }
+                    updateBalanceUI(response.data.balance);
                 }
 
                 // Оновлюємо інтерфейс
@@ -920,6 +987,9 @@
             };
         } finally {
             _isProcessingRequest = false;
+
+            // Розблоковуємо кнопку
+            if (stakeButton) stakeButton.disabled = false;
         }
     }
 
@@ -929,10 +999,7 @@
      */
     async function addToStaking(amount) {
         if (_isProcessingRequest) {
-            if (typeof window.showNotification === 'function') {
-                window.showNotification('Зачекайте, виконується попередній запит', true);
-            }
-            return { success: false, message: 'Вже виконується запит' };
+            return { success: false, message: 'in_progress' };
         }
 
         _isProcessingRequest = true;
@@ -985,15 +1052,9 @@
                 localStorage.setItem('stakingData', JSON.stringify(_currentStakingData));
                 localStorage.setItem('winix_staking', JSON.stringify(_currentStakingData));
 
-                // Оновлюємо баланс, якщо він є в відповіді
+                // Оновлюємо баланс негайно
                 if (response.data.balance !== undefined) {
-                    localStorage.setItem('userTokens', response.data.balance.toString());
-                    localStorage.setItem('winix_balance', response.data.balance.toString());
-
-                    // Оновлюємо баланс, якщо є така функція
-                    if (window.WinixCore && typeof window.WinixCore.updateBalanceDisplay === 'function') {
-                        window.WinixCore.updateBalanceDisplay();
-                    }
+                    updateBalanceUI(response.data.balance);
                 }
 
                 // Оновлюємо інтерфейс
@@ -1001,7 +1062,7 @@
 
                 // Показуємо повідомлення про успіх
                 if (typeof window.showNotification === 'function') {
-                    window.showNotification(`Додано ${amount} WINIX до стейкінгу`);
+                    window.showNotification(`До активного стейкінгу додано +${amount} WINIX`);
                 }
 
                 return {
@@ -1029,15 +1090,12 @@
     }
 
     /**
-     * ВИПРАВЛЕНА функція скасування стейкінгу
+     * Скасування стейкінгу
      */
     async function cancelStaking() {
         // Запобігаємо повторним запитам
         if (_isProcessingCancelRequest) {
-            if (typeof window.showNotification === 'function') {
-                window.showNotification('Зачекайте, запит скасування вже виконується', true);
-            }
-            return { success: false, message: 'Запит скасування вже виконується' };
+            return { success: false, message: 'in_progress' };
         }
 
         _isProcessingCancelRequest = true;
@@ -1068,24 +1126,6 @@
                                 }
                             }
 
-                            // Отримуємо ID користувача
-                            let userId = null;
-
-                            if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
-                                userId = window.WinixAPI.getUserId();
-                            } else {
-                                userId = localStorage.getItem('telegram_user_id');
-                            }
-
-                            if (!userId) {
-                                throw new Error('Не вдалося отримати ID користувача');
-                            }
-
-                            // Перевіряємо, чи маємо ID стейкінгу
-                            if (!_currentStakingData.stakingId) {
-                                throw new Error('Не вдалося визначити ID стейкінгу');
-                            }
-
                             // Виконуємо запит скасування
                             let result = null;
 
@@ -1093,12 +1133,15 @@
                                 // Використовуємо функцію з API
                                 result = await window.WinixAPI.cancelStaking(_currentStakingData.stakingId);
                             } else {
-                                // Робимо прямий запит fetch
+                                // Виконуємо запит безпосередньо до сервера
+                                const userId = localStorage.getItem('telegram_user_id');
+                                if (!userId) {
+                                    throw new Error('Не вдалося отримати ID користувача');
+                                }
+
                                 const response = await fetch(`/api/user/${userId}/staking/${_currentStakingData.stakingId}/cancel`, {
                                     method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
+                                    headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         confirm: true,
                                         timestamp: Date.now()
@@ -1106,8 +1149,7 @@
                                 });
 
                                 if (!response.ok) {
-                                    const errorText = await response.text();
-                                    throw new Error(`Помилка сервера: ${response.status}. ${errorText}`);
+                                    throw new Error(`Помилка сервера: ${response.status}`);
                                 }
 
                                 result = await response.json();
@@ -1118,7 +1160,7 @@
                                 window.hideLoading();
                             }
 
-                            // Встановлюємо відсутність активного стейкінгу
+                            // Очищаємо дані стейкінгу
                             _currentStakingData = {
                                 hasActiveStaking: false,
                                 stakingAmount: 0,
@@ -1132,18 +1174,13 @@
                             localStorage.removeItem('stakingData');
                             localStorage.removeItem('winix_staking');
 
-                            // Оновлюємо баланс
+                            // Оновлюємо баланс негайно
                             if (result && result.data && result.data.newBalance !== undefined) {
-                                localStorage.setItem('userTokens', result.data.newBalance.toString());
-                                localStorage.setItem('winix_balance', result.data.newBalance.toString());
-
                                 // Оновлюємо відображення балансу
-                                if (window.WinixCore && typeof window.WinixCore.updateBalanceDisplay === 'function') {
-                                    window.WinixCore.updateBalanceDisplay();
-                                }
+                                updateBalanceUI(result.data.newBalance);
                             }
 
-                            // Оновлюємо інтерфейс
+                            // Оновлюємо інтерфейс стейкінгу
                             updateUI();
 
                             // Формуємо повідомлення про успіх
@@ -1157,7 +1194,6 @@
 
                             // Показуємо повідомлення
                             showNotification(message, false, () => {
-                                // Перезавантажуємо сторінку за необхідності
                                 setTimeout(() => {
                                     resolve({
                                         success: true,
@@ -1198,14 +1234,7 @@
             });
         } catch (error) {
             console.error('Помилка показу діалогу скасування стейкінгу:', error);
-
             _isProcessingCancelRequest = false;
-
-            // Показуємо повідомлення про помилку
-            if (typeof window.showNotification === 'function') {
-                window.showNotification('Не вдалося показати діалог скасування стейкінгу', true);
-            }
-
             return {
                 success: false,
                 message: 'Не вдалося показати діалог скасування стейкінгу'
@@ -1308,12 +1337,16 @@
             const modalRewardPercent = getElement(DOM.modalRewardPercent);
             const modalExpectedReward = getElement(DOM.modalExpectedReward);
             const modalRemainingDays = getElement(DOM.modalRemainingDays);
+            const modalAddAmount = getElement(DOM.modalAddAmount);
 
             if (modalStakingAmount) modalStakingAmount.textContent = `${_currentStakingData.stakingAmount || 0} $WINIX`;
             if (modalStakingPeriod) modalStakingPeriod.textContent = `${_currentStakingData.period || 0} днів`;
             if (modalRewardPercent) modalRewardPercent.textContent = `${_currentStakingData.rewardPercent || 0}%`;
             if (modalExpectedReward) modalExpectedReward.textContent = `${_currentStakingData.expectedReward || 0} $WINIX`;
             if (modalRemainingDays) modalRemainingDays.textContent = _currentStakingData.remainingDays || 0;
+
+            // Встановлюємо значення за замовчуванням для поля додавання
+            if (modalAddAmount) modalAddAmount.value = '100';
 
             // Показуємо модальне вікно
             const modal = getElement(DOM.modal);
@@ -1344,47 +1377,27 @@
      */
     function handleAddToStakeFromModal() {
         try {
-            // Приховуємо модальне вікно
+            // Отримуємо суму безпосередньо з поля у модальному вікні
+            const amountInput = getElement(DOM.modalAddAmount);
+            if (!amountInput) {
+                showNotification('Помилка при додаванні коштів. Поле суми не знайдено', true);
+                return;
+            }
+
+            const amount = parseInt(amountInput.value);
+            if (isNaN(amount) || amount <= 0) {
+                showNotification('Введіть коректну суму (ціле додатне число)', true);
+                return;
+            }
+
+            // Закриваємо модальне вікно перед початком операції
             hideStakingModal();
 
-            // Запитуємо суму
-            if (typeof window.showInputModal === 'function') {
-                window.showInputModal('Введіть суму для додавання до стейкінгу:', function(amount) {
-                    const numAmount = parseInt(amount);
-                    if (isNaN(numAmount) || numAmount <= 0) {
-                        if (typeof window.showNotification === 'function') {
-                            window.showNotification('Введіть коректну суму (ціле додатне число)', true);
-                        }
-                        return;
-                    }
-
-                    // Додаємо кошти до стейкінгу
-                    addToStaking(numAmount);
-                });
-            } else {
-                // Використовуємо стандартний prompt
-                const amount = prompt('Введіть суму для додавання до стейкінгу:');
-                if (amount === null || amount.trim() === '') {
-                    return; // Користувач скасував введення
-                }
-
-                const numAmount = parseInt(amount);
-                if (isNaN(numAmount) || numAmount <= 0) {
-                    if (typeof window.showNotification === 'function') {
-                        window.showNotification('Введіть коректну суму (ціле додатне число)', true);
-                    }
-                    return;
-                }
-
-                // Додаємо кошти до стейкінгу
-                addToStaking(numAmount);
-            }
+            // Викликаємо функцію додавання коштів
+            addToStaking(amount);
         } catch (error) {
             console.error('Помилка при додаванні до стейкінгу з модального вікна:', error);
-
-            if (typeof window.showNotification === 'function') {
-                window.showNotification('Помилка додавання коштів до стейкінгу', true);
-            }
+            showNotification('Помилка додавання коштів до стейкінгу', true);
         }
     }
 
@@ -1564,6 +1577,7 @@
         addToStaking,
         cancelStaking,
         calculateExpectedReward,
+        updateBalanceUI,
 
         // Функції для UI
         updateUI,
