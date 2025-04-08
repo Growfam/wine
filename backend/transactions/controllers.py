@@ -29,8 +29,8 @@ supabase = supabase_client.supabase
 # Основні функції для транзакцій
 # -------------------------------------------------------------------------------------
 
-def get_user_transactions(telegram_id):
-    """Отримання транзакцій користувача"""
+def get_user_transactions(telegram_id, transaction_type=None):
+    """Отримання транзакцій користувача з можливістю фільтрації за типом"""
     try:
         # Отримуємо користувача з Supabase
         user = get_user(telegram_id)
@@ -43,10 +43,17 @@ def get_user_transactions(telegram_id):
         try:
             transactions = []
             if supabase:
-                # Шукаємо всі транзакції, де користувач є відправником або отримувачем
-                transaction_res = supabase.table("transactions").select("*").or_(
+                # Створюємо базовий запит
+                query = supabase.table("transactions").select("*").or_(
                     f"telegram_id.eq.{telegram_id},to_address.eq.{telegram_id}"
-                ).order("created_at", desc=True).execute()
+                )
+
+                # Додаємо фільтр за типом, якщо він вказаний
+                if transaction_type and transaction_type != 'all':
+                    query = query.eq("type", transaction_type)
+
+                # Додаємо сортування за часом створення (від найновіших до найстаріших)
+                transaction_res = query.order("created_at", desc=True).execute()
 
                 transactions = transaction_res.data if transaction_res.data else []
         except Exception as e:
@@ -361,5 +368,44 @@ def get_recent_transactions(telegram_id, limit=3):
     except Exception as e:
         logger.error(
             f"get_recent_transactions: Помилка отримання останніх транзакцій користувача {telegram_id}: {str(e)}",
+            exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def get_recent_transactions_by_type(telegram_id, limit=3, transaction_type=None):
+    """Отримання останніх транзакцій користувача за типом"""
+    try:
+        # Отримуємо користувача з Supabase
+        user = get_user(telegram_id)
+
+        if not user:
+            logger.warning(f"get_recent_transactions_by_type: Користувача {telegram_id} не знайдено")
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо транзакції з таблиці transactions
+        try:
+            transactions = []
+            if supabase:
+                # Створюємо базовий запит
+                query = supabase.table("transactions").select("*").or_(
+                    f"telegram_id.eq.{telegram_id},to_address.eq.{telegram_id}"
+                )
+
+                # Додаємо фільтр за типом, якщо він вказаний
+                if transaction_type and transaction_type != 'all':
+                    query = query.eq("type", transaction_type)
+
+                # Додаємо сортування та ліміт
+                transaction_res = query.order("created_at", desc=True).limit(limit).execute()
+
+                transactions = transaction_res.data if transaction_res.data else []
+        except Exception as e:
+            logger.error(f"get_recent_transactions_by_type: Помилка отримання транзакцій: {str(e)}")
+            transactions = []
+
+        return jsonify({"status": "success", "data": transactions})
+    except Exception as e:
+        logger.error(
+            f"get_recent_transactions_by_type: Помилка отримання останніх транзакцій користувача {telegram_id}: {str(e)}",
             exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500

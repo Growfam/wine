@@ -6,13 +6,20 @@ def register_transactions_routes(app):
     @app.route('/api/user/<telegram_id>/transactions', methods=['GET'])
     def api_get_user_transactions(telegram_id):
         """Отримання транзакцій користувача"""
-        # Перевіряємо, чи є обмеження по кількості
+        # Перевіряємо, чи є обмеження по кількості та тип транзакцій
         limit = request.args.get('limit', None)
+        transaction_type = request.args.get('type', None)
 
         if limit and limit.isdigit():
-            return controllers.get_recent_transactions(telegram_id, int(limit))
+            if transaction_type and transaction_type != 'all':
+                # Якщо вказано тип транзакції, використовуємо фільтрацію
+                return controllers.get_recent_transactions_by_type(telegram_id, int(limit), transaction_type)
+            else:
+                # Якщо тип не вказано, отримуємо останні транзакції без фільтрації
+                return controllers.get_recent_transactions(telegram_id, int(limit))
         else:
-            return controllers.get_user_transactions(telegram_id)
+            # Якщо ліміт не вказано, отримуємо всі транзакції (можливо з фільтром)
+            return controllers.get_user_transactions(telegram_id, transaction_type)
 
     @app.route('/api/user/<telegram_id>/transaction', methods=['POST'])
     def api_add_user_transaction(telegram_id):
