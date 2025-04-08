@@ -1245,7 +1245,6 @@
                             <label for="recipient-id" class="form-label" data-lang-key="ID отримувача">ID Recipient:</label>
                             <div class="input-wrapper">
                                 <input type="text" id="recipient-id" class="form-input" placeholder="Введіть ID отримувача" required>
-                                <div class="input-icon">👤</div>
                             </div>
                         </div>
 
@@ -1260,15 +1259,6 @@
                             </div>
                             <div class="available-balance" id="available-balance" data-lang-key="Доступно">Available: 0.00 $WINIX</div>
                         </div>
-
-                        <div class="form-group">
-                            <label for="send-note" class="form-label" data-lang-key="Примітка (Необов'язково):">Note</label>
-                            <div class="input-wrapper">
-                                <input type="text" id="send-note" class="Опціональна примітка" placeholder="Form input">
-                                <div class="input-icon"></div>
-                            </div>
-                        </div>
-
                         <button type="submit" class="form-button">
                             <span class="button-icon"></span>
                             <span class="button-text" data-lang-key="Надіслати">Send</span>
@@ -1294,16 +1284,6 @@
                         <span data-lang-key="Копіювати ID">Copy ID</span>
                     </button>
                 </div>
-
-                <div class="form-group">
-                    <p data-lang-key="Інформація як отримати $WINIX">
-                        Поділіться своїм ID з відправником для отримання токенів.
-                        $WINIX можна отримувати лише всередині цього додатку.
-                        Після підтвердження транзакції, токени будуть автоматично
-                        зараховані на ваш баланс.
-                    </p>
-                </div>
-
                 <button class="form-button modal-close" data-lang-key="Закрити">Close</button>
             </div>
         </div>
@@ -1320,12 +1300,12 @@
                 <div class="filter-selector">
                     <div class="filter-select-wrapper">
                         <select id="transaction-filter" class="filter-select">
-                            <option value="Всі Транзакції" selected>All</option>
-                            <option value="Отримання">Receive</option>
-                            <option value="Відправлення">Send</option>
-                            <option value="Стейкінг">Stake</option>
-                            <option value="Розстейкінг">Unstake</option>
-                            <option value="Нагороди">Reward</option>
+                            <option value="All" selected>Всі</option>
+                            <option value="Receive">Отримання</option>
+                            <option value="Send">Відправлення</option>
+                            <option value="Stake">Стейкінг</option>
+                            <option value="Unstake">Розстейкінг</option>
+                            <option value="Reward">Нагороди</option>
                         </select>
                         <div class="filter-select-arrow">
                             <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1334,16 +1314,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Старі кнопки фільтрації (будуть приховані) -->
-                <div class="filter-buttons">
-                    <button class="filter-button active" data-filter="All" data-lang-key="Всі">All</button>
-                    <button class="filter-button" data-filter="Receive" data-lang-key="Отримання">Receive</button>
-                    <button class="filter-button" data-filter="Send" data-lang-key="Відправлення">Send</button>
-                    <button class="filter-button" data-filter="Stake" data-lang-key="Стейкінг">Stake</button>
-                    <button class="filter-button" data-filter=Unstake" data-lang-key="Розстейкінг">Unstake</button>
-                </div>
-
                 <div class="history-list" id="history-list">
                     <!-- Історія транзакцій буде додана динамічно через JavaScript -->
                     <div class="empty-message" data-lang-key="Завантаження історії транзакцій">Loading History</div>
