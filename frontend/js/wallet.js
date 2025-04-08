@@ -21,6 +21,7 @@ const WinixWallet = {
         stakingAmount: 0,
         stakingRewards: 0,
         transactions: [],
+        filteredTransactions: [], // Додане нове поле для відфільтрованих транзакцій
         transactionsSource: null, // 'api', 'localStorage', або 'demo'
         currentFilter: 'all',  // Поточний фільтр для історії транзакцій
         hasShownCacheMessage: false // Прапорець для повідомлення про кешовані дані
@@ -337,7 +338,7 @@ const WinixWallet = {
         // Обробник для нового селектора фільтрів
         if (this.elements.filterSelect) {
             this.elements.filterSelect.addEventListener('change', () => {
-                const filter = this.elements.filterSelect.value;
+                const filter = this.elements.filterSelect.value.toLowerCase();
                 this.filterTransactions(filter);
             });
         }
@@ -681,8 +682,22 @@ const WinixWallet = {
 
     // Відкриття модального вікна історії транзакцій
     openHistoryModal: function() {
-        // Завантажуємо всі транзакції
-        this.loadTransactions(false, 100);
+        // Показуємо індикатор завантаження
+        this.showLoading('Завантаження історії транзакцій...');
+
+        // Завантажуємо всі транзакції і оновлюємо список в модальному вікні
+        this.loadTransactions(false, 100).then(() => {
+            this.hideLoading();
+
+            // Явне оновлення списку історії транзакцій
+            this.updateTransactionsList(true);
+
+            // Очищаємо фільтр
+            if (this.elements.filterSelect) {
+                this.elements.filterSelect.value = 'all';
+            }
+            this.state.currentFilter = 'all';
+        });
 
         // Відкриваємо модальне вікно
         if (this.elements.historyModal) {
@@ -695,12 +710,38 @@ const WinixWallet = {
         this.state.currentFilter = filter;
 
         // Синхронізуємо значення нового селектора
-        if (this.elements.filterSelect && this.elements.filterSelect.value !== filter) {
-            this.elements.filterSelect.value = filter;
+        if (this.elements.filterSelect && this.elements.filterSelect.value.toLowerCase() !== filter) {
+            this.elements.filterSelect.value = filter.charAt(0).toUpperCase() + filter.slice(1);
         }
 
-        // Оновлюємо список транзакцій в історії
-        this.updateTransactionsList(true);
+        // Якщо це фільтрація "all", просто оновлюємо відображення
+        if (filter === 'all') {
+            this.updateTransactionsList(true);
+            return;
+        }
+
+        // Показуємо індикатор завантаження
+        this.showLoading('Фільтрація транзакцій...');
+
+        // Завантажуємо транзакції з фільтром
+        this.fetchTransactionsWithFilter(100, filter).then(transactions => {
+            this.hideLoading();
+
+            if (transactions && transactions.length >= 0) {
+                // Оновлюємо стан
+                this.state.filteredTransactions = transactions;
+                // Оновлюємо список
+                this.updateTransactionsList(true, true);
+            } else {
+                // Фільтруємо локально, якщо серверна фільтрація не доступна
+                this.updateTransactionsList(true);
+            }
+        }).catch(error => {
+            console.error('Помилка фільтрації:', error);
+            this.hideLoading();
+            // Фільтруємо локально, якщо виникла помилка
+            this.updateTransactionsList(true);
+        });
     },
 
     // Завантаження даних користувача
@@ -893,7 +934,7 @@ const WinixWallet = {
                         this.hideLoading();
                     }
 
-                    if (transactions && transactions.length > 0) {
+                    if (transactions && transactions.length >= 0) {
                         // Сортуємо транзакції за датою (від найновіших до найстаріших)
                         transactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -933,6 +974,61 @@ const WinixWallet = {
         };
 
         return tryFetchTransactions();
+    },
+
+    // Отримання транзакцій з фільтром
+    fetchTransactionsWithFilter: function(limit = 100, filter = 'all') {
+        return new Promise((resolve, reject) => {
+            // Генеруємо унікальний параметр для запобігання кешуванню
+            const cacheBuster = Date.now();
+            const userId = this.state.userId || this.getUserId();
+
+            // Формуємо URL з додатковими параметрами
+            const apiUrl = `/api/user/${userId}/transactions?limit=${limit}&type=${filter}&t=${cacheBuster}`;
+
+            console.log(`Запит транзакцій з фільтром: ${apiUrl}`);
+
+            // Спроба використати WinixAPI
+            if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+                window.WinixAPI.apiRequest(apiUrl, 'GET', null, {
+                    timeout: 10000 // 10 секунд таймаут
+                })
+                    .then(response => {
+                        if (response.status === 'success' && response.data) {
+                            console.log(`Отримано ${response.data.length} транзакцій через WinixAPI`);
+                            resolve(response.data);
+                        } else {
+                            reject(new Error(response.message || 'Помилка отримання транзакцій'));
+                        }
+                    })
+                    .catch(reject);
+                return;
+            }
+
+            // Якщо WinixAPI недоступний, використовуємо fetch API
+            fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success' && data.data) {
+                        console.log(`Отримано ${data.data.length} транзакцій через fetch API`);
+                        resolve(data.data);
+                    } else {
+                        reject(new Error(data.message || 'Помилка отримання транзакцій'));
+                    }
+                })
+                .catch(reject);
+        });
     },
 
     // Покращена функція отримання транзакцій з API
@@ -1102,116 +1198,113 @@ const WinixWallet = {
         }, 1000);
     },
 
-    // Покращена функція оновлення списку транзакцій з анімаціями
-    // У файлі wallet.js, у об'єкті WinixWallet
+    // Оновлена функція оновлення списку транзакцій з анімаціями
+    updateTransactionsList: function(isHistoryList = false, useFilteredData = false) {
+        // Визначаємо, який список оновлювати
+        const listElement = isHistoryList ? this.elements.historyList : this.elements.transactionsList;
 
-// Замініть цю функцію на нову версію
-updateTransactionsList: function(isHistoryList = false) {
-    // Визначаємо, який список оновлювати
-    const listElement = isHistoryList ? this.elements.historyList : this.elements.transactionsList;
+        if (!listElement) return;
 
-    if (!listElement) return;
+        // Очищаємо список
+        listElement.innerHTML = '';
 
-    // Очищаємо список
-    listElement.innerHTML = '';
+        // Отримуємо транзакції
+        let transactions = useFilteredData ? this.state.filteredTransactions : this.state.transactions;
 
-    // Отримуємо транзакції
-    let transactions = this.state.transactions;
-
-    // Якщо це список історії, фільтруємо за типом
-    if (isHistoryList && this.state.currentFilter !== 'all') {
-        transactions = transactions.filter(tx => tx.type === this.state.currentFilter);
-    }
-
-    // Якщо це основний список, обмежуємо кількість транзакцій
-    if (!isHistoryList) {
-        transactions = transactions.slice(0, this.config.transactionsLimit);
-    }
-
-    // Якщо транзакцій немає, показуємо повідомлення
-    if (transactions.length === 0) {
-        const emptyMessage = document.createElement('div');
-        emptyMessage.className = 'empty-message';
-
-        if (isHistoryList && this.state.currentFilter !== 'all') {
-            emptyMessage.textContent = 'Немає транзакцій за обраним фільтром';
-        } else {
-            emptyMessage.textContent = 'Транзакції відсутні';
+        // Якщо це список історії і не використовуємо відфільтровані дані, фільтруємо за типом
+        if (isHistoryList && !useFilteredData && this.state.currentFilter !== 'all') {
+            transactions = transactions.filter(tx => tx.type === this.state.currentFilter);
         }
 
-        listElement.appendChild(emptyMessage);
-        return;
-    }
-
-    // Додаємо транзакції до списку
-    transactions.forEach((transaction, index) => {
-        const transactionEl = document.createElement('div');
-        transactionEl.className = `transaction-item transaction-${transaction.type}`;
-        transactionEl.setAttribute('data-id', transaction.id);
-        transactionEl.setAttribute('data-type', transaction.type);
-
-        // Встановлюємо номер індексу як атрибут (не як CSS змінну)
-        transactionEl.setAttribute('data-index', index);
-
-        const details = document.createElement('div');
-        details.className = 'transaction-details';
-
-        const type = document.createElement('div');
-        type.className = 'transaction-type';
-        type.textContent = this.getTransactionTypeText(transaction.type);
-        details.appendChild(type);
-
-        const date = document.createElement('div');
-        date.className = 'transaction-date';
-        date.textContent = this.formatDate(transaction.created_at || transaction.timestamp || transaction.date);
-        details.appendChild(date);
-
-        const amount = document.createElement('div');
-        amount.className = `transaction-amount ${this.getTransactionClass(transaction.type)}`;
-
-        const amountValue = parseFloat(transaction.amount);
-        amount.textContent = `${this.getTransactionPrefix(transaction.type)}${Math.abs(amountValue).toFixed(2)} $WINIX`;
-
-        transactionEl.appendChild(details);
-        transactionEl.appendChild(amount);
-
-        // Додаємо додаткову інформацію про джерело даних
-        if (this.state.transactionsSource === 'demo') {
-            const demoLabel = document.createElement('div');
-            demoLabel.className = 'transaction-demo-label';
-            demoLabel.textContent = 'Демо';
-            demoLabel.style.fontSize = '10px';
-            demoLabel.style.opacity = '0.7';
-            demoLabel.style.marginTop = '4px';
-            details.appendChild(demoLabel);
+        // Якщо це основний список, обмежуємо кількість транзакцій
+        if (!isHistoryList) {
+            transactions = transactions.slice(0, this.config.transactionsLimit);
         }
 
-        // Ефект при наведенні
-        transactionEl.addEventListener('mouseenter', () => {
-            transactionEl.style.transform = 'translateY(-2px)';
-            transactionEl.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-        });
+        // Перевіряємо, чи є транзакції
+        if (!transactions || transactions.length === 0) {
+            const emptyMessage = document.createElement('div');
+            emptyMessage.className = 'empty-message';
 
-        transactionEl.addEventListener('mouseleave', () => {
-            transactionEl.style.transform = 'translateY(0)';
-            transactionEl.style.boxShadow = '';
-        });
+            if (isHistoryList && this.state.currentFilter !== 'all') {
+                emptyMessage.textContent = 'Немає транзакцій за обраним фільтром';
+            } else {
+                emptyMessage.textContent = 'Транзакції відсутні';
+            }
 
-        // Додаємо ефект при натисканні
-        transactionEl.addEventListener('click', () => {
-            this.showTransactionDetails(transaction);
-        });
-
-        listElement.appendChild(transactionEl);
-
-        // Для нових транзакцій додаємо клас для анімації
-        if (transaction.isNew) {
-            setTimeout(() => {
-                transactionEl.classList.add('new');
-            }, 100);
+            listElement.appendChild(emptyMessage);
+            return;
         }
-    });
-},
+
+        // Додаємо транзакції до списку
+        transactions.forEach((transaction, index) => {
+            const transactionEl = document.createElement('div');
+            transactionEl.className = `transaction-item transaction-${transaction.type}`;
+            transactionEl.setAttribute('data-id', transaction.id);
+            transactionEl.setAttribute('data-type', transaction.type);
+
+            // Встановлюємо номер індексу як атрибут (не як CSS змінну)
+            transactionEl.setAttribute('data-index', index);
+
+            const details = document.createElement('div');
+            details.className = 'transaction-details';
+
+            const type = document.createElement('div');
+            type.className = 'transaction-type';
+            type.textContent = this.getTransactionTypeText(transaction.type);
+            details.appendChild(type);
+
+            const date = document.createElement('div');
+            date.className = 'transaction-date';
+            date.textContent = this.formatDate(transaction.created_at || transaction.timestamp || transaction.date);
+            details.appendChild(date);
+
+            const amount = document.createElement('div');
+            amount.className = `transaction-amount ${this.getTransactionClass(transaction.type)}`;
+
+            const amountValue = parseFloat(transaction.amount);
+            amount.textContent = `${this.getTransactionPrefix(transaction.type)}${Math.abs(amountValue).toFixed(2)} $WINIX`;
+
+            transactionEl.appendChild(details);
+            transactionEl.appendChild(amount);
+
+            // Додаємо додаткову інформацію про джерело даних
+            if (this.state.transactionsSource === 'demo') {
+                const demoLabel = document.createElement('div');
+                demoLabel.className = 'transaction-demo-label';
+                demoLabel.textContent = 'Демо';
+                demoLabel.style.fontSize = '10px';
+                demoLabel.style.opacity = '0.7';
+                demoLabel.style.marginTop = '4px';
+                details.appendChild(demoLabel);
+            }
+
+            // Ефект при наведенні
+            transactionEl.addEventListener('mouseenter', () => {
+                transactionEl.style.transform = 'translateY(-2px)';
+                transactionEl.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+            });
+
+            transactionEl.addEventListener('mouseleave', () => {
+                transactionEl.style.transform = 'translateY(0)';
+                transactionEl.style.boxShadow = '';
+            });
+
+            // Додаємо ефект при натисканні
+            transactionEl.addEventListener('click', () => {
+                this.showTransactionDetails(transaction);
+            });
+
+            listElement.appendChild(transactionEl);
+
+            // Для нових транзакцій додаємо клас для анімації
+            if (transaction.isNew) {
+                setTimeout(() => {
+                    transactionEl.classList.add('new');
+                }, 100);
+            }
+        });
+    },
 
     // Показ деталей транзакції
     showTransactionDetails: function(transaction) {
