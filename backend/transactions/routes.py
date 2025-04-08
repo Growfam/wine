@@ -1,18 +1,23 @@
 from flask import request, jsonify
 from . import controllers
 
+
 def register_transactions_routes(app):
     @app.route('/api/user/<telegram_id>/transactions', methods=['GET'])
     def api_get_user_transactions(telegram_id):
         """Отримання транзакцій користувача"""
-        return controllers.get_user_transactions(telegram_id)
+        # Перевіряємо, чи є обмеження по кількості
+        limit = request.args.get('limit', None)
 
+        if limit and limit.isdigit():
+            return controllers.get_recent_transactions(telegram_id, int(limit))
+        else:
+            return controllers.get_user_transactions(telegram_id)
 
     @app.route('/api/user/<telegram_id>/transaction', methods=['POST'])
     def api_add_user_transaction(telegram_id):
         """Додавання нової транзакції"""
         return controllers.add_user_transaction(telegram_id, request.json)
-
 
     @app.route('/api/user/<telegram_id>/send', methods=['POST'])
     def api_send_transaction(telegram_id):
@@ -21,8 +26,8 @@ def register_transactions_routes(app):
         if not data or 'to_address' not in data or 'amount' not in data:
             return jsonify({"status": "error", "message": "Відсутні необхідні дані"}), 400
 
-        return controllers.create_send_transaction(telegram_id, data['to_address'], data['amount'])
-
+        note = data.get('note', None)
+        return controllers.create_send_transaction(telegram_id, data['to_address'], data['amount'], note)
 
     @app.route('/api/user/<telegram_id>/receive', methods=['POST'])
     def api_receive_transaction(telegram_id):
@@ -31,4 +36,32 @@ def register_transactions_routes(app):
         if not data or 'from_address' not in data or 'amount' not in data:
             return jsonify({"status": "error", "message": "Відсутні необхідні дані"}), 400
 
-        return controllers.create_receive_transaction(telegram_id, data['from_address'], data['amount'])
+        note = data.get('note', None)
+        return controllers.create_receive_transaction(telegram_id, data['from_address'], data['amount'], note)
+
+    @app.route('/api/send_tokens', methods=['POST'])
+    def api_send_tokens():
+        """API-endpoint для переказу токенів між користувачами"""
+        try:
+            data = request.json
+
+            # Перевіряємо наявність необхідних даних
+            if not data or 'sender_id' not in data or 'receiver_id' not in data or 'amount' not in data:
+                return jsonify({
+                    "status": "error",
+                    "message": "Відсутні необхідні дані"
+                }), 400
+
+            sender_id = data['sender_id']
+            receiver_id = data['receiver_id']
+            amount = data['amount']
+            note = data.get('note', '')
+
+            # Викликаємо функцію контролера для обробки переказу
+            return controllers.transfer_tokens(sender_id, receiver_id, amount, note)
+
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 500

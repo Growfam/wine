@@ -59,8 +59,12 @@ def verify_user(telegram_data):
         # Конвертація ID в рядок
         telegram_id = str(telegram_id)
 
-        # Перевіряємо існування користувача або створюємо нового
-        from users.controllers import get_user_info, create_new_user
+        spec_users = importlib.util.spec_from_file_location("users_controllers",
+                                                            os.path.join(parent_dir, "users", "controllers.py"))
+        users_module = importlib.util.module_from_spec(spec_users)
+        spec_users.loader.exec_module(users_module)
+        get_user_info = users_module.get_user_info
+        create_new_user = users_module.create_new_user
 
         user = get_user_info(telegram_id)
 
