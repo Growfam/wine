@@ -1,6 +1,7 @@
 from flask import jsonify
-from supabase_client import supabase, get_user
 import logging
+import os
+import importlib.util
 from datetime import datetime, timedelta
 
 # Налаштування логування
@@ -8,6 +9,18 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Імпортуємо supabase_client.py напряму
+current_dir = os.path.dirname(os.path.abspath(__file__))  # папка stats
+parent_dir = os.path.dirname(current_dir)  # папка backend
+
+# Використання importlib для імпорту модуля з абсолютного шляху
+spec = importlib.util.spec_from_file_location("supabase_client", os.path.join(parent_dir, "supabase_client.py"))
+supabase_client = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(supabase_client)
+
+# Витягуємо необхідні функції з модуля
+get_user = supabase_client.get_user
+supabase = supabase_client.supabase
 
 def get_user_stats(telegram_id):
     """
