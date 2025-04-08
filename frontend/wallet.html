@@ -1209,31 +1209,26 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                <span data-lang-key="navigation.home">Головна</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                <span data-lang-key="navigation.earn">Заробіток</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                <span data-lang-key="navigation.referrals">Реферали</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                <span data-lang-key="navigation.wallet">Гаманець</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                <span data-lang-key="navigation.general">Загальне</span>
             </div>
         </div>
 
@@ -1241,13 +1236,13 @@
         <div class="modal-overlay premium-modal" id="send-modal">
             <div class="modal-container">
                 <div class="modal-header">
-                    <h2 class="modal-title" data-lang-key="wallet.send_title">Надіслати $WINIX</h2>
+                    <h2 class="modal-title" data-lang-key="Надіслати">Send $WINIX</h2>
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="modal-content">
                     <form id="send-form">
                         <div class="form-group">
-                            <label for="recipient-id" class="form-label" data-lang-key="wallet.recipient_id">ID отримувача:</label>
+                            <label for="recipient-id" class="form-label" data-lang-key="ID отримувача">ID Recipient:</label>
                             <div class="input-wrapper">
                                 <input type="text" id="recipient-id" class="form-input" placeholder="Введіть ID отримувача" required>
                                 <div class="input-icon">👤</div>
@@ -1255,28 +1250,28 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="send-amount" class="form-label" data-lang-key="wallet.amount">Сума $WINIX:</label>
+                            <label for="send-amount" class="form-label" data-lang-key="Сума">Amount $WINIX:</label>
                             <div class="amount-group">
                                 <div class="input-wrapper">
                                     <input type="number" id="send-amount" class="form-input" placeholder="0.00" min="500" step="1" required>
-                                    <div class="input-icon">💎</div>
+                                    <div class="input-icon"></div>
                                 </div>
-                                <button type="button" id="max-button" class="max-button" data-lang-key="wallet.max">MAX</button>
+                                <button type="button" id="max-button" class="max-button" data-lang-key="MAX">MAX</button>
                             </div>
-                            <div class="available-balance" id="available-balance" data-lang-key="wallet.available">Доступно: 0.00 $WINIX</div>
+                            <div class="available-balance" id="available-balance" data-lang-key="Доступно">Available: 0.00 $WINIX</div>
                         </div>
 
                         <div class="form-group">
-                            <label for="send-note" class="form-label" data-lang-key="wallet.note">Примітка (необов'язково):</label>
+                            <label for="send-note" class="form-label" data-lang-key="Примітка (Необов'язково):">Note</label>
                             <div class="input-wrapper">
-                                <input type="text" id="send-note" class="form-input" placeholder="Опціональна примітка">
-                                <div class="input-icon">📝</div>
+                                <input type="text" id="send-note" class="Опціональна примітка" placeholder="Form input">
+                                <div class="input-icon"></div>
                             </div>
                         </div>
 
                         <button type="submit" class="form-button">
-                            <span class="button-icon">🚀</span>
-                            <span class="button-text" data-lang-key="wallet.send_button">Надіслати</span>
+                            <span class="button-icon"></span>
+                            <span class="button-text" data-lang-key="Надіслати">Send</span>
                         </button>
                     </form>
                 </div>
@@ -1287,21 +1282,21 @@
         <div class="modal-overlay premium-modal" id="receive-modal">
             <div class="modal-container">
                 <div class="modal-header">
-                    <h2 class="modal-title" data-lang-key="wallet.receive_title">Отримати $WINIX</h2>
+                    <h2 class="modal-title" data-lang-key="Отримати $WINIX">Receive</h2>
                     <button class="modal-close">&times;</button>
                 </div>
 
                 <div class="receive-id-container">
-                    <div class="receive-id-title" data-lang-key="wallet.your_id">Ваш ID для отримання:</div>
+                    <div class="receive-id-title" data-lang-key="Ваш ID для отримання:">Your ID</div>
                     <div class="receive-id" id="receive-id">12345678</div>
                     <button id="copy-id-button" class="copy-button">
-                        <span class="copy-icon">📋</span>
-                        <span data-lang-key="wallet.copy_id">Копіювати ID</span>
+                        <span class="copy-icon"></span>
+                        <span data-lang-key="Копіювати ID">Copy ID</span>
                     </button>
                 </div>
 
                 <div class="form-group">
-                    <p data-lang-key="wallet.receive_info">
+                    <p data-lang-key="Інформація як отримати $WINIX">
                         Поділіться своїм ID з відправником для отримання токенів.
                         $WINIX можна отримувати лише всередині цього додатку.
                         Після підтвердження транзакції, токени будуть автоматично
@@ -1309,7 +1304,7 @@
                     </p>
                 </div>
 
-                <button class="form-button modal-close" data-lang-key="wallet.close">Закрити</button>
+                <button class="form-button modal-close" data-lang-key="Закрити">Close</button>
             </div>
         </div>
 
@@ -1317,7 +1312,7 @@
         <div class="modal-overlay premium-modal" id="history-modal">
             <div class="modal-container">
                 <div class="modal-header">
-                    <h2 class="modal-title" data-lang-key="wallet.history_title">Історія транзакцій</h2>
+                    <h2 class="modal-title" data-lang-key="Історія транзакцій">History</h2>
                     <button class="modal-close">&times;</button>
                 </div>
 
@@ -1325,12 +1320,12 @@
                 <div class="filter-selector">
                     <div class="filter-select-wrapper">
                         <select id="transaction-filter" class="filter-select">
-                            <option value="all" selected>Всі транзакції</option>
-                            <option value="receive">Отримання</option>
-                            <option value="send">Відправлення</option>
-                            <option value="stake">Стейкінг</option>
-                            <option value="unstake">Розстейкінг</option>
-                            <option value="reward">Нагороди</option>
+                            <option value="Всі Транзакції" selected>All</option>
+                            <option value="Отримання">Receive</option>
+                            <option value="Відправлення">Send</option>
+                            <option value="Стейкінг">Stake</option>
+                            <option value="Розстейкінг">Unstake</option>
+                            <option value="Нагороди">Reward</option>
                         </select>
                         <div class="filter-select-arrow">
                             <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1342,19 +1337,19 @@
 
                 <!-- Старі кнопки фільтрації (будуть приховані) -->
                 <div class="filter-buttons">
-                    <button class="filter-button active" data-filter="all" data-lang-key="wallet.filter_all">Всі</button>
-                    <button class="filter-button" data-filter="receive" data-lang-key="wallet.filter_receive">Отримання</button>
-                    <button class="filter-button" data-filter="send" data-lang-key="wallet.filter_send">Відправлення</button>
-                    <button class="filter-button" data-filter="stake" data-lang-key="wallet.filter_stake">Стейкінг</button>
-                    <button class="filter-button" data-filter="unstake" data-lang-key="wallet.filter_unstake">Розстейкінг</button>
+                    <button class="filter-button active" data-filter="All" data-lang-key="Всі">All</button>
+                    <button class="filter-button" data-filter="Receive" data-lang-key="Отримання">Receive</button>
+                    <button class="filter-button" data-filter="Send" data-lang-key="Відправлення">Send</button>
+                    <button class="filter-button" data-filter="Stake" data-lang-key="Стейкінг">Stake</button>
+                    <button class="filter-button" data-filter=Unstake" data-lang-key="Розстейкінг">Unstake</button>
                 </div>
 
                 <div class="history-list" id="history-list">
                     <!-- Історія транзакцій буде додана динамічно через JavaScript -->
-                    <div class="empty-message" data-lang-key="wallet.loading_history">Завантаження історії транзакцій...</div>
+                    <div class="empty-message" data-lang-key="Завантаження історії транзакцій">Loading History</div>
                 </div>
 
-                <button class="form-button modal-close" style="margin-top: 1.25rem;" data-lang-key="wallet.close">Закрити</button>
+                <button class="form-button modal-close" style="margin-top: 1.25rem;" data-lang-key="Закрити">Сlose</button>
             </div>
         </div>
 
