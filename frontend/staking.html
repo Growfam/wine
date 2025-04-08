@@ -1211,6 +1211,15 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+        @keyframes balance-highlight {
+    0% { color: inherit; text-shadow: none; }
+    50% { color: #4eb5f7; text-shadow: 0 0 8px rgba(78, 181, 247, 0.6); }
+    100% { color: inherit; text-shadow: none; }
+}
+
+.balance-updated {
+    animation: balance-highlight 1s ease;
+}
     </style>
 </head>
 <body>
@@ -1333,7 +1342,10 @@
                     <span class="staking-detail-label" data-lang-key="staking.details.days_left">Залишилось днів</span>
                     <span id="modal-staking-remaining-days" class="staking-detail-value">0</span>
                 </div>
-
+                <div class="modal-input-group">
+                    <label for="modal-add-amount">Сума для додавання:</label>
+                    <input type="number" id="modal-add-amount" min="1" value="100" class="modal-input">
+                </div>
                 <div class="modal-buttons">
                     <button class="modal-button add-button" id="modal-add-to-stake-button" data-lang-key="staking.details.add">Додати до стейкінгу</button>
                     <button class="modal-button cancel-modal-button" id="modal-cancel-staking-button" data-lang-key="staking.cancel_button">Скасувати стейкінг</button>
