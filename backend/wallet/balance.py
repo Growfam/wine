@@ -1,6 +1,7 @@
 from flask import jsonify, request
-from supabase_client import get_user, update_balance, update_coins, update_user
 import logging
+import os
+import importlib.util
 import uuid
 from datetime import datetime
 
@@ -8,6 +9,22 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Імпортуємо supabase_client.py напряму
+current_dir = os.path.dirname(os.path.abspath(__file__))  # папка wallet
+parent_dir = os.path.dirname(current_dir)  # папка backend
+
+# Використання importlib для імпорту модуля з абсолютного шляху
+spec = importlib.util.spec_from_file_location("supabase_client", os.path.join(parent_dir, "supabase_client.py"))
+supabase_client = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(supabase_client)
+
+# Витягуємо необхідні функції з модуля
+get_user = supabase_client.get_user
+update_user = supabase_client.update_user
+update_balance = supabase_client.update_balance
+update_coins = supabase_client.update_coins
+supabase = supabase_client.supabase
 
 # Константи для конвертації жетонів
 COIN_TO_TOKEN_RATIO = 10  # 1 жетон = 10 WINIX
@@ -68,7 +85,7 @@ def add_tokens(telegram_id, data):
         new_balance = current_balance + amount
 
         # Створення транзакції в БД
-        from transactions import add_user_transaction
+        from transactions.controllers import add_user_transaction
         transaction_data = {
             'type': 'receive',
             'amount': amount,
@@ -127,7 +144,7 @@ def subtract_tokens(telegram_id, data):
         new_balance = current_balance - amount
 
         # Створення транзакції в БД
-        from transactions import add_user_transaction
+        from transactions.controllers import add_user_transaction
         transaction_data = {
             'type': 'send',
             'amount': -amount,  # від'ємне значення для віднімання
@@ -285,7 +302,7 @@ def convert_coins_to_tokens(telegram_id, data):
         })
 
         # Створення транзакції
-        from transactions import add_user_transaction
+        from transactions.controllers import add_user_transaction
         transaction_data = {
             'type': 'receive',
             'amount': tokens_to_add,
