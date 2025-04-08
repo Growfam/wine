@@ -1,4 +1,4 @@
-from flask import jsonify
+from flask import jsonify, request
 import logging
 import os
 import importlib.util
@@ -25,6 +25,10 @@ update_user = supabase_client.update_user
 supabase = supabase_client.supabase
 
 
+# -------------------------------------------------------------------------------------
+# Основні функції для транзакцій
+# -------------------------------------------------------------------------------------
+
 def get_user_transactions(telegram_id):
     """Отримання транзакцій користувача"""
     try:
@@ -39,8 +43,11 @@ def get_user_transactions(telegram_id):
         try:
             transactions = []
             if supabase:
-                transaction_res = supabase.table("transactions").select("*").eq("telegram_id", telegram_id).order(
-                    "created_at", desc=True).execute()
+                # Шукаємо всі транзакції, де користувач є відправником або отримувачем
+                transaction_res = supabase.table("transactions").select("*").or_(
+                    f"telegram_id.eq.{telegram_id},to_address.eq.{telegram_id}"
+                ).order("created_at", desc=True).execute()
+
                 transactions = transaction_res.data if transaction_res.data else []
         except Exception as e:
             logger.error(f"get_user_transactions: Помилка отримання транзакцій: {str(e)}")
@@ -112,9 +119,17 @@ def add_user_transaction(telegram_id, data):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-def create_send_transaction(telegram_id, to_address, amount):
+def create_send_transaction(telegram_id, to_address, amount, note=None):
     """Створення транзакції надсилання коштів"""
     try:
+        # Перевіряємо мінімальну суму
+        amount = float(amount)
+        if amount < 500:
+            return jsonify({
+                "status": "error",
+                "message": "Мінімальна сума переказу 500 WINIX"
+            }), 400
+
         # Перевіряємо, чи користувач існує
         user = get_user(telegram_id)
         if not user:
@@ -122,7 +137,6 @@ def create_send_transaction(telegram_id, to_address, amount):
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
         # Перевіряємо достатність коштів
-        amount = float(amount)
         current_balance = float(user.get("balance", 0))
 
         if current_balance < amount:
@@ -132,14 +146,17 @@ def create_send_transaction(telegram_id, to_address, amount):
         new_balance = current_balance - amount
         update_user(telegram_id, {"balance": new_balance})
 
+        # Створюємо опис транзакції
+        description = note if note else f"Надсилання {amount} WINIX на адресу {to_address}"
+
         # Створюємо запис транзакції
         transaction_data = {
             "id": str(uuid.uuid4()),
             "telegram_id": telegram_id,
             "type": "send",
-            "amount": -amount,  # негативне значення, оскільки кошти відправляються
+            "amount": amount,  # збережемо позитивне значення для простоти аналізу
             "to_address": to_address,
-            "description": f"Надсилання {amount} WINIX на адресу {to_address}",
+            "description": description,
             "status": "completed",
             "created_at": datetime.now().isoformat()
         }
@@ -153,16 +170,24 @@ def create_send_transaction(telegram_id, to_address, amount):
                 "transaction": transaction_data,
                 "newBalance": new_balance
             }
-        })
+        }), 200
     except Exception as e:
         logger.error(f"create_send_transaction: Помилка створення транзакції відправлення для {telegram_id}: {str(e)}",
                      exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-def create_receive_transaction(telegram_id, from_address, amount):
+def create_receive_transaction(telegram_id, from_address, amount, note=None):
     """Створення транзакції отримання коштів"""
     try:
+        # Перевіряємо мінімальну суму
+        amount = float(amount)
+        if amount < 500:
+            return jsonify({
+                "status": "error",
+                "message": "Мінімальна сума отримання 500 WINIX"
+            }), 400
+
         # Перевіряємо, чи користувач існує
         user = get_user(telegram_id)
         if not user:
@@ -170,19 +195,21 @@ def create_receive_transaction(telegram_id, from_address, amount):
             return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
         # Оновлюємо баланс
-        amount = float(amount)
         current_balance = float(user.get("balance", 0))
         new_balance = current_balance + amount
         update_user(telegram_id, {"balance": new_balance})
+
+        # Створюємо опис транзакції
+        description = note if note else f"Отримання {amount} WINIX від {from_address}"
 
         # Створюємо запис транзакції
         transaction_data = {
             "id": str(uuid.uuid4()),
             "telegram_id": telegram_id,
             "type": "receive",
-            "amount": amount,  # позитивне значення, оскільки кошти отримуються
+            "amount": amount,
             "from_address": from_address,
-            "description": f"Отримання {amount} WINIX від {from_address}",
+            "description": description,
             "status": "completed",
             "created_at": datetime.now().isoformat()
         }
@@ -196,8 +223,143 @@ def create_receive_transaction(telegram_id, from_address, amount):
                 "transaction": transaction_data,
                 "newBalance": new_balance
             }
-        })
+        }), 200
     except Exception as e:
         logger.error(f"create_receive_transaction: Помилка створення транзакції отримання для {telegram_id}: {str(e)}",
                      exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# -------------------------------------------------------------------------------------
+# Нова функція для транзакцій між користувачами
+# -------------------------------------------------------------------------------------
+
+def transfer_tokens(sender_id, receiver_id, amount, note=''):
+    """Переказ WINIX-токенів між користувачами"""
+    try:
+        # Валідація суми
+        amount = float(amount)
+        if amount < 500:
+            return jsonify({
+                "status": "error",
+                "message": "Мінімальна сума переказу 500 WINIX"
+            }), 400
+
+        # Перевіряємо, чи існує відправник
+        sender = get_user(sender_id)
+        if not sender:
+            return jsonify({
+                "status": "error",
+                "message": "Відправника не знайдено"
+            }), 404
+
+        # Перевіряємо, чи достатньо коштів
+        sender_balance = float(sender.get("balance", 0))
+        if sender_balance < amount:
+            return jsonify({
+                "status": "error",
+                "message": "Недостатньо коштів для переказу"
+            }), 400
+
+        # Перевіряємо, чи існує отримувач
+        receiver = get_user(receiver_id)
+        if not receiver:
+            return jsonify({
+                "status": "error",
+                "message": "Отримувача не знайдено"
+            }), 404
+
+        # Створюємо транзакцію
+        transaction_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+
+        # Створюємо запис транзакції відправлення для відправника з додатковою приміткою
+        send_description = note if note else f"Надсилання {amount} WINIX користувачу {receiver_id}"
+        send_transaction = {
+            "id": str(uuid.uuid4()),
+            "telegram_id": sender_id,
+            "type": "send",
+            "amount": amount,
+            "to_address": receiver_id,
+            "description": send_description,
+            "status": "completed",
+            "created_at": timestamp
+        }
+
+        # Створюємо запис транзакції отримання для отримувача з додатковою приміткою
+        receive_description = note if note else f"Отримання {amount} WINIX від користувача {sender_id}"
+        receive_transaction = {
+            "id": str(uuid.uuid4()),
+            "telegram_id": receiver_id,
+            "type": "receive",
+            "amount": amount,
+            "from_address": sender_id,
+            "description": receive_description,
+            "status": "completed",
+            "created_at": timestamp
+        }
+
+        # Оновлюємо баланси користувачів
+        # 1. Знімаємо кошти з рахунку відправника
+        sender_new_balance = sender_balance - amount
+        update_user(sender_id, {"balance": sender_new_balance})
+
+        # 2. Додаємо кошти на рахунок отримувача
+        receiver_balance = float(receiver.get("balance", 0))
+        receiver_new_balance = receiver_balance + amount
+        update_user(receiver_id, {"balance": receiver_new_balance})
+
+        # Зберігаємо обидві транзакції в базі даних
+        supabase.table("transactions").insert(send_transaction).execute()
+        supabase.table("transactions").insert(receive_transaction).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Успішно відправлено {amount} WINIX користувачу {receiver_id}",
+            "data": {
+                "transaction_id": transaction_id,
+                "sender_balance": sender_new_balance,
+                "receiver_balance": receiver_new_balance,
+                "send_transaction": send_transaction,
+                "receive_transaction": receive_transaction
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"transfer_tokens: Помилка переказу токенів: {str(e)}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+def get_recent_transactions(telegram_id, limit=3):
+    """Отримання останніх транзакцій користувача"""
+    try:
+        # Отримуємо користувача з Supabase
+        user = get_user(telegram_id)
+
+        if not user:
+            logger.warning(f"get_recent_transactions: Користувача {telegram_id} не знайдено")
+            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+        # Отримуємо транзакції з таблиці transactions
+        try:
+            transactions = []
+            if supabase:
+                # Шукаємо всі транзакції, де користувач є відправником або отримувачем
+                transaction_res = supabase.table("transactions").select("*").or_(
+                    f"telegram_id.eq.{telegram_id},to_address.eq.{telegram_id}"
+                ).order("created_at", desc=True).limit(limit).execute()
+
+                transactions = transaction_res.data if transaction_res.data else []
+        except Exception as e:
+            logger.error(f"get_recent_transactions: Помилка отримання транзакцій: {str(e)}")
+            transactions = []
+
+        return jsonify({"status": "success", "data": transactions})
+    except Exception as e:
+        logger.error(
+            f"get_recent_transactions: Помилка отримання останніх транзакцій користувача {telegram_id}: {str(e)}",
+            exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
