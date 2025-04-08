@@ -1220,6 +1220,45 @@
 .balance-updated {
     animation: balance-highlight 1s ease;
 }
+
+.modal-staking-input-container {
+  width: 100%;
+  margin: 20px 0;
+}
+
+.modal-staking-label {
+  color: #ffffff;
+  font-size: 18px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.modal-staking-input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.modal-staking-input {
+  width: 100%;
+  background: rgba(30, 39, 70, 0.8);
+  border-radius: 16px;
+  border: 1px solid rgba(78, 181, 247, 0.2);
+  padding: 15px 20px;
+  font-size: 22px;
+  color: white;
+  font-weight: 500;
+  min-height: 60px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  outline: none;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.modal-staking-input:focus {
+  border-color: rgba(78, 181, 247, 0.5);
+  box-shadow: 0 0 8px rgba(78, 181, 247, 0.3);
+}
     </style>
 </head>
 <body>
@@ -1342,6 +1381,20 @@
                     <span class="staking-detail-label" data-lang-key="staking.details.days_left">Залишилось днів</span>
                     <span id="modal-staking-remaining-days" class="staking-detail-value">0</span>
                 </div>
+<!-- Додайте цей блок перед div.modal-buttons у модальному вікні -->
+<div class="modal-staking-input-container">
+  <div class="modal-staking-label">Сума для додавання:</div>
+  <div class="modal-staking-input-wrapper">
+    <input
+      type="number"
+      id="modal-add-amount"
+      class="modal-staking-input"
+      value="100"
+      min="1"
+      pattern="[0-9]*"
+    >
+  </div>
+</div>
                 <div class="modal-buttons">
                     <button class="modal-button add-button" id="modal-add-to-stake-button" data-lang-key="staking.details.add">Додати до стейкінгу</button>
                     <button class="modal-button cancel-modal-button" id="modal-cancel-staking-button" data-lang-key="staking.cancel_button">Скасувати стейкінг</button>
