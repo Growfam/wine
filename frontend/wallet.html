@@ -721,55 +721,53 @@
             height: 0.9375rem;
         }
 
+        /* Стилі для селектора фільтрів */
+        .filter-selector {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .filter-select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(30, 39, 70, 0.8);
+            color: white;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            border-radius: 12px;
+            font-size: 16px;
+            appearance: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: rgba(0, 201, 167, 0.5);
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.3);
+        }
+
+        .filter-select-arrow {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            transition: transform 0.3s;
+        }
+
+        .filter-select:focus + .filter-select-arrow {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
         /* Спеціальні стилі для модального вікна "Історія транзакцій" */
         .filter-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1.25rem;
-            overflow-x: auto;
-            padding-bottom: 0.5rem;
-            scrollbar-width: thin;
-            scrollbar-color: var(--secondary-color) transparent;
-        }
-
-        .filter-buttons::-webkit-scrollbar {
-            height: 0.3125rem;
-        }
-
-        .filter-buttons::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .filter-buttons::-webkit-scrollbar-thumb {
-            background-color: var(--secondary-color);
-            border-radius: 0.625rem;
-        }
-
-        .filter-button {
-            padding: 0.5rem 0.875rem;
-            background: rgba(20, 30, 60, 0.7);
-            border: 0.0625rem solid rgba(78, 181, 247, 0.3);
-            border-radius: 0.625rem;
-            color: white;
-            font-size: 0.8125rem;
-            white-space: nowrap;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-
-        .filter-button.active {
-            background: var(--bg-active);
-            border-color: rgba(0, 201, 167, 0.5);
-            box-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.3);
-        }
-
-        .filter-button:hover {
-            transform: translateY(-0.125rem);
-        }
-
-        .filter-button:active {
-            transform: translateY(0);
+            display: none; /* Приховуємо старі кнопки фільтрів */
         }
 
         .history-list {
@@ -792,12 +790,6 @@
         .history-list::-webkit-scrollbar-thumb {
             background-color: var(--secondary-color);
             border-radius: 0.625rem;
-        }
-
-        /* Анімації для модальних вікон */
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
 
         /* Повідомлення та індикатори */
@@ -869,6 +861,190 @@
             color: white;
             font-size: 16px;
         }
+
+        /* Покращені кнопки */
+        .form-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px;
+            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .form-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                rgba(255, 255, 255, 0),
+                rgba(255, 255, 255, 0.2),
+                rgba(255, 255, 255, 0));
+            transition: all 0.6s;
+        }
+
+        .form-button:hover::before {
+            left: 100%;
+        }
+
+        /* Ефект пульсації для MAX кнопки */
+        .max-button {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
+        }
+
+        /* Анімація для головного балансу */
+        .main-balance {
+            position: relative;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .main-balance.updated {
+            animation: balance-updated 1.5s;
+        }
+
+        @keyframes balance-updated {
+            0% { transform: scale(1); color: var(--text-color); }
+            50% { transform: scale(1.1); color: rgb(0, 201, 167); }
+            100% { transform: scale(1); color: var(--text-color); }
+        }
+
+        /* Плавне з'явлення модальних вікон */
+        .modal-overlay {
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+            backdrop-filter: blur(8px) !important;
+        }
+
+        .modal-container {
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
+                        0 0 0 1px rgba(78, 181, 247, 0.2) inset,
+                        0 5px 15px rgba(0, 201, 167, 0.15) !important;
+            overflow: hidden;
+        }
+
+        .modal-overlay.show .modal-container {
+            transform: scale(1) !important;
+            opacity: 1 !important;
+        }
+
+        /* Ефект свічення для модалок */
+        .modal-overlay.show .modal-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg,
+                rgba(0, 201, 167, 0),
+                rgba(0, 201, 167, 0.8),
+                rgba(0, 201, 167, 0));
+            animation: glow-line 2s infinite;
+        }
+
+        @keyframes glow-line {
+            0% { opacity: 0.3; transform: translateX(-100%); }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; transform: translateX(100%); }
+        }
+
+        /* Анімовані кнопки */
+        .action-button, .form-button, .filter-button {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .action-button::after, .form-button::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+            opacity: 0;
+            transition: opacity 0.8s;
+            pointer-events: none;
+        }
+
+        .action-button:active::after, .form-button:active::after {
+            opacity: 1;
+            transition: 0s;
+        }
+
+        /* Анімація для карток транзакцій */
+        .transaction-item {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+            border-left: 3px solid transparent;
+        }
+
+        .transaction-item.transaction-receive,
+        .transaction-item[data-type="receive"] {
+            border-left-color: var(--positive-color);
+        }
+
+        .transaction-item.transaction-send,
+        .transaction-item[data-type="send"] {
+            border-left-color: var(--negative-color);
+        }
+
+        .transaction-item:hover {
+            transform: translateY(-4px) !important;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+        }
+
+        /* Виправлена анімація для транзакцій */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Виправлення для пульсуючої анімації */
+        @keyframes pulse-new {
+            0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
+        }
+
+        /* Виправлення для елементів транзакцій */
+        .transaction-item {
+            animation: fadeInUp 0.5s ease forwards;
+            animation-delay: 0.1s; /* Фіксоване значення затримки */
+            opacity: 0;
+        }
+
+        /* Альтернативний варіант - покроковий підхід */
+        .transaction-item:nth-child(1) { animation-delay: 0.1s; }
+        .transaction-item:nth-child(2) { animation-delay: 0.2s; }
+        .transaction-item:nth-child(3) { animation-delay: 0.3s; }
+        .transaction-item:nth-child(4) { animation-delay: 0.4s; }
+        .transaction-item:nth-child(5) { animation-delay: 0.5s; }
 
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
@@ -989,7 +1165,7 @@
         </div>
 
         <div class="wallet-card">
-            <div class="balance-title" data-lang-key="wallet.balance">Balance $WINIX</div>
+            <div class="balance-title" data-lang-key="wallet.balance">Баланс $WINIX</div>
             <div class="balance-section">
                 <div id="main-balance" class="main-balance">0
                     <span class="main-balance-icon">
@@ -1033,68 +1209,82 @@
                 <div class="icon-wrapper">
                     <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
-                <span data-lang-key="navigation.home">Home</span>
+                <span data-lang-key="navigation.home">Головна</span>
             </div>
             <div class="nav-item" data-section="earn">
                 <div class="icon-wrapper">
                     <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
-                <span data-lang-key="navigation.earn">Earn</span>
+                <span data-lang-key="navigation.earn">Заробіток</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
                     <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
-                <span data-lang-key="navigation.referrals">Referrals</span>
+                <span data-lang-key="navigation.referrals">Реферали</span>
             </div>
             <div class="nav-item active" data-section="wallet">
                 <div class="icon-wrapper">
                     <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
-                <span data-lang-key="navigation.wallet">Wallet</span>
+                <span data-lang-key="navigation.wallet">Гаманець</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
                     <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
-                <span data-lang-key="navigation.general">General</span>
+                <span data-lang-key="navigation.general">Загальне</span>
             </div>
         </div>
 
         <!-- Модальне вікно відправки коштів -->
-        <div class="modal-overlay" id="send-modal">
+        <div class="modal-overlay premium-modal" id="send-modal">
             <div class="modal-container">
                 <div class="modal-header">
                     <h2 class="modal-title" data-lang-key="wallet.send_title">Надіслати $WINIX</h2>
                     <button class="modal-close">&times;</button>
                 </div>
-                <form id="send-form">
-                    <div class="form-group">
-                        <label for="recipient-id" class="form-label" data-lang-key="wallet.recipient_id">ID отримувача:</label>
-                        <input type="text" id="recipient-id" class="form-input" placeholder="Введіть ID отримувача" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="send-amount" class="form-label" data-lang-key="wallet.amount">Сума $WINIX:</label>
-                        <div class="amount-group">
-                            <input type="number" id="send-amount" class="form-input" placeholder="0.00" min="500" step="1" required>
-                            <button type="button" id="max-button" class="max-button" data-lang-key="wallet.max">MAX</button>
+                <div class="modal-content">
+                    <form id="send-form">
+                        <div class="form-group">
+                            <label for="recipient-id" class="form-label" data-lang-key="wallet.recipient_id">ID отримувача:</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="recipient-id" class="form-input" placeholder="Введіть ID отримувача" required>
+                                <div class="input-icon">👤</div>
+                            </div>
                         </div>
-                        <div class="available-balance" id="available-balance" data-lang-key="wallet.available">Доступно: 0.00 $WINIX</div>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="send-note" class="form-label" data-lang-key="wallet.note">Примітка (опціонально):</label>
-                        <input type="text" id="send-note" class="form-input" placeholder="Опціональна примітка">
-                    </div>
+                        <div class="form-group">
+                            <label for="send-amount" class="form-label" data-lang-key="wallet.amount">Сума $WINIX:</label>
+                            <div class="amount-group">
+                                <div class="input-wrapper">
+                                    <input type="number" id="send-amount" class="form-input" placeholder="0.00" min="500" step="1" required>
+                                    <div class="input-icon">💎</div>
+                                </div>
+                                <button type="button" id="max-button" class="max-button" data-lang-key="wallet.max">MAX</button>
+                            </div>
+                            <div class="available-balance" id="available-balance" data-lang-key="wallet.available">Доступно: 0.00 $WINIX</div>
+                        </div>
 
-                    <button type="submit" class="form-button" data-lang-key="wallet.send_button">Надіслати</button>
-                </form>
+                        <div class="form-group">
+                            <label for="send-note" class="form-label" data-lang-key="wallet.note">Примітка (необов'язково):</label>
+                            <div class="input-wrapper">
+                                <input type="text" id="send-note" class="form-input" placeholder="Опціональна примітка">
+                                <div class="input-icon">📝</div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="form-button">
+                            <span class="button-icon">🚀</span>
+                            <span class="button-text" data-lang-key="wallet.send_button">Надіслати</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
         <!-- Модальне вікно отримання коштів -->
-        <div class="modal-overlay" id="receive-modal">
+        <div class="modal-overlay premium-modal" id="receive-modal">
             <div class="modal-container">
                 <div class="modal-header">
                     <h2 class="modal-title" data-lang-key="wallet.receive_title">Отримати $WINIX</h2>
@@ -1124,13 +1314,33 @@
         </div>
 
         <!-- Модальне вікно історії транзакцій -->
-        <div class="modal-overlay" id="history-modal">
+        <div class="modal-overlay premium-modal" id="history-modal">
             <div class="modal-container">
                 <div class="modal-header">
                     <h2 class="modal-title" data-lang-key="wallet.history_title">Історія транзакцій</h2>
                     <button class="modal-close">&times;</button>
                 </div>
 
+                <!-- Покращений селектор фільтрації транзакцій -->
+                <div class="filter-selector">
+                    <div class="filter-select-wrapper">
+                        <select id="transaction-filter" class="filter-select">
+                            <option value="all" selected>Всі транзакції</option>
+                            <option value="receive">Отримання</option>
+                            <option value="send">Відправлення</option>
+                            <option value="stake">Стейкінг</option>
+                            <option value="unstake">Розстейкінг</option>
+                            <option value="reward">Нагороди</option>
+                        </select>
+                        <div class="filter-select-arrow">
+                            <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 1.5L6 6.5L11 1.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Старі кнопки фільтрації (будуть приховані) -->
                 <div class="filter-buttons">
                     <button class="filter-button active" data-filter="all" data-lang-key="wallet.filter_all">Всі</button>
                     <button class="filter-button" data-filter="receive" data-lang-key="wallet.filter_receive">Отримання</button>
@@ -1157,6 +1367,20 @@
         <!-- Повідомлення -->
         <div id="toast-message" class="toast-message"></div>
     </div>
+
+    <!-- Скрипт для фільтрації транзакцій -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Додаємо обробник події для нового селектора транзакцій
+        const filterSelect = document.getElementById('transaction-filter');
+        if (filterSelect && typeof WinixWallet !== 'undefined') {
+            filterSelect.addEventListener('change', function() {
+                const filter = this.value;
+                WinixWallet.filterTransactions(filter);
+            });
+        }
+    });
+    </script>
 
     <!-- Підключаємо наш новий скрипт для гаманця -->
     <script src="js/wallet.js"></script>

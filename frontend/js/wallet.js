@@ -21,7 +21,9 @@ const WinixWallet = {
         stakingAmount: 0,
         stakingRewards: 0,
         transactions: [],
-        currentFilter: 'all'  // Поточний фільтр для історії транзакцій
+        transactionsSource: null, // 'api', 'localStorage', або 'demo'
+        currentFilter: 'all',  // Поточний фільтр для історії транзакцій
+        hasShownCacheMessage: false // Прапорець для повідомлення про кешовані дані
     },
 
     // DOM-елементи
@@ -49,7 +51,180 @@ const WinixWallet = {
         // Налаштовуємо автооновлення
         this.setupAutoUpdates();
 
+        // Додаємо преміум-анімації
+        this.addPremiumAnimations();
+
         console.log("WinixWallet: Ініціалізація завершена");
+    },
+
+    // Додавання преміум-анімацій
+    addPremiumAnimations: function() {
+        try {
+            // Додаємо стилі для анімацій (якщо їх ще немає)
+            if (!document.getElementById('premium-animations-style')) {
+                const style = document.createElement('style');
+                style.id = 'premium-animations-style';
+                style.textContent = `
+                /* Плавне з'явлення модальних вікон */
+                .modal-overlay {
+                    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+                    backdrop-filter: blur(8px) !important;
+                }
+
+                .modal-container {
+                    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                                opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+                    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
+                                0 0 0 1px rgba(78, 181, 247, 0.2) inset,
+                                0 5px 15px rgba(0, 201, 167, 0.15) !important;
+                    overflow: hidden;
+                }
+
+                .modal-overlay.show .modal-container {
+                    transform: scale(1) !important;
+                    opacity: 1 !important;
+                }
+
+                /* Ефект свічення для модалок */
+                .modal-overlay.show .modal-container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 2px;
+                    background: linear-gradient(90deg, 
+                        rgba(0, 201, 167, 0), 
+                        rgba(0, 201, 167, 0.8), 
+                        rgba(0, 201, 167, 0));
+                    animation: glow-line 2s infinite;
+                }
+
+                @keyframes glow-line {
+                    0% { opacity: 0.3; transform: translateX(-100%); }
+                    50% { opacity: 1; }
+                    100% { opacity: 0.3; transform: translateX(100%); }
+                }
+
+                /* Анімовані кнопки */
+                .action-button, .form-button, .filter-button {
+                    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+                    overflow: hidden;
+                    position: relative;
+                }
+
+                .action-button::after, .form-button::after {
+                    content: '';
+                    position: absolute;
+                    top: -50%;
+                    left: -50%;
+                    width: 200%;
+                    height: 200%;
+                    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+                    opacity: 0;
+                    transition: opacity 0.8s;
+                    pointer-events: none;
+                }
+
+                .action-button:active::after, .form-button:active::after {
+                    opacity: 1;
+                    transition: 0s;
+                }
+
+                /* Анімація для карток транзакцій */
+                .transaction-item {
+                    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+                    border-left: 3px solid transparent;
+                }
+
+                .transaction-item.transaction-receive,
+                .transaction-item[data-type="receive"] {
+                    border-left-color: var(--positive-color);
+                }
+
+                .transaction-item.transaction-send,
+                .transaction-item[data-type="send"] {
+                    border-left-color: var(--negative-color);
+                }
+
+                .transaction-item:hover {
+                    transform: translateY(-4px) !important;
+                    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+                }
+
+                /* Анімація для головного балансу */
+                .main-balance {
+                    position: relative;
+                    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+
+                .main-balance.updated {
+                    animation: balance-updated 1.5s;
+                }
+
+                @keyframes balance-updated {
+                    0% { transform: scale(1); color: var(--text-color); }
+                    50% { transform: scale(1.1); color: rgb(0, 201, 167); }
+                    100% { transform: scale(1); color: var(--text-color); }
+                }
+
+                /* Анімації для модальних вікон при відкритті/закритті */
+                @keyframes modal-in {
+                    0% { transform: scale(0.8); opacity: 0; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+
+                @keyframes modal-out {
+                    0% { transform: scale(1); opacity: 1; }
+                    100% { transform: scale(0.8); opacity: 0; }
+                }
+
+                /* Анімоване свічення для кнопок */
+                .action-button, .form-button {
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .action-button::before, .form-button::before {
+                    content: '';
+                    position: absolute;
+                    top: -10px;
+                    left: -10px;
+                    width: 10px;
+                    height: 10px;
+                    background-color: rgba(255, 255, 255, 0.5);
+                    border-radius: 50%;
+                    box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.3);
+                    transition: all 0.5s;
+                    opacity: 0;
+                    pointer-events: none;
+                }
+
+                .action-button:hover::before, .form-button:hover::before {
+                    animation: button-glow 2s infinite;
+                }
+
+                @keyframes button-glow {
+                    0% { opacity: 0; transform: translate(0, 0); }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 0; transform: translate(calc(100% + 20px), calc(100% + 20px)); }
+                }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Додаємо клас premium-modal до модальних вікон
+            const modals = ['send-modal', 'receive-modal', 'history-modal'];
+            modals.forEach(id => {
+                const modalElement = document.getElementById(id);
+                if (modalElement && !modalElement.classList.contains('premium-modal')) {
+                    modalElement.classList.add('premium-modal');
+                }
+            });
+
+        } catch (error) {
+            console.error('Помилка додавання преміум-анімацій:', error);
+        }
     },
 
     // Кешування DOM-елементів
@@ -90,7 +265,12 @@ const WinixWallet = {
 
         // Елементи історії транзакцій
         this.elements.historyList = document.getElementById('history-list');
+
+        // Старі елементи фільтрів
         this.elements.filterButtons = document.querySelectorAll('.filter-button');
+
+        // Новий селектор фільтрів
+        this.elements.filterSelect = document.getElementById('transaction-filter');
 
         // Інші елементи
         this.elements.loadingIndicator = document.getElementById('loading-indicator');
@@ -154,12 +334,129 @@ const WinixWallet = {
             });
         });
 
+        // Обробник для нового селектора фільтрів
+        if (this.elements.filterSelect) {
+            this.elements.filterSelect.addEventListener('change', () => {
+                const filter = this.elements.filterSelect.value;
+                this.filterTransactions(filter);
+            });
+        }
+
         // Обробник для кнопки MAX в полі суми
         const maxButton = document.getElementById('max-button');
         if (maxButton && this.elements.sendAmount) {
             maxButton.addEventListener('click', () => {
                 this.elements.sendAmount.value = Math.floor(this.state.balance);
             });
+        }
+
+        // Додамо обробник для оновлення при потягуванні вниз (pull-to-refresh)
+        this.setupPullToRefresh();
+    },
+
+    // Налаштування оновлення при потягуванні вниз
+    setupPullToRefresh: function() {
+        let touchStartY = 0;
+        let touchEndY = 0;
+        const container = document.querySelector('.container');
+
+        if (!container) return;
+
+        container.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        container.addEventListener('touchmove', (e) => {
+            touchEndY = e.touches[0].clientY;
+
+            // Якщо скрол досяг верху і користувач тягне вниз
+            if (container.scrollTop === 0 && touchEndY > touchStartY) {
+                // Показуємо індикатор завантаження
+                const refreshIndicator = document.querySelector('.pull-to-refresh-indicator');
+                if (refreshIndicator) {
+                    refreshIndicator.style.transform = `translateY(${Math.min((touchEndY - touchStartY) / 3, 60)}px)`;
+                }
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchend', () => {
+            // Якщо скрол досяг верху і користувач потягнув достатньо вниз
+            if (container.scrollTop === 0 && touchEndY > touchStartY && touchEndY - touchStartY > 100) {
+                // Оновлюємо дані
+                this.refreshAll();
+
+                // Анімація індикатора завантаження
+                const refreshIndicator = document.querySelector('.pull-to-refresh-indicator');
+                if (refreshIndicator) {
+                    refreshIndicator.style.transition = 'transform 0.3s';
+                    refreshIndicator.style.transform = 'translateY(0)';
+                    setTimeout(() => {
+                        refreshIndicator.style.transition = '';
+                    }, 300);
+                }
+            }
+        }, { passive: true });
+
+        // Створюємо індикатор оновлення, якщо його немає
+        if (!document.querySelector('.pull-to-refresh-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.className = 'pull-to-refresh-indicator';
+            indicator.innerHTML = `
+                <div class="refresh-spinner"></div>
+                <div class="refresh-text">Потягніть, щоб оновити</div>
+            `;
+
+            // Додаємо стилі для індикатора
+            const style = document.createElement('style');
+            style.textContent = `
+                .pull-to-refresh-indicator {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    transform: translateY(-100%);
+                    padding: 10px;
+                    z-index: 5;
+                }
+                .refresh-spinner {
+                    width: 30px;
+                    height: 30px;
+                    border: 3px solid rgba(0, 201, 167, 0.3);
+                    border-top-color: rgb(0, 201, 167);
+                    border-radius: 50%;
+                    margin-bottom: 5px;
+                    animation: spin 1s linear infinite;
+                }
+                .refresh-text {
+                    font-size: 12px;
+                    color: rgba(255, 255, 255, 0.7);
+                }
+            `;
+
+            document.head.appendChild(style);
+            container.prepend(indicator);
+        }
+    },
+
+    // Оновлення всіх даних
+    refreshAll: function() {
+        this.showNotification('Оновлення даних...', false);
+
+        // Оновлюємо дані користувача
+        this.loadUserData(false, true);
+
+        // Оновлюємо транзакції
+        this.loadTransactions(false, this.config.transactionsLimit);
+
+        // Анімуємо баланс
+        if (this.elements.mainBalance) {
+            this.elements.mainBalance.classList.add('updated');
+            setTimeout(() => {
+                this.elements.mainBalance.classList.remove('updated');
+            }, 1500);
         }
     },
 
@@ -257,8 +554,31 @@ const WinixWallet = {
                     // Показуємо повідомлення про успішну відправку
                     this.showSuccess(`Успішно відправлено ${amount} WINIX користувачу ${recipientId}`);
 
+                    // Створюємо нову транзакцію і додаємо її до списку
+                    const newTransaction = {
+                        id: response.data.transaction_id || this.generateId(),
+                        type: 'send',
+                        amount: -amount,
+                        to_address: recipientId,
+                        description: note || `Надсилання ${amount} WINIX користувачу ${recipientId}`,
+                        created_at: new Date().toISOString(),
+                        status: 'completed',
+                        isNew: true
+                    };
+
+                    // Додаємо транзакцію на початок списку
+                    this.state.transactions.unshift(newTransaction);
+
                     // Оновлюємо список транзакцій
-                    this.loadTransactions();
+                    this.updateTransactionsList();
+
+                    // Анімуємо баланс
+                    if (this.elements.mainBalance) {
+                        this.elements.mainBalance.classList.add('updated');
+                        setTimeout(() => {
+                            this.elements.mainBalance.classList.remove('updated');
+                        }, 1500);
+                    }
                 } else {
                     // Показуємо повідомлення про помилку
                     this.showError(response.message || 'Помилка відправки коштів');
@@ -373,17 +693,24 @@ const WinixWallet = {
     // Фільтрація транзакцій за типом
     filterTransactions: function(filter) {
         this.state.currentFilter = filter;
+
+        // Синхронізуємо значення нового селектора
+        if (this.elements.filterSelect && this.elements.filterSelect.value !== filter) {
+            this.elements.filterSelect.value = filter;
+        }
+
+        // Оновлюємо список транзакцій в історії
         this.updateTransactionsList(true);
     },
 
     // Завантаження даних користувача
-    loadUserData: function(silent = false) {
+    loadUserData: function(silent = false, forceRefresh = false) {
         if (!silent) {
             this.showLoading('Завантаження даних користувача...');
         }
 
         // Спробуємо отримати дані з API
-        this.fetchUserData()
+        this.fetchUserData(forceRefresh)
             .then(data => {
                 if (!silent) {
                     this.hideLoading();
@@ -410,11 +737,14 @@ const WinixWallet = {
     },
 
     // Отримання даних користувача з API
-    fetchUserData: function() {
+    fetchUserData: function(forceRefresh = false) {
         return new Promise((resolve, reject) => {
+            // Додаємо параметр для запобігання кешуванню
+            const cacheBuster = forceRefresh ? Date.now() : '';
+
             // Спроба використати WinixAPI
             if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
-                window.WinixAPI.getUserData()
+                window.WinixAPI.getUserData(forceRefresh)
                     .then(response => {
                         if (response.status === 'success' && response.data) {
                             resolve(response.data);
@@ -427,7 +757,7 @@ const WinixWallet = {
             }
 
             // Якщо WinixAPI недоступний, використовуємо fetch API
-            fetch(`/api/user/${this.state.userId}/complete-balance`)
+            fetch(`/api/user/${this.state.userId}/complete-balance?t=${cacheBuster}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -546,53 +876,85 @@ const WinixWallet = {
         }
     },
 
-    // Завантаження транзакцій
+    // Покращена функція завантаження транзакцій
     loadTransactions: function(silent = false, limit = this.config.transactionsLimit) {
         if (!silent) {
             this.showLoading('Завантаження транзакцій...');
         }
 
-        // Спробуємо отримати транзакції з API
-        this.fetchTransactions(limit)
-            .then(transactions => {
-                if (!silent) {
-                    this.hideLoading();
-                }
+        // Збільшуємо кількість спроб для надійнішого підключення до API
+        const maxRetries = 3;
+        let retryCount = 0;
 
-                if (transactions && transactions.length > 0) {
-                    // Сортуємо транзакції за датою (від найновіших до найстаріших)
-                    transactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        const tryFetchTransactions = () => {
+            return this.fetchTransactions(limit)
+                .then(transactions => {
+                    if (!silent) {
+                        this.hideLoading();
+                    }
 
-                    // Оновлюємо стан
-                    this.state.transactions = transactions;
+                    if (transactions && transactions.length > 0) {
+                        // Сортуємо транзакції за датою (від найновіших до найстаріших)
+                        transactions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-                    // Оновлюємо список транзакцій
-                    this.updateTransactionsList();
-                } else {
-                    // Якщо транзакцій не отримано, використовуємо локальне сховище
-                    this.loadTransactionsFromLocalStorage();
-                }
-            })
-            .catch(error => {
-                console.error('Помилка завантаження транзакцій:', error);
+                        // Оновлюємо стан
+                        this.state.transactions = transactions;
+                        this.state.transactionsSource = 'api';
 
-                if (!silent) {
-                    this.hideLoading();
-                }
+                        // Зберігаємо в localStorage для офлайн-доступу
+                        localStorage.setItem('transactions', JSON.stringify(transactions));
+                        localStorage.setItem('transactions_timestamp', Date.now());
 
-                // Якщо сталася помилка, використовуємо локальне сховище
-                this.loadTransactionsFromLocalStorage();
-            });
+                        // Оновлюємо список транзакцій
+                        this.updateTransactionsList();
+                        return true;
+                    } else {
+                        throw new Error('Транзакції не знайдено');
+                    }
+                })
+                .catch(error => {
+                    console.warn(`Спроба ${retryCount + 1}/${maxRetries} завантаження транзакцій не вдалася:`, error);
+
+                    retryCount++;
+                    if (retryCount < maxRetries) {
+                        // Повторна спроба з експоненційною затримкою
+                        const delay = 300 * Math.pow(2, retryCount);
+                        return new Promise(resolve => setTimeout(() => resolve(tryFetchTransactions()), delay));
+                    } else {
+                        // Всі спроби не вдалися, використовуємо локальне сховище
+                        console.error('Всі спроби завантаження транзакцій не вдалися, використовуємо локальні дані');
+                        if (!silent) {
+                            this.hideLoading();
+                        }
+                        this.loadTransactionsFromLocalStorage();
+                        return false;
+                    }
+                });
+        };
+
+        return tryFetchTransactions();
     },
 
-    // Отримання транзакцій з API
+    // Покращена функція отримання транзакцій з API
     fetchTransactions: function(limit = this.config.transactionsLimit) {
         return new Promise((resolve, reject) => {
+            // Генеруємо унікальний параметр для запобігання кешуванню
+            const cacheBuster = Date.now();
+            const userId = this.state.userId || this.getUserId();
+
+            // Формуємо URL з додатковими параметрами
+            const apiUrl = `/api/user/${userId}/transactions?limit=${limit}&t=${cacheBuster}`;
+
+            console.log(`Запит транзакцій: ${apiUrl}`);
+
             // Спроба використати WinixAPI
-            if (window.WinixAPI && typeof window.WinixAPI.getTransactions === 'function') {
-                window.WinixAPI.getTransactions(limit)
+            if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+                window.WinixAPI.apiRequest(apiUrl, 'GET', null, {
+                    timeout: 10000 // 10 секунд таймаут
+                })
                     .then(response => {
                         if (response.status === 'success' && response.data) {
+                            console.log(`Отримано ${response.data.length} транзакцій через WinixAPI`);
                             resolve(response.data);
                         } else {
                             reject(new Error(response.message || 'Помилка отримання транзакцій'));
@@ -603,7 +965,13 @@ const WinixWallet = {
             }
 
             // Якщо WinixAPI недоступний, використовуємо fetch API
-            fetch(`/api/user/${this.state.userId}/transactions?limit=${limit}`)
+            fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache'
+                }
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -612,6 +980,7 @@ const WinixWallet = {
                 })
                 .then(data => {
                     if (data.status === 'success' && data.data) {
+                        console.log(`Отримано ${data.data.length} транзакцій через fetch API`);
                         resolve(data.data);
                     } else {
                         reject(new Error(data.message || 'Помилка отримання транзакцій'));
@@ -621,175 +990,234 @@ const WinixWallet = {
         });
     },
 
-    // Завантаження транзакцій з локального сховища
+    // Покращена функція завантаження транзакцій з локального сховища
     loadTransactionsFromLocalStorage: function() {
         try {
             // Спроба завантажити транзакції з localStorage
-            const transactionsStr = localStorage.getItem('transactions') || '[]';
-            const transactions = JSON.parse(transactionsStr);
+            const transactionsStr = localStorage.getItem('transactions');
+            const timestamp = localStorage.getItem('transactions_timestamp');
 
-            if (transactions && transactions.length > 0) {
-                // Сортуємо транзакції за датою (від найновіших до найстаріших)
-                transactions.sort((a, b) => {
-                    const dateA = a.created_at || a.timestamp || a.date;
-                    const dateB = b.created_at || b.timestamp || b.date;
-                    return new Date(dateB) - new Date(dateA);
-                });
+            // Перевіряємо, чи дані не застарілі (не старіші 24 годин)
+            const isOutdated = !timestamp || (Date.now() - parseInt(timestamp) > 24 * 60 * 60 * 1000);
 
-                // Оновлюємо стан
-                this.state.transactions = transactions;
+            if (transactionsStr && !isOutdated) {
+                const transactions = JSON.parse(transactionsStr);
 
-                // Оновлюємо список транзакцій
-                this.updateTransactionsList();
-            } else {
-                // Якщо транзакцій немає, створюємо демо-дані
-                this.createDemoTransactions();
+                if (transactions && transactions.length > 0) {
+                    // Сортуємо транзакції за датою (від найновіших до найстаріших)
+                    transactions.sort((a, b) => {
+                        const dateA = a.created_at || a.timestamp || a.date;
+                        const dateB = b.created_at || b.timestamp || b.date;
+                        return new Date(dateB) - new Date(dateA);
+                    });
+
+                    // Оновлюємо стан
+                    this.state.transactions = transactions;
+                    this.state.transactionsSource = 'localStorage';
+
+                    // Оновлюємо список транзакцій
+                    this.updateTransactionsList();
+
+                    // Показуємо повідомлення про використання кешованих даних
+                    if (!this.state.hasShownCacheMessage) {
+                        setTimeout(() => {
+                            this.showNotification('Показано кешовані транзакції. Потягніть вниз, щоб оновити.');
+                            this.state.hasShownCacheMessage = true;
+                        }, 1000);
+                    }
+
+                    return;
+                }
             }
+
+            // Якщо транзакцій немає або дані застарілі, створюємо демо-транзакції
+            this.createRealFallbackTransactions();
         } catch (error) {
             console.error('Помилка завантаження транзакцій з localStorage:', error);
 
-            // Якщо сталася помилка, створюємо демо-дані
-            this.createDemoTransactions();
+            // Якщо сталася помилка, створюємо демо-транзакції
+            this.createRealFallbackTransactions();
         }
     },
 
-    // Створення демо-транзакцій
-    createDemoTransactions: function() {
+    // Створення реалістичних резервних транзакцій (використовується лише в крайньому випадку)
+    createRealFallbackTransactions: function() {
         // Поточна дата
         const now = new Date();
+        const userId = this.state.userId || this.getUserId();
 
-        // Створюємо демо-транзакції
+        // Створюємо більш реалістичні демо-транзакції з реальними датами і сумами
+        // Використовуємо різні ID для транзакцій
         this.state.transactions = [
             {
-                id: this.generateId(),
-                type: 'receive',
-                amount: 1000,
-                from_address: '12345678',
-                description: 'Початкове зарахування',
-                created_at: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 днів тому
-                status: 'completed'
+                id: "tx_" + Math.random().toString(36).substr(2, 9),
+                type: "receive",
+                amount: Math.floor(Math.random() * 10000) + 1000,
+                from_address: "5824093721", // Випадковий ID відправника
+                description: "Отримано від користувача",
+                created_at: new Date(now.getTime() - (Math.floor(Math.random() * 7) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+                status: "completed"
             },
             {
-                id: this.generateId(),
-                type: 'send',
-                amount: -500,
-                to_address: '87654321',
-                description: 'Оплата послуг',
-                created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 дні тому
-                status: 'completed'
+                id: "tx_" + Math.random().toString(36).substr(2, 9),
+                type: "send",
+                amount: Math.floor(Math.random() * 500) + 500,
+                to_address: "4935721084", // Випадковий ID отримувача
+                description: "Переказ користувачу",
+                created_at: new Date(now.getTime() - (Math.floor(Math.random() * 3) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+                status: "completed"
             },
             {
-                id: this.generateId(),
-                type: 'stake',
-                amount: -200,
-                description: 'Стейкінг токенів',
-                created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 день тому
-                status: 'completed'
+                id: "tx_" + Math.random().toString(36).substr(2, 9),
+                type: "stake",
+                amount: Math.floor(Math.random() * 2000) + 1000,
+                description: "Стейкінг токенів на 14 днів",
+                created_at: new Date(now.getTime() - (Math.floor(Math.random() * 5) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+                status: "completed"
+            },
+            {
+                id: "tx_" + Math.random().toString(36).substr(2, 9),
+                type: "receive",
+                amount: Math.floor(Math.random() * 200) + 100,
+                from_address: "3894615203", // Випадковий ID відправника
+                description: "Бонус за активність",
+                created_at: new Date(now.getTime() - (Math.floor(Math.random() * 2) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+                status: "completed"
             }
         ];
+
+        // Додаємо мітку, що це демо-дані
+        this.state.transactionsSource = 'demo';
+
+        // Зберігаємо в localStorage
+        localStorage.setItem('transactions', JSON.stringify(this.state.transactions));
+        localStorage.setItem('transactions_timestamp', Date.now());
 
         // Оновлюємо список транзакцій
         this.updateTransactionsList();
 
-        // Зберігаємо транзакції в localStorage
-        localStorage.setItem('transactions', JSON.stringify(this.state.transactions));
+        // Показуємо повідомлення про використання демо-даних
+        setTimeout(() => {
+            this.showNotification('Показано демонстраційні транзакції. Перевірте підключення до мережі.');
+        }, 1000);
     },
 
-    // Оновлення списку транзакцій
-    updateTransactionsList: function(isHistoryList = false) {
-        // Визначаємо, який список оновлювати
-        const listElement = isHistoryList ? this.elements.historyList : this.elements.transactionsList;
+    // Покращена функція оновлення списку транзакцій з анімаціями
+    // У файлі wallet.js, у об'єкті WinixWallet
 
-        if (!listElement) return;
+// Замініть цю функцію на нову версію
+updateTransactionsList: function(isHistoryList = false) {
+    // Визначаємо, який список оновлювати
+    const listElement = isHistoryList ? this.elements.historyList : this.elements.transactionsList;
 
-        // Очищаємо список
-        listElement.innerHTML = '';
+    if (!listElement) return;
 
-        // Отримуємо транзакції
-        let transactions = this.state.transactions;
+    // Очищаємо список
+    listElement.innerHTML = '';
 
-        // Якщо це список історії, фільтруємо за типом
+    // Отримуємо транзакції
+    let transactions = this.state.transactions;
+
+    // Якщо це список історії, фільтруємо за типом
+    if (isHistoryList && this.state.currentFilter !== 'all') {
+        transactions = transactions.filter(tx => tx.type === this.state.currentFilter);
+    }
+
+    // Якщо це основний список, обмежуємо кількість транзакцій
+    if (!isHistoryList) {
+        transactions = transactions.slice(0, this.config.transactionsLimit);
+    }
+
+    // Якщо транзакцій немає, показуємо повідомлення
+    if (transactions.length === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'empty-message';
+
         if (isHistoryList && this.state.currentFilter !== 'all') {
-            transactions = transactions.filter(tx => tx.type === this.state.currentFilter);
+            emptyMessage.textContent = 'Немає транзакцій за обраним фільтром';
+        } else {
+            emptyMessage.textContent = 'Транзакції відсутні';
         }
 
-        // Якщо це основний список, обмежуємо кількість транзакцій
-        if (!isHistoryList) {
-            transactions = transactions.slice(0, this.config.transactionsLimit);
+        listElement.appendChild(emptyMessage);
+        return;
+    }
+
+    // Додаємо транзакції до списку
+    transactions.forEach((transaction, index) => {
+        const transactionEl = document.createElement('div');
+        transactionEl.className = `transaction-item transaction-${transaction.type}`;
+        transactionEl.setAttribute('data-id', transaction.id);
+        transactionEl.setAttribute('data-type', transaction.type);
+
+        // Встановлюємо номер індексу як атрибут (не як CSS змінну)
+        transactionEl.setAttribute('data-index', index);
+
+        const details = document.createElement('div');
+        details.className = 'transaction-details';
+
+        const type = document.createElement('div');
+        type.className = 'transaction-type';
+        type.textContent = this.getTransactionTypeText(transaction.type);
+        details.appendChild(type);
+
+        const date = document.createElement('div');
+        date.className = 'transaction-date';
+        date.textContent = this.formatDate(transaction.created_at || transaction.timestamp || transaction.date);
+        details.appendChild(date);
+
+        const amount = document.createElement('div');
+        amount.className = `transaction-amount ${this.getTransactionClass(transaction.type)}`;
+
+        const amountValue = parseFloat(transaction.amount);
+        amount.textContent = `${this.getTransactionPrefix(transaction.type)}${Math.abs(amountValue).toFixed(2)} $WINIX`;
+
+        transactionEl.appendChild(details);
+        transactionEl.appendChild(amount);
+
+        // Додаємо додаткову інформацію про джерело даних
+        if (this.state.transactionsSource === 'demo') {
+            const demoLabel = document.createElement('div');
+            demoLabel.className = 'transaction-demo-label';
+            demoLabel.textContent = 'Демо';
+            demoLabel.style.fontSize = '10px';
+            demoLabel.style.opacity = '0.7';
+            demoLabel.style.marginTop = '4px';
+            details.appendChild(demoLabel);
         }
 
-        // Якщо транзакцій немає, показуємо повідомлення
-        if (transactions.length === 0) {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.className = 'empty-message';
-
-            if (isHistoryList && this.state.currentFilter !== 'all') {
-                emptyMessage.textContent = 'Немає транзакцій за обраним фільтром';
-            } else {
-                emptyMessage.textContent = 'Транзакції відсутні';
-            }
-
-            listElement.appendChild(emptyMessage);
-            return;
-        }
-
-        // Додаємо транзакції до списку
-        transactions.forEach(transaction => {
-            const transactionEl = document.createElement('div');
-            transactionEl.className = 'transaction-item';
-            transactionEl.setAttribute('data-id', transaction.id);
-            transactionEl.setAttribute('data-type', transaction.type);
-
-            const details = document.createElement('div');
-            details.className = 'transaction-details';
-
-            const type = document.createElement('div');
-            type.className = 'transaction-type';
-            type.textContent = this.getTransactionTypeText(transaction.type);
-            details.appendChild(type);
-
-            const date = document.createElement('div');
-            date.className = 'transaction-date';
-            date.textContent = this.formatDate(transaction.created_at || transaction.timestamp || transaction.date);
-            details.appendChild(date);
-
-            const amount = document.createElement('div');
-            amount.className = `transaction-amount ${this.getTransactionClass(transaction.type)}`;
-
-            const amountValue = parseFloat(transaction.amount);
-            amount.textContent = `${this.getTransactionPrefix(transaction.type)}${Math.abs(amountValue).toFixed(2)} $WINIX`;
-
-            transactionEl.appendChild(details);
-            transactionEl.appendChild(amount);
-
-            // Додаємо анімацію появи
-            transactionEl.style.animation = 'fadeIn 0.3s ease-out forwards';
-
-            // Додаємо ефект при наведенні
-            transactionEl.addEventListener('mouseenter', () => {
-                transactionEl.style.transform = 'translateY(-2px)';
-                transactionEl.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-            });
-
-            transactionEl.addEventListener('mouseleave', () => {
-                transactionEl.style.transform = 'translateY(0)';
-                transactionEl.style.boxShadow = '';
-            });
-
-            // Додаємо ефект при натисканні
-            transactionEl.addEventListener('click', () => {
-                this.showTransactionDetails(transaction);
-            });
-
-            listElement.appendChild(transactionEl);
+        // Ефект при наведенні
+        transactionEl.addEventListener('mouseenter', () => {
+            transactionEl.style.transform = 'translateY(-2px)';
+            transactionEl.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
         });
-    },
+
+        transactionEl.addEventListener('mouseleave', () => {
+            transactionEl.style.transform = 'translateY(0)';
+            transactionEl.style.boxShadow = '';
+        });
+
+        // Додаємо ефект при натисканні
+        transactionEl.addEventListener('click', () => {
+            this.showTransactionDetails(transaction);
+        });
+
+        listElement.appendChild(transactionEl);
+
+        // Для нових транзакцій додаємо клас для анімації
+        if (transaction.isNew) {
+            setTimeout(() => {
+                transactionEl.classList.add('new');
+            }, 100);
+        }
+    });
+},
 
     // Показ деталей транзакції
     showTransactionDetails: function(transaction) {
         // Створюємо модальне вікно з деталями транзакції
         const modal = document.createElement('div');
-        modal.className = 'modal-overlay show';
+        modal.className = 'modal-overlay premium-modal show';
 
         const modalContent = document.createElement('div');
         modalContent.className = 'modal-container';
@@ -1058,6 +1486,17 @@ const WinixWallet = {
         }
     },
 
+    // Показ загального повідомлення
+    showNotification: function(message, isError = false) {
+        if (window.showNotification) {
+            window.showNotification(message, isError);
+        } else if (window.showToast) {
+            window.showToast(message, isError);
+        } else {
+            this.createToast(message, isError ? 'error' : 'info');
+        }
+    },
+
     // Створення повідомлення toast
     createToast: function(message, type = 'info') {
         // Перевіряємо, чи існує контейнер для повідомлень
@@ -1156,68 +1595,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ініціалізуємо гаманець
     WinixWallet.init();
-
-    // Додаємо стилі для анімацій
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .transaction-detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(78, 181, 247, 0.2);
-        }
-        
-        .detail-label {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 0.9rem;
-            font-weight: normal;
-        }
-        
-        .detail-value {
-            font-weight: bold;
-            text-align: right;
-            max-width: 60%;
-            word-break: break-word;
-        }
-        
-        .max-button {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            border: none;
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 2;
-        }
-        
-        .amount-group {
-            position: relative;
-        }
-        
-        /* Покращені стилі для модальних вікон */
-        .modal-overlay {
-            z-index: 1001 !important;
-        }
-        
-        .modal-container {
-            animation: modalAppear 0.3s ease-out forwards;
-        }
-        
-        @keyframes modalAppear {
-            from { transform: scale(0.8); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-    `;
-    document.head.appendChild(style);
 });
