@@ -26,6 +26,19 @@ update_balance = supabase_client.update_balance
 update_coins = supabase_client.update_coins
 supabase = supabase_client.supabase
 
+# Імпортуємо transactions.controllers для роботи з транзакціями
+try:
+    from ..transactions.controllers import add_user_transaction
+except ImportError:
+    # Альтернативний імпорт, якщо відносний не працює
+    spec_transactions = importlib.util.spec_from_file_location(
+        "transactions_controllers",
+        os.path.join(parent_dir, "transactions", "controllers.py")
+    )
+    transactions_module = importlib.util.module_from_spec(spec_transactions)
+    spec_transactions.loader.exec_module(transactions_module)
+    add_user_transaction = transactions_module.add_user_transaction
+
 
 def get_user_complete_balance(telegram_id):
     """Отримання повної інформації про баланс користувача"""
@@ -68,7 +81,19 @@ def add_tokens(telegram_id, data):
                 "message": "Відсутня кількість токенів"
             }), 400
 
-        amount = float(data['amount'])
+        try:
+            amount = float(data['amount'])
+            if amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Сума повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат суми"
+            }), 400
+
         description = data.get('description', 'Додавання токенів')
 
         user = get_user(telegram_id)
@@ -81,26 +106,44 @@ def add_tokens(telegram_id, data):
         current_balance = float(user.get("balance", 0))
         new_balance = current_balance + amount
 
-        # Створення транзакції в БД
-        # Імпортуємо модуль для транзакцій
-        spec_transactions = importlib.util.spec_from_file_location(
-            "transactions_controllers",
-            os.path.join(parent_dir, "transactions", "controllers.py")
-        )
-        transactions_module = importlib.util.module_from_spec(spec_transactions)
-        spec_transactions.loader.exec_module(transactions_module)
-        add_user_transaction = transactions_module.add_user_transaction
-
+        # Створюємо транзакцію - важливо робити її разом з оновленням балансу
         transaction_data = {
             'type': 'receive',
             'amount': amount,
-            'description': description
+            'description': description,
+            'status': 'pending',  # Спочатку позначаємо як "очікується"
+            'created_at': datetime.now().isoformat()
         }
 
+        # Спроба додати транзакцію
         transaction_response, status_code = add_user_transaction(telegram_id, transaction_data)
 
-        # Оновлення балансу в БД
-        update_user(telegram_id, {"balance": new_balance})
+        if status_code != 200:
+            return jsonify({
+                "status": "error",
+                "message": "Помилка створення транзакції"
+            }), 500
+
+        # Якщо транзакція успішно створена, оновлюємо баланс
+        update_result = update_user(telegram_id, {"balance": new_balance})
+
+        if not update_result:
+            # Якщо оновлення балансу не вдалося, скасовуємо транзакцію або позначаємо її як помилкову
+            # (потрібно додати функцію update_transaction у transactions.controllers)
+            logger.error(f"add_tokens: Помилка оновлення балансу для {telegram_id}")
+            return jsonify({
+                "status": "error",
+                "message": "Помилка оновлення балансу"
+            }), 500
+
+        # Оновлюємо статус транзакції на "завершено"
+        # (ідеально - додати цю функцію в транзакційному модулі)
+        try:
+            transaction_id = transaction_response.json.get('data', {}).get('transaction', {}).get('id')
+            if transaction_id:
+                supabase.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
+        except Exception as e:
+            logger.error(f"add_tokens: Помилка оновлення статусу транзакції: {str(e)}")
 
         return jsonify({
             "status": "success",
@@ -127,7 +170,19 @@ def subtract_tokens(telegram_id, data):
                 "message": "Відсутня кількість токенів"
             }), 400
 
-        amount = float(data['amount'])
+        try:
+            amount = float(data['amount'])
+            if amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Сума повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат суми"
+            }), 400
+
         description = data.get('description', 'Віднімання токенів')
 
         user = get_user(telegram_id)
@@ -148,26 +203,40 @@ def subtract_tokens(telegram_id, data):
 
         new_balance = current_balance - amount
 
-        # Створення транзакції в БД
-        # Імпортуємо модуль для транзакцій
-        spec_transactions = importlib.util.spec_from_file_location(
-            "transactions_controllers",
-            os.path.join(parent_dir, "transactions", "controllers.py")
-        )
-        transactions_module = importlib.util.module_from_spec(spec_transactions)
-        spec_transactions.loader.exec_module(transactions_module)
-        add_user_transaction = transactions_module.add_user_transaction
-
+        # Створюємо транзакцію
         transaction_data = {
             'type': 'send',
             'amount': -amount,  # від'ємне значення для віднімання
-            'description': description
+            'description': description,
+            'status': 'pending'
         }
 
+        # Спроба додати транзакцію
         transaction_response, status_code = add_user_transaction(telegram_id, transaction_data)
 
-        # Оновлення балансу в БД
-        update_user(telegram_id, {"balance": new_balance})
+        if status_code != 200:
+            return jsonify({
+                "status": "error",
+                "message": "Помилка створення транзакції"
+            }), 500
+
+        # Якщо транзакція успішно створена, оновлюємо баланс
+        update_result = update_user(telegram_id, {"balance": new_balance})
+
+        if not update_result:
+            logger.error(f"subtract_tokens: Помилка оновлення балансу для {telegram_id}")
+            return jsonify({
+                "status": "error",
+                "message": "Помилка оновлення балансу"
+            }), 500
+
+        # Оновлюємо статус транзакції на "завершено"
+        try:
+            transaction_id = transaction_response.json.get('data', {}).get('transaction', {}).get('id')
+            if transaction_id:
+                supabase.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
+        except Exception as e:
+            logger.error(f"subtract_tokens: Помилка оновлення статусу транзакції: {str(e)}")
 
         return jsonify({
             "status": "success",
@@ -194,7 +263,18 @@ def add_coins(telegram_id, data):
                 "message": "Відсутня кількість жетонів"
             }), 400
 
-        amount = int(data['amount'])
+        try:
+            amount = int(data['amount'])
+            if amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Кількість жетонів повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат кількості жетонів"
+            }), 400
 
         user = get_user(telegram_id)
         if not user:
@@ -207,7 +287,13 @@ def add_coins(telegram_id, data):
         new_coins = current_coins + amount
 
         # Оновлення жетонів в БД
-        update_user(telegram_id, {"coins": new_coins})
+        update_result = update_user(telegram_id, {"coins": new_coins})
+
+        if not update_result:
+            return jsonify({
+                "status": "error",
+                "message": "Помилка оновлення жетонів"
+            }), 500
 
         return jsonify({
             "status": "success",
@@ -234,7 +320,18 @@ def subtract_coins(telegram_id, data):
                 "message": "Відсутня кількість жетонів"
             }), 400
 
-        amount = int(data['amount'])
+        try:
+            amount = int(data['amount'])
+            if amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Кількість жетонів повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат кількості жетонів"
+            }), 400
 
         user = get_user(telegram_id)
         if not user:
@@ -255,7 +352,13 @@ def subtract_coins(telegram_id, data):
         new_coins = current_coins - amount
 
         # Оновлення жетонів в БД
-        update_user(telegram_id, {"coins": new_coins})
+        update_result = update_user(telegram_id, {"coins": new_coins})
+
+        if not update_result:
+            return jsonify({
+                "status": "error",
+                "message": "Помилка оновлення жетонів"
+            }), 500
 
         return jsonify({
             "status": "success",
@@ -282,7 +385,18 @@ def convert_coins_to_tokens(telegram_id, data):
                 "message": "Відсутня кількість жетонів для конвертації"
             }), 400
 
-        coins_amount = int(data['coins_amount'])
+        try:
+            coins_amount = int(data['coins_amount'])
+            if coins_amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Кількість жетонів повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат кількості жетонів"
+            }), 400
 
         # Константа для конвертації жетонів у токени
         COIN_TO_TOKEN_RATIO = 10  # 1 жетон = 10 WINIX
@@ -307,44 +421,58 @@ def convert_coins_to_tokens(telegram_id, data):
         # Розрахунок токенів для нарахування
         tokens_to_add = coins_amount * COIN_TO_TOKEN_RATIO
 
-        # Оновлення балансів
-        new_coins = current_coins - coins_amount
-        new_balance = current_balance + tokens_to_add
-
-        # Оновлення в БД
-        update_user(telegram_id, {
-            "coins": new_coins,
-            "balance": new_balance
-        })
-
-        # Створення транзакції
-        # Імпортуємо модуль для транзакцій
-        spec_transactions = importlib.util.spec_from_file_location(
-            "transactions_controllers",
-            os.path.join(parent_dir, "transactions", "controllers.py")
-        )
-        transactions_module = importlib.util.module_from_spec(spec_transactions)
-        spec_transactions.loader.exec_module(transactions_module)
-        add_user_transaction = transactions_module.add_user_transaction
-
+        # Транзакційний підхід: спочатку створюємо транзакцію, потім оновлюємо баланси
         transaction_data = {
             'type': 'receive',
             'amount': tokens_to_add,
-            'description': f'Конвертація {coins_amount} жетонів у {tokens_to_add} WINIX'
+            'description': f'Конвертація {coins_amount} жетонів у {tokens_to_add} WINIX',
+            'status': 'pending'
         }
 
-        add_user_transaction(telegram_id, transaction_data)
+        transaction_response, status_code = add_user_transaction(telegram_id, transaction_data)
 
-        return jsonify({
-            "status": "success",
-            "message": f"Конвертовано {coins_amount} жетонів у {tokens_to_add} WINIX",
-            "data": {
-                "coins_converted": coins_amount,
-                "tokens_received": tokens_to_add,
-                "new_coins_balance": new_coins,
-                "new_tokens_balance": new_balance
-            }
-        })
+        if status_code != 200:
+            return jsonify({
+                "status": "error",
+                "message": "Помилка створення транзакції"
+            }), 500
+
+        # Оновлення в БД через транзакцію
+        try:
+            # Створюємо і виконуємо пакетне оновлення (оптимально використовувати транзакцію БД)
+            new_coins = current_coins - coins_amount
+            new_balance = current_balance + tokens_to_add
+
+            update_result = update_user(telegram_id, {
+                "coins": new_coins,
+                "balance": new_balance
+            })
+
+            if not update_result:
+                raise Exception("Помилка оновлення балансу та жетонів")
+
+            # Оновлюємо статус транзакції на "завершено"
+            transaction_id = transaction_response.json.get('data', {}).get('transaction', {}).get('id')
+            if transaction_id:
+                supabase.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
+
+            return jsonify({
+                "status": "success",
+                "message": f"Конвертовано {coins_amount} жетонів у {tokens_to_add} WINIX",
+                "data": {
+                    "coins_converted": coins_amount,
+                    "tokens_received": tokens_to_add,
+                    "new_coins_balance": new_coins,
+                    "new_tokens_balance": new_balance
+                }
+            })
+        except Exception as e:
+            logger.error(f"convert_coins_to_tokens: Помилка оновлення балансу: {str(e)}")
+            # Тут можна додати логіку відкату транзакції, якщо щось пішло не так
+            return jsonify({
+                "status": "error",
+                "message": "Помилка конвертації: " + str(e)
+            }), 500
     except Exception as e:
         logger.error(f"convert_coins_to_tokens: Помилка конвертації жетонів для {telegram_id}: {str(e)}")
         return jsonify({
@@ -362,7 +490,19 @@ def check_sufficient_funds(telegram_id, data):
                 "message": "Відсутня сума для перевірки"
             }), 400
 
-        amount = float(data['amount'])
+        try:
+            amount = float(data['amount'])
+            if amount <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Сума повинна бути більше нуля"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Некоректний формат суми"
+            }), 400
+
         type = data.get('type', 'tokens')  # 'tokens' або 'coins'
 
         user = get_user(telegram_id)
@@ -458,15 +598,17 @@ def send_tokens_to_user(telegram_id, data):
             return jsonify({"status": "error", "message": "Відсутні необхідні дані"}), 400
 
         to_address = data['to_address']
-        amount = float(data['amount'])
+
+        try:
+            amount = float(data['amount'])
+            if amount <= 0:
+                return jsonify({"status": "error", "message": "Сума повинна бути більше нуля"}), 400
+        except (ValueError, TypeError):
+            return jsonify({"status": "error", "message": "Некоректний формат суми"}), 400
 
         # Перевірка на самонадсилання
         if str(telegram_id) == str(to_address):
             return jsonify({"status": "error", "message": "Не можна надсилати токени самому собі"}), 400
-
-        # Перевірка суми
-        if amount <= 0:
-            return jsonify({"status": "error", "message": "Сума має бути більше нуля"}), 400
 
         # Перевірка існування відправника
         sender = get_user(telegram_id)
@@ -486,65 +628,17 @@ def send_tokens_to_user(telegram_id, data):
                 "message": f"Недостатньо коштів для здійснення транзакції. Баланс: {sender_balance}, потрібно: {amount}"
             }), 400
 
-        # Виконуємо транзакцію
-        # 1. Зменшуємо баланс відправника
-        new_sender_balance = sender_balance - amount
-        update_user(telegram_id, {"balance": new_sender_balance})
-
-        # 2. Збільшуємо баланс отримувача
-        recipient_balance = float(recipient.get("balance", 0))
-        new_recipient_balance = recipient_balance + amount
-        update_user(to_address, {"balance": new_recipient_balance})
-
-        # 3. Створюємо транзакції для обох сторін
-        transaction_id = str(uuid.uuid4())
-        timestamp = datetime.now().isoformat()
-
-        # Імпортуємо модуль для транзакцій
+        # Імпортуємо модуль для транзакцій з правильним типом транзакції
         spec_transactions = importlib.util.spec_from_file_location(
             "transactions_controllers",
             os.path.join(parent_dir, "transactions", "controllers.py")
         )
         transactions_module = importlib.util.module_from_spec(spec_transactions)
         spec_transactions.loader.exec_module(transactions_module)
-        add_user_transaction = transactions_module.add_user_transaction
+        transfer_tokens = transactions_module.transfer_tokens
 
-        # Транзакція для відправника
-        sender_transaction_data = {
-            'id': transaction_id + "_sender",
-            'type': 'send',
-            'amount': -amount,
-            'description': f"Надсилання {amount} WINIX користувачу {to_address}",
-            'recipient_id': to_address,
-            'created_at': timestamp,
-            'status': 'completed'
-        }
-
-        # Транзакція для отримувача
-        recipient_transaction_data = {
-            'id': transaction_id + "_recipient",
-            'type': 'receive',
-            'amount': amount,
-            'description': f"Отримання {amount} WINIX від користувача {telegram_id}",
-            'sender_id': telegram_id,
-            'created_at': timestamp,
-            'status': 'completed'
-        }
-
-        # Додаємо транзакції
-        add_user_transaction(telegram_id, sender_transaction_data)
-        add_user_transaction(to_address, recipient_transaction_data)
-
-        return jsonify({
-            "status": "success",
-            "message": f"Успішно надіслано {amount} WINIX користувачу {to_address}",
-            "data": {
-                "transaction_id": transaction_id,
-                "amount": amount,
-                "recipient": to_address,
-                "new_balance": new_sender_balance
-            }
-        })
+        # Викликаємо функцію для переведення токенів (яка вже реалізує всю логіку транзакцій)
+        return transfer_tokens(telegram_id, to_address, amount, data.get('note', ''))
     except Exception as e:
         logger.error(f"send_tokens_to_user: Помилка надсилання токенів для {telegram_id}: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
