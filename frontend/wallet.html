@@ -445,6 +445,25 @@
             width: 100%;
         }
 
+        /* Стиль для кнопки "Переглянути всі" */
+        .view-all-button {
+            width: 100%;
+            margin-top: 10px;
+            height: 40px; /* Робимо її трохи вужчою за висотою */
+            background: var(--primary-gradient);
+        }
+
+        /* Стиль при наведенні, як у інших кнопок дій */
+        .view-all-button:hover {
+            transform: translateY(-0.1875rem);
+            box-shadow: 0 0.375rem 0.75rem var(--shadow-color);
+        }
+
+        .view-all-button:active {
+            transform: translateY(0);
+            box-shadow: 0 0.125rem 0.25rem var(--shadow-color);
+        }
+
         /* Нижня навігація */
         .nav-bar {
             background: var(--primary-gradient);
@@ -1194,12 +1213,14 @@
             <div class="transactions-section">
                 <div class="section-title">
                     <span data-lang-key="wallet.recent_transactions">Останні транзакції</span>
-                    <span class="view-all-link" id="view-all-transactions" data-lang-key="wallet.view_all">Переглянути всі</span>
+                    <!-- Видалено кнопку "Переглянути всі" з цього місця -->
                 </div>
                 <div class="transaction-list" id="transaction-list">
                     <!-- Транзакції будуть додані динамічно через JavaScript -->
                     <div class="empty-message">Завантаження транзакцій...</div>
                 </div>
+                <!-- Додана нова кнопка "Переглянути всі" після списку транзакцій -->
+                <button class="action-button view-all-button" id="view-all-transactions" data-lang-key="wallet.view_all">Переглянути всі</button>
             </div>
         </div>
 
@@ -1343,6 +1364,33 @@
                 const filter = this.value;
                 WinixWallet.filterTransactions(filter);
             });
+        }
+
+        // Додаємо обробник події для приховування клавіатури при кліку поза полем вводу
+        const inputs = document.querySelectorAll('input');
+
+        document.addEventListener('click', function(event) {
+            // Перевіряємо, чи клік був не на полі вводу
+            if (!event.target.matches('input')) {
+                // Приховуємо клавіатуру для всіх активних полів
+                inputs.forEach(input => {
+                    if (document.activeElement === input) {
+                        input.blur(); // Метод blur() забирає фокус та приховує клавіатуру
+                    }
+                });
+            }
+        });
+
+        // Додаємо обробник для кнопки відправки форми
+        const sendForm = document.getElementById('send-form');
+        if (sendForm) {
+            const submitButton = sendForm.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.addEventListener('click', function() {
+                    // Приховуємо клавіатуру при натисканні на кнопку відправки
+                    document.activeElement.blur();
+                });
+            }
         }
     });
     </script>
