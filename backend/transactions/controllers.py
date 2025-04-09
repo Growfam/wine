@@ -409,3 +409,103 @@ def get_recent_transactions_by_type(telegram_id, limit=3, transaction_type=None)
             f"get_recent_transactions_by_type: Помилка отримання останніх транзакцій користувача {telegram_id}: {str(e)}",
             exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+    def verify_user_password(telegram_id, data):
+        """Перевірка пароля користувача"""
+        try:
+            if not data or "password" not in data:
+                return jsonify({"status": "error", "message": "Відсутній пароль"}), 400
+
+            user = get_user(telegram_id)
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+            # Імпортуємо модуль seed_phrases для роботи з паролями
+            from . import seed_phrases
+
+            # Перевіряємо пароль
+            result = seed_phrases.verify_user_password(telegram_id, data["password"])
+
+            if result["status"] == "error":
+                return jsonify(result), 500
+
+            if not result["data"]["verified"]:
+                return jsonify({"status": "error", "message": "Невірний пароль"}), 401
+
+            return jsonify({"status": "success", "message": "Пароль вірний"})
+
+        except Exception as e:
+            logger.error(f"verify_user_password: Помилка перевірки пароля користувача {telegram_id}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    def update_user_password(telegram_id, data):
+        """Оновлення пароля користувача з хешуванням"""
+        try:
+            if not data or "password" not in data:
+                return jsonify({"status": "error", "message": "Відсутній пароль"}), 400
+
+            password = data["password"]
+
+            # Мінімальні вимоги до пароля
+            if len(password) < 8:
+                return jsonify({"status": "error", "message": "Пароль має містити не менше 8 символів"}), 400
+
+            # Перевіряємо наявність літер у паролі
+            letter_count = sum(1 for c in password if c.isalpha())
+            if letter_count < 5:
+                return jsonify({"status": "error", "message": "Пароль має містити не менше 5 літер"}), 400
+
+            # Імпортуємо модуль seed_phrases для роботи з паролями
+            from . import seed_phrases
+
+            # Хешуємо пароль
+            password_data = seed_phrases.hash_password(password)
+
+            # Оновлюємо пароль у базі даних
+            result = seed_phrases.update_user_password(
+                telegram_id,
+                password_data["hash"],
+                password_data["salt"]
+            )
+
+            if result["status"] == "error":
+                return jsonify(result), 500
+
+            return jsonify({"status": "success", "message": "Пароль успішно оновлено"})
+
+        except Exception as e:
+            logger.error(f"update_user_password: Помилка оновлення пароля користувача {telegram_id}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    def get_user_seed_phrase(telegram_id, show_password_protected=True):
+        """Отримання seed-фрази користувача з захистом паролем"""
+        try:
+            user = get_user(telegram_id)
+
+            if not user:
+                return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+
+            # Імпортуємо модуль seed_phrases
+            from . import seed_phrases
+
+            # Отримуємо seed-фразу
+            result = seed_phrases.get_user_seed_phrase(telegram_id)
+
+            if result["status"] == "error":
+                return jsonify(result), 500
+
+            # Якщо seed_phrase захищена паролем, перевіряємо наявність пароля
+            password_hash = user.get("password_hash")
+            if show_password_protected and password_hash:
+                # Повертаємо статус потреби пароля
+                return jsonify({
+                    "status": "password_required",
+                    "message": "Для перегляду seed-фрази потрібно ввести пароль"
+                })
+
+            return jsonify(result)
+
+        except Exception as e:
+            logger.error(f"get_user_seed_phrase: Помилка отримання seed-фрази користувача {telegram_id}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
