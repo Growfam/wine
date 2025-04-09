@@ -25,7 +25,8 @@ const WinixWallet = {
         transactionsSource: null, // 'api', 'localStorage', або 'demo'
         currentFilter: 'all',  // Поточний фільтр для історії транзакцій
         hasShownCacheMessage: false, // Прапорець для повідомлення про кешовані дані
-        historyModalLoaded: false // Прапорець для відстеження чи були завантажені дані для історії
+        historyModalLoaded: false, // Прапорець для відстеження чи були завантажені дані для історії
+        keyboardVisible: false, // Прапорець для відстеження видимості клавіатури
     },
 
     // DOM-елементи
@@ -56,7 +57,68 @@ const WinixWallet = {
         // Додаємо преміум-анімації
         this.addPremiumAnimations();
 
+        // Налаштовуємо обробники для клавіатури
+        this.setupKeyboardHandlers();
+
         console.log("WinixWallet: Ініціалізація завершена");
+    },
+
+    // Налаштування обробників для клавіатури
+    setupKeyboardHandlers: function() {
+        // Додаємо обробник для приховування клавіатури при кліку поза полем вводу
+        document.addEventListener('click', (e) => {
+            // Якщо клік був не на полі вводу, приховуємо клавіатуру
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                this.hideKeyboard();
+            }
+        });
+
+        // Додаємо обробник для натискання на Enter
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                this.hideKeyboard();
+            }
+        });
+
+        // Додаємо обробники на поля вводу для відслідковування фокусу
+        const inputFields = document.querySelectorAll('input, textarea');
+        inputFields.forEach(field => {
+            field.addEventListener('focus', () => {
+                this.state.keyboardVisible = true;
+            });
+
+            field.addEventListener('blur', () => {
+                setTimeout(() => {
+                    this.state.keyboardVisible = false;
+                }, 300);
+            });
+        });
+
+        // Додаємо спеціальний обробник для форми відправки
+        if (this.elements.sendForm) {
+            // При натисканні на кнопку надсилання приховуємо клавіатуру
+            const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.addEventListener('click', (e) => {
+                    this.hideKeyboard();
+                });
+            }
+
+            // При натисканні на елементи форми, що не є полями вводу
+            this.elements.sendForm.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    this.hideKeyboard();
+                }
+            });
+        }
+    },
+
+    // Метод для приховування клавіатури
+    hideKeyboard: function() {
+        // Приховуємо клавіатуру, прибираючи фокус з активного елемента
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
     },
 
     // Додавання преміум-анімацій
@@ -211,6 +273,26 @@ const WinixWallet = {
                     50% { opacity: 0.5; }
                     100% { opacity: 0; transform: translate(calc(100% + 20px), calc(100% + 20px)); }
                 }
+                
+                /* Покращення для форми надсилання - фіксація кнопки відправки знизу */
+                .send-form-container {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                }
+                
+                .form-fields {
+                    flex-grow: 1;
+                    overflow-y: auto;
+                }
+                
+                .form-submit-container {
+                    padding-top: 10px;
+                    position: sticky;
+                    bottom: 0;
+                    background: inherit;
+                    z-index: 2;
+                }
                 `;
                 document.head.appendChild(style);
             }
@@ -224,8 +306,68 @@ const WinixWallet = {
                 }
             });
 
+            // Оновлюємо структуру форми надсилання для кращої мобільної доступності
+            this.updateFormStructure();
+
         } catch (error) {
             console.error('Помилка додавання преміум-анімацій:', error);
+        }
+    },
+
+    // Покращення структури форми для мобільних пристроїв
+    updateFormStructure: function() {
+        try {
+            // Отримуємо форму надсилання
+            const form = document.getElementById('send-form');
+            if (!form) return;
+
+            // Перевіряємо, чи вже оновлена структура
+            if (form.querySelector('.form-fields')) return;
+
+            // Отримуємо кнопку відправки
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (!submitButton) return;
+
+            // Створюємо нову структуру форми
+            const formContent = form.innerHTML;
+            const submitButtonHTML = submitButton.outerHTML;
+
+            // Видаляємо оригінальну кнопку
+            submitButton.remove();
+
+            // Створюємо нові контейнери
+            const fieldsContainer = document.createElement('div');
+            fieldsContainer.className = 'form-fields';
+            fieldsContainer.innerHTML = formContent;
+
+            const submitContainer = document.createElement('div');
+            submitContainer.className = 'form-submit-container';
+            submitContainer.innerHTML = submitButtonHTML;
+
+            // Очищаємо форму і додаємо нові контейнери
+            form.innerHTML = '';
+            form.className = 'send-form-container';
+            form.appendChild(fieldsContainer);
+            form.appendChild(submitContainer);
+
+            // Відновлюємо обробник подій для форми
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleSendFormSubmit();
+            });
+
+            // Додаємо обробники для полів форми
+            const inputFields = form.querySelectorAll('input, textarea');
+            inputFields.forEach(field => {
+                field.addEventListener('focus', () => {
+                    // Прокручуємо форму вгору, щоб побачити кнопку
+                    setTimeout(() => {
+                        submitContainer.scrollIntoView({ behavior: 'smooth' });
+                    }, 300);
+                });
+            });
+        } catch (error) {
+            console.error('Помилка при оновленні структури форми:', error);
         }
     },
 
@@ -316,6 +458,8 @@ const WinixWallet = {
         if (this.elements.sendForm) {
             this.elements.sendForm.addEventListener('submit', (e) => {
                 e.preventDefault();
+                // Приховуємо клавіатуру перед відправкою
+                this.hideKeyboard();
                 this.handleSendFormSubmit();
             });
         }
@@ -355,8 +499,52 @@ const WinixWallet = {
             });
         }
 
-        // Додамо обробник для оновлення при потягуванні вниз (pull-to-refresh)
+        // Додаємо обробник для оновлення при потягуванні вниз (pull-to-refresh)
         this.setupPullToRefresh();
+
+        // Додамо обробники для полів вводу, щоб приховувати клавіатуру при натисканні Enter
+        if (this.elements.recipientId) {
+            this.elements.recipientId.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (this.elements.sendAmount) {
+                        this.elements.sendAmount.focus();
+                    }
+                }
+            });
+        }
+
+        if (this.elements.sendAmount) {
+            this.elements.sendAmount.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (this.elements.sendNote) {
+                        this.elements.sendNote.focus();
+                    } else {
+                        this.hideKeyboard();
+                        // Знайдемо кнопку відправки форми і натиснемо її
+                        const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
+                        if (submitButton) {
+                            submitButton.click();
+                        }
+                    }
+                }
+            });
+        }
+
+        if (this.elements.sendNote) {
+            this.elements.sendNote.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.hideKeyboard();
+                    // Знайдемо кнопку відправки форми і натиснемо її
+                    const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.click();
+                    }
+                }
+            });
+        }
     },
 
     // Налаштування оновлення при потягуванні вниз
@@ -514,6 +702,9 @@ const WinixWallet = {
     // Закриття модального вікна
     closeModal: function(modal) {
         if (modal) {
+            // Приховуємо клавіатуру перед закриттям модального вікна
+            this.hideKeyboard();
+
             modal.classList.remove('show');
 
             // Скидаємо прапорець завантаження історії, якщо закривається вікно історії
@@ -525,6 +716,9 @@ const WinixWallet = {
 
     // Обробка відправки форми переказу
     handleSendFormSubmit: function() {
+        // Приховуємо клавіатуру
+        this.hideKeyboard();
+
         // Отримуємо дані з форми
         const recipientId = this.elements.recipientId ? this.elements.recipientId.value.trim() : '';
         const amount = this.elements.sendAmount ? parseFloat(this.elements.sendAmount.value) : 0;
@@ -587,7 +781,8 @@ const WinixWallet = {
                         description: note || `Надсилання ${amount} WINIX користувачу ${recipientId}`,
                         created_at: new Date().toISOString(),
                         status: 'completed',
-                        isNew: true
+                        isNew: true,
+                        telegram_id: this.state.userId // Явно вказуємо, що це транзакція цього користувача
                     };
 
                     // Додаємо транзакцію на початок списку
@@ -1189,6 +1384,7 @@ const WinixWallet = {
                 type: "receive",
                 amount: Math.floor(Math.random() * 10000) + 1000,
                 from_address: "5824093721", // Випадковий ID відправника
+                telegram_id: userId, // ID поточного користувача (важливо для фільтрації)
                 description: "Отримано від користувача",
                 created_at: new Date(now.getTime() - (Math.floor(Math.random() * 7) + 1) * 24 * 60 * 60 * 1000).toISOString(),
                 status: "completed"
@@ -1198,6 +1394,7 @@ const WinixWallet = {
                 type: "send",
                 amount: Math.floor(Math.random() * 500) + 500,
                 to_address: "4935721084", // Випадковий ID отримувача
+                telegram_id: userId, // ID поточного користувача (важливо для фільтрації)
                 description: "Переказ користувачу",
                 created_at: new Date(now.getTime() - (Math.floor(Math.random() * 3) + 1) * 24 * 60 * 60 * 1000).toISOString(),
                 status: "completed"
@@ -1206,6 +1403,7 @@ const WinixWallet = {
                 id: "tx_" + Math.random().toString(36).substr(2, 9),
                 type: "stake",
                 amount: Math.floor(Math.random() * 2000) + 1000,
+                telegram_id: userId, // ID поточного користувача (важливо для фільтрації)
                 description: "Стейкінг токенів на 14 днів",
                 created_at: new Date(now.getTime() - (Math.floor(Math.random() * 5) + 1) * 24 * 60 * 60 * 1000).toISOString(),
                 status: "completed"
@@ -1215,6 +1413,7 @@ const WinixWallet = {
                 type: "receive",
                 amount: Math.floor(Math.random() * 200) + 100,
                 from_address: "3894615203", // Випадковий ID відправника
+                telegram_id: userId, // ID поточного користувача (важливо для фільтрації)
                 description: "Бонус за активність",
                 created_at: new Date(now.getTime() - (Math.floor(Math.random() * 2) + 1) * 24 * 60 * 60 * 1000).toISOString(),
                 status: "completed"
@@ -1249,6 +1448,23 @@ const WinixWallet = {
 
         // Отримуємо транзакції
         let transactions = useFilteredData ? this.state.filteredTransactions : this.state.transactions;
+
+        // Фільтруємо транзакції, щоб показувати тільки ті, що безпосередньо стосуються користувача
+        // Якщо telegram_id збігається з ID користувача, це відправка або інша операція цього користувача
+        // Якщо to_address збігається з ID користувача, це отримання коштів цим користувачем
+        transactions = transactions.filter(tx => {
+            const userId = this.state.userId.toString();
+            // Якщо користувач є надсилачем, показуємо транзакцію відправки
+            if (tx.telegram_id && tx.telegram_id.toString() === userId) {
+                return true;
+            }
+            // Якщо користувач є отримувачем, показуємо транзакцію отримання,
+            // але тільки якщо це не дублює транзакцію відправки
+            else if (tx.to_address && tx.to_address.toString() === userId && tx.type === 'receive') {
+                return true;
+            }
+            return false;
+        });
 
         // Якщо це список історії і не використовуємо відфільтровані дані, фільтруємо за типом
         if (isHistoryList && !useFilteredData && this.state.currentFilter !== 'all') {
@@ -1302,7 +1518,14 @@ const WinixWallet = {
             amount.className = `transaction-amount ${this.getTransactionClass(transaction.type)}`;
 
             const amountValue = parseFloat(transaction.amount);
-            amount.textContent = `${this.getTransactionPrefix(transaction.type)}${Math.abs(amountValue).toFixed(2)} $WINIX`;
+            const absAmount = Math.abs(amountValue);
+
+            // Виправлення для коректного відображення суми в залежності від типу транзакції
+            if (transaction.type === 'receive' || transaction.type === 'reward' || transaction.type === 'unstake') {
+                amount.textContent = `+${absAmount.toFixed(2)} $WINIX`;
+            } else {
+                amount.textContent = `-${absAmount.toFixed(2)} $WINIX`;
+            }
 
             transactionEl.appendChild(details);
             transactionEl.appendChild(amount);
@@ -1347,6 +1570,9 @@ const WinixWallet = {
 
     // Показ деталей транзакції
     showTransactionDetails: function(transaction) {
+        // Приховуємо клавіатуру
+        this.hideKeyboard();
+
         // Створюємо модальне вікно з деталями транзакції
         const modal = document.createElement('div');
         modal.className = 'modal-overlay premium-modal show';
@@ -1372,6 +1598,12 @@ const WinixWallet = {
         const modalBody = document.createElement('div');
         modalBody.className = 'modal-content';
 
+        // Правильно відображаємо суму з відповідним знаком
+        const amountValue = parseFloat(transaction.amount);
+        const absAmount = Math.abs(amountValue);
+        const amountPrefix = (transaction.type === 'receive' || transaction.type === 'reward' || transaction.type === 'unstake') ? '+' : '-';
+        const amountText = `${amountPrefix}${absAmount.toFixed(2)} $WINIX`;
+
         // Додаємо деталі транзакції
         const detailsHtml = `
             <div class="transaction-detail-row">
@@ -1381,7 +1613,7 @@ const WinixWallet = {
             <div class="transaction-detail-row">
                 <div class="detail-label">Сума:</div>
                 <div class="detail-value ${this.getTransactionClass(transaction.type)}">
-                    ${this.getTransactionPrefix(transaction.type)}${Math.abs(parseFloat(transaction.amount)).toFixed(2)} $WINIX
+                    ${amountText}
                 </div>
             </div>
             <div class="transaction-detail-row">
