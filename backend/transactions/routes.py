@@ -84,11 +84,6 @@ def register_transactions_routes(app):
         """Перевірка пароля користувача"""
         return controllers.verify_user_password(telegram_id, request.json)
 
-    @app.route('/api/user/<telegram_id>/seed-phrase', methods=['GET'])
-    def api_get_user_seed_phrase(telegram_id):
-        """Отримання seed-фрази користувача (захищено паролем)"""
-        return controllers.get_user_seed_phrase(telegram_id)
-
     @app.route('/api/user/<telegram_id>/seed-phrase/protected', methods=['POST'])
     def api_get_protected_seed_phrase(telegram_id):
         """Отримання seed-фрази користувача після перевірки пароля"""
