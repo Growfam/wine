@@ -73,39 +73,35 @@ def register_transactions_routes(app):
                 "message": str(e)
             }), 500
 
-        def register_seed_phrase_routes(app):
-            @app.route('/api/user/<telegram_id>/password', methods=['POST'])
-            def api_update_user_password(telegram_id):
-                """Оновлення пароля користувача"""
-                return controllers.update_user_password(telegram_id, request.json)
+    # Додаємо маршрути для seed phrase, які раніше були у функції register_seed_phrase_routes
+    @app.route('/api/user/<telegram_id>/password', methods=['POST'])
+    def api_update_user_password(telegram_id):
+        """Оновлення пароля користувача"""
+        return controllers.update_user_password(telegram_id, request.json)
 
-            @app.route('/api/user/<telegram_id>/verify-password', methods=['POST'])
-            def api_verify_user_password(telegram_id):
-                """Перевірка пароля користувача"""
-                return controllers.verify_user_password(telegram_id, request.json)
+    @app.route('/api/user/<telegram_id>/verify-password', methods=['POST'])
+    def api_verify_user_password(telegram_id):
+        """Перевірка пароля користувача"""
+        return controllers.verify_user_password(telegram_id, request.json)
 
-            @app.route('/api/user/<telegram_id>/seed-phrase', methods=['GET'])
-            def api_get_user_seed_phrase(telegram_id):
-                """Отримання seed-фрази користувача (захищено паролем)"""
-                return controllers.get_user_seed_phrase(telegram_id)
+    @app.route('/api/user/<telegram_id>/seed-phrase', methods=['GET'])
+    def api_get_user_seed_phrase(telegram_id):
+        """Отримання seed-фрази користувача (захищено паролем)"""
+        return controllers.get_user_seed_phrase(telegram_id)
 
-            @app.route('/api/user/<telegram_id>/seed-phrase/protected', methods=['POST'])
-            def api_get_protected_seed_phrase(telegram_id):
-                """Отримання seed-фрази користувача після перевірки пароля"""
-                # Перевіряємо, чи є пароль у запиті
-                if not request.json or "password" not in request.json:
-                    return jsonify({"status": "error", "message": "Пароль обов'язковий"}), 400
+    @app.route('/api/user/<telegram_id>/seed-phrase/protected', methods=['POST'])
+    def api_get_protected_seed_phrase(telegram_id):
+        """Отримання seed-фрази користувача після перевірки пароля"""
+        # Перевіряємо, чи є пароль у запиті
+        if not request.json or "password" not in request.json:
+            return jsonify({"status": "error", "message": "Пароль обов'язковий"}), 400
 
-                # Перевіряємо пароль
-                verify_result = controllers.verify_user_password(telegram_id, request.json)
+        # Перевіряємо пароль
+        verify_result = controllers.verify_user_password(telegram_id, request.json)
 
-                # Якщо пароль невірний, повертаємо помилку
-                if isinstance(verify_result, tuple) and verify_result[1] != 200:
-                    return verify_result
+        # Якщо пароль невірний, повертаємо помилку
+        if isinstance(verify_result, tuple) and verify_result[1] != 200:
+            return verify_result
 
-                # Якщо пароль вірний, повертаємо seed-фразу
-                return controllers.get_user_seed_phrase(telegram_id, show_password_protected=False)
-
-        # Не забудьте додати цей рядок у функцію register_user_routes
-        # або викликати цю функцію у app.py
-        # register_seed_phrase_routes(app)
+        # Якщо пароль вірний, повертаємо seed-фразу
+        return controllers.get_user_seed_phrase(telegram_id, show_password_protected=False)

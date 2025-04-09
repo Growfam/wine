@@ -5,7 +5,12 @@ import random
 import hashlib
 import base64
 import importlib.util
+import json
+import secrets
 from datetime import datetime
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -76,99 +81,193 @@ BIP39_WORDS = [
 ]
 
 
-def generate_seed_phrase(telegram_id=None, length=12):
-    """Генерує seed-фразу для користувача."""
-    # Якщо довжина не стандартна BIP-39, використовуємо 12 слів за замовчуванням
+# Криптографічно безпечна функція для генерації seed-фрази
+def generate_seed_phrase(length=12):
+    """Генерує криптографічно безпечну seed-фразу.
+
+    Args:
+        length (int): Кількість слів у seed-фразі (12, 15, 18, 21, 24)
+
+    Returns:
+        str: Згенерована seed-фраза
+    """
+    # Стандарті довжини за BIP-39
     if length not in [12, 15, 18, 21, 24]:
         length = 12
 
-    # Якщо передано telegram_id, використовуємо його як seed для відтворюваності
-    if telegram_id:
-        try:
-            seed_value = int(telegram_id) if str(telegram_id).isdigit() else hash(str(telegram_id))
-            random.seed(seed_value)
-        except (ValueError, TypeError):
-            logger.warning(f"Помилка при використанні telegram_id як seed: {telegram_id}")
-            pass  # Якщо проблема з telegram_id, використовуємо випадковий seed
+    # Використовуємо секретну криптографічну ентропію
+    random_bytes = secrets.token_bytes(32)  # 256 біт ентропії
 
-    # Вибираємо випадкові слова
-    seed_words = random.sample(BIP39_WORDS, length)
-    return " ".join(seed_words)
+    # Створюємо індекси слів на основі ентропії
+    word_indices = []
+    for i in range(length):
+        # Рівномірно використовуємо ентропію
+        value = int.from_bytes(random_bytes[i:i + 4], 'big')
+        index = value % len(BIP39_WORDS)
+        word_indices.append(index)
+
+    # Вибираємо слова за індексами
+    words = [BIP39_WORDS[index] for index in word_indices]
+    return " ".join(words)
 
 
 def hash_password(password):
-    """Створює простий хеш пароля з використанням SHA256."""
+    """Створює надійний хеш пароля з використанням PBKDF2.
+
+    Args:
+        password (str): Пароль для хешування
+
+    Returns:
+        dict: Словник з хешем і сіллю
+    """
+    # Генеруємо випадкову сіль
     salt = os.urandom(16)
-    password_bytes = password.encode('utf-8')
 
-    # Комбінуємо пароль і сіль
-    salted_password = password_bytes + salt
+    # Використовуємо PBKDF2 для хешування
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000  # Рекомендована кількість ітерацій
+    )
 
-    # Створюємо хеш
-    password_hash = hashlib.sha256(salted_password).hexdigest()
+    # Отримуємо хеш
+    key = kdf.derive(password.encode('utf-8'))
 
     # Повертаємо хеш та сіль у кодуванні base64
     return {
-        "hash": password_hash,
+        "hash": base64.b64encode(key).decode('utf-8'),
         "salt": base64.b64encode(salt).decode('utf-8')
     }
 
 
 def verify_password(password, password_data):
-    """Перевіряє пароль проти збереженого хешу."""
+    """Перевіряє пароль проти збереженого хешу.
+
+    Args:
+        password (str): Пароль для перевірки
+        password_data (dict): Словник з хешем і сіллю
+
+    Returns:
+        bool: True, якщо пароль вірний, False інакше
+    """
     try:
-        # Декодуємо сіль
+        # Декодуємо хеш і сіль
+        stored_key = base64.b64decode(password_data["hash"])
         salt = base64.b64decode(password_data["salt"])
 
-        # Комбінуємо новий пароль з сіллю
-        password_bytes = password.encode('utf-8')
-        salted_password = password_bytes + salt
+        # Створюємо новий хеш з тією ж сіллю
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000
+        )
 
-        # Створюємо хеш
-        password_hash = hashlib.sha256(salted_password).hexdigest()
+        # Обчислюємо хеш для введеного пароля
+        key = kdf.derive(password.encode('utf-8'))
 
-        # Порівнюємо з збереженим хешем
-        return password_hash == password_data["hash"]
+        # Порівнюємо хеші
+        return secrets.compare_digest(key, stored_key)
     except Exception as e:
         logger.error(f"Помилка перевірки пароля: {e}")
         return False
 
 
-def simple_encrypt(text, password):
-    """Просте шифрування тексту на основі пароля."""
-    # Це проста реалізація. В ідеалі слід використовувати бібліотеку для криптографії
-    key = hashlib.sha256(password.encode()).digest()
-    result = bytearray()
+def secure_encrypt(text, password):
+    """Надійне шифрування тексту на основі пароля з використанням Fernet.
 
-    for i, char in enumerate(text.encode()):
-        key_char = key[i % len(key)]
-        encrypted_char = (char + key_char) % 256
-        result.append(encrypted_char)
+    Args:
+        text (str): Текст для шифрування
+        password (str): Пароль для шифрування
 
-    return base64.b64encode(result).decode()
-
-
-def simple_decrypt(encrypted_text, password):
-    """Просте дешифрування тексту на основі пароля."""
+    Returns:
+        str: Зашифрований текст у форматі JSON
+    """
     try:
-        # Це проста реалізація. В ідеалі слід використовувати бібліотеку для криптографії
-        key = hashlib.sha256(password.encode()).digest()
-        encrypted_bytes = base64.b64decode(encrypted_text)
-        result = bytearray()
+        # Генеруємо сіль
+        salt = os.urandom(16)
 
-        for i, char in enumerate(encrypted_bytes):
-            key_char = key[i % len(key)]
-            decrypted_char = (char - key_char) % 256
-            result.append(decrypted_char)
+        # Використовуємо PBKDF2 для отримання ключа з пароля
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000
+        )
 
-        return result.decode()
+        # Отримуємо ключ для Fernet
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+        # Створюємо шифратор Fernet
+        cipher = Fernet(key)
+
+        # Шифруємо текст
+        encrypted_data = cipher.encrypt(text.encode())
+
+        # Зберігаємо сіль і зашифровані дані
+        result = {
+            "salt": base64.b64encode(salt).decode('utf-8'),
+            "encrypted_data": base64.b64encode(encrypted_data).decode('utf-8')
+        }
+
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Помилка шифрування: {e}")
+        return None
+
+
+def secure_decrypt(encrypted_json, password):
+    """Дешифрування тексту, зашифрованого за допомогою secure_encrypt.
+
+    Args:
+        encrypted_json (str): Зашифрований текст у форматі JSON
+        password (str): Пароль для дешифрування
+
+    Returns:
+        str: Дешифрований текст або None у випадку помилки
+    """
+    try:
+        # Парсимо JSON з зашифрованими даними
+        data = json.loads(encrypted_json)
+
+        # Отримуємо сіль і зашифровані дані
+        salt = base64.b64decode(data["salt"])
+        encrypted_data = base64.b64decode(data["encrypted_data"])
+
+        # Використовуємо PBKDF2 для отримання того ж ключа
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000
+        )
+
+        # Отримуємо ключ для Fernet
+        key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+        # Створюємо дешифратор Fernet
+        cipher = Fernet(key)
+
+        # Дешифруємо дані
+        decrypted_data = cipher.decrypt(encrypted_data)
+
+        return decrypted_data.decode()
     except Exception as e:
         logger.error(f"Помилка дешифрування: {e}")
         return None
 
 
 def update_user_seed_phrase(telegram_id, seed_phrase=None):
-    """Оновлює або генерує seed-фразу для користувача."""
+    """Оновлює або генерує seed-фразу для користувача.
+
+    Args:
+        telegram_id (str): ID користувача
+        seed_phrase (str, optional): Seed-фраза. Якщо None, генерується нова
+
+    Returns:
+        dict: Результат операції
+    """
     try:
         user = get_user(telegram_id)
 
@@ -177,7 +276,7 @@ def update_user_seed_phrase(telegram_id, seed_phrase=None):
 
         # Якщо seed_phrase не передано, генеруємо новий
         if not seed_phrase:
-            seed_phrase = generate_seed_phrase(telegram_id)
+            seed_phrase = generate_seed_phrase()
 
         # Оновлюємо seed_phrase у базі даних
         updated_user = update_user(telegram_id, {"seed_phrase": seed_phrase})
@@ -193,7 +292,14 @@ def update_user_seed_phrase(telegram_id, seed_phrase=None):
 
 
 def get_user_seed_phrase(telegram_id):
-    """Отримує seed-фразу користувача."""
+    """Отримує seed-фразу користувача.
+
+    Args:
+        telegram_id (str): ID користувача
+
+    Returns:
+        dict: Результат операції
+    """
     try:
         user = get_user(telegram_id)
 
@@ -219,7 +325,16 @@ def get_user_seed_phrase(telegram_id):
 
 
 def update_user_password(telegram_id, password_hash, password_salt=None):
-    """Оновлює пароль користувача."""
+    """Оновлює пароль користувача.
+
+    Args:
+        telegram_id (str): ID користувача
+        password_hash (str): Хеш пароля
+        password_salt (str, optional): Сіль для пароля
+
+    Returns:
+        dict: Результат операції
+    """
     try:
         user = get_user(telegram_id)
 
@@ -246,7 +361,15 @@ def update_user_password(telegram_id, password_hash, password_salt=None):
 
 
 def verify_user_password(telegram_id, password):
-    """Перевіряє пароль користувача."""
+    """Перевіряє пароль користувача.
+
+    Args:
+        telegram_id (str): ID користувача
+        password (str): Пароль
+
+    Returns:
+        dict: Результат операції
+    """
     try:
         user = get_user(telegram_id)
 
@@ -259,18 +382,26 @@ def verify_user_password(telegram_id, password):
         if not password_hash:
             return {"status": "error", "message": "Пароль не встановлено"}
 
-        # Проста перевірка для сумісності
-        if password_salt:
-            # Розширена перевірка з сіллю
-            if verify_password(password, {"hash": password_hash, "salt": password_salt}):
-                return {"status": "success", "data": {"verified": True}}
-        else:
-            # Базова перевірка без солі (для сумісності)
-            simple_hash = hashlib.sha256(password.encode()).hexdigest()
-            if simple_hash == password_hash:
-                return {"status": "success", "data": {"verified": True}}
+        verified = False
 
-        return {"status": "success", "data": {"verified": False}}
+        # Перевірка з новим алгоритмом (PBKDF2)
+        if password_salt:
+            verified = verify_password(password, {"hash": password_hash, "salt": password_salt})
+        else:
+            # Для сумісності зі старим алгоритмом (простий SHA-256)
+            simple_hash = hashlib.sha256(password.encode()).hexdigest()
+            verified = (simple_hash == password_hash)
+
+            # Якщо пароль вірний, бажано оновити його до нового формату
+            if verified:
+                logger.info(f"Виявлено старий формат пароля для {telegram_id}, оновлення до нового формату...")
+                new_password_data = hash_password(password)
+                update_user(telegram_id, {
+                    "password_hash": new_password_data["hash"],
+                    "password_salt": new_password_data["salt"]
+                })
+
+        return {"status": "success", "data": {"verified": verified}}
 
     except Exception as e:
         logger.error(f"Помилка перевірки пароля для {telegram_id}: {e}")

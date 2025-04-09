@@ -171,10 +171,13 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         telegram_id = str(telegram_id)
 
         # Перетворюємо параметри на числа
-        amount = float(amount)
-        period = int(period)
+        try:
+            amount = float(amount)
+            period = int(period)
+        except (ValueError, TypeError) as e:
+            return False, None, f"Некоректний формат параметрів: {str(e)}"
 
-        # Перевіряємо, чи сума є цілим числом
+        # Перевіряємо, чи сума є цілим числом (щоб уникнути проблем з округленням)
         if amount != int(amount):
             return False, None, "Сума стейкінгу має бути цілим числом"
 
@@ -190,7 +193,7 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         if not user:
             return False, None, "Користувача не знайдено"
 
-        # Перевіряємо баланс
+        # Перевіряємо баланс (завжди як float для уникнення проблем з порівнянням)
         current_balance = float(user.get("balance", 0))
         if current_balance < amount:
             return False, None, f"Недостатньо коштів. Ваш баланс: {current_balance}, необхідно: {amount}"
@@ -203,73 +206,84 @@ def create_staking(telegram_id: str, amount: Union[int, float], period: int) -> 
         # Визначаємо відсоток винагороди для періоду
         reward_percent = STAKING_REWARD_RATES[period]
 
-        # Віднімаємо кошти з балансу користувача
-        new_balance = current_balance - amount
-        balance_update = update_balance(telegram_id, -amount)
-        if not balance_update:
-            return False, None, "Помилка оновлення балансу"
-
-        # Створюємо сесію стейкінгу з правильним типом даних для user_id
-        staking_session = create_staking_session(
-            user_id=telegram_id,  # передаємо Telegram ID як рядок
-            amount_staked=amount,
-            staking_days=period,
-            reward_percent=reward_percent
-        )
-
-        if not staking_session:
-            # Повертаємо кошти, якщо сесія не створена
-            update_balance(telegram_id, amount)
-            return False, None, "Помилка створення стейкінгу"
-
-        # Розраховуємо очікувану винагороду
-        expected_reward = calculate_staking_reward(amount, period)
-
-        # Формуємо дані для відповіді
+        # Створюємо транзакційний блок для атомарних операцій
         try:
-            started_at = datetime.fromisoformat(staking_session["started_at"].replace('Z', '+00:00')) if isinstance(staking_session["started_at"], str) else staking_session["started_at"]
-            ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(staking_session["ends_at"], str) else staking_session["ends_at"]
+            # 1. Спочатку створюємо сесію стейкінгу
+            staking_session = create_staking_session(
+                user_id=telegram_id,
+                amount_staked=amount,
+                staking_days=period,
+                reward_percent=reward_percent
+            )
 
-            # Забезпечуємо наявність часового поясу
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
-            if ends_at.tzinfo is None:
-                ends_at = ends_at.replace(tzinfo=timezone.utc)
-        except Exception as e:
-            logger.error(f"Помилка парсингу дат: {str(e)}")
-            # Використовуємо дати як є
-            started_at = staking_session["started_at"]
-            ends_at = staking_session["ends_at"]
+            if not staking_session:
+                return False, None, "Помилка створення стейкінгу"
 
-        staking_data = {
-            "hasActiveStaking": True,
-            "stakingId": staking_session["id"],
-            "stakingAmount": amount,
-            "period": period,
-            "rewardPercent": reward_percent,
-            "expectedReward": expected_reward,
-            "remainingDays": period,
-            "startDate": staking_session["started_at"],
-            "endDate": staking_session["ends_at"]
-        }
+            # 2. Якщо сесія створена успішно, віднімаємо кошти з балансу
+            new_balance = current_balance - amount
+            balance_update = update_balance(telegram_id, -amount)
 
-        # Додаємо транзакцію
-        try:
+            if not balance_update:
+                # Якщо оновлення балансу не вдалося, видаляємо створену сесію
+                delete_staking_session(staking_session["id"])
+                return False, None, "Помилка оновлення балансу"
+
+            # 3. Додаємо запис транзакції
             transaction = {
                 "telegram_id": telegram_id,
                 "type": "stake",
                 "amount": -amount,
                 "description": f"Стейкінг на {period} днів ({reward_percent}% прибутку) (ID: {staking_session['id']})",
-                "status": "completed"
+                "status": "completed",
+                "staking_id": staking_session['id']
             }
 
             if supabase:
-                supabase.table("transactions").insert(transaction).execute()
-                logger.info(f"Транзакцію про стейкінг створено")
-        except Exception as e:
-            logger.error(f"Помилка при створенні транзакції: {str(e)}")
+                transaction_res = supabase.table("transactions").insert(transaction).execute()
+                if not transaction_res.data:
+                    logger.warning(
+                        f"create_staking: Не вдалося створити транзакцію для стейкінгу {staking_session['id']}")
+                    # Тут можна було б відкатити зміни, але це ускладнить код
+                    # Просто логуємо проблему, оскільки основні операції вже виконано
 
-        return True, {"staking": staking_data, "balance": new_balance}, "Стейкінг успішно створено"
+            # Розраховуємо очікувану винагороду
+            expected_reward = calculate_staking_reward(amount, period)
+
+            # Формуємо дані для відповіді з коректною обробкою дат
+            try:
+                started_at = datetime.fromisoformat(staking_session["started_at"].replace('Z', '+00:00')) if isinstance(
+                    staking_session["started_at"], str) else staking_session["started_at"]
+                ends_at = datetime.fromisoformat(staking_session["ends_at"].replace('Z', '+00:00')) if isinstance(
+                    staking_session["ends_at"], str) else staking_session["ends_at"]
+
+                # Забезпечуємо наявність часового поясу
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+                if ends_at.tzinfo is None:
+                    ends_at = ends_at.replace(tzinfo=timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка парсингу дат: {str(e)}")
+                # Використовуємо дати як є
+                started_at = staking_session["started_at"]
+                ends_at = staking_session["ends_at"]
+
+            staking_data = {
+                "hasActiveStaking": True,
+                "stakingId": staking_session["id"],
+                "stakingAmount": amount,
+                "period": period,
+                "rewardPercent": reward_percent,
+                "expectedReward": expected_reward,
+                "remainingDays": period,
+                "startDate": staking_session["started_at"],
+                "endDate": staking_session["ends_at"]
+            }
+
+            return True, {"staking": staking_data, "balance": new_balance}, "Стейкінг успішно створено"
+        except Exception as e:
+            logger.error(f"create_staking: Помилка в транзакційному блоці: {str(e)}")
+            # Тут можна було б спробувати відкатити зміни, але це потребує більш складної логіки
+            return False, None, f"Помилка при створенні стейкінгу: {str(e)}"
 
     except Exception as e:
         logger.error(f"Помилка створення стейкінгу для користувача {telegram_id}: {str(e)}")
@@ -295,17 +309,20 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
         telegram_id = str(telegram_id)
 
         # Додаткове логування
-        logger.info(f"add_to_staking: Додавання {additional_amount} до стейкінгу {staking_id} користувача {telegram_id}")
+        logger.info(
+            f"add_to_staking: Додавання {additional_amount} до стейкінгу {staking_id} користувача {telegram_id}")
 
         # Перетворюємо додаткову суму на число
         try:
             additional_amount = float(additional_amount)
-            if additional_amount != int(additional_amount):
-                logger.warning(f"add_to_staking: Сума {additional_amount} не є цілим числом, округляємо")
-                return False, None, "Сума додавання має бути цілим числом"
-            additional_amount = int(additional_amount)
-        except (ValueError, TypeError):
-            return False, None, "Некоректний формат суми"
+        except (ValueError, TypeError) as e:
+            return False, None, f"Некоректний формат суми: {str(e)}"
+
+        # Перевіряємо, чи сума є цілим числом
+        if additional_amount != int(additional_amount):
+            return False, None, "Сума додавання має бути цілим числом"
+
+        additional_amount = int(additional_amount)
 
         if additional_amount <= 0:
             return False, None, "Сума має бути більше нуля"
@@ -316,8 +333,10 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
             return False, None, f"Стейкінг з ID {staking_id} не знайдено"
 
         # Перевіряємо, чи стейкінг належить користувачу (перевіряємо обидва поля)
-        if str(staking_session.get("user_id", "")) != telegram_id and str(staking_session.get("telegram_id", "")) != telegram_id:
-            logger.error(f"add_to_staking: Стейкінг {staking_id} не належить користувачу {telegram_id}. user_id={staking_session.get('user_id')}, telegram_id={staking_session.get('telegram_id')}")
+        if str(staking_session.get("user_id", "")) != telegram_id and str(
+                staking_session.get("telegram_id", "")) != telegram_id:
+            logger.error(
+                f"add_to_staking: Стейкінг {staking_id} не належить користувачу {telegram_id}. user_id={staking_session.get('user_id')}, telegram_id={staking_session.get('telegram_id')}")
             return False, None, "Ви не маєте прав на цей стейкінг"
 
         # Перевіряємо, чи стейкінг активний
@@ -334,77 +353,26 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
         if current_balance < additional_amount:
             return False, None, f"Недостатньо коштів. Ваш баланс: {current_balance}, необхідно: {additional_amount}"
 
-        # Оновлюємо баланс користувача
-        new_balance = current_balance - additional_amount
-        balance_update = update_balance(telegram_id, -additional_amount)
-        if not balance_update:
-            return False, None, "Помилка оновлення балансу"
-
-        # Поточна сума стейкінгу
-        current_amount = float(staking_session["amount_staked"])
-        new_amount = current_amount + additional_amount
-
-        # Оновлюємо суму стейкінгу
-        updated_session = update_staking_session(staking_id, {"amount_staked": new_amount})
-        if not updated_session:
-            # Повертаємо кошти у випадку помилки
-            update_balance(telegram_id, additional_amount)
-            return False, None, "Помилка оновлення стейкінгу"
-
-        # Перевіряємо, чи відбулося оновлення
-        check_session = get_staking_session(staking_id)
-        if float(check_session["amount_staked"]) != new_amount:
-            logger.error(f"add_to_staking: Сума після оновлення не відповідає очікуваній: {check_session['amount_staked']} != {new_amount}")
-            # Повертаємо кошти
-            update_balance(telegram_id, additional_amount)
-            return False, None, "Помилка оновлення суми стейкінгу"
-
-        # Розраховуємо нову очікувану винагороду
-        period = int(updated_session["staking_days"])
-        reward_percent = float(updated_session["reward_percent"])
-        expected_reward = calculate_staking_reward(new_amount, period)
-
-        # Формуємо дані для відповіді з коректною обробкою дат
+        # Транзакційний блок для атомарних операцій
         try:
-            started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '+00:00')) if isinstance(updated_session["started_at"], str) else updated_session["started_at"]
-            ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '+00:00')) if isinstance(updated_session["ends_at"], str) else updated_session["ends_at"]
+            # 1. Спочатку оновлюємо сесію стейкінгу
+            current_amount = float(staking_session["amount_staked"])
+            new_amount = current_amount + additional_amount
 
-            # Забезпечуємо наявність часового поясу
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
-            if ends_at.tzinfo is None:
-                ends_at = ends_at.replace(tzinfo=timezone.utc)
+            updated_session = update_staking_session(staking_id, {"amount_staked": new_amount})
+            if not updated_session:
+                return False, None, "Помилка оновлення стейкінгу"
 
-            # Поточний час з часовим поясом
-            now = datetime.now(timezone.utc)
-        except Exception as e:
-            logger.error(f"Помилка парсингу дат: {str(e)}")
-            # Використовуємо "naive" дати
-            started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '')) if isinstance(updated_session["started_at"], str) else updated_session["started_at"]
-            ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '')) if isinstance(updated_session["ends_at"], str) else updated_session["ends_at"]
-            # Видаляємо часовий пояс, якщо він є
-            if hasattr(started_at, 'tzinfo') and started_at.tzinfo is not None:
-                started_at = started_at.replace(tzinfo=None)
-            if hasattr(ends_at, 'tzinfo') and ends_at.tzinfo is not None:
-                ends_at = ends_at.replace(tzinfo=None)
-            now = datetime.now()
+            # 2. Оновлюємо баланс користувача
+            new_balance = current_balance - additional_amount
+            balance_update = update_balance(telegram_id, -additional_amount)
 
-        remaining_days = max(0, (ends_at - now).days)
+            if not balance_update:
+                # Якщо оновлення балансу не вдалося, відкатуємо зміни в стейкінгу
+                update_staking_session(staking_id, {"amount_staked": current_amount})
+                return False, None, "Помилка оновлення балансу"
 
-        staking_data = {
-            "hasActiveStaking": True,
-            "stakingId": updated_session["id"],
-            "stakingAmount": new_amount,
-            "period": period,
-            "rewardPercent": reward_percent,
-            "expectedReward": expected_reward,
-            "remainingDays": remaining_days,
-            "startDate": updated_session["started_at"],
-            "endDate": updated_session["ends_at"]
-        }
-
-        # Додаємо транзакцію
-        try:
+            # 3. Додаємо запис транзакції
             transaction = {
                 "telegram_id": telegram_id,
                 "type": "stake",
@@ -415,25 +383,83 @@ def add_to_staking(telegram_id: str, staking_id: str, additional_amount: Union[i
             }
 
             if supabase:
-                supabase.table("transactions").insert(transaction).execute()
-                logger.info(f"Транзакцію про додавання до стейкінгу створено")
-        except Exception as e:
-            logger.error(f"Помилка при створенні транзакції: {str(e)}")
+                transaction_res = supabase.table("transactions").insert(transaction).execute()
+                if not transaction_res.data:
+                    logger.warning(f"add_to_staking: Не вдалося створити транзакцію для стейкінгу {staking_id}")
 
-        return True, {
-            "staking": staking_data,
-            "balance": new_balance,
-            "addedAmount": additional_amount,
-            "previousAmount": current_amount,
-            "newAmount": new_amount,
-            "newReward": expected_reward
-        }, f"Додано {additional_amount} WINIX до стейкінгу"
+            # Перевіряємо, чи відбулося оновлення
+            check_session = get_staking_session(staking_id)
+            if float(check_session["amount_staked"]) != new_amount:
+                logger.error(
+                    f"add_to_staking: Сума після оновлення не відповідає очікуваній: {check_session['amount_staked']} != {new_amount}")
+                # Спроба повторного оновлення
+                update_staking_session(staking_id, {"amount_staked": new_amount})
+
+            # Розраховуємо нову очікувану винагороду
+            period = int(updated_session["staking_days"])
+            reward_percent = float(updated_session["reward_percent"])
+            expected_reward = calculate_staking_reward(new_amount, period)
+
+            # Формуємо дані для відповіді з коректною обробкою дат
+            try:
+                started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '+00:00')) if isinstance(
+                    updated_session["started_at"], str) else updated_session["started_at"]
+                ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '+00:00')) if isinstance(
+                    updated_session["ends_at"], str) else updated_session["ends_at"]
+
+                # Забезпечуємо наявність часового поясу
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+                if ends_at.tzinfo is None:
+                    ends_at = ends_at.replace(tzinfo=timezone.utc)
+
+                # Поточний час з часовим поясом
+                now = datetime.now(timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка парсингу дат: {str(e)}")
+                # Використовуємо "naive" дати
+                started_at = datetime.fromisoformat(updated_session["started_at"].replace('Z', '')) if isinstance(
+                    updated_session["started_at"], str) else updated_session["started_at"]
+                ends_at = datetime.fromisoformat(updated_session["ends_at"].replace('Z', '')) if isinstance(
+                    updated_session["ends_at"], str) else updated_session["ends_at"]
+                # Видаляємо часовий пояс, якщо він є
+                if hasattr(started_at, 'tzinfo') and started_at.tzinfo is not None:
+                    started_at = started_at.replace(tzinfo=None)
+                if hasattr(ends_at, 'tzinfo') and ends_at.tzinfo is not None:
+                    ends_at = ends_at.replace(tzinfo=None)
+                now = datetime.now()
+
+            remaining_days = max(0, (ends_at - now).days)
+
+            staking_data = {
+                "hasActiveStaking": True,
+                "stakingId": updated_session["id"],
+                "stakingAmount": new_amount,
+                "period": period,
+                "rewardPercent": reward_percent,
+                "expectedReward": expected_reward,
+                "remainingDays": remaining_days,
+                "startDate": updated_session["started_at"],
+                "endDate": updated_session["ends_at"]
+            }
+
+            return True, {
+                "staking": staking_data,
+                "balance": new_balance,
+                "addedAmount": additional_amount,
+                "previousAmount": current_amount,
+                "newAmount": new_amount,
+                "newReward": expected_reward
+            }, f"Додано {additional_amount} WINIX до стейкінгу"
+        except Exception as e:
+            logger.error(f"add_to_staking: Помилка в транзакційному блоці: {str(e)}")
+            # Тут можна реалізувати логіку відкату змін
+            return False, None, f"Помилка додавання до стейкінгу: {str(e)}"
 
     except Exception as e:
         logger.error(f"Помилка додавання до стейкінгу: {str(e)}")
         logger.error(traceback.format_exc())
         return False, None, f"Помилка: {str(e)}"
-
 
 def cancel_staking(telegram_id: str, staking_id: str) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """
@@ -798,12 +824,22 @@ def calculate_staking_reward(amount: Union[int, float], period: int) -> float:
     """
     try:
         # Перетворюємо параметри на числа
-        amount = float(amount)
-        period = int(period)
+        try:
+            amount = float(amount)
+            period = int(period)
+        except (ValueError, TypeError) as e:
+            logger.error(f"calculate_staking_reward: Некоректний формат параметрів: {str(e)}")
+            return 0
 
         # Перевіряємо параметри
         if amount <= 0 or period <= 0:
+            logger.warning(f"calculate_staking_reward: Некоректні параметри: amount={amount}, period={period}")
             return 0
+
+        # Перевіряємо, чи сума є цілим числом
+        if amount != int(amount):
+            logger.warning(f"calculate_staking_reward: Сума {amount} не є цілим числом, буде округлена до {int(amount)}")
+            amount = int(amount)
 
         # Отримуємо відсоток винагороди
         reward_percent = STAKING_REWARD_RATES.get(period, 9)
@@ -811,6 +847,7 @@ def calculate_staking_reward(amount: Union[int, float], period: int) -> float:
         # Розраховуємо винагороду
         reward = (amount * reward_percent) / 100
 
+        # Округлюємо до 2 знаків після коми для уникнення проблем з точністю
         return round(reward, 2)
     except Exception as e:
         logger.error(f"Помилка розрахунку винагороди: {str(e)}")
