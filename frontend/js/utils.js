@@ -12,7 +12,10 @@ const MAX_NOTIFICATIONS = 3;
 // Змінні для контролю індикатора завантаження
 let _loadingTimeout = null;
 let _loadingStartTime = 0;
-const MAX_LOADING_TIME = 8000; // 8 секунд максимум
+const MAX_LOADING_TIME = 6000; // Зменшено до 6 секунд (було 8)
+
+// Змінна для відстеження стану індикатора завантаження
+let _loadingVisible = false;
 
 /**
  * Показує преміум-сповіщення з анімацією
@@ -299,6 +302,18 @@ function showNotification(message, isError = false, callback = null) {
  * @param {string} message - Повідомлення для відображення
  */
 function showLoading(message = 'Завантаження...') {
+    // Якщо індикатор вже показано, просто оновлюємо повідомлення
+    if (_loadingVisible) {
+        const messageElement = document.querySelector('.premium-spinner-message');
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        return;
+    }
+
+    // Встановлюємо прапорець видимості
+    _loadingVisible = true;
+
     // Встановлюємо час початку завантаження
     _loadingStartTime = Date.now();
 
@@ -460,6 +475,13 @@ function hideLoading() {
         _loadingTimeout = null;
     }
 
+    // Якщо індикатор не видимий, нічого не робимо
+    if (!_loadingVisible) {
+        return;
+    }
+
+    _loadingVisible = false;
+
     // Розраховуємо тривалість показу індикатора
     const loadingDuration = Date.now() - _loadingStartTime;
     console.log(`Індикатор завантаження був активний ${loadingDuration}ms`);
@@ -481,16 +503,26 @@ function hideLoading() {
  */
 function closeLoadingSpinner() {
     const spinner = document.getElementById('premium-loading-spinner');
+    const oldSpinner = document.getElementById('loading-spinner');
 
+    // Приховуємо обидва можливі індикатори
     if (spinner) {
         spinner.classList.remove('show');
-
         // Видаляємо елемент після завершення анімації
         setTimeout(() => {
             if (spinner.parentNode) {
                 spinner.parentNode.removeChild(spinner);
             }
         }, 300);
+    }
+
+    // Закриваємо старий індикатор, якщо він є
+    if (oldSpinner) {
+        if (oldSpinner.classList.contains('show')) {
+            oldSpinner.classList.remove('show');
+        }
+        // Приховуємо старий індикатор прямо стилями
+        oldSpinner.style.display = 'none';
     }
 }
 
@@ -863,24 +895,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Прихований індикатор завантаження для уникнення зациклення
     setTimeout(() => {
+        // Приховуємо обидва можливі індикатори
         const spinner = document.getElementById('loading-spinner');
-        if (spinner && spinner.classList.contains('show')) {
+        const premiumSpinner = document.getElementById('premium-loading-spinner');
+
+        if (spinner && (spinner.style.display === 'flex' || spinner.classList.contains('show'))) {
             console.warn("⚠️ Виявлено зависаючий індикатор завантаження, примусово приховуємо");
-            hideLoading();
+            spinner.style.display = 'none';
+            spinner.classList.remove('show');
+            _loadingVisible = false;
         }
-    }, 5000);
+
+        if (premiumSpinner && premiumSpinner.classList.contains('show')) {
+            console.warn("⚠️ Виявлено зависаючий преміум індикатор, примусово приховуємо");
+            premiumSpinner.classList.remove('show');
+            _loadingVisible = false;
+        }
+    }, 3000);
 });
 
 window.addEventListener('resize', fixNavigation);
 
 // Додаємо обробник для прихованих вказівників завантаження
 window.addEventListener('load', () => {
+    // Перевіряємо обидва типи індикаторів
     const spinner = document.getElementById('loading-spinner');
-    if (spinner && spinner.classList.contains('show')) {
+    const premiumSpinner = document.getElementById('premium-loading-spinner');
+
+    if (spinner && (spinner.style.display === 'flex' || spinner.classList.contains('show'))) {
         console.warn("⚠️ Виявлено зависаючий індикатор завантаження після завантаження, примусово приховуємо");
-        hideLoading();
+        spinner.style.display = 'none';
+        spinner.classList.remove('show');
+        _loadingVisible = false;
+    }
+
+    if (premiumSpinner && premiumSpinner.classList.contains('show')) {
+        console.warn("⚠️ Виявлено зависаючий преміум індикатор після завантаження, примусово приховуємо");
+        premiumSpinner.classList.remove('show');
+        _loadingVisible = false;
     }
 });
+
+// Додаємо аварійні обробники для запобігання завислим індикаторам
+setTimeout(() => {
+    const spinner = document.getElementById('loading-spinner');
+    const premiumSpinner = document.getElementById('premium-loading-spinner');
+
+    if (spinner && (spinner.style.display === 'flex' || spinner.classList.contains('show'))) {
+        console.warn("⚠️ [Автоочищення] Виявлено зависаючий індикатор завантаження");
+        spinner.style.display = 'none';
+        spinner.classList.remove('show');
+        _loadingVisible = false;
+    }
+
+    if (premiumSpinner && premiumSpinner.classList.contains('show')) {
+        console.warn("⚠️ [Автоочищення] Виявлено зависаючий преміум індикатор");
+        premiumSpinner.classList.remove('show');
+        setTimeout(() => {
+            if (premiumSpinner.parentNode) {
+                premiumSpinner.parentNode.removeChild(premiumSpinner);
+            }
+        }, 300);
+        _loadingVisible = false;
+    }
+
+    // Очищаємо таймаут для безпеки
+    if (_loadingTimeout) {
+        clearTimeout(_loadingTimeout);
+        _loadingTimeout = null;
+    }
+}, 8000);
 
 // Викликаємо фікс відразу, якщо DOM вже завантажено
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
@@ -889,10 +973,26 @@ if (document.readyState === 'interactive' || document.readyState === 'complete')
 
     // Прихований індикатор завантаження для уникнення зациклення
     setTimeout(() => {
+        // Приховуємо обидва можливі індикатори
         const spinner = document.getElementById('loading-spinner');
-        if (spinner && spinner.classList.contains('show')) {
+        const premiumSpinner = document.getElementById('premium-loading-spinner');
+
+        if (spinner && (spinner.style.display === 'flex' || spinner.classList.contains('show'))) {
             console.warn("⚠️ Виявлено зависаючий індикатор завантаження, примусово приховуємо");
-            hideLoading();
+            spinner.style.display = 'none';
+            spinner.classList.remove('show');
+            _loadingVisible = false;
+        }
+
+        if (premiumSpinner && premiumSpinner.classList.contains('show')) {
+            console.warn("⚠️ Виявлено зависаючий преміум індикатор, примусово приховуємо");
+            premiumSpinner.classList.remove('show');
+            setTimeout(() => {
+                if (premiumSpinner.parentNode) {
+                    premiumSpinner.parentNode.removeChild(premiumSpinner);
+                }
+            }, 300);
+            _loadingVisible = false;
         }
     }, 3000);
 }
