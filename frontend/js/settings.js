@@ -1,1889 +1,1035 @@
 /**
- * settings.js - Модуль для роботи з налаштуваннями користувача та SID-фразами з преміум-анімаціями
- * Виправлено проблему нескінченного завантаження
+ * WINIX - Модуль налаштувань користувача
+ *
+ * Цей файл містить логіку для роботи з налаштуваннями користувача
+ * в додатку WINIX Telegram WebApp.
  */
 
-(function() {
-    'use strict';
+// Оголошуємо глобальний об'єкт для налаштувань
+window.WinixSettings = (function() {
+    // Приватні змінні
+    let _isInitialized = false;
+    let _userData = null;
 
-    console.log("⚙️ SETTINGS: Ініціалізація модуля налаштувань");
+    /**
+     * Показує повідомлення користувачу
+     * @param {string} message - Текст повідомлення
+     * @param {boolean} isError - Чи це повідомлення про помилку
+     */
+    function showToast(message, isError = false) {
+        const toast = document.getElementById('toast-message');
+        if (!toast) return;
 
-    // Зберігаємо посилання на API - виправлений вибір API функції
-    let api = typeof window.WinixAPI === 'object' && typeof window.WinixAPI.apiRequest === 'function'
-        ? window.WinixAPI.apiRequest
-        : (typeof window.apiRequest === 'function' ? window.apiRequest : null);
+        // Очищаємо попередні класи
+        toast.className = 'toast-message';
+        if (isError) {
+            toast.classList.add('error');
+        } else {
+            toast.classList.add('success');
+        }
 
-    // Перевірка доступності API
-    if (!api) {
-        console.error("❌ SETTINGS: API недоступний. Створюємо заглушку.");
-        // Створюємо заглушку для API, щоб уникнути помилок
-        api = function(endpoint, method, data, options) {
-            console.warn(`📌 SETTINGS: Використання API заглушки для ${endpoint}`);
-            return new Promise((resolve) => {
-                // Завжди приховуємо індикатор завантаження перед відповіддю
-                setTimeout(() => {
-                    if (window.hideLoading) window.hideLoading();
+        toast.textContent = message;
+        toast.classList.add('show');
 
-                    // Симулюємо різні відповіді залежно від ендпоінта
-                    if (endpoint.includes('seed-phrase')) {
-                        resolve({
-                            status: 'success',
-                            data: {
-                                seed_phrase: "solve notable quick pluck tribe dinosaur cereal casino rail media final curve"
-                            }
-                        });
-                    } else {
-                        resolve({
-                            status: 'success',
-                            data: {},
-                            message: 'Симульована відповідь API'
-                        });
-                    }
-                }, 500);
-            });
-        };
-    } else {
-        console.log("✅ SETTINGS: API успішно ініціалізовано");
+        // Ховаємо повідомлення через 3 секунди
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
     }
 
-    // Глобальний таймаут для автоматичного приховування індикатора завантаження
-    let _loadingTimeout = null;
+    /**
+     * Створює функцію для генерації SID фрази на основі ID користувача
+     * Це проста імітація для демонстраційних цілей
+     * @param {string} userId - ID користувача
+     * @returns {Array} - Масив слів SID фрази
+     */
+    function generateSeedPhrase(userId) {
+        // Список слів для демонстрації
+        const wordList = [
+            "apple", "banana", "carrot", "diamond", "elephant", "flower",
+            "guitar", "hammer", "island", "jungle", "kitchen", "lion",
+            "mountain", "notebook", "orange", "pencil", "queen", "river",
+            "sunset", "tiger", "umbrella", "violin", "window", "xylophone"
+        ];
 
-    // Стан для відстеження відкритих модальних вікон
-    let _currentModal = null;
+        // Генеруємо псевдо-випадкові слова на основі userId
+        let seed = parseInt(userId) || 12345678;
+        let result = [];
 
-    // Додаємо преміум-стилі, якщо вони ще не додані
-    function addPremiumStyles() {
-        if (!document.getElementById('premium-styles')) {
-            const styleElement = document.createElement('style');
-            styleElement.id = 'premium-styles';
-            styleElement.textContent = `
-            /* Плавне з'явлення модальних вікон */
-            .modal-overlay {
-                transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-                backdrop-filter: blur(8px) !important;
-            }
+        for (let i = 0; i < 12; i++) {
+            seed = (seed * 9301 + 49297) % 233280;
+            const index = Math.floor(seed / 233280.0 * wordList.length);
+            result.push(wordList[index]);
+        }
 
-            .modal-container {
-                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                            opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
-                            0 0 0 1px rgba(78, 181, 247, 0.2) inset,
-                            0 5px 15px rgba(0, 201, 167, 0.15) !important;
-                overflow: hidden;
-            }
+        return result;
+    }
 
-            .modal-overlay.show .modal-container {
-                transform: scale(1) !important;
-                opacity: 1 !important;
-            }
+    /**
+     * Завантажує дані користувача з сервера або localStorage
+     */
+    function loadUserData() {
+        console.log("Завантаження даних користувача...");
 
-            /* Ефект свічення для модалок */
-            .modal-overlay.show .modal-container::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background: linear-gradient(90deg, 
-                    rgba(0, 201, 167, 0), 
-                    rgba(0, 201, 167, 0.8), 
-                    rgba(0, 201, 167, 0));
-                animation: glow-line 2s infinite;
-            }
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'flex';
 
-            @keyframes glow-line {
-                0% { opacity: 0.3; transform: translateX(-100%); }
-                50% { opacity: 1; }
-                100% { opacity: 0.3; transform: translateX(100%); }
-            }
+        try {
+            // У реальному додатку тут був би запит до API
+            // Симулюємо завантаження даних з localStorage
+            const userId = localStorage.getItem('userId') || '12345678';
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const tokens = parseFloat(localStorage.getItem('userTokens') || '294562.16');
+            const coins = parseFloat(localStorage.getItem('userCoins') || '250');
 
-            /* Анімовані кнопки */
-            .action-button, .form-button, .modal-button, .filter-button, .seed-continue-button, .copy-button {
-                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-                overflow: hidden;
-                position: relative;
-            }
+            // Оновлюємо відображення даних на сторінці
+            document.getElementById('user-id').textContent = userId;
+            document.getElementById('user-id-profile').textContent = userId;
+            document.getElementById('profile-name').textContent = username;
+            document.getElementById('user-tokens').textContent = tokens.toFixed(2);
+            document.getElementById('user-coins').textContent = coins.toFixed(0);
 
-            .action-button::after, .form-button::after, .modal-button::after, .seed-continue-button::after, .copy-button::after {
-                content: '';
-                position: absolute;
-                top: -50%;
-                left: -50%;
-                width: 200%;
-                height: 200%;
-                background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
-                opacity: 0;
-                transition: opacity 0.8s;
-                pointer-events: none;
-            }
+            // Зберігаємо дані для подальшого використання
+            _userData = {
+                id: userId,
+                username: username,
+                tokens: tokens,
+                coins: coins
+            };
 
-            .action-button:active::after, .form-button:active::after, .modal-button:active::after, .seed-continue-button:active::after, .copy-button:active::after {
-                opacity: 1;
-                transition: 0s;
-            }
+            // Завантажуємо аватар
+            loadUserAvatar();
 
-            /* Ефект пульсації для кнопок */
-            @keyframes pulse-button {
-                0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.4); }
-                70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
-                100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
-            }
-
-            /* Анімація для модальних вікон при відкритті/закритті */
-            @keyframes modal-in {
-                0% { transform: scale(0.8); opacity: 0; }
-                100% { transform: scale(1); opacity: 1; }
-            }
-
-            @keyframes modal-out {
-                0% { transform: scale(1); opacity: 1; }
-                100% { transform: scale(0.8); opacity: 0; }
-            }
-
-            /* Клас преміум для seed фрази */
-            .seed-modal-content {
-                background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95)) !important;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 
-                           0 0 0 1px rgba(78, 181, 247, 0.2) inset,
-                           0 5px 15px rgba(0, 201, 167, 0.15) !important;
-                transform: scale(0.9);
-                opacity: 0;
-                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                           opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-            }
-
-            .modal-overlay.show .seed-modal-content {
-                transform: scale(1) !important;
-                opacity: 1 !important;
-            }
-
-            /* Seed-фраза преміум ефекти */
-            .restore-card {
-                position: relative;
-                overflow: hidden;
-                background: linear-gradient(135deg, rgba(20, 30, 60, 0.9), rgba(10, 20, 40, 0.9)) !important;
-                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3),
-                           0 0 0 1px rgba(78, 181, 247, 0.15) inset !important;
-                border-radius: 16px !important;
-            }
-
-            .restore-card::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 50%;
-                height: 100%;
-                background: linear-gradient(90deg, 
-                                           rgba(255, 255, 255, 0), 
-                                           rgba(255, 255, 255, 0.08), 
-                                           rgba(255, 255, 255, 0));
-                transform: skewX(-25deg);
-                animation: shine 3s infinite;
-            }
-
-            @keyframes shine {
-                0% { left: -100%; }
-                20% { left: 100%; }
-                100% { left: 100%; }
-            }
-
-            /* Анімована сітка слів */
-            .words-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 10px;
-                margin: 15px 0;
-            }
-
-            .word-cell {
-                background: rgba(30, 39, 70, 0.8);
-                border-radius: 10px;
-                padding: 10px;
-                text-align: center;
-                border: 1px solid rgba(78, 181, 247, 0.15);
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-                transition: all 0.3s ease;
-                opacity: 0;
-                transform: translateY(20px);
-                animation: fadeInUp 0.5s forwards;
-            }
-
-            .word-cell:hover {
-                transform: translateY(-3px) !important;
-                box-shadow: 0 5px 15px rgba(0, 201, 167, 0.3) !important;
-                border-color: rgba(0, 201, 167, 0.3) !important;
-                background: rgba(30, 39, 70, 0.9) !important;
-            }
-
-            .word-cell:nth-child(1) { animation-delay: 0.1s; }
-            .word-cell:nth-child(2) { animation-delay: 0.15s; }
-            .word-cell:nth-child(3) { animation-delay: 0.2s; }
-            .word-cell:nth-child(4) { animation-delay: 0.25s; }
-            .word-cell:nth-child(5) { animation-delay: 0.3s; }
-            .word-cell:nth-child(6) { animation-delay: 0.35s; }
-            .word-cell:nth-child(7) { animation-delay: 0.4s; }
-            .word-cell:nth-child(8) { animation-delay: 0.45s; }
-            .word-cell:nth-child(9) { animation-delay: 0.5s; }
-            .word-cell:nth-child(10) { animation-delay: 0.55s; }
-            .word-cell:nth-child(11) { animation-delay: 0.6s; }
-            .word-cell:nth-child(12) { animation-delay: 0.65s; }
-
-            @keyframes fadeInUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            .word-number {
-                color: rgba(255, 255, 255, 0.5);
-                font-size: 0.8em;
-                margin-bottom: 2px;
-            }
-
-            .word-value {
-                color: var(--secondary-color, #4eb5f7);
-                font-weight: bold;
-                font-size: 0.95em;
-            }
-
-            /* Кнопка копіювання з пульсацією */
-            .copy-button {
-                background: linear-gradient(90deg, #2D6EB6, #52C0BD) !important;
-                padding: 10px 20px !important;
-                border-radius: 30px !important;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
-                position: relative;
-                overflow: hidden;
-                animation: pulse-button 2s infinite;
-                width: auto !important;
-                margin: 0 auto 10px !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                font-weight: bold !important;
-                gap: 8px !important;
-            }
-
-            .copy-button:hover {
-                transform: translateY(-3px) !important;
-                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
-            }
-
-            .copy-button:active {
-                transform: translateY(-1px) !important;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3) !important;
-            }
-
-            .copy-button::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg,
-                    rgba(255, 255, 255, 0),
-                    rgba(255, 255, 255, 0.2),
-                    rgba(255, 255, 255, 0));
-                transition: all 0.6s;
-            }
-
-            .copy-button:hover::before {
-                left: 100%;
-            }
-
-            /* Ефект успішного копіювання */
-            .copy-success {
-                animation: success-pulse 0.6s !important;
-            }
-
-            @keyframes success-pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.1); background: linear-gradient(90deg, #00C9A7, #2D6EB6) !important; }
-                100% { transform: scale(1); }
-            }
-
-            .seed-continue-button {
-                background: linear-gradient(90deg, #2D6EB6, #52C0BD) !important;
-                padding: 12px !important;
-                border-radius: 16px !important;
-                margin-top: 10px !important;
-                font-weight: bold !important;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
-                transition: all 0.3s ease !important;
-            }
-
-            .seed-continue-button:hover {
-                transform: translateY(-3px) !important;
-                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4) !important;
-            }
-
-            .seed-continue-button:active {
-                transform: translateY(-1px) !important;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3) !important;
-            }
-
-            /* Преміум стилі для поля вводу пароля */
-            .modal-body input {
-                transition: all 0.3s ease !important;
-                border: 1px solid rgba(78, 181, 247, 0.3) !important;
-                background: rgba(20, 30, 60, 0.7) !important;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) inset !important;
-            }
-
-            .modal-body input:focus {
-                border-color: rgba(0, 201, 167, 0.5) !important;
-                box-shadow: 0 0 10px rgba(0, 201, 167, 0.2) !important;
-                transform: translateY(-2px) !important;
-            }
-
-            .modal-body input.error {
-                animation: shake 0.5s !important;
-                border-color: #f44336 !important;
-                box-shadow: 0 0 10px rgba(244, 67, 54, 0.3) !important;
-            }
-
-            @keyframes shake {
-                0%, 100% { transform: translateX(0); }
-                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-                20%, 40%, 60%, 80% { transform: translateX(5px); }
-            }
-
-            /* Модальне вікно з анімованим фоном */
-            .document-modal.show {
-                animation: modal-bg-fade-in 0.4s forwards !important;
-            }
-
-            @keyframes modal-bg-fade-in {
-                from { background-color: rgba(0, 0, 0, 0); backdrop-filter: blur(0px); }
-                to { background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); }
-            }
-
-            /* Постійне свічення для модальних вікон */
-            .modal-content, .seed-modal-content {
-                position: relative;
-                overflow: hidden;
-            }
-
-            .modal-content::after, .seed-modal-content::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                box-shadow: inset 0 0 20px rgba(0, 201, 167, 0.2);
-                border-radius: inherit;
-                opacity: 0;
-                animation: inner-glow 3s infinite;
-            }
-
-            @keyframes inner-glow {
-                0% { opacity: 0; }
-                50% { opacity: 0.5; }
-                100% { opacity: 0; }
-            }
-
-            /* Ефект для заголовків модальних вікон */
-            .modal-title {
-                background: linear-gradient(90deg, #fff, #4eb5f7, #fff);
-                background-size: 200% auto;
-                background-clip: text;
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                animation: gradient-text 3s linear infinite;
-            }
-
-            @keyframes gradient-text {
-                0% { background-position: 0% center; }
-                100% { background-position: 200% center; }
-            }
-
-            /* Індикатор завантаження */
-            .spinner {
-                border: 5px solid rgba(0, 201, 167, 0.3);
-                border-radius: 50%;
-                border-top: 5px solid var(--secondary-color, #4eb5f7);
-                width: 50px;
-                height: 50px;
-                animation: spin 1s linear infinite;
-                margin: 20px auto;
-            }
-
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
-            
-            /* Стилі для профіля */
-            .profile-edit-modal .avatar-options {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                justify-content: center;
-                margin: 15px 0;
-            }
-            
-            .profile-edit-modal .avatar-option {
-                width: 60px;
-                height: 60px;
-                border-radius: 50%;
-                cursor: pointer;
-                border: 2px solid transparent;
-                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-                object-fit: cover;
-                box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
-            }
-            
-            .profile-edit-modal .avatar-option.selected {
-                border: 2px solid #00C9A7;
-                transform: scale(1.1);
-                box-shadow: 0 0 12px rgba(0, 201, 167, 0.5);
-            }
-            
-            .profile-edit-modal .avatar-option:hover {
-                border-color: rgba(0, 201, 167, 0.5);
-                transform: scale(1.05);
-                box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
-            }
-            
-            /* Стилі для документів ліцензії/угоди */
-            .document-content {
-                max-height: 400px;
-                overflow-y: auto;
-                margin: 15px 0;
-                padding: 15px;
-                background: rgba(20, 30, 60, 0.7);
-                border-radius: 12px;
-                border: 1px solid rgba(78, 181, 247, 0.2);
-                line-height: 1.6;
-            }
-            
-            .document-content h3 {
-                color: var(--secondary-color, #4eb5f7);
-                margin: 15px 0 8px;
-            }
-            
-            .document-content p {
-                margin-bottom: 10px;
-            }
-            
-            .document-content::-webkit-scrollbar {
-                width: 5px;
-            }
-            
-            .document-content::-webkit-scrollbar-track {
-                background: rgba(0, 0, 0, 0.1);
-                border-radius: 10px;
-            }
-            
-            .document-content::-webkit-scrollbar-thumb {
-                background: var(--secondary-color, #4eb5f7);
-                border-radius: 10px;
-            }
-            
-            /* Фікс для нижньої навігації */
-            .nav-bar {
-                position: fixed !important;
-                bottom: 1.875rem !important; /* 30px */
-                left: 50% !important;
-                transform: translateX(-50%) !important;
-                z-index: 10 !important;
-                width: 90% !important;
-                max-width: 33.75rem !important;
-                margin: 0 auto !important;
-                display: flex !important;
-                justify-content: space-around !important;
-            }
-            `;
-            document.head.appendChild(styleElement);
+            console.log("✅ Дані користувача успішно завантажено");
+        } catch (error) {
+            console.error("❌ Помилка завантаження даних користувача:", error);
+            showToast("Помилка завантаження даних", true);
+        } finally {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
         }
     }
 
-    // Додаємо преміум-стилі при завантаженні
-    addPremiumStyles();
+    /**
+     * Завантажує аватар користувача
+     */
+    function loadUserAvatar() {
+        const headerAvatar = document.getElementById('profile-avatar');
+        const profileAvatar = document.getElementById('profile-avatar-large');
 
-    // Функція для фіксування нижньої навігації
-    function fixNavigation() {
-        const navBar = document.querySelector('.nav-bar');
-        if (navBar) {
-            // Переконуємося, що стилі застосовані правильно
-            navBar.style.position = 'fixed';
-            navBar.style.bottom = '1.875rem';
-            navBar.style.left = '50%';
-            navBar.style.transform = 'translateX(-50%)';
-            navBar.style.zIndex = '10';
-            navBar.style.width = '90%';
-            navBar.style.maxWidth = '33.75rem';
-            navBar.style.margin = '0 auto';
-            navBar.style.display = 'flex';
-            navBar.style.justifyContent = 'space-around';
+        const username = localStorage.getItem('username') || 'WINIX User';
+        const avatarSrc = localStorage.getItem('userAvatarSrc');
+        const avatarId = localStorage.getItem('selectedAvatarId');
 
-            // Встановлюємо стилі для дочірніх елементів
-            const navItems = navBar.querySelectorAll('.nav-item');
-            navItems.forEach(item => {
-                item.style.textAlign = 'center';
-                item.style.width = '20%';
-            });
+        function setAvatar(element) {
+            if (!element) return;
+            element.innerHTML = '';
+
+            if (avatarSrc) {
+                const img = new Image();
+                img.src = avatarSrc;
+                img.alt = username;
+                img.onerror = () => {
+                    console.log('Помилка завантаження аватара, використовуємо текст');
+                    element.textContent = username[0].toUpperCase();
+                };
+                element.appendChild(img);
+            } else if (avatarId) {
+                const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
+                const img = new Image();
+                img.src = src;
+                img.alt = username;
+                img.onerror = () => {
+                    console.log('Помилка завантаження аватара, використовуємо запасний варіант');
+                    element.textContent = username[0].toUpperCase();
+                };
+                element.appendChild(img);
+            } else {
+                element.textContent = username[0].toUpperCase();
+            }
+        }
+
+        setAvatar(headerAvatar);
+        setAvatar(profileAvatar);
+    }
+
+    /**
+     * Функція для хешування пароля (проста імітація)
+     * @param {string} password - Пароль для хешування
+     * @returns {string} - Хеш пароля
+     */
+    function hashPassword(password) {
+        let hash = 0;
+        if (password.length === 0) return hash.toString();
+        for (let i = 0; i < password.length; i++) {
+            const char = password.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString() + "winix";
+    }
+
+    /**
+     * Валідація пароля
+     * @param {string} password - Пароль для перевірки
+     * @returns {Object} - Результат перевірки {valid: boolean, message: string}
+     */
+    function validatePassword(password) {
+        if (!password || password.length < 8)
+            return { valid: false, message: "Пароль має містити не менше 8 символів" };
+
+        if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
+            return { valid: false, message: "Пароль має містити не менше 5 літер" };
+
+        return { valid: true };
+    }
+
+    /**
+     * Зберігає налаштування користувача
+     * @param {Object} settings - Об'єкт з налаштуваннями для збереження
+     */
+    function saveUserSettings(settings) {
+        console.log("Збереження налаштувань користувача:", settings);
+
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'flex';
+
+        try {
+            // У реальному додатку тут був би запит до API
+            // Симулюємо збереження налаштувань в localStorage
+
+            if (settings.username) {
+                localStorage.setItem('username', settings.username);
+                document.getElementById('profile-name').textContent = settings.username;
+            }
+
+            if (settings.language) {
+                localStorage.setItem('userLanguage', settings.language);
+
+                // Оновлюємо активну мову в інтерфейсі
+                document.querySelectorAll('.language-option').forEach(opt => {
+                    opt.classList.toggle('active', opt.getAttribute('data-lang') === settings.language);
+                });
+
+                // Оновлюємо тексти на сторінці
+                updatePageTexts();
+            }
+
+            if (settings.notifications_enabled !== undefined) {
+                localStorage.setItem('notificationsEnabled', settings.notifications_enabled.toString());
+                document.getElementById('notifications-toggle').checked = settings.notifications_enabled;
+            }
+
+            if (settings.avatar_id) {
+                localStorage.setItem('selectedAvatarId', settings.avatar_id);
+                localStorage.removeItem('userAvatarSrc');
+                loadUserAvatar();
+            }
+
+            // Показуємо повідомлення про успішне збереження
+            showToast("Налаштування успішно збережено");
+
+            console.log("✅ Налаштування успішно збережено");
+        } catch (error) {
+            console.error("❌ Помилка збереження налаштувань:", error);
+            showToast("Помилка збереження налаштувань", true);
+        } finally {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
         }
     }
 
-    // Об'єкт для експорту
-    window.WinixSettings = {
-        /**
-         * Перевірка існування пароля
-         * @returns {boolean} - true, якщо пароль встановлено
-         */
-        hasPassword: function() {
-            const passwordHash = localStorage.getItem('passwordHash');
-            const seedPhrasePasswordHash = localStorage.getItem('seedPhrasePasswordHash');
-            return !!(passwordHash || seedPhrasePasswordHash);
-        },
+    /**
+     * Оновлює пароль користувача
+     * @param {string} password - Новий пароль
+     * @param {string|null} currentPassword - Поточний пароль (якщо є)
+     */
+    function updateUserPassword(password, currentPassword = null) {
+        console.log("Оновлення паролю користувача");
 
-        /**
-         * Встановлення пароля
-         * @param {string} password - Новий пароль
-         * @returns {Promise} - Результат операції
-         */
-        setPassword: function(password) {
-            if (!password || password.length < 8) {
-                return Promise.reject(new Error("Пароль має містити не менше 8 символів"));
+        // Перевіряємо валідність пароля
+        const validation = validatePassword(password);
+        if (!validation.valid) {
+            showToast(validation.message, true);
+            return;
+        }
+
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'flex';
+
+        try {
+            // У реальному додатку тут був би запит до API
+            // Симулюємо оновлення пароля
+
+            if (currentPassword) {
+                const currentPasswordHash = hashPassword(currentPassword);
+                const savedPasswordHash = localStorage.getItem('passwordHash');
+                const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+
+                // Перевіряємо, чи правильний поточний пароль
+                if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
+                    (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
+                    showToast("Невірний поточний пароль", true);
+                    return;
+                }
             }
 
-            // Перевіряємо, чи містить пароль достатню кількість літер
-            if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5) {
-                return Promise.reject(new Error("Пароль має містити не менше 5 літер"));
-            }
+            // Створюємо хеш нового пароля
+            const passwordHash = hashPassword(password);
 
-            // Зберігаємо хеш пароля в localStorage для швидкої перевірки
-            const passwordHash = this.hashPassword(password);
+            // Зберігаємо хеш пароля в localStorage
             localStorage.setItem('passwordHash', passwordHash);
             localStorage.setItem('seedPhrasePasswordHash', passwordHash);
 
-            // Отримуємо ID користувача
-            const userId = this.getUserId();
-
-            // Якщо є ID користувача, оновлюємо пароль на сервері
-            if (userId && api) {
-                return api(`/api/user/${userId}/password`, 'POST', {
-                    password_hash: passwordHash  // Передаємо хеш для безпеки
-                })
-                .then(response => {
-                    console.log("✅ SETTINGS: Пароль успішно оновлено на сервері");
-                    return response;
-                })
-                .catch(error => {
-                    console.error("❌ SETTINGS: Помилка оновлення пароля на сервері", error);
-                    // Навіть якщо сервер не відповідає, ми зберегли пароль локально
-                    return {
-                        status: 'success',
-                        message: 'Пароль збережено локально, але не вдалося оновити на сервері'
-                    };
-                });
-            } else {
-                // Якщо немає ID або API, просто повертаємо успіх
-                return Promise.resolve({
-                    status: 'success',
-                    message: 'Пароль збережено локально'
-                });
-            }
-        },
-
-        /**
-         * Перевірка пароля
-         * @param {string} password - Пароль для перевірки
-         * @returns {boolean} - true, якщо пароль правильний
-         */
-        verifyPassword: function(password) {
-            const savedPassHash = localStorage.getItem('passwordHash');
-            const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
-            const inputHash = this.hashPassword(password);
-
-            return inputHash === savedPassHash || inputHash === savedSeedHash;
-        },
-
-        /**
-         * Хешування пароля (проста імітація)
-         * @param {string} password - Пароль для хешування
-         * @returns {string} - Хеш пароля
-         */
-        hashPassword: function(password) {
-            let hash = 0;
-            if (password.length === 0) return hash.toString();
-            for (let i = 0; i < password.length; i++) {
-                const char = password.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return hash.toString() + "winix";
-        },
-
-        /**
-         * Отримання сід-фрази
-         * @param {string} password - Пароль для перевірки
-         * @returns {Promise<string>} - Результат операції
-         */
-        getSeedPhrase: function(password) {
-            if (!this.verifyPassword(password)) {
-                return Promise.reject(new Error("Неправильний пароль"));
-            }
-
-            // Отримуємо ID користувача
-            const userId = this.getUserId();
-
-            if (!userId) {
-                return Promise.reject(new Error("ID користувача не знайдено"));
-            }
-
-            // Перевіряємо наявність API
-            if (!api) {
-                console.error("❌ SETTINGS: API не доступний для отримання seed-фрази");
-                return Promise.reject(new Error("API недоступний"));
-            }
-
-            console.log(`Виконуємо запит: /api/user/${userId}/seed-phrase`);
-
-            // Використовуємо API ендпоінт для отримання seed-фрази
-            return api(`/api/user/${userId}/seed-phrase`, 'GET')
-                .then(response => {
-                    console.log("Отримано відповідь:", response);
-                    if (response.status === 'success' && response.data && response.data.seed_phrase) {
-                        return response.data.seed_phrase;
-                    } else {
-                        throw new Error(response.message || "Помилка отримання сід-фрази");
-                    }
-                })
-                .catch(error => {
-                    console.error("❌ SETTINGS: Помилка отримання сід-фрази:", error);
-
-                    // Якщо немає з'єднання з сервером, використовуємо фіктивну фразу
-                    // В реальному додатку слід зберігати зашифровану фразу локально
-                    const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-                    console.log("Використовуємо фіктивну сід-фразу для демонстрації");
-                    return fakeSeedPhrase;
-                });
-        },
-
-        /**
-         * Отримання ID користувача з доступних джерел
-         * @returns {string|null} - ID користувача або null
-         */
-        getUserId: function() {
-            // Перевірка в localStorage
-            const localId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId');
-            if (localId && localId !== 'undefined' && localId !== 'null') {
-                return localId;
-            }
-
-            // Перевірка Telegram WebApp
-            if (window.Telegram && window.Telegram.WebApp &&
-                window.Telegram.WebApp.initDataUnsafe &&
-                window.Telegram.WebApp.initDataUnsafe.user) {
-
-                const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
-                if (telegramId) {
-                    return telegramId.toString();
-                }
-            }
-
-            // Перевірка DOM елементу
-            const userIdElement = document.getElementById('user-id');
-            if (userIdElement && userIdElement.textContent) {
-                const domId = userIdElement.textContent.trim();
-                if (domId) {
-                    return domId;
-                }
-            }
-
-            // Якщо ID не знайдено, повертаємо тестовий ID для демонстрації
-            console.warn("⚠️ SETTINGS: ID користувача не знайдено, використовуємо тестовий ID");
-            return "7066583465";
-        },
-
-        /**
-         * Валідація пароля
-         * @param {string} password - Пароль для перевірки
-         * @returns {Object} - Результат перевірки {valid: boolean, message: string}
-         */
-        validatePassword: function(password) {
-            if (!password || password.length < 8)
-                return { valid: false, message: "Пароль має містити не менше 8 символів" };
-
-            // Перевіряємо, чи містить пароль достатню кількість літер
-            if ((password.match(/[a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g) || []).length < 5)
-                return { valid: false, message: "Пароль має містити не менше 5 літер" };
-
-            return { valid: true };
-        },
-
-        /**
-         * Показ модального вікна для встановлення пароля
-         * @param {Function} callback - Функція, яка викликається після успішного встановлення пароля
-         */
-        showSetPasswordModal: function(callback) {
-            const translations = {
-                uk: {
-                    setPassword: "Встановлення паролю",
-                    passwordRequirements: "Пароль має містити не менше 8 символів, включаючи 5 літер",
-                    password: "Пароль",
-                    confirm: "Підтвердження",
-                    save: "Зберегти",
-                    passwordsNotMatch: "Паролі не співпадають",
-                    passwordTooShort: "Пароль має містити не менше 8 символів",
-                    passwordFewLetters: "Пароль має містити не менше 5 літер"
-                },
-                en: {
-                    setPassword: "Set Password",
-                    passwordRequirements: "Password must contain at least 8 characters, including 5 letters",
-                    password: "Password",
-                    confirm: "Confirm",
-                    save: "Save",
-                    passwordsNotMatch: "Passwords do not match",
-                    passwordTooShort: "Password must contain at least 8 characters",
-                    passwordFewLetters: "Password must contain at least 5 letters"
-                },
-                ru: {
-                    setPassword: "Установка пароля",
-                    passwordRequirements: "Пароль должен содержать не менее 8 символов, включая 5 букв",
-                    password: "Пароль",
-                    confirm: "Подтверждение",
-                    save: "Сохранить",
-                    passwordsNotMatch: "Пароли не совпадают",
-                    passwordTooShort: "Пароль должен содержать не менее 8 символов",
-                    passwordFewLetters: "Пароль должен содержать не менее 5 букв"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.setPassword}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <p>${t.passwordRequirements}</p>
-                        <input type="password" id="new-password" placeholder="${t.password}">
-                        <input type="password" id="confirm-password" placeholder="${t.confirm}">
-                        <div id="error-msg"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modal-button" id="save-password">${t.save}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-            }, 10);
-
-            // Додаємо обробники подій
-            const saveBtn = modal.querySelector('#save-password');
-            saveBtn.onclick = () => {
-                const pwd = modal.querySelector('#new-password').value;
-                const confirm = modal.querySelector('#confirm-password').value;
-                const error = modal.querySelector('#error-msg');
-
-                // Перевіряємо, чи паролі співпадають
-                if (pwd !== confirm) {
-                    error.textContent = t.passwordsNotMatch;
-                    modal.querySelector('#confirm-password').classList.add('error');
-                    return;
-                }
-
-                // Перевіряємо валідність пароля
-                const validation = this.validatePassword(pwd);
-                if (!validation.valid) {
-                    error.textContent = validation.message;
-                    modal.querySelector('#new-password').classList.add('error');
-                    return;
-                }
-
-                // Додаємо анімацію для кнопки
-                saveBtn.classList.add('processing');
-
-                // Зберігаємо пароль
-                this.setPassword(pwd)
-                    .then(() => {
-                        // Видаляємо клас show для анімації закриття
-                        modal.classList.remove('show');
-
-                        // Затримка перед видаленням вікна для завершення анімації
-                        setTimeout(() => {
-                            modal.remove();
-                            _currentModal = null;
-                            if (typeof callback === 'function') {
-                                callback(pwd);
-                            }
-                        }, 300);
-                    })
-                    .catch(err => {
-                        error.textContent = err.message;
-                        saveBtn.classList.remove('processing');
-                    });
-            };
-
-            // Додаємо обробники для закриття модального вікна
-            modal.querySelector('.close-modal').onclick = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('show');
-                    setTimeout(() => {
-                        modal.remove();
-                        _currentModal = null;
-                    }, 300);
-                }
-            };
-
-            // Додаємо обробники для полів вводу
-            modal.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', function() {
-                    this.classList.remove('error');
-                    document.getElementById('error-msg').textContent = '';
-                });
-
-                // Додаємо обробник для Enter
-                input.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        saveBtn.click();
-                    }
-                });
-            });
-        },
-
-        /**
-         * Показ модального вікна для введення пароля
-         * @param {Function} callback - Функція, яка викликається після успішного введення пароля
-         */
-        showEnterPasswordModal: function(callback) {
-            const translations = {
-                uk: {
-                    enterPassword: "Введіть пароль",
-                    password: "Ваш пароль",
-                    check: "Перевірити",
-                    wrongPassword: "Невірний пароль"
-                },
-                en: {
-                    enterPassword: "Enter Password",
-                    password: "Your password",
-                    check: "Check",
-                    wrongPassword: "Wrong password"
-                },
-                ru: {
-                    enterPassword: "Введите пароль",
-                    password: "Ваш пароль",
-                    check: "Проверить",
-                    wrongPassword: "Неверный пароль"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.enterPassword}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <input type="password" id="enter-password" placeholder="${t.password}">
-                        <div id="error-msg"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modal-button" id="check-password">${t.check}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-                // Встановлюємо фокус на поле вводу
-                modal.querySelector('#enter-password').focus();
-            }, 10);
-
-            // Додаємо обробники подій
-            const checkBtn = modal.querySelector('#check-password');
-            checkBtn.onclick = () => {
-                const pwd = modal.querySelector('#enter-password').value;
-                const error = modal.querySelector('#error-msg');
-
-                if (this.verifyPassword(pwd)) {
-                    // Додаємо анімацію для кнопки
-                    checkBtn.classList.add('success');
-
-                    // Видаляємо клас show для анімації закриття
-                    modal.classList.remove('show');
-
-                    // Затримка перед видаленням вікна для завершення анімації
-                    setTimeout(() => {
-                        modal.remove();
-                        _currentModal = null;
-                        if (typeof callback === 'function') {
-                            callback(pwd);
-                        }
-                    }, 300);
-                } else {
-                    error.textContent = t.wrongPassword;
-                    modal.querySelector('#enter-password').classList.add('error');
-
-                    // Додаємо анімацію тряски для поля вводу
-                    setTimeout(() => {
-                        modal.querySelector('#enter-password').classList.remove('error');
-                    }, 500);
-                }
-            };
-
-            // Додаємо обробники для закриття модального вікна
-            modal.querySelector('.close-modal').onclick = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('show');
-                    setTimeout(() => {
-                        modal.remove();
-                        _currentModal = null;
-                    }, 300);
-                }
-            };
-
-            // Додаємо обробник для Enter
-            modal.querySelector('#enter-password').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    checkBtn.click();
-                }
-            });
-
-            // Додаємо обробник для зняття помилки при введенні
-            modal.querySelector('#enter-password').addEventListener('input', function() {
-                this.classList.remove('error');
-                document.getElementById('error-msg').textContent = '';
-            });
-        },
-
-        /**
-         * Показ модального вікна з сід-фразою
-         * @param {string} seedPhrase - Сід-фраза для показу
-         */
-        showSeedPhraseModal: function(seedPhrase) {
-            const translations = {
-                uk: {
-                    seedPhrase: "SID фраза",
-                    yourSeedPhrase: "Ваша SID фраза",
-                    saveSeed: "Збережіть цю фразу в надійному місці",
-                    copy: "Копіювати",
-                    copied: "Скопійовано",
-                    copyError: "Помилка копіювання",
-                    done: "Готово"
-                },
-                en: {
-                    seedPhrase: "SID Phrase",
-                    yourSeedPhrase: "Your SID Phrase",
-                    saveSeed: "Save this phrase in a secure place",
-                    copy: "Copy",
-                    copied: "Copied",
-                    copyError: "Copy error",
-                    done: "Done"
-                },
-                ru: {
-                    seedPhrase: "SID фраза",
-                    yourSeedPhrase: "Ваша SID фраза",
-                    saveSeed: "Сохраните эту фразу в надежном месте",
-                    copy: "Копировать",
-                    copied: "Скопировано",
-                    copyError: "Ошибка копирования",
-                    done: "Готово"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Розбиваємо фразу на окремі слова
-            const words = seedPhrase.split(' ');
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal';
-            modal.innerHTML = `
-                <div class="seed-modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.seedPhrase}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="restore-card">
-                            <div class="restore-title">${t.yourSeedPhrase}</div>
-                            <div class="restore-subtitle">${t.saveSeed}</div>
-                            <button class="copy-button">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M8 4V16C8 16.5304 8.21071 17.0391 8.58579 17.4142C8.96086 17.7893 9.46957 18 10 18H18C18.5304 18 19.0391 17.7893 19.4142 17.4142C19.7893 17.0391 20 16.5304 20 16V7.242C20 6.97556 19.9467 6.71181 19.8433 6.46624C19.7399 6.22068 19.5885 5.99824 19.398 5.812L16.188 2.602C16.0018 2.41154 15.7793 2.26013 15.5338 2.15673C15.2882 2.05333 15.0244 2 14.758 2H10C9.46957 2 8.96086 2.21071 8.58579 2.58579C8.21071 2.96086 8 3.46957 8 4V4Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M16 18V20C16 20.5304 15.7893 21.0391 15.4142 21.4142C15.0391 21.7893 14.5304 22 14 22H6C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V9C4 8.46957 4.21071 7.96086 4.58579 7.58579C4.96086 7.21071 5.46957 7 6 7H8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                ${t.copy}
-                            </button>
-                            <div class="words-grid">
-                                ${words.map((word, i) => `
-                                    <div class="word-cell">
-                                        <div class="word-number">${i + 1}.</div>
-                                        <div class="word-value">${word}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                            <button class="seed-continue-button">${t.done}</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-            }, 10);
-
-            // Додаємо обробники подій
-            modal.querySelector('.close-modal').onclick = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.querySelector('.copy-button').onclick = () => {
-                navigator.clipboard.writeText(seedPhrase)
-                    .then(() => {
-                        const copyBtn = modal.querySelector('.copy-button');
-                        copyBtn.classList.add('copy-success');
-
-                        if (window.showToast) {
-                            window.showToast(t.copied);
-                        } else {
-                            // Створюємо власний тост
-                            const toast = document.createElement('div');
-                            toast.className = 'toast-message success';
-                            toast.textContent = t.copied;
-                            document.body.appendChild(toast);
-
-                            setTimeout(() => {
-                                toast.classList.add('show');
-                            }, 10);
-
-                            setTimeout(() => {
-                                toast.classList.remove('show');
-                                setTimeout(() => toast.remove(), 300);
-                            }, 2000);
-                        }
-
-                        setTimeout(() => {
-                            copyBtn.classList.remove('copy-success');
-                        }, 600);
-                    })
-                    .catch(() => {
-                        if (window.showToast) {
-                            window.showToast(t.copyError, true);
-                        } else {
-                            alert(t.copyError);
-                        }
-                    });
-            };
-
-            modal.querySelector('.seed-continue-button').onclick = () => {
-                localStorage.setItem('seedPhraseViewed', 'true');
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('show');
-                    setTimeout(() => {
-                        modal.remove();
-                        _currentModal = null;
-                    }, 300);
-                }
-            };
-        },
-
-        /**
-         * Показ модального вікна для редагування профілю
-         */
-        showProfileEditModal: function() {
-            const translations = {
-                uk: {
-                    editProfile: "Редагування профілю",
-                    username: "Ім'я користувача",
-                    selectAvatar: "Виберіть аватар",
-                    save: "Зберегти",
-                    close: "Скасувати"
-                },
-                en: {
-                    editProfile: "Edit Profile",
-                    username: "Username",
-                    selectAvatar: "Select Avatar",
-                    save: "Save",
-                    close: "Cancel"
-                },
-                ru: {
-                    editProfile: "Редактирование профиля",
-                    username: "Имя пользователя",
-                    selectAvatar: "Выберите аватар",
-                    save: "Сохранить",
-                    close: "Отмена"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Поточні дані користувача
-            const currentUsername = localStorage.getItem('username') || 'WINIX User';
-            const currentAvatarId = localStorage.getItem('avatarId') || '1';
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal profile-edit-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.editProfile}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="username-input">${t.username}</label>
-                            <input type="text" id="username-input" value="${currentUsername}" autocomplete="off">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>${t.selectAvatar}</label>
-                            <div class="avatar-options">
-                                <img src="assets/avatars/1.png" class="avatar-option ${currentAvatarId === '1' ? 'selected' : ''}" data-avatar-id="1" onerror="this.src='https://via.placeholder.com/60?text=1'">
-                                <img src="assets/avatars/2.png" class="avatar-option ${currentAvatarId === '2' ? 'selected' : ''}" data-avatar-id="2" onerror="this.src='https://via.placeholder.com/60?text=2'">
-                                <img src="assets/avatars/3.png" class="avatar-option ${currentAvatarId === '3' ? 'selected' : ''}" data-avatar-id="3" onerror="this.src='https://via.placeholder.com/60?text=3'">
-                                <img src="assets/avatars/4.png" class="avatar-option ${currentAvatarId === '4' ? 'selected' : ''}" data-avatar-id="4" onerror="this.src='https://via.placeholder.com/60?text=4'">
-                                <img src="assets/avatars/5.png" class="avatar-option ${currentAvatarId === '5' ? 'selected' : ''}" data-avatar-id="5" onerror="this.src='https://via.placeholder.com/60?text=5'">
-                                <img src="assets/avatars/6.png" class="avatar-option ${currentAvatarId === '6' ? 'selected' : ''}" data-avatar-id="6" onerror="this.src='https://via.placeholder.com/60?text=6'">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modal-button" id="cancel-profile-edit">${t.close}</button>
-                        <button class="modal-button" id="save-profile">${t.save}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-                // Фокус на поле ім'я користувача
-                modal.querySelector('#username-input').focus();
-            }, 10);
-
-            // Обробники для вибору аватара
-            const avatarOptions = modal.querySelectorAll('.avatar-option');
-            avatarOptions.forEach(avatar => {
-                avatar.addEventListener('click', () => {
-                    // Знімаємо клас selected з усіх аватарів
-                    avatarOptions.forEach(a => a.classList.remove('selected'));
-                    // Додаємо клас selected до обраного аватара
-                    avatar.classList.add('selected');
-                });
-            });
-
-            // Обробник для збереження профілю
-            modal.querySelector('#save-profile').addEventListener('click', () => {
-                const username = modal.querySelector('#username-input').value.trim();
-                const selectedAvatar = modal.querySelector('.avatar-option.selected');
-                const avatarId = selectedAvatar ? selectedAvatar.getAttribute('data-avatar-id') : '1';
-
-                // Зберігаємо в localStorage
-                localStorage.setItem('username', username);
-                localStorage.setItem('avatarId', avatarId);
-
-                // Оновлюємо відображення на сторінці
-                const profileName = document.getElementById('profile-name');
-                if (profileName) {
-                    profileName.textContent = username;
-                }
-
-                const profileAvatar = document.getElementById('profile-avatar');
-                const profileAvatarLarge = document.getElementById('profile-avatar-large');
-
-                // Функція для оновлення аватару
-                const updateAvatar = (element, avatarId) => {
-                    if (!element) return;
-
-                    // Очищаємо вміст
-                    element.innerHTML = '';
-
-                    // Створюємо зображення
-                    const img = document.createElement('img');
-                    img.src = `assets/avatars/${avatarId}.png`;
-                    img.alt = username;
-                    img.onerror = () => {
-                        // Якщо зображення не завантажилося, показуємо першу літеру імені
-                        element.textContent = username.charAt(0).toUpperCase();
-                    };
-
-                    element.appendChild(img);
-                };
-
-                // Оновлюємо аватари
-                updateAvatar(profileAvatar, avatarId);
-                updateAvatar(profileAvatarLarge, avatarId);
-
-                // Відправляємо дані на сервер, якщо можливо
-                const userId = this.getUserId();
-                if (userId && api) {
-                    api(`/api/user/${userId}/settings`, 'POST', {
-                        username: username,
-                        avatar_id: avatarId
-                    }).catch(error => {
-                        console.error('Помилка оновлення профілю на сервері:', error);
-                    });
-                }
-
-                // Закриваємо модальне вікно з анімацією
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-
-                    // Показуємо повідомлення про успішне оновлення
-                    if (window.showToast) {
-                        window.showToast('Профіль успішно оновлено');
-                    }
-                }, 300);
-            });
-
-            // Обробник для закриття вікна
-            const closeModal = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.querySelector('.close-modal').onclick = closeModal;
-            modal.querySelector('#cancel-profile-edit').onclick = closeModal;
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    closeModal();
-                }
-            };
-        },
-
-        /**
-         * Показ модального вікна з ліцензією
-         */
-        showLicenseModal: function() {
-            const translations = {
-                uk: {
-                    license: "Ліцензія WINIX",
-                    close: "Закрити"
-                },
-                en: {
-                    license: "WINIX License",
-                    close: "Close"
-                },
-                ru: {
-                    license: "Лицензия WINIX",
-                    close: "Закрыть"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.license}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="document-content">
-                            <h3>Ліцензійна угода WINIX</h3>
-                            <p>Ця ліцензійна угода (далі - "Угода") регулює використання програмного продукту WINIX та його компонентів (далі - "Продукт").</p>
-                            
-                            <h3>1. Загальні положення</h3>
-                            <p>Продукт WINIX є інтелектуальною власністю її розробників та захищений міжнародними законами про авторське право.</p>
-                            
-                            <h3>2. Права користувача</h3>
-                            <p>Користувач має право використовувати Продукт в особистих некомерційних цілях. Отримання винагороди в WINIX токенах через використання функцій додатку не порушує умов некомерційного використання.</p>
-                            
-                            <h3>3. Обмеження</h3>
-                            <p>Користувачу забороняється:</p>
-                            <p>- Копіювати, модифікувати, декомпілювати або іншим чином змінювати вихідний код Продукту</p>
-                            <p>- Поширювати, продавати або передавати Продукт третім особам</p>
-                            <p>- Використовувати Продукт для будь-яких незаконних цілей</p>
-                            
-                            <h3>4. Відповідальність</h3>
-                            <p>Продукт надається "як є", без будь-яких гарантій. Розробники не несуть відповідальності за будь-які збитки, пов'язані з використанням або неможливістю використання Продукту.</p>
-                            
-                            <h3>5. Термін дії</h3>
-                            <p>Ця Угода набуває чинності з моменту початку використання Продукту і діє безстроково. Розробники залишають за собою право припинити дію цієї Угоди в разі порушення її умов користувачем.</p>
-                            
-                            <h3>6. Зміни в Угоді</h3>
-                            <p>Розробники залишають за собою право вносити зміни в цю Угоду в будь-який час без попереднього повідомлення. Актуальна версія Угоди завжди доступна в додатку.</p>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modal-button" id="close-license">${t.close}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-            }, 10);
-
-            // Обробник для закриття вікна
-            const closeModal = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.querySelector('.close-modal').onclick = closeModal;
-            modal.querySelector('#close-license').onclick = closeModal;
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    closeModal();
-                }
-            };
-        },
-
-        /**
-         * Показ модального вікна з угодою користувача
-         */
-        showAgreementModal: function() {
-            const translations = {
-                uk: {
-                    agreement: "Угода користувача",
-                    close: "Закрити"
-                },
-                en: {
-                    agreement: "User Agreement",
-                    close: "Close"
-                },
-                ru: {
-                    agreement: "Пользовательское соглашение",
-                    close: "Закрыть"
-                }
-            };
-
-            // Визначаємо поточну мову
-            const lang = localStorage.getItem('userLanguage') || 'uk';
-            const t = translations[lang] || translations.uk;
-
-            // Видаляємо попередні модальні вікна, якщо вони є
-            document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
-
-            // Створюємо нове модальне вікно
-            const modal = document.createElement('div');
-            modal.className = 'document-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div class="modal-title">${t.agreement}</div>
-                        <span class="close-modal">×</span>
-                    </div>
-                    <div class="modal-body">
-                        <div class="document-content">
-                            <h3>Угода користувача WINIX</h3>
-                            <p>Ця угода користувача (далі - "Угода") регулює використання WINIX додатку та всіх пов'язаних сервісів.</p>
-                            
-                            <h3>1. Реєстрація та авторизація</h3>
-                            <p>1.1. Для використання WINIX необхідна авторизація через Telegram.</p>
-                            <p>1.2. Користувач несе відповідальність за безпеку своїх облікових даних, включаючи пароль та SID-фразу.</p>
-                            <p>1.3. Користувач зобов'язується не передавати свої дані авторизації третім особам.</p>
-                            
-                            <h3>2. Використання сервісу</h3>
-                            <p>2.1. Користувач має право використовувати всі доступні функції WINIX відповідно до їх призначення.</p>
-                            <p>2.2. Платформа WINIX використовує власні токени, які не мають прямої конвертації у фіатні валюти.</p>
-                            <p>2.3. Адміністрація WINIX має право обмежити доступ користувача до сервісу в разі порушення умов цієї Угоди.</p>
-                            
-                            <h3>3. Стейкінг</h3>
-                            <p>3.1. Функція стейкінгу дозволяє користувачам блокувати певну кількість WINIX токенів на певний період часу в обмін на винагороду.</p>
-                            <p>3.2. Умови стейкінгу, включаючи відсоток винагороди та терміни, можуть змінюватися адміністрацією WINIX.</p>
-                            <p>3.3. Дострокове скасування стейкінгу може призвести до втрати частини заблокованих коштів згідно з актуальними умовами.</p>
-                            
-                            <h3>4. Транзакції</h3>
-                            <p>4.1. Користувач несе повну відповідальність за всі транзакції, виконані з використанням його облікового запису.</p>
-                            <p>4.2. Відправлення WINIX токенів іншим користувачам є незворотною операцією.</p>
-                            
-                            <h3>5. Обмеження відповідальності</h3>
-                            <p>5.1. Адміністрація WINIX не несе відповідальності за будь-які збитки, пов'язані з використанням або неможливістю використання сервісу.</p>
-                            <p>5.2. Сервіс надається "як є", без будь-яких гарантій.</p>
-                            
-                            <h3>6. Конфіденційність</h3>
-                            <p>6.1. Адміністрація WINIX зобов'язується не передавати персональні дані користувачів третім особам, крім випадків, передбачених законодавством.</p>
-                            <p>6.2. Користувач погоджується на обробку своїх персональних даних в межах, необхідних для функціонування сервісу.</p>
-                            
-                            <h3>7. Зміни в Угоді</h3>
-                            <p>7.1. Адміністрація WINIX залишає за собою право вносити зміни в цю Угоду в будь-який час.</p>
-                            <p>7.2. Продовження використання сервісу після внесення змін в Угоду означає згоду користувача з цими змінами.</p>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="modal-button" id="close-agreement">${t.close}</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Зберігаємо поточне модальне вікно
-            _currentModal = modal;
-
-            // Додаємо клас show з невеликою затримкою для анімації
-            setTimeout(() => {
-                modal.classList.add('show');
-            }, 10);
-
-            // Обробник для закриття вікна
-            const closeModal = () => {
-                modal.classList.remove('show');
-                setTimeout(() => {
-                    modal.remove();
-                    _currentModal = null;
-                }, 300);
-            };
-
-            modal.querySelector('.close-modal').onclick = closeModal;
-            modal.querySelector('#close-agreement').onclick = closeModal;
-
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    closeModal();
-                }
-            };
-        },
-
-        /**
-         * Обробка показу сід-фрази
-         */
-        handleShowSeedPhrase: function() {
-            console.log("⚙️ SETTINGS: Запит на показ SID фрази");
-
-            // Спочатку приховуємо попередній індикатор завантаження, якщо він є
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            // Очистимо попередній таймаут, якщо він є
-            if (_loadingTimeout) {
-                clearTimeout(_loadingTimeout);
-            }
-
-            const hasPassword = this.hasPassword();
-            const userId = this.getUserId();
-
-            if (!userId) {
-                if (window.showToast) {
-                    window.showToast("Помилка: Користувача не знайдено", true);
-                } else {
-                    alert("Помилка: Користувача не знайдено");
-                }
-                return;
-            }
-
-            // Показуємо індикатор завантаження
-            if (window.showLoading) {
-                window.showLoading('Завантаження SID фрази...');
-            }
-
-            // Встановлюємо таймаут для автоматичного приховування індикатора
-            _loadingTimeout = setTimeout(() => {
-                console.log("⚠️ SETTINGS: Автоматичне приховування індикатора завантаження");
-                if (window.hideLoading) window.hideLoading();
-
-                // Показуємо фіктивну фразу, якщо запит зависнув
-                if (!hasPassword) {
-                    this.showSetPasswordModal(password => {
-                        const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                } else {
-                    this.showEnterPasswordModal(password => {
-                        const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                }
-            }, 5000); // 5 секунд максимум
-
-            // Перевіряємо наявність API
-            if (!api) {
-                // Приховуємо індикатор завантаження
-                clearTimeout(_loadingTimeout);
-                if (window.hideLoading) window.hideLoading();
-
-                console.error("❌ SETTINGS: API недоступний для отримання SID фрази");
-
-                // Встановлюємо пароль і показуємо фіктивну фразу для демонстрації
-                if (!hasPassword) {
-                    this.showSetPasswordModal(password => {
-                        const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                } else {
-                    this.showEnterPasswordModal(password => {
-                        const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                }
-                return;
-            }
-
-            // Намагаємось отримати seed-фразу через API
-            try {
-                api(`/api/user/${userId}/seed-phrase`, 'GET')
-                    .then(response => {
-                        // Обов'язково приховуємо індикатор завантаження
-                        clearTimeout(_loadingTimeout);
-                        if (window.hideLoading) window.hideLoading();
-
-                        console.log("Відповідь від сервера:", response);
-
-                        if (response.status === 'success' && response.data && response.data.seed_phrase) {
-                            // Якщо пароль не встановлено, показуємо спочатку вікно для встановлення пароля
-                            if (!hasPassword) {
-                                this.showSetPasswordModal(password => {
-                                    // Показуємо сід-фразу після встановлення пароля
-                                    this.showSeedPhraseModal(response.data.seed_phrase);
-                                });
-                            } else {
-                                // Якщо пароль вже встановлено, показуємо спочатку вікно вводу пароля
-                                this.showEnterPasswordModal(password => {
-                                    // Показуємо сід-фразу після вводу правильного пароля
-                                    this.showSeedPhraseModal(response.data.seed_phrase);
-                                });
-                            }
-                        } else if (response.status === 'password_required') {
-                            // Якщо потрібен пароль, показуємо вікно введення пароля
-                            this.showEnterPasswordModal(password => {
-                                // Отримуємо сід-фразу з використанням пароля
-                                this.getSeedPhrase(password)
-                                    .then(seedPhrase => {
-                                        this.showSeedPhraseModal(seedPhrase);
-                                    })
-                                    .catch(error => {
-                                        console.error("❌ SETTINGS: Помилка отримання SID фрази", error);
-                                        if (window.showToast) {
-                                            window.showToast("Помилка отримання SID фрази: " + error.message, true);
-                                        } else {
-                                            alert("Помилка отримання SID фрази: " + error.message);
-                                        }
-                                    });
-                            });
-                        } else {
-                            console.error("❌ SETTINGS: Неочікувана відповідь API", response);
-
-                            // Використовуємо фіктивну фразу для демонстрації
-                            const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-
-                            // Якщо пароль не встановлено, показуємо спочатку вікно для встановлення пароля
-                            if (!hasPassword) {
-                                this.showSetPasswordModal(password => {
-                                    this.showSeedPhraseModal(fakeSeedPhrase);
-                                });
-                            } else {
-                                this.showEnterPasswordModal(password => {
-                                    this.showSeedPhraseModal(fakeSeedPhrase);
-                                });
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        // Обов'язково приховуємо індикатор завантаження
-                        clearTimeout(_loadingTimeout);
-                        if (window.hideLoading) window.hideLoading();
-
-                        console.error("❌ SETTINGS: Помилка перевірки статусу SID фрази", error);
-
-                        // Використовуємо фіктивну фразу для демонстрації
-                        const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-
-                        // Якщо пароль не встановлено, показуємо спочатку вікно для встановлення пароля
-                        if (!hasPassword) {
-                            this.showSetPasswordModal(password => {
-                                this.showSeedPhraseModal(fakeSeedPhrase);
-                            });
-                        } else {
-                            this.showEnterPasswordModal(password => {
-                                this.showSeedPhraseModal(fakeSeedPhrase);
-                            });
-                        }
-                    })
-                    .finally(() => {
-                        // Гарантуємо, що індикатор завантаження приховано
-                        clearTimeout(_loadingTimeout);
-                        if (window.hideLoading) window.hideLoading();
-                    });
-            } catch (error) {
-                // Обов'язково приховуємо індикатор завантаження у випадку помилки
-                clearTimeout(_loadingTimeout);
-                if (window.hideLoading) window.hideLoading();
-
-                console.error("❌ SETTINGS: Критична помилка при запиті SID фрази:", error);
-
-                // Показуємо повідомлення про помилку
-                if (window.showToast) {
-                    window.showToast("Помилка при запиті SID фрази", true);
-                }
-
-                // Використовуємо фіктивну фразу
-                const fakeSeedPhrase = "solve notable quick pluck tribe dinosaur cereal casino rail media final curve";
-
-                // Якщо пароль не встановлено, показуємо спочатку вікно для встановлення пароля
-                if (!hasPassword) {
-                    this.showSetPasswordModal(password => {
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                } else {
-                    this.showEnterPasswordModal(password => {
-                        this.showSeedPhraseModal(fakeSeedPhrase);
-                    });
-                }
-            }
-        }
-    };
-
-    // Ініціалізація після завантаження DOM
-    document.addEventListener('DOMContentLoaded', function() {
-        // Додаємо преміум-стилі
-        addPremiumStyles();
-
-        // Фіксуємо навігацію
-        fixNavigation();
-
-        // Знаходимо кнопку показу сід-фрази
-        const showSeedBtn = document.getElementById('show-seed-phrase');
-        if (showSeedBtn) {
-            showSeedBtn.addEventListener('click', function() {
-                // Приховуємо індикатор завантаження при кожному кліку, щоб уникнути зависання
-                if (window.hideLoading) window.hideLoading();
-                window.WinixSettings.handleShowSeedPhrase();
-            });
-        }
-
-        // Знаходимо кнопку редагування профілю
-        const editProfileBtn = document.getElementById('edit-profile');
-        if (editProfileBtn) {
-            editProfileBtn.addEventListener('click', function() {
-                window.WinixSettings.showProfileEditModal();
-            });
-        }
-
-        // Знаходимо кнопку ліцензії
-        const licenseBtn = document.getElementById('license-button');
-        if (licenseBtn) {
-            licenseBtn.addEventListener('click', function() {
-                window.WinixSettings.showLicenseModal();
-            });
-        }
-
-        // Знаходимо кнопку угоди користувача
-        const agreementBtn = document.getElementById('agreement-button');
-        if (agreementBtn) {
-            agreementBtn.addEventListener('click', function() {
-                window.WinixSettings.showAgreementModal();
-            });
-        }
-
-        // Додаємо обробники кліків для навігації
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-                if (section) {
-                    // Додаємо анімацію преміум переходу
-                    const transitionOverlay = document.createElement('div');
-                    transitionOverlay.className = 'page-transition-overlay';
-                    transitionOverlay.style.position = 'fixed';
-                    transitionOverlay.style.top = '0';
-                    transitionOverlay.style.left = '0';
-                    transitionOverlay.style.width = '100%';
-                    transitionOverlay.style.height = '100%';
-                    transitionOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-                    transitionOverlay.style.backdropFilter = 'blur(10px)';
-                    transitionOverlay.style.zIndex = '9999';
-                    transitionOverlay.style.opacity = '0';
-                    transitionOverlay.style.transition = 'opacity 0.3s ease';
-
-                    document.body.appendChild(transitionOverlay);
-
-                    // Анімуємо перехід
-                    setTimeout(() => {
-                        transitionOverlay.style.opacity = '1';
-
-                        setTimeout(() => {
-                            // Переходимо на нову сторінку
-                            window.location.href = section === 'home' ? 'index.html' : `${section}.html`;
-                        }, 300);
-                    }, 10);
-                }
-            });
-        });
-    });
-
-    // Додаємо обробник для Escape, щоб закривати активне модальне вікно
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && _currentModal) {
-            _currentModal.classList.remove('show');
-            setTimeout(() => {
-                _currentModal.remove();
-                _currentModal = null;
-            }, 300);
-        }
-    });
-
-    // Додаємо обробник для оновлення навігації при зміні розміру вікна
-    window.addEventListener('resize', fixNavigation);
-
-    // Глобальний обробник для примусового приховування завислих індикаторів
-    window.addEventListener('load', function() {
-        setTimeout(() => {
-            if (window.hideLoading) window.hideLoading();
-
-            const spinner = document.getElementById('premium-loading-spinner') ||
-                          document.getElementById('loading-spinner');
-            if (spinner && (spinner.style.display === 'flex' || spinner.classList.contains('show'))) {
-                console.warn("⚠️ SETTINGS: Виявлено зависаючий індикатор завантаження!");
-                if (typeof window.hideLoading === 'function') {
-                    window.hideLoading();
-                } else {
-                    spinner.style.display = 'none';
-                }
-            }
-        }, 3000);
-    });
-
-    // Якщо DOM вже завантажено, ініціалізуємо обробники
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        // Додаємо преміум-стилі
-        addPremiumStyles();
-
-        // Фіксуємо навігацію
-        fixNavigation();
-
-        const showSeedBtn = document.getElementById('show-seed-phrase');
-        if (showSeedBtn) {
-            showSeedBtn.addEventListener('click', function() {
-                // Приховуємо індикатор завантаження при кожному кліку, щоб уникнути зависання
-                if (window.hideLoading) window.hideLoading();
-                window.WinixSettings.handleShowSeedPhrase();
-            });
-        }
-
-        // Знаходимо кнопку редагування профілю
-        const editProfileBtn = document.getElementById('edit-profile');
-        if (editProfileBtn) {
-            editProfileBtn.addEventListener('click', function() {
-                window.WinixSettings.showProfileEditModal();
-            });
-        }
-
-        // Знаходимо кнопку ліцензії
-        const licenseBtn = document.getElementById('license-button');
-        if (licenseBtn) {
-            licenseBtn.addEventListener('click', function() {
-                window.WinixSettings.showLicenseModal();
-            });
-        }
-
-        // Знаходимо кнопку угоди користувача
-        const agreementBtn = document.getElementById('agreement-button');
-        if (agreementBtn) {
-            agreementBtn.addEventListener('click', function() {
-                window.WinixSettings.showAgreementModal();
-            });
+            // Показуємо повідомлення про успішне оновлення
+            showToast("Пароль успішно оновлено");
+
+            console.log("✅ Пароль успішно оновлено");
+        } catch (error) {
+            console.error("❌ Помилка оновлення пароля:", error);
+            showToast("Помилка оновлення пароля", true);
+        } finally {
+            // Ховаємо індикатор завантаження
+            if (spinner) spinner.style.display = 'none';
         }
     }
 
-    console.log("✅ SETTINGS: Модуль налаштувань успішно ініціалізовано");
+    /**
+     * Показує модальне вікно редагування профілю
+     */
+    function showEditProfileModal() {
+        const currentUsername = localStorage.getItem('username') || 'WINIX User';
+        const savedPasswordHash = localStorage.getItem('passwordHash');
+        const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+        const hasPassword = savedPasswordHash || savedSeedHash;
+
+        const passwordFieldLabel = hasPassword ? "Поточний пароль" : "Встановити пароль";
+        const passwordFieldPlaceholder = hasPassword ? "Введіть поточний пароль для зміни" : "Пароль для захисту акаунту";
+
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Редагування профілю</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-item">
+                        <label>Ім'я користувача</label>
+                        <input type="text" id="edit-username" value="${currentUsername}">
+                    </div>
+                    <div class="settings-item">
+                        <label>${passwordFieldLabel}</label>
+                        <input type="password" id="edit-current-password" placeholder="${passwordFieldPlaceholder}">
+                    </div>
+                    <div class="settings-item">
+                        <label>Новий пароль</label>
+                        <input type="password" id="edit-password" placeholder="Залиште порожнім, щоб не змінювати">
+                    </div>
+                    <div class="settings-item">
+                        <label>Підтвердження паролю</label>
+                        <input type="password" id="edit-password-confirm" placeholder="Повторіть новий пароль">
+                    </div>
+                    <div class="settings-item">
+                        <label>Завантажити аватар</label>
+                        <input type="file" id="avatar-upload" accept="image/*">
+                    </div>
+                    <div class="settings-item">
+                        <label>Обрати аватар</label>
+                        <div class="avatar-options">
+                            <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
+                            <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
+                            <img src="assets/avatar3.png" class="avatar-option" data-id="3" onerror="this.src='https://via.placeholder.com/50?text=3'">
+                            <img src="assets/avatar4.png" class="avatar-option" data-id="4" onerror="this.src='https://via.placeholder.com/50?text=4'">
+                            <img src="assets/avatar5.png" class="avatar-option" data-id="5" onerror="this.src='https://via.placeholder.com/50?text=5'">
+                            <img src="assets/avatar6.png" class="avatar-option" data-id="6" onerror="this.src='https://via.placeholder.com/50?text=6'">
+                            <img src="assets/avatar7.png" class="avatar-option" data-id="7" onerror="this.src='https://via.placeholder.com/50?text=7'">
+                            <img src="assets/avatar8.png" class="avatar-option" data-id="8" onerror="this.src='https://via.placeholder.com/50?text=8'">
+                            <img src="assets/avatar9.png" class="avatar-option" data-id="9" onerror="this.src='https://via.placeholder.com/50?text=9'">
+                            <img src="assets/avatar10.png" class="avatar-option" data-id="10" onerror="this.src='https://via.placeholder.com/50?text=10'">
+                            <img src="assets/avatar11.png" class="avatar-option" data-id="11" onerror="this.src='https://via.placeholder.com/50?text=11'">
+                            <img src="assets/avatar12.png" class="avatar-option" data-id="12" onerror="this.src='https://via.placeholder.com/50?text=12'">
+                            <img src="assets/avatar13.png" class="avatar-option" data-id="13" onerror="this.src='https://via.placeholder.com/50?text=13'">
+                        </div>
+                    </div>
+                    <div id="error-msg"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-button" id="save-profile">Зберегти</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Позначаємо активний аватар
+        const avatarOptions = modal.querySelectorAll('.avatar-option');
+        const selectedAvatarId = localStorage.getItem('selectedAvatarId');
+        avatarOptions.forEach(opt => {
+            if (opt.dataset.id === selectedAvatarId) opt.classList.add('selected');
+            opt.onclick = () => {
+                avatarOptions.forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+            };
+        });
+
+        // Додаємо обробник для кнопки збереження
+        const saveBtn = modal.querySelector('#save-profile');
+        saveBtn.onclick = () => {
+            const username = modal.querySelector('#edit-username').value.trim();
+            const password = modal.querySelector('#edit-password').value;
+            const confirm = modal.querySelector('#edit-password-confirm').value;
+            const currentPassword = modal.querySelector('#edit-current-password').value;
+            const uploadedAvatar = modal.querySelector('#avatar-upload').files[0];
+            const selectedAvatar = modal.querySelector('.avatar-option.selected');
+            const error = modal.querySelector('#error-msg');
+
+            error.textContent = '';
+
+            // Перевірка імені користувача
+            if (!username) {
+                error.textContent = "Введіть ім'я користувача";
+                modal.querySelector('#edit-username').classList.add('error');
+                return;
+            }
+
+            // Перевірка паролів
+            if (password) {
+                if (hasPassword) {
+                    if (!currentPassword) {
+                        error.textContent = "Введіть поточний пароль для зміни";
+                        modal.querySelector('#edit-current-password').classList.add('error');
+                        return;
+                    }
+
+                    const currentPasswordHash = hashPassword(currentPassword);
+                    if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
+                        (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
+                        error.textContent = "Неправильний поточний пароль";
+                        modal.querySelector('#edit-current-password').classList.add('error');
+                        return;
+                    }
+                }
+
+                if (password !== confirm) {
+                    error.textContent = "Паролі не співпадають";
+                    modal.querySelector('#edit-password-confirm').classList.add('error');
+                    return;
+                }
+
+                const validation = validatePassword(password);
+                if (!validation.valid) {
+                    error.textContent = validation.message;
+                    modal.querySelector('#edit-password').classList.add('error');
+                    return;
+                }
+            } else if (currentPassword && !hasPassword) {
+                const validation = validatePassword(currentPassword);
+                if (!validation.valid) {
+                    error.textContent = validation.message;
+                    modal.querySelector('#edit-current-password').classList.add('error');
+                    return;
+                }
+            }
+
+            // Збереження даних
+            const settings = {
+                username: username
+            };
+
+            // Зберігаємо налаштування користувача
+            saveUserSettings(settings);
+
+            // Оновлюємо пароль, якщо потрібно
+            if (password) {
+                updateUserPassword(password, hasPassword ? currentPassword : null);
+            } else if (currentPassword && !hasPassword) {
+                updateUserPassword(currentPassword);
+            }
+
+            // Обробка аватара
+            if (uploadedAvatar) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const avatarSrc = reader.result;
+                    localStorage.setItem('userAvatarSrc', avatarSrc);
+                    localStorage.removeItem('selectedAvatarId');
+                    loadUserAvatar();
+                };
+                reader.readAsDataURL(uploadedAvatar);
+            } else if (selectedAvatar) {
+                const avatarId = selectedAvatar.dataset.id;
+                localStorage.setItem('selectedAvatarId', avatarId);
+                localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
+                localStorage.removeItem('userAvatarSrc');
+
+                // Оновлюємо налаштування з аватаром
+                saveUserSettings({
+                    avatar_id: avatarId
+                });
+
+                loadUserAvatar();
+            }
+
+            // Закриваємо модальне вікно
+            modal.remove();
+        };
+
+        // Додаємо обробники для полів вводу
+        modal.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('error');
+            });
+        });
+
+        // Додаємо обробники для закриття модального вікна
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    /**
+     * Показує модальне вікно з SID фразою
+     */
+    function showSeedPhrase() {
+        console.log("Показуємо SID фразу");
+
+        const userId = localStorage.getItem('userId') || '12345678';
+        const phrase = generateSeedPhrase(userId);
+
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="seed-modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">SID фраза</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="restore-card">
+                        <div class="restore-title">Ваша SID фраза</div>
+                        <div class="restore-subtitle">Збережіть цю фразу в надійному місці</div>
+                        <button class="copy-button">Копіювати</button>
+                        <div class="words-grid">
+                            ${phrase.map((word, i) => `
+                                <div class="word-cell">
+                                    <div class="word-number">${i + 1}.</div>
+                                    <div class="word-value">${word}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button class="seed-continue-button">Готово</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Додаємо обробники подій
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.querySelector('.copy-button').onclick = () => {
+            navigator.clipboard.writeText(phrase.join(' '))
+                .then(() => showToast("Скопійовано"))
+                .catch(() => showToast("Помилка копіювання", true));
+        };
+        modal.querySelector('.seed-continue-button').onclick = () => {
+            localStorage.setItem('seedPhraseViewed', 'true');
+            modal.remove();
+        };
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    /**
+     * Показує модальне вікно введення пароля
+     * @param {Function} callback - Функція, яка буде викликана після успішного введення пароля
+     */
+    function showEnterPasswordModal(callback) {
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Введіть пароль</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-body">
+                    <input type="password" id="enter-password" placeholder="Ваш пароль">
+                    <div id="error-msg"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-button" id="check-password">Перевірити</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Додаємо обробники подій
+        const checkBtn = modal.querySelector('#check-password');
+        checkBtn.onclick = () => {
+            const pwd = modal.querySelector('#enter-password').value;
+            const error = modal.querySelector('#error-msg');
+
+            // Перевіряємо пароль
+            const savedPassHash = localStorage.getItem('passwordHash');
+            const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+            const inputHash = hashPassword(pwd);
+
+            if (inputHash === savedPassHash || inputHash === savedSeedHash) {
+                modal.remove();
+                if (typeof callback === 'function') {
+                    callback(pwd);
+                }
+            } else {
+                error.textContent = "Невірний пароль";
+            }
+        };
+
+        // Додаємо обробники для закриття модального вікна
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        // Додаємо обробник для Enter
+        modal.querySelector('#enter-password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkBtn.click();
+            }
+        });
+    }
+
+    /**
+     * Показує модальне вікно встановлення пароля
+     * @param {Function} callback - Функція, яка буде викликана після успішного встановлення пароля
+     */
+    function showSetPasswordModal(callback) {
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Встановлення паролю</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-body">
+                    <p>Пароль має містити не менше 8 символів, включаючи 5 літер</p>
+                    <input type="password" id="new-password" placeholder="Пароль">
+                    <input type="password" id="confirm-password" placeholder="Підтвердження">
+                    <div id="error-msg"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-button" id="save-password">Зберегти</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Додаємо обробники подій
+        const saveBtn = modal.querySelector('#save-password');
+        saveBtn.onclick = () => {
+            const pwd = modal.querySelector('#new-password').value;
+            const confirm = modal.querySelector('#confirm-password').value;
+            const error = modal.querySelector('#error-msg');
+
+            // Перевіряємо, чи паролі співпадають
+            if (pwd !== confirm) {
+                error.textContent = "Паролі не співпадають";
+                return;
+            }
+
+            // Перевіряємо валідність пароля
+            const validation = validatePassword(pwd);
+            if (!validation.valid) {
+                error.textContent = validation.message;
+                return;
+            }
+
+            // Зберігаємо пароль
+            updateUserPassword(pwd);
+
+            // Закриваємо модальне вікно
+            modal.remove();
+
+            // Викликаємо колбек, якщо він є
+            if (typeof callback === 'function') {
+                callback(pwd);
+            }
+        };
+
+        // Додаємо обробники для закриття модального вікна
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    /**
+     * Обробляє показ SID фрази з перевіркою пароля
+     */
+    function handleShowSeedPhrase() {
+        console.log("Обробка показу SID фрази");
+
+        try {
+            const savedPassHash = localStorage.getItem('passwordHash');
+            const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+            const hasPassword = savedPassHash || savedSeedHash;
+
+            if (!hasPassword) {
+                console.log("Пароль відсутній, показуємо модалку встановлення паролю");
+                showSetPasswordModal(function(password) {
+                    console.log("Пароль встановлено, показуємо SID фразу");
+                    showSeedPhrase();
+                });
+            } else {
+                console.log("Пароль наявний, показуємо модалку введення паролю");
+                showEnterPasswordModal(function(password) {
+                    console.log("Пароль підтверджено, показуємо SID фразу");
+                    showSeedPhrase();
+                });
+            }
+        } catch (error) {
+            console.error("Помилка при обробці показу SID фрази:", error);
+            showToast("Виникла помилка при спробі показати SID фразу", true);
+        }
+    }
+
+    /**
+     * Показує модальне вікно з ліцензійною угодою
+     */
+    function showLicenseModal() {
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Ліцензійна угода WINIX</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-scrollable-content">
+                    <p>Версія 1.0, Березень 2025</p>
+                    <br>
+                    <p>Ця ліцензійна угода ("Угода") укладена між WINIX ("Ліцензіар") та Вами ("Ліцензіат").</p>
+                    <br>
+                    <p>1. НАДАННЯ ЛІЦЕНЗІЇ</p>
+                    <p>Ліцензіар надає Ліцензіату невиключну ліцензію на використання програмного забезпечення WINIX ("Програмне забезпечення") відповідно до умов цієї Угоди.</p>
+                    <br>
+                    <p>2. ОБМЕЖЕННЯ</p>
+                    <p>Ліцензіат не має права:</p>
+                    <p>- Копіювати або розповсюджувати Програмне забезпечення</p>
+                    <p>- Модифікувати, декомпілювати або дизасемблювати Програмне забезпечення</p>
+                    <p>- Використовувати Програмне забезпечення для незаконних цілей</p>
+                    <br>
+                    <p>3. ПРАВА ВЛАСНОСТІ</p>
+                    <p>Програмне забезпечення є власністю Ліцензіара та захищено законами про інтелектуальну власність.</p>
+                    <br>
+                    <p>4. ГАРАНТІЇ ТА ВІДМОВА ВІД ВІДПОВІДАЛЬНОСТІ</p>
+                    <p>Програмне забезпечення надається "як є" без будь-яких гарантій.</p>
+                    <br>
+                    <p>5. ВІДШКОДУВАННЯ ЗБИТКІВ</p>
+                    <p>Ліцензіат погоджується відшкодувати Ліцензіару будь-які збитки, що виникли внаслідок порушення цієї Угоди.</p>
+                    <br>
+                    <p>6. ПРИПИНЕННЯ</p>
+                    <p>Ця Угода діє до її припинення. Ліцензіар має право припинити дію цієї Угоди в разі порушення її умов Ліцензіатом.</p>
+                    <br>
+                    <p>7. ЗАГАЛЬНІ ПОЛОЖЕННЯ</p>
+                    <p>Ця Угода регулюється законодавством України. Всі спори, що виникають в зв'язку з цією Угодою, підлягають вирішенню в судах України.</p>
+                </div>
+                <button class="modal-back-button">Назад</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Додаємо обробники подій
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.querySelector('.modal-back-button').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    /**
+     * Показує модальне вікно з угодою користувача
+     */
+    function showAgreementModal() {
+        // Видаляємо попередні модальні вікна
+        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+
+        // Створюємо нове модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'document-modal show';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="modal-title">Угода користувача WINIX</div>
+                    <span class="close-modal">×</span>
+                </div>
+                <div class="modal-scrollable-content">
+                    <p>Версія 1.0, Березень 2025</p>
+                    <br>
+                    <p>Ласкаво просимо до WINIX!</p>
+                    <br>
+                    <p>Ця Угода користувача ("Угода") регулює використання Вами мобільного додатку WINIX та всіх пов'язаних послуг.</p>
+                    <br>
+                    <p>1. ПРИЙНЯТТЯ УМОВ</p>
+                    <p>Використовуючи WINIX, Ви погоджуєтесь з умовами цієї Угоди. Якщо Ви не погоджуєтесь з умовами, Ви не маєте права використовувати WINIX.</p>
+                    <br>
+                    <p>2. РЕЄСТРАЦІЯ ТА БЕЗПЕКА</p>
+                    <p>Для використання WINIX Вам необхідно створити обліковий запис. Ви зобов'язані надати достовірну інформацію та забезпечити безпеку свого облікового запису.</p>
+                    <br>
+                    <p>3. КОНФІДЕНЦІЙНІСТЬ</p>
+                    <p>Ваша конфіденційність є важливою для нас. Збір та використання Ваших персональних даних регулюється нашою Політикою конфіденційності.</p>
+                    <br>
+                    <p>4. ВИКОРИСТАННЯ ТОКЕНІВ WINIX</p>
+                    <p>Токени WINIX є внутрішньою валютою додатку та не мають реальної вартості. Ви не маєте права продавати або обмінювати токени WINIX за межами додатку.</p>
+                    <br>
+                    <p>5. ПРАВИЛА ПОВЕДІНКИ</p>
+                    <p>Ви зобов'язуєтесь не використовувати WINIX для незаконних або шахрайських цілей.</p>
+                    <br>
+                    <p>6. ЗМІНИ В УГОДІ</p>
+                    <p>Ми залишаємо за собою право змінювати цю Угоду в будь-який час. Зміни вступають в силу після їх публікації в додатку.</p>
+                    <br>
+                    <p>7. ПРИПИНЕННЯ</p>
+                    <p>Ми залишаємо за собою право припинити або обмежити Ваш доступ до WINIX в разі порушення цієї Угоди.</p>
+                </div>
+                <button class="modal-back-button">Назад</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Додаємо обробники подій
+        modal.querySelector('.close-modal').onclick = () => modal.remove();
+        modal.querySelector('.modal-back-button').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    }
+
+    /**
+     * Оновлює тексти на сторінці відповідно до обраної мови
+     */
+    function updatePageTexts() {
+        document.querySelectorAll('[data-lang-key]').forEach(element => {
+            const key = element.getAttribute('data-lang-key');
+            if (key) {
+                // Тут мав би бути виклик функції getTranslation, але в цій імплементації
+                // ми просто залишаємо поточний текст
+                // element.textContent = getTranslation(key, element.textContent);
+            }
+        });
+    }
+
+    /**
+     * Функція для навігації між сторінками
+     * @param {string} page - URL сторінки, на яку потрібно перейти
+     */
+    function navigateTo(page) {
+        try {
+            window._isNavigating = true;
+
+            // Показуємо індикатор завантаження
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) spinner.style.display = 'flex';
+
+            // Зберігаємо поточний баланс для порівняння після навігації
+            const currentTokens = parseFloat(document.getElementById('user-tokens').textContent || '0');
+            const currentCoins = parseFloat(document.getElementById('user-coins').textContent || '0');
+
+            sessionStorage.setItem('lastBalance', currentTokens.toString());
+            sessionStorage.setItem('lastCoins', currentCoins.toString());
+            sessionStorage.setItem('navigationTime', Date.now().toString());
+
+            // Запитуємо поточну сторінку
+            const currentPage = window.location.pathname.split('/').pop();
+            if (currentPage === page) {
+                console.log('Вже на цій сторінці');
+                if (spinner) spinner.style.display = 'none';
+                window._isNavigating = false;
+                return;
+            }
+
+            // Переходимо на нову сторінку
+            setTimeout(() => {
+                window.location.href = page;
+            }, 100);
+        } catch (error) {
+            console.error('Помилка навігації:', error);
+            window._isNavigating = false;
+
+            if (spinner) spinner.style.display = 'none';
+            showToast("Помилка навігації", true);
+        }
+    }
+
+    /**
+     * Налаштовує обробники подій на сторінці
+     */
+    function setupEventHandlers() {
+        console.log("Налаштування обробників подій");
+
+        // Кнопка редагування профілю
+        const editProfileBtn = document.getElementById('edit-profile');
+        if (editProfileBtn) {
+            editProfileBtn.addEventListener('click', function() {
+                showEditProfileModal();
+            });
+        }
+
+        // Обробка вибору мови
+        const languageOptions = document.querySelectorAll('.language-option');
+        languageOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Знімаємо активний стан з усіх мов
+                languageOptions.forEach(opt => opt.classList.remove('active'));
+
+                // Встановлюємо активний стан для обраної мови
+                this.classList.add('active');
+
+                // Отримуємо код обраної мови
+                const selectedLang = this.getAttribute('data-lang');
+
+                // Зберігаємо налаштування мови
+                saveUserSettings({ language: selectedLang });
+            });
+        });
+
+        // Перемикач сповіщень
+        const notificationsToggle = document.getElementById('notifications-toggle');
+        if (notificationsToggle) {
+            notificationsToggle.addEventListener('change', function() {
+                saveUserSettings({ notifications_enabled: this.checked });
+            });
+        }
+
+        // Кнопка показу SID фрази
+        const showSeedBtn = document.getElementById('show-seed-phrase');
+        if (showSeedBtn) {
+            showSeedBtn.addEventListener('click', function() {
+                handleShowSeedPhrase();
+            });
+        }
+
+        // Навігаційні елементи
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const section = this.getAttribute('data-section');
+
+                // Якщо вже на цій сторінці, нічого не робимо
+                if (section === 'general') {
+                    console.log('Вже на сторінці налаштувань');
+                    return;
+                }
+
+                // Переходимо на відповідну сторінку
+                switch (section) {
+                    case 'home':
+                        navigateTo('index.html');
+                        break;
+                    case 'earn':
+                        navigateTo('earn.html');
+                        break;
+                    case 'referrals':
+                        navigateTo('referrals.html');
+                        break;
+                    case 'wallet':
+                        navigateTo('wallet.html');
+                        break;
+                    default:
+                        navigateTo(`${section}.html`);
+                }
+            });
+        });
+
+        // Кнопки внизу сторінки
+        const helpButton = document.getElementById('help-button');
+        const licenseButton = document.getElementById('license-button');
+        const agreementButton = document.getElementById('agreement-button');
+
+        if (licenseButton) {
+            licenseButton.addEventListener('click', function() {
+                showLicenseModal();
+            });
+        }
+
+        if (agreementButton) {
+            agreementButton.addEventListener('click', function() {
+                showAgreementModal();
+            });
+        }
+
+        // Обробник кліку на аватар у хедері
+        const profileAvatar = document.getElementById('profile-avatar');
+        if (profileAvatar) {
+            profileAvatar.addEventListener('click', function() {
+                showEditProfileModal();
+            });
+        }
+
+        console.log("Обробники подій успішно налаштовано");
+    }
+
+    /**
+     * Запускає періодичне оновлення даних
+     */
+    function startPeriodicUpdates() {
+        console.log("Запуск періодичного оновлення даних");
+
+        // Оновлюємо дані кожні 30 секунд
+        setInterval(loadUserData, 30000);
+    }
+
+    /**
+     * Ініціалізує модуль налаштувань
+     */
+    function init() {
+        if (_isInitialized) return;
+
+        console.log("Ініціалізація модуля налаштувань...");
+
+        // Завантажуємо дані користувача
+        loadUserData();
+
+        // Налаштовуємо обробники подій
+        setupEventHandlers();
+
+        // Запускаємо періодичне оновлення
+        startPeriodicUpdates();
+
+        _isInitialized = true;
+        console.log("✅ Модуль налаштувань успішно ініціалізовано");
+    }
+
+    // Ініціалізуємо модуль при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', init);
+
+    // Обробка відновлення сторінки з кешу
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            console.log("Сторінка відновлена з кешу, оновлюємо дані");
+            loadUserData();
+        }
+    });
+
+    // Повертаємо публічний API
+    return {
+        init: init,
+        showEditProfileModal: showEditProfileModal,
+        showSeedPhrase: showSeedPhrase,
+        navigateTo: navigateTo,
+        updateUserPassword: updateUserPassword,
+        saveUserSettings: saveUserSettings
+    };
 })();

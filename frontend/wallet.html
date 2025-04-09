@@ -1157,6 +1157,94 @@
                 border-radius: 1.25rem;
             }
         }
+        .nav-bar {
+    background: var(--primary-gradient);
+    border-radius: 1.5625rem; /* 25px */
+    padding: 0.5rem; /* 8px */
+    display: flex;
+    justify-content: space-around;
+    width: 90%;
+    max-width: 33.75rem; /* 540px */
+    height: var(--nav-height);
+    box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
+    position: fixed;
+    bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.nav-item {
+    text-align: center;
+    color: var(--text-color);
+    font-size: 0.875rem; /* 14px */
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 20%;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.nav-item .icon-wrapper {
+    width: 3.75rem; /* 60px */
+    height: 3.75rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 0.75rem; /* 12px */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.3125rem; /* 5px */
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-item.active .icon-wrapper {
+    background: var(--bg-active);
+    box-shadow: 0 0 0.9375rem var(--glow-color);
+}
+
+.nav-item img {
+    width: 2.1875rem; /* 35px */
+    height: 2.1875rem;
+    display: block;
+    filter: brightness(0) invert(1);
+}
+
+.nav-item.active img {
+    filter: brightness(1.2) invert(1);
+}
+
+.nav-item:hover .icon-wrapper {
+    transform: scale(1.1);
+}
+
+@media (max-width: 450px) {
+    .nav-item .icon-wrapper {
+        width: 3.125rem; /* 50px */
+        height: 3.125rem;
+    }
+
+    .nav-item img {
+        width: 1.875rem; /* 30px */
+        height: 1.875rem;
+    }
+
+    .nav-item span {
+        font-size: 0.75rem; /* 12px */
+    }
+}
+.nav-item {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease forwards;
+}
+.nav-item:nth-child(1) { animation-delay: 0.1s; }
+.nav-item:nth-child(2) { animation-delay: 0.2s; }
+.nav-item:nth-child(3) { animation-delay: 0.3s; }
+.nav-item:nth-child(4) { animation-delay: 0.4s; }
+.nav-item:nth-child(5) { animation-delay: 0.5s; }
     </style>
 </head>
 <body>
@@ -1225,33 +1313,38 @@
         </div>
 
         <!-- Нижня навігаційна панель -->
-        <div class="nav-bar">
-            <div class="nav-item" data-section="home">
-                <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
-                </div>
-            </div>
-            <div class="nav-item" data-section="earn">
-                <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
-                </div>
-            </div>
-            <div class="nav-item" data-section="referrals">
-                <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
-                </div>
-            </div>
-            <div class="nav-item active" data-section="wallet">
-                <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
-                </div>
-            </div>
-            <div class="nav-item" data-section="general">
-                <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
-                </div>
-            </div>
+       <div class="nav-bar">
+    <div class="nav-item" data-section="home">
+        <div class="icon-wrapper">
+            <img src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
         </div>
+        <span data-lang-key="home">Головна</span>
+    </div>
+    <div class="nav-item" data-section="earn">
+        <div class="icon-wrapper">
+            <img src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+        </div>
+        <span data-lang-key="earn">Заробіток</span>
+    </div>
+    <div class="nav-item" data-section="referrals">
+        <div class="icon-wrapper">
+            <img src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+        </div>
+        <span data-lang-key="referrals">Реферали</span>
+    </div>
+    <div class="nav-item active" data-section="wallet">
+        <div class="icon-wrapper">
+            <img src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+        </div>
+        <span data-lang-key="wallet">Гаманець</span>
+    </div>
+    <div class="nav-item" data-section="general">
+        <div class="icon-wrapper">
+            <img src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+        </div>
+        <span data-lang-key="general">Налаштування</span>
+    </div>
+</div>
 
         <!-- Модальне вікно відправки коштів -->
         <div class="modal-overlay premium-modal" id="send-modal">
