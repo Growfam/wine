@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Імпорт суппабейс клієнта
-from backend.supabase_client import (
+from supabase_client import (
     get_user, update_user, update_balance, supabase,
     get_user_staking_sessions, get_staking_session,
     update_staking_session, complete_staking_session,
