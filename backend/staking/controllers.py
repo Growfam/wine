@@ -1,40 +1,24 @@
-"""
-Контролер для обробки HTTP-запитів, пов'язаних зі стейкінгом.
-Виконує валідацію параметрів запиту та передає дані до сервісного шару.
-"""
-from typing import Tuple, Dict, Any, Optional, Union, List
 from flask import jsonify, request
 import logging
-import traceback
+import os
+import sys
 import functools
 from datetime import datetime, timezone
+from typing import Dict, Any, Tuple, Optional, Union, List, Callable
 
-# Імпорт сервісного шару
-from .services import (
-    check_active_staking,
-    create_staking,
-    add_to_staking as service_add_to_staking,
-    cancel_staking,
-    finalize_staking,
-    get_staking_history,
-    calculate_staking_reward,
-    reset_and_repair_staking as service_reset_repair,
-    deep_repair_staking,
-    verify_staking_consistency
-)
+# Додаємо кореневу папку бекенду до шляху Python для імпортів
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
-# Імпорт з supabase_client через стандартний import
-from backend.supabase_client import (
-    get_user,
-    get_user_staking_sessions,
-    get_staking_session,
-    cached
-)
+# Імпортуємо з supabase_client без використання importlib
+from supabase_client import get_user, update_user, update_balance, supabase, cached
 
 # Налаштування логування
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 # Константи
 from .services import STAKING_REWARD_RATES
 

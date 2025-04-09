@@ -43,13 +43,6 @@ def register_user_routes(app):
         """Оновлення налаштувань користувача"""
         return controllers.update_user_settings(telegram_id, request.json)
 
-
-    @app.route('/api/user/<telegram_id>/password', methods=['POST'])
-    def api_update_user_password(telegram_id):
-        """Оновлення пароля користувача"""
-        return controllers.update_user_password(telegram_id, request.json)
-
-
     @app.route('/api/user/<telegram_id>/seed-phrase', methods=['GET'])
     def api_get_user_seed_phrase(telegram_id):
         """Отримання seed-фрази користувача"""

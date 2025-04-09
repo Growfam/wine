@@ -1023,52 +1023,33 @@ def deep_repair_staking(telegram_id: str, balance_adjustment: float = 0) -> Tupl
 
 def parse_date_with_timezone(date_str: Optional[str]) -> datetime:
     """
-    Надійна функція для розбору дати з урахуванням часового поясу
-
-    Args:
-        date_str: Рядок дати в ISO форматі
-
-    Returns:
-        datetime: Об'єкт datetime з часовим поясом
+    Покращена функція для розбору дати з урахуванням часового поясу
     """
     if not date_str:
-        # Якщо дата не вказана, повертаємо поточний час
+        # Якщо дата не вказана, повертаємо поточний час з UTC
         return datetime.now(timezone.utc)
 
     try:
         # Спробуємо розпарсити дату з часовим поясом
-        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-
-        # Перевіряємо, чи є часовий пояс, якщо ні - додаємо UTC
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        return dt
-    except (ValueError, TypeError, AttributeError):
-        # Спробуємо інші формати
-        try:
-            # Спробуємо формат з Z
-            if isinstance(date_str, str) and date_str.endswith('Z'):
-                dt = datetime.fromisoformat(date_str[:-1])
+        if isinstance(date_str, str):
+            if date_str.endswith('Z'):
+                # Обробка формату ISO з 'Z' (UTC)
+                dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                return dt
+            elif '+' in date_str or '-' in date_str and 'T' in date_str:
+                # Стандартний ISO формат з часовим поясом
+                return datetime.fromisoformat(date_str)
+            else:
+                # ISO формат без часового поясу
+                dt = datetime.fromisoformat(date_str)
                 return dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError, AttributeError):
-            pass
-
-        try:
-            # Спробуємо стандартний ISO формат без часового поясу
-            dt = datetime.fromisoformat(date_str)
+        elif isinstance(date_str, (int, float)):
+            # Timestamp
+            dt = datetime.fromtimestamp(date_str)
             return dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError, AttributeError):
-            pass
 
-        try:
-            # Спробуємо розпарсити як timestamp
-            if isinstance(date_str, (int, float)):
-                dt = datetime.fromtimestamp(date_str)
-                return dt.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError, AttributeError):
-            pass
-
-        # Повертаємо поточний час, якщо нічого не допомогло
-        logger.error(f"parse_date_with_timezone: Неможливо розпарсити дату '{date_str}'")
+        # За замовчуванням
+        return datetime.now(timezone.utc)
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.error(f"parse_date_with_timezone: Помилка при парсінгу дати '{date_str}': {str(e)}")
         return datetime.now(timezone.utc)

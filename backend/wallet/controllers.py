@@ -1,43 +1,23 @@
 from flask import jsonify, request
 import logging
 import os
-import importlib.util
+import sys
 import uuid
 from datetime import datetime
+
+# Додаємо кореневу папку бекенду до шляху Python для імпортів
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+# Імпортуємо з supabase_client без використання importlib
+from supabase_client import get_user, update_user, update_balance, update_coins, supabase
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Імпортуємо supabase_client.py напряму
-current_dir = os.path.dirname(os.path.abspath(__file__))  # папка wallet
-parent_dir = os.path.dirname(current_dir)  # папка backend
-
-# Використання importlib для імпорту модуля з абсолютного шляху
-spec = importlib.util.spec_from_file_location("supabase_client", os.path.join(parent_dir, "supabase_client.py"))
-supabase_client = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(supabase_client)
-
-# Витягуємо необхідні функції з модуля
-get_user = supabase_client.get_user
-update_user = supabase_client.update_user
-update_balance = supabase_client.update_balance
-update_coins = supabase_client.update_coins
-supabase = supabase_client.supabase
-
-# Імпортуємо transactions.controllers для роботи з транзакціями
-try:
-    from ..transactions.controllers import add_user_transaction
-except ImportError:
-    # Альтернативний імпорт, якщо відносний не працює
-    spec_transactions = importlib.util.spec_from_file_location(
-        "transactions_controllers",
-        os.path.join(parent_dir, "transactions", "controllers.py")
-    )
-    transactions_module = importlib.util.module_from_spec(spec_transactions)
-    spec_transactions.loader.exec_module(transactions_module)
-    add_user_transaction = transactions_module.add_user_transaction
 
 
 def get_user_complete_balance(telegram_id):

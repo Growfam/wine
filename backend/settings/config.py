@@ -42,7 +42,11 @@ def get_env(key, default=None, required=False, type_cast=None):
         try:
             # Особливий випадок для bool
             if type_cast == bool:
-                return value.lower() in ('true', 'yes', '1', 'y', 't')
+                # Якщо value вже є булевим значенням, повертаємо його напряму
+                if isinstance(value, bool):
+                    return value
+                # Інакше, конвертуємо рядок до bool
+                return str(value).lower() in ('true', 'yes', '1', 'y', 't')
             return type_cast(value)
         except (ValueError, TypeError):
             logger.warning(f"Не вдалося перетворити значення '{value}' для {key} до типу {type_cast.__name__}")

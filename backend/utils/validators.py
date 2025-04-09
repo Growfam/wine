@@ -114,7 +114,7 @@ def validate_username(username):
 
 def validate_amount(amount, min_amount=0, max_amount=None):
     """
-    Перевірка валідності суми
+    Покращена перевірка валідності суми
 
     Args:
         amount: Сума для перевірки (рядок або число)
@@ -129,7 +129,18 @@ def validate_amount(amount, min_amount=0, max_amount=None):
     """
     try:
         # Спроба конвертації у float
-        amount_float = float(amount)
+        if isinstance(amount, (int, float)):
+            amount_float = float(amount)
+        elif isinstance(amount, str):
+            # Видаляємо лишні пробіли та замінюємо кому на крапку
+            amount = amount.strip().replace(',', '.')
+            amount_float = float(amount)
+        else:
+            return {
+                "valid": False,
+                "message": f"Некоректний тип суми: {type(amount).__name__}",
+                "amount": None
+            }
 
         # Перевірка на від'ємне значення
         if amount_float < min_amount:
@@ -152,9 +163,9 @@ def validate_amount(amount, min_amount=0, max_amount=None):
             "message": "",
             "amount": amount_float
         }
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
         return {
             "valid": False,
-            "message": "Некоректний формат суми",
+            "message": f"Некоректний формат суми: {str(e)}",
             "amount": None
         }

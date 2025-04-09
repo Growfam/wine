@@ -1,27 +1,26 @@
 from flask import jsonify, request
 import logging
 import os
-import importlib.util
+import sys
 import uuid
 import json
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, List, Optional, Union
 import functools
 
+# Додаємо кореневу папку бекенду до шляху Python для імпортів
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+# Імпортуємо з supabase_client без використання importlib
+from supabase_client import get_user, update_user, update_balance, supabase, retry_supabase, cached
+
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Імпортуємо supabase_client.py напряму
-current_dir = os.path.dirname(os.path.abspath(__file__))  # папка transactions
-parent_dir = os.path.dirname(current_dir)  # папка backend
-
-# Стандартний імпорт supabase_client
-from backend.supabase_client import (
-    get_user, update_user, update_balance,
-    supabase, retry_supabase, cached
-)
 
 # Константи для транзакцій
 MIN_TRANSFER_AMOUNT = 500  # Мінімальна сума переказу

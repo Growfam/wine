@@ -1,16 +1,30 @@
 from flask import jsonify, request
 import logging
 import os
+import sys
 import random
 import hashlib
 import base64
-import importlib.util
 import json
 import secrets
 from datetime import datetime
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+# Додаємо кореневу папку бекенду до шляху Python для імпортів
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+# Імпортуємо з supabase_client без використання importlib
+from supabase_client import get_user, update_user, supabase
+
+# Налаштування логування
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
