@@ -1,31 +1,31 @@
 /**
- * Єдиний модуль утиліт для WINIX
- * Включає всі допоміжні функції для сповіщень та інтерфейсу
+ * utils.js - Допоміжні функції для WINIX WebApp
+ * Включає покращені функції для сповіщень, індикаторів завантаження та анімацій
  */
 
-// Прапорці для контролю стану сповіщень
+// Змінні для контролю стану сповіщень
 let _isShowingNotification = false;
 let _notificationsQueue = [];
-const MAX_NOTIFICATIONS = 1; // Максимальна кількість одночасних сповіщень
+const MAX_NOTIFICATIONS = 3;
 
 /**
- * Уніфікована функція для показу сповіщень в преміум-стилі
+ * Показує преміум-сповіщення з анімацією
  * @param {string} message - Текст повідомлення
- * @param {boolean} isError - Чи є повідомлення помилкою
+ * @param {boolean} isError - Ознака помилки
  * @param {Function} callback - Функція зворотного виклику
  */
 function showNotification(message, isError = false, callback = null) {
-    // Запобігаємо показу порожніх повідомлень
+    // Перевірка на порожнє повідомлення
     if (!message || message.trim() === '') {
         if (callback) setTimeout(callback, 100);
         return;
     }
 
-    // Якщо уже показується сповіщення, додаємо в чергу
+    // Якщо вже показується сповіщення, додаємо в чергу
     if (_isShowingNotification) {
         if (_notificationsQueue.length < MAX_NOTIFICATIONS) {
             _notificationsQueue.push({ message, isError, callback });
-            console.log(`Added notification to queue: "${message}". Queue length: ${_notificationsQueue.length}`);
+            console.log(`Додано сповіщення в чергу: "${message}". Довжина черги: ${_notificationsQueue.length}`);
         } else {
             // Якщо черга переповнена, і це повідомлення про помилку, показуємо його через alert
             if (isError) alert(message);
@@ -35,7 +35,7 @@ function showNotification(message, isError = false, callback = null) {
     }
 
     _isShowingNotification = true;
-    console.log(`Showing notification: "${message}"`);
+    console.log(`Показ сповіщення: "${message}"`);
 
     try {
         // Перевіряємо, чи контейнер для повідомлень вже існує
@@ -259,7 +259,7 @@ function showNotification(message, isError = false, callback = null) {
                 // Показуємо наступне повідомлення з черги
                 if (_notificationsQueue.length > 0) {
                     const nextNotification = _notificationsQueue.shift();
-                    console.log(`Processing next notification from queue. Remaining: ${_notificationsQueue.length}`);
+                    console.log(`Обробка наступного сповіщення з черги. Залишилось: ${_notificationsQueue.length}`);
                     showNotification(nextNotification.message, nextNotification.isError, nextNotification.callback);
                 } else if (callback) {
                     callback();
@@ -287,476 +287,390 @@ function showNotification(message, isError = false, callback = null) {
 }
 
 /**
- * Модернізоване діалогове вікно з підтвердженням
- * @param {string} message - Повідомлення
- * @param {Function} onConfirm - Функція для підтвердження
- * @param {Function} onCancel - Функція для скасування
+ * Показує індикатор завантаження з анімацією
+ * @param {string} message - Повідомлення для відображення
  */
-function showModernConfirm(message, onConfirm, onCancel) {
-    try {
-        // Перевіряємо, чи існує контейнер
-        let overlay = document.getElementById('premium-confirm-overlay');
+function showLoading(message = 'Завантаження...') {
+    // Перевіряємо, чи індикатор завантаження вже існує
+    let spinner = document.getElementById('premium-loading-spinner');
 
-        if (overlay) {
-            // Якщо діалог вже відкритий, закриваємо його
-            overlay.remove();
-        }
-
-        // Створюємо новий контейнер
-        overlay = document.createElement('div');
-        overlay.id = 'premium-confirm-overlay';
-        overlay.className = 'premium-confirm-overlay';
-
-        // Якщо стилів ще немає, додаємо їх
-        if (!document.getElementById('premium-confirm-styles')) {
+    if (!spinner) {
+        // Створюємо стилі для індикатора завантаження
+        if (!document.getElementById('premium-spinner-styles')) {
             const style = document.createElement('style');
-            style.id = 'premium-confirm-styles';
+            style.id = 'premium-spinner-styles';
             style.textContent = `
-                .premium-confirm-overlay {
+                .premium-spinner-overlay {
                     position: fixed;
                     top: 0;
                     left: 0;
-                    right: 0;
-                    bottom: 0;
+                    width: 100%;
+                    height: 100%;
                     background: rgba(0, 0, 0, 0.7);
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    z-index: 10000;
+                    z-index: 9999;
                     opacity: 0;
                     visibility: hidden;
-                    transition: opacity 0.3s, visibility 0.3s;
-                    backdrop-filter: blur(8px);
+                    transition: opacity 0.3s ease, visibility 0.3s ease;
+                    backdrop-filter: blur(5px);
                 }
                 
-                .premium-confirm-overlay.show {
+                .premium-spinner-overlay.show {
                     opacity: 1;
                     visibility: visible;
                 }
                 
-                .premium-confirm-dialog {
-                    background: rgba(30, 39, 70, 0.90);
-                    border-radius: 20px;
-                    padding: 24px;
-                    width: 90%;
-                    max-width: 380px;
-                    transform: scale(0.95);
-                    opacity: 0;
-                    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-                    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset, 0 6px 12px rgba(0, 0, 0, 0.25);
-                    text-align: center;
+                .premium-spinner-content {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    overflow: hidden;
-                    position: relative;
+                    gap: 16px;
+                    animation: fadeIn 0.5s forwards;
                 }
                 
-                .premium-confirm-overlay.show .premium-confirm-dialog {
-                    transform: scale(1);
-                    opacity: 1;
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
                 
-                .premium-confirm-icon {
-                    width: 70px;
-                    height: 70px;
-                    background: rgba(244, 67, 54, 0.15);
+                .premium-spinner {
+                    width: 60px;
+                    height: 60px;
+                    border: 5px solid rgba(0, 201, 167, 0.3);
                     border-radius: 50%;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    font-size: 36px;
-                    color: #FF5252;
-                    margin-bottom: 16px;
+                    border-top-color: var(--secondary-color, #4eb5f7);
+                    animation: spin 1s linear infinite;
+                    box-shadow: 0 0 20px rgba(0, 201, 167, 0.2);
                 }
                 
-                .premium-confirm-title {
-                    font-size: 20px;
-                    font-weight: 600;
-                    margin-bottom: 12px;
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                
+                .premium-spinner-message {
                     color: white;
-                }
-                
-                .premium-confirm-message {
                     font-size: 16px;
-                    line-height: 1.5;
-                    margin-bottom: 24px;
-                    color: rgba(255, 255, 255, 0.9);
-                }
-                
-                .premium-confirm-buttons {
-                    display: flex;
-                    justify-content: center;
-                    gap: 12px;
-                    width: 100%;
-                }
-                
-                .premium-confirm-button {
-                    flex-basis: 45%;
-                    padding: 12px;
-                    border-radius: 12px;
-                    border: none;
-                    font-size: 16px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                }
-                
-                .premium-confirm-button:active {
-                    transform: scale(0.97);
-                }
-                
-                .premium-confirm-button-cancel {
-                    background: rgba(255, 255, 255, 0.1);
-                    color: white;
-                }
-                
-                .premium-confirm-button-confirm {
-                    background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
-                    color: white;
+                    text-align: center;
+                    max-width: 300px;
+                    text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+                    padding: 0 20px;
                 }
             `;
             document.head.appendChild(style);
         }
 
-        // Створюємо діалогове вікно
-        const dialog = document.createElement('div');
-        dialog.className = 'premium-confirm-dialog';
+        // Створюємо індикатор завантаження
+        spinner = document.createElement('div');
+        spinner.id = 'premium-loading-spinner';
+        spinner.className = 'premium-spinner-overlay';
 
-        // Іконка
-        const icon = document.createElement('div');
-        icon.className = 'premium-confirm-icon';
-        icon.innerHTML = '&#9888;'; // Знак оклику
+        spinner.innerHTML = `
+            <div class="premium-spinner-content">
+                <div class="premium-spinner"></div>
+                <div class="premium-spinner-message">${message}</div>
+            </div>
+        `;
 
-        // Заголовок
-        const title = document.createElement('div');
-        title.className = 'premium-confirm-title';
-        title.textContent = 'Підтвердження дії';
-
-        // Повідомлення
-        const messageEl = document.createElement('div');
-        messageEl.className = 'premium-confirm-message';
-        messageEl.textContent = message;
-
-        // Кнопки
-        const buttons = document.createElement('div');
-        buttons.className = 'premium-confirm-buttons';
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'premium-confirm-button premium-confirm-button-cancel';
-        cancelBtn.textContent = 'Скасувати';
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'premium-confirm-button premium-confirm-button-confirm';
-        confirmBtn.textContent = 'Підтвердити';
-
-        // Збираємо елементи
-        buttons.appendChild(cancelBtn);
-        buttons.appendChild(confirmBtn);
-
-        dialog.appendChild(icon);
-        dialog.appendChild(title);
-        dialog.appendChild(messageEl);
-        dialog.appendChild(buttons);
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        // Функція закриття
-        const closeDialog = () => {
-            overlay.classList.remove('show');
-            setTimeout(() => {
-                overlay.remove();
-            }, 300);
-        };
-
-        // Обробники подій
-        cancelBtn.onclick = () => {
-            closeDialog();
-            if (onCancel) onCancel();
-        };
-
-        confirmBtn.onclick = () => {
-            closeDialog();
-            if (onConfirm) onConfirm();
-        };
-
-        // Обробка клавіші Escape
-        const handleKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                closeDialog();
-                if (onCancel) onCancel();
-                document.removeEventListener('keydown', handleKeyDown);
-            }
-        };
-        document.addEventListener('keydown', handleKeyDown);
-
-        // Показуємо діалог
-        setTimeout(() => {
-            overlay.classList.add('show');
-        }, 10);
-
-    } catch (e) {
-        console.error('Помилка відображення підтвердження:', e);
-
-        // Резервний варіант - стандартний confirm
-        if (confirm(message)) {
-            if (onConfirm) onConfirm();
-        } else {
-            if (onCancel) onCancel();
+        document.body.appendChild(spinner);
+    } else {
+        // Оновлюємо повідомлення
+        const messageElement = spinner.querySelector('.premium-spinner-message');
+        if (messageElement) {
+            messageElement.textContent = message;
         }
     }
-}
 
-/**
- * Модернізоване діалогове вікно з полем введення
- * @param {string} message - Повідомлення
- * @param {Function} callback - Функція зворотного виклику з введеним значенням
- */
-function showInputModal(message, callback) {
-    try {
-        // Створюємо контейнер з преміальним стилем
-        const overlay = document.createElement('div');
-        overlay.className = 'premium-confirm-overlay show';
-
-        // Створюємо діалог
-        const dialog = document.createElement('div');
-        dialog.className = 'premium-confirm-dialog';
-        dialog.style.padding = '24px';
-
-        // Заголовок
-        const title = document.createElement('div');
-        title.className = 'premium-confirm-title';
-        title.textContent = message;
-
-        // Поле введення
-        const input = document.createElement('input');
-        input.className = 'modern-input-field';
-        input.type = 'text';
-        input.placeholder = 'Введіть значення';
-        input.style.width = '100%';
-        input.style.padding = '12px';
-        input.style.marginBottom = '20px';
-        input.style.borderRadius = '12px';
-        input.style.border = '1px solid rgba(0, 201, 167, 0.3)';
-        input.style.background = 'rgba(20, 30, 60, 0.7)';
-        input.style.color = 'white';
-        input.style.fontSize = '16px';
-
-        // Кнопки
-        const buttons = document.createElement('div');
-        buttons.className = 'premium-confirm-buttons';
-
-        const cancelBtn = document.createElement('button');
-        cancelBtn.className = 'premium-confirm-button premium-confirm-button-cancel';
-        cancelBtn.textContent = 'Скасувати';
-
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'premium-confirm-button premium-confirm-button-confirm';
-        confirmBtn.style.background = 'linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7)';
-        confirmBtn.textContent = 'Підтвердити';
-
-        // Збираємо елементи
-        buttons.appendChild(cancelBtn);
-        buttons.appendChild(confirmBtn);
-
-        dialog.appendChild(title);
-        dialog.appendChild(input);
-        dialog.appendChild(buttons);
-
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        // Функція закриття
-        const closeModal = () => {
-            overlay.classList.remove('show');
-            setTimeout(() => {
-                overlay.remove();
-            }, 300);
-        };
-
-        // Обробники подій
-        cancelBtn.onclick = () => {
-            closeModal();
-        };
-
-        confirmBtn.onclick = () => {
-            const value = input.value.trim();
-            closeModal();
-            if (callback) callback(value);
-        };
-
-        // Фокус на полі введення
-        setTimeout(() => input.focus(), 100);
-
-        // Обробка Enter
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const value = input.value.trim();
-                closeModal();
-                if (callback) callback(value);
-            }
-        });
-
-        // Обробка Escape
-        document.addEventListener('keydown', function escHandler(e) {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                closeModal();
-                document.removeEventListener('keydown', escHandler);
-            }
-        });
-    } catch (e) {
-        console.error('Помилка відображення діалогу введення:', e);
-
-        // Резервний варіант - стандартний prompt
-        const value = prompt(message);
-        if (callback) callback(value);
-    }
-}
-
-/**
- * Показ індикатора завантаження
- * @param {string} message - Повідомлення (опціонально)
- */
-function showLoading(message) {
-    try {
-        let spinner = document.getElementById('loading-spinner');
-
-        if (!spinner) {
-            // Створюємо індикатор завантаження
-            const spinnerContainer = document.createElement('div');
-            spinnerContainer.id = 'loading-spinner';
-            spinnerContainer.className = 'spinner-overlay';
-
-            spinnerContainer.innerHTML = `
-                <div class="spinner-content">
-                    <div class="spinner"></div>
-                    ${message ? `<div class="spinner-message">${message}</div>` : ''}
-                </div>
-            `;
-
-            // Додаємо стилі, якщо їх немає
-            if (!document.getElementById('spinner-styles')) {
-                const style = document.createElement('style');
-                style.id = 'spinner-styles';
-                style.textContent = `
-                    .spinner-overlay {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        background: rgba(0, 0, 0, 0.7);
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        z-index: 9999;
-                        opacity: 0;
-                        visibility: hidden;
-                        transition: opacity 0.3s ease, visibility 0.3s ease;
-                        backdrop-filter: blur(3px);
-                    }
-                    
-                    .spinner-overlay.show {
-                        opacity: 1;
-                        visibility: visible;
-                    }
-                    
-                    .spinner-content {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        gap: 16px;
-                    }
-                    
-                    .spinner {
-                        width: 50px;
-                        height: 50px;
-                        border: 5px solid rgba(0, 201, 167, 0.3);
-                        border-radius: 50%;
-                        border-top-color: rgb(0, 201, 167);
-                        animation: spin 1s linear infinite;
-                    }
-                    
-                    .spinner-message {
-                        color: white;
-                        font-size: 16px;
-                        text-align: center;
-                        max-width: 300px;
-                    }
-                    
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            document.body.appendChild(spinnerContainer);
-            spinner = spinnerContainer;
-        } else {
-            // Оновлюємо повідомлення, якщо воно передане
-            if (message) {
-                const messageEl = spinner.querySelector('.spinner-message');
-                if (messageEl) {
-                    messageEl.textContent = message;
-                } else {
-                    const newMessageEl = document.createElement('div');
-                    newMessageEl.className = 'spinner-message';
-                    newMessageEl.textContent = message;
-
-                    const content = spinner.querySelector('.spinner-content');
-                    if (content) {
-                        content.appendChild(newMessageEl);
-                    }
-                }
-            }
-        }
-
-        // Показуємо індикатор
+    // Показуємо індикатор завантаження з анімацією
+    setTimeout(() => {
         spinner.classList.add('show');
-
-    } catch (e) {
-        console.error('Помилка показу індикатора завантаження:', e);
-    }
+    }, 10);
 }
 
 /**
- * Приховування індикатора завантаження
+ * Приховує індикатор завантаження з анімацією
  */
 function hideLoading() {
-    try {
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.classList.remove('show');
-        }
-    } catch (e) {
-        console.error('Помилка приховування індикатора завантаження:', e);
+    const spinner = document.getElementById('premium-loading-spinner');
+
+    if (spinner) {
+        spinner.classList.remove('show');
+
+        // Видаляємо елемент після завершення анімації
+        setTimeout(() => {
+            if (spinner.parentNode) {
+                spinner.parentNode.removeChild(spinner);
+            }
+        }, 300);
     }
 }
 
 /**
- * Проста функція для показу тостів
- * Використовує преміум-сповіщення для уніфікації стилю
+ * Показує преміум-діалог з підтвердженням
+ * @param {string} message - Повідомлення
+ * @param {Function} onConfirm - Функція підтвердження
+ * @param {Function} onCancel - Функція скасування
  */
-function showToast(message, isError = false) {
-    showNotification(message, isError);
+function showConfirm(message, onConfirm, onCancel) {
+    // Видаляємо попередній діалог, якщо він є
+    const existingDialog = document.getElementById('premium-confirm-dialog');
+    if (existingDialog) {
+        existingDialog.remove();
+    }
+
+    // Створюємо стилі для діалогу
+    if (!document.getElementById('premium-confirm-styles')) {
+        const style = document.createElement('style');
+        style.id = 'premium-confirm-styles';
+        style.textContent = `
+            .premium-confirm-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s, visibility 0.3s;
+                backdrop-filter: blur(8px);
+            }
+            
+            .premium-confirm-overlay.show {
+                opacity: 1;
+                visibility: visible;
+            }
+            
+            .premium-confirm-dialog {
+                background: rgba(30, 39, 70, 0.90);
+                border-radius: 20px;
+                padding: 24px;
+                width: 90%;
+                max-width: 380px;
+                transform: scale(0.95);
+                opacity: 0;
+                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset, 0 6px 12px rgba(0, 0, 0, 0.25);
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                overflow: hidden;
+                position: relative;
+            }
+            
+            .premium-confirm-overlay.show .premium-confirm-dialog {
+                transform: scale(1);
+                opacity: 1;
+            }
+            
+            .premium-confirm-title {
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 12px;
+                color: white;
+                background: linear-gradient(90deg, #fff, #4eb5f7, #fff);
+                background-size: 200% auto;
+                background-clip: text;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: gradient-text 3s linear infinite;
+            }
+            
+            @keyframes gradient-text {
+                0% { background-position: 0% center; }
+                100% { background-position: 200% center; }
+            }
+            
+            .premium-confirm-message {
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 24px;
+                color: rgba(255, 255, 255, 0.9);
+            }
+            
+            .premium-confirm-buttons {
+                display: flex;
+                justify-content: center;
+                gap: 12px;
+                width: 100%;
+            }
+            
+            .premium-confirm-button {
+                flex-basis: 45%;
+                padding: 12px;
+                border-radius: 12px;
+                border: none;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                overflow: hidden;
+                position: relative;
+            }
+            
+            .premium-confirm-button::after {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+                opacity: 0;
+                transition: opacity 0.8s;
+                pointer-events: none;
+            }
+            
+            .premium-confirm-button:active::after {
+                opacity: 1;
+                transition: 0s;
+            }
+            
+            .premium-confirm-button:active {
+                transform: scale(0.97);
+            }
+            
+            .premium-confirm-button-cancel {
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+            }
+            
+            .premium-confirm-button-cancel:hover {
+                background: rgba(255, 255, 255, 0.15);
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            }
+            
+            .premium-confirm-button-confirm {
+                background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+                color: white;
+            }
+            
+            .premium-confirm-button-confirm:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .premium-confirm-button-confirm:active {
+                transform: translateY(-1px);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Створюємо діалог
+    const dialog = document.createElement('div');
+    dialog.id = 'premium-confirm-dialog';
+    dialog.className = 'premium-confirm-overlay';
+
+    dialog.innerHTML = `
+        <div class="premium-confirm-dialog">
+            <div class="premium-confirm-title">Підтвердження</div>
+            <div class="premium-confirm-message">${message}</div>
+            <div class="premium-confirm-buttons">
+                <button class="premium-confirm-button premium-confirm-button-cancel">Скасувати</button>
+                <button class="premium-confirm-button premium-confirm-button-confirm">Підтвердити</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    // Показуємо діалог з анімацією
+    setTimeout(() => {
+        dialog.classList.add('show');
+    }, 10);
+
+    // Додаємо обробники подій
+    const cancelButton = dialog.querySelector('.premium-confirm-button-cancel');
+    const confirmButton = dialog.querySelector('.premium-confirm-button-confirm');
+
+    // Функція закриття діалогу
+    const closeDialog = () => {
+        dialog.classList.remove('show');
+        setTimeout(() => {
+            dialog.remove();
+        }, 300);
+    };
+
+    // Обробники для кнопок
+    cancelButton.addEventListener('click', () => {
+        closeDialog();
+        if (onCancel) onCancel();
+    });
+
+    confirmButton.addEventListener('click', () => {
+        closeDialog();
+        if (onConfirm) onConfirm();
+    });
+
+    // Закриття по Escape
+    document.addEventListener('keydown', function escHandler(e) {
+        if (e.key === 'Escape') {
+            document.removeEventListener('keydown', escHandler);
+            closeDialog();
+            if (onCancel) onCancel();
+        }
+    });
+
+    // Закриття по кліку поза діалогом
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            closeDialog();
+            if (onCancel) onCancel();
+        }
+    });
 }
 
 /**
- * Простий алерт (використовує преміум-сповіщення)
+ * Фіксує нижню навігаційну панель
  */
-function simpleAlert(message, isError = false) {
-    showNotification(message, isError);
+function fixNavigation() {
+    const navBar = document.querySelector('.nav-bar');
+    if (navBar) {
+        // Застосовуємо правильні стилі
+        navBar.style.position = 'fixed';
+        navBar.style.bottom = '1.875rem';
+        navBar.style.left = '50%';
+        navBar.style.transform = 'translateX(-50%)';
+        navBar.style.zIndex = '10';
+        navBar.style.width = '90%';
+        navBar.style.maxWidth = '33.75rem';
+        navBar.style.margin = '0 auto';
+        navBar.style.display = 'flex';
+        navBar.style.justifyContent = 'space-around';
+
+        // Встановлюємо стилі для дочірніх елементів
+        const navItems = navBar.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.style.textAlign = 'center';
+            item.style.width = '20%';
+        });
+    }
 }
 
-// Експортуємо функції як глобальні
+// Глобальні функції для використання в проекті
 window.showNotification = showNotification;
-window.showModernConfirm = showModernConfirm;
-window.showInputModal = showInputModal;
 window.showLoading = showLoading;
 window.hideLoading = hideLoading;
-window.showToast = showToast;
-window.simpleAlert = simpleAlert;
+window.showConfirm = showConfirm;
+window.fixNavigation = fixNavigation;
+
+// Простіші аліаси функцій
+window.showToast = showNotification;
+window.showError = (message) => showNotification(message, true);
+window.showSuccess = (message) => showNotification(message, false);
+
+// Застосовуємо фікс для навігації при завантаженні
+document.addEventListener('DOMContentLoaded', fixNavigation);
+window.addEventListener('resize', fixNavigation);
+
+// Викликаємо фікс відразу, якщо DOM вже завантажено
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    fixNavigation();
+}

@@ -8,10 +8,33 @@
 
     <!-- Підключення зовнішніх скриптів -->
     <script src="js/telegram-web-app.js"></script>
+    <script>
+        // Ініціалізація Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            try {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+                console.log("✅ Telegram WebApp успішно ініціалізовано");
+
+                // Якщо є дані користувача, зберігаємо їх
+                if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                    const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
+                    localStorage.setItem('telegram_user_id', userId.toString());
+                    console.log("✅ ID користувача збережено:", userId);
+                }
+            } catch (e) {
+                console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
+            }
+        } else {
+            console.warn("⚠️ Telegram WebApp API недоступний");
+        }
+    </script>
+
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/language.js"></script>
     <script src="js/core.js"></script>
+    <script src="js/utils.js"></script>
     <script src="js/settings.js"></script>
 
     <style>
@@ -765,403 +788,42 @@
             box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
         }
 
-        /* Оновлені стилі для seed-фрази з преміум-ефектами */
-        .seed-modal-content {
-            background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95));
-            margin: 5% auto;
-            padding: 1.5625rem; /* 25px */
-            border-radius: 1.25rem; /* 20px */
-            width: 90%;
-            max-width: 31.25rem; /* 500px */
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
-                        0 0 0 1px rgba(78, 181, 247, 0.2) inset,
-                        0 5px 15px rgba(0, 201, 167, 0.15);
-            position: relative;
-            border: 0.0625rem solid rgba(0, 201, 167, 0.1); /* 1px */
-            transform: scale(0.8);
-            opacity: 0;
-            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                       opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-        }
-
-        .document-modal.show .seed-modal-content {
-            transform: scale(1);
-            opacity: 1;
-        }
-
-        .restore-card {
-            width: 100%;
-            background: linear-gradient(135deg, rgba(20, 30, 60, 0.9), rgba(10, 20, 40, 0.9));
-            border-radius: var(--card-border-radius);
-            padding: 0.9375rem; /* 15px */
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3),
-                        0 0 0 1px rgba(78, 181, 247, 0.15) inset;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .restore-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(90deg,
-                                       rgba(255, 255, 255, 0),
-                                       rgba(255, 255, 255, 0.08),
-                                       rgba(255, 255, 255, 0));
-            transform: skewX(-25deg);
-            animation: shine 3s infinite;
-        }
-
-        @keyframes shine {
-            0% { left: -100%; }
-            20% { left: 100%; }
-            100% { left: 100%; }
-        }
-
-        .restore-title {
-            font-size: 1.5rem; /* 24px */
-            font-weight: bold;
-            margin-bottom: 0.9375rem; /* 15px */
-            text-align: center;
-            color: var(--text-color);
-            text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
-        }
-
-        .restore-subtitle {
-            font-size: 0.875rem; /* 14px */
-            color: #ffc107;
-            margin-bottom: 0.9375rem; /* 15px */
-            text-align: center;
-            animation: pulse-text 2s infinite;
-        }
-
-        @keyframes pulse-text {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
-        }
-
-        .words-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.625rem; /* 10px */
-            margin-bottom: 1.25rem; /* 20px */
-        }
-
-        .word-cell {
-            background: rgba(30, 39, 70, 0.8);
-            border-radius: 0.625rem; /* 10px */
-            padding: 0.625rem; /* 10px */
-            text-align: center;
-            border: 1px solid rgba(78, 181, 247, 0.15);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            transform: translateY(20px);
-            opacity: 0;
-            animation: fadeInUp 0.5s forwards;
-        }
-
-        .word-cell:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 201, 167, 0.3);
-            border-color: rgba(0, 201, 167, 0.3);
-            background: rgba(30, 39, 70, 0.9);
-        }
-
-        .word-cell:nth-child(1) { animation-delay: 0.1s; }
-        .word-cell:nth-child(2) { animation-delay: 0.15s; }
-        .word-cell:nth-child(3) { animation-delay: 0.2s; }
-        .word-cell:nth-child(4) { animation-delay: 0.25s; }
-        .word-cell:nth-child(5) { animation-delay: 0.3s; }
-        .word-cell:nth-child(6) { animation-delay: 0.35s; }
-        .word-cell:nth-child(7) { animation-delay: 0.4s; }
-        .word-cell:nth-child(8) { animation-delay: 0.45s; }
-        .word-cell:nth-child(9) { animation-delay: 0.5s; }
-        .word-cell:nth-child(10) { animation-delay: 0.55s; }
-        .word-cell:nth-child(11) { animation-delay: 0.6s; }
-        .word-cell:nth-child(12) { animation-delay: 0.65s; }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .word-number {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 0.75rem; /* 12px */
-            margin-bottom: 0.125rem; /* 2px */
-        }
-
-        .word-value {
-            color: var(--secondary-color);
-            font-size: 0.875rem; /* 14px */
-            font-weight: bold;
-        }
-
-        .copy-button {
-            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-            border: none;
-            border-radius: 2.5rem; /* 40px */
-            padding: 0.625rem 1.25rem; /* 10px 20px */
-            color: white;
-            font-size: 1rem; /* 16px */
-            cursor: pointer;
-            margin-bottom: 0.9375rem; /* 15px */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            position: relative;
-            margin: 0 auto 15px;
-            width: auto;
-            animation: pulse-button 2s infinite;
-        }
-
-        @keyframes pulse-button {
-            0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
-        }
-
-        .copy-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .copy-button:active {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .copy-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg,
-                rgba(255, 255, 255, 0),
-                rgba(255, 255, 255, 0.2),
-                rgba(255, 255, 255, 0));
-            transition: all 0.6s;
-        }
-
-        .copy-button:hover::before {
-            left: 100%;
-        }
-
-        .seed-continue-button {
-            width: 100%;
-            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-            border: none;
-            border-radius: 0.75rem; /* 12px */
-            padding: 0.9375rem; /* 15px */
-            color: white;
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        .seed-continue-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .seed-continue-button:active {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-        }
-
-        .nav-bar {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
-            display: flex;
-            justify-content: space-around;
-            width: 90%;
-            max-width: 33.75rem; /* 540px */
-            height: var(--nav-height);
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
-            position: fixed;
-            bottom: 1.875rem; /* 30px - підняли вгору на 20px з початкових 10px */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-        }
-
-        .nav-item {
-            text-align: center;
-            color: var(--text-color);
-            font-size: 0.875rem; /* 14px */
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 20%;
-            position: relative;
-        }
-
-        .nav-item .icon-wrapper {
-            width: 3.75rem; /* 60px */
-            height: 3.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 0.75rem; /* 12px */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.3125rem; /* 5px */
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease;
-        }
-
-        .nav-item.active .icon-wrapper {
-            background: var(--bg-active);
-            box-shadow: 0 0 0.9375rem var(--glow-color);
-        }
-
-        .nav-item img {
-            width: 2.1875rem; /* 35px */
-            height: 2.1875rem;
-            display: block;
-            filter: brightness(0) invert(1);
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active img {
-            filter: brightness(1.2) invert(1);
-            transform: scale(1.1);
-        }
-
-        .nav-item:hover .icon-wrapper {
-            transform: scale(1.1);
-        }
-
-        .bottom-buttons-container {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-around; /* Розподіл кнопок */
-            gap: 1rem; /* Менший проміжок */
-            align-items: flex-end;
-            padding: 0.1rem;
-            width: 100%;
-            box-sizing: border-box;
-            margin-top: 0.1rem;
-            margin-bottom: 3rem; /* Відступ знизу */
-        }
-
-        .bottom-button {
-            width: 3.125rem; /* 50px */
-            height: 3.125rem; /* 50px */
-            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            border-radius: 90%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3); /* 0 4px 10px */
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .bottom-button:hover {
-            transform: scale(1.1) translateY(-3px);
-            box-shadow: 0 0.375rem 0.9375rem rgba(0, 0, 0, 0.4); /* 0 6px 15px */
-        }
-
-        .bottom-button img {
-            width: 1.5rem; /* 24px */
-            height: 1.5rem;
-            filter: brightness(0) invert(1);
-            transition: transform 0.3s ease;
-        }
-
-        .bottom-button:hover img {
-            transform: scale(1.1);
-        }
-
-        .button-icon {
-            width: 1.5rem; /* 24px */
-            height: 1.5rem;
-            filter: brightness(0) invert(1);
-        }
-
-        .modal-scrollable-content {
-            max-height: 60vh;
+        /* Стилі для документів ліцензії/угоди */
+        .document-content {
+            max-height: 400px;
             overflow-y: auto;
-            margin-bottom: 1rem;
-            padding-right: 0.5rem;
-            scrollbar-width: thin;
-            scrollbar-color: var(--secondary-color) transparent;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(20, 30, 60, 0.7);
+            border-radius: 12px;
+            border: 1px solid rgba(78, 181, 247, 0.2);
+            line-height: 1.6;
         }
 
-        .modal-scrollable-content::-webkit-scrollbar {
-            width: 0.375rem; /* 6px */
+        .document-content h3 {
+            color: var(--secondary-color, #4eb5f7);
+            margin: 15px 0 8px;
         }
 
-        .modal-scrollable-content::-webkit-scrollbar-track {
+        .document-content p {
+            margin-bottom: 10px;
+        }
+
+        .document-content::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .document-content::-webkit-scrollbar-track {
             background: rgba(0, 0, 0, 0.1);
-            border-radius: 0.625rem; /* 10px */
+            border-radius: 10px;
         }
 
-        .modal-scrollable-content::-webkit-scrollbar-thumb {
-            background-color: var(--secondary-color);
-            border-radius: 0.625rem; /* 10px */
+        .document-content::-webkit-scrollbar-thumb {
+            background: var(--secondary-color, #4eb5f7);
+            border-radius: 10px;
         }
 
-        .modal-back-button {
-            background: linear-gradient(90deg, #3D7EC6, #62D0CD);
-            border: none;
-            border-radius: 1.25rem; /* 20px */
-            padding: 0.625rem 1.25rem; /* 10px 20px */
-            color: white;
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.4);
-            margin-top: 1rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .modal-back-button:hover {
-            transform: translateY(-0.125rem); /* -2px */
-            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-back-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg,
-                rgba(255, 255, 255, 0),
-                rgba(255, 255, 255, 0.2),
-                rgba(255, 255, 255, 0));
-            transition: all 0.6s;
-        }
-
-        .modal-back-button:hover::before {
-            left: 100%;
-        }
-
+        /* Інші елементи */
         #error-msg {
             color: #f44336;
             background-color: rgba(244, 67, 54, 0.1);
@@ -1227,12 +889,12 @@
             align-items: center;
             max-width: 350px;
             width: 90%;
+            text-align: center;
         }
 
-        .toast-message.success {
-            background: linear-gradient(135deg, #0F3460, #006064);
-            border: 1px solid rgba(0, 201, 167, 0.5);
-            box-shadow: 0 4px 15px rgba(0, 201, 167, 0.3);
+        .toast-message.show {
+            opacity: 1;
+            transform: translate(-50%, 0.625rem); /* -50%, 10px */
         }
 
         .toast-message.error {
@@ -1241,20 +903,13 @@
             box-shadow: 0 4px 15px rgba(255, 82, 82, 0.3);
         }
 
-        .toast-message::after {
-            content: '×';
-            color: #4eb5f7;
-            margin-left: 10px;
-            cursor: pointer;
-            font-size: 20px;
+        .toast-message.success {
+            background: linear-gradient(135deg, #0F3460, #006064);
+            border: 1px solid rgba(0, 201, 167, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 201, 167, 0.3);
         }
 
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem); /* -50%, 10px */
-        }
-
-        /* Преміум анімації переходів сторінок */
+        /* Преміум-анімації переходів сторінок */
         .page-transition-overlay {
             position: fixed;
             top: 0;
@@ -1268,7 +923,166 @@
             transition: opacity 0.3s ease;
         }
 
-        /* Адаптивні медіа-запити */
+        /* Фікс для нижньої навігації */
+        .nav-bar {
+            position: fixed !important;
+            bottom: 1.875rem !important; /* 30px */
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 10 !important;
+            width: 90% !important;
+            max-width: 33.75rem !important;
+            margin: 0 auto !important;
+            display: flex !important;
+            justify-content: space-around !important;
+        }
+
+        /* Анімації для SID-фрази */
+        .seed-modal-content {
+            background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95)) !important;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
+                       0 0 0 1px rgba(78, 181, 247, 0.2) inset,
+                       0 5px 15px rgba(0, 201, 167, 0.15) !important;
+            transform: scale(0.9);
+            opacity: 0;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                       opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+        }
+
+        .document-modal.show .seed-modal-content {
+            transform: scale(1) !important;
+            opacity: 1 !important;
+        }
+
+        .restore-card {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, rgba(20, 30, 60, 0.9), rgba(10, 20, 40, 0.9)) !important;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3),
+                       0 0 0 1px rgba(78, 181, 247, 0.15) inset !important;
+            border-radius: 16px !important;
+            padding: 20px;
+        }
+
+        .restore-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                                       rgba(255, 255, 255, 0),
+                                       rgba(255, 255, 255, 0.08),
+                                       rgba(255, 255, 255, 0));
+            transform: skewX(-25deg);
+            animation: shine 3s infinite;
+        }
+
+        .restore-title {
+            font-size: 1.5rem; /* 24px */
+            font-weight: bold;
+            margin-bottom: 0.9375rem; /* 15px */
+            text-align: center;
+            color: var(--text-color);
+            text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+        }
+
+        .restore-subtitle {
+            font-size: 0.875rem; /* 14px */
+            color: #ffc107;
+            margin-bottom: 0.9375rem; /* 15px */
+            text-align: center;
+            animation: pulse-text 2s infinite;
+        }
+
+        .words-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.625rem; /* 10px */
+            margin: 15px 0;
+        }
+
+        .word-cell {
+            background: rgba(30, 39, 70, 0.8);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid rgba(78, 181, 247, 0.15);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        .word-cell:hover {
+            transform: translateY(-3px) !important;
+            box-shadow: 0 5px 15px rgba(0, 201, 167, 0.3) !important;
+            border-color: rgba(0, 201, 167, 0.3) !important;
+            background: rgba(30, 39, 70, 0.9) !important;
+        }
+
+        .word-cell:nth-child(1) { animation-delay: 0.1s; }
+        .word-cell:nth-child(2) { animation-delay: 0.15s; }
+        .word-cell:nth-child(3) { animation-delay: 0.2s; }
+        .word-cell:nth-child(4) { animation-delay: 0.25s; }
+        .word-cell:nth-child(5) { animation-delay: 0.3s; }
+        .word-cell:nth-child(6) { animation-delay: 0.35s; }
+        .word-cell:nth-child(7) { animation-delay: 0.4s; }
+        .word-cell:nth-child(8) { animation-delay: 0.45s; }
+        .word-cell:nth-child(9) { animation-delay: 0.5s; }
+        .word-cell:nth-child(10) { animation-delay: 0.55s; }
+        .word-cell:nth-child(11) { animation-delay: 0.6s; }
+        .word-cell:nth-child(12) { animation-delay: 0.65s; }
+
+        .word-number {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8em;
+            margin-bottom: 2px;
+        }
+
+        .word-value {
+            color: var(--secondary-color, #4eb5f7);
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        .copy-button {
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD) !important;
+            padding: 10px 20px !important;
+            border-radius: 30px !important;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
+            position: relative;
+            overflow: hidden;
+            animation: pulse-button 2s infinite;
+            width: auto !important;
+            margin: 0 auto 10px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-weight: bold !important;
+            gap: 8px !important;
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+
+        .seed-continue-button {
+            background: linear-gradient(90deg, #2D6EB6, #52C0BD) !important;
+            padding: 12px !important;
+            border-radius: 16px !important;
+            margin-top: 10px !important;
+            font-weight: bold !important;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
+            transition: all 0.3s ease !important;
+            border: none;
+            color: white;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
             :root {
                 --header-height: 3rem; /* 48px */
@@ -1352,38 +1166,6 @@
                 height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
                 border-radius: 1.25rem; /* 20px */
             }
-        }
-
-        /* Додаткові преміум анімації */
-        @keyframes float {
-            0% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0); }
-        }
-
-        @keyframes gradient-move {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        /* Анімації для елементів при завантаженні сторінки */
-        .header, .nav-bar {
-            animation: slide-in-top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-        }
-
-        @keyframes slide-in-top {
-            0% { transform: translateY(-50px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
-        }
-
-        .bottom-buttons-container {
-            animation: slide-in-bottom 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
-        }
-
-        @keyframes slide-in-bottom {
-            0% { transform: translateY(50px); opacity: 0; }
-            100% { transform: translateY(0); opacity: 1; }
         }
     </style>
 </head>
@@ -1476,11 +1258,11 @@
         </div>
 
         <div class="nav-bar">
-            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div><span data-lang-key="home">Головна</span></div>
-            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Заробіток</span></div>
-            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Реферали</span></div>
-            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Гаманець</span></div>
-            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Налаштування"></div><span data-lang-key="General">Налаштування</span></div>
+            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div><span data-lang-key="home">Home</span></div>
+            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Earn</span></div>
+            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Referrals</span></div>
+            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Wallet</span></div>
+            <div class="nav-item active" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Налаштування"></div><span data-lang-key="General">Settings</span></div>
         </div>
     </div>
 
@@ -1492,5 +1274,184 @@
 
     <!-- Toast message -->
     <div id="toast-message" class="toast-message"></div>
+
+    <!-- Ініціалізаційний скрипт для покращеної взаємодії -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ініціалізація змінних користувача з localStorage
+            const initUserInfo = function() {
+                // ID користувача
+                const userId = localStorage.getItem('telegram_user_id') || '7066583465';
+                const userIdElements = document.querySelectorAll('#user-id, #user-id-profile');
+                userIdElements.forEach(element => {
+                    if (element) element.textContent = userId;
+                });
+
+                // Ім'я користувача
+                const username = localStorage.getItem('username') || 'WINIX User';
+                const profileName = document.getElementById('profile-name');
+                if (profileName) profileName.textContent = username;
+
+                // Аватар користувача
+                const avatarId = localStorage.getItem('avatarId') || '1';
+                const avatarElements = document.querySelectorAll('#profile-avatar, #profile-avatar-large');
+                avatarElements.forEach(avatar => {
+                    if (avatar) {
+                        avatar.innerHTML = '';
+                        const avatarImg = document.createElement('img');
+                        avatarImg.src = `assets/avatars/${avatarId}.png`;
+                        avatarImg.alt = username;
+                        avatarImg.onerror = function() {
+                            avatar.textContent = username.charAt(0).toUpperCase();
+                        };
+                        avatar.appendChild(avatarImg);
+                    }
+                });
+
+                // Баланс
+                const tokens = localStorage.getItem('userTokens') || '7565.00';
+                const userTokens = document.getElementById('user-tokens');
+                if (userTokens) userTokens.textContent = parseFloat(tokens).toFixed(2);
+
+                // Жетони
+                const coins = localStorage.getItem('userCoins') || '5';
+                const userCoins = document.getElementById('user-coins');
+                if (userCoins) userCoins.textContent = coins;
+
+                // Налаштування сповіщень
+                const notificationsEnabled = localStorage.getItem('notifications_enabled') !== 'false';
+                const notificationsToggle = document.getElementById('notifications-toggle');
+                if (notificationsToggle) notificationsToggle.checked = notificationsEnabled;
+            };
+
+            // Функція для налаштування мови
+            const setupLanguageOptions = function() {
+                const currentLang = localStorage.getItem('userLanguage') || 'uk';
+
+                document.querySelectorAll('.language-option').forEach(option => {
+                    const lang = option.getAttribute('data-lang');
+                    if (lang === currentLang) {
+                        option.classList.add('active');
+                    } else {
+                        option.classList.remove('active');
+                    }
+
+                    option.addEventListener('click', function() {
+                        // Зберігаємо обрану мову
+                        localStorage.setItem('userLanguage', lang);
+
+                        // Оновлюємо активний клас
+                        document.querySelectorAll('.language-option').forEach(opt => {
+                            opt.classList.remove('active');
+                        });
+                        this.classList.add('active');
+
+                        // Оновлюємо інтерфейс (через існуючу функцію, якщо є)
+                        if (window.WinixLanguage && typeof window.WinixLanguage.setLanguage === 'function') {
+                            window.WinixLanguage.setLanguage(lang);
+                        } else {
+                            // Показуємо повідомлення про успішну зміну мови
+                            showToast(`Мову змінено на ${this.querySelector('.language-name').textContent}`);
+                        }
+                    });
+                });
+            };
+
+            // Функція для відображення toast повідомлень
+            window.showToast = function(message, isError = false) {
+                const toast = document.getElementById('toast-message');
+                if (toast) {
+                    toast.textContent = message;
+                    toast.className = 'toast-message';
+                    if (isError) {
+                        toast.classList.add('error');
+                    } else {
+                        toast.classList.add('success');
+                    }
+
+                    toast.classList.add('show');
+
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                    }, 3000);
+                }
+            };
+
+            // Функція для показу індикатора завантаження
+            window.showLoading = function(message = 'Завантаження...') {
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) {
+                    const loadingText = spinner.querySelector('.loading-text');
+                    if (loadingText) {
+                        loadingText.textContent = message;
+                    }
+                    spinner.style.display = 'flex';
+                }
+            };
+
+            // Функція для приховування індикатора завантаження
+            window.hideLoading = function() {
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) {
+                    spinner.style.display = 'none';
+                }
+            };
+
+            // Для переключення сповіщень
+            const setupNotificationsToggle = function() {
+                const toggle = document.getElementById('notifications-toggle');
+                if (toggle) {
+                    toggle.addEventListener('change', function() {
+                        localStorage.setItem('notifications_enabled', this.checked.toString());
+                        showToast(this.checked ? 'Сповіщення увімкнено' : 'Сповіщення вимкнено');
+                    });
+                }
+            };
+
+            // Налаштування навігації
+            const setupNavigation = function() {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const section = this.getAttribute('data-section');
+                        if (section) {
+                            // Додаємо анімацію переходу
+                            const transitionOverlay = document.createElement('div');
+                            transitionOverlay.className = 'page-transition-overlay';
+                            document.body.appendChild(transitionOverlay);
+
+                            // Анімуємо перехід
+                            setTimeout(() => {
+                                transitionOverlay.style.opacity = '1';
+                                setTimeout(() => {
+                                    window.location.href = section === 'home' ? 'index.html' : `${section}.html`;
+                                }, 300);
+                            }, 10);
+                        }
+                    });
+                });
+            };
+
+            // Виконуємо всі налаштування
+            initUserInfo();
+            setupLanguageOptions();
+            setupNotificationsToggle();
+            setupNavigation();
+
+            // Фікс для нижньої навігації
+            const navBar = document.querySelector('.nav-bar');
+            if (navBar) {
+                navBar.style.position = 'fixed';
+                navBar.style.bottom = '1.875rem';
+                navBar.style.left = '50%';
+                navBar.style.transform = 'translateX(-50%)';
+                navBar.style.zIndex = '10';
+                navBar.style.width = '90%';
+                navBar.style.maxWidth = '33.75rem';
+                navBar.style.margin = '0 auto';
+                navBar.style.display = 'flex';
+                navBar.style.justifyContent = 'space-around';
+            }
+        });
+    </script>
 </body>
 </html>
