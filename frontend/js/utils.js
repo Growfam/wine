@@ -1,12 +1,18 @@
 /**
  * utils.js - Допоміжні функції для WINIX WebApp
  * Включає покращені функції для сповіщень, індикаторів завантаження та анімацій
+ * Виправлено для запобігання нескінченному завантаженню
  */
 
 // Змінні для контролю стану сповіщень
 let _isShowingNotification = false;
 let _notificationsQueue = [];
 const MAX_NOTIFICATIONS = 3;
+
+// Змінні для контролю індикатора завантаження
+let _loadingTimeout = null;
+let _loadingStartTime = 0;
+const MAX_LOADING_TIME = 8000; // 8 секунд максимум
 
 /**
  * Показує преміум-сповіщення з анімацією
@@ -253,7 +259,9 @@ function showNotification(message, isError = false, callback = null) {
             notification.classList.add('hide');
 
             setTimeout(() => {
-                notification.remove();
+                if (notification.parentNode) {
+                    notification.remove();
+                }
                 _isShowingNotification = false;
 
                 // Показуємо наступне повідомлення з черги
@@ -291,6 +299,26 @@ function showNotification(message, isError = false, callback = null) {
  * @param {string} message - Повідомлення для відображення
  */
 function showLoading(message = 'Завантаження...') {
+    // Встановлюємо час початку завантаження
+    _loadingStartTime = Date.now();
+
+    // Очищаємо попередній таймаут, якщо він є
+    if (_loadingTimeout) {
+        clearTimeout(_loadingTimeout);
+    }
+
+    // Встановлюємо новий таймаут для автоматичного приховування
+    _loadingTimeout = setTimeout(() => {
+        console.warn("⚠️ Автоматичне приховування індикатора завантаження через таймаут");
+        hideLoading();
+
+        // Показуємо сповіщення про проблему
+        const isSettingsPage = window.location.pathname.includes('general.html');
+        if (isSettingsPage) {
+            showNotification("Завантаження даних займає занадто багато часу. Спробуйте оновити сторінку.", true);
+        }
+    }, MAX_LOADING_TIME);
+
     // Перевіряємо, чи індикатор завантаження вже існує
     let spinner = document.getElementById('premium-loading-spinner');
 
@@ -357,6 +385,22 @@ function showLoading(message = 'Завантаження...') {
                     text-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
                     padding: 0 20px;
                 }
+                
+                .premium-spinner-cancel {
+                    margin-top: 20px;
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.3s ease;
+                }
+                
+                .premium-spinner-cancel:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                }
             `;
             document.head.appendChild(style);
         }
@@ -370,10 +414,28 @@ function showLoading(message = 'Завантаження...') {
             <div class="premium-spinner-content">
                 <div class="premium-spinner"></div>
                 <div class="premium-spinner-message">${message}</div>
+                <button class="premium-spinner-cancel">Скасувати</button>
             </div>
         `;
 
         document.body.appendChild(spinner);
+
+        // Додаємо обробник для кнопки скасування
+        const cancelBtn = spinner.querySelector('.premium-spinner-cancel');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                hideLoading();
+
+                // На сторінці налаштувань показуємо сповіщення про скасування
+                const isSettingsPage = window.location.pathname.includes('general.html');
+                if (isSettingsPage) {
+                    if (window.WinixAPI && window.WinixAPI.clearCache) {
+                        window.WinixAPI.clearCache();
+                    }
+                    showNotification("Завантаження скасовано. Спробуйте оновити сторінку.", true);
+                }
+            });
+        }
     } else {
         // Оновлюємо повідомлення
         const messageElement = spinner.querySelector('.premium-spinner-message');
@@ -392,6 +454,32 @@ function showLoading(message = 'Завантаження...') {
  * Приховує індикатор завантаження з анімацією
  */
 function hideLoading() {
+    // Очищаємо таймаут
+    if (_loadingTimeout) {
+        clearTimeout(_loadingTimeout);
+        _loadingTimeout = null;
+    }
+
+    // Розраховуємо тривалість показу індикатора
+    const loadingDuration = Date.now() - _loadingStartTime;
+    console.log(`Індикатор завантаження був активний ${loadingDuration}ms`);
+
+    // Перевіряємо, чи індикатор відображався достатньо довго
+    if (loadingDuration < 300) {
+        console.log("Індикатор завантаження був активний занадто мало часу, почекаємо трохи перед закриттям");
+        // Затримка, щоб індикатор був видимий принаймні 300мс
+        setTimeout(() => {
+            closeLoadingSpinner();
+        }, 300 - loadingDuration);
+    } else {
+        closeLoadingSpinner();
+    }
+}
+
+/**
+ * Внутрішня функція для закриття індикатора завантаження
+ */
+function closeLoadingSpinner() {
     const spinner = document.getElementById('premium-loading-spinner');
 
     if (spinner) {
@@ -654,6 +742,108 @@ function fixNavigation() {
     }
 }
 
+/**
+ * Додає стилі для виправлення проблем на сторінці налаштувань
+ */
+function addSettingsPageFixes() {
+    // Перевіряємо, чи це сторінка налаштувань
+    if (!window.location.pathname.includes('general.html')) {
+        return;
+    }
+
+    console.log("Додаємо виправлення для сторінки налаштувань");
+
+    // Додаємо додаткові стилі
+    if (!document.getElementById('settings-page-fixes')) {
+        const style = document.createElement('style');
+        style.id = 'settings-page-fixes';
+        style.textContent = `
+            /* Прискорюємо анімації для зменшення навантаження */
+            .premium-notification, .modal-content, .seed-modal-content, .general-card {
+                transition-duration: 0.2s !important;
+            }
+            
+            /* Прискорюємо анімації для преміум-ефектів */
+            @keyframes pulse-button {
+                0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.2); }
+                70% { box-shadow: 0 0 0 5px rgba(0, 201, 167, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
+            }
+            
+            /* Фіксуємо прокрутку на сторінці */
+            .container {
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Відключаємо деякі анімації на сторінці налаштувань
+    document.querySelectorAll('.word-cell, .action-button, .avatar-option').forEach(el => {
+        el.style.animation = 'none';
+    });
+
+    // Ініціалізуємо дані користувача, якщо вони відсутні
+    setTimeout(() => {
+        // Перевіряємо наявність основних елементів
+        const userIdElement = document.getElementById('user-id');
+        const profileName = document.getElementById('profile-name');
+        const userTokens = document.getElementById('user-tokens');
+        const userCoins = document.getElementById('user-coins');
+
+        // Встановлюємо значення за замовчуванням, якщо вони відсутні
+        if (userIdElement && !userIdElement.textContent) {
+            const userId = localStorage.getItem('telegram_user_id') || '7066583465';
+            userIdElement.textContent = userId;
+        }
+
+        if (profileName && (!profileName.textContent || profileName.textContent === 'WINIX User')) {
+            const username = localStorage.getItem('username') || 'WINIX User';
+            profileName.textContent = username;
+        }
+
+        if (userTokens && !userTokens.textContent) {
+            const tokens = localStorage.getItem('userTokens') || '100';
+            userTokens.textContent = tokens;
+        }
+
+        if (userCoins && !userCoins.textContent) {
+            const coins = localStorage.getItem('userCoins') || '5';
+            userCoins.textContent = coins;
+        }
+
+        // Перевіряємо чекбокс повідомлень
+        const notificationsToggle = document.getElementById('notifications-toggle');
+        if (notificationsToggle) {
+            const notificationsEnabled = localStorage.getItem('notifications_enabled') !== 'false';
+            notificationsToggle.checked = notificationsEnabled;
+
+            // Оновлюємо обробник зміни
+            notificationsToggle.addEventListener('change', function() {
+                localStorage.setItem('notifications_enabled', this.checked.toString());
+
+                // Оновлюємо налаштування через API
+                if (window.WinixAPI && window.WinixAPI.updateSettings) {
+                    window.WinixAPI.updateSettings({
+                        notifications_enabled: this.checked
+                    })
+                    .then(() => {
+                        showNotification(this.checked ? 'Сповіщення увімкнено' : 'Сповіщення вимкнено');
+                    })
+                    .catch(err => {
+                        console.warn("Помилка оновлення налаштувань:", err);
+                        // Все одно показуємо повідомлення
+                        showNotification(this.checked ? 'Сповіщення увімкнено' : 'Сповіщення вимкнено');
+                    });
+                } else {
+                    showNotification(this.checked ? 'Сповіщення увімкнено' : 'Сповіщення вимкнено');
+                }
+            });
+        }
+    }, 500);
+}
+
 // Глобальні функції для використання в проекті
 window.showNotification = showNotification;
 window.showLoading = showLoading;
@@ -666,11 +856,43 @@ window.showToast = showNotification;
 window.showError = (message) => showNotification(message, true);
 window.showSuccess = (message) => showNotification(message, false);
 
-// Застосовуємо фікс для навігації при завантаженні
-document.addEventListener('DOMContentLoaded', fixNavigation);
+// Застосовуємо фікс для навігації та сторінки налаштувань при завантаженні
+document.addEventListener('DOMContentLoaded', () => {
+    fixNavigation();
+    addSettingsPageFixes();
+
+    // Прихований індикатор завантаження для уникнення зациклення
+    setTimeout(() => {
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner && spinner.classList.contains('show')) {
+            console.warn("⚠️ Виявлено зависаючий індикатор завантаження, примусово приховуємо");
+            hideLoading();
+        }
+    }, 5000);
+});
+
 window.addEventListener('resize', fixNavigation);
+
+// Додаємо обробник для прихованих вказівників завантаження
+window.addEventListener('load', () => {
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner && spinner.classList.contains('show')) {
+        console.warn("⚠️ Виявлено зависаючий індикатор завантаження після завантаження, примусово приховуємо");
+        hideLoading();
+    }
+});
 
 // Викликаємо фікс відразу, якщо DOM вже завантажено
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
     fixNavigation();
+    addSettingsPageFixes();
+
+    // Прихований індикатор завантаження для уникнення зациклення
+    setTimeout(() => {
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner && spinner.classList.contains('show')) {
+            console.warn("⚠️ Виявлено зависаючий індикатор завантаження, примусово приховуємо");
+            hideLoading();
+        }
+    }, 3000);
 }
