@@ -25,8 +25,7 @@ const WinixWallet = {
         transactionsSource: null, // 'api', 'localStorage', або 'demo'
         currentFilter: 'all',  // Поточний фільтр для історії транзакцій
         hasShownCacheMessage: false, // Прапорець для повідомлення про кешовані дані
-        historyModalLoaded: false, // Прапорець для відстеження чи були завантажені дані для історії
-        keyboardVisible: false, // Прапорець для відстеження видимості клавіатури
+        historyModalLoaded: false // Прапорець для відстеження чи були завантажені дані для історії
     },
 
     // DOM-елементи
@@ -57,68 +56,7 @@ const WinixWallet = {
         // Додаємо преміум-анімації
         this.addPremiumAnimations();
 
-        // Налаштовуємо обробники для клавіатури
-        this.setupKeyboardHandlers();
-
         console.log("WinixWallet: Ініціалізація завершена");
-    },
-
-    // Налаштування обробників для клавіатури
-    setupKeyboardHandlers: function() {
-        // Додаємо обробник для приховування клавіатури при кліку поза полем вводу
-        document.addEventListener('click', (e) => {
-            // Якщо клік був не на полі вводу, приховуємо клавіатуру
-            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                this.hideKeyboard();
-            }
-        });
-
-        // Додаємо обробник для натискання на Enter
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                this.hideKeyboard();
-            }
-        });
-
-        // Додаємо обробники на поля вводу для відслідковування фокусу
-        const inputFields = document.querySelectorAll('input, textarea');
-        inputFields.forEach(field => {
-            field.addEventListener('focus', () => {
-                this.state.keyboardVisible = true;
-            });
-
-            field.addEventListener('blur', () => {
-                setTimeout(() => {
-                    this.state.keyboardVisible = false;
-                }, 300);
-            });
-        });
-
-        // Додаємо спеціальний обробник для форми відправки
-        if (this.elements.sendForm) {
-            // При натисканні на кнопку надсилання приховуємо клавіатуру
-            const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
-            if (submitButton) {
-                submitButton.addEventListener('click', (e) => {
-                    this.hideKeyboard();
-                });
-            }
-
-            // При натисканні на елементи форми, що не є полями вводу
-            this.elements.sendForm.addEventListener('click', (e) => {
-                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                    this.hideKeyboard();
-                }
-            });
-        }
-    },
-
-    // Метод для приховування клавіатури
-    hideKeyboard: function() {
-        // Приховуємо клавіатуру, прибираючи фокус з активного елемента
-        if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
-        }
     },
 
     // Додавання преміум-анімацій
@@ -273,26 +211,6 @@ const WinixWallet = {
                     50% { opacity: 0.5; }
                     100% { opacity: 0; transform: translate(calc(100% + 20px), calc(100% + 20px)); }
                 }
-                
-                /* Покращення для форми надсилання - фіксація кнопки відправки знизу */
-                .send-form-container {
-                    display: flex;
-                    flex-direction: column;
-                    height: 100%;
-                }
-                
-                .form-fields {
-                    flex-grow: 1;
-                    overflow-y: auto;
-                }
-                
-                .form-submit-container {
-                    padding-top: 10px;
-                    position: sticky;
-                    bottom: 0;
-                    background: inherit;
-                    z-index: 2;
-                }
                 `;
                 document.head.appendChild(style);
             }
@@ -306,68 +224,8 @@ const WinixWallet = {
                 }
             });
 
-            // Оновлюємо структуру форми надсилання для кращої мобільної доступності
-            this.updateFormStructure();
-
         } catch (error) {
             console.error('Помилка додавання преміум-анімацій:', error);
-        }
-    },
-
-    // Покращення структури форми для мобільних пристроїв
-    updateFormStructure: function() {
-        try {
-            // Отримуємо форму надсилання
-            const form = document.getElementById('send-form');
-            if (!form) return;
-
-            // Перевіряємо, чи вже оновлена структура
-            if (form.querySelector('.form-fields')) return;
-
-            // Отримуємо кнопку відправки
-            const submitButton = form.querySelector('button[type="submit"]');
-            if (!submitButton) return;
-
-            // Створюємо нову структуру форми
-            const formContent = form.innerHTML;
-            const submitButtonHTML = submitButton.outerHTML;
-
-            // Видаляємо оригінальну кнопку
-            submitButton.remove();
-
-            // Створюємо нові контейнери
-            const fieldsContainer = document.createElement('div');
-            fieldsContainer.className = 'form-fields';
-            fieldsContainer.innerHTML = formContent;
-
-            const submitContainer = document.createElement('div');
-            submitContainer.className = 'form-submit-container';
-            submitContainer.innerHTML = submitButtonHTML;
-
-            // Очищаємо форму і додаємо нові контейнери
-            form.innerHTML = '';
-            form.className = 'send-form-container';
-            form.appendChild(fieldsContainer);
-            form.appendChild(submitContainer);
-
-            // Відновлюємо обробник подій для форми
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.handleSendFormSubmit();
-            });
-
-            // Додаємо обробники для полів форми
-            const inputFields = form.querySelectorAll('input, textarea');
-            inputFields.forEach(field => {
-                field.addEventListener('focus', () => {
-                    // Прокручуємо форму вгору, щоб побачити кнопку
-                    setTimeout(() => {
-                        submitContainer.scrollIntoView({ behavior: 'smooth' });
-                    }, 300);
-                });
-            });
-        } catch (error) {
-            console.error('Помилка при оновленні структури форми:', error);
         }
     },
 
@@ -421,6 +279,9 @@ const WinixWallet = {
 
         // Інші елементи
         this.elements.loadingIndicator = document.getElementById('loading-indicator');
+
+        // Кнопка MAX
+        this.elements.maxButton = document.getElementById('max-button');
     },
 
     // Налаштування обробників подій
@@ -458,8 +319,6 @@ const WinixWallet = {
         if (this.elements.sendForm) {
             this.elements.sendForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                // Приховуємо клавіатуру перед відправкою
-                this.hideKeyboard();
                 this.handleSendFormSubmit();
             });
         }
@@ -492,59 +351,14 @@ const WinixWallet = {
         }
 
         // Обробник для кнопки MAX в полі суми
-        const maxButton = document.getElementById('max-button');
-        if (maxButton && this.elements.sendAmount) {
-            maxButton.addEventListener('click', () => {
+        if (this.elements.maxButton && this.elements.sendAmount) {
+            this.elements.maxButton.addEventListener('click', () => {
                 this.elements.sendAmount.value = Math.floor(this.state.balance);
             });
         }
 
         // Додаємо обробник для оновлення при потягуванні вниз (pull-to-refresh)
         this.setupPullToRefresh();
-
-        // Додамо обробники для полів вводу, щоб приховувати клавіатуру при натисканні Enter
-        if (this.elements.recipientId) {
-            this.elements.recipientId.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (this.elements.sendAmount) {
-                        this.elements.sendAmount.focus();
-                    }
-                }
-            });
-        }
-
-        if (this.elements.sendAmount) {
-            this.elements.sendAmount.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (this.elements.sendNote) {
-                        this.elements.sendNote.focus();
-                    } else {
-                        this.hideKeyboard();
-                        // Знайдемо кнопку відправки форми і натиснемо її
-                        const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
-                        if (submitButton) {
-                            submitButton.click();
-                        }
-                    }
-                }
-            });
-        }
-
-        if (this.elements.sendNote) {
-            this.elements.sendNote.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.hideKeyboard();
-                    // Знайдемо кнопку відправки форми і натиснемо її
-                    const submitButton = this.elements.sendForm.querySelector('button[type="submit"]');
-                    if (submitButton) {
-                        submitButton.click();
-                    }
-                }
-            });
-        }
     },
 
     // Налаштування оновлення при потягуванні вниз
@@ -702,9 +516,6 @@ const WinixWallet = {
     // Закриття модального вікна
     closeModal: function(modal) {
         if (modal) {
-            // Приховуємо клавіатуру перед закриттям модального вікна
-            this.hideKeyboard();
-
             modal.classList.remove('show');
 
             // Скидаємо прапорець завантаження історії, якщо закривається вікно історії
@@ -716,9 +527,6 @@ const WinixWallet = {
 
     // Обробка відправки форми переказу
     handleSendFormSubmit: function() {
-        // Приховуємо клавіатуру
-        this.hideKeyboard();
-
         // Отримуємо дані з форми
         const recipientId = this.elements.recipientId ? this.elements.recipientId.value.trim() : '';
         const amount = this.elements.sendAmount ? parseFloat(this.elements.sendAmount.value) : 0;
@@ -828,6 +636,8 @@ const WinixWallet = {
             if (note) {
                 data.note = note;
             }
+
+            console.log('Відправляємо дані:', data);
 
             // Спроба використати WinixAPI, якщо він доступний
             if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
@@ -1570,9 +1380,6 @@ const WinixWallet = {
 
     // Показ деталей транзакції
     showTransactionDetails: function(transaction) {
-        // Приховуємо клавіатуру
-        this.hideKeyboard();
-
         // Створюємо модальне вікно з деталями транзакції
         const modal = document.createElement('div');
         modal.className = 'modal-overlay premium-modal show';
