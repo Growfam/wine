@@ -1766,4 +1766,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ініціалізуємо гаманець
     WinixWallet.init();
+
+});
+// Додайте функціонал для навігаційних елементів
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const section = this.getAttribute('data-section');
+
+        // Якщо вже на цій сторінці, нічого не робимо
+        if (section === 'wallet') {
+            console.log('Вже на сторінці гаманця');
+            return;
+        }
+
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('loading-indicator');
+        if (spinner) spinner.style.display = 'flex';
+
+        // Переходимо на відповідну сторінку
+        setTimeout(() => {
+            switch (section) {
+                case 'home':
+                    window.location.href = 'index.html';
+                    break;
+                case 'earn':
+                    window.location.href = 'earn.html';
+                    break;
+                case 'referrals':
+                    window.location.href = 'referrals.html';
+                    break;
+                case 'general':
+                    window.location.href = 'settings.html';
+                    break;
+                default:
+                    window.location.href = `${section}.html`;
+            }
+        }, 100);
+    });
 });
