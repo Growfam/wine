@@ -3,12 +3,52 @@ import sys
 import secrets
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
+
+# Налаштування логування
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Знаходимо кореневу директорію проекту
 BASE_DIR = Path(__file__).parent.parent.parent
 
 # Завантажуємо змінні оточення з .env файлу в корені проекту
 load_dotenv(BASE_DIR / '.env')
+
+
+# Функція для безпечного отримання змінної оточення
+def get_env(key, default=None, required=False, type_cast=None):
+    """
+    Безпечно отримує змінну оточення з перетворенням типу
+
+    Args:
+        key: Ключ змінної оточення
+        default: Значення за замовчуванням
+        required: Чи обов'язкова змінна (якщо True і немає значення, буде попередження)
+        type_cast: Функція для перетворення типу (int, float, bool, тощо)
+
+    Returns:
+        Значення змінної або default, якщо змінна не існує
+    """
+    value = os.environ.get(key, default)
+
+    # Перевірка на обов'язковість
+    if required and (value is None or value == ''):
+        logger.warning(f"Обов'язкова змінна оточення {key} не встановлена!")
+        return default
+
+    # Перетворення типу, якщо вказано
+    if type_cast and value is not None:
+        try:
+            # Особливий випадок для bool
+            if type_cast == bool:
+                return value.lower() in ('true', 'yes', '1', 'y', 't')
+            return type_cast(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Не вдалося перетворити значення '{value}' для {key} до типу {type_cast.__name__}")
+            return default
+
+    return value
 
 
 class Config:
@@ -18,72 +58,55 @@ class Config:
     BASE_DIR = BASE_DIR
 
     # Flask налаштування
-    FLASK_APP = os.environ.get('FLASK_APP', 'main.py')
-    DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    PORT = int(os.environ.get('PORT', 8080))
+    FLASK_APP = get_env('FLASK_APP', 'main.py')
+    DEBUG = get_env('FLASK_DEBUG', False, type_cast=bool)
+    PORT = get_env('PORT', 8080, type_cast=int)
 
     # Секретний ключ для сесій Flask - генеруємо рандомно, якщо не вказано
-    SECRET_KEY = os.environ.get('SECRET_KEY')
+    SECRET_KEY = get_env('SECRET_KEY')
     if not SECRET_KEY:
-        # В production режимі викидаємо помилку, якщо не вказано SECRET_KEY
-        if os.environ.get('FLASK_ENV') == 'production':
-            raise ValueError(
-                "SECRET_KEY must be set for production! Set the SECRET_KEY environment variable."
-            )
         # Для розробки генеруємо випадковий ключ
         SECRET_KEY = secrets.token_hex(32)
+        logger.warning("SECRET_KEY не встановлено, використовується випадкове значення")
 
     # Supabase з'єднання
-    SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY')
-
-    # Перевірка критичних змінних оточення
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        if os.environ.get('FLASK_ENV') == 'production':
-            raise ValueError(
-                "SUPABASE_URL and SUPABASE_ANON_KEY must be set for production!"
-            )
+    SUPABASE_URL = get_env('SUPABASE_URL')
+    SUPABASE_KEY = get_env('SUPABASE_ANON_KEY')
 
     # Налаштування Telegram
-    TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-    if not TELEGRAM_BOT_TOKEN and os.environ.get('FLASK_ENV') == 'production':
-        raise ValueError(
-            "TELEGRAM_BOT_TOKEN must be set for production!"
-        )
+    TELEGRAM_BOT_TOKEN = get_env('TELEGRAM_BOT_TOKEN', '')
 
     # Загальні налаштування WINIX
-    DEFAULT_TOKENS_NEW_USER = int(os.environ.get('DEFAULT_TOKENS_NEW_USER', 0))
-    DEFAULT_WINIX_NEW_USER = float(os.environ.get('DEFAULT_WINIX_NEW_USER', 0))
+    DEFAULT_TOKENS_NEW_USER = get_env('DEFAULT_TOKENS_NEW_USER', 0, type_cast=int)
+    DEFAULT_WINIX_NEW_USER = get_env('DEFAULT_WINIX_NEW_USER', 0, type_cast=float)
     WINIX_DECIMAL_PLACES = 2
 
     # Налаштування стейкінгу
-    STAKING_MIN_AMOUNT = int(os.environ.get('STAKING_MIN_AMOUNT', 50))
+    STAKING_MIN_AMOUNT = get_env('STAKING_MIN_AMOUNT', 50, type_cast=int)
     STAKING_PERIODS = [7, 14, 28]  # дні
     STAKING_RATES = {
-        7: float(os.environ.get('STAKING_RATE_7', 4.0)),  # 4% за 7 днів
-        14: float(os.environ.get('STAKING_RATE_14', 9.0)),  # 9% за 14 днів
-        28: float(os.environ.get('STAKING_RATE_28', 15.0))  # 15% за 28 днів
+        7: get_env('STAKING_RATE_7', 4.0, type_cast=float),  # 4% за 7 днів
+        14: get_env('STAKING_RATE_14', 9.0, type_cast=float),  # 9% за 14 днів
+        28: get_env('STAKING_RATE_28', 15.0, type_cast=float)  # 15% за 28 днів
     }
-    STAKING_CANCELLATION_FEE = float(os.environ.get('STAKING_CANCELLATION_FEE', 0.2))  # 20% штраф при скасуванні
+    STAKING_CANCELLATION_FEE = get_env('STAKING_CANCELLATION_FEE', 0.2, type_cast=float)  # 20% штраф при скасуванні
 
     # Реферальні налаштування
-    REFERRAL_MAX_LEVEL = int(os.environ.get('REFERRAL_MAX_LEVEL', 2))
-    REFERRAL_REWARD_LEVEL1 = int(os.environ.get('REFERRAL_REWARD_LEVEL1', 25))  # жетонів
-    REFERRAL_REWARD_LEVEL2 = int(os.environ.get('REFERRAL_REWARD_LEVEL2', 10))  # жетонів
+    REFERRAL_MAX_LEVEL = get_env('REFERRAL_MAX_LEVEL', 2, type_cast=int)
+    REFERRAL_REWARD_LEVEL1 = get_env('REFERRAL_REWARD_LEVEL1', 25, type_cast=int)  # жетонів
+    REFERRAL_REWARD_LEVEL2 = get_env('REFERRAL_REWARD_LEVEL2', 10, type_cast=int)  # жетонів
 
     # Налаштування розіграшів
-    DEFAULT_RAFFLE_COST = int(os.environ.get('DEFAULT_RAFFLE_COST', 1))  # жетонів
+    DEFAULT_RAFFLE_COST = get_env('DEFAULT_RAFFLE_COST', 1, type_cast=int)  # жетонів
 
     # Налаштування безпеки
-    # Використовуємо різні значення для різних аспектів безпеки
-    PASSWORD_SALT = os.environ.get('PASSWORD_SALT', secrets.token_hex(16))
-    JWT_SECRET = os.environ.get('JWT_SECRET')
-    if not JWT_SECRET:
-        JWT_SECRET = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-    JWT_EXPIRATION = int(os.environ.get('JWT_EXPIRATION', 86400))  # 24 години в секундах
+    PASSWORD_SALT = get_env('PASSWORD_SALT', secrets.token_hex(16))
+    JWT_SECRET = get_env('JWT_SECRET', SECRET_KEY)
+    JWT_EXPIRATION = get_env('JWT_EXPIRATION', 86400, type_cast=int)  # 24 години в секундах
 
     # Кеш і оптимізація
-    CACHE_TIMEOUT = int(os.environ.get('CACHE_TIMEOUT', 300))  # 5 хвилин в секундах
+    CACHE_TIMEOUT = get_env('CACHE_TIMEOUT', 300, type_cast=int)  # 5 хвилин в секундах
+    CACHE_ENABLED = get_env('CACHE_ENABLED', True, type_cast=bool)
 
     # Налаштування безпеки паролів
     PASSWORD_MIN_LENGTH = 8
@@ -107,14 +130,25 @@ class ProductionConfig(Config):
     JWT_EXPIRATION = 43200  # 12 годин в секундах
     LOG_LEVEL = 'ERROR'
 
-    # Значення за замовчуванням для критичних змінних не дозволені в продакшені
+    # Перевірка критичних налаштувань
     def __init__(self):
+        super().__init__()
+        missing_vars = []
+
         if not self.SECRET_KEY or self.SECRET_KEY == secrets.token_hex(32):
-            raise ValueError("SECRET_KEY must be set explicitly in production!")
-        if not self.SUPABASE_URL or not self.SUPABASE_KEY:
-            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set in production!")
+            missing_vars.append("SECRET_KEY")
+
+        if not self.SUPABASE_URL:
+            missing_vars.append("SUPABASE_URL")
+
+        if not self.SUPABASE_KEY:
+            missing_vars.append("SUPABASE_ANON_KEY")
+
         if not self.TELEGRAM_BOT_TOKEN:
-            raise ValueError("TELEGRAM_BOT_TOKEN must be set in production!")
+            missing_vars.append("TELEGRAM_BOT_TOKEN")
+
+        if missing_vars:
+            logger.error(f"КРИТИЧНА ПОМИЛКА: У продакшені не налаштовані обов'язкові змінні: {', '.join(missing_vars)}")
 
 
 class TestingConfig(Config):
@@ -127,8 +161,8 @@ class TestingConfig(Config):
     PASSWORD_HASH_ALGORITHM = 'sha256'
 
     # Спеціальні налаштування для тестового середовища
-    SUPABASE_URL = os.environ.get('TEST_SUPABASE_URL', 'https://test.supabase.co')
-    SUPABASE_KEY = os.environ.get('TEST_SUPABASE_KEY', 'test_key')
+    SUPABASE_URL = get_env('TEST_SUPABASE_URL', 'https://test.supabase.co')
+    SUPABASE_KEY = get_env('TEST_SUPABASE_KEY', 'test_key')
 
 
 # Словник конфігурацій
@@ -143,10 +177,10 @@ config_by_name = {
 def get_config():
     """Функція для отримання поточної конфігурації на основі оточення"""
     # Визначаємо оточення
-    flask_env = os.environ.get('FLASK_ENV', 'default')
+    flask_env = get_env('FLASK_ENV', 'default')
 
     # Якщо встановлено FLASK_DEBUG=True, використовуємо режим розробки
-    if os.environ.get('FLASK_DEBUG', 'False').lower() == 'true':
+    if get_env('FLASK_DEBUG', False, type_cast=bool):
         flask_env = 'development'
 
     # Якщо запущено з -m pytest, використовуємо тестову конфігурацію
@@ -155,8 +189,10 @@ def get_config():
 
     # Перевіряємо, чи вказане оточення існує в нашому словнику
     if flask_env not in config_by_name:
-        print(f"Warning: Unknown environment '{flask_env}', using default")
+        logger.warning(f"Невідоме оточення '{flask_env}', використовуємо 'default'")
         flask_env = 'default'
 
     # Повертаємо відповідну конфігурацію
-    return config_by_name[flask_env]()  # Створюємо екземпляр класу конфігурації
+    config = config_by_name[flask_env]()
+    logger.info(f"Завантажено конфігурацію для оточення: {flask_env}")
+    return config
