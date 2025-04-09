@@ -2,6 +2,7 @@ from flask import jsonify, request
 import logging
 import os
 import sys
+import traceback
 import functools
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple, Optional, Union, List, Callable
@@ -12,15 +13,35 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-# Імпортуємо з supabase_client без використання importlib
-from supabase_client import get_user, update_user, update_balance, supabase, cached
+# Імпортуємо з backend.supabase_client
+try:
+    from backend.supabase_client import (
+        get_user, update_user, update_balance, supabase, cached,
+        get_user_staking_sessions, get_staking_session,
+        update_staking_session, complete_staking_session,
+        verify_staking_consistency
+    )
+except ImportError:
+    # Якщо імпорт з backend не працює, спробуємо прямий імпорт
+    from supabase_client import (
+        get_user, update_user, update_balance, supabase, cached,
+        get_user_staking_sessions, get_staking_session,
+        update_staking_session, complete_staking_session,
+        verify_staking_consistency
+    )
+
+# Імпортуємо функції з services.py
+from .services import (
+    check_active_staking, create_staking, add_to_staking as service_add_to_staking,
+    cancel_staking, finalize_staking, get_staking_history, calculate_staking_reward,
+    reset_and_repair_staking as service_reset_repair, deep_repair_staking,
+    parse_date_with_timezone, STAKING_REWARD_RATES
+)
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-# Константи
-from .services import STAKING_REWARD_RATES
 
 
 def api_response(status: str, data: Optional[Dict[str, Any]] = None,
