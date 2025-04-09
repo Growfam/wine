@@ -7,43 +7,39 @@ import hashlib
 import base64
 import json
 import secrets
+import importlib
 from datetime import datetime
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-# Додаємо кореневу папку бекенду до шляху Python для імпортів
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-# Імпортуємо з supabase_client без використання importlib
-from supabase_client import get_user, update_user, supabase
-
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Налаштування логування
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Імпортуємо модулі за допомогою абсолютних імпортів
+try:
+    from backend.supabase_client import get_user, update_user, supabase
+except ImportError:
+    # Це для зворотної сумісності - залишаємо на час перехідного періоду
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.append(parent_dir)
 
-# Імпортуємо supabase_client.py напряму
-current_dir = os.path.dirname(os.path.abspath(__file__))  # папка users
-parent_dir = os.path.dirname(current_dir)  # папка backend
+    # Використання importlib для імпорту модуля
+    spec = importlib.util.spec_from_file_location(
+        "supabase_client",
+        os.path.join(parent_dir, "supabase_client.py")
+    )
+    supabase_client = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(supabase_client)
 
-# Використання importlib для імпорту модуля з абсолютного шляху
-spec = importlib.util.spec_from_file_location("supabase_client", os.path.join(parent_dir, "supabase_client.py"))
-supabase_client = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(supabase_client)
-
-# Витягуємо необхідні функції з модуля
-get_user = supabase_client.get_user
-update_user = supabase_client.update_user
-supabase = supabase_client.supabase
+    # Витягуємо необхідні функції з модуля
+    get_user = supabase_client.get_user
+    update_user = supabase_client.update_user
+    supabase = supabase_client.supabase
 
 # Оптимізований список із 500 слів для генерації seed-фраз
 BIP39_WORDS = [

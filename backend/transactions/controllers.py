@@ -17,6 +17,50 @@ if parent_dir not in sys.path:
 # Імпортуємо з supabase_client без використання importlib
 from supabase_client import get_user, update_user, update_balance, supabase, retry_supabase, cached
 
+# Імпортуємо допоміжні функції для транзакцій
+try:
+    from utils.transaction_helpers import create_transaction_record, update_transaction_status
+except ImportError:
+    # Тимчасова функція для створення транзакції
+    def create_transaction_record(telegram_id, type_name, amount, description,
+                                  status="pending", extra_data=None):
+        try:
+            transaction_data = {
+                "id": str(uuid.uuid4()),
+                "telegram_id": telegram_id,
+                "type": type_name,
+                "amount": amount,
+                "description": description,
+                "status": status,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            if extra_data:
+                transaction_data.update(extra_data)
+
+            transaction_res = supabase.table("transactions").insert(transaction_data).execute()
+
+            if transaction_res.data:
+                return transaction_res.data[0], transaction_res.data[0].get("id")
+            else:
+                return transaction_data, transaction_data.get("id")
+
+        except Exception as e:
+            logger.error(f"create_transaction_record: Помилка створення запису транзакції: {str(e)}")
+            return None, None
+
+
+    # Тимчасова функція для оновлення статусу транзакції
+    def update_transaction_status(transaction_id, status):
+        try:
+            if not transaction_id:
+                return False
+
+            result = supabase.table("transactions").update({"status": status}).eq("id", transaction_id).execute()
+            return bool(result and result.data)
+        except Exception as e:
+            logger.error(f"update_transaction_status: Помилка оновлення статусу транзакції {transaction_id}: {str(e)}")
+            return False
+
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -221,36 +265,39 @@ def create_send_transaction(telegram_id: str, to_address: str, amount: Union[flo
                 status_code=400
             )
 
+        # Створюємо опис транзакції
+        description = note if note else f"Надсилання {amount_float} WINIX на адресу {to_address}"
+
+        # Створюємо запис транзакції за допомогою спільної функції
+        transaction_record, transaction_id = create_transaction_record(
+            telegram_id=telegram_id,
+            type_name="send",
+            amount=-amount_float,  # від'ємне значення для відправлення
+            description=description,
+            status="pending",
+            extra_data={"to_address": to_address}
+        )
+
+        if not transaction_record:
+            return api_response("error", message="Помилка створення транзакції", status_code=500)
+
         # Оновлюємо баланс атомарно
         new_balance = current_balance - amount_float
         update_result = update_user(telegram_id, {"balance": new_balance})
 
         if not update_result:
+            # Позначаємо транзакцію як помилкову
+            update_transaction_status(transaction_id, "failed")
             return api_response("error", message="Помилка оновлення балансу", status_code=500)
 
-        # Створюємо опис транзакції
-        description = note if note else f"Надсилання {amount_float} WINIX на адресу {to_address}"
-
-        # Створюємо запис транзакції
-        transaction_data = {
-            "id": str(uuid.uuid4()),
-            "telegram_id": telegram_id,
-            "type": "send",
-            "amount": -amount_float,  # від'ємне значення для відправлення
-            "to_address": to_address,
-            "description": description,
-            "status": "completed",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-
-        transaction_res = supabase.table("transactions").insert(transaction_data).execute()
-        transaction_result = transaction_res.data[0] if transaction_res.data else transaction_data
+        # Оновлюємо статус транзакції
+        update_transaction_status(transaction_id, "completed")
 
         return api_response(
             "success",
             message=f"Успішно надіслано {amount_float} WINIX",
             data={
-                "transaction": transaction_result,
+                "transaction": transaction_record,
                 "newBalance": new_balance
             }
         )
@@ -291,37 +338,40 @@ def create_receive_transaction(telegram_id: str, from_address: str, amount: Unio
             logger.warning(f"create_receive_transaction: Користувача {telegram_id} не знайдено")
             return api_response("error", message="Користувача не знайдено", status_code=404)
 
+        # Створюємо опис транзакції
+        description = note if note else f"Отримання {amount_float} WINIX від {from_address}"
+
+        # Створюємо запис транзакції за допомогою спільної функції
+        transaction_record, transaction_id = create_transaction_record(
+            telegram_id=telegram_id,
+            type_name="receive",
+            amount=amount_float,
+            description=description,
+            status="pending",
+            extra_data={"from_address": from_address}
+        )
+
+        if not transaction_record:
+            return api_response("error", message="Помилка створення транзакції", status_code=500)
+
         # Оновлюємо баланс атомарно
         current_balance = float(user.get("balance", 0))
         new_balance = current_balance + amount_float
         update_result = update_user(telegram_id, {"balance": new_balance})
 
         if not update_result:
+            # Позначаємо транзакцію як помилкову
+            update_transaction_status(transaction_id, "failed")
             return api_response("error", message="Помилка оновлення балансу", status_code=500)
 
-        # Створюємо опис транзакції
-        description = note if note else f"Отримання {amount_float} WINIX від {from_address}"
-
-        # Створюємо запис транзакції
-        transaction_data = {
-            "id": str(uuid.uuid4()),
-            "telegram_id": telegram_id,
-            "type": "receive",
-            "amount": amount_float,
-            "from_address": from_address,
-            "description": description,
-            "status": "completed",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-
-        transaction_res = supabase.table("transactions").insert(transaction_data).execute()
-        transaction_result = transaction_res.data[0] if transaction_res.data else transaction_data
+        # Оновлюємо статус транзакції
+        update_transaction_status(transaction_id, "completed")
 
         return api_response(
             "success",
             message=f"Успішно отримано {amount_float} WINIX",
             data={
-                "transaction": transaction_result,
+                "transaction": transaction_record,
                 "newBalance": new_balance
             }
         )
@@ -406,34 +456,24 @@ def transfer_tokens(sender_id: str, receiver_id: str, amount: Union[float, int, 
             send_description = note if note else f"Надсилання {amount_float} WINIX користувачу {receiver_id}"
             receive_description = note if note else f"Отримання {amount_float} WINIX від користувача {sender_id}"
 
-            # 3. Створюємо записи транзакцій
-            send_transaction = {
-                "id": str(uuid.uuid4()),
-                "telegram_id": sender_id,
-                "type": "send",
-                "amount": -amount_float,  # від'ємне значення для відправки
-                "to_address": receiver_id,
-                "description": send_description,
-                "status": "completed",
-                "created_at": timestamp,
-                "transaction_group": transaction_id  # Для зв'язування транзакцій
-            }
+            # 3. Створюємо записи транзакцій за допомогою спільних функцій
+            send_transaction, send_id = create_transaction_record(
+                telegram_id=sender_id,
+                type_name="send",
+                amount=-amount_float,
+                description=send_description,
+                status="completed",
+                extra_data={"to_address": receiver_id, "transaction_group": transaction_id}
+            )
 
-            receive_transaction = {
-                "id": str(uuid.uuid4()),
-                "telegram_id": receiver_id,
-                "type": "receive",
-                "amount": amount_float,
-                "from_address": sender_id,
-                "description": receive_description,
-                "status": "completed",
-                "created_at": timestamp,
-                "transaction_group": transaction_id  # Для зв'язування транзакцій
-            }
-
-            # 4. Зберігаємо обидві транзакції в базі даних
-            send_result = supabase.table("transactions").insert(send_transaction).execute()
-            receive_result = supabase.table("transactions").insert(receive_transaction).execute()
+            receive_transaction, receive_id = create_transaction_record(
+                telegram_id=receiver_id,
+                type_name="receive",
+                amount=amount_float,
+                description=receive_description,
+                status="completed",
+                extra_data={"from_address": sender_id, "transaction_group": transaction_id}
+            )
 
             return api_response(
                 "success",
@@ -442,8 +482,8 @@ def transfer_tokens(sender_id: str, receiver_id: str, amount: Union[float, int, 
                     "transaction_id": transaction_id,
                     "sender_balance": sender_new_balance,
                     "receiver_balance": receiver_new_balance,
-                    "send_transaction": send_result.data[0] if send_result.data else send_transaction,
-                    "receive_transaction": receive_result.data[0] if receive_result.data else receive_transaction
+                    "send_transaction": send_transaction,
+                    "receive_transaction": receive_transaction
                 }
             )
 
@@ -548,148 +588,4 @@ def get_recent_transactions_by_type(telegram_id: str, limit: int = 3,
         logger.error(f"get_recent_transactions_by_type: Помилка отримання транзакцій для {telegram_id}: {str(e)}")
         return api_response("error", message=str(e), status_code=500)
 
-
-# Seed phrases related functions
-def verify_user_password(telegram_id: str, password: str) -> Dict[str, Any]:
-    """
-    Перевірка пароля користувача
-
-    Args:
-        telegram_id (str): ID користувача
-        password (str): Пароль для перевірки
-
-    Returns:
-        dict: Результат перевірки
-    """
-    try:
-        user = get_user(telegram_id)
-
-        if not user:
-            return {"status": "error", "message": "Користувача не знайдено"}
-
-        password_hash = user.get("password_hash")
-        password_salt = user.get("password_salt")
-
-        if not password_hash:
-            return {"status": "error", "message": "Пароль не встановлено"}
-
-        # Імпортуємо модуль seed_phrases
-        from . import seed_phrases
-
-        # Перевіряємо пароль
-        verified = False
-
-        # Перевірка з новим алгоритмом (PBKDF2)
-        if password_salt:
-            verified = seed_phrases.verify_password(password, {"hash": password_hash, "salt": password_salt})
-        else:
-            # Для сумісності зі старим алгоритмом
-            import hashlib
-            simple_hash = hashlib.sha256(password.encode()).hexdigest()
-            verified = (simple_hash == password_hash)
-
-            # Якщо пароль вірний, оновлюємо його до нового формату
-            if verified:
-                logger.info(f"Виявлено старий формат пароля для {telegram_id}, оновлення до нового формату...")
-                new_password_data = seed_phrases.hash_password(password)
-                update_user(telegram_id, {
-                    "password_hash": new_password_data["hash"],
-                    "password_salt": new_password_data["salt"]
-                })
-
-        return {"status": "success", "data": {"verified": verified}}
-
-    except Exception as e:
-        logger.error(f"verify_user_password: Помилка перевірки пароля користувача {telegram_id}: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-
-def update_user_password(telegram_id: str, data: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
-    """
-    Оновлення пароля користувача з хешуванням
-
-    Args:
-        telegram_id (str): ID користувача
-        data (dict): Дані з паролем
-
-    Returns:
-        tuple: (json_response, status_code)
-    """
-    try:
-        if not data or "password" not in data:
-            return api_response("error", message="Відсутній пароль", status_code=400)
-
-        password = data["password"]
-
-        # Мінімальні вимоги до пароля
-        if len(password) < 8:
-            return api_response("error", message="Пароль має містити не менше 8 символів", status_code=400)
-
-        # Перевіряємо наявність літер у паролі
-        letter_count = sum(1 for c in password if c.isalpha())
-        if letter_count < 5:
-            return api_response("error", message="Пароль має містити не менше 5 літер", status_code=400)
-
-        # Імпортуємо модуль seed_phrases
-        from . import seed_phrases
-
-        # Хешуємо пароль
-        password_data = seed_phrases.hash_password(password)
-
-        # Оновлюємо пароль у базі даних
-        result = seed_phrases.update_user_password(
-            telegram_id,
-            password_data["hash"],
-            password_data["salt"]
-        )
-
-        if result["status"] == "error":
-            return api_response("error", message=result["message"], status_code=500)
-
-        return api_response("success", message="Пароль успішно оновлено")
-
-    except Exception as e:
-        logger.error(f"update_user_password: Помилка оновлення пароля користувача {telegram_id}: {str(e)}")
-        return api_response("error", message=str(e), status_code=500)
-
-
-def get_user_seed_phrase(telegram_id: str, show_password_protected: bool = True) -> Tuple[Dict[str, Any], int]:
-    """
-    Отримання seed-фрази користувача з захистом паролем
-
-    Args:
-        telegram_id (str): ID користувача
-        show_password_protected (bool): Чи показувати повідомлення про захист паролем
-
-    Returns:
-        tuple: (json_response, status_code)
-    """
-    try:
-        user = get_user(telegram_id)
-
-        if not user:
-            return api_response("error", message="Користувача не знайдено", status_code=404)
-
-        # Імпортуємо модуль seed_phrases
-        from . import seed_phrases
-
-        # Отримуємо seed-фразу
-        result = seed_phrases.get_user_seed_phrase(telegram_id)
-
-        if result["status"] == "error":
-            return api_response("error", message=result["message"], status_code=500)
-
-        # Якщо seed_phrase захищена паролем, перевіряємо наявність пароля
-        password_hash = user.get("password_hash")
-        if show_password_protected and password_hash:
-            # Повертаємо статус потреби пароля
-            return api_response(
-                "password_required",
-                message="Для перегляду seed-фрази потрібно ввести пароль"
-            )
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f"get_user_seed_phrase: Помилка отримання seed-фрази користувача {telegram_id}: {str(e)}")
-        return api_response("error", message=str(e), status_code=500)
+# Seed phrases related functions (імпортуйте або додайте їх при необхідності)

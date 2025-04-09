@@ -32,14 +32,14 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 # Кеш для запитів
 _cache = {}
 
+# Ініціалізація клієнта
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.info("✅ Успішне підключення до Supabase")
+except Exception as e:
+    logger.error(f"❌ Помилка підключення до Supabase: {str(e)}", exc_info=True)
+    supabase = None
 
-# Структура запису в кеші: {
-#   "ключ": {
-#       "дані": результат_запиту,
-#       "час_створення": час_створення,
-#       "термін_дії": термін_дії
-#   }
-# }
 
 def cache_key(func_name, *args, **kwargs):
     """Генерує унікальний ключ для запису в кеші на основі функції та параметрів"""
@@ -125,15 +125,6 @@ def invalidate_cache_for_entity(entity_id):
         _cache.pop(key, None)
 
 
-# Ініціалізація клієнта
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    logger.info("✅ Успішне підключення до Supabase")
-except Exception as e:
-    logger.error(f"❌ Помилка підключення до Supabase: {str(e)}", exc_info=True)
-    supabase = None
-
-
 def retry_supabase(func, max_retries=3, retry_delay=1, exponential_backoff=True):
     """
     Функція, яка робить повторні спроби викликати операції Supabase при помилках
@@ -174,6 +165,8 @@ def retry_supabase(func, max_retries=3, retry_delay=1, exponential_backoff=True)
     logger.error(f"Усі {max_retries} спроб не вдалися. Остання помилка: {str(last_error)}")
     return None
 
+
+# Базові функції для роботи з користувачами
 
 @cached()
 def get_user(telegram_id: str) -> Dict[str, Any]:
@@ -533,17 +526,17 @@ def check_and_update_badges(telegram_id: str) -> Dict[str, Any]:
         updates = {}
 
         # Бейдж початківця - за 5 участей в розіграшах
-        if not user.get("badge_beginner") and user.get("participations_count", 0) >= 5:
+        if not user.get("badge_beginner", False) and user.get("participations_count", 0) >= 5:
             updates["badge_beginner"] = True
             logger.info(f"🏆 Користувач {telegram_id} отримує бейдж початківця")
 
         # Бейдж багатія - за 50,000 WINIX
-        if not user.get("badge_rich") and float(user.get("balance", 0)) >= 50000:
+        if not user.get("badge_rich", False) and float(user.get("balance", 0)) >= 50000:
             updates["badge_rich"] = True
             logger.info(f"🏆 Користувач {telegram_id} отримує бейдж багатія")
 
         # Бейдж переможця - якщо є виграші
-        if not user.get("badge_winner") and user.get("wins_count", 0) > 0:
+        if not user.get("badge_winner", False) and user.get("wins_count", 0) > 0:
             updates["badge_winner"] = True
             logger.info(f"🏆 Користувач {telegram_id} отримує бейдж переможця")
 
@@ -556,8 +549,7 @@ def check_and_update_badges(telegram_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"❌ Помилка перевірки бейджів {telegram_id}: {str(e)}", exc_info=True)
         return None
-
-
+    
 # Функції для роботи з таблицею staking_sessions
 
 def create_staking_session(user_id, amount_staked, staking_days, reward_percent=None) -> Dict[str, Any]:

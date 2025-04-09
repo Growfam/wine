@@ -4,21 +4,24 @@ import os
 import sys
 import random
 import string
+import importlib
 from datetime import datetime
-
-# Додаємо кореневу папку бекенду до шляху Python для імпортів
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-# Імпортуємо з supabase_client без використання importlib
-from supabase_client import get_user, update_user
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Імпортуємо модулі за допомогою абсолютних імпортів
+try:
+    from backend.supabase_client import get_user, update_user
+except ImportError:
+    # Це для зворотної сумісності - залишаємо на час перехідного періоду
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.append(parent_dir)
+    from supabase_client import get_user, update_user
 
 
 def verify_user(telegram_data):
@@ -55,12 +58,20 @@ def verify_user(telegram_data):
         # Конвертація ID в рядок
         telegram_id = str(telegram_id)
 
-        spec_users = importlib.util.spec_from_file_location("users_controllers",
-                                                            os.path.join(parent_dir, "users", "controllers.py"))
-        users_module = importlib.util.module_from_spec(spec_users)
-        spec_users.loader.exec_module(users_module)
-        get_user_info = users_module.get_user_info
-        create_new_user = users_module.create_new_user
+        # Завантажуємо функції з users.controllers
+        try:
+            # Спроба абсолютного імпорту
+            from backend.users.controllers import get_user_info, create_new_user
+        except ImportError:
+            # Запасний варіант з використанням importlib
+            spec_users = importlib.util.spec_from_file_location(
+                "users_controllers",
+                os.path.join(parent_dir, "users", "controllers.py")
+            )
+            users_module = importlib.util.module_from_spec(spec_users)
+            spec_users.loader.exec_module(users_module)
+            get_user_info = users_module.get_user_info
+            create_new_user = users_module.create_new_user
 
         user = get_user_info(telegram_id)
 
@@ -72,7 +83,6 @@ def verify_user(telegram_data):
                 return None
 
         # Оновлюємо час останнього входу і мову користувача
-        from datetime import datetime
         updates = {"last_login": datetime.now().isoformat()}
 
         # Додаємо мову, якщо вона є в запиті
