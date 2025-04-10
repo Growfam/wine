@@ -1,6 +1,6 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
- * Виправлена версія з механізмом запобігання нескінченним запитам
+ * Вдосконалена версія з покращеним управлінням запитами та синхронізацією з іншими модулями
  */
 
 (function() {
@@ -10,7 +10,19 @@
     let _authRequestInProgress = false;
     let _userDataRequestInProgress = false;
     let _lastRequestTime = 0;
-    const MIN_REQUEST_INTERVAL = 3000; // Мінімальний інтервал між запитами (3 секунди)
+
+    // ЗМІНЕНО: Збільшено мінімальний інтервал між запитами для зменшення навантаження
+    const MIN_REQUEST_INTERVAL = 5000; // Мінімальний інтервал між запитами (5 секунд)
+
+    // ДОДАНО: Підтримка подій
+    const EVENT_USER_DATA_UPDATED = 'user-data-updated';
+    const EVENT_AUTH_SUCCESS = 'auth-success';
+    const EVENT_AUTH_ERROR = 'auth-error';
+
+    // ДОДАНО: Кешування даних користувача
+    let _userDataCache = null;
+    let _userDataCacheTime = 0;
+    const USER_DATA_CACHE_TTL = 120000; // 2 хвилини
 
     // Ініціалізуємо Telegram WebApp якомога раніше
     if (window.Telegram && window.Telegram.WebApp) {
@@ -99,6 +111,12 @@
             if (!window.Telegram || !window.Telegram.WebApp) {
                 console.error("❌ AUTH: Telegram WebApp не знайдено");
                 return Promise.reject(new Error("Telegram WebApp not available"));
+            }
+
+            // ЗМІНЕНО: Спочатку перевіряємо наявність кешу, а потім викликаємо функції
+            if (this.currentUser) {
+                console.log("📋 AUTH: Використання кешованих даних користувача");
+                return Promise.resolve(this.currentUser);
             }
 
             // Спочатку викликаємо getUserData для отримання ID з Telegram
@@ -194,9 +212,20 @@
                     return Promise.reject(new Error("API модуль недоступний"));
                 }
 
+                // ЗМІНЕНО: Перевіряємо наявність кешу перед виконанням запиту
+                if (this.currentUser && this.currentUser.telegram_id === userId) {
+                    console.log("📋 AUTH: Використовуємо кешовані дані під час авторизації");
+                    if (spinner) spinner.classList.remove('show');
+                    _authRequestInProgress = false;
+                    return Promise.resolve(this.currentUser);
+                }
+
                 // Створюємо проміс для імітації запиту, якщо не працює API
                 const authPromise = window.WinixAPI.apiRequest ?
-                    window.WinixAPI.apiRequest(`/api/auth`, 'POST', userData) :
+                    window.WinixAPI.apiRequest(`/api/auth`, 'POST', userData, {
+                        timeout: 8000, // Збільшуємо таймаут для авторизації
+                        suppressErrors: true // Для обробки помилок на нашому рівні
+                    }) :
                     Promise.resolve({
                         status: 'success',
                         data: {
@@ -240,13 +269,22 @@
                                 localStorage.setItem('winix_coins', this.currentUser.coins.toString());
                             }
 
+                            // Оновлюємо кеш
+                            _userDataCache = this.currentUser;
+                            _userDataCacheTime = Date.now();
+
                             // Показуємо вітальне повідомлення для нових користувачів
                             if (data.data.is_new_user) {
                                 this.showWelcomeMessage();
                             }
 
                             // Відправляємо подію про успішну авторизацію
-                            document.dispatchEvent(new CustomEvent('auth-success', {
+                            document.dispatchEvent(new CustomEvent(EVENT_AUTH_SUCCESS, {
+                                detail: this.currentUser
+                            }));
+
+                            // Також відправляємо подію оновлення даних для синхронізації з іншими модулями
+                            document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
                                 detail: this.currentUser
                             }));
 
@@ -281,7 +319,7 @@
                         this.showError(errorMessage);
 
                         // Відправляємо подію про помилку авторизації
-                        document.dispatchEvent(new CustomEvent('auth-error', {
+                        document.dispatchEvent(new CustomEvent(EVENT_AUTH_ERROR, {
                             detail: error
                         }));
 
@@ -299,22 +337,49 @@
 
         /**
          * Отримання даних користувача з сервера
+         * @param {boolean} forceRefresh - Примусове оновлення даних
          */
-        getUserData: function() {
+        getUserData: function(forceRefresh = false) {
+            // ЗМІНЕНО: Додано перевірку на наявність кешу перед виконанням запиту
+            const now = Date.now();
+
+            // Якщо є кеш і він не застарів, і не потрібне примусове оновлення
+            if (!forceRefresh && this.currentUser &&
+                _userDataCacheTime > 0 &&
+                (now - _userDataCacheTime) < USER_DATA_CACHE_TTL) {
+                console.log("📋 AUTH: Використання кешованих даних користувача");
+                return Promise.resolve(this.currentUser);
+            }
+
             // Запобігання паралельним запитам
             if (_userDataRequestInProgress) {
                 console.log("🔐 AUTH: Запит даних користувача вже виконується");
+
+                // Якщо є кешовані дані, повертаємо їх
+                if (this.currentUser) {
+                    return Promise.resolve(this.currentUser);
+                }
+
                 return Promise.reject(new Error("Запит даних користувача вже виконується"));
             }
 
             // Запобігання частим запитам
-            const now = Date.now();
-            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL) {
-                console.log("🔐 AUTH: Занадто частий запит даних користувача, ігноруємо");
-                return Promise.reject(new Error("Занадто частий запит даних користувача"));
-            }
-            _lastRequestTime = now;
+            const timeSinceLastRequest = now - _lastRequestTime;
+            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+                console.log(`🔐 AUTH: Занадто частий запит даних користувача, залишилось ${Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest)/1000)}с`);
 
+                // Якщо є кешовані дані, повертаємо їх
+                if (this.currentUser) {
+                    return Promise.resolve(this.currentUser);
+                }
+
+                return Promise.reject({
+                    message: "Занадто частий запит даних користувача",
+                    retryAfter: MIN_REQUEST_INTERVAL - timeSinceLastRequest
+                });
+            }
+
+            _lastRequestTime = now;
             _userDataRequestInProgress = true;
 
             try {
@@ -453,8 +518,8 @@
                     return Promise.reject(new Error("API модуль недоступний"));
                 }
 
-                // ЗМІНЕНО: Завжди робимо реальний запит, без симуляції
-                return window.WinixAPI.apiRequest(`/api/user/${userId}`, 'GET', null, {timeout: 5000})
+                // ЗМІНЕНО: Використовуємо власний метод з WinixAPI, який має вбудоване керування кешем
+                return window.WinixAPI.getUserData(forceRefresh)
                     .then(data => {
                         // Приховуємо індикатор завантаження
                         if (spinner) spinner.classList.remove('show');
@@ -500,8 +565,12 @@
                                 localStorage.setItem('winix_staking', JSON.stringify(this.currentUser.staking_data));
                             }
 
+                            // Оновлюємо власний кеш
+                            _userDataCache = this.currentUser;
+                            _userDataCacheTime = now;
+
                             // Подія успішного оновлення даних
-                            document.dispatchEvent(new CustomEvent('user-data-updated', {
+                            document.dispatchEvent(new CustomEvent(EVENT_USER_DATA_UPDATED, {
                                 detail: this.currentUser
                             }));
 
@@ -625,6 +694,25 @@
                 return true;
             }
             return false;
+        },
+
+        /**
+         * Примусове оновлення даних користувача
+         */
+        refreshUserData: function() {
+            console.log("🔄 AUTH: Примусове оновлення даних користувача");
+            return this.getUserData(true);
+        },
+
+        /**
+         * Очищення кешу даних
+         */
+        clearCache: function() {
+            console.log("🧹 AUTH: Очищення кешу даних");
+            _userDataCache = null;
+            _userDataCacheTime = 0;
+            _lastRequestTime = 0;
+            return this;
         }
     };
 
@@ -647,25 +735,32 @@
             localStorage.removeItem('telegram_user_id');
         }
 
-        // ЗМІНЕНО: Однаковий підхід до всіх сторінок, включаючи налаштування
-        window.WinixAuth.getUserData()
-            .then(() => {
-                console.log("✅ AUTH: Дані користувача оновлено при завантаженні DOM");
-
-                // Встановлюємо періодичне оновлення даних для всіх сторінок
-                setInterval(function() {
-                    if (!_userDataRequestInProgress && (Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL) {
+        // ЗМІНЕНО: Безпечна ініціалізація для всіх сторінок
+        try {
+            // Спочатку пробуємо використати дані з WinixCore, якщо вони доступні
+            if (window.WinixCore && typeof window.WinixCore.getUserData === 'function') {
+                window.WinixCore.getUserData()
+                    .then(userData => {
+                        console.log("✅ AUTH: Отримано дані користувача через WinixCore");
+                        window.WinixAuth.currentUser = userData;
+                        _userDataCache = userData;
+                        _userDataCacheTime = Date.now();
+                    })
+                    .catch(() => {
+                        // Якщо не вдалося отримати дані через WinixCore, використовуємо власний метод
                         window.WinixAuth.getUserData()
-                            .then(() => console.log("✅ AUTH: Періодичне оновлення даних користувача"))
-                            .catch(err => console.warn("⚠️ AUTH: Помилка періодичного оновлення:", err));
-                    }
-                }, 30000); // 30 секунд
-            })
-            .catch(error => {
-                console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
-                // Якщо getUserData не спрацював, спробуємо init
-                window.WinixAuth.init();
-            });
+                            .then(() => console.log("✅ AUTH: Дані користувача оновлено через власний метод"))
+                            .catch(err => console.warn("⚠️ AUTH: Помилка отримання даних:", err));
+                    });
+            } else {
+                // Використовуємо власний метод, якщо WinixCore недоступний
+                window.WinixAuth.getUserData()
+                    .then(() => console.log("✅ AUTH: Дані користувача оновлено через власний метод"))
+                    .catch(err => console.warn("⚠️ AUTH: Помилка отримання даних:", err));
+            }
+        } catch (error) {
+            console.error("❌ AUTH: Помилка ініціалізації:", error);
+        }
     });
 
     // Запуск авторизації для веб-аплікацій, які вже завантажилися
@@ -676,8 +771,8 @@
             // Спочатку очищаємо невалідні ID
             window.WinixAuth.cleanInvalidIds();
 
-            // ЗМІНЕНО: Однаковий підхід до всіх сторінок, включаючи налаштування
-            if (window.WinixAuth) {
+            // ЗМІНЕНО: Уніфікований підхід для всіх сторінок
+            if (window.WinixAuth && !window.WinixAuth.currentUser) {
                 window.WinixAuth.getUserData()
                     .then(() => {
                         console.log("✅ AUTH: Дані користувача оновлено після завантаження");
@@ -695,7 +790,6 @@
     document.addEventListener('telegram-ready', function() {
         console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
 
-        // ЗМІНЕНО: Завжди оновлюємо дані при отриманні події telegram-ready
         if (window.WinixAuth) {
             window.WinixAuth.getUserData()
                 .then(() => {
@@ -707,18 +801,65 @@
         }
     });
 
-    // ЗМІНЕНО: Видалено логіку, яка відключала періодичне оновлення для сторінки налаштувань
-    // Періодичне оновлення даних
-    setInterval(function() {
-        // Перевіряємо час останнього запиту
-        if ((Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL && !_userDataRequestInProgress) {
-            if (window.WinixAuth && typeof window.WinixAuth.getUserData === 'function') {
-                window.WinixAuth.getUserData()
-                    .then(() => console.log("✅ Періодичне оновлення даних користувача"))
-                    .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
+    // ЗМІНЕНО: Покращено механізм періодичного оновлення
+    let periodicUpdateInterval = null;
+
+    // Функція запуску періодичного оновлення
+    function startPeriodicUpdate() {
+        if (periodicUpdateInterval) return;
+
+        // Оновлюємо дані користувача кожні 60 секунд (збільшили інтервал)
+        periodicUpdateInterval = setInterval(function() {
+            // Перевіряємо час останнього запиту
+            if ((Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL && !_userDataRequestInProgress) {
+                if (window.WinixAuth && typeof window.WinixAuth.getUserData === 'function') {
+                    window.WinixAuth.getUserData()
+                        .then(() => console.log("✅ Періодичне оновлення даних користувача"))
+                        .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
+                }
             }
+        }, 60000); // 60 секунд
+
+        console.log("🔄 AUTH: Періодичне оновлення запущено");
+    }
+
+    // Функція зупинки періодичного оновлення
+    function stopPeriodicUpdate() {
+        if (periodicUpdateInterval) {
+            clearInterval(periodicUpdateInterval);
+            periodicUpdateInterval = null;
+            console.log("⏹️ AUTH: Періодичне оновлення зупинено");
         }
-    }, 30000); // 30 секунд
+    }
+
+    // Запускаємо періодичне оновлення, але не для сторінки налаштувань
+    if (!window.location.pathname.includes('general.html')) {
+        startPeriodicUpdate();
+    }
+
+    // Додаємо обробник подій для переключення сторінок (якщо є History API)
+    window.addEventListener('popstate', function() {
+        const isSettingsPage = window.location.pathname.includes('general.html');
+        if (isSettingsPage) {
+            stopPeriodicUpdate();
+        } else if (!periodicUpdateInterval) {
+            startPeriodicUpdate();
+        }
+    });
+
+    // Додаємо можливість зупинки/запуску оновлення даних
+    window.WinixAuth.startPeriodicUpdate = startPeriodicUpdate;
+    window.WinixAuth.stopPeriodicUpdate = stopPeriodicUpdate;
+
+    // Додаємо обробник подій для синхронізації з іншими модулями
+    document.addEventListener(EVENT_USER_DATA_UPDATED, function(event) {
+        if (event.detail && event.source !== 'auth.js') {
+            console.log("🔄 AUTH: Оновлення даних користувача з іншого модуля");
+            window.WinixAuth.currentUser = event.detail;
+            _userDataCache = event.detail;
+            _userDataCacheTime = Date.now();
+        }
+    });
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();
