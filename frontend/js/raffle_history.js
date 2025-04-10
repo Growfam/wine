@@ -5,18 +5,24 @@
 (function() {
     'use strict';
 
-    console.log("🎮 Raffle History: Ініціалізація модуля історії розіграшів");
+    console.log("📋 Raffle History: Ініціалізація модуля історії розіграшів");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
     let _isLoading = false;
     let _historyData = [];
+    let _filters = {
+        type: 'all', // 'all', 'daily', 'main'
+        status: 'all', // 'all', 'won', 'participated'
+        period: 'all' // 'all', 'week', 'month', 'year'
+    };
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З API ========
 
     /**
      * Отримання історії розіграшів користувача
+     * @param {Object} filters - Фільтри для історії
      */
-    async function getRaffleHistory() {
+    async function getRaffleHistory(filters = {}) {
         try {
             if (_isLoading) {
                 console.log("⏳ Raffle History: Завантаження вже виконується");
@@ -32,13 +38,35 @@
                 throw new Error('ID користувача не знайдено');
             }
 
-            const response = await window.WinixAPI.apiRequest(`/api/user/${userId}/raffles-history`, 'GET');
+            // Формуємо параметри запиту
+            let queryParams = '';
+            if (filters.type && filters.type !== 'all') {
+                queryParams += `&type=${filters.type}`;
+            }
+            if (filters.status && filters.status !== 'all') {
+                queryParams += `&status=${filters.status}`;
+            }
+            if (filters.period && filters.period !== 'all') {
+                queryParams += `&period=${filters.period}`;
+            }
+
+            // Додаємо параметри до URL, якщо вони є
+            const url = queryParams
+                ? `/api/user/${userId}/raffles-history?${queryParams.substring(1)}`
+                : `/api/user/${userId}/raffles-history`;
+
+            const response = await window.WinixAPI.apiRequest(url, 'GET');
+
             hideHistoryLoader();
             _isLoading = false;
 
             if (response.status === 'success') {
                 _historyData = response.data || [];
                 console.log(`✅ Raffle History: Отримано ${_historyData.length} записів історії`);
+
+                // Зберігаємо поточні фільтри
+                _filters = { ...filters };
+
                 return _historyData;
             } else {
                 throw new Error(response.message || 'Помилка отримання історії розіграшів');
@@ -47,7 +75,40 @@
             console.error('❌ Помилка отримання історії розіграшів:', error);
             hideHistoryLoader();
             _isLoading = false;
+            showHistoryError('Не вдалося завантажити історію розіграшів');
             return [];
+        }
+    }
+
+    /**
+     * Отримання детальної інформації про розіграш з історії
+     * @param {string} raffleId - ID розіграшу
+     */
+    async function getRaffleHistoryDetails(raffleId) {
+        try {
+            if (!raffleId) {
+                throw new Error('ID розіграшу не вказано');
+            }
+
+            const userId = window.WinixAPI.getUserId();
+            if (!userId) {
+                throw new Error('ID користувача не знайдено');
+            }
+
+            showHistoryLoader();
+            const response = await window.WinixAPI.apiRequest(`/api/user/${userId}/raffles-history/${raffleId}`, 'GET');
+            hideHistoryLoader();
+
+            if (response.status === 'success') {
+                return response.data;
+            } else {
+                throw new Error(response.message || 'Помилка отримання деталей розіграшу');
+            }
+        } catch (error) {
+            console.error(`❌ Помилка отримання деталей розіграшу ${raffleId}:`, error);
+            hideHistoryLoader();
+            showHistoryError('Не вдалося завантажити деталі розіграшу');
+            return null;
         }
     }
 
@@ -56,16 +117,24 @@
     /**
      * Відображення історії розіграшів у вибраному контейнері
      * @param {string} containerId - ID контейнера для відображення історії
+     * @param {Object} filters - Фільтри для історії
      */
-    async function displayHistory(containerId = 'history-container') {
+    async function displayHistory(containerId = 'history-container', filters = {}) {
         const container = document.getElementById(containerId);
         if (!container) {
             console.error(`Контейнер з ID '${containerId}' не знайдено`);
             return;
         }
 
-        // Отримуємо дані історії
-        const history = await getRaffleHistory();
+        // Встановлюємо фільтри за замовчуванням, якщо не передані
+        const currentFilters = {
+            type: filters.type || _filters.type,
+            status: filters.status || _filters.status,
+            period: filters.period || _filters.period
+        };
+
+        // Отримуємо дані історії з фільтрами
+        const history = await getRaffleHistory(currentFilters);
 
         // Якщо дані відсутні або порожні
         if (!history || history.length === 0) {
@@ -79,6 +148,34 @@
 
         // Створюємо HTML для відображення
         let historyHTML = `
+            <div class="history-filters">
+                <div class="filter-group">
+                    <label>Тип:</label>
+                    <select id="history-type-filter">
+                        <option value="all" ${currentFilters.type === 'all' ? 'selected' : ''}>Усі типи</option>
+                        <option value="daily" ${currentFilters.type === 'daily' ? 'selected' : ''}>Щоденні</option>
+                        <option value="main" ${currentFilters.type === 'main' ? 'selected' : ''}>Джекпоти</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Статус:</label>
+                    <select id="history-status-filter">
+                        <option value="all" ${currentFilters.status === 'all' ? 'selected' : ''}>Усі статуси</option>
+                        <option value="won" ${currentFilters.status === 'won' ? 'selected' : ''}>Перемоги</option>
+                        <option value="participated" ${currentFilters.status === 'participated' ? 'selected' : ''}>Участь</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Період:</label>
+                    <select id="history-period-filter">
+                        <option value="all" ${currentFilters.period === 'all' ? 'selected' : ''}>Весь час</option>
+                        <option value="week" ${currentFilters.period === 'week' ? 'selected' : ''}>Тиждень</option>
+                        <option value="month" ${currentFilters.period === 'month' ? 'selected' : ''}>Місяць</option>
+                        <option value="year" ${currentFilters.period === 'year' ? 'selected' : ''}>Рік</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="history-stats">
                 <div class="stats-item">
                     <div class="stats-value">${history.length}</div>
@@ -96,7 +193,7 @@
         `;
 
         // Додаємо секцію "Мої перемоги" якщо є виграші
-        if (wonRaffles.length > 0) {
+        if (wonRaffles.length > 0 && (currentFilters.status === 'all' || currentFilters.status === 'won')) {
             historyHTML += `
                 <div class="history-section">
                     <h3 class="section-title">Мої перемоги</h3>
@@ -107,23 +204,53 @@
             `;
         }
 
-        // Додаємо секцію участі
-        historyHTML += `
-            <div class="history-section">
-                <h3 class="section-title">Історія участі</h3>
-                <div class="history-cards">
-                    ${participatedRaffles.length > 0 
-                        ? participatedRaffles.map(createHistoryCardHTML).join('')
-                        : '<div class="empty-history-section">У вас поки немає участі в розіграшах</div>'}
+        // Додаємо секцію участі, якщо відповідає фільтру
+        if (participatedRaffles.length > 0 && (currentFilters.status === 'all' || currentFilters.status === 'participated')) {
+            historyHTML += `
+                <div class="history-section">
+                    <h3 class="section-title">Історія участі</h3>
+                    <div class="history-cards">
+                        ${participatedRaffles.map(createHistoryCardHTML).join('')}
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
 
         // Вставляємо HTML в контейнер
         container.innerHTML = historyHTML;
 
-        // Додаємо обробники подій
+        // Додаємо обробники подій для фільтрів
+        document.getElementById('history-type-filter')?.addEventListener('change', function() {
+            applyHistoryFilters(containerId);
+        });
+
+        document.getElementById('history-status-filter')?.addEventListener('change', function() {
+            applyHistoryFilters(containerId);
+        });
+
+        document.getElementById('history-period-filter')?.addEventListener('change', function() {
+            applyHistoryFilters(containerId);
+        });
+
+        // Додаємо обробники подій для карток історії
         addHistoryCardEventListeners();
+    }
+
+    /**
+     * Застосування фільтрів історії
+     * @param {string} containerId - ID контейнера для відображення
+     */
+    function applyHistoryFilters(containerId) {
+        const typeFilter = document.getElementById('history-type-filter')?.value || 'all';
+        const statusFilter = document.getElementById('history-status-filter')?.value || 'all';
+        const periodFilter = document.getElementById('history-period-filter')?.value || 'all';
+
+        // Оновлюємо відображення з новими фільтрами
+        displayHistory(containerId, {
+            type: typeFilter,
+            status: statusFilter,
+            period: periodFilter
+        });
     }
 
     /**
@@ -132,10 +259,12 @@
      */
     function createWinnerCardHTML(item) {
         const badgeHTML = getBadgeHTML(item);
+        const placeHTML = getPlaceBadgeHTML(item.place);
 
         return `
             <div class="history-card winner-card" data-raffle-id="${item.raffle_id}">
                 ${badgeHTML}
+                ${placeHTML}
                 <div class="history-card-content">
                     <div class="history-card-header">
                         <div class="history-card-title">${item.title}</div>
@@ -143,6 +272,7 @@
                     </div>
                     <div class="history-card-prize">${item.prize}</div>
                     <div class="history-card-result win-result">${item.result}</div>
+                    <div class="history-card-entry">Використано жетонів: ${item.entry_count}</div>
                     <div class="view-details">Натисніть для деталей</div>
                 </div>
             </div>
@@ -196,8 +326,25 @@
             return `<div class="history-card-badge winner-badge">Перемога</div>`;
         } else if (item.is_daily) {
             return `<div class="history-card-badge daily-badge">Щоденний</div>`;
+        } else {
+            return `<div class="history-card-badge jackpot-badge">Джекпот</div>`;
         }
-        return '';
+    }
+
+    /**
+     * Отримати HTML для бейджа місця в розіграші
+     * @param {number} place - Місце в розіграші
+     */
+    function getPlaceBadgeHTML(place) {
+        if (!place) return '';
+
+        let badgeClass = '';
+        if (place === 1) badgeClass = 'place-1';
+        else if (place === 2) badgeClass = 'place-2';
+        else if (place === 3) badgeClass = 'place-3';
+        else badgeClass = 'place-other';
+
+        return `<div class="history-place-badge ${badgeClass}">${place} місце</div>`;
     }
 
     /**
@@ -208,10 +355,10 @@
         let total = 0;
 
         wonRaffles.forEach(raffle => {
-            // Витягуємо числову суму з рядка призу
-            const match = raffle.prize.match(/\d+(\.\d+)?/);
+            // Витягуємо числову суму з рядка призу (тільки для WINIX)
+            const match = raffle.prize.match(/(\d+(?:\.\d+)?)\s*WINIX/i);
             if (match) {
-                total += parseFloat(match[0]);
+                total += parseFloat(match[1]);
             }
         });
 
@@ -225,22 +372,31 @@
         document.querySelectorAll('.history-card').forEach(card => {
             card.addEventListener('click', function() {
                 const raffleId = this.getAttribute('data-raffle-id');
-                const historyItem = _historyData.find(item => item.raffle_id === raffleId);
-
-                if (historyItem) {
-                    showRaffleDetailsModal(historyItem);
-                }
+                showRaffleDetailsModal(raffleId);
             });
         });
     }
 
     /**
      * Показати модальне вікно з деталями розіграшу
-     * @param {Object} raffleData - Дані розіграшу
+     * @param {string} raffleId - ID розіграшу
      */
-    function showRaffleDetailsModal(raffleData) {
+    async function showRaffleDetailsModal(raffleId) {
+        // Отримуємо дані з історії або з API
+        let raffleData = _historyData.find(item => item.raffle_id === raffleId);
+
+        if (!raffleData) {
+            // Якщо не знайдено в кеші, запитуємо з API
+            raffleData = await getRaffleHistoryDetails(raffleId);
+
+            if (!raffleData) {
+                showHistoryError('Не вдалося отримати деталі розіграшу');
+                return;
+            }
+        }
+
         // Видаляємо існуюче модальне вікно, якщо воно є
-        let existingModal = document.getElementById('raffle-history-modal');
+        const existingModal = document.getElementById('raffle-history-modal');
         if (existingModal) {
             existingModal.remove();
         }
@@ -251,7 +407,9 @@
         modal.className = 'raffle-modal';
 
         // Генеруємо HTML для переможців
-        const winnersHTML = generateWinnersListHTML(raffleData.winners);
+        const winnersHTML = raffleData.winners && raffleData.winners.length > 0
+            ? generateWinnersListHTML(raffleData.winners)
+            : '<div class="no-winners">Інформація про переможців відсутня</div>';
 
         // Визначаємо статус і клас статусу
         const statusClass = raffleData.status === 'won' ? 'win-status' : 'participated-status';
@@ -289,6 +447,12 @@
                         <div class="detail-label">Використано жетонів:</div>
                         <div class="detail-value">${raffleData.entry_count}</div>
                     </div>
+                    ${raffleData.status === 'won' ? `
+                    <div class="detail-row">
+                        <div class="detail-label">Ваше місце:</div>
+                        <div class="detail-value winner-place-value">${raffleData.place}</div>
+                    </div>
+                    ` : ''}
                 </div>
                 
                 <div class="winners-container">
@@ -339,17 +503,12 @@
             return '<div class="no-winners">Інформація про переможців відсутня</div>';
         }
 
-        return winners.map(winner => {
+        // Сортуємо переможців за місцем
+        const sortedWinners = [...winners].sort((a, b) => a.place - b.place);
+
+        return sortedWinners.map(winner => {
             // Визначаємо клас для місця (top-1, top-2, top-3)
-            const placeClass = winner.place <= 3 ? `top-${winner.place}` : '';
-            const bgColor = winner.place === 1 ? 'linear-gradient(145deg, #FFD700, #FFA500)' :
-                            winner.place === 2 ? 'linear-gradient(145deg, #C0C0C0, #A9A9A9)' :
-                            winner.place === 3 ? 'linear-gradient(145deg, #CD7F32, #A0522D)' :
-                            'rgba(0, 0, 0, 0.3)';
-            const boxShadow = winner.place <= 3 ?
-                            `box-shadow: 0 0 8px ${winner.place === 1 ? 'rgba(255, 215, 0, 0.5)' : 
-                                          winner.place === 2 ? 'rgba(192, 192, 192, 0.5)' : 
-                                          'rgba(205, 127, 50, 0.5)'};` : '';
+            const placeClass = winner.place <= 3 ? `place-${winner.place}` : 'default-place';
 
             // Визначаємо, чи це поточний користувач
             const currentUserClass = winner.isCurrentUser ? 'current-user' : '';
@@ -357,7 +516,7 @@
             // Формуємо HTML для одного переможця
             return `
                 <div class="winner-item ${currentUserClass}" ${winner.isCurrentUser ? 'title="Це ви!"' : ''}>
-                    <div class="winner-place" style="background: ${bgColor}; ${boxShadow}">
+                    <div class="winner-place ${placeClass}">
                         <span>${winner.place}</span>
                     </div>
                     <div class="winner-info">
@@ -368,6 +527,64 @@
                 </div>
             `;
         }).join('');
+    }
+
+    /**
+     * Експорт історії розіграшів у CSV
+     */
+    function exportHistoryToCSV() {
+        if (!_historyData || _historyData.length === 0) {
+            showHistoryError('Немає даних для експорту');
+            return;
+        }
+
+        try {
+            // Генеруємо заголовки
+            const headers = [
+                'Дата',
+                'Назва розіграшу',
+                'Тип',
+                'Приз',
+                'Витрачено жетонів',
+                'Результат',
+                'Статус'
+            ];
+
+            // Генеруємо рядки даних
+            const rows = _historyData.map(item => [
+                item.date,
+                item.title,
+                item.is_daily ? 'Щоденний' : 'Джекпот',
+                item.prize,
+                item.entry_count,
+                item.result,
+                item.status === 'won' ? 'Перемога' : 'Участь'
+            ]);
+
+            // Об'єднуємо все в CSV
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Створюємо посилання для завантаження
+            const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'winix_raffle_history.csv');
+            document.body.appendChild(link);
+
+            // Клікаємо на посилання
+            link.click();
+
+            // Видаляємо посилання
+            document.body.removeChild(link);
+
+            showHistorySuccess('Історію розіграшів успішно експортовано');
+        } catch (error) {
+            console.error('Помилка експорту історії:', error);
+            showHistoryError('Не вдалося експортувати історію');
+        }
     }
 
     /**
@@ -405,12 +622,98 @@
     }
 
     /**
+     * Показати повідомлення про помилку
+     * @param {string} message - Текст повідомлення
+     */
+    function showHistoryError(message) {
+        showHistoryNotification(message, 'error');
+    }
+
+    /**
+     * Показати повідомлення про успіх
+     * @param {string} message - Текст повідомлення
+     */
+    function showHistorySuccess(message) {
+        showHistoryNotification(message, 'success');
+    }
+
+    /**
+     * Показати системне повідомлення
+     * @param {string} message - Текст повідомлення
+     * @param {string} type - Тип повідомлення (error, success, info)
+     */
+    function showHistoryNotification(message, type = 'info') {
+        if (window.showToast) {
+            window.showToast(message);
+            return;
+        }
+
+        const notification = document.createElement('div');
+        notification.className = `history-notification ${type}`;
+        notification.textContent = message;
+
+        document.body.appendChild(notification);
+
+        // Показуємо повідомлення
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 10);
+
+        // Приховуємо повідомлення через 5 секунд
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 5000);
+    }
+
+    /**
      * Додати стилі для історії розіграшів
      */
     function addHistoryStyles() {
+        // Перевіряємо, чи вже є стилі
+        if (document.getElementById('raffle-history-styles')) {
+            return;
+        }
+
         const styleElement = document.createElement('style');
+        styleElement.id = 'raffle-history-styles';
         styleElement.textContent = `
             /* Стилі для історії розіграшів */
+            .history-filters {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 1.5rem;
+                background: var(--bg-item);
+                border-radius: var(--item-border-radius);
+                padding: 1rem;
+                flex-wrap: wrap;
+                gap: 0.75rem;
+            }
+            
+            .filter-group {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            
+            .filter-group label {
+                font-size: 0.875rem;
+                color: var(--text-secondary);
+                white-space: nowrap;
+            }
+            
+            .filter-group select {
+                background: rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 0.5rem;
+                padding: 0.375rem 0.5rem;
+                color: white;
+                font-size: 0.875rem;
+                cursor: pointer;
+            }
+            
             .history-stats {
                 display: flex;
                 justify-content: space-between;
@@ -464,11 +767,13 @@
                 box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
                 transition: transform 0.3s ease, box-shadow 0.3s ease;
                 cursor: pointer;
+                border: 1px solid rgba(78, 181, 247, 0.1);
             }
             
             .history-card:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+                border-color: rgba(78, 181, 247, 0.3);
             }
             
             .history-card-badge {
@@ -490,6 +795,46 @@
             .daily-badge {
                 background: rgba(33, 150, 243, 0.2);
                 color: rgba(33, 150, 243, 1);
+            }
+            
+            .jackpot-badge {
+                background: rgba(156, 39, 176, 0.2);
+                color: rgba(156, 39, 176, 1);
+            }
+            
+            .history-place-badge {
+                position: absolute;
+                top: 0.5rem;
+                left: 0.5rem;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                font-size: 0.75rem;
+                font-weight: bold;
+                z-index: 1;
+            }
+            
+            .place-1 {
+                background: linear-gradient(145deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.2));
+                color: rgb(255, 215, 0);
+                border: 1px solid rgba(255, 215, 0, 0.3);
+            }
+            
+            .place-2 {
+                background: linear-gradient(145deg, rgba(192, 192, 192, 0.2), rgba(169, 169, 169, 0.2));
+                color: rgb(192, 192, 192);
+                border: 1px solid rgba(192, 192, 192, 0.3);
+            }
+            
+            .place-3 {
+                background: linear-gradient(145deg, rgba(205, 127, 50, 0.2), rgba(160, 82, 45, 0.2));
+                color: rgb(205, 127, 50);
+                border: 1px solid rgba(205, 127, 50, 0.3);
+            }
+            
+            .place-other {
+                background: rgba(0, 0, 0, 0.2);
+                color: rgba(255, 255, 255, 0.7);
+                border: 1px solid rgba(255, 255, 255, 0.1);
             }
             
             .winner-card {
@@ -612,7 +957,7 @@
                 color: var(--text-secondary);
             }
             
-            /* Стилі для модального вікна з деталями розіграшу */
+            /* Стилі для деталей розіграшу */
             .raffle-details-info {
                 background: rgba(0, 0, 0, 0.2);
                 border-radius: 0.75rem;
@@ -677,6 +1022,7 @@
                 border-radius: 0.5rem;
                 padding: 0.75rem;
                 margin-bottom: 0.5rem;
+                gap: 0.75rem;
             }
             
             .winner-item.current-user {
@@ -695,6 +1041,26 @@
                 margin-right: 0.75rem;
                 font-weight: bold;
                 color: white;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            }
+            
+            .winner-place.place-1 {
+                background: linear-gradient(145deg, #FFD700, #FFA500);
+                box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+            }
+            
+            .winner-place.place-2 {
+                background: linear-gradient(145deg, #C0C0C0, #A9A9A9);
+                box-shadow: 0 0 8px rgba(192, 192, 192, 0.5);
+            }
+            
+            .winner-place.place-3 {
+                background: linear-gradient(145deg, #CD7F32, #A0522D);
+                box-shadow: 0 0 8px rgba(205, 127, 50, 0.5);
+            }
+            
+            .winner-place.default-place {
+                background: rgba(0, 0, 0, 0.3);
             }
             
             .winner-info {
@@ -731,6 +1097,11 @@
                 color: var(--text-secondary);
             }
             
+            .winner-place-value {
+                color: var(--premium-color);
+                font-size: 1rem;
+            }
+            
             /* Стилі для лоадера */
             .history-loader {
                 display: flex;
@@ -759,6 +1130,64 @@
                 100% { transform: rotate(360deg); }
             }
             
+            /* Стилі для повідомлень */
+            .history-notification {
+                position: fixed;
+                top: 1.5rem;
+                right: 1.5rem;
+                padding: 1rem 1.5rem;
+                border-radius: 0.5rem;
+                background: rgba(30, 39, 70, 0.9);
+                color: white;
+                font-size: 0.875rem;
+                z-index: 10000;
+                transform: translateX(calc(100% + 1.5rem));
+                transition: transform 0.3s ease;
+                box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.5);
+                max-width: 300px;
+            }
+            
+            .history-notification.show {
+                transform: translateX(0);
+            }
+            
+            .history-notification.error {
+                background: rgba(244, 67, 54, 0.9);
+                border-left: 0.25rem solid rgb(244, 67, 54);
+            }
+            
+            .history-notification.success {
+                background: rgba(76, 175, 80, 0.9);
+                border-left: 0.25rem solid rgb(76, 175, 80);
+            }
+            
+            .history-notification.info {
+                background: rgba(33, 150, 243, 0.9);
+                border-left: 0.25rem solid rgb(33, 150, 243);
+            }
+            
+            /* Кнопка експорту */
+            .export-history-btn {
+                background: var(--secondary-gradient);
+                border: none;
+                border-radius: 0.5rem;
+                padding: 0.5rem 1rem;
+                color: white;
+                font-size: 0.875rem;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-left: auto;
+                margin-bottom: 1rem;
+            }
+            
+            .export-history-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            }
+            
             /* Медіа-запити для адаптивності */
             @media (max-width: 768px) {
                 .history-cards {
@@ -773,6 +1202,16 @@
                 .stats-item {
                     flex-basis: 33%;
                     margin-bottom: 0.5rem;
+                }
+                
+                .history-filters {
+                    flex-direction: column;
+                    gap: 0.75rem;
+                }
+                
+                .filter-group {
+                    width: 100%;
+                    justify-content: space-between;
                 }
             }
             
@@ -812,39 +1251,80 @@
         document.head.appendChild(styleElement);
     }
 
-    // ======== ІНІЦІАЛІЗАЦІЯ ========
+    // ======== ПУБЛІЧНІ МЕТОДИ ========
 
     /**
-     * Ініціалізація модуля історії розіграшів
+     * Експорт функцій для глобального використання
      */
-    function init() {
-        console.log("🎮 Raffle History: Ініціалізація...");
+    const publicAPI = {
+        /**
+         * Ініціалізація модуля історії розіграшів
+         */
+        init() {
+            console.log("📋 Raffle History: Ініціалізація...");
 
-        // Додаємо стилі
-        addHistoryStyles();
+            // Додаємо стилі
+            addHistoryStyles();
 
-        // Перевіряємо, чи є на сторінці контейнер для історії
-        const historyContainer = document.getElementById('history-container');
-        if (historyContainer) {
-            // Автоматично відображаємо історію
-            displayHistory('history-container');
-        }
+            // Перевіряємо, чи є на сторінці контейнер для історії
+            const historyContainer = document.getElementById('history-container');
+            if (historyContainer) {
+                // Додаємо кнопку експорту
+                const exportButton = document.createElement('button');
+                exportButton.className = 'export-history-btn';
+                exportButton.innerHTML = '<span>📊</span> Експорт історії';
+                exportButton.addEventListener('click', exportHistoryToCSV);
 
-        console.log("✅ Raffle History: Ініціалізацію завершено");
-    }
+                // Додаємо кнопку перед контейнером
+                historyContainer.parentNode.insertBefore(exportButton, historyContainer);
+
+                // Автоматично відображаємо історію
+                displayHistory('history-container');
+            }
+
+            console.log("✅ Raffle History: Ініціалізацію завершено");
+        },
+
+        /**
+         * Відображення історії розіграшів
+         * @param {string} containerId - ID контейнера для відображення історії
+         * @param {Object} filters - Фільтри для історії
+         */
+        displayHistory,
+
+        /**
+         * Отримання історії розіграшів
+         * @param {Object} filters - Фільтри для історії
+         */
+        getRaffleHistory,
+
+        /**
+         * Отримання детальної інформації про розіграш з історії
+         * @param {string} raffleId - ID розіграшу
+         */
+        getRaffleHistoryDetails,
+
+        /**
+         * Показати модальне вікно з деталями розіграшу
+         * @param {string} raffleId - ID розіграшу
+         */
+        showRaffleDetailsModal,
+
+        /**
+         * Експорт історії розіграшів у CSV
+         */
+        exportHistoryToCSV
+    };
 
     // Експортуємо публічний API
-    window.RaffleHistory = {
-        init,
-        displayHistory,
-        getRaffleHistory,
-        showRaffleDetailsModal
-    };
+    window.RaffleHistory = publicAPI;
 
     // Ініціалізуємо модуль при завантаженні документа
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', publicAPI.init);
     } else {
-        init();
+        publicAPI.init();
     }
+
+    return publicAPI;
 })();
