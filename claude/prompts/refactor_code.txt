@@ -1,7 +1,0 @@
-### PROMPT: Refactor Python code
-
-You are an expert Python developer. Refactor the following code for clarity, performance, and maintainability:
-
-```python
-{{CODE}}
-```

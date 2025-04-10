@@ -354,7 +354,7 @@ def receive():
 
 @app.route('/raffles')
 def raffles():
-    return render_template('raffles.html')
+    return render_template('html_input.txt')
 
 
 # Обробники помилок
