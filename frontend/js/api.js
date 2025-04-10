@@ -119,15 +119,17 @@
             } catch (e) {}
 
             // 5. Якщо не знайдено і це сторінка налаштувань - використовуємо тестовий ID
+            // ЗМІНЕНО: Не використовуємо тестовий ID для сторінки налаштувань, щоб отримувати реальні дані
+            // Якщо потрібно зберегти цю логіку як запасний варіант, можна залишити з логуванням
             const isSettingsPage = window.location.pathname.includes('general.html');
             if (isSettingsPage) {
-                const testId = "7066583465";
-                try {
-                    localStorage.setItem('telegram_user_id', testId);
-                } catch (e) {}
-
-                _gettingUserId = false;
-                return testId;
+                console.warn("⚠️ API: Не знайдено ID користувача для сторінки налаштувань");
+                // Перевіряємо чи вже є збережений раніше ID
+                const savedId = localStorage.getItem('saved_user_id') || localStorage.getItem('userId');
+                if (isValidId(savedId)) {
+                    _gettingUserId = false;
+                    return savedId;
+                }
             }
 
             // ID не знайдено
@@ -330,21 +332,18 @@
             } catch (jsonError) {
                 console.error(`🔌 API: Помилка парсингу JSON відповіді: ${jsonError.message}`);
 
-                // Якщо це сторінка налаштувань, повертаємо симулювані дані
-                const isSettingsPage = window.location.pathname.includes('general.html');
-                if (isUserProfileRequest && isSettingsPage) {
-                    const dummyUser = {
-                        status: 'success',
-                        data: {
-                            telegram_id: getUserId() || "7066583465",
-                            username: "WINIX User",
-                            balance: 100,
-                            coins: 5,
-                            notifications_enabled: true
-                        },
-                        source: 'simulated'
-                    };
-                    return dummyUser;
+                // ЗМІНЕНО: Замість демо-даних пробуємо використати кеш
+                if (isUserProfileRequest) {
+                    if (_userCache) {
+                        console.warn("🔌 API: Використовуємо кеш для профілю користувача після помилки парсингу JSON");
+                        return {
+                            status: 'success',
+                            data: _userCache,
+                            source: 'cache_after_parse_error'
+                        };
+                    }
+                    // Повідомляємо про помилку, але не підміняємо дані
+                    console.error("🔌 API: Кеш відсутній, неможливо парсити відповідь з сервера");
                 }
 
                 throw new Error("Помилка парсингу відповіді");
@@ -396,12 +395,12 @@
                 _apiRequestInProgress = false;
             }
 
-            // Якщо це сторінка налаштувань і помилка з запитом профілю, повертаємо симульовані дані
+            // ЗМІНЕНО: Замість підміни даними з демо, спершу пробуємо використати кеш
             const isSettingsPage = window.location.pathname.includes('general.html');
-            if (isUserProfileRequest && isSettingsPage) {
-                console.warn("🔌 API: Повертаємо симульовані дані для сторінки налаштувань");
+            if (isUserProfileRequest) {
+                console.warn("🔌 API: Помилка запиту даних користувача, перевіряємо кеш");
 
-                // Використовуємо існуючий кеш або симулюємо відповідь
+                // Використовуємо існуючий кеш, якщо він є
                 if (_userCache) {
                     return {
                         status: 'success',
@@ -410,17 +409,30 @@
                     };
                 }
 
-                return {
-                    status: 'success',
-                    data: {
-                        telegram_id: getUserId() || "7066583465",
-                        username: "WINIX User",
-                        balance: 100,
-                        coins: 5,
-                        notifications_enabled: true
-                    },
-                    source: 'simulated'
-                };
+                // Якщо кешу немає, використовуємо дані з localStorage
+                try {
+                    const userId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId');
+                    const username = localStorage.getItem('username') || 'WINIX User';
+                    const balance = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+                    const coins = parseFloat(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+                    const notifications = localStorage.getItem('notifications_enabled') === 'true';
+
+                    console.warn("🔌 API: Використовуємо дані з localStorage як крайній засіб");
+
+                    return {
+                        status: 'success',
+                        data: {
+                            telegram_id: userId,
+                            username: username,
+                            balance: balance,
+                            coins: coins,
+                            notifications_enabled: notifications
+                        },
+                        source: 'localStorage_fallback'
+                    };
+                } catch (storageError) {
+                    console.error("🔌 API: Помилка отримання даних з localStorage:", storageError);
+                }
             }
 
             // Повертаємо об'єкт з помилкою, якщо вказано suppressErrors
@@ -445,34 +457,22 @@
     async function getUserData(forceRefresh = false) {
         const isSettingsPage = window.location.pathname.includes('general.html');
 
-        // Використовуємо кеш, якщо можливо
+        // Використовуємо кеш, якщо можливо і не потрібно примусове оновлення
         if (!forceRefresh && _userCache && (Date.now() - _userCacheTime < USER_CACHE_TTL)) {
             return {status: 'success', data: _userCache, source: 'cache'};
         }
 
         const id = getUserId();
         if (!id) {
-            if (isSettingsPage) {
-                // На сторінці налаштувань повертаємо симульовані дані
-                return {
-                    status: 'success',
-                    data: {
-                        telegram_id: "7066583465",
-                        username: "WINIX User",
-                        balance: 100,
-                        coins: 5,
-                        notifications_enabled: true
-                    },
-                    source: 'simulated'
-                };
-            }
+            // ЗМІНЕНО: Якщо ID не знайдено, завжди повертаємо помилку
+            // замість демо-даних, щоб стимулювати пошук справжнього ID
             throw new Error("ID користувача не знайдено");
         }
 
         try {
             const result = await apiRequest(`/api/user/${id}`, 'GET', null, {
                 timeout: 5000, // Зменшуємо таймаут для прискорення
-                suppressErrors: isSettingsPage // На сторінці налаштувань не показуємо помилки
+                suppressErrors: true
             });
 
             // Оновлюємо кеш
@@ -505,25 +505,12 @@
         } catch (error) {
             console.error("🔌 API: Помилка отримання даних користувача:", error);
 
-            // На сторінці налаштувань повертаємо симульовані дані при помилці
-            if (isSettingsPage) {
-                if (_userCache) {
-                    return {status: 'success', data: _userCache, source: 'cache_after_error'};
-                }
-
-                return {
-                    status: 'success',
-                    data: {
-                        telegram_id: id,
-                        username: "WINIX User",
-                        balance: 100,
-                        coins: 5,
-                        notifications_enabled: true
-                    },
-                    source: 'simulated'
-                };
+            // ЗМІНЕНО: Перевіряємо кеш замість демо-даних
+            if (_userCache) {
+                return {status: 'success', data: _userCache, source: 'cache_after_error'};
             }
 
+            // Якщо кешу немає, повертаємо помилку
             throw error;
         }
     }

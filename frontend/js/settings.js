@@ -68,20 +68,54 @@ window.WinixSettings = (function() {
     /**
      * Завантажує дані користувача з сервера або localStorage
      */
-    function loadUserData() {
-        console.log("Завантаження даних користувача...");
+    // Замінити функцію loadUserData() на реальний запит до API
+function loadUserData() {
+    console.log("Завантаження даних користувача...");
 
-        // Показуємо індикатор завантаження
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) spinner.style.display = 'flex';
+    // Показуємо індикатор завантаження
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) spinner.style.display = 'flex';
 
-        try {
-            // У реальному додатку тут був би запит до API
-            // Симулюємо завантаження даних з localStorage
-            const userId = localStorage.getItem('userId') || '12345678';
+    try {
+        // Використовуємо WinixAPI для отримання реальних даних
+        if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
+            window.WinixAPI.getUserData(true) // true - форсувати оновлення
+                .then(result => {
+                    if (result && result.data) {
+                        const userData = result.data;
+
+                        // Оновлюємо відображення даних на сторінці
+                        document.getElementById('user-id').textContent = userData.telegram_id || '';
+                        document.getElementById('user-id-profile').textContent = userData.telegram_id || '';
+                        document.getElementById('profile-name').textContent = userData.username || 'WINIX User';
+                        document.getElementById('user-tokens').textContent = userData.balance ? userData.balance.toFixed(2) : '0.00';
+                        document.getElementById('user-coins').textContent = userData.coins ? userData.coins.toFixed(0) : '0';
+
+                        // Зберігаємо дані для подальшого використання
+                        _userData = {
+                            id: userData.telegram_id,
+                            username: userData.username,
+                            tokens: userData.balance,
+                            coins: userData.coins
+                        };
+
+                        // Завантажуємо аватар
+                        loadUserAvatar();
+                    }
+
+                    if (spinner) spinner.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error("❌ Помилка завантаження даних користувача:", error);
+                    showToast("Помилка завантаження даних", true);
+                    if (spinner) spinner.style.display = 'none';
+                });
+        } else {
+            // Якщо API недоступний, використовуємо дані з localStorage
+            const userId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId') || '';
             const username = localStorage.getItem('username') || 'WINIX User';
-            const tokens = parseFloat(localStorage.getItem('userTokens') || '294562.16');
-            const coins = parseFloat(localStorage.getItem('userCoins') || '250');
+            const tokens = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+            const coins = parseFloat(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
 
             // Оновлюємо відображення даних на сторінці
             document.getElementById('user-id').textContent = userId;
@@ -90,26 +124,14 @@ window.WinixSettings = (function() {
             document.getElementById('user-tokens').textContent = tokens.toFixed(2);
             document.getElementById('user-coins').textContent = coins.toFixed(0);
 
-            // Зберігаємо дані для подальшого використання
-            _userData = {
-                id: userId,
-                username: username,
-                tokens: tokens,
-                coins: coins
-            };
-
-            // Завантажуємо аватар
-            loadUserAvatar();
-
-            console.log("✅ Дані користувача успішно завантажено");
-        } catch (error) {
-            console.error("❌ Помилка завантаження даних користувача:", error);
-            showToast("Помилка завантаження даних", true);
-        } finally {
-            // Ховаємо індикатор завантаження
             if (spinner) spinner.style.display = 'none';
         }
+    } catch (error) {
+        console.error("❌ Помилка завантаження даних користувача:", error);
+        showToast("Помилка завантаження даних", true);
+        if (spinner) spinner.style.display = 'none';
     }
+}
 
     /**
      * Завантажує аватар користувача
