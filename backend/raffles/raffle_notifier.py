@@ -359,8 +359,7 @@ def notify_winners(raffle_id: str) -> Dict[str, Any]:
         raffle = raffle_response.data[0]
 
         # Отримуємо переможців
-        winners_response = supabase.table("raffle_winners").select("*").eq("raffle_id", raffle_id).order("place",
-                                                                                                         asc=True).execute()
+        winners_response = supabase.table("raffle_winners").select("*").eq("raffle_id", raffle_id).order("place").execute()
         if not winners_response.data:
             logger.warning(f"Переможців для розіграшу {raffle_id} не знайдено")
             return {

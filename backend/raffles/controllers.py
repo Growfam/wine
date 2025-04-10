@@ -178,7 +178,7 @@ def get_active_raffles():
         .select("*") \
         .eq("status", "active") \
         .order("is_daily", desc=True) \
-        .order("end_time", asc=True) \
+        .order("end_time") \
         .limit(limit) \
         .offset(offset) \
         .execute()
@@ -282,8 +282,7 @@ def get_raffle_details(raffle_id):
 
     # Отримуємо переможців розіграшу, якщо він завершений
     if raffle.get("status") == "completed":
-        winners_response = supabase.table("raffle_winners").select("*").eq("raffle_id", raffle_id).order("place",
-                                                                                                         asc=True).execute()
+        winners_response = supabase.table("raffle_winners").select("*").eq("raffle_id", raffle_id).order("place").execute()
 
         if winners_response.data:
             winners = []
@@ -634,7 +633,7 @@ def get_user_raffles_history(telegram_id):
         if raffle.get("status") == "completed":
             all_winners_response = supabase.table("raffle_winners").select("*") \
                 .eq("raffle_id", raffle_id) \
-                .order("place", asc=True) \
+                .order("place") \
                 .limit(10) \
                 .execute()
 
