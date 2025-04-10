@@ -1,7 +1,0 @@
-### PROMPT: Write Supabase SQL or query logic
-
-You are working on a backend powered by Supabase. Given this logic:
-
-{{CODE}}
-
-Return optimized Supabase query or SQL function, and explain if necessary.

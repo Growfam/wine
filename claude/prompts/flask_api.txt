@@ -1,7 +1,0 @@
-### PROMPT: Create Flask API endpoint
-
-Create a Flask endpoint with the following description:
-
-{{CODE}}
-
-Respond with full Python code using Flask, and include route, method, and example response.

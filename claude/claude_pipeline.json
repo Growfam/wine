@@ -1,6 +1,0 @@
-{
-  "task": "refactor",
-  "input_file": "inputs/current_code.py",
-  "prompt_template": "prompts/refactor_code.txt",
-  "output_file": "outputs/refactored_code.py"
-}
