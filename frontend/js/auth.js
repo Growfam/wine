@@ -1,6 +1,6 @@
 /**
  * auth.js - Модуль авторизації для Telegram Mini App
- * Вдосконалена версія з покращеним управлінням запитами та синхронізацією з іншими модулями
+ * Вдосконалена версія з покращеним управлінням запитами та обробкою помилок автентифікації
  */
 
 (function() {
@@ -10,25 +10,57 @@
     let _authRequestInProgress = false;
     let _userDataRequestInProgress = false;
     let _lastRequestTime = 0;
+    let _tokenRefreshInProgress = false;
 
     // ЗМІНЕНО: Збільшено мінімальний інтервал між запитами для зменшення навантаження
-    const MIN_REQUEST_INTERVAL = 5000; // Мінімальний інтервал між запитами (5 секунд)
+    const MIN_REQUEST_INTERVAL = 8000; // Мінімальний інтервал між запитами (8 секунд)
+
+    // ДОДАНО: Лічильник повторних спроб для відновлення з'єднання
+    let _connectionRetryCount = 0;
+    const MAX_CONNECTION_RETRIES = 5;
 
     // ДОДАНО: Підтримка подій
     const EVENT_USER_DATA_UPDATED = 'user-data-updated';
     const EVENT_AUTH_SUCCESS = 'auth-success';
     const EVENT_AUTH_ERROR = 'auth-error';
+    const EVENT_TOKEN_REFRESHED = 'token-refreshed';
 
     // ДОДАНО: Кешування даних користувача
     let _userDataCache = null;
     let _userDataCacheTime = 0;
-    const USER_DATA_CACHE_TTL = 120000; // 2 хвилини
+    const USER_DATA_CACHE_TTL = 300000; // 5 хвилин
+
+    // ДОДАНО: Токен автентифікації
+    let _authToken = null;
+    let _authTokenExpiry = 0;
+
+    // ДОДАНО: Початок стану підключення
+    let _connectionState = {
+        isConnected: true,
+        lastSuccessTime: Date.now(),
+        failedAttempts: 0
+    };
 
     // Ініціалізуємо Telegram WebApp якомога раніше
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
         console.log("🔐 AUTH: Telegram WebApp ініціалізовано ранній старт");
+    }
+
+    // ДОДАНО: Читаємо збережений токен при старті
+    try {
+        _authToken = localStorage.getItem('auth_token');
+        const expiryStr = localStorage.getItem('auth_token_expiry');
+        if (expiryStr) {
+            _authTokenExpiry = parseInt(expiryStr);
+        }
+
+        if (_authToken) {
+            console.log("🔐 AUTH: Знайдено збережений токен автентифікації");
+        }
+    } catch (e) {
+        console.warn("⚠️ AUTH: Помилка читання токену з localStorage:", e);
     }
 
     // Глобальний об'єкт для зберігання даних користувача
@@ -113,6 +145,14 @@
                 return Promise.reject(new Error("Telegram WebApp not available"));
             }
 
+            // ЗМІНЕНО: Перевіряємо чи треба оновити токен
+            if (_authToken && _authTokenExpiry) {
+                if (_authTokenExpiry < Date.now() + 600000) { // Оновлюємо за 10 хвилин до закінчення
+                    console.log("🔄 AUTH: Токен скоро закінчиться, оновлюємо");
+                    this.refreshToken();
+                }
+            }
+
             // ЗМІНЕНО: Спочатку перевіряємо наявність кешу, а потім викликаємо функції
             if (this.currentUser) {
                 console.log("📋 AUTH: Використання кешованих даних користувача");
@@ -145,6 +185,146 @@
 
                     return this.authorizeUser(authData);
                 });
+        },
+
+        /**
+         * ДОДАНО: Оновлення токену автентифікації
+         */
+        refreshToken: function() {
+            // Запобігання паралельним запитам
+            if (_tokenRefreshInProgress) {
+                console.log("🔐 AUTH: Оновлення токену вже виконується");
+                return Promise.reject(new Error("Token refresh already in progress"));
+            }
+
+            _tokenRefreshInProgress = true;
+
+            // Отримуємо ID користувача
+            const userId = this.getUserIdFromAllSources();
+            if (!userId) {
+                _tokenRefreshInProgress = false;
+                return Promise.reject(new Error("ID користувача не знайдено"));
+            }
+
+            console.log("🔄 AUTH: Початок оновлення токену");
+
+            return new Promise((resolve, reject) => {
+                // Перевіряємо наявність API модуля
+                if (!window.WinixAPI || typeof window.WinixAPI.apiRequest !== 'function') {
+                    _tokenRefreshInProgress = false;
+                    reject(new Error("API модуль недоступний"));
+                    return;
+                }
+
+                // Виконуємо запит на оновлення токену
+                window.WinixAPI.apiRequest(`/api/auth/refresh-token`, 'POST', {
+                    telegram_id: userId,
+                    current_token: _authToken || '',
+                }, {
+                    timeout: 8000,
+                    suppressErrors: true,
+                    skipUserIdCheck: false
+                })
+                .then(response => {
+                    if (response && response.status === 'success' && response.token) {
+                        // Зберігаємо новий токен
+                        _authToken = response.token;
+
+                        // Визначаємо час закінчення токену
+                        if (response.expires_at) {
+                            _authTokenExpiry = new Date(response.expires_at).getTime();
+                        } else if (response.expires_in) {
+                            _authTokenExpiry = Date.now() + (response.expires_in * 1000);
+                        } else {
+                            // За замовчуванням 24 години
+                            _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+                        }
+
+                        // Зберігаємо в localStorage
+                        try {
+                            localStorage.setItem('auth_token', _authToken);
+                            localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                        } catch (e) {
+                            console.warn("⚠️ AUTH: Помилка збереження токену в localStorage:", e);
+                        }
+
+                        console.log("✅ AUTH: Токен успішно оновлено");
+
+                        // Відправляємо подію про оновлення токену
+                        document.dispatchEvent(new CustomEvent(EVENT_TOKEN_REFRESHED, {
+                            detail: { token: _authToken, expires_at: _authTokenExpiry }
+                        }));
+
+                        _tokenRefreshInProgress = false;
+                        resolve(_authToken);
+                    } else {
+                        console.error("❌ AUTH: Помилка оновлення токену", response);
+                        _tokenRefreshInProgress = false;
+                        reject(new Error(response.message || "Token refresh failed"));
+                    }
+                })
+                .catch(error => {
+                    console.error("❌ AUTH: Помилка запиту оновлення токену", error);
+                    _tokenRefreshInProgress = false;
+                    reject(error);
+                });
+            });
+        },
+
+        /**
+         * ДОДАНО: Отримання ID користувача з усіх можливих джерел
+         */
+        getUserIdFromAllSources: function() {
+            // 1. Спочатку перевіряємо Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    if (window.Telegram.WebApp.initDataUnsafe &&
+                        window.Telegram.WebApp.initDataUnsafe.user &&
+                        window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                        const tgUserId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+
+                        if (this.isValidId(tgUserId)) {
+                            return tgUserId;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // 2. Перевіряємо поточного користувача
+            if (this.currentUser && this.currentUser.telegram_id) {
+                return this.currentUser.telegram_id;
+            }
+
+            // 3. Перевіряємо localStorage
+            try {
+                const localId = localStorage.getItem('telegram_user_id');
+                if (this.isValidId(localId)) {
+                    return localId;
+                }
+            } catch (e) {}
+
+            // 4. Перевіряємо DOM елемент
+            try {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement && userIdElement.textContent) {
+                    const domId = userIdElement.textContent.trim();
+                    if (this.isValidId(domId)) {
+                        return domId;
+                    }
+                }
+            } catch (e) {}
+
+            // 5. Перевіряємо URL параметри
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+                if (this.isValidId(urlId)) {
+                    return urlId;
+                }
+            } catch (e) {}
+
+            return null;
         },
 
         /**
@@ -217,14 +397,32 @@
                     console.log("📋 AUTH: Використовуємо кешовані дані під час авторизації");
                     if (spinner) spinner.classList.remove('show');
                     _authRequestInProgress = false;
+
+                    // ДОДАНО: Оновлюємо токен, якщо термін дії закінчується
+                    if (_authToken && _authTokenExpiry && _authTokenExpiry < Date.now() + 600000) {
+                        this.refreshToken().catch(err => console.warn("⚠️ AUTH: Помилка оновлення токену:", err));
+                    }
+
                     return Promise.resolve(this.currentUser);
+                }
+
+                // ЗМІНЕНО: Додано таймаут для запиту
+                const authTimeout = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Таймаут запиту авторизації')), 15000);
+                });
+
+                // ЗМІНЕНО: Додано підтримку токена
+                const authHeaders = {};
+                if (_authToken) {
+                    authHeaders['Authorization'] = `Bearer ${_authToken}`;
                 }
 
                 // Створюємо проміс для імітації запиту, якщо не працює API
                 const authPromise = window.WinixAPI.apiRequest ?
                     window.WinixAPI.apiRequest(`/api/auth`, 'POST', userData, {
-                        timeout: 8000, // Збільшуємо таймаут для авторизації
-                        suppressErrors: true // Для обробки помилок на нашому рівні
+                        timeout: 15000, // Збільшуємо таймаут для авторизації
+                        suppressErrors: true, // Для обробки помилок на нашому рівні
+                        headers: authHeaders
                     }) :
                     Promise.resolve({
                         status: 'success',
@@ -233,10 +431,11 @@
                             username: userData.username || "WINIX User",
                             balance: 100,
                             coins: 5
-                        }
+                        },
+                        token: "dummy_token_for_testing"
                     });
 
-                return authPromise
+                return Promise.race([authPromise, authTimeout])
                     .then(data => {
                         // Приховуємо індикатор завантаження
                         if (spinner) spinner.classList.remove('show');
@@ -244,6 +443,28 @@
                         if (data.status === 'success') {
                             this.currentUser = data.data;
                             console.log("✅ AUTH: Користувача успішно авторизовано", this.currentUser);
+
+                            // ДОДАНО: Зберігаємо токен, якщо він є у відповіді
+                            if (data.token) {
+                                _authToken = data.token;
+
+                                // Визначаємо час закінчення токену
+                                if (data.expires_at) {
+                                    _authTokenExpiry = new Date(data.expires_at).getTime();
+                                } else if (data.expires_in) {
+                                    _authTokenExpiry = Date.now() + (data.expires_in * 1000);
+                                } else {
+                                    // За замовчуванням 24 години
+                                    _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+                                }
+
+                                try {
+                                    localStorage.setItem('auth_token', _authToken);
+                                    localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                                } catch (e) {
+                                    console.warn("⚠️ AUTH: Помилка збереження токену в localStorage:", e);
+                                }
+                            }
 
                             // Перевіряємо валідність ID перед збереженням
                             if (this.isValidId(this.currentUser.telegram_id)) {
@@ -273,6 +494,11 @@
                             _userDataCache = this.currentUser;
                             _userDataCacheTime = Date.now();
 
+                            // ДОДАНО: Оновлюємо стан підключення
+                            _connectionState.isConnected = true;
+                            _connectionState.lastSuccessTime = Date.now();
+                            _connectionState.failedAttempts = 0;
+
                             // Показуємо вітальне повідомлення для нових користувачів
                             if (data.data.is_new_user) {
                                 this.showWelcomeMessage();
@@ -297,6 +523,21 @@
                     .catch(error => {
                         console.error("❌ AUTH: Помилка авторизації", error);
 
+                        // ДОДАНО: Оновлюємо стан підключення
+                        _connectionState.failedAttempts += 1;
+
+                        // Спроба повторного підключення при мережевих помилках
+                        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                            if (_connectionState.failedAttempts <= MAX_CONNECTION_RETRIES) {
+                                console.warn(`⚠️ AUTH: Проблема мережі, спроба ${_connectionState.failedAttempts}/${MAX_CONNECTION_RETRIES}`);
+
+                                setTimeout(() => {
+                                    // Спроба повторного підключення
+                                    this.reconnect();
+                                }, 2000 * _connectionState.failedAttempts); // Експоненціальна затримка
+                            }
+                        }
+
                         // Додаткова діагностична інформація
                         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                             console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
@@ -315,6 +556,11 @@
                             errorMessage += ' API не знайдено.';
                         } else if (error.status === 500) {
                             errorMessage += ' Помилка на сервері.';
+                        } else if (error.status === 401) {
+                            errorMessage += ' Помилка автентифікації.';
+
+                            // Спроба оновити токен при помилці 401
+                            this.refreshToken().catch(err => console.warn("⚠️ AUTH: Помилка оновлення токену:", err));
                         }
                         this.showError(errorMessage);
 
@@ -365,7 +611,7 @@
 
             // Запобігання частим запитам
             const timeSinceLastRequest = now - _lastRequestTime;
-            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && !forceRefresh) {
                 console.log(`🔐 AUTH: Занадто частий запит даних користувача, залишилось ${Math.ceil((MIN_REQUEST_INTERVAL - timeSinceLastRequest)/1000)}с`);
 
                 // Якщо є кешовані дані, повертаємо їх
@@ -518,8 +764,19 @@
                     return Promise.reject(new Error("API модуль недоступний"));
                 }
 
+                // ДОДАНО: Додаємо заголовок авторизації, якщо є токен
+                const headers = {};
+                if (_authToken) {
+                    headers['Authorization'] = `Bearer ${_authToken}`;
+                }
+
                 // ЗМІНЕНО: Використовуємо власний метод з WinixAPI, який має вбудоване керування кешем
-                return window.WinixAPI.getUserData(forceRefresh)
+                const getUserPromise = window.WinixAPI.getUserData(forceRefresh);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Таймаут запиту даних користувача')), 10000);
+                });
+
+                return Promise.race([getUserPromise, timeoutPromise])
                     .then(data => {
                         // Приховуємо індикатор завантаження
                         if (spinner) spinner.classList.remove('show');
@@ -544,6 +801,11 @@
                             }
 
                             console.log("✅ AUTH: Дані користувача успішно отримано", this.currentUser);
+
+                            // ДОДАНО: Оновлюємо стан підключення
+                            _connectionState.isConnected = true;
+                            _connectionState.lastSuccessTime = Date.now();
+                            _connectionState.failedAttempts = 0;
 
                             // Зберігаємо ID в localStorage
                             localStorage.setItem('telegram_user_id', this.currentUser.telegram_id);
@@ -577,6 +839,15 @@
                             return this.currentUser;
                         } else {
                             console.error("❌ AUTH: Помилка отримання даних користувача", data);
+
+                            // Перевіряємо чи це 401 помилка - оновлюємо токен
+                            if (data.status === 'error' && (data.code === 401 || data.message?.includes('авториз'))) {
+                                console.log("🔄 AUTH: Помилка автентифікації, спроба оновити токен");
+                                this.refreshToken().catch(err => {
+                                    console.warn("⚠️ AUTH: Помилка оновлення токену:", err);
+                                });
+                            }
+
                             throw new Error(data.message || "Помилка отримання даних");
                         }
                     })
@@ -586,9 +857,30 @@
 
                         console.error("❌ AUTH: Помилка отримання даних користувача", error);
 
+                        // ДОДАНО: Оновлюємо лічильник помилок
+                        _connectionState.failedAttempts += 1;
+
+                        // ДОДАНО: Спроба оновити токен при 401 помилці
+                        if (error.status === 401 || (error.response && error.response.status === 401)) {
+                            console.log("🔄 AUTH: Помилка автентифікації 401, спроба оновити токен");
+                            this.refreshToken().catch(err => {
+                                console.warn("⚠️ AUTH: Помилка оновлення токену:", err);
+                            });
+                        }
+
                         // Розширена діагностика
                         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                             console.error("❌ AUTH: Проблема мережевого з'єднання - сервер недоступний");
+
+                            // ДОДАНО: Спроба повторного з'єднання
+                            if (_connectionState.failedAttempts <= MAX_CONNECTION_RETRIES) {
+                                console.warn(`⚠️ AUTH: Проблема мережі, спроба ${_connectionState.failedAttempts}/${MAX_CONNECTION_RETRIES}`);
+
+                                setTimeout(() => {
+                                    // Спроба повторного підключення
+                                    this.reconnect();
+                                }, 2000 * _connectionState.failedAttempts); // Експоненціальна затримка
+                            }
                         } else if (error.status) {
                             console.error(`❌ AUTH: HTTP статус помилки: ${error.status}`);
                         }
@@ -615,6 +907,41 @@
                 console.error("❌ AUTH: Неочікувана помилка в getUserData:", e);
                 return Promise.reject(e);
             }
+        },
+
+        /**
+         * ДОДАНО: Метод для відновлення з'єднання
+         */
+        reconnect() {
+            if (_connectionState.failedAttempts > MAX_CONNECTION_RETRIES) {
+                console.error("❌ AUTH: Досягнуто максимальної кількості спроб відновлення");
+                return Promise.reject(new Error("Перевищено ліміт спроб"));
+            }
+
+            console.log("🔄 AUTH: Спроба відновлення з'єднання...");
+
+            // Скидаємо всі флаги блокування
+            _authRequestInProgress = false;
+            _userDataRequestInProgress = false;
+            _tokenRefreshInProgress = false;
+
+            // Оновлюємо токен
+            return this.refreshToken()
+                .then(() => {
+                    console.log("✅ AUTH: Токен успішно оновлено, відновлення з'єднання");
+                    return this.getUserData(true);
+                })
+                .then(() => {
+                    console.log("✅ AUTH: З'єднання успішно відновлено");
+                    _connectionState.isConnected = true;
+                    _connectionState.lastSuccessTime = Date.now();
+                    _connectionState.failedAttempts = 0;
+                    return true;
+                })
+                .catch(error => {
+                    console.error("❌ AUTH: Помилка відновлення з'єднання:", error);
+                    return false;
+                });
         },
 
         /**
@@ -713,6 +1040,34 @@
             _userDataCacheTime = 0;
             _lastRequestTime = 0;
             return this;
+        },
+
+        /**
+         * ДОДАНО: Отримання стану з'єднання
+         */
+        getConnectionState: function() {
+            return {
+                isConnected: _connectionState.isConnected,
+                lastSuccessTime: _connectionState.lastSuccessTime,
+                failedAttempts: _connectionState.failedAttempts,
+                tokenValid: !!_authToken && (_authTokenExpiry > Date.now())
+            };
+        },
+
+        /**
+         * ДОДАНО: Отримання інформації про токен
+         */
+        getTokenInfo: function() {
+            if (!_authToken) {
+                return { hasToken: false };
+            }
+
+            return {
+                hasToken: true,
+                expiresAt: _authTokenExpiry,
+                expiresIn: Math.floor((_authTokenExpiry - Date.now()) / 1000),
+                isValid: _authTokenExpiry > Date.now()
+            };
         }
     };
 
@@ -808,7 +1163,7 @@
     function startPeriodicUpdate() {
         if (periodicUpdateInterval) return;
 
-        // Оновлюємо дані користувача кожні 60 секунд (збільшили інтервал)
+        // Оновлюємо дані користувача кожні 2 хвилини (збільшили інтервал)
         periodicUpdateInterval = setInterval(function() {
             // Перевіряємо час останнього запиту
             if ((Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL && !_userDataRequestInProgress) {
@@ -818,7 +1173,17 @@
                         .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
                 }
             }
-        }, 60000); // 60 секунд
+
+            // ДОДАНО: Перевіряємо чи треба оновити токен
+            if (_authToken && _authTokenExpiry) {
+                if (_authTokenExpiry < Date.now() + 600000 && !_tokenRefreshInProgress) { // 10 хвилин до закінчення
+                    console.log("🔄 Оновлюємо токен, термін дії закінчується");
+                    window.WinixAuth.refreshToken()
+                        .then(() => console.log("✅ Токен успішно оновлено"))
+                        .catch(err => console.warn("⚠️ Помилка оновлення токену:", err));
+                }
+            }
+        }, 120000); // 2 хвилини
 
         console.log("🔄 AUTH: Періодичне оновлення запущено");
     }
@@ -859,6 +1224,22 @@
             _userDataCache = event.detail;
             _userDataCacheTime = Date.now();
         }
+    });
+
+    // ДОДАНО: Обробник помилок мережі
+    window.addEventListener('offline', function() {
+        console.warn("⚠️ AUTH: Пристрій втратив з'єднання з мережею");
+        _connectionState.isConnected = false;
+    });
+
+    window.addEventListener('online', function() {
+        console.log("🔄 AUTH: З'єднання з мережею відновлено, спроба підключення");
+        window.WinixAuth.reconnect()
+            .then(result => {
+                if (result) {
+                    console.log("✅ AUTH: З'єднання успішно відновлено");
+                }
+            });
     });
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
