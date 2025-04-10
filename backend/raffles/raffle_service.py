@@ -10,8 +10,9 @@ import logging
 import threading
 import schedule
 import requests
-import random
+import secrets
 import json
+import uuid
 from datetime import datetime, timezone, timedelta
 
 # Налаштування логування
@@ -33,7 +34,7 @@ if parent_dir not in sys.path:
 
 # Імпортуємо необхідні модулі
 try:
-    from supabase_client import supabase, get_user
+    from supabase_client import supabase, get_user, execute_transaction
     from raffles.controllers import finish_raffle, check_and_finish_expired_raffles
 except ImportError:
     logger.critical("Помилка імпорту критичних модулів. Сервіс не може бути запущено.")
@@ -43,6 +44,7 @@ except ImportError:
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
+MAX_RETRY_ATTEMPTS = 3
 
 # Шаблони повідомлень
 WINNER_MESSAGE_TEMPLATE = """
@@ -63,6 +65,50 @@ DAILY_RAFFLE_NOTIFICATION = """
 Використайте ваші жетони для участі прямо зараз.
 """
 
+# Функція для надійної відправки Telegram повідомлень з повторними спробами
+def send_telegram_message(chat_id, message, retry_count=0):
+    """Надійна відправка повідомлення через Telegram Bot API з повторними спробами"""
+    if not TELEGRAM_BOT_TOKEN:
+        logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлення.")
+        return False
+
+    try:
+        url = f"{TELEGRAM_API_URL}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+
+        response = requests.post(url, json=payload, timeout=10)
+
+        if response.status_code == 200:
+            return True
+        else:
+            error_info = response.json() if response.text else {"description": "Немає відповіді"}
+            logger.warning(f"Помилка відправки повідомлення: {error_info}")
+
+            # Спроба повторно відправити повідомлення при помилках
+            if retry_count < MAX_RETRY_ATTEMPTS:
+                # Експоненціальне збільшення часу очікування
+                delay = 2 ** retry_count
+                logger.info(f"Повторна спроба через {delay} секунд...")
+                time.sleep(delay)
+                return send_telegram_message(chat_id, message, retry_count + 1)
+            return False
+    except requests.RequestException as e:
+        logger.error(f"Мережева помилка при відправці Telegram повідомлення: {str(e)}")
+
+        # Спроба повторно відправити повідомлення при мережевих помилках
+        if retry_count < MAX_RETRY_ATTEMPTS:
+            delay = 2 ** retry_count
+            logger.info(f"Повторна спроба через {delay} секунд...")
+            time.sleep(delay)
+            return send_telegram_message(chat_id, message, retry_count + 1)
+        return False
+    except Exception as e:
+        logger.error(f"Неочікувана помилка при відправці Telegram повідомлення: {str(e)}")
+        return False
 
 class RaffleService:
     """Клас для управління всіма аспектами роботи з розіграшами"""
@@ -71,6 +117,7 @@ class RaffleService:
         self.active = False
         self.thread = None
         self.check_interval = 60  # Перевірка кожну хвилину
+        self.task_status = {}  # Статуси виконання задач
 
     def start(self):
         """Запуск сервісу в окремому потоці"""
@@ -78,13 +125,25 @@ class RaffleService:
             logger.warning("Сервіс розіграшів вже запущено")
             return False
 
-        self.active = True
-        self.thread = threading.Thread(target=self._run_service)
-        self.thread.daemon = True
-        self.thread.start()
+        try:
+            self.active = True
+            self.thread = threading.Thread(target=self._run_service, daemon=True)
+            self.thread.start()
 
-        logger.info("✅ Сервіс розіграшів успішно запущено")
-        return True
+            logger.info("✅ Сервіс розіграшів успішно запущено")
+
+            # Відправляємо повідомлення про запуск адміністратору
+            if ADMIN_CHAT_ID:
+                send_telegram_message(
+                    ADMIN_CHAT_ID,
+                    f"🎮 Сервіс розіграшів WINIX запущено {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+
+            return True
+        except Exception as e:
+            logger.critical(f"Помилка запуску сервісу розіграшів: {str(e)}")
+            self.active = False
+            return False
 
     def stop(self):
         """Зупинка сервісу"""
@@ -92,12 +151,24 @@ class RaffleService:
             logger.warning("Сервіс розіграшів не запущено")
             return False
 
-        self.active = False
-        if self.thread:
-            self.thread.join(timeout=5.0)
+        try:
+            self.active = False
+            if self.thread:
+                self.thread.join(timeout=5.0)
 
-        logger.info("✅ Сервіс розіграшів зупинено")
-        return True
+            logger.info("✅ Сервіс розіграшів зупинено")
+
+            # Відправляємо повідомлення про зупинку адміністратору
+            if ADMIN_CHAT_ID:
+                send_telegram_message(
+                    ADMIN_CHAT_ID,
+                    f"⚠️ Сервіс розіграшів WINIX зупинено {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+
+            return True
+        except Exception as e:
+            logger.error(f"Помилка зупинки сервісу розіграшів: {str(e)}")
+            return False
 
     def _run_service(self):
         """Основний цикл сервісу"""
@@ -110,104 +181,169 @@ class RaffleService:
         self._initial_checks()
 
         # Основний цикл
+        retry_count = 0
         while self.active:
             try:
                 schedule.run_pending()
                 time.sleep(self.check_interval)
+                retry_count = 0  # Скидаємо лічильник помилок при успішному циклі
             except Exception as e:
-                logger.error(f"Помилка в основному циклі сервісу: {str(e)}", exc_info=True)
+                retry_count += 1
+                wait_time = min(300, 30 * retry_count)  # Максимум 5 хвилин очікування
+
+                logger.error(f"Помилка в основному циклі сервісу (спроба {retry_count}): {str(e)}", exc_info=True)
+
+                # Відправляємо повідомлення адміністратору при серйозних проблемах
+                if retry_count >= 3 and ADMIN_CHAT_ID:
+                    send_telegram_message(
+                        ADMIN_CHAT_ID,
+                        f"❌ Критична помилка в сервісі розіграшів: {str(e)}\nСпроба відновлення через {wait_time} секунд"
+                    )
+
                 # Чекаємо перед повторною спробою
-                time.sleep(300)
+                time.sleep(wait_time)
 
     def _setup_scheduler(self):
         """Налаштування планувальника завдань"""
         # Перевірка прострочених розіграшів кожну годину
-        schedule.every(1).hour.do(self.check_expired_raffles)
+        schedule.every(1).hour.do(self.run_task, "check_expired_raffles", self.check_expired_raffles)
 
         # Створення щоденного розіграшу о 12:05 щодня
-        schedule.every().day.at("12:05").do(self.check_and_create_daily_raffle)
+        schedule.every().day.at("12:05").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
 
         # Відправка повідомлень переможцям кожні 30 хвилин
-        schedule.every(30).minutes.do(self.send_notifications_to_winners)
+        schedule.every(30).minutes.do(self.run_task, "send_winner_notifications", self.send_notifications_to_winners)
 
         # Нагадування про розіграш о 9:00 та 18:00
-        schedule.every().day.at("09:00").do(self.send_daily_raffle_reminder)
-        schedule.every().day.at("18:00").do(self.send_daily_raffle_reminder)
+        schedule.every().day.at("09:00").do(self.run_task, "morning_reminder", self.send_daily_raffle_reminder)
+        schedule.every().day.at("18:00").do(self.run_task, "evening_reminder", self.send_daily_raffle_reminder)
 
         # Резервне копіювання даних розіграшів щодня о 3:00
-        schedule.every().day.at("03:00").do(self.backup_raffle_data)
+        schedule.every().day.at("03:00").do(self.run_task, "backup_data", self.backup_raffle_data)
 
         logger.info("Планувальник успішно налаштовано")
+
+    def run_task(self, task_name, task_func):
+        """Запуск задачі з логуванням статусу та обробкою помилок"""
+        try:
+            logger.info(f"Запуск задачі: {task_name}")
+            self.task_status[task_name] = {
+                "start_time": datetime.now().isoformat(),
+                "status": "running"
+            }
+
+            result = task_func()
+
+            self.task_status[task_name] = {
+                "last_run": datetime.now().isoformat(),
+                "status": "success",
+                "result": result
+            }
+
+            logger.info(f"Задача {task_name} успішно виконана")
+            return result
+        except Exception as e:
+            logger.error(f"Помилка виконання задачі {task_name}: {str(e)}", exc_info=True)
+
+            self.task_status[task_name] = {
+                "last_run": datetime.now().isoformat(),
+                "status": "error",
+                "error": str(e)
+            }
+
+            # Відправляємо повідомлення про помилку адміністратору
+            if ADMIN_CHAT_ID:
+                send_telegram_message(
+                    ADMIN_CHAT_ID,
+                    f"❌ Помилка виконання задачі {task_name}: {str(e)}"
+                )
+
+            # Повертаємо None, а не піднімаємо виняток, щоб не зупиняти планувальник
+            return None
 
     def _initial_checks(self):
         """Початкові перевірки при запуску сервісу"""
         logger.info("Запуск початкових перевірок")
 
         # Перевірка прострочених розіграшів
-        self.check_expired_raffles()
+        self.run_task("initial_check_expired", self.check_expired_raffles)
 
         # Перевірка необхідності створення щоденного розіграшу
-        self.check_and_create_daily_raffle()
+        self.run_task("initial_check_daily", self.check_and_create_daily_raffle)
 
         # Відправка повідомлень переможцям
-        self.send_notifications_to_winners()
+        self.run_task("initial_send_notifications", self.send_notifications_to_winners)
 
         # Повідомлення про запуск сервісу
         self._send_admin_notification("🎮 Сервіс розіграшів WINIX запущено")
 
     def check_expired_raffles(self):
         """Перевірка та завершення прострочених розіграшів"""
-        try:
-            logger.info("Запуск перевірки прострочених розіграшів")
-            result = check_and_finish_expired_raffles()
+        logger.info("Запуск перевірки прострочених розіграшів")
+        result = check_and_finish_expired_raffles()
 
-            if result.get("status") == "success":
-                finished_count = result.get("finished_count", 0)
-                if finished_count > 0:
-                    logger.info(f"Успішно завершено {finished_count} розіграшів")
+        if result.get("status") == "success":
+            finished_count = result.get("finished_count", 0)
+            if finished_count > 0:
+                finished_raffles = result.get("finished_raffles", [])
+                logger.info(f"Успішно завершено {finished_count} розіграшів: {finished_raffles}")
 
-                    # Відправляємо повідомлення адміністратору
-                    self._send_admin_notification(f"🏁 Автоматично завершено {finished_count} розіграшів")
+                # Відправляємо повідомлення адміністратору
+                self._send_admin_notification(f"🏁 Автоматично завершено {finished_count} розіграшів")
 
-                    # Відправляємо повідомлення переможцям
-                    self.send_notifications_to_winners()
-                else:
-                    logger.info("Прострочені розіграші не знайдено")
+                # Відправляємо повідомлення переможцям
+                self.send_notifications_to_winners()
             else:
-                logger.error(f"Помилка перевірки розіграшів: {result.get('message', 'Невідома помилка')}")
-                self._send_admin_notification(
-                    f"❌ Помилка перевірки розіграшів: {result.get('message', 'Невідома помилка')}")
-        except Exception as e:
-            logger.error(f"Критична помилка при перевірці розіграшів: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Критична помилка при перевірці розіграшів: {str(e)}")
+                logger.info("Прострочені розіграші не знайдено")
+        else:
+            error_message = result.get('message', 'Невідома помилка')
+            logger.error(f"Помилка перевірки розіграшів: {error_message}")
+            self._send_admin_notification(f"❌ Помилка перевірки розіграшів: {error_message}")
+
+        return result
 
     def send_notifications_to_winners(self):
         """Відправка повідомлень переможцям через Telegram Bot API"""
+        if not TELEGRAM_BOT_TOKEN:
+            logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")
+            return {"status": "error", "message": "TELEGRAM_BOT_TOKEN не налаштовано"}
+
+        logger.info("Запуск відправки повідомлень переможцям")
+
         try:
-            if not TELEGRAM_BOT_TOKEN:
-                logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")
-                return
-
-            logger.info("Запуск відправки повідомлень переможцям")
-
             # Отримуємо переможців, яким ще не відправлено повідомлення
             winners_response = supabase.table("raffle_winners").select("*").eq("notification_sent", False).execute()
 
             if not winners_response.data:
                 logger.info("Немає переможців, яким потрібно відправити повідомлення")
-                return
+                return {"status": "success", "message": "Немає повідомлень для відправки", "count": 0}
+
+            # Отримуємо інформацію про розіграші одним запитом
+            raffle_ids = list(set([w.get("raffle_id") for w in winners_response.data if w.get("raffle_id")]))
+            raffles_response = supabase.table("raffles").select("id,title").in_("id", raffle_ids).execute()
+
+            # Створюємо словник розіграшів за id
+            raffles_by_id = {r.get("id"): r for r in raffles_response.data if r.get("id")}
 
             sent_count = 0
+            failed_count = 0
+
             for winner in winners_response.data:
+                winner_id = winner.get("id")
                 telegram_id = winner.get("telegram_id")
                 raffle_id = winner.get("raffle_id")
+
+                if not telegram_id or not raffle_id:
+                    logger.warning(f"Пропускаємо переможця з неповними даними: {winner_id}")
+                    continue
+
                 place = winner.get("place")
                 prize_amount = winner.get("prize_amount")
                 prize_currency = winner.get("prize_currency", "WINIX")
 
-                # Отримуємо дані розіграшу
-                raffle_response = supabase.table("raffles").select("title").eq("id", raffle_id).execute()
-                raffle_title = raffle_response.data[0].get("title", "Розіграш") if raffle_response.data else "Розіграш"
+                # Отримуємо назву розіграшу з кешу
+                raffle = raffles_by_id.get(raffle_id, {})
+                raffle_title = raffle.get("title", "Розіграш")
 
                 # Формуємо повідомлення
                 message = WINNER_MESSAGE_TEMPLATE.format(
@@ -218,25 +354,43 @@ class RaffleService:
                 )
 
                 # Відправляємо повідомлення
-                success = self._send_telegram_message(telegram_id, message)
+                success = send_telegram_message(telegram_id, message)
 
                 if success:
                     # Оновлюємо статус відправки повідомлення
                     supabase.table("raffle_winners").update({
                         "notification_sent": True
-                    }).eq("id", winner.get("id")).execute()
+                    }).eq("id", winner_id).execute()
 
                     sent_count += 1
                     logger.info(f"Відправлено повідомлення переможцю {telegram_id}")
                 else:
+                    failed_count += 1
                     logger.warning(f"Не вдалося відправити повідомлення переможцю {telegram_id}")
 
-            logger.info(f"Відправлено повідомлень: {sent_count} з {len(winners_response.data)}")
+            result = {
+                "status": "success",
+                "message": f"Відправлено {sent_count} повідомлень, не вдалося відправити {failed_count}",
+                "sent_count": sent_count,
+                "failed_count": failed_count,
+                "total": len(winners_response.data)
+            }
+
             if sent_count > 0:
                 self._send_admin_notification(f"📨 Відправлено {sent_count} повідомлень переможцям розіграшів")
+
+            return result
         except Exception as e:
-            logger.error(f"Помилка відправки повідомлень переможцям: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка відправки повідомлень переможцям: {str(e)}")
+            error_message = f"Помилка відправки повідомлень переможцям: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            self._send_admin_notification(f"❌ {error_message}")
+
+            return {
+                "status": "error",
+                "message": error_message,
+                "sent_count": 0,
+                "failed_count": 0
+            }
 
     def check_and_create_daily_raffle(self):
         """Перевірка необхідності та створення щоденного розіграшу"""
@@ -244,28 +398,46 @@ class RaffleService:
             logger.info("Перевірка необхідності створення щоденного розіграшу")
 
             # Перевіряємо, чи є активний щоденний розіграш
-            daily_raffles_response = supabase.table("raffles").select("id, end_time").eq("is_daily", True).eq("status",
-                                                                                                              "active").execute()
+            daily_raffles_response = supabase.table("raffles").select("id, end_time").eq("is_daily", True).eq("status", "active").execute()
 
             if daily_raffles_response.data:
                 # Отримуємо дату завершення найпізнішого розіграшу
                 latest_raffle = max(daily_raffles_response.data, key=lambda r: r.get("end_time", ""))
-                end_time = datetime.fromisoformat(latest_raffle.get("end_time").replace('Z', '+00:00'))
 
-                # Якщо розіграш ще не завершився, не створюємо новий
-                now = datetime.now(timezone.utc)
-                if end_time > now:
-                    logger.info(f"Активний щоденний розіграш ще не завершено. Завершення: {end_time.isoformat()}")
-                    return
+                try:
+                    end_time = datetime.fromisoformat(latest_raffle.get("end_time", "").replace('Z', '+00:00'))
+
+                    # Якщо розіграш ще не завершився, не створюємо новий
+                    now = datetime.now(timezone.utc)
+                    if end_time > now:
+                        logger.info(f"Активний щоденний розіграш ще не завершено. Завершення: {end_time.isoformat()}")
+                        return {
+                            "status": "skipped",
+                            "message": "Активний щоденний розіграш ще не завершено",
+                            "raffle_id": latest_raffle.get("id"),
+                            "end_time": end_time.isoformat()
+                        }
+                except (ValueError, AttributeError):
+                    logger.error(f"Помилка конвертації часу завершення розіграшу")
 
             # Створюємо новий щоденний розіграш
             result = self._create_daily_raffle()
-            if result:
+
+            if result and result.get("status") == "success":
                 # Відправляємо повідомлення про новий розіграш
-                self.send_daily_raffle_notification()
+                notification_result = self.send_daily_raffle_notification()
+                result["notification"] = notification_result
+
+            return result
         except Exception as e:
-            logger.error(f"Помилка перевірки щоденного розіграшу: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка перевірки щоденного розіграшу: {str(e)}")
+            error_message = f"Помилка перевірки щоденного розіграшу: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            self._send_admin_notification(f"❌ {error_message}")
+
+            return {
+                "status": "error",
+                "message": error_message
+            }
 
     def _create_daily_raffle(self):
         """Створення нового щоденного розіграшу"""
@@ -277,6 +449,9 @@ class RaffleService:
 
             # Час закінчення (24 години)
             end_time = now + timedelta(days=1)
+
+            # Генеруємо унікальний ID
+            raffle_id = str(uuid.uuid4())
 
             # Підготовка призового розподілу
             prize_distribution = {
@@ -299,6 +474,7 @@ class RaffleService:
 
             # Дані для щоденного розіграшу
             daily_raffle_data = {
+                "id": raffle_id,
                 "title": f"Щоденний розіграш {now.strftime('%d.%m.%Y')}",
                 "description": "Щоденний розіграш WINIX. 15 переможців отримають призи! Кожен жетон збільшує ваші шанси на перемогу.",
                 "prize_amount": 17000,  # Загальна сума призів
@@ -313,41 +489,65 @@ class RaffleService:
                 "prize_distribution": prize_distribution,
                 "created_by": "system",
                 "created_at": now.isoformat(),
-                "updated_at": now.isoformat()
+                "updated_at": now.isoformat(),
+                "participants_count": 0
             }
 
             # Створюємо розіграш
             response = supabase.table("raffles").insert(daily_raffle_data).execute()
 
             if response.data:
-                raffle_id = response.data[0].get('id')
                 logger.info(f"Щоденний розіграш успішно створено з ID: {raffle_id}")
                 self._send_admin_notification(
-                    f"🎮 Створено новий щоденний розіграш на {daily_raffle_data['prize_amount']} {daily_raffle_data['prize_currency']} (ID: {raffle_id})")
-                return raffle_id
+                    f"🎮 Створено новий щоденний розіграш на {daily_raffle_data['prize_amount']} {daily_raffle_data['prize_currency']} (ID: {raffle_id})"
+                )
+
+                return {
+                    "status": "success",
+                    "message": "Щоденний розіграш успішно створено",
+                    "raffle_id": raffle_id,
+                    "prize_amount": daily_raffle_data['prize_amount'],
+                    "prize_currency": daily_raffle_data['prize_currency']
+                }
             else:
                 logger.error("Не вдалося створити щоденний розіграш")
                 self._send_admin_notification(f"❌ Не вдалося створити щоденний розіграш")
-                return None
+
+                return {
+                    "status": "error",
+                    "message": "Не вдалося створити щоденний розіграш"
+                }
         except Exception as e:
-            logger.error(f"Помилка створення щоденного розіграшу: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка створення щоденного розіграшу: {str(e)}")
-            return None
+            error_message = f"Помилка створення щоденного розіграшу: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            self._send_admin_notification(f"❌ {error_message}")
+
+            return {
+                "status": "error",
+                "message": error_message
+            }
 
     def send_daily_raffle_notification(self):
         """Відправка повідомлення про новий щоденний розіграш"""
-        try:
-            if not TELEGRAM_BOT_TOKEN:
-                logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")
-                return
+        if not TELEGRAM_BOT_TOKEN:
+            logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")
+            return {"status": "error", "message": "TELEGRAM_BOT_TOKEN не налаштовано"}
 
+        try:
             # Отримуємо активний щоденний розіграш
-            raffle_response = supabase.table("raffles").select("*").eq("is_daily", True).eq("status", "active").order(
-                "created_at", desc=True).limit(1).execute()
+            raffle_response = supabase.table("raffles").select("*") \
+                                     .eq("is_daily", True) \
+                                     .eq("status", "active") \
+                                     .order("created_at", desc=True) \
+                                     .limit(1) \
+                                     .execute()
 
             if not raffle_response.data:
                 logger.warning("Активний щоденний розіграш не знайдено для відправки повідомлення")
-                return
+                return {
+                    "status": "error",
+                    "message": "Активний щоденний розіграш не знайдено"
+                }
 
             raffle = raffle_response.data[0]
 
@@ -357,57 +557,114 @@ class RaffleService:
                 prize_currency=raffle.get("prize_currency", "WINIX")
             )
 
-            # Отримуємо список користувачів для розсилки (обмеження 100 для уникнення перенавантаження)
+            # Отримуємо список користувачів для розсилки (обмеження для уникнення перенавантаження)
             users_response = supabase.table("winix").select("telegram_id").limit(100).execute()
 
             if not users_response.data:
                 logger.warning("Користувачів для розсилки не знайдено")
-                return
+                return {
+                    "status": "error",
+                    "message": "Користувачів для розсилки не знайдено"
+                }
+
+            # Використовуємо криптографічно безпечний вибір користувачів для розсилки
+            sample_size = min(50, len(users_response.data))
+            selected_indexes = []
+
+            # Створюємо список індексів без повторень
+            pool = list(range(len(users_response.data)))
+            for _ in range(sample_size):
+                if not pool:
+                    break
+                idx = secrets.randbelow(len(pool))
+                selected_indexes.append(pool.pop(idx))
+
+            selected_users = [users_response.data[i] for i in selected_indexes]
 
             sent_count = 0
-            for user in users_response.data:
+            failed_count = 0
+
+            for user in selected_users:
                 telegram_id = user.get("telegram_id")
+                if not telegram_id:
+                    continue
 
                 # Відправляємо повідомлення
-                if self._send_telegram_message(telegram_id, message):
+                if send_telegram_message(telegram_id, message):
                     sent_count += 1
+                else:
+                    failed_count += 1
+
+                # Пауза між повідомленнями для уникнення блокування API
+                time.sleep(0.1)
+
+            result = {
+                "status": "success",
+                "message": f"Відправлено {sent_count} повідомлень з {len(selected_users)}",
+                "sent_count": sent_count,
+                "failed_count": failed_count,
+                "raffle_id": raffle.get("id")
+            }
 
             logger.info(f"Відправлено {sent_count} повідомлень про новий щоденний розіграш")
             self._send_admin_notification(f"📢 Відправлено {sent_count} повідомлень про новий щоденний розіграш")
+
+            return result
         except Exception as e:
-            logger.error(f"Помилка відправки повідомлень про щоденний розіграш: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка відправки повідомлень про щоденний розіграш: {str(e)}")
+            error_message = f"Помилка відправки повідомлень про щоденний розіграш: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            self._send_admin_notification(f"❌ {error_message}")
+
+            return {
+                "status": "error",
+                "message": error_message
+            }
 
     def send_daily_raffle_reminder(self):
         """Відправка нагадування про поточний розіграш"""
-        try:
-            if not TELEGRAM_BOT_TOKEN:
-                logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку нагадувань.")
-                return
+        if not TELEGRAM_BOT_TOKEN:
+            logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку нагадувань.")
+            return {"status": "error", "message": "TELEGRAM_BOT_TOKEN не налаштовано"}
 
+        try:
             # Отримуємо активний щоденний розіграш
-            raffle_response = supabase.table("raffles").select("*").eq("is_daily", True).eq("status", "active").order(
-                "created_at", desc=True).limit(1).execute()
+            raffle_response = supabase.table("raffles").select("*") \
+                                     .eq("is_daily", True) \
+                                     .eq("status", "active") \
+                                     .order("created_at", desc=True) \
+                                     .limit(1) \
+                                     .execute()
 
             if not raffle_response.data:
                 logger.warning("Активний щоденний розіграш не знайдено для відправки нагадування")
-                return
+                return {
+                    "status": "error",
+                    "message": "Активний щоденний розіграш не знайдено"
+                }
 
             raffle = raffle_response.data[0]
+            raffle_id = raffle.get("id")
 
             # Розраховуємо, скільки часу залишилось
             now = datetime.now(timezone.utc)
-            end_time = datetime.fromisoformat(raffle.get("end_time").replace('Z', '+00:00'))
-            time_left = end_time - now
 
-            hours_left = int(time_left.total_seconds() // 3600)
-            minutes_left = int((time_left.total_seconds() % 3600) // 60)
+            try:
+                end_time = datetime.fromisoformat(raffle.get("end_time", "").replace('Z', '+00:00'))
+                time_left = end_time - now
+
+                hours_left = int(time_left.total_seconds() // 3600)
+                minutes_left = int((time_left.total_seconds() % 3600) // 60)
+
+                time_left_str = f"{hours_left} год {minutes_left} хв"
+            except (ValueError, AttributeError):
+                logger.warning(f"Помилка конвертації часу завершення розіграшу")
+                time_left_str = "скоро"
 
             # Формуємо повідомлення
             message = f"""
 🎮 WINIX: Не пропустіть розіграш! 🎮
 
-До завершення розіграшу {raffle.get("title")} залишилось {hours_left} год {minutes_left} хв.
+До завершення розіграшу {raffle.get("title")} залишилось {time_left_str}.
 
 Призовий фонд: {raffle.get("prize_amount")} {raffle.get("prize_currency", "WINIX")}
 Кількість переможців: {raffle.get("winners_count")}
@@ -415,172 +672,253 @@ class RaffleService:
 Використайте ваші жетони для участі зараз!
 """
 
-            # Отримуємо список користувачів, які ще НЕ взяли участь у цьому розіграші
-            # Спочатку знаходимо тих, хто вже бере участь
-            participants_response = supabase.table("raffle_participants").select("telegram_id").eq("raffle_id",
-                                                                                                   raffle.get(
-                                                                                                       "id")).execute()
+            # Отримуємо учасників розіграшу
+            participants_response = supabase.table("raffle_participants") \
+                                          .select("telegram_id") \
+                                          .eq("raffle_id", raffle_id) \
+                                          .execute()
 
-            participant_ids = [p.get("telegram_id") for p in
-                               participants_response.data] if participants_response.data else []
+            participant_ids = [p.get("telegram_id") for p in participants_response.data] if participants_response.data else []
 
-            # Тепер отримуємо користувачів, які не є в списку учасників (обмеження 50 для уникнення перенавантаження)
-            users_query = supabase.table("winix").select("telegram_id")
+            # Отримуємо користувачів, які ще не взяли участь
+            users_query = supabase.table("winix").select("telegram_id,coins")
 
             if participant_ids:
                 users_query = users_query.not_.in_("telegram_id", participant_ids)
 
-            users_response = users_query.limit(50).execute()
+            # Обмежуємо кількість і беремо лише тих, хто має жетони
+            users_query = users_query.gt("coins", 0).limit(50)
+            users_response = users_query.execute()
 
             if not users_response.data:
-                logger.warning("Користувачів для розсилки нагадувань не знайдено")
-                return
+                logger.warning("Користувачів для нагадувань не знайдено")
+                return {
+                    "status": "success",
+                    "message": "Користувачів для нагадувань не знайдено",
+                    "sent_count": 0
+                }
 
-            # Відправляємо нагадування випадковій підмножині користувачів
-            sample_size = min(20, len(users_response.data))  # Максимум 20 повідомлень за раз
-            selected_users = random.sample(users_response.data, sample_size)
+            # Використовуємо криптографічно безпечний вибір користувачів для розсилки
+            sample_size = min(20, len(users_response.data))
+            selected_indexes = []
+
+            # Створюємо список індексів без повторень
+            pool = list(range(len(users_response.data)))
+            for _ in range(sample_size):
+                if not pool:
+                    break
+                idx = secrets.randbelow(len(pool))
+                selected_indexes.append(pool.pop(idx))
+
+            selected_users = [users_response.data[i] for i in selected_indexes]
 
             sent_count = 0
             for user in selected_users:
                 telegram_id = user.get("telegram_id")
+                coins = user.get("coins", 0)
 
-                # Відправляємо повідомлення
-                if self._send_telegram_message(telegram_id, message):
-                    sent_count += 1
-
-            logger.info(f"Відправлено {sent_count} нагадувань про розіграш")
-            self._send_admin_notification(f"⏰ Відправлено {sent_count} нагадувань про активний розіграш")
-        except Exception as e:
-            logger.error(f"Помилка відправки нагадувань про розіграш: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка відправки нагадувань про розіграш: {str(e)}")
-
-    def backup_raffle_data(self):
-        """Резервне копіювання даних розіграшів"""
-        try:
-            logger.info("Створення резервної копії даних розіграшів")
-
-            # Створюємо директорію для резервних копій, якщо вона не існує
-            backup_dir = os.path.join(current_dir, "backups")
-            os.makedirs(backup_dir, exist_ok=True)
-
-            # Поточна дата для імені файлу
-            today = datetime.now().strftime('%Y-%m-%d')
-
-            # Отримуємо дані розіграшів
-            raffles_response = supabase.table("raffles").select("*").execute()
-            participants_response = supabase.table("raffle_participants").select("*").execute()
-            winners_response = supabase.table("raffle_winners").select("*").execute()
-
-            # Створюємо структуру даних для резервної копії
-            backup_data = {
-                "timestamp": datetime.now().isoformat(),
-                "raffles": raffles_response.data if raffles_response.data else [],
-                "participants": participants_response.data if participants_response.data else [],
-                "winners": winners_response.data if winners_response.data else []
-            }
-
-            # Зберігаємо в файл
-            backup_file = os.path.join(backup_dir, f"raffles_backup_{today}.json")
-            with open(backup_file, 'w', encoding='utf-8') as f:
-                json.dump(backup_data, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"Резервну копію даних розіграшів створено: {backup_file}")
-            self._send_admin_notification(
-                f"💾 Створено резервну копію даних розіграшів: {len(backup_data['raffles'])} розіграшів, {len(backup_data['participants'])} учасників, {len(backup_data['winners'])} переможців")
-
-            # Видаляємо старі резервні копії (старші 30 днів)
-            self._cleanup_old_backups(backup_dir)
-        except Exception as e:
-            logger.error(f"Помилка створення резервної копії: {str(e)}", exc_info=True)
-            self._send_admin_notification(f"❌ Помилка створення резервної копії даних розіграшів: {str(e)}")
-
-    def _cleanup_old_backups(self, backup_dir, days_to_keep=30):
-        """Видалення старих резервних копій"""
-        try:
-            # Поточна дата
-            now = datetime.now()
-
-            # Перевіряємо всі файли в директорії резервних копій
-            for filename in os.listdir(backup_dir):
-                filepath = os.path.join(backup_dir, filename)
-
-                # Пропускаємо директорії
-                if os.path.isdir(filepath):
+                if not telegram_id:
                     continue
 
-                # Перевіряємо, чи файл є резервною копією розіграшів
-                if not filename.startswith("raffles_backup_"):
-                    continue
+                    # Персоналізуємо повідомлення
+                    personalized_message = message + f"\n\nУ вас є {coins} жетонів. Використайте їх для збільшення шансів на перемогу!"
 
-                # Отримуємо час модифікації файлу
-                file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                    # Відправляємо повідомлення
+                    if send_telegram_message(telegram_id, personalized_message):
+                        sent_count += 1
 
-                # Видаляємо файл, якщо він старший за вказану кількість днів
-                if (now - file_time).days > days_to_keep:
-                    os.remove(filepath)
-                    logger.info(f"Видалено стару резервну копію: {filename}")
-        except Exception as e:
-            logger.error(f"Помилка при очищенні старих резервних копій: {str(e)}")
+                    # Пауза між повідомленнями для уникнення блокування API
+                    time.sleep(0.1)
 
-    def _send_telegram_message(self, telegram_id, message):
-        """Відправка повідомлення через Telegram Bot API"""
-        try:
-            if not TELEGRAM_BOT_TOKEN:
-                logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлення.")
-                return False
+                logger.info(f"Відправлено {sent_count} нагадувань про розіграш")
 
-            url = f"{TELEGRAM_API_URL}/sendMessage"
-            payload = {
-                "chat_id": telegram_id,
-                "text": message,
-                "parse_mode": "HTML"
+                result = {
+                    "status": "success",
+                    "message": f"Відправлено {sent_count} нагадувань з {len(selected_users)}",
+                    "sent_count": sent_count,
+                    "raffle_id": raffle_id
+                }
+
+                if sent_count > 0:
+                    self._send_admin_notification(f"⏰ Відправлено {sent_count} нагадувань про активний розіграш")
+
+                return result
+            except Exception as e:
+            error_message = f"Помилка відправки нагадувань про розіграш: {str(e)}"
+            logger.error(error_message, exc_info=True)
+            self._send_admin_notification(f"❌ {error_message}")
+
+            return {
+                "status": "error",
+                "message": error_message
             }
 
-            response = requests.post(url, json=payload, timeout=10)
+        def backup_raffle_data(self):
+            """Резервне копіювання даних розіграшів"""
+            try:
+                logger.info("Створення резервної копії даних розіграшів")
 
-            if response.status_code == 200:
-                return True
-            else:
-                logger.error(f"Помилка відправки повідомлення: {response.text}")
+                # Створюємо директорію для резервних копій, якщо вона не існує
+                backup_dir = os.path.join(current_dir, "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+
+                # Поточна дата для імені файлу
+                today = datetime.now().strftime('%Y-%m-%d')
+
+                # Отримуємо дані розіграшів з обмеженнями кількості записів
+                raffles_response = supabase.table("raffles").select("*").limit(1000).execute()
+                participants_response = supabase.table("raffle_participants").select("*").limit(1000).execute()
+                winners_response = supabase.table("raffle_winners").select("*").limit(1000).execute()
+
+                # Створюємо структуру даних для резервної копії
+                backup_data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "raffles": raffles_response.data if raffles_response.data else [],
+                    "participants": participants_response.data if participants_response.data else [],
+                    "winners": winners_response.data if winners_response.data else []
+                }
+
+                # Зберігаємо в файл з використанням криптографічно безпечного ідентифікатора
+                backup_id = secrets.token_hex(8)
+                backup_file = os.path.join(backup_dir, f"raffles_backup_{today}_{backup_id}.json")
+
+                with open(backup_file, 'w', encoding='utf-8') as f:
+                    json.dump(backup_data, f, ensure_ascii=False, indent=2)
+
+                # Зберігаємо копію на Amazon S3 або інше хмарне сховище
+                # Цей код буде додано пізніше, залежно від наявності відповідних бібліотек
+
+                logger.info(f"Резервну копію даних розіграшів створено: {backup_file}")
+
+                backup_info = {
+                    "status": "success",
+                    "message": "Резервну копію даних розіграшів створено",
+                    "file": backup_file,
+                    "timestamp": datetime.now().isoformat(),
+                    "raffles_count": len(backup_data['raffles']),
+                    "participants_count": len(backup_data['participants']),
+                    "winners_count": len(backup_data['winners'])
+                }
+
+                self._send_admin_notification(
+                    f"💾 Створено резервну копію даних розіграшів: {len(backup_data['raffles'])} розіграшів, "
+                    f"{len(backup_data['participants'])} учасників, {len(backup_data['winners'])} переможців"
+                )
+
+                # Видаляємо старі резервні копії (старші 30 днів)
+                self._cleanup_old_backups(backup_dir)
+
+                return backup_info
+            except Exception as e:
+                error_message = f"Помилка створення резервної копії: {str(e)}"
+                logger.error(error_message, exc_info=True)
+                self._send_admin_notification(f"❌ {error_message}")
+
+                return {
+                    "status": "error",
+                    "message": error_message
+                }
+
+        def _cleanup_old_backups(self, backup_dir, days_to_keep=30):
+            """Видалення старих резервних копій"""
+            try:
+                # Поточна дата
+                now = datetime.now()
+
+                # Перевіряємо всі файли в директорії резервних копій
+                deleted_count = 0
+                for filename in os.listdir(backup_dir):
+                    filepath = os.path.join(backup_dir, filename)
+
+                    # Пропускаємо директорії
+                    if os.path.isdir(filepath):
+                        continue
+
+                    # Перевіряємо, чи файл є резервною копією розіграшів
+                    if not filename.startswith("raffles_backup_"):
+                        continue
+
+                    # Отримуємо час модифікації файлу
+                    file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+
+                    # Видаляємо файл, якщо він старший за вказану кількість днів
+                    if (now - file_time).days > days_to_keep:
+                        os.remove(filepath)
+                        deleted_count += 1
+                        logger.info(f"Видалено стару резервну копію: {filename}")
+
+                return {
+                    "status": "success",
+                    "message": f"Видалено {deleted_count} старих резервних копій",
+                    "deleted_count": deleted_count
+                }
+            except Exception as e:
+                logger.error(f"Помилка при очищенні старих резервних копій: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": f"Помилка при очищенні старих резервних копій: {str(e)}"
+                }
+
+        def _send_admin_notification(self, message):
+            """Відправка повідомлення адміністратору"""
+            if not ADMIN_CHAT_ID:
+                logger.warning("ADMIN_CHAT_ID не налаштовано. Пропускаємо відправку повідомлення адміністратору.")
                 return False
-        except Exception as e:
-            logger.error(f"Помилка при відправці Telegram повідомлення: {str(e)}")
-            return False
 
-    def _send_admin_notification(self, message):
-        """Відправка повідомлення адміністратору"""
-        if not ADMIN_CHAT_ID:
-            logger.warning("ADMIN_CHAT_ID не налаштовано. Пропускаємо відправку повідомлення адміністратору.")
-            return False
+            return send_telegram_message(ADMIN_CHAT_ID, message)
 
-        return self._send_telegram_message(ADMIN_CHAT_ID, message)
+        def get_status(self):
+            """Отримання статусу сервісу розіграшів"""
+            try:
+                # Отримуємо інформацію про активні розіграші
+                active_raffles_response = supabase.table("raffles").select("id,title,end_time").eq("status",
+                                                                                                   "active").execute()
+                active_raffles = active_raffles_response.data if active_raffles_response.data else []
 
+                # Отримуємо статус останніх завдань
+                task_statuses = {k: v for k, v in self.task_status.items()}
 
-# Створення екземпляру сервісу
-raffle_service = RaffleService()
+                return {
+                    "status": "running" if self.active else "stopped",
+                    "start_time": getattr(self, "start_time", None),
+                    "active_raffles_count": len(active_raffles),
+                    "active_raffles": active_raffles,
+                    "task_statuses": task_statuses
+                }
+            except Exception as e:
+                logger.error(f"Помилка отримання статусу сервісу: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": f"Помилка отримання статусу: {str(e)}"
+                }
 
+    # Створення екземпляру сервісу
+    raffle_service = RaffleService()
 
-# Функція для запуску сервісу
-def start_raffle_service():
-    """Запуск сервісу розіграшів"""
-    return raffle_service.start()
+    # Функція для запуску сервісу
+    def start_raffle_service():
+        """Запуск сервісу розіграшів"""
+        return raffle_service.start()
 
+    # Функція для зупинки сервісу
+    def stop_raffle_service():
+        """Зупинка сервісу розіграшів"""
+        return raffle_service.stop()
 
-# Функція для зупинки сервісу
-def stop_raffle_service():
-    """Зупинка сервісу розіграшів"""
-    return raffle_service.stop()
+    # Функція для отримання статусу сервісу
+    def get_raffle_service_status():
+        """Отримання статусу сервісу розіграшів"""
+        return raffle_service.get_status()
 
+    # Якщо скрипт запущено напряму
+    if __name__ == "__main__":
+        logger.info("Запуск сервісу розіграшів як окремого процесу")
+        start_raffle_service()
 
-# Якщо скрипт запущено напряму
-if __name__ == "__main__":
-    logger.info("Запуск сервісу розіграшів як окремого процесу")
-    start_raffle_service()
-
-    try:
-        # Утримуємо головний потік
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Отримано сигнал завершення роботи")
-        stop_raffle_service()
+        try:
+            # Утримуємо головний потік
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Отримано сигнал завершення роботи")
+            stop_raffle_service()
