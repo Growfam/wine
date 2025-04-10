@@ -1242,6 +1242,57 @@
                 border-radius: 1.25rem; /* 20px */
             }
         }
+            .modal-scrollable-content input {
+        width: 100%;
+        padding: 0.625rem 0.75rem;
+        margin-bottom: 0.9375rem;
+        border-radius: 0.625rem;
+        border: 0.0625rem solid rgba(0, 201, 167, 0.3);
+        background: rgba(20, 30, 60, 0.6);
+        color: var(--text-color);
+        font-size: 0.9375rem;
+        transition: all 0.3s ease;
+    }
+
+    .modal-scrollable-content input:focus {
+        outline: none;
+        border-color: rgba(0, 201, 167, 0.8);
+        box-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.4);
+    }
+    .custom-file-upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.upload-button {
+    flex-shrink: 0;
+    background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+    border: none;
+    border-radius: 0.9375rem;
+    padding: 0.625rem 1rem;
+    color: white;
+    font-size: 0.9375rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.upload-button:hover {
+    background: linear-gradient(90deg, #3D7EC6, #62D0CD);
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.5);
+}
+
+#file-name-display {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+}
     </style>
 </head>
 <body>

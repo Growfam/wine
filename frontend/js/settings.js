@@ -448,201 +448,222 @@ window.WinixSettings = (function() {
     }
 
     /**
-     * Показує модальне вікно редагування профілю
-     */
-    function showEditProfileModal() {
-        const currentUsername = localStorage.getItem('username') || 'WINIX User';
-        const savedPasswordHash = localStorage.getItem('passwordHash');
-        const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
-        const hasPassword = savedPasswordHash || savedSeedHash;
+ * Показує модальне вікно редагування профілю
+ */
+function showEditProfileModal() {
+    const currentUsername = (_userData && _userData.username) || localStorage.getItem('username') || 'WINIX User';
+    const savedPasswordHash = localStorage.getItem('passwordHash');
+    const savedSeedHash = localStorage.getItem('seedPhrasePasswordHash');
+    const hasPassword = savedPasswordHash || savedSeedHash;
 
-        const passwordFieldLabel = hasPassword ? "Поточний пароль" : "Встановити пароль";
-        const passwordFieldPlaceholder = hasPassword ? "Введіть поточний пароль для зміни" : "Пароль для захисту акаунту";
+    const passwordFieldLabel = hasPassword ? "Поточний пароль" : "Встановити пароль";
+    const passwordFieldPlaceholder = hasPassword ? "Введіть поточний пароль для зміни" : "Пароль для захисту акаунту";
 
-        // Видаляємо попередні модальні вікна
-        document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
+    // Видаляємо попередні модальні вікна
+    document.querySelectorAll('.document-modal').forEach(modal => modal.remove());
 
-        // Створюємо нове модальне вікно
-        const modal = document.createElement('div');
-        modal.className = 'document-modal show';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="modal-title">Редагування профілю</div>
-                    <span class="close-modal">×</span>
-                </div>
-                <div class="modal-body">
-                    <div class="settings-item">
-                        <label>Ім'я користувача</label>
-                        <input type="text" id="edit-username" value="${currentUsername}">
-                    </div>
-                    <div class="settings-item">
-                        <label>${passwordFieldLabel}</label>
-                        <input type="password" id="edit-current-password" placeholder="${passwordFieldPlaceholder}">
-                    </div>
-                    <div class="settings-item">
-                        <label>Новий пароль</label>
-                        <input type="password" id="edit-password" placeholder="Залиште порожнім, щоб не змінювати">
-                    </div>
-                    <div class="settings-item">
-                        <label>Підтвердження паролю</label>
-                        <input type="password" id="edit-password-confirm" placeholder="Повторіть новий пароль">
-                    </div>
-                    <div class="settings-item">
-                        <label>Завантажити аватар</label>
-                        <input type="file" id="avatar-upload" accept="image/*">
-                    </div>
-                    <div class="settings-item">
-                        <label>Обрати аватар</label>
-                        <div class="avatar-options">
-                            <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
-                            <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
-                            <img src="assets/avatar3.png" class="avatar-option" data-id="3" onerror="this.src='https://via.placeholder.com/50?text=3'">
-                            <img src="assets/avatar4.png" class="avatar-option" data-id="4" onerror="this.src='https://via.placeholder.com/50?text=4'">
-                            <img src="assets/avatar5.png" class="avatar-option" data-id="5" onerror="this.src='https://via.placeholder.com/50?text=5'">
-                            <img src="assets/avatar6.png" class="avatar-option" data-id="6" onerror="this.src='https://via.placeholder.com/50?text=6'">
-                            <img src="assets/avatar7.png" class="avatar-option" data-id="7" onerror="this.src='https://via.placeholder.com/50?text=7'">
-                            <img src="assets/avatar8.png" class="avatar-option" data-id="8" onerror="this.src='https://via.placeholder.com/50?text=8'">
-                            <img src="assets/avatar9.png" class="avatar-option" data-id="9" onerror="this.src='https://via.placeholder.com/50?text=9'">
-                            <img src="assets/avatar10.png" class="avatar-option" data-id="10" onerror="this.src='https://via.placeholder.com/50?text=10'">
-                            <img src="assets/avatar11.png" class="avatar-option" data-id="11" onerror="this.src='https://via.placeholder.com/50?text=11'">
-                            <img src="assets/avatar12.png" class="avatar-option" data-id="12" onerror="this.src='https://via.placeholder.com/50?text=12'">
-                            <img src="assets/avatar13.png" class="avatar-option" data-id="13" onerror="this.src='https://via.placeholder.com/50?text=13'">
-                        </div>
-                    </div>
-                    <div id="error-msg"></div>
-                </div>
-                <div class="modal-footer">
-                    <button class="modal-button" id="save-profile">Зберегти</button>
-                </div>
+    // Створюємо нове модальне вікно
+    const modal = document.createElement('div');
+    modal.className = 'document-modal show';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Редагування профілю</div>
+                <span class="close-modal">×</span>
             </div>
-        `;
-        document.body.appendChild(modal);
+            <div class="modal-scrollable-content">
+                <div class="settings-item">
+                    <label>Ім'я користувача</label>
+                    <input type="text" id="edit-username" value="${currentUsername}">
+                </div>
+                <div class="settings-item">
+                    <label>${passwordFieldLabel}</label>
+                    <input type="password" id="edit-current-password" placeholder="${passwordFieldPlaceholder}">
+                </div>
+                <div class="settings-item">
+                    <label>Новий пароль</label>
+                    <input type="password" id="edit-password" placeholder="Залиште порожнім, щоб не змінювати">
+                </div>
+                <div class="settings-item">
+                    <label>Підтвердження паролю</label>
+                    <input type="password" id="edit-password-confirm" placeholder="Повторіть новий пароль">
+                </div>
+                <div class="settings-item">
+                    <label>Завантажити аватар</label>
+                    <div class="custom-file-upload">
+                        <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
+                        <button class="modal-button upload-button" id="custom-file-button">Обрати файл</button>
+                        <span id="file-name-display">Файл не вибрано</span>
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <label>Обрати аватар</label>
+                    <div class="avatar-options">
+                        <img src="assets/avatar1.png" class="avatar-option" data-id="1" onerror="this.src='https://via.placeholder.com/50?text=1'">
+                        <img src="assets/avatar2.png" class="avatar-option" data-id="2" onerror="this.src='https://via.placeholder.com/50?text=2'">
+                        <img src="assets/avatar3.png" class="avatar-option" data-id="3" onerror="this.src='https://via.placeholder.com/50?text=3'">
+                        <img src="assets/avatar4.png" class="avatar-option" data-id="4" onerror="this.src='https://via.placeholder.com/50?text=4'">
+                        <img src="assets/avatar5.png" class="avatar-option" data-id="5" onerror="this.src='https://via.placeholder.com/50?text=5'">
+                        <img src="assets/avatar6.png" class="avatar-option" data-id="6" onerror="this.src='https://via.placeholder.com/50?text=6'">
+                        <img src="assets/avatar7.png" class="avatar-option" data-id="7" onerror="this.src='https://via.placeholder.com/50?text=7'">
+                        <img src="assets/avatar8.png" class="avatar-option" data-id="8" onerror="this.src='https://via.placeholder.com/50?text=8'">
+                        <img src="assets/avatar9.png" class="avatar-option" data-id="9" onerror="this.src='https://via.placeholder.com/50?text=9'">
+                        <img src="assets/avatar10.png" class="avatar-option" data-id="10" onerror="this.src='https://via.placeholder.com/50?text=10'">
+                        <img src="assets/avatar11.png" class="avatar-option" data-id="11" onerror="this.src='https://via.placeholder.com/50?text=11'">
+                        <img src="assets/avatar12.png" class="avatar-option" data-id="12" onerror="this.src='https://via.placeholder.com/50?text=12'">
+                        <img src="assets/avatar13.png" class="avatar-option" data-id="13" onerror="this.src='https://via.placeholder.com/50?text=13'">
+                    </div>
+                </div>
+                <div id="error-msg"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button" id="save-profile">Зберегти</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
 
-        // Позначаємо активний аватар
-        const avatarOptions = modal.querySelectorAll('.avatar-option');
-        const selectedAvatarId = localStorage.getItem('selectedAvatarId');
-        avatarOptions.forEach(opt => {
-            if (opt.dataset.id === selectedAvatarId) opt.classList.add('selected');
-            opt.onclick = () => {
-                avatarOptions.forEach(o => o.classList.remove('selected'));
-                opt.classList.add('selected');
-            };
-        });
+    // Позначаємо активний аватар
+    const avatarOptions = modal.querySelectorAll('.avatar-option');
+    const selectedAvatarId = localStorage.getItem('selectedAvatarId');
+    avatarOptions.forEach(opt => {
+        if (opt.dataset.id === selectedAvatarId) opt.classList.add('selected');
+        opt.onclick = () => {
+            avatarOptions.forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+        };
+    });
 
-        // Додаємо обробник для кнопки збереження
-        const saveBtn = modal.querySelector('#save-profile');
-        saveBtn.onclick = () => {
-            const username = modal.querySelector('#edit-username').value.trim();
-            const password = modal.querySelector('#edit-password').value;
-            const confirm = modal.querySelector('#edit-password-confirm').value;
-            const currentPassword = modal.querySelector('#edit-current-password').value;
-            const uploadedAvatar = modal.querySelector('#avatar-upload').files[0];
-            const selectedAvatar = modal.querySelector('.avatar-option.selected');
-            const error = modal.querySelector('#error-msg');
+    // Налаштовуємо кастомну кнопку завантаження файлу
+    const fileInput = modal.querySelector('#avatar-upload');
+    const customButton = modal.querySelector('#custom-file-button');
+    const fileNameDisplay = modal.querySelector('#file-name-display');
 
-            error.textContent = '';
+    customButton.addEventListener('click', function() {
+        fileInput.click();
+    });
 
-            // Перевірка імені користувача
-            if (!username) {
-                error.textContent = "Введіть ім'я користувача";
-                modal.querySelector('#edit-username').classList.add('error');
-                return;
-            }
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files.length > 0) {
+            fileNameDisplay.textContent = fileInput.files[0].name;
+        } else {
+            fileNameDisplay.textContent = "Файл не вибрано";
+        }
+    });
 
-            // Перевірка паролів
-            if (password) {
-                if (hasPassword) {
-                    if (!currentPassword) {
-                        error.textContent = "Введіть поточний пароль для зміни";
-                        modal.querySelector('#edit-current-password').classList.add('error');
-                        return;
-                    }
+    // Додаємо обробник для кнопки збереження
+    const saveBtn = modal.querySelector('#save-profile');
+    saveBtn.onclick = () => {
+        const username = modal.querySelector('#edit-username').value.trim();
+        const password = modal.querySelector('#edit-password').value;
+        const confirm = modal.querySelector('#edit-password-confirm').value;
+        const currentPassword = modal.querySelector('#edit-current-password').value;
+        const uploadedAvatar = modal.querySelector('#avatar-upload').files[0];
+        const selectedAvatar = modal.querySelector('.avatar-option.selected');
+        const error = modal.querySelector('#error-msg');
 
-                    const currentPasswordHash = hashPassword(currentPassword);
-                    if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
-                        (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
-                        error.textContent = "Неправильний поточний пароль";
-                        modal.querySelector('#edit-current-password').classList.add('error');
-                        return;
-                    }
-                }
+        error.textContent = '';
 
-                if (password !== confirm) {
-                    error.textContent = "Паролі не співпадають";
-                    modal.querySelector('#edit-password-confirm').classList.add('error');
+        // Перевірка імені користувача
+        if (!username) {
+            error.textContent = "Введіть ім'я користувача";
+            modal.querySelector('#edit-username').classList.add('error');
+            return;
+        }
+
+        // Перевірка паролів
+        if (password) {
+            if (hasPassword) {
+                if (!currentPassword) {
+                    error.textContent = "Введіть поточний пароль для зміни";
+                    modal.querySelector('#edit-current-password').classList.add('error');
                     return;
                 }
 
-                const validation = validatePassword(password);
-                if (!validation.valid) {
-                    error.textContent = validation.message;
-                    modal.querySelector('#edit-password').classList.add('error');
-                    return;
-                }
-            } else if (currentPassword && !hasPassword) {
-                const validation = validatePassword(currentPassword);
-                if (!validation.valid) {
-                    error.textContent = validation.message;
+                const currentPasswordHash = hashPassword(currentPassword);
+                if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
+                    (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
+                    error.textContent = "Неправильний поточний пароль";
                     modal.querySelector('#edit-current-password').classList.add('error');
                     return;
                 }
             }
 
-            // Збереження даних
-            const settings = {
-                username: username
-            };
-
-            // Зберігаємо налаштування користувача
-            saveUserSettings(settings);
-
-            // Оновлюємо пароль, якщо потрібно
-            if (password) {
-                updateUserPassword(password, hasPassword ? currentPassword : null);
-            } else if (currentPassword && !hasPassword) {
-                updateUserPassword(currentPassword);
+            if (password !== confirm) {
+                error.textContent = "Паролі не співпадають";
+                modal.querySelector('#edit-password-confirm').classList.add('error');
+                return;
             }
 
-            // Обробка аватара
-            if (uploadedAvatar) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const avatarSrc = reader.result;
-                    localStorage.setItem('userAvatarSrc', avatarSrc);
-                    localStorage.removeItem('selectedAvatarId');
-                    loadUserAvatar();
-                };
-                reader.readAsDataURL(uploadedAvatar);
-            } else if (selectedAvatar) {
-                const avatarId = selectedAvatar.dataset.id;
-                localStorage.setItem('selectedAvatarId', avatarId);
-                localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
-                localStorage.removeItem('userAvatarSrc');
-
-                // Оновлюємо налаштування з аватаром
-                saveUserSettings({
-                    avatar_id: avatarId
-                });
-
-                loadUserAvatar();
+            const validation = validatePassword(password);
+            if (!validation.valid) {
+                error.textContent = validation.message;
+                modal.querySelector('#edit-password').classList.add('error');
+                return;
             }
+        } else if (currentPassword && !hasPassword) {
+            const validation = validatePassword(currentPassword);
+            if (!validation.valid) {
+                error.textContent = validation.message;
+                modal.querySelector('#edit-current-password').classList.add('error');
+                return;
+            }
+        }
 
-            // Закриваємо модальне вікно
-            modal.remove();
+        // Збереження даних
+        const settings = {
+            username: username
         };
 
-        // Додаємо обробники для полів вводу
-        modal.querySelectorAll('input').forEach(input => {
-            input.addEventListener('input', function() {
-                this.classList.remove('error');
-            });
-        });
+        // Зберігаємо налаштування користувача
+        saveUserSettings(settings);
 
-        // Додаємо обробники для закриття модального вікна
-        modal.querySelector('.close-modal').onclick = () => modal.remove();
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    }
+        // Оновлюємо пароль, якщо потрібно
+        if (password) {
+            updateUserPassword(password, hasPassword ? currentPassword : null);
+        } else if (currentPassword && !hasPassword) {
+            updateUserPassword(currentPassword);
+        }
+
+        // Обробка аватара
+        if (uploadedAvatar) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const avatarSrc = reader.result;
+                localStorage.setItem('userAvatarSrc', avatarSrc);
+                localStorage.removeItem('selectedAvatarId');
+                loadUserAvatar();
+            };
+            reader.readAsDataURL(uploadedAvatar);
+        } else if (selectedAvatar) {
+            const avatarId = selectedAvatar.dataset.id;
+            localStorage.setItem('selectedAvatarId', avatarId);
+            localStorage.setItem(`${avatarId}Src`, selectedAvatar.src);
+            localStorage.removeItem('userAvatarSrc');
+
+            // Оновлюємо налаштування з аватаром
+            saveUserSettings({
+                avatar_id: avatarId
+            });
+
+            loadUserAvatar();
+        }
+
+        // Закриваємо модальне вікно
+        modal.remove();
+    };
+
+    // Додаємо обробники для полів вводу
+    modal.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', function() {
+            this.classList.remove('error');
+        });
+    });
+
+    // Додаємо обробники для закриття модального вікна
+    modal.querySelector('.close-modal').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
 
     /**
      * Показує модальне вікно з SID фразою
