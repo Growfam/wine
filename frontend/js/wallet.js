@@ -1787,7 +1787,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
         setTimeout(() => {
             switch (section) {
                 case 'home':
-                    window.location.href = 'index.html';
+                    window.location.href = 'original-index.html';
                     break;
                 case 'earn':
                     window.location.href = 'earn.html';
@@ -1796,7 +1796,7 @@ document.querySelectorAll('.nav-item').forEach(item => {
                     window.location.href = 'referrals.html';
                     break;
                 case 'general':
-                    window.location.href = 'settings.html';
+                    window.location.href = 'general.html';
                     break;
                 default:
                     window.location.href = `${section}.html`;

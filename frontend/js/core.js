@@ -433,7 +433,7 @@
                     // Визначаємо URL для переходу
                     let url;
                     if (section === 'home') {
-                        url = 'index.html';
+                      url = 'original-index.html'; // Змінюємо на правильний шлях
                     } else {
                         url = `${section}.html`;
                     }

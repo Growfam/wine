@@ -1573,8 +1573,9 @@
                     });
                     this.classList.add('active');
 
-                    // Перенаправлення
-                    window.location.href = section === 'home' ? 'index.html' : section + '.html';
+                    /// Перенаправлення
+window.location.href = section === 'home' ? 'original-index.html' :
+                     (section === 'general' ? 'general.html' : section + '.html');
                 });
             });
         }
