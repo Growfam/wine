@@ -1,5 +1,7 @@
 """
-Допоміжні функції для роботи з транзакціями в системі розіграшів
+Допоміжні функції для роботи з транзакціями в системі розіграшів з виправленнями:
+- Додані таймаути для запитів
+- Покращена обробка помилок
 """
 
 import logging
@@ -62,8 +64,12 @@ def create_transaction_record(telegram_id: str, transaction_type: str, amount: f
         if raffle_id:
             transaction_data["raffle_id"] = raffle_id
 
-        # Виконуємо запит до бази даних
-        response = supabase.table("transactions").insert(transaction_data).execute()
+        # Виконуємо запит до бази даних з таймаутом
+        try:
+            response = supabase.table("transactions").insert(transaction_data).execute(timeout=5)
+        except Exception as e:
+            logger.error(f"create_transaction_record: Помилка запиту до БД - {str(e)}")
+            raise
 
         if not response.data:
             logger.error(f"create_transaction_record: Помилка створення транзакції для користувача {telegram_id}")
@@ -100,8 +106,12 @@ def update_transaction_status(transaction_id: str, status: str,
         if additional_data and isinstance(additional_data, dict):
             update_data.update(additional_data)
 
-        # Виконуємо запит до бази даних
-        response = supabase.table("transactions").update(update_data).eq("id", transaction_id).execute()
+        # Виконуємо запит до бази даних з таймаутом
+        try:
+            response = supabase.table("transactions").update(update_data).eq("id", transaction_id).execute(timeout=5)
+        except Exception as e:
+            logger.error(f"update_transaction_status: Помилка запиту до БД - {str(e)}")
+            raise
 
         if not response.data:
             logger.error(f"update_transaction_status: Помилка оновлення статусу транзакції {transaction_id}")
@@ -131,7 +141,14 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
     """
     try:
         # Отримуємо поточні дані користувача
-        user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute()
+        try:
+            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute(timeout=5)
+        except Exception as e:
+            logger.error(f"execute_balance_transaction: Помилка запиту даних користувача - {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Помилка отримання даних користувача: {str(e)}"
+            }
 
         if not user_response.data:
             logger.error(f"execute_balance_transaction: Користувача {telegram_id} не знайдено")
@@ -176,14 +193,14 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
                     "previous_balance": current_balance
                 }
 
-                txn.table("transactions").insert(transaction_data).execute()
+                txn.table("transactions").insert(transaction_data).execute(timeout=5)
 
                 # 2. Оновлюємо баланс користувача
-                txn.table("winix").update({"balance": new_balance}).eq("telegram_id", str(telegram_id)).execute()
+                txn.table("winix").update({"balance": new_balance}).eq("telegram_id", str(telegram_id)).execute(timeout=5)
 
                 # 3. Оновлюємо статус транзакції
                 txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id",
-                                                                                                transaction_id).execute()
+                                                                                                transaction_id).execute(timeout=5)
 
             return {
                 "status": "success",
@@ -201,7 +218,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
                     "status": "failed",
                     "error_message": str(e),
                     "updated_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", transaction_id).execute()
+                }).eq("id", transaction_id).execute(timeout=5)
             except:
                 pass
 
@@ -235,7 +252,14 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
     """
     try:
         # Отримуємо поточні дані користувача
-        user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute()
+        try:
+            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute(timeout=5)
+        except Exception as e:
+            logger.error(f"execute_coin_transaction: Помилка запиту даних користувача - {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Помилка отримання даних користувача: {str(e)}"
+            }
 
         if not user_response.data:
             logger.error(f"execute_coin_transaction: Користувача {telegram_id} не знайдено")
@@ -280,14 +304,14 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
                     "previous_coins": current_coins
                 }
 
-                txn.table("transactions").insert(transaction_data).execute()
+                txn.table("transactions").insert(transaction_data).execute(timeout=5)
 
                 # 2. Оновлюємо кількість жетонів користувача
-                txn.table("winix").update({"coins": new_coins}).eq("telegram_id", str(telegram_id)).execute()
+                txn.table("winix").update({"coins": new_coins}).eq("telegram_id", str(telegram_id)).execute(timeout=5)
 
                 # 3. Оновлюємо статус транзакції
                 txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id",
-                                                                                                transaction_id).execute()
+                                                                                                transaction_id).execute(timeout=5)
 
             return {
                 "status": "success",
@@ -305,7 +329,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
                     "status": "failed",
                     "error_message": str(e),
                     "updated_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", transaction_id).execute()
+                }).eq("id", transaction_id).execute(timeout=5)
             except:
                 pass
 
@@ -352,16 +376,27 @@ def get_user_transactions(telegram_id: str, limit: int = 20, offset: int = 0,
         # Додаємо сортування та пагінацію
         query = query.order("created_at", desc=True).limit(limit).offset(offset)
 
-        # Виконуємо запит
-        response = query.execute()
+        # Виконуємо запит з таймаутом
+        try:
+            response = query.execute(timeout=8)
+        except Exception as e:
+            logger.error(f"get_user_transactions: Помилка запиту транзакцій - {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Помилка отримання транзакцій: {str(e)}"
+            }
 
         # Отримуємо загальну кількість транзакцій
-        count_query = supabase.table("transactions").select("count", count="exact").eq("telegram_id", str(telegram_id))
-        if transaction_type:
-            count_query = count_query.eq("type", transaction_type)
+        try:
+            count_query = supabase.table("transactions").select("count", count="exact").eq("telegram_id", str(telegram_id))
+            if transaction_type:
+                count_query = count_query.eq("type", transaction_type)
 
-        count_response = count_query.execute()
-        total_count = count_response.count if hasattr(count_response, 'count') else 0
+            count_response = count_query.execute(timeout=5)
+            total_count = count_response.count if hasattr(count_response, 'count') else 0
+        except Exception as e:
+            logger.error(f"get_user_transactions: Помилка підрахунку транзакцій - {str(e)}")
+            total_count = len(response.data) if response.data else 0
 
         return {
             "status": "success",
