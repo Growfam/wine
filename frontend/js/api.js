@@ -1,6 +1,6 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
- * Виправлена версія з захистом від нескінченних запитів
+ * Вдосконалена версія з покращеним механізмом кешування та обробки помилок
  */
 
 (function() {
@@ -27,7 +27,8 @@
 
     // Відстеження запитів, щоб запобігти повторним викликам
     let _lastRequestsByEndpoint = {};
-    const REQUEST_THROTTLE = 3000; // Мінімум 3 секунди між однаковими запитами
+    // ЗМІНЕНО: Збільшили інтервал мінімальної затримки між запитами
+    const REQUEST_THROTTLE = 5000; // Мінімум 5 секунд між однаковими запитами
 
     // Лічильник запитів
     let _requestCounter = {
@@ -35,6 +36,21 @@
         errors: 0,
         current: 0,
         lastReset: Date.now()
+    };
+
+    // Експортуємо лічильники для дебагу
+    window._winixApiStats = {
+        requestCounter: _requestCounter,
+        lastRequests: _lastRequestsByEndpoint,
+        getCacheStatus: () => {
+            return {
+                hasCache: !!_userCache,
+                cacheTime: _userCacheTime,
+                cacheTTL: USER_CACHE_TTL,
+                cacheAge: Date.now() - _userCacheTime,
+                isExpired: (Date.now() - _userCacheTime) > USER_CACHE_TTL
+            };
+        }
     };
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
@@ -118,19 +134,14 @@
                 }
             } catch (e) {}
 
-            // 5. Якщо не знайдено і це сторінка налаштувань - використовуємо тестовий ID
-            // ЗМІНЕНО: Не використовуємо тестовий ID для сторінки налаштувань, щоб отримувати реальні дані
-            // Якщо потрібно зберегти цю логіку як запасний варіант, можна залишити з логуванням
-            const isSettingsPage = window.location.pathname.includes('general.html');
-            if (isSettingsPage) {
-                console.warn("⚠️ API: Не знайдено ID користувача для сторінки налаштувань");
-                // Перевіряємо чи вже є збережений раніше ID
+            // 5. Якщо не знайдено - перевіряємо збережені значення
+            try {
                 const savedId = localStorage.getItem('saved_user_id') || localStorage.getItem('userId');
                 if (isValidId(savedId)) {
                     _gettingUserId = false;
                     return savedId;
                 }
-            }
+            } catch (e) {}
 
             // ID не знайдено
             _gettingUserId = false;
@@ -163,13 +174,17 @@
         const requestKey = `${method}:${endpoint}`;
         const now = Date.now();
         const lastRequestTime = _lastRequestsByEndpoint[requestKey] || 0;
+        const timeSinceLastRequest = now - lastRequestTime;
 
         // Перевіряємо частоту запитів
-        if (now - lastRequestTime < REQUEST_THROTTLE && isUserProfileRequest) {
-            console.warn(`🔌 API: Занадто частий запит до ${endpoint}, ігноруємо`);
+        if (timeSinceLastRequest < REQUEST_THROTTLE && isUserProfileRequest) {
+            console.warn(`🔌 API: Занадто частий запит до ${endpoint}, минуло ${timeSinceLastRequest}ms з попереднього запиту`);
 
             // Якщо є кеш для запитів даних користувача, повертаємо його
             if (isUserProfileRequest && _userCache) {
+                console.log("📋 API: Повертаємо кешовані дані, наступний запит можливий через",
+                           Math.ceil((REQUEST_THROTTLE - timeSinceLastRequest) / 1000), "сек.");
+
                 return Promise.resolve({
                     status: 'success',
                     data: _userCache,
@@ -177,7 +192,17 @@
                 });
             }
 
-            return Promise.reject(new Error("Занадто частий запит"));
+            console.log("⌛ API: Рекомендуємо почекати",
+                      Math.ceil((REQUEST_THROTTLE - timeSinceLastRequest) / 1000),
+                      "секунд перед наступним запитом");
+
+            // ЗМІНЕНО: Повертаємо помилку в дружньому форматі для обробки
+            return Promise.reject({
+                status: 'error',
+                source: 'throttle',
+                message: "Занадто частий запит",
+                retryAfter: REQUEST_THROTTLE - timeSinceLastRequest
+            });
         }
 
         // Оновлюємо відстеження запитів
@@ -199,8 +224,12 @@
                     };
                 }
 
-                // Або відхиляємо проміс
-                return Promise.reject(new Error("Запит вже виконується"));
+                // Або відхиляємо проміс з дружнім форматом помилки
+                return Promise.reject({
+                    status: 'error',
+                    source: 'parallel',
+                    message: "Запит вже виконується"
+                });
             }
         }
 
@@ -332,10 +361,16 @@
             } catch (jsonError) {
                 console.error(`🔌 API: Помилка парсингу JSON відповіді: ${jsonError.message}`);
 
-                // ЗМІНЕНО: Замість демо-даних пробуємо використати кеш
+                // ЗМІНЕНО: Спроба використати кеш при помилці парсингу
                 if (isUserProfileRequest) {
                     if (_userCache) {
                         console.warn("🔌 API: Використовуємо кеш для профілю користувача після помилки парсингу JSON");
+
+                        // Звільняємо блокування
+                        if (isUserProfileRequest) {
+                            _apiRequestInProgress = false;
+                        }
+
                         return {
                             status: 'success',
                             data: _userCache,
@@ -395,8 +430,7 @@
                 _apiRequestInProgress = false;
             }
 
-            // ЗМІНЕНО: Замість підміни даними з демо, спершу пробуємо використати кеш
-            const isSettingsPage = window.location.pathname.includes('general.html');
+            // ЗМІНЕНО: Використовуємо кеш при помилці
             if (isUserProfileRequest) {
                 console.warn("🔌 API: Помилка запиту даних користувача, перевіряємо кеш");
 
@@ -419,15 +453,19 @@
 
                     console.warn("🔌 API: Використовуємо дані з localStorage як крайній засіб");
 
+                    // Створюємо і зберігаємо кеш на майбутнє
+                    _userCache = {
+                        telegram_id: userId,
+                        username: username,
+                        balance: balance,
+                        coins: coins,
+                        notifications_enabled: notifications
+                    };
+                    _userCacheTime = now;
+
                     return {
                         status: 'success',
-                        data: {
-                            telegram_id: userId,
-                            username: username,
-                            balance: balance,
-                            coins: coins,
-                            notifications_enabled: notifications
-                        },
+                        data: _userCache,
                         source: 'localStorage_fallback'
                     };
                 } catch (storageError) {
@@ -455,17 +493,33 @@
      * @returns {Promise<Object>} Дані користувача
      */
     async function getUserData(forceRefresh = false) {
-        const isSettingsPage = window.location.pathname.includes('general.html');
+        // ЗМІНЕНО: Додано відстеження часу запиту та логування
+        const now = Date.now();
+        const timeSinceLastCache = now - _userCacheTime;
 
         // Використовуємо кеш, якщо можливо і не потрібно примусове оновлення
-        if (!forceRefresh && _userCache && (Date.now() - _userCacheTime < USER_CACHE_TTL)) {
+        if (!forceRefresh && _userCache && (timeSinceLastCache < USER_CACHE_TTL)) {
+            console.log(`📋 API: Використання кешованих даних користувача (вік: ${Math.floor(timeSinceLastCache/1000)}с)`);
             return {status: 'success', data: _userCache, source: 'cache'};
+        }
+
+        if (forceRefresh) {
+            console.log("🔄 API: Примусове оновлення даних користувача");
+        } else if (_userCache) {
+            console.log(`🔄 API: Кеш застарів (${Math.floor(timeSinceLastCache/1000)}с), оновлюємо дані`);
+        } else {
+            console.log("🔄 API: Кеш відсутній, отримуємо дані користувача");
         }
 
         const id = getUserId();
         if (!id) {
-            // ЗМІНЕНО: Якщо ID не знайдено, завжди повертаємо помилку
-            // замість демо-даних, щоб стимулювати пошук справжнього ID
+            console.error("❌ API: ID користувача не знайдено");
+
+            // Повідомляємо про помилку через івент
+            document.dispatchEvent(new CustomEvent('user-id-missing', {
+                detail: { message: "ID користувача не знайдено" }
+            }));
+
             throw new Error("ID користувача не знайдено");
         }
 
@@ -478,7 +532,7 @@
             // Оновлюємо кеш
             if (result.status === 'success' && result.data) {
                 _userCache = result.data;
-                _userCacheTime = Date.now();
+                _userCacheTime = now;
 
                 // Зберігаємо дані в localStorage
                 try {
@@ -496,6 +550,11 @@
                     if (_userCache.notifications_enabled !== undefined) {
                         localStorage.setItem('notifications_enabled', _userCache.notifications_enabled.toString());
                     }
+
+                    // Повідомляємо про оновлення даних через івент
+                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                        detail: _userCache
+                    }));
                 } catch (e) {
                     console.warn("🔌 API: Помилка збереження даних в localStorage:", e);
                 }
@@ -503,14 +562,52 @@
 
             return result;
         } catch (error) {
-            console.error("🔌 API: Помилка отримання даних користувача:", error);
+            // ЗМІНЕНО: Покращено обробку помилок
+            if (error && error.source === 'throttle') {
+                console.warn(`⏳ API: Обмеження частоти запитів. Наступна спроба можлива через ${Math.ceil(error.retryAfter/1000)}с`);
 
-            // ЗМІНЕНО: Перевіряємо кеш замість демо-даних
+                // Використовуємо існуючий кеш, якщо він є
+                if (_userCache) {
+                    return {status: 'success', data: _userCache, source: 'cache_after_throttle'};
+                }
+            } else {
+                console.error("🔌 API: Помилка отримання даних користувача:", error);
+            }
+
+            // Перевіряємо кеш
             if (_userCache) {
+                console.warn("🔌 API: Використовуємо кеш після помилки запиту");
                 return {status: 'success', data: _userCache, source: 'cache_after_error'};
             }
 
-            // Якщо кешу немає, повертаємо помилку
+            // Якщо кешу немає, створюємо базові дані з localStorage
+            try {
+                const userId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId');
+                const username = localStorage.getItem('username') || 'WINIX User';
+                const balance = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+                const coins = parseFloat(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+                const notifications = localStorage.getItem('notifications_enabled') === 'true';
+
+                // Створюємо і зберігаємо кеш
+                _userCache = {
+                    telegram_id: userId,
+                    username: username,
+                    balance: balance,
+                    coins: coins,
+                    notifications_enabled: notifications
+                };
+                _userCacheTime = now;
+
+                return {
+                    status: 'success',
+                    data: _userCache,
+                    source: 'localStorage_fallback'
+                };
+            } catch (storageError) {
+                console.error("🔌 API: Помилка створення даних з localStorage:", storageError);
+            }
+
+            // Повертаємо помилку як останній варіант
             throw error;
         }
     }
@@ -783,6 +880,11 @@
     // Для зворотної сумісності
     window.apiRequest = apiRequest;
     window.getUserId = getUserId;
+
+    // Публічні події, які можна слухати
+    // - 'api-error': виникає при помилці API запиту
+    // - 'user-data-updated': виникає при оновленні даних користувача
+    // - 'user-id-missing': виникає, коли не вдається знайти ID користувача
 
     console.log("✅ API: Модуль успішно ініціалізовано");
 })();

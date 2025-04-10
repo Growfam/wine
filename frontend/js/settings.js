@@ -1,8 +1,6 @@
 /**
  * WINIX - Модуль налаштувань користувача
- *
- * Цей файл містить логіку для роботи з налаштуваннями користувача
- * в додатку WINIX Telegram WebApp.
+ * Виправлена версія з розумним використанням кешу та запобіганням помилкам частоти запитів
  */
 
 // Оголошуємо глобальний об'єкт для налаштувань
@@ -10,6 +8,11 @@ window.WinixSettings = (function() {
     // Приватні змінні
     let _isInitialized = false;
     let _userData = null;
+    let _lastUserDataRequestTime = 0;
+    const MIN_REQUEST_INTERVAL = 5000; // Мінімальний інтервал між запитами (5 секунд)
+
+    // Прапорець, що вказує на процес завантаження даних
+    let _loadingUserData = false;
 
     /**
      * Показує повідомлення користувачу
@@ -66,167 +69,179 @@ window.WinixSettings = (function() {
     }
 
     /**
- * Завантажує дані користувача з сервера або localStorage
- */
-function loadUserData() {
-    console.log("Завантаження даних користувача...");
+     * Завантажує дані користувача з сервера або localStorage
+     * з розумним управлінням частотою запитів і кешуванням
+     */
+    function loadUserData() {
+        console.log("📋 Завантаження даних користувача...");
 
-    // Показуємо індикатор завантаження
-    const spinner = document.getElementById('loading-spinner');
-    if (spinner) spinner.style.display = 'flex';
-
-    try {
-        // Перевіряємо, коли був останній запит
-        const lastRequestTime = localStorage.getItem('lastUserDataRequestTime') || 0;
-        const now = Date.now();
-        const timeSinceLastRequest = now - lastRequestTime;
-        const MIN_REQUEST_INTERVAL = 5000; // 5 секунд між запитами
-
-        // Спочатку спробуємо отримати дані з кешу, якщо вони є і минуло менше 5 секунд від останнього запиту
-        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _userData) {
-            console.log("📋 Використовуємо кешовані дані до завершення обмеження частоти запитів");
-
-            // Оновлюємо інтерфейс з кешованими даними
-            document.getElementById('user-id').textContent = _userData.id || '';
-            document.getElementById('user-id-profile').textContent = _userData.id || '';
-            document.getElementById('profile-name').textContent = _userData.username || 'WINIX User';
-            document.getElementById('user-tokens').textContent = _userData.tokens ? _userData.tokens.toFixed(2) : '0.00';
-            document.getElementById('user-coins').textContent = _userData.coins ? _userData.coins.toFixed(0) : '0';
-
-            // Ховаємо спіннер
-            if (spinner) spinner.style.display = 'none';
-
-            // Запускаємо відкладене оновлення даних через 5 секунд
-            setTimeout(() => {
-                console.log("🔄 Запускаємо відкладене оновлення даних");
-                fetchUserData(false); // false означає не показувати спіннер повторно
-            }, MIN_REQUEST_INTERVAL - timeSinceLastRequest + 100);
-
+        // Перевіряємо, чи вже процес завантаження
+        if (_loadingUserData) {
+            console.log("⏳ Завантаження даних вже виконується, чекаємо...");
             return;
         }
 
-        // Зберігаємо час запиту
-        localStorage.setItem('lastUserDataRequestTime', now.toString());
+        // Показуємо індикатор завантаження
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'flex';
 
-        // Викликаємо функцію запиту даних
-        fetchUserData(true);
+        // Встановлюємо прапорець завантаження
+        _loadingUserData = true;
 
-    } catch (error) {
-        console.error("❌ Помилка завантаження даних користувача:", error);
-        showToast("Помилка завантаження даних", true);
-        if (spinner) spinner.style.display = 'none';
-    }
-}
+        try {
+            // Перевіряємо час останнього запиту
+            const now = Date.now();
+            const timeSinceLastRequest = now - _lastUserDataRequestTime;
 
-/**
- * Функція запиту даних користувача з API або localStorage
- * @param {boolean} showSpinner - чи показувати індикатор завантаження
- */
-function fetchUserData(showSpinner = true) {
-    // Показуємо спіннер, якщо потрібно
-    const spinner = document.getElementById('loading-spinner');
-    if (showSpinner && spinner) spinner.style.display = 'flex';
-
-    // Використовуємо WinixAPI для отримання реальних даних
-    if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
-        window.WinixAPI.getUserData(false) // Змінено на false, щоб використовувати кеш, коли можливо
-            .then(result => {
-                if (result && result.data) {
-                    const userData = result.data;
-
-                    // Оновлюємо відображення даних на сторінці
-                    document.getElementById('user-id').textContent = userData.telegram_id || '';
-                    document.getElementById('user-id-profile').textContent = userData.telegram_id || '';
-                    document.getElementById('profile-name').textContent = userData.username || 'WINIX User';
-                    document.getElementById('user-tokens').textContent = userData.balance ? userData.balance.toFixed(2) : '0.00';
-                    document.getElementById('user-coins').textContent = userData.coins ? userData.coins.toFixed(0) : '0';
-
-                    // Зберігаємо дані для подальшого використання
-                    _userData = {
-                        id: userData.telegram_id,
-                        username: userData.username,
-                        tokens: userData.balance,
-                        coins: userData.coins
-                    };
-
-                    // Завантажуємо аватар
-                    loadUserAvatar();
-
-                    console.log("✅ Дані користувача успішно завантажено");
-                }
-
+            // Якщо запит було зроблено недавно, використовуємо кешовані дані
+            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _userData) {
+                console.log("🔄 Використання кешованих даних (запит занадто частий)");
+                updateUIWithUserData(_userData);
                 if (spinner) spinner.style.display = 'none';
-            })
-            .catch(error => {
-                // Якщо помилка "Занадто частий запит", використовуємо кешовані дані
-                if (error.message && error.message.includes('Занадто частий запит')) {
-                    console.warn("⚠️ Запит обмежено через частоту, використовуємо кешовані дані");
+                _loadingUserData = false;
 
-                    // Завантажуємо дані з localStorage
-                    loadUserDataFromStorage();
+                // Запускаємо відкладене оновлення даних через залишок інтервалу
+                setTimeout(() => {
+                    fetchUserData(false);
+                }, MIN_REQUEST_INTERVAL - timeSinceLastRequest + 100);
 
-                    // Запускаємо відкладене повторне оновлення
-                    setTimeout(() => {
-                        console.log("🔄 Повторна спроба завантаження після обмеження частоти");
-                        fetchUserData(false);
-                    }, 5000);
-                } else {
-                    console.error("❌ Помилка завантаження даних користувача:", error);
-                    // При інших помилках використовуємо дані з localStorage
-                    loadUserDataFromStorage();
-                }
+                return;
+            }
 
-                if (spinner) spinner.style.display = 'none';
-            });
-    } else {
-        // Якщо API недоступний, використовуємо дані з localStorage
-        loadUserDataFromStorage();
-        if (spinner) spinner.style.display = 'none';
+            // Запам'ятовуємо час запиту
+            _lastUserDataRequestTime = now;
+
+            // Якщо window.WinixAPI доступний, використовуємо його для отримання даних
+            fetchUserData(true);
+        } catch (error) {
+            console.error("❌ Помилка завантаження даних користувача:", error);
+            showToast("Помилка завантаження даних", true);
+            if (spinner) spinner.style.display = 'none';
+            _loadingUserData = false;
+        }
     }
-}
 
-/**
- * Завантажує дані користувача з localStorage (як запасний варіант)
- */
-function loadUserDataFromStorage() {
-    try {
-        const userId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId') || '';
-        const username = localStorage.getItem('username') || 'WINIX User';
-        const tokens = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
-        const coins = parseFloat(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+    /**
+     * Виконує запит даних користувача через API або використовує localStorage
+     * @param {boolean} showSpinner - чи показувати індикатор завантаження
+     */
+    function fetchUserData(showSpinner = true) {
+        // Показуємо індикатор завантаження, якщо потрібно
+        const spinner = document.getElementById('loading-spinner');
+        if (showSpinner && spinner) spinner.style.display = 'flex';
 
-        // Оновлюємо відображення даних на сторінці
-        document.getElementById('user-id').textContent = userId;
-        document.getElementById('user-id-profile').textContent = userId;
-        document.getElementById('profile-name').textContent = username;
-        document.getElementById('user-tokens').textContent = tokens.toFixed(2);
-        document.getElementById('user-coins').textContent = coins.toFixed(0);
+        // Використовуємо WinixAPI для отримання реальних даних
+        if (window.WinixAPI && typeof window.WinixAPI.getUserData === 'function') {
+            // Important! - використовуємо false для forceRefresh, щоб дозволити API
+            // вирішувати чи використовувати кеш на основі власної логіки
+            window.WinixAPI.getUserData(false)
+                .then(result => {
+                    if (result && result.data) {
+                        // Зберігаємо отримані дані
+                        _userData = result.data;
 
-        // Зберігаємо дані для подальшого використання
-        _userData = {
-            id: userId,
-            username: username,
-            tokens: tokens,
-            coins: coins
-        };
+                        // Оновлюємо інтерфейс
+                        updateUIWithUserData(_userData);
+
+                        console.log("✅ Дані користувача успішно завантажено");
+                    } else {
+                        console.warn("⚠️ Отримано пусті дані, використовуємо дані з localStorage");
+                        loadUserDataFromStorage();
+                    }
+                })
+                .catch(error => {
+                    // Перевіряємо, чи помилка пов'язана з обмеженням частоти запитів
+                    if (error.message && error.message.includes('Занадто частий запит')) {
+                        console.warn("⚠️ Запит обмежено через частоту, використовуємо кешовані дані");
+
+                        // Якщо є кешовані дані, використовуємо їх
+                        if (_userData) {
+                            updateUIWithUserData(_userData);
+                        } else {
+                            // Інакше завантажуємо з localStorage
+                            loadUserDataFromStorage();
+                        }
+                    } else {
+                        console.error("❌ Помилка завантаження даних користувача:", error);
+                        // При інших помилках використовуємо дані з localStorage
+                        loadUserDataFromStorage();
+                    }
+                })
+                .finally(() => {
+                    if (spinner) spinner.style.display = 'none';
+                    _loadingUserData = false;
+                });
+        } else {
+            // Якщо API недоступний, використовуємо дані з localStorage
+            loadUserDataFromStorage();
+            if (spinner) spinner.style.display = 'none';
+            _loadingUserData = false;
+        }
+    }
+
+    /**
+     * Завантажує дані користувача з localStorage
+     */
+    function loadUserDataFromStorage() {
+        try {
+            const userId = localStorage.getItem('telegram_user_id') || localStorage.getItem('userId') || '';
+            const username = localStorage.getItem('username') || 'WINIX User';
+            const tokens = parseFloat(localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0');
+            const coins = parseFloat(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+            const notificationsEnabled = localStorage.getItem('notifications_enabled') === 'true';
+
+            // Створюємо об'єкт даних
+            const userData = {
+                telegram_id: userId,
+                username: username,
+                balance: tokens,
+                coins: coins,
+                notifications_enabled: notificationsEnabled
+            };
+
+            // Зберігаємо дані
+            _userData = userData;
+
+            // Оновлюємо інтерфейс
+            updateUIWithUserData(userData);
+
+            console.log("📋 Дані користувача успішно завантажено з localStorage");
+        } catch (error) {
+            console.error("❌ Помилка завантаження даних з localStorage:", error);
+        }
+    }
+
+    /**
+     * Оновлює інтерфейс користувача на основі даних
+     * @param {object} userData - Дані користувача
+     */
+    function updateUIWithUserData(userData) {
+        // Оновлюємо елементи інтерфейсу
+        document.getElementById('user-id').textContent = userData.telegram_id || '';
+        document.getElementById('user-id-profile').textContent = userData.telegram_id || '';
+        document.getElementById('profile-name').textContent = userData.username || 'WINIX User';
+        document.getElementById('user-tokens').textContent = userData.balance ? userData.balance.toFixed(2) : '0.00';
+        document.getElementById('user-coins').textContent = userData.coins ? userData.coins.toFixed(0) : '0';
+
+        // Встановлюємо стан перемикача сповіщень
+        const notificationsToggle = document.getElementById('notifications-toggle');
+        if (notificationsToggle && userData.notifications_enabled !== undefined) {
+            notificationsToggle.checked = userData.notifications_enabled;
+        }
 
         // Завантажуємо аватар
-        loadUserAvatar();
-
-        console.log("📋 Дані користувача успішно завантажено з localStorage");
-    } catch (error) {
-        console.error("❌ Помилка завантаження даних з localStorage:", error);
+        loadUserAvatar(userData.username);
     }
-}
 
     /**
      * Завантажує аватар користувача
+     * @param {string} username - Ім'я користувача (опціонально)
      */
-    function loadUserAvatar() {
+    function loadUserAvatar(username) {
         const headerAvatar = document.getElementById('profile-avatar');
         const profileAvatar = document.getElementById('profile-avatar-large');
 
-        const username = localStorage.getItem('username') || 'WINIX User';
+        const userName = username || localStorage.getItem('username') || 'WINIX User';
         const avatarSrc = localStorage.getItem('userAvatarSrc');
         const avatarId = localStorage.getItem('selectedAvatarId');
 
@@ -237,24 +252,24 @@ function loadUserDataFromStorage() {
             if (avatarSrc) {
                 const img = new Image();
                 img.src = avatarSrc;
-                img.alt = username;
+                img.alt = userName;
                 img.onerror = () => {
                     console.log('Помилка завантаження аватара, використовуємо текст');
-                    element.textContent = username[0].toUpperCase();
+                    element.textContent = userName[0].toUpperCase();
                 };
                 element.appendChild(img);
             } else if (avatarId) {
                 const src = localStorage.getItem(`${avatarId}Src`) || `assets/avatar${avatarId}.png`;
                 const img = new Image();
                 img.src = src;
-                img.alt = username;
+                img.alt = userName;
                 img.onerror = () => {
                     console.log('Помилка завантаження аватара, використовуємо запасний варіант');
-                    element.textContent = username[0].toUpperCase();
+                    element.textContent = userName[0].toUpperCase();
                 };
                 element.appendChild(img);
             } else {
-                element.textContent = username[0].toUpperCase();
+                element.textContent = userName[0].toUpperCase();
             }
         }
 
@@ -305,47 +320,73 @@ function loadUserDataFromStorage() {
         if (spinner) spinner.style.display = 'flex';
 
         try {
-            // У реальному додатку тут був би запит до API
-            // Симулюємо збереження налаштувань в localStorage
+            // Для мінімізації навантаження API, спочатку зберігаємо локально
+            localSettingsSave(settings);
 
-            if (settings.username) {
-                localStorage.setItem('username', settings.username);
-                document.getElementById('profile-name').textContent = settings.username;
+            // Потім намагаємося зберегти через API
+            if (window.WinixAPI && typeof window.WinixAPI.updateSettings === 'function') {
+                window.WinixAPI.updateSettings(settings)
+                    .then(result => {
+                        console.log("✅ Налаштування успішно збережено через API:", result);
+                        showToast("Налаштування успішно збережено");
+                    })
+                    .catch(error => {
+                        console.warn("⚠️ Не вдалося зберегти налаштування через API:", error);
+                        // Налаштування вже збережені локально
+                        showToast("Налаштування збережено локально");
+                    })
+                    .finally(() => {
+                        if (spinner) spinner.style.display = 'none';
+                    });
+            } else {
+                // API недоступний, але локальне збереження вже виконано
+                showToast("Налаштування успішно збережено локально");
+                if (spinner) spinner.style.display = 'none';
             }
-
-            if (settings.language) {
-                localStorage.setItem('userLanguage', settings.language);
-
-                // Оновлюємо активну мову в інтерфейсі
-                document.querySelectorAll('.language-option').forEach(opt => {
-                    opt.classList.toggle('active', opt.getAttribute('data-lang') === settings.language);
-                });
-
-                // Оновлюємо тексти на сторінці
-                updatePageTexts();
-            }
-
-            if (settings.notifications_enabled !== undefined) {
-                localStorage.setItem('notificationsEnabled', settings.notifications_enabled.toString());
-                document.getElementById('notifications-toggle').checked = settings.notifications_enabled;
-            }
-
-            if (settings.avatar_id) {
-                localStorage.setItem('selectedAvatarId', settings.avatar_id);
-                localStorage.removeItem('userAvatarSrc');
-                loadUserAvatar();
-            }
-
-            // Показуємо повідомлення про успішне збереження
-            showToast("Налаштування успішно збережено");
-
-            console.log("✅ Налаштування успішно збережено");
         } catch (error) {
             console.error("❌ Помилка збереження налаштувань:", error);
             showToast("Помилка збереження налаштувань", true);
-        } finally {
-            // Ховаємо індикатор завантаження
             if (spinner) spinner.style.display = 'none';
+        }
+    }
+
+    /**
+     * Локальне збереження налаштувань
+     * @param {Object} settings - Налаштування для збереження
+     */
+    function localSettingsSave(settings) {
+        if (settings.username) {
+            localStorage.setItem('username', settings.username);
+            document.getElementById('profile-name').textContent = settings.username;
+
+            // Оновлюємо локальні дані
+            if (_userData) _userData.username = settings.username;
+        }
+
+        if (settings.language) {
+            localStorage.setItem('userLanguage', settings.language);
+
+            // Оновлюємо активну мову в інтерфейсі
+            document.querySelectorAll('.language-option').forEach(opt => {
+                opt.classList.toggle('active', opt.getAttribute('data-lang') === settings.language);
+            });
+
+            // Оновлюємо тексти на сторінці
+            updatePageTexts();
+        }
+
+        if (settings.notifications_enabled !== undefined) {
+            localStorage.setItem('notifications_enabled', settings.notifications_enabled.toString());
+            document.getElementById('notifications-toggle').checked = settings.notifications_enabled;
+
+            // Оновлюємо локальні дані
+            if (_userData) _userData.notifications_enabled = settings.notifications_enabled;
+        }
+
+        if (settings.avatar_id) {
+            localStorage.setItem('selectedAvatarId', settings.avatar_id);
+            localStorage.removeItem('userAvatarSrc');
+            loadUserAvatar();
         }
     }
 
@@ -381,6 +422,7 @@ function loadUserDataFromStorage() {
                 if ((savedPasswordHash && currentPasswordHash !== savedPasswordHash) &&
                     (savedSeedHash && currentPasswordHash !== savedSeedHash)) {
                     showToast("Невірний поточний пароль", true);
+                    if (spinner) spinner.style.display = 'none';
                     return;
                 }
             }
@@ -608,7 +650,7 @@ function loadUserDataFromStorage() {
     function showSeedPhrase() {
         console.log("Показуємо SID фразу");
 
-        const userId = localStorage.getItem('userId') || '12345678';
+        const userId = localStorage.getItem('telegram_user_id') || '12345678';
         const phrase = generateSeedPhrase(userId);
 
         // Видаляємо попередні модальні вікна
@@ -1095,8 +1137,18 @@ function loadUserDataFromStorage() {
     function startPeriodicUpdates() {
         console.log("Запуск періодичного оновлення даних");
 
-        // Оновлюємо дані кожні 30 секунд
-        setInterval(loadUserData, 30000);
+        // Оновлюємо дані кожні 60 секунд (збільшено інтервал для зменшення навантаження)
+        setInterval(() => {
+            // Перевіряємо час останнього запиту
+            const now = Date.now();
+            const timeSinceLastRequest = now - _lastUserDataRequestTime;
+
+            // Запитуємо лише якщо минуло достатньо часу і немає активного запиту
+            if (timeSinceLastRequest >= MIN_REQUEST_INTERVAL && !_loadingUserData) {
+                console.log("🔄 Періодичне оновлення даних користувача");
+                fetchUserData(false); // false - не показувати індикатор завантаження
+            }
+        }, 60000); // 60 секунд
     }
 
     /**
@@ -1116,6 +1168,15 @@ function loadUserDataFromStorage() {
         // Запускаємо періодичне оновлення
         startPeriodicUpdates();
 
+        // Слухаємо подію оновлення даних користувача
+        document.addEventListener('user-data-updated', function(event) {
+            console.log("🔄 Отримано подію оновлення даних користувача");
+            if (event.detail && !_loadingUserData) {
+                _userData = event.detail;
+                updateUIWithUserData(_userData);
+            }
+        });
+
         _isInitialized = true;
         console.log("✅ Модуль налаштувань успішно ініціалізовано");
     }
@@ -1134,6 +1195,7 @@ function loadUserDataFromStorage() {
     // Повертаємо публічний API
     return {
         init: init,
+        loadUserData: loadUserData,
         showEditProfileModal: showEditProfileModal,
         showSeedPhrase: showSeedPhrase,
         navigateTo: navigateTo,
