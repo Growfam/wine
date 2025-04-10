@@ -2343,7 +2343,7 @@
 
                         setTimeout(() => {
                             // Переходимо на нову сторінку
-                            window.location.href = section === 'home' ? 'index.html' : `${section}.html`;
+                            window.location.href = section === 'home' ? 'original-index.html' : `${section}.html`;
                         }, 300);
                     }, 10);
                 }

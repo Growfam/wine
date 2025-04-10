@@ -1107,7 +1107,7 @@ function showEditProfileModal() {
                 // Переходимо на відповідну сторінку
                 switch (section) {
                     case 'home':
-                        navigateTo('index.html');
+                        navigateTo('original-index.html');
                         break;
                     case 'earn':
                         navigateTo('earn.html');
