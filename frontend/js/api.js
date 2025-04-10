@@ -28,6 +28,9 @@
     // Мапа активних запитів для відстеження конкретних ендпоінтів
     let _activeRequests = {};
 
+    // Таймаути для активних запитів
+    let _activeRequestsTimeouts = {};
+
     // ЗМІНЕНО: Диференційовані обмеження для різних типів запитів
     const REQUEST_THROTTLE = {
         '/api/user/': 5000,              // 5 секунд для запитів користувача
@@ -72,6 +75,29 @@
             };
         }
     };
+
+    // ======== ДОДАНО: ФУНКЦІЯ ДЛЯ ОЧИЩЕННЯ АКТИВНИХ ЗАПИТІВ ========
+
+    /**
+     * Очищення активного запиту після закінчення таймауту
+     * @param {string} requestKey - Ключ запиту
+     * @param {number} timeout - Таймаут в мілісекундах
+     */
+    function clearActiveRequestAfterTimeout(requestKey, timeout = 10000) {
+        // Очищаємо попередній таймаут, якщо він існує
+        if (_activeRequestsTimeouts[requestKey]) {
+            clearTimeout(_activeRequestsTimeouts[requestKey]);
+        }
+
+        // Встановлюємо новий таймаут
+        _activeRequestsTimeouts[requestKey] = setTimeout(() => {
+            if (_activeRequests[requestKey]) {
+                console.warn(`⚠️ API: Запит ${requestKey} не був очищений вчасно, очищаємо автоматично`);
+                delete _activeRequests[requestKey];
+            }
+            delete _activeRequestsTimeouts[requestKey];
+        }, timeout);
+    }
 
     // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З ID КОРИСТУВАЧА ========
 
@@ -184,8 +210,21 @@
      * @returns {Promise<Object>} Результат запиту
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
+        // ЗМІНЕНО: Перевіряємо правильність параметрів
+        if (!endpoint) {
+            return Promise.reject({
+                status: 'error',
+                message: 'Ендпоінт не вказано',
+                source: 'validation'
+            });
+        }
+
+        // Нормалізуємо метод
+        method = method.toUpperCase();
+
         // Створюємо унікальний ключ для цього запиту
         const requestKey = `${method}:${endpoint}${JSON.stringify(data || {})}`;
+        const requestEndpointKey = `${method}:${endpoint}`;
 
         // ЗМІНЕНО: Перевіряємо, чи цей запит уже в процесі виконання
         if (_activeRequests[requestKey] && !options.allowParallel) {
@@ -196,12 +235,19 @@
 
             if (isHistoryRequest) {
                 console.warn(`🔌 API: Запит до історії розіграшів уже виконується`);
-                return Promise.reject({
-                    status: 'error',
-                    source: 'parallel',
-                    message: "Запит вже виконується",
-                    endpoint: endpoint
-                });
+
+                // ДОДАНО: Якщо запит виконується більше 15 секунд, вважаємо його "завислим" і очищаємо
+                if (options.forceCleanup) {
+                    delete _activeRequests[requestKey];
+                    console.warn(`🔌 API: Примусово очищено "завислий" запит: ${requestKey}`);
+                } else {
+                    return Promise.reject({
+                        status: 'error',
+                        source: 'parallel',
+                        message: "Запит вже виконується",
+                        endpoint: endpoint
+                    });
+                }
             }
         }
 
@@ -212,7 +258,6 @@
                                     !endpoint.includes('/claim');
 
         // Перевіряємо, чи не було такого ж запиту нещодавно
-        const requestEndpointKey = `${method}:${endpoint}`;
         const now = Date.now();
         const lastRequestTime = _lastRequestsByEndpoint[requestEndpointKey] || 0;
         const timeSinceLastRequest = now - lastRequestTime;
@@ -221,7 +266,7 @@
         const throttleTime = getThrottleTime(endpoint);
 
         // Перевіряємо частоту запитів
-        if (timeSinceLastRequest < throttleTime) {
+        if (timeSinceLastRequest < throttleTime && !options.ignoreThrottle) {
             console.warn(`🔌 API: Занадто частий запит до ${endpoint}, минуло ${timeSinceLastRequest}ms з попереднього запиту`);
 
             // Якщо є кеш для запитів даних користувача, повертаємо його
@@ -233,6 +278,16 @@
                     status: 'success',
                     data: _userCache,
                     source: 'cache'
+                });
+            }
+
+            // ДОДАНО: Якщо запит стосується історії розіграшів, повертаємо порожній масив
+            if (endpoint.includes('/raffles-history')) {
+                console.log("🔄 API: Повертаємо порожній масив для занадто частого запиту історії розіграшів");
+                return Promise.resolve({
+                    status: 'success',
+                    data: [],
+                    source: 'throttle_history_fallback'
                 });
             }
 
@@ -253,8 +308,9 @@
         // Оновлюємо відстеження запитів
         _lastRequestsByEndpoint[requestEndpointKey] = now;
 
-        // ЗМІНЕНО: Відзначаємо запит як активний
+        // ЗМІНЕНО: Відзначаємо запит як активний і встановлюємо таймаут для автоматичного очищення
         _activeRequests[requestKey] = true;
+        clearActiveRequestAfterTimeout(requestKey, options.timeout || 30000);
 
         // Запобігання паралельним запитам для запитів профілю
         if (_apiRequestInProgress && isUserProfileRequest && !options.allowParallel) {
@@ -348,7 +404,7 @@
             };
 
             // Додаємо тіло запиту для POST/PUT/PATCH
-            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            if (data && ['POST', 'PUT', 'PATCH'].includes(method)) {
                 requestOptions.body = JSON.stringify(data);
             }
 
@@ -365,7 +421,7 @@
                     // Додаємо timeout для запиту
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(),
-                                                options.timeout || 10000); // ЗМІНЕНО: Збільшуємо timeout до 10 секунд
+                                                options.timeout || 15000); // ЗМІНЕНО: Збільшуємо timeout до 15 секунд
 
                     // Додаємо signal до requestOptions
                     requestOptions.signal = controller.signal;
@@ -439,12 +495,12 @@
             // Обробка помилок після всіх спроб
             if (!response || !response.ok) {
                 // ЗМІНЕНО: Спеціальна обробка для помилок історії розіграшів
-                if (endpoint.includes('/raffles-history') && networkErrorOccurred) {
-                    console.warn(`🔌 API: Проблеми мережі при запиті історії розіграшів, повертаємо порожній масив`);
+                if (endpoint.includes('/raffles-history') && (networkErrorOccurred || (errorResponse && errorResponse.status === 500))) {
+                    console.warn(`🔌 API: Проблеми мережі або сервера при запиті історії розіграшів, повертаємо порожній масив`);
                     return {
                         status: 'success',
                         data: [],
-                        source: 'network_fallback'
+                        source: 'error_fallback'
                     };
                 }
 
@@ -471,6 +527,15 @@
                     }
                     // Повідомляємо про помилку, але не підміняємо дані
                     console.error("🔌 API: Кеш відсутній, неможливо парсити відповідь з сервера");
+                }
+
+                // ДОДАНО: Якщо це історія розіграшів і виникла помилка парсингу, повертаємо порожній масив
+                if (endpoint.includes('/raffles-history')) {
+                    return {
+                        status: 'success',
+                        data: [],
+                        source: 'parse_error_fallback'
+                    };
                 }
 
                 throw new Error("Помилка парсингу відповіді");
@@ -940,7 +1005,18 @@
         _userCache = null;
         _userCacheTime = 0;
         _lastRequestsByEndpoint = {};
-        _activeRequests = {};
+
+        // ДОДАНО: Очищаємо всі активні запити
+        for (const key in _activeRequests) {
+            delete _activeRequests[key];
+        }
+
+        // ДОДАНО: Очищаємо всі таймаути
+        for (const key in _activeRequestsTimeouts) {
+            clearTimeout(_activeRequestsTimeouts[key]);
+            delete _activeRequestsTimeouts[key];
+        }
+
         console.log("🔌 API: Кеш очищено");
     }
 
@@ -952,19 +1028,58 @@
 
         // Вимкнення всіх поточних запитів
         _apiRequestInProgress = false;
-        _activeRequests = {};
+
+        // Очищаємо всі активні запити
+        for (const key in _activeRequests) {
+            delete _activeRequests[key];
+        }
 
         try {
             // Спроба виконати простий запит
             return await apiRequest('/api/status', 'GET', null, {
                 timeout: 5000,
                 suppressErrors: true,
-                skipUserIdCheck: true
+                skipUserIdCheck: true,
+                ignoreThrottle: true
             });
         } catch (error) {
             console.error("❌ API: Не вдалося відновити з'єднання:", error);
             return { status: 'error', message: 'Не вдалося відновити з`єднання' };
         }
+    }
+
+    // ======== ДОДАНО: ФУНКЦІЯ ДЛЯ ПРИМУСОВОГО ОЧИЩЕННЯ ЗАВИСАЧИХ ЗАПИТІВ ========
+
+    /**
+     * Примусове очищення всіх активних запитів
+     */
+    function forceCleanupRequests() {
+        console.warn("🧹 API: Примусове очищення всіх активних запитів");
+
+        // Логуємо кількість активних запитів перед очищенням
+        const activeCount = Object.keys(_activeRequests).length;
+        if (activeCount > 0) {
+            console.warn(`🔍 API: Знайдено ${activeCount} активних запитів для очищення`);
+        }
+
+        // Очищаємо всі активні запити
+        for (const key in _activeRequests) {
+            delete _activeRequests[key];
+        }
+
+        // Очищаємо всі таймаути
+        for (const key in _activeRequestsTimeouts) {
+            clearTimeout(_activeRequestsTimeouts[key]);
+            delete _activeRequestsTimeouts[key];
+        }
+
+        // Скидаємо прапорці
+        _apiRequestInProgress = false;
+
+        return {
+            status: 'success',
+            message: `Очищено ${activeCount} активних запитів`
+        };
     }
 
     // ======== ЕКСПОРТ API ========
@@ -982,6 +1097,7 @@
         getUserId,
         clearCache,
         reconnect,
+        forceCleanupRequests,
 
         // Функції користувача
         getUserData,
@@ -1004,6 +1120,29 @@
     window.apiRequest = apiRequest;
     window.getUserId = getUserId;
 
+    // ДОДАНО: Періодична перевірка зависання запитів
+    setInterval(() => {
+        // Перевіряємо кількість активних запитів
+        const activeCount = Object.keys(_activeRequests).length;
+        if (activeCount > 5) {
+            console.warn(`⚠️ API: Виявлено ${activeCount} активних запитів, можливе зависання`);
+
+            // Логуємо активні запити
+            console.warn("🔍 API: Активні запити:", Object.keys(_activeRequests));
+
+            // Якщо занадто багато запитів, очищаємо старі
+            const now = Date.now();
+            for (const key in _activeRequestsTimeouts) {
+                if (now - _activeRequestsTimeouts[key] > 30000) { // 30 секунд
+                    console.warn(`🧹 API: Очищення зависаючого запиту: ${key}`);
+                    delete _activeRequests[key];
+                    clearTimeout(_activeRequestsTimeouts[key]);
+                    delete _activeRequestsTimeouts[key];
+                }
+            }
+        }
+    }, 30000); // Перевірка кожні 30 секунд
+
     // ДОДАНО: Періодична перевірка з'єднання
     setInterval(() => {
         // Якщо є помилки, спробуємо відновити з'єднання
@@ -1013,6 +1152,9 @@
                 if (result.status === 'success') {
                     _requestCounter.errors = 0;
                     console.log("✅ API: З'єднання успішно відновлено");
+
+                    // Очищаємо всі зависаючі запити
+                    forceCleanupRequests();
                 }
             });
         }
