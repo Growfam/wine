@@ -453,20 +453,8 @@
                     return Promise.reject(new Error("API модуль недоступний"));
                 }
 
-                // Створюємо проміс для імітації запиту, якщо не працює API
-                const userDataPromise = window.WinixAPI.apiRequest ?
-                    window.WinixAPI.apiRequest(`/api/user/${userId}`, 'GET', null, {timeout: 5000}) :
-                    Promise.resolve({
-                        status: 'success',
-                        data: {
-                            telegram_id: userId,
-                            username: this.currentUser?.username || "WINIX User",
-                            balance: 100,
-                            coins: 5
-                        }
-                    });
-
-                return userDataPromise
+                // ЗМІНЕНО: Завжди робимо реальний запит, без симуляції
+                return window.WinixAPI.apiRequest(`/api/user/${userId}`, 'GET', null, {timeout: 5000})
                     .then(data => {
                         // Приховуємо індикатор завантаження
                         if (spinner) spinner.classList.remove('show');
@@ -659,30 +647,25 @@
             localStorage.removeItem('telegram_user_id');
         }
 
-        // Визначаємо, чи це сторінка налаштувань
-        const isSettingsPage = window.location.pathname.includes('general.html');
+        // ЗМІНЕНО: Однаковий підхід до всіх сторінок, включаючи налаштування
+        window.WinixAuth.getUserData()
+            .then(() => {
+                console.log("✅ AUTH: Дані користувача оновлено при завантаженні DOM");
 
-        // На сторінці налаштувань єдиний запит при завантаженні, без автооновлення
-        if (isSettingsPage) {
-            window.WinixAuth.getUserData()
-                .then(() => {
-                    console.log("✅ AUTH: Дані користувача оновлено на сторінці налаштувань");
-                })
-                .catch(error => {
-                    console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
-                });
-        } else {
-            // Для інших сторінок запускаємо повний цикл ініціалізації
-            window.WinixAuth.getUserData()
-                .then(() => {
-                    console.log("✅ AUTH: Дані користувача оновлено при завантаженні DOM");
-                })
-                .catch(error => {
-                    console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
-                    // Якщо getUserData не спрацював, спробуємо init
-                    window.WinixAuth.init();
-                });
-        }
+                // Встановлюємо періодичне оновлення даних для всіх сторінок
+                setInterval(function() {
+                    if (!_userDataRequestInProgress && (Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL) {
+                        window.WinixAuth.getUserData()
+                            .then(() => console.log("✅ AUTH: Періодичне оновлення даних користувача"))
+                            .catch(err => console.warn("⚠️ AUTH: Помилка періодичного оновлення:", err));
+                    }
+                }, 30000); // 30 секунд
+            })
+            .catch(error => {
+                console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
+                // Якщо getUserData не спрацював, спробуємо init
+                window.WinixAuth.init();
+            });
     });
 
     // Запуск авторизації для веб-аплікацій, які вже завантажилися
@@ -693,33 +676,17 @@
             // Спочатку очищаємо невалідні ID
             window.WinixAuth.cleanInvalidIds();
 
-            // Визначаємо, чи це сторінка налаштувань
-            const isSettingsPage = window.location.pathname.includes('general.html');
-
-            // На сторінці налаштувань єдиний запит при завантаженні
-            if (isSettingsPage) {
-                if (window.WinixAuth) {
-                    window.WinixAuth.getUserData()
-                        .then(() => {
-                            console.log("✅ AUTH: Дані користувача оновлено на сторінці налаштувань");
-                        })
-                        .catch(error => {
-                            console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
-                        });
-                }
-            } else {
-                // Для інших сторінок повний цикл ініціалізації
-                if (window.WinixAuth) {
-                    window.WinixAuth.getUserData()
-                        .then(() => {
-                            console.log("✅ AUTH: Дані користувача оновлено після завантаження");
-                        })
-                        .catch(error => {
-                            console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
-                            // Якщо getUserData не спрацював, спробуємо init
-                            window.WinixAuth.init();
-                        });
-                }
+            // ЗМІНЕНО: Однаковий підхід до всіх сторінок, включаючи налаштування
+            if (window.WinixAuth) {
+                window.WinixAuth.getUserData()
+                    .then(() => {
+                        console.log("✅ AUTH: Дані користувача оновлено після завантаження");
+                    })
+                    .catch(error => {
+                        console.warn("⚠️ AUTH: Помилка завантаження даних користувача", error);
+                        // Якщо getUserData не спрацював, спробуємо init
+                        window.WinixAuth.init();
+                    });
             }
         }, 100);
     }
@@ -728,11 +695,8 @@
     document.addEventListener('telegram-ready', function() {
         console.log("🔐 AUTH: Отримано подію telegram-ready, запуск авторизації");
 
-        // Визначаємо, чи це сторінка налаштувань
-        const isSettingsPage = window.location.pathname.includes('general.html');
-
-        // На сторінці налаштувань пропускаємо запит
-        if (!isSettingsPage && window.WinixAuth) {
+        // ЗМІНЕНО: Завжди оновлюємо дані при отриманні події telegram-ready
+        if (window.WinixAuth) {
             window.WinixAuth.getUserData()
                 .then(() => {
                     console.log("✅ AUTH: Дані користувача оновлено після telegram-ready");
@@ -743,25 +707,18 @@
         }
     });
 
+    // ЗМІНЕНО: Видалено логіку, яка відключала періодичне оновлення для сторінки налаштувань
     // Періодичне оновлення даних
-    (function setupPeriodicUpdate() {
-        // Визначаємо, чи це сторінка налаштувань - на ній відключаємо автооновлення
-        const isSettingsPage = window.location.pathname.includes('general.html');
-
-        if (!isSettingsPage) {
-            // Оновлюємо дані користувача кожні 30 секунд (крім сторінки налаштувань)
-            setInterval(function() {
-                // Перевіряємо час останнього запиту
-                if ((Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL && !_userDataRequestInProgress) {
-                    if (window.WinixAuth && typeof window.WinixAuth.getUserData === 'function') {
-                        window.WinixAuth.getUserData()
-                            .then(() => console.log("✅ Періодичне оновлення даних користувача"))
-                            .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
-                    }
-                }
-            }, 30000); // 30 секунд
+    setInterval(function() {
+        // Перевіряємо час останнього запиту
+        if ((Date.now() - _lastRequestTime) >= MIN_REQUEST_INTERVAL && !_userDataRequestInProgress) {
+            if (window.WinixAuth && typeof window.WinixAuth.getUserData === 'function') {
+                window.WinixAuth.getUserData()
+                    .then(() => console.log("✅ Періодичне оновлення даних користувача"))
+                    .catch(err => console.warn("⚠️ Помилка періодичного оновлення:", err));
+            }
         }
-    })();
+    }, 30000); // 30 секунд
 
     console.log("✅ AUTH: Систему авторизації успішно ініціалізовано");
 })();
