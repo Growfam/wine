@@ -4,12 +4,17 @@ import jwt
 import os
 from datetime import datetime, timedelta
 from functools import wraps
-from . import controllers
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Импортуємо контролери
+try:
+    from . import controllers
+except ImportError:
+    import controllers
 
 # Секретний ключ для JWT
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-here")
@@ -59,7 +64,6 @@ def require_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Перевіряємо наявність токена в заголовках
-        auth_header = request.headers.get("Authorization")
         admin_id = request.headers.get('X-Admin-Id')
 
         if not admin_id:
@@ -205,6 +209,12 @@ def register_raffles_routes(app):
     def api_get_raffles_status():
         """Отримання статистики про активні розіграші"""
         try:
+            # Імпортуємо supabase для цього конкретного маршруту
+            try:
+                from ..supabase_client import supabase
+            except ImportError:
+                from supabase_client import supabase
+
             # Отримуємо кількість активних розіграшів
             active_count_response = supabase.table("raffles").select("count", count="exact").eq("status",
                                                                                                 "active").execute()

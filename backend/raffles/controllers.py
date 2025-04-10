@@ -9,25 +9,63 @@ import json
 from functools import wraps
 from typing import Dict, List, Any, Tuple, Optional, Union
 
-# Додаємо кореневу папку бекенду до шляху Python для імпортів
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-# Імпортуємо з supabase_client
-from supabase_client import (
-    get_user, update_user, update_balance, update_coins,
-    supabase, check_and_update_badges, execute_transaction
-)
-
-# Імпортуємо допоміжні функції для транзакцій
-from utils.transaction_helpers import create_transaction_record, update_transaction_status
-
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Імпортуємо з supabase_client
+try:
+    from ..supabase_client import (
+        get_user, update_user, update_balance, update_coins,
+        supabase, check_and_update_badges, execute_transaction
+    )
+    # Імпортуємо допоміжні функції для транзакцій
+    from ..utils.transaction_helpers import create_transaction_record, update_transaction_status
+except ImportError:
+    # Альтернативний шлях для прямих імпортів
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.append(parent_dir)
+
+    from supabase_client import (
+        get_user, update_user, update_balance, update_coins,
+        supabase, check_and_update_badges, execute_transaction
+    )
+    from utils.transaction_helpers import create_transaction_record, update_transaction_status
+
+
+# Користувацькі винятки для покращеної обробки помилок
+class RaffleError(Exception):
+    """Базовий клас для винятків, пов'язаних з розіграшами"""
+    pass
+
+
+class RaffleNotFoundException(RaffleError):
+    """Виняток, який виникає, коли розіграш не знайдено"""
+    pass
+
+
+class ParticipationError(RaffleError):
+    """Виняток, який виникає при проблемах з участю в розіграші"""
+    pass
+
+
+class InsufficientTokensError(ParticipationError):
+    """Виняток, який виникає при недостатній кількості жетонів"""
+    pass
+
+
+class RaffleAlreadyEndedError(RaffleError):
+    """Виняток, який виникає, коли розіграш вже завершено"""
+    pass
+
+
+class UnauthorizedAccessError(Exception):
+    """Виняток, який виникає при спробі неавторизованого доступу"""
+    pass
+
 
 # Обмеження для запобігання зловживанням
 MAX_ENTRY_COUNT = 100  # Максимальна кількість жетонів на одну участь
@@ -40,15 +78,31 @@ def handle_exceptions(f):
     def decorated_function(*args, **kwargs):
         try:
             return f(*args, **kwargs)
+        except RaffleNotFoundException as e:
+            logger.warning(f"Розіграш не знайдено у {f.__name__}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 404
+        except InsufficientTokensError as e:
+            logger.warning(f"Недостатньо жетонів у {f.__name__}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 400
+        except RaffleAlreadyEndedError as e:
+            logger.warning(f"Розіграш вже завершено у {f.__name__}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 400
+        except ParticipationError as e:
+            logger.warning(f"Помилка участі у {f.__name__}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 400
+        except UnauthorizedAccessError as e:
+            logger.warning(f"Неавторизований доступ у {f.__name__}: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 403
         except ValueError as e:
             logger.warning(f"Помилка валідації у {f.__name__}: {str(e)}")
             return jsonify({"status": "error", "message": str(e)}), 400
-        except PermissionError as e:
-            logger.warning(f"Помилка доступу у {f.__name__}: {str(e)}")
-            return jsonify({"status": "error", "message": str(e)}), 403
         except Exception as e:
             logger.error(f"Помилка у {f.__name__}: {str(e)}", exc_info=True)
-            return jsonify({"status": "error", "message": "Сталася помилка на сервері. Спробуйте пізніше."}), 500
+            return jsonify({
+                "status": "error",
+                "message": "Сталася помилка на сервері. Спробуйте пізніше.",
+                "error_details": str(e) if os.getenv("DEBUG") == "true" else None
+            }), 500
 
     return decorated_function
 
@@ -81,7 +135,7 @@ class RaffleTransaction:
 
             # Перевіряємо, чи достатньо коштів (для від'ємної суми)
             if amount < 0 and current_coins + amount < 0:
-                raise ValueError(f"Недостатньо жетонів: потрібно {abs(amount)}, наявно {current_coins}")
+                raise InsufficientTokensError(f"Недостатньо жетонів: потрібно {abs(amount)}, наявно {current_coins}")
 
             # Створюємо транзакцію
             transaction_id = str(uuid.uuid4())
@@ -109,7 +163,7 @@ class RaffleTransaction:
             }
         except Exception as e:
             logger.error(f"Помилка виконання транзакції для {user_id}: {str(e)}")
-            raise e
+            raise
 
 
 @handle_exceptions
@@ -191,7 +245,7 @@ def get_raffle_details(raffle_id):
     response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
 
     if not response.data:
-        return jsonify({"status": "error", "message": f"Розіграш з ID {raffle_id} не знайдено"}), 404
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = response.data[0]
 
@@ -273,7 +327,7 @@ def participate_in_raffle(telegram_id, data):
     # Отримуємо розіграш
     raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
     if not raffle_response.data:
-        raise ValueError(f"Розіграш з ID {raffle_id} не знайдено")
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = raffle_response.data[0]
 
@@ -286,7 +340,7 @@ def participate_in_raffle(telegram_id, data):
     try:
         end_time = datetime.fromisoformat(raffle.get("end_time", "").replace('Z', '+00:00'))
         if now >= end_time:
-            raise ValueError("Розіграш вже завершено")
+            raise RaffleAlreadyEndedError("Розіграш вже завершено")
     except (ValueError, AttributeError):
         raise ValueError("Некоректний формат часу завершення розіграшу")
 
@@ -335,7 +389,7 @@ def participate_in_raffle(telegram_id, data):
             # 2. Оновлюємо баланс користувача
             user_coins = int(user.get("coins", 0))
             if user_coins < required_coins:
-                raise ValueError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
+                raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
 
             new_coins_balance = user_coins - required_coins
             txn.table("winix").update({"coins": new_coins_balance}).eq("telegram_id", telegram_id).execute()
@@ -408,14 +462,15 @@ def participate_in_raffle(telegram_id, data):
                 # Продовжуємо виконання навіть якщо бонус не зарахувався
 
         return jsonify({"status": "success", "data": response_data})
-    except ValueError as e:
-        # Перехоплюємо помилку валідації і повертаємо коректне повідомлення
-        logger.warning(f"Помилка валідації при участі в розіграші для {telegram_id}: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 400
+
+    except (ValueError, InsufficientTokensError, RaffleAlreadyEndedError) as e:
+        # Перехоплюємо спеціальні типи винятків для надання користувацького повідомлення
+        raise
+
     except Exception as e:
-        # Логуємо інші помилки
+        # Логуємо інші помилки і повертаємо загальне повідомлення
         logger.error(f"Помилка участі в розіграші для {telegram_id}: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "Сталася помилка при обробці запиту"}), 500
+        raise ValueError("Сталася помилка при обробці запиту. Спробуйте пізніше.")
 
 
 @handle_exceptions
@@ -621,7 +676,7 @@ def create_raffle(data, admin_id):
     """Створення нового розіграшу (для адміністраторів)"""
     # Перевірка адміністратора
     if not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Перевірка необхідних полів
     required_fields = ["title", "prize_amount", "prize_currency", "entry_fee", "start_time", "end_time",
@@ -708,7 +763,7 @@ def update_raffle(raffle_id, data, admin_id):
     """Оновлення розіграшу (для адміністраторів)"""
     # Перевірка адміністратора
     if not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Перевіряємо валідність ID розіграшу
     if not raffle_id:
@@ -718,7 +773,7 @@ def update_raffle(raffle_id, data, admin_id):
     raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
 
     if not raffle_response.data:
-        return jsonify({"status": "error", "message": f"Розіграш з ID {raffle_id} не знайдено"}), 404
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = raffle_response.data[0]
 
@@ -803,7 +858,7 @@ def delete_raffle(raffle_id, admin_id):
     """Видалення розіграшу (для адміністраторів)"""
     # Перевірка адміністратора
     if not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Перевіряємо валідність ID розіграшу
     if not raffle_id:
@@ -813,7 +868,7 @@ def delete_raffle(raffle_id, admin_id):
     raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
 
     if not raffle_response.data:
-        return jsonify({"status": "error", "message": f"Розіграш з ID {raffle_id} не знайдено"}), 404
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     # Перевіряємо, чи розіграш активний
     raffle = raffle_response.data[0]
@@ -962,7 +1017,7 @@ def _refund_participant(participant_id, transaction=None):
 def finish_raffle(raffle_id, admin_id=None):
     """Завершення розіграшу і визначення переможців"""
     if admin_id and not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Перевіряємо валідність ID розіграшу
     if not raffle_id:
@@ -972,7 +1027,7 @@ def finish_raffle(raffle_id, admin_id=None):
     raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
 
     if not raffle_response.data:
-        return jsonify({"status": "error", "message": f"Розіграш з ID {raffle_id} не знайдено"}), 404
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = raffle_response.data[0]
 
@@ -1348,7 +1403,7 @@ def get_all_raffles(status_filter=None, admin_id=None):
     """Отримання всіх розіграшів (для адміністраторів)"""
     # Перевірка адміністратора
     if admin_id and not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Отримуємо параметри пагінації
     limit = min(int(request.args.get('limit', 20)), MAX_RESULTS_PER_PAGE)
@@ -1433,7 +1488,7 @@ def get_raffle_participants(raffle_id, admin_id=None):
     """Отримання списку учасників розіграшу (для адміністраторів)"""
     # Перевірка адміністратора
     if admin_id and not _is_admin(admin_id):
-        raise PermissionError("Доступ заборонено. Ви не є адміністратором.")
+        raise UnauthorizedAccessError("Доступ заборонено. Ви не є адміністратором.")
 
     # Перевіряємо валідність ID розіграшу
     if not raffle_id:
@@ -1443,7 +1498,7 @@ def get_raffle_participants(raffle_id, admin_id=None):
     raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
 
     if not raffle_response.data:
-        return jsonify({"status": "error", "message": f"Розіграш з ID {raffle_id} не знайдено"}), 404
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     # Отримуємо параметри пагінації
     limit = min(int(request.args.get('limit', 50)), MAX_RESULTS_PER_PAGE)

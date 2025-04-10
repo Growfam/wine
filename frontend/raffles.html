@@ -7,47 +7,53 @@
     <title>WINIX - Розіграші</title>
 
     <script src="js/telegram-web-app.js"></script>
-    <script src="js/telegram-web-app.js"></script>
-<script>
-// Ініціалізація та перевірка Telegram WebApp
-(function() {
-  console.log("🔄 Ініціалізація Telegram WebApp...");
+    <script>
+    // Ініціалізація та перевірка Telegram WebApp
+    (function() {
+        console.log("🔄 Ініціалізація Telegram WebApp...");
 
-  // Перевіряємо, чи скрипт завантажився
-  if (!window.Telegram || !window.Telegram.WebApp) {
-    console.error("❌ Telegram WebApp API не завантажено. Перевірте шлях до файлу.");
-    return;
-  }
+        // Перевіряємо, чи скрипт завантажився
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            console.error("❌ Telegram WebApp API не завантажено. Перевірте шлях до файлу.");
+            return;
+        }
 
-  try {
-    // Ініціалізуємо Telegram WebApp
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
-    console.log("✅ Telegram WebApp успішно ініціалізовано");
+        try {
+            // Ініціалізуємо Telegram WebApp
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+            console.log("✅ Telegram WebApp успішно ініціалізовано");
 
-    // Перевіряємо наявність даних користувача
-    if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-      const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-      localStorage.setItem('telegram_user_id', userId);
-      console.log("✅ Отримано Telegram ID:", userId);
-    } else {
-      console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
-    }
-  } catch (e) {
-    console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
-  }
-})();
-</script>
-<!-- Потім усі інші скрипти -->
+            // Перевіряємо наявність даних користувача
+            if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+                const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                localStorage.setItem('telegram_user_id', userId);
+                console.log("✅ Отримано Telegram ID:", userId);
+            } else {
+                console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
+            }
+        } catch (e) {
+            console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
+        }
+    })();
+    </script>
+
+    <!-- Завантаження скриптів -->
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/language.js"></script>
     <script src="js/core.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/raffles.js"></script>
 
     <style>
         :root {
-            /* Основні кольори для теми */
-            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+            /* Основні кольори для преміальної теми */
+            --primary-gradient: linear-gradient(135deg, #1A1A2E, #0F3460, #162447);
+            --secondary-gradient: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            --premium-gradient: linear-gradient(90deg, #FFD700, #00dfd1);
+            --accent-gradient: linear-gradient(135deg, #7F00FF, #0052CC);
+
             --secondary-color: #4eb5f7;
             --bg-card: rgba(30, 39, 70, 0.8);
             --bg-item: rgba(20, 30, 60, 0.7);
@@ -140,7 +146,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
+            box-shadow: 0 0.25rem 0.625rem var(--shadow-color);
             width: 100%;
             height: var(--header-height);
             margin-bottom: 0.9375rem; /* 15px */
@@ -163,7 +169,7 @@
             color: white;
             box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
             cursor: pointer;
-            transition: transform 0.2s ease;
+            transition: transform 0.3s ease;
         }
 
         .header .profile-avatar:hover {
@@ -239,11 +245,6 @@
             font-weight: normal;
         }
 
-        /* Приховуємо іконку жетона */
-        .header .jeton-icon {
-            display: none;
-        }
-
         .raffles-container {
             width: 100%;
             display: flex;
@@ -274,7 +275,7 @@
             background: var(--bg-item);
             border: none;
             border-radius: 1.25rem; /* 20px */
-            padding: 0.375rem 0.875rem; /* 6px 14px */
+            padding: 0.5rem 0.875rem; /* 8px 14px */
             color: var(--text-secondary);
             font-size: 0.875rem; /* 14px */
             transition: all 0.3s ease;
@@ -308,6 +309,7 @@
             margin-bottom: 1.5rem;
             box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.4);
             position: relative;
+            border: 1px solid rgba(78, 181, 247, 0.2);
         }
 
         .main-raffle-image {
@@ -334,14 +336,32 @@
             text-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.5);
         }
 
+        .main-raffle-cost {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            color: var(--text-color);
+        }
+
+        .token-icon {
+            width: 1rem;
+            height: 1rem;
+            filter: brightness(0) invert(1);
+        }
+
         .main-raffle-prize {
             display: inline-block;
             padding: 0.25rem 0.625rem;
-            background: linear-gradient(90deg, #FFD700, #00dfd1);
+            background: var(--premium-gradient);
             border-radius: 1rem;
             font-size: 1rem;
             color: #1A1A2E;
             font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .timer-container {
@@ -363,6 +383,7 @@
             width: 3.5rem;
             height: 4.5rem;
             justify-content: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
         }
 
         .timer-value {
@@ -411,7 +432,7 @@
 
         .progress {
             height: 100%;
-            background: linear-gradient(90deg, #FFD700, #00dfd1);
+            background: var(--premium-gradient);
             border-radius: 1rem;
             width: 0%;
             transition: width 1s ease-in-out;
@@ -419,7 +440,7 @@
 
         .join-button {
             width: 100%;
-            background: linear-gradient(90deg, #FFD700, #00dfd1);
+            background: var(--premium-gradient);
             border: none;
             border-radius: 1.5625rem;
             padding: 0.75rem;
@@ -435,7 +456,6 @@
         .join-button:hover {
             transform: translateY(-0.125rem);
             box-shadow: 0 0.375rem 0.75rem rgba(0, 0, 0, 0.4);
-            background: linear-gradient(90deg, #FFE44D, #FFB74D);
         }
 
         .join-button:active {
@@ -497,6 +517,9 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.1);
+            position: relative;
+            overflow: hidden;
         }
 
         .mini-raffle-info {
@@ -507,6 +530,18 @@
             font-size: 1rem;
             font-weight: bold;
             color: white;
+            margin-bottom: 0.25rem;
+        }
+
+        .mini-raffle-cost {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.375rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-color);
             margin-bottom: 0.25rem;
         }
 
@@ -522,14 +557,14 @@
         }
 
         .mini-raffle-button {
-            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            background: var(--secondary-gradient);
             border: none;
             border-radius: 1.25rem;
             padding: 0.5rem 0.75rem;
             color: white;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
             white-space: nowrap;
         }
 
@@ -546,6 +581,7 @@
             padding: 1rem;
             margin-top: 1rem;
             box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.1);
         }
 
         .statistics-title {
@@ -580,79 +616,6 @@
             color: var(--text-secondary);
         }
 
-        /* Стилі для бейджів досягнень */
-        .badges-container {
-            width: 100%;
-            margin-top: 1rem;
-        }
-
-        .badges-title {
-            font-size: 1.25rem;
-            font-weight: bold;
-            margin-bottom: 0.75rem;
-            text-align: center;
-        }
-
-        .badges-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-        }
-
-        .badge-item {
-            background: var(--bg-item);
-            border-radius: var(--item-border-radius);
-            padding: 0.75rem;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .badge-icon {
-            width: 3rem;
-            height: 3rem;
-            background: var(--primary-gradient);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.5rem;
-            position: relative;
-        }
-
-        .badge-icon i {
-            font-size: 1.5rem;
-            color: white;
-        }
-
-        .badge-icon.locked::after {
-            content: '🔒';
-            position: absolute;
-            bottom: -0.25rem;
-            right: -0.25rem;
-            font-size: 1rem;
-        }
-
-        .badge-name {
-            font-size: 0.75rem;
-            font-weight: bold;
-            color: white;
-            margin-bottom: 0.25rem;
-        }
-
-        .badge-desc {
-            font-size: 0.625rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.25rem;
-        }
-
-        .badge-reward {
-            font-size: 0.625rem;
-            color: var(--premium-color);
-            font-weight: bold;
-        }
-
         /* Історія розіграшів */
         .raffles-history {
             width: 100%;
@@ -675,6 +638,16 @@
             display: flex;
             flex-direction: column;
             gap: 0.3125rem;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(78, 181, 247, 0.1);
+        }
+
+        .history-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
 
         .history-date {
@@ -712,15 +685,28 @@
             color: rgba(33, 150, 243, 1);
         }
 
+        .view-details-hint {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 5px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .history-card:hover .view-details-hint {
+            opacity: 1;
+        }
+
         /* Поділитися розіграшем */
         .share-container {
             display: flex;
             justify-content: center;
-            margin: 1rem 0;
+            margin: 0.5rem 0;
         }
 
         .share-button {
-            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+            background: var(--secondary-gradient);
             border: none;
             border-radius: 1.25rem;
             padding: 0.5rem 1rem;
@@ -730,7 +716,7 @@
             align-items: center;
             gap: 0.5rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
 
         .share-button:hover {
@@ -767,6 +753,7 @@
             animation: modalFadeIn 0.3s ease;
             max-height: 90vh;
             overflow-y: auto;
+            border: 1px solid rgba(78, 181, 247, 0.2);
         }
 
         @keyframes modalFadeIn {
@@ -927,6 +914,7 @@
             animation: modalFadeIn 0.3s ease;
             max-height: 90vh;
             overflow-y: auto;
+            border: 1px solid rgba(78, 181, 247, 0.2);
         }
 
         /* Навігаційна панель */
@@ -959,7 +947,7 @@
             width: 20%;
             position: relative;
             opacity: 0.7;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
 
         .nav-item.active {
@@ -976,7 +964,7 @@
             justify-content: center;
             margin-bottom: 0.3125rem;
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
 
         .nav-item.active .icon-wrapper {
@@ -985,12 +973,16 @@
             transform: translateY(-0.1875rem);
         }
 
+        .nav-item:hover .icon-wrapper {
+            transform: translateY(-0.1875rem);
+        }
+
         .nav-item img {
             width: 2.1875rem;
             height: 2.1875rem;
             display: block;
             filter: brightness(0) invert(1);
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
 
         .nav-item.active img {
@@ -1057,6 +1049,190 @@
             transform: translate(-50%, 0.625rem);
         }
 
+        /* Стилі для сторінки завантаження */
+        .loading-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 0.25rem solid rgba(0, 201, 167, 0.3);
+            border-top: 0.25rem solid var(--secondary-color);
+            border-radius: 50%;
+            animation: spinner 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        .loading-text {
+            color: var(--text-color);
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .loading-subtext {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Стилі для пустої історії */
+        .empty-history {
+            background: rgba(30, 39, 70, 0.7);
+            border-radius: var(--item-border-radius);
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(78, 181, 247, 0.1);
+        }
+
+        .empty-history-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+
+        .empty-history h3 {
+            font-size: 1.25rem;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-history p {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .empty-history button {
+            background: var(--secondary-gradient);
+            border: none;
+            border-radius: 1.25rem;
+            padding: 0.5rem 1rem;
+            color: white;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .empty-history button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+        }
+
+        /* Значок "нове" для розіграшів */
+        .new-badge {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: linear-gradient(90deg, #FF416C, #FF4B2B);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 0.2rem 0.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            z-index: 2;
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        /* Стилі для переможців в модальному вікні історії */
+        .winners-list {
+            margin-top: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 15rem;
+            overflow-y: auto;
+        }
+
+        .winner-item {
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            gap: 0.75rem;
+        }
+
+        .winner-place {
+            width: 2rem;
+            height: 2rem;
+            min-width: 2rem;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+        }
+
+        .place-1 {
+            background: linear-gradient(145deg, #FFD700, #FFA500);
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+        }
+
+        .place-2 {
+            background: linear-gradient(145deg, #C0C0C0, #A9A9A9);
+            box-shadow: 0 0 8px rgba(192, 192, 192, 0.5);
+        }
+
+        .place-3 {
+            background: linear-gradient(145deg, #CD7F32, #A0522D);
+            box-shadow: 0 0 8px rgba(205, 127, 50, 0.5);
+        }
+
+        .default-place {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .winner-info {
+            flex: 1;
+        }
+
+        .winner-name {
+            font-weight: bold;
+            color: white;
+            margin-bottom: 0.25rem;
+        }
+
+        .winner-id {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .winner-prize {
+            font-weight: bold;
+            color: var(--premium-color);
+        }
+
+        .current-user {
+            background: linear-gradient(145deg, rgba(30, 113, 161, 0.3), rgba(0, 201, 167, 0.1));
+            border: 1px solid rgba(0, 201, 167, 0.3);
+        }
+
+        .current-user .winner-name {
+            color: var(--premium-color);
+        }
+
+        .no-winners {
+            text-align: center;
+            padding: 1rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
             :root {
@@ -1079,7 +1255,7 @@
             }
 
             .raffles-title {
-                font-size: 1rem;
+                font-size: 1.375rem;
             }
 
             .nav-item .icon-wrapper {
@@ -1109,8 +1285,8 @@
                 font-size: 0.625rem;
             }
 
-            .badges-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
             }
         }
 
@@ -1119,12 +1295,16 @@
                 display: none;
             }
 
-            .header .jeton-balance {
-                margin-left: 0;
-            }
-
             .header .balance-label {
                 font-size: 0.6875rem;
+            }
+
+            .prize-distribution {
+                padding: 0.5rem;
+            }
+
+            .prize-item {
+                font-size: 0.75rem;
             }
         }
 
@@ -1143,157 +1323,28 @@
 
         .back-button {
             position: absolute;
-            top: 9.9375rem;
-            left: 1.9375rem;
-            background: linear-gradient(90deg, #0b1f37, #16213E, #1a3c7a);
+            top: 0.75rem;
+            left: 0.75rem;
+            background: rgba(0, 0, 0, 0.3);
             border: none;
             color: white;
-            font-size: 1.375rem;
+            font-size: 1.25rem;
             cursor: pointer;
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.75rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 0.25rem 0.5rem var(--shadow-color);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
-            z-index: 5;
+            z-index: 15;
         }
 
         .back-button:hover {
+            background: rgba(30, 113, 161, 0.5);
             transform: scale(1.05);
-            box-shadow: 0 0.375rem 0.75rem var(--shadow-color);
         }
-
-        .back-button:active {
-            transform: scale(0.98);
-        }
-        /* Стилі для водяних знаків на бейджах */
-.badge-item {
-    position: relative;
-    overflow: hidden;
-}
-
-.badge-completed .badge-icon {
-    opacity: 0.85;
-}
-
-.badge-watermark {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    pointer-events: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
-}
-
-.badge-watermark-text {
-    position: absolute;
-    width: 200%;
-    text-align: center;
-    transform: rotate(-35deg);
-    font-family: Impact, sans-serif;
-    font-size: 14px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    color: black;
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(255, 205, 0, 0.8),
-        rgba(255, 205, 0, 0.8) 10px,
-        rgba(0, 0, 0, 0.8) 10px,
-        rgba(0, 0, 0, 0.8) 20px
-    );
-    padding: 2px 20px;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    text-shadow: 0px 0px 2px white;
-    white-space: nowrap;
-}
-/* Стилі для зображень бейджів */
-.badge-icon {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 50%;
-    margin-bottom: 0.5rem;
-    background: transparent;
-}
-
-.badge-image {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    z-index: 2;
-    border-radius: 50%;
-}
-
-.lock-icon {
-    position: absolute;
-    bottom: -0.25rem;
-    right: -0.25rem;
-    font-size: 1rem;
-    z-index: 3;
-}
-
-/* Стилі для водяного знаку, щоб він перекривав зображення */
-.badge-watermark {
-    z-index: 4;
-}
-
-/* Стилі для водяних знаків на бейджах */
-.badge-item {
-    position: relative;
-    overflow: hidden;
-}
-
-.badge-completed .badge-icon {
-    opacity: 0.85;
-}
-
-.badge-watermark {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
-}
-
-.badge-watermark-text {
-    position: absolute;
-    width: 200%;
-    text-align: center;
-    transform: rotate(-35deg);
-    font-family: Impact, sans-serif;
-    font-size: 14px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    color: black;
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(255, 205, 0, 0.8),
-        rgba(255, 205, 0, 0.8) 10px,
-        rgba(0, 0, 0, 0.8) 10px,
-        rgba(0, 0, 0, 0.8) 20px
-    );
-    padding: 2px 20px;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-    text-shadow: 0px 0px 1px white;
-    white-space: nowrap;
-}
     </style>
 </head>
 <body>
@@ -1310,51 +1361,54 @@
             <div class="winix-title">WINIX</div>
             <div class="balance-container">
                 <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">250</div>
+                    <div id="user-coins" class="balance-value">0</div>
                     <div class="balance-label" data-lang-key="coins">Жетони</div>
                 </div>
                 <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">294562.16</div>
+                    <div id="user-tokens" class="balance-value">0</div>
                     <div class="balance-label">$WINIX</div>
                 </div>
             </div>
         </div>
-
-        <!-- Кнопка назад -->
-        <button class="back-button" id="back-btn" onclick="goBack()">←</button>
 
         <div class="raffles-container">
             <div class="raffles-title">Розіграші WINIX</div>
 
             <!-- Вкладки розіграшів -->
             <div class="raffle-tabs">
-                <button class="tab-button active" data-tab="active">Активні</button>
-                <button class="tab-button" data-tab="past">Минулі</button>
+                <button class="tab-button active" data-tab="active" onclick="switchRaffleTab('active')">Активні</button>
+                <button class="tab-button" data-tab="past" onclick="switchRaffleTab('past')">Минулі</button>
             </div>
 
             <!-- Секція активних розіграшів -->
             <div class="raffles-section active" id="active-raffles">
-                <!-- Основний розіграш -->
+                <!-- Основний розіграш (Джекпот) -->
                 <div class="main-raffle">
+                    <span class="new-badge">НОВИЙ</span>
                     <img class="main-raffle-image" src="assets/prize-poster.gif" alt="Розіграш призу">
                     <div class="main-raffle-content">
                         <div class="main-raffle-header">
-                            <h3 class="main-raffle-title">GIVEAWEY</h3>
-                            <span class="main-raffle-prize">250 USDT + 130k WINIX</span>
+                            <h3 class="main-raffle-title">Великий Джекпот</h3>
+                            <div class="main-raffle-cost">
+                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                                <span>3 жетони</span>
+                            </div>
                         </div>
+
+                        <span class="main-raffle-prize">$250 + 550,000 WINIX</span>
 
                         <div class="timer-container">
                             <div class="timer-block">
-                                <span class="timer-value" id="days">02</span>
-                                <span class="timer-label">дні</span>
+                                <span class="timer-value" id="days">00</span>
+                                <span class="timer-label">днів</span>
                             </div>
                             <div class="timer-block">
-                                <span class="timer-value" id="hours">14</span>
-                                <span class="timer-label">год</span>
+                                <span class="timer-value" id="hours">00</span>
+                                <span class="timer-label">годин</span>
                             </div>
                             <div class="timer-block">
-                                <span class="timer-value" id="minutes">35</span>
-                                <span class="timer-label">хв</span>
+                                <span class="timer-value" id="minutes">00</span>
+                                <span class="timer-label">хвилин</span>
                             </div>
                         </div>
 
@@ -1363,19 +1417,27 @@
                             <div class="prize-list">
                                 <div class="prize-item">
                                     <span class="prize-place">1 місце:</span>
-                                    <span class="prize-value">125$ + 10000 WINIX</span>
+                                    <span class="prize-value">$125 + 165,000 WINIX</span>
                                 </div>
                                 <div class="prize-item">
                                     <span class="prize-place">2 місце:</span>
-                                    <span class="prize-value">75$ + 8000 WINIX</span>
+                                    <span class="prize-value">$65 + 110,000 WINIX</span>
                                 </div>
                                 <div class="prize-item">
                                     <span class="prize-place">3 місце:</span>
-                                    <span class="prize-value">50$ + 5000 WINIX</span>
+                                    <span class="prize-value">$35 + 82,500 WINIX</span>
                                 </div>
                                 <div class="prize-item">
-                                    <span class="prize-place">4-10 місця:</span>
-                                    <span class="prize-value">15000 WINIX кожному</span>
+                                    <span class="prize-place">4 місце:</span>
+                                    <span class="prize-value">$15 + 60,000 WINIX</span>
+                                </div>
+                                <div class="prize-item">
+                                    <span class="prize-place">5 місце:</span>
+                                    <span class="prize-value">$10 + 55,000 WINIX</span>
+                                </div>
+                                <div class="prize-item">
+                                    <span class="prize-place">6-10 місця:</span>
+                                    <span class="prize-value">15,500 WINIX кожному</span>
                                 </div>
                             </div>
                         </div>
@@ -1388,10 +1450,10 @@
                         </div>
 
                         <div class="progress-bar">
-                            <div class="progress" style="width: 29%"></div>
+                            <div class="progress" style="width: 5%"></div>
                         </div>
 
-                        <button class="join-button" data-raffle-id="raffle1" data-raffle-type="main">Взяти участь</button>
+                        <button class="join-button" data-raffle-id="raffle1" data-raffle-type="main" onclick="openRaffleDetails('raffle1', 'main')">Взяти участь</button>
                     </div>
                 </div>
 
@@ -1400,115 +1462,136 @@
 
                 <div class="mini-raffle">
                     <div class="mini-raffle-info">
-                        <div class="mini-raffle-title">Щоденний-розіграш</div>
-                        <div class="mini-raffle-prize">30,000 WINIX (15 переможців)</div>
+                        <div class="mini-raffle-title">Щоденний розіграш</div>
+                        <div class="mini-raffle-cost">
+                            <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                            <span>1 жетон</span>
+                        </div>
+                        <div class="mini-raffle-prize">90,000 WINIX (20 переможців)</div>
                         <div class="mini-raffle-time">Залишилось: 23 год 24 хв</div>
                     </div>
-                    <button class="mini-raffle-button" data-raffle-id="mini1" data-raffle-type="daily">Участь</button>
+                    <button class="mini-raffle-button" data-raffle-id="mini1" data-raffle-type="daily" onclick="openRaffleDetails('mini1', 'daily')">Участь</button>
+                </div>
+
+                <div class="mini-raffle">
+                    <div class="mini-raffle-info">
+                        <div class="mini-raffle-title">Бонус новачка</div>
+                        <div class="mini-raffle-cost">
+                            <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                            <span>0 жетонів</span>
+                        </div>
+                        <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
+                        <div class="mini-raffle-time">Отримайте бонус за реєстрацію</div>
+                    </div>
+                    <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
                 </div>
             </div>
+
             <!-- Секція минулих розіграшів -->
             <div class="raffles-section" id="past-raffles">
                 <div class="history-title">Історія розіграшів</div>
                 <div id="history-container">
-                    <!-- Дані для історії будуть завантажені динамічно -->
+                    <div class="loading-placeholder">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Завантаження історії...</div>
+                        <div class="loading-subtext">Зачекайте, будь ласка</div>
+                    </div>
                 </div>
             </div>
 
             <!-- Статистика розіграшів -->
             <div class="statistics-container">
-                <div class="statistics-title">Статистика і досягнення</div>
+                <div class="statistics-title">Статистика участі</div>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value">1</div>
+                        <div class="stat-value" id="total-participated">0</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">0</div>
+                        <div class="stat-value" id="total-wins">0</div>
                         <div class="stat-label">Виграші</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">0</div>
+                        <div class="stat-value" id="total-winix-won">0</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">0</div>
-                        <div class="stat-label">Запрошені друзі</div>
+                        <div class="stat-value" id="total-tokens-spent">0</div>
+                        <div class="stat-label">Витрачено жетонів</div>
                     </div>
                 </div>
             </div>
-
-            <!-- Бейджі досягнень -->
-<div class="badges-container">
-    <div class="badges-title">Ваші бейджі</div>
-    <div class="badges-grid">
-        <div class="badge-item" id="badge-winner">
-            <div class="badge-icon">🏆</div>
-            <div class="badge-name">Переможець</div>
-            <div class="badge-desc">Виграйте будь-який розіграш</div>
-            <div class="badge-reward">+2,500 WINIX</div>
         </div>
-        <div class="badge-item" id="badge-beginner">
-            <div class="badge-icon">🚀</div>
-            <div class="badge-name">Початківець</div>
-            <div class="badge-desc">Візьміть участь у 5 розіграшах</div>
-            <div class="badge-reward">+1,000 WINIX</div>
-        </div>
-        <div class="badge-item" id="badge-rich">
-            <div class="badge-icon">💰</div>
-            <div class="badge-name">Багатій</div>
-            <div class="badge-desc">Баланс 50,000 WINIX</div>
-            <div class="badge-reward">+5,000 WINIX</div>
-        </div>
-    </div>
-</div>
 
         <!-- Навігаційне меню -->
         <div class="nav-bar">
-            <div class="nav-item" data-section="home"><div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div><span data-lang-key="home">Головна</span></div>
-            <div class="nav-item" data-section="earn"><div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div><span data-lang-key="earn">Заробіток</span></div>
-            <div class="nav-item" data-section="referrals"><div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div><span data-lang-key="referrals">Реферали</span></div>
-            <div class="nav-item" data-section="wallet"><div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div><span data-lang-key="wallet">Гаманець</span></div>
-            <div class="nav-item" data-section="general"><div class="icon-wrapper"><img src="assets/general-icon.png" alt="Розіграші"></div><span data-lang-key="general">Загальне</span></div>
+            <div class="nav-item" data-section="home" onclick="window.location.href='index.html'">
+                <div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div>
+                <span data-lang-key="home">Головна</span>
+            </div>
+            <div class="nav-item" data-section="earn" onclick="window.location.href='earn.html'">
+                <div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div>
+                <span data-lang-key="earn">Заробіток</span>
+            </div>
+            <div class="nav-item" data-section="referrals" onclick="window.location.href='referrals.html'">
+                <div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div>
+                <span data-lang-key="referrals">Реферали</span>
+            </div>
+            <div class="nav-item" data-section="wallet" onclick="window.location.href='wallet.html'">
+                <div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div>
+                <span data-lang-key="wallet">Гаманець</span>
+            </div>
+            <div class="nav-item active" data-section="general" onclick="window.location.href='general.html'">
+                <div class="icon-wrapper"><img src="assets/general-icon.png" alt="Загальне"></div>
+                <span data-lang-key="general">Загальне</span>
+            </div>
         </div>
 
         <!-- Модальне вікно для головного розіграшу -->
         <div class="raffle-modal" id="main-raffle-modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title" id="main-modal-title">Гранд Розіграш</h2>
-                    <span class="modal-close" id="main-modal-close">×</span>
+                    <h2 class="modal-title" id="main-modal-title">Великий Джекпот</h2>
+                    <span class="modal-close" id="main-modal-close" onclick="closeModal('main-raffle-modal')">×</span>
                 </div>
-                <img class="prize-image" id="main-prize-image" src="assets/prize-poster1.png" alt="Розіграш призу">
+                <img class="prize-image" id="main-prize-image" src="assets/prize-poster.gif" alt="Розіграш призу">
                 <div class="prize-details">
                     <div class="detail-item">
                         <div class="detail-label">Приз:</div>
-                        <div class="detail-value" id="main-prize-value">250 USDT + 130,000 WINIX (10 переможців)</div>
+                        <div class="detail-value" id="main-prize-value">$250 + 550,000 WINIX (10 переможців)</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Вартість участі:</div>
+                        <div class="detail-value">3 жетони за 1 квиток</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Закінчення розіграшу:</div>
-                        <div class="detail-value" id="main-end-time">20 квітня 2025, 12:00</div>
+                        <div class="detail-value" id="main-end-time">10 червня 2025, 12:00</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="main-participants">1</div>
+                        <div class="detail-value" id="main-participants">0</div>
                     </div>
                 </div>
                 <div class="prize-description" id="main-description">
-                    Грандіозний розіграш з призовим фондом 250 USDT та 130,000 WINIX! 10 щасливих переможців отримають цінні призи.
+                    Грандіозний Джекпот-розіграш з призовим фондом $250 та 550,000 WINIX! 10 щасливих переможців отримають цінні призи.
+                    <br><br>
+                    Перше місце забирає 50% призового фонду у доларах ($125) та 30% фонду WINIX (165,000)!
                 </div>
                 <div class="participation-info">
                     <h3>Умови участі:</h3>
                     <ul>
-                        <li>Для участі потрібен 1 жетон</li>
-                        <li>Розіграш проводиться серед всіх учасників</li>
+                        <li>Для участі потрібно 3 жетони за 1 квиток</li>
+                        <li>Кожен придбаний квиток збільшує ваш шанс на перемогу</li>
                         <li>Переможці визначаються автоматично після закінчення часу розіграшу</li>
                         <li>Результати будуть опубліковані одразу після завершення</li>
+                        <li>Перші 5 переможців отримують частку загального призового фонду у доларах та токенах</li>
+                        <li>Переможці з 6 по 10 місце отримують токени WINIX</li>
                     </ul>
                 </div>
                 <div class="token-input-container">
-                    <input type="number" class="token-input" id="main-token-amount" placeholder="Кількість жетонів" min="1" max="1" value="1">
-                    <button class="all-button" id="main-all-tokens-btn" style="display: none;">ВСІ</button>
+                    <input type="number" class="token-input" id="main-token-amount" placeholder="Кількість квитків" min="1" value="1">
+                    <button class="all-button" id="main-all-tokens-btn">ВСІ</button>
                 </div>
                 <button class="join-button" id="main-join-btn" data-raffle-id="raffle1" data-raffle-type="main">Взяти участь</button>
             </div>
@@ -1519,810 +1602,98 @@
             <div class="daily-modal-content">
                 <div class="modal-header">
                     <h2 class="modal-title" id="daily-modal-title">Щоденний розіграш</h2>
-                    <span class="modal-close" id="daily-modal-close">×</span>
+                    <span class="modal-close" id="daily-modal-close" onclick="closeModal('daily-raffle-modal')">×</span>
                 </div>
                 <img class="prize-image" id="daily-prize-image" src="assets/daily-prize1.png" alt="Щоденний розіграш">
                 <div class="prize-details">
                     <div class="detail-item">
                         <div class="detail-label">Приз:</div>
-                        <div class="detail-value" id="daily-prize-value">30,000 WINIX (15 переможців)</div>
+                        <div class="detail-value" id="daily-prize-value">90,000 WINIX (20 переможців)</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Вартість участі:</div>
+                        <div class="detail-value">1 жетон за 1 квиток</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Закінчення розіграшу:</div>
-                        <div class="detail-value" id="daily-end-time">2 квітня 2025, 12:00</div>
+                        <div class="detail-value" id="daily-end-time">11 квітня 2025, 12:00</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="daily-participants">1</div>
+                        <div class="detail-value" id="daily-participants">0</div>
                     </div>
                 </div>
                 <div class="prize-description" id="daily-description">
-                    Щоденний розіграш 30,000 WINIX для 15 переможців! Кожен переможець отримає по 2,000 WINIX. Розіграш проводиться щодня, переможці визначаються автоматично о 12:00.
+                    Щоденний розіграш 90,000 WINIX для 20 переможців! Розподіл призів залежить від місця в рейтингу переможців. Розіграш проводиться щодня, переможці визначаються автоматично о 12:00.
                 </div>
                 <div class="participation-info">
                     <h3>Умови участі:</h3>
                     <ul>
-                        <li>Для участі потрібен 1 жетон</li>
-                        <li>Розіграш проводиться серед всіх учасників</li>
+                        <li>Для участі потрібен 1 жетон за 1 квиток</li>
+                        <li>Кожен придбаний квиток збільшує ваш шанс на перемогу</li>
+                        <li>Розіграш проводиться щодня</li>
                         <li>Переможці визначаються щодня о 12:00</li>
                         <li>Результати з'являться в історії розіграшів</li>
+                        <li>Гарантований приз - 150 WINIX кожному переможцю</li>
                     </ul>
                 </div>
                 <div class="token-input-container">
-                    <input type="number" class="token-input" id="daily-token-amount" placeholder="Кількість жетонів" min="1" max="1" value="1">
-                    <button class="all-button" id="daily-all-tokens-btn" style="display: none;">ВСІ</button>
+                    <input type="number" class="token-input" id="daily-token-amount" placeholder="Кількість квитків" min="1" value="1">
+                    <button class="all-button" id="daily-all-tokens-btn">ВСІ</button>
                 </div>
                 <button class="join-button" id="daily-join-btn" data-raffle-id="mini1" data-raffle-type="daily">Взяти участь</button>
             </div>
         </div>
 
+        <!-- Модальне вікно для історії розіграшу -->
+        <div class="raffle-modal" id="raffle-history-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">Деталі розіграшу</h2>
+                    <span class="modal-close">×</span>
+                </div>
+
+                <div class="prize-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Дата:</div>
+                        <div class="detail-value" id="history-date">01.04.2025</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Приз:</div>
+                        <div class="detail-value prize-value" id="history-prize">90,000 WINIX</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Використано жетонів:</div>
+                        <div class="detail-value" id="history-tokens">5</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Результат:</div>
+                        <div class="detail-value" id="history-result">Участь без перемоги</div>
+                    </div>
+                </div>
+
+                <div class="winners-container">
+                    <h3>Переможці розіграшу</h3>
+                    <div class="winners-list" id="winners-list">
+                        <!-- Тут буде список переможців -->
+                    </div>
+                </div>
+
+                <button class="join-button" id="close-history-btn">ЗАКРИТИ</button>
+            </div>
+        </div>
+
         <!-- Спінер завантаження -->
-        <div class="spinner" id="loading-spinner"><div class="spinner-inner"></div></div>
+        <div class="spinner" id="loading-spinner">
+            <div class="spinner-inner"></div>
+        </div>
 
         <!-- Повідомлення toast -->
         <div class="toast-message" id="toast-message"></div>
-        </div>
     </div>
-    <script>
-        // Ініціалізація Telegram WebApp
-document.addEventListener('DOMContentLoaded', function() {
-    // Ініціалізуємо Telegram WebApp, якщо він доступний
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-    }
-});
-/**
- * WINIX ANIMATIONS FIXED - Покращені анімації з виправленнями
- *
- * Цей скрипт відновлює анімації вкладок та інших елементів,
- * а також приводить нижню панель навігації до стилю зі сторінки налаштувань.
- */
 
-(function() {
-    console.log("✨ WINIX ANIMATIONS FIXED: Ініціалізація вдосконалених анімацій...");
-
-    // Глобальні змінні для анімацій
-    let animationIntervals = [];
-
-    /**
-     * Анімація пульсації для елементів інтерфейсу
-     */
-    function setupPulseAnimation(element, property, value1, value2, duration = 2000) {
-        if (!element) return null;
-
-        let direction = true;
-        const interval = setInterval(() => {
-            element.style[property] = direction ? value1 : value2;
-            direction = !direction;
-        }, duration / 2);
-
-        animationIntervals.push(interval);
-        return interval;
-    }
-
-    /**
-     * Налаштування нижньої панелі навігації як на сторінці налаштувань
-     */
-    function setupNavBarAnimations() {
-        console.log("Налаштування навігаційної панелі як на сторінці налаштувань");
-
-        // Додаємо стилі з файлу налаштувань
-        const navBarStyles = document.createElement('style');
-        navBarStyles.textContent = `
-            /* Стилі навігаційної панелі з файлу налаштувань */
-            .nav-bar {
-                background: var(--primary-gradient);
-                border-radius: 1.5625rem; /* 25px */
-                padding: 0.5rem; /* 8px */
-                display: flex;
-                justify-content: space-around;
-                width: 90%;
-                max-width: 33.75rem; /* 540px */
-                height: var(--nav-height);
-                box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
-                position: fixed;
-                bottom: 1.875rem; /* 30px */
-                left: 50%;
-                transform: translateX(-50%);
-                z-index: 10;
-            }
-
-            .nav-item {
-                text-align: center;
-                color: var(--text-color);
-                font-size: 0.875rem; /* 14px */
-                cursor: pointer;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                width: 20%;
-                position: relative;
-            }
-
-            .nav-item .icon-wrapper {
-                width: 3.75rem; /* 60px */
-                height: 3.75rem;
-                background: rgba(255, 255, 255, 0.2) !important;
-                border-radius: 0.75rem; /* 12px */
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 0.3125rem; /* 5px */
-                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-                transition: transform 0.3s ease;
-            }
-
-            .nav-item.active .icon-wrapper {
-                background: var(--bg-active) !important;
-                box-shadow: 0 0 0.9375rem var(--glow-color) !important;
-            }
-
-            .nav-item img {
-                width: 2.1875rem; /* 35px */
-                height: 2.1875rem;
-                display: block;
-                filter: brightness(0) invert(1) !important;
-            }
-
-            .nav-item.active img {
-                filter: brightness(1.2) invert(1) !important;
-            }
-
-            .nav-item:hover .icon-wrapper {
-                transform: scale(1.1);
-            }
-
-            /* Медіа-запити для різних екранів */
-            @media (max-width: 450px) {
-                .nav-item .icon-wrapper {
-                    width: 3.125rem; /* 50px */
-                    height: 3.125rem;
-                }
-
-                .nav-item img {
-                    width: 1.875rem; /* 30px */
-                    height: 1.875rem;
-                }
-            }
-        `;
-        document.head.appendChild(navBarStyles);
-
-        // Налаштування обробників подій для панелі навігації
-        const navItems = document.querySelectorAll('.nav-item');
-
-        // Видаляємо старі обробники
-        navItems.forEach(item => {
-            const clone = item.cloneNode(true);
-            if (item.parentNode) {
-                item.parentNode.replaceChild(clone, item);
-            }
-
-            // Додаємо нові обробники
-            clone.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-
-                // Видаляємо активний стан з усіх елементів
-                navItems.forEach(navItem => navItem.classList.remove('active'));
-
-                // Додаємо активний стан до натиснутого елемента
-                this.classList.add('active');
-
-                // Переходимо на відповідну сторінку з невеликою затримкою
-                // для відображення візуального ефекту
-                if (section) {
-                    setTimeout(() => {
-                        switch (section) {
-                            case 'home':
-                                window.location.href = 'original-index.html';
-                                break;
-                            case 'earn':
-                                window.location.href = 'earn.html';
-                                break;
-                            case 'referrals':
-                                window.location.href = 'referrals.html';
-                                break;
-                            case 'wallet':
-                                window.location.href = 'wallet.html';
-                                break;
-                            case 'general':
-                                window.location.href = 'general.html';
-                                break;
-                            default:
-                                window.location.href = section + '.html';
-                        }
-                    }, 100);
-                }
-            });
-        });
-
-        console.log("Стилі навігаційної панелі зі сторінки налаштувань застосовано");
-    }
-
-    /**
-     * Анімація для вкладок (ВИПРАВЛЕНА ВЕРСІЯ)
-     */
-    function setupTabAnimations() {
-        console.log("Налаштування анімацій вкладок (виправлена версія)");
-
-        // Перевіряємо, чи вже налаштовано
-        if (document.querySelector('.tab-button[data-anim-initialized="true"]')) {
-            console.log("Анімації вкладок вже налаштовані, пропускаємо");
-            return;
-        }
-
-        // Додаємо CSS для анімацій вкладок
-        const tabStyles = document.createElement('style');
-        tabStyles.textContent = `
-            .tab-button {
-                transition: transform 0.2s ease, box-shadow 0.3s ease, background 0.3s ease;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .tab-button::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 60%;
-                height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-                transform: skewX(-25deg);
-                transition: left 0.6s ease;
-            }
-
-            .tab-button:hover::after {
-                left: 150%;
-            }
-
-            .tab-button.active {
-                transform: scale(1.05);
-            }
-
-            .raffles-section {
-                transition: opacity 0.4s ease, transform 0.4s ease;
-            }
-
-            .raffles-section:not(.active) {
-                display: none;
-                opacity: 0;
-                transform: translateX(-10px);
-            }
-        `;
-        document.head.appendChild(tabStyles);
-
-        // Отримуємо всі кнопки вкладок
-        const tabButtons = document.querySelectorAll('.tab-button');
-
-        // Видаляємо старі обробники
-        tabButtons.forEach(button => {
-            // Якщо кнопка вже ініціалізована, пропускаємо
-            if (button.getAttribute('data-anim-initialized') === 'true') {
-                return;
-            }
-
-            const clone = button.cloneNode(true);
-            if (button.parentNode) {
-                button.parentNode.replaceChild(clone, button);
-            }
-
-            // Позначаємо кнопку як ініціалізовану для анімацій
-            clone.setAttribute('data-anim-initialized', 'true');
-
-            // Додаємо нові обробники
-            clone.addEventListener('click', function(e) {
-                e.preventDefault();
-
-                // Запобігаємо повторним кликам під час анімації
-                if (window.winixState && window.winixState.isTabSwitching) {
-                    console.log("Переключення вже виконується, пропускаємо");
-                    return;
-                }
-
-                // Видаляємо активний клас з усіх кнопок
-                tabButtons.forEach(btn => {
-                    btn.classList.remove('active');
-                    btn.style.boxShadow = '';
-                });
-
-                // Додаємо активний клас до натиснутої кнопки
-                this.classList.add('active');
-
-                // Ефект натискання
-                this.style.transform = 'scale(0.95)';
-                setTimeout(() => {
-                    this.style.transform = 'scale(1.05)';
-                }, 100);
-
-                // Отримуємо тип вкладки
-                const tabType = this.getAttribute('data-tab');
-
-                // Додаємо світіння для активної вкладки
-                if (this.classList.contains('active')) {
-                    this.style.boxShadow = '0 0 10px var(--glow-color)';
-
-                    // Анімація пульсації тіні для активної вкладки (через CSS)
-                    this.style.animation = 'none';
-                    void this.offsetWidth; // Перемальовуємо елемент
-                    this.style.animation = 'tabGlow 2.5s infinite ease-in-out';
-                }
-
-                // Перемикаємо вкладки з оновленою логікою
-                if (window.rafflesFunctions && window.rafflesFunctions.switchTab) {
-                    window.rafflesFunctions.switchTab(tabType);
-                } else {
-                    safeTabSwitch(tabType);
-                }
-            });
-
-            // Додаємо ефекти при наведенні
-            clone.addEventListener('mouseenter', function() {
-                if (!this.classList.contains('active')) {
-                    this.style.transform = 'translateY(-1px)';
-                    this.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-                }
-            });
-
-            clone.addEventListener('mouseleave', function() {
-                if (!this.classList.contains('active')) {
-                    this.style.transform = '';
-                    this.style.boxShadow = '';
-                }
-            });
-        });
-
-        // Знаходимо активну вкладку і застосовуємо до неї анімацію
-        const activeTab = document.querySelector('.tab-button.active');
-        if (activeTab) {
-            activeTab.style.boxShadow = '0 0 10px var(--glow-color)';
-            activeTab.style.transform = 'scale(1.05)';
-
-            // Додаємо пульсуючу анімацію через CSS
-            const keyframesStyle = document.createElement('style');
-            keyframesStyle.textContent = `
-                @keyframes tabGlow {
-                    0% { box-shadow: 0 0 10px var(--glow-color); }
-                    50% { box-shadow: 0 0 15px var(--glow-color), 0 0 5px var(--glow-color); }
-                    100% { box-shadow: 0 0 10px var(--glow-color); }
-                }
-
-                .tab-button.active {
-                    animation: tabGlow 2.5s infinite ease-in-out;
-                }
-            `;
-            document.head.appendChild(keyframesStyle);
-        }
-
-        console.log("Анімації вкладок налаштовано (виправлено)");
-    }
-
-    /**
-     * Безпечне перемикання вкладок з оптимізацією для секції "Минулі"
-     */
-    function safeTabSwitch(tabType) {
-        console.log(`Безпечне перемикання на вкладку: ${tabType}`);
-
-        // Запобігаємо повторним кликам - використовуємо спільний об'єкт стану
-        if (window.winixState && window.winixState.isTabSwitching) {
-            console.log("Переключення вже виконується через safeTabSwitch, пропускаємо");
-            return;
-        }
-
-        // Встановлюємо блокування
-        if (window.winixState) {
-            window.winixState.isTabSwitching = true;
-        }
-
-        try {
-            // Приховуємо всі секції
-            document.querySelectorAll('.raffles-section').forEach(section => {
-                section.classList.remove('active');
-                section.style.display = 'none';
-            });
-
-            // Показуємо цільову секцію
-            const targetSection = document.getElementById(`${tabType}-raffles`);
-            if (targetSection) {
-                targetSection.style.display = 'block';
-                targetSection.classList.add('active');
-
-                // Особлива обробка для секції "Минулі"
-                if (tabType === 'past') {
-                    // Відкладаємо завантаження історії, щоб спочатку відобразити вкладку
-                    setTimeout(() => {
-                        try {
-                            // Спроба завантажити історію розіграшів
-                            if (window.winixUnifiedFixes && typeof window.winixUnifiedFixes.enhanceRaffleHistory === 'function') {
-                                window.winixUnifiedFixes.enhanceRaffleHistory();
-                            } else if (window.rafflesFunctions && window.rafflesFunctions.loadRaffleHistory) {
-                                window.rafflesFunctions.loadRaffleHistory();
-                            } else if (typeof window.loadRaffleHistory === 'function') {
-                                window.loadRaffleHistory();
-                            } else {
-                                console.warn("Функції для завантаження історії не знайдено");
-                            }
-                        } catch (e) {
-                            console.error('Помилка завантаження історії:', e);
-                        } finally {
-                            // Знімаємо блокування перемикання
-                            if (window.winixState) {
-                                window.winixState.resetTabSwitching();
-                            }
-                        }
-                    }, 100);
-                } else {
-                    // Для інших вкладок одразу знімаємо блокування
-                    setTimeout(() => {
-                        if (window.winixState) {
-                            window.winixState.resetTabSwitching();
-                        }
-                    }, 100);
-                }
-            } else {
-                console.warn(`Секція ${tabType}-raffles не знайдена`);
-                if (window.winixState) {
-                    window.winixState.resetTabSwitching();
-                }
-            }
-        } catch (error) {
-            console.error("Помилка при перемиканні вкладок:", error);
-            if (window.winixState) {
-                window.winixState.resetTabSwitching();
-            }
-        }
-    }
-
-    /**
-     * Анімація для прогрес-бару розіграшу
-     */
-    function setupProgressBarAnimation() {
-        const progressBar = document.querySelector('.progress');
-        if (!progressBar) return;
-
-        console.log("Налаштування анімації прогрес-бару");
-
-        // Додаємо CSS анімацію
-        const styleElement = document.createElement('style');
-        styleElement.textContent = `
-            @keyframes progressGlow {
-                0% { box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-                50% { box-shadow: 0 0 10px rgba(0, 201, 167, 0.7); }
-                100% { box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            }
-
-            .progress {
-                transition: width 1s ease-in-out;
-                animation: progressGlow 3s infinite ease-in-out;
-            }
-        `;
-        document.head.appendChild(styleElement);
-
-        // Додаємо плавне оновлення
-        if (typeof updateProgressBar === 'function') {
-            const originalUpdateProgressBar = updateProgressBar;
-
-            window.updateProgressBar = function(endDate) {
-                const result = originalUpdateProgressBar(endDate);
-                progressBar.style.transition = 'width 1.5s ease-in-out';
-                return result;
-            };
-        }
-
-        console.log("Анімацію прогрес-бару налаштовано");
-    }
-
-    /**
-     * Анімації для карток історії розіграшів
-     */
-    function setupHistoryCardAnimations() {
-        console.log("Налаштування анімацій карток історії");
-
-        // Додаємо CSS анімації для історії
-        const styleElement = document.createElement('style');
-        styleElement.textContent = `
-            .history-card {
-                transition: transform 0.3s ease, box-shadow 0.3s ease;
-                cursor: pointer;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .history-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-            }
-
-            .history-card::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 50%;
-                height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-                transform: skewX(-25deg);
-                transition: left 0.6s ease;
-            }
-
-            .history-card:hover::after {
-                left: 150%;
-            }
-
-            .history-card:active {
-                transform: translateY(0);
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            }
-
-            .history-card .history-status {
-                transition: all 0.3s ease;
-            }
-
-            .history-card:hover .history-status {
-                transform: scale(1.05);
-            }
-
-            .view-details-hint {
-                color: rgba(255, 255, 255, 0.6);
-                font-size: 0.7rem;
-                text-align: center;
-                margin-top: 5px;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-            }
-
-            .history-card:hover .view-details-hint {
-                opacity: 1;
-            }
-        `;
-        document.head.appendChild(styleElement);
-
-        // Додаємо обробники для всіх карток історії
-        function addHistoryCardHandlers() {
-            const historyCards = document.querySelectorAll('.history-card');
-
-            historyCards.forEach(card => {
-                // Перевіряємо, чи не додали ми вже обробник
-                if (card.dataset.hasHandler) return;
-                card.dataset.hasHandler = true;
-
-                // Додаємо підказку
-                if (!card.querySelector('.view-details-hint')) {
-                    const hint = document.createElement('div');
-                    hint.className = 'view-details-hint';
-                    hint.textContent = 'Натисніть для деталей';
-                    card.appendChild(hint);
-                }
-
-                // Додаємо ефект кліку
-                card.addEventListener('click', function() {
-                    this.style.transform = 'scale(0.98)';
-
-                    setTimeout(() => {
-                        this.style.transform = '';
-
-                        // Витягуємо дані розіграшу для деталей
-                        const date = this.querySelector('.history-date')?.textContent || '';
-                        const prize = this.querySelector('.history-prize')?.textContent || '';
-                        const result = this.querySelector('.history-winners')?.textContent || '';
-                        const statusElement = this.querySelector('.history-status');
-                        const status = statusElement ? statusElement.classList.contains('won') ? 'won' : 'participated' : '';
-
-                        // Показуємо деталі розіграшу
-                        if (window.winixUnifiedFixes && window.winixUnifiedFixes.createRaffleDetailsModal) {
-                            window.winixUnifiedFixes.createRaffleDetailsModal({
-                                date, prize, result, status
-                            });
-                        } else if (window.createRaffleDetailsModal) {
-                            window.createRaffleDetailsModal({
-                                date, prize, result, status
-                            });
-                        }
-                    }, 150);
-                });
-            });
-        }
-
-        // Початкове додавання обробників
-        setTimeout(addHistoryCardHandlers, 500);
-
-        // Оновлюємо обробники після завантаження історії
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                if (mutation.type === 'childList') {
-                    setTimeout(addHistoryCardHandlers, 100);
-                }
-            });
-        });
-
-        const historyContainer = document.getElementById('history-container');
-        if (historyContainer) {
-            observer.observe(historyContainer, { childList: true });
-        }
-
-        console.log("Анімації карток історії налаштовано");
-    }
-
-    /**
-     * Анімації для кнопок "Взяти участь"
-     */
-    function setupButtonAnimations() {
-        console.log("Налаштування анімацій кнопок");
-
-        // Додаємо CSS анімації для кнопок
-        const styleElement = document.createElement('style');
-        styleElement.textContent = `
-            .join-button, .mini-raffle-button {
-                transition: all 0.3s ease;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .join-button:hover, .mini-raffle-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
-            }
-
-            .join-button:active, .mini-raffle-button:active {
-                transform: translateY(0);
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-            }
-
-            .join-button::after, .mini-raffle-button::after {
-                content: '';
-                position: absolute;
-                top: -50%;
-                left: -100%;
-                width: 70%;
-                height: 200%;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-                transform: rotate(30deg);
-                transition: all 0.6s ease;
-            }
-
-            .join-button:hover::after, .mini-raffle-button:hover::after {
-                left: 130%;
-            }
-        `;
-        document.head.appendChild(styleElement);
-
-        // Додаємо обробники подій для кнопок
-        const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
-
-        buttons.forEach(button => {
-            if (button.disabled) return;
-
-            button.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-2px)';
-                this.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
-            });
-
-            button.addEventListener('mouseleave', function() {
-                this.style.transform = '';
-                this.style.boxShadow = '';
-            });
-
-            button.addEventListener('mousedown', function() {
-                this.style.transform = 'translateY(0)';
-                this.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
-            });
-
-            button.addEventListener('mouseup', function() {
-                this.style.transform = 'translateY(-2px)';
-                this.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
-            });
-        });
-
-        console.log("Анімації кнопок налаштовано");
-    }
-
-    /**
-     * Виправлення стилів іконок навігації
-     */
-    function fixNavIcons() {
-        console.log("Застосування однакових стилів до всіх іконок");
-
-        // Додаємо спеціальні стилі для всіх іконок
-        const iconStyles = document.createElement('style');
-        iconStyles.textContent = `
-            /* Фіксація всіх іконок навігації */
-            .nav-item .icon-wrapper {
-                background: rgba(255, 255, 255, 0.2) !important;
-                box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2) !important;
-            }
-
-            /* Стиль для активної іконки */
-            .nav-item.active .icon-wrapper {
-                background: var(--bg-active) !important;
-                box-shadow: 0 0 0.9375rem var(--glow-color) !important;
-            }
-
-            /* Стиль для всіх зображень в іконках */
-            .nav-item img {
-                filter: brightness(0) invert(1) !important;
-            }
-
-            /* Стиль для зображень в активних іконках */
-            .nav-item.active img {
-                filter: brightness(1.2) invert(1) !important;
-            }
-        `;
-        document.head.appendChild(iconStyles);
-    }
-
-    /**
-     * Ініціалізація всіх анімацій
-     */
-    function initAnimations() {
-        console.log("Ініціалізація всіх анімацій");
-
-        // Очищаємо попередні інтервали анімацій
-        animationIntervals.forEach(interval => clearInterval(interval));
-        animationIntervals = [];
-
-        // Налаштовуємо всі типи анімацій
-        setupNavBarAnimations(); // Налаштування навігаційної панелі як на сторінці налаштувань
-        setupTabAnimations();    // Анімації для вкладок
-        setupProgressBarAnimation(); // Анімація для прогрес-бару
-        setupHistoryCardAnimations(); // Анімації для карток історії
-        setupButtonAnimations(); // Анімації для кнопок
-        fixNavIcons(); // Виправлення іконок навігації
-
-        console.log("✅ Всі анімації успішно ініціалізовано");
-    }
-
-    // Додаємо функцію оновлення анімацій для можливого виклику ззовні
-    function refreshAnimations() {
-        console.log("Оновлення всіх анімацій");
-
-        // Очищаємо попередні інтервали
-        animationIntervals.forEach(interval => clearInterval(interval));
-        animationIntervals = [];
-
-        // Перезапускаємо всі анімації
-        setupNavBarAnimations();
-        setupTabAnimations();
-        setupProgressBarAnimation();
-        setupHistoryCardAnimations();
-        setupButtonAnimations();
-        fixNavIcons();
-    }
-
-    // Створюємо обробник для подій видимості сторінки
-    document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') {
-            console.log("Сторінка стала видимою, скидаємо стани");
-            // Скидаємо стан блокування через спільний об'єкт
-            if (window.winixState) {
-                window.winixState.resetTabSwitching();
-            }
-        }
-    });
-
-    // Запускаємо ініціалізацію після завантаження DOM
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAnimations);
-    } else {
-        // Якщо DOM вже завантажено, запускаємо з невеликою затримкою
-        setTimeout(initAnimations, 100);
-    }
-
-    // Запускаємо додатково через 1 секунду, щоб гарантувати застосування стилів
-    setTimeout(initAnimations, 1000);
-
-    // Експортуємо функції для можливого використання ззовні
-    window.winixAnimations = {
-        refreshAnimations,
-        setupNavBarAnimations,
-        setupTabAnimations,
-        setupProgressBarAnimation,
-        setupHistoryCardAnimations,
-        setupButtonAnimations,
-        fixNavIcons,
-        initAnimations
-    };
-})();
-    </script>
+    <!-- Скрипти для розіграшів -->
+    <script src="js/raffle_history.js"></script>
+    <script src="js/raffle_stats.js"></script>
 </body>
 </html>
