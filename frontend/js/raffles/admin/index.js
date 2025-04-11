@@ -4,8 +4,8 @@
  */
 
 import AdminAPI from '../../api/admin-api.js';
-import { formatDate, formatCurrency } from '../formatters.js';
-import { showToast, showConfirm } from '../ui-helpers.js';
+import { formatDate, formatCurrency } from '../utils/formatters.js';
+import { showToast, showConfirm } from '../utils/ui-helpers.js';
 
 class RaffleAdmin {
     constructor() {

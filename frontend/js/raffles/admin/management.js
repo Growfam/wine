@@ -3,7 +3,7 @@
  * Надає функції для створення, редагування та управління розіграшами
  */
 
-import { adminAPI } from './api.js';
+import { adminAPI } from '../services/api.js';
 import { showToast, showConfirm } from '../utils/ui-helpers.js';
 import { formatDate } from '../utils/formatters.js';
 

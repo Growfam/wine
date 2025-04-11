@@ -3,12 +3,19 @@
  * Відповідає за створення та управління модальними вікнами для розіграшів
  */
 
-import { formatDate, formatCurrency } from '../formatters.js';
-import { showToast } from '../ui-helpers.js';
+import { formatDate, formatCurrency } from '../utils/formatters.js';
+import { showToast } from '../utils/ui-helpers.js';
 import raffleParticipation from '../modules/participation.js';
-import WinixAPI from '../../api/winix-api.js';
+import api from '../services/api.js';
+import WinixRaffles from '../globals.js';
 
+/**
+ * Клас для управління модальними вікнами розіграшів
+ */
 class RaffleModals {
+    /**
+     * Конструктор класу
+     */
     constructor() {
         this._modals = {};
         this._activeModals = [];
@@ -25,6 +32,7 @@ class RaffleModals {
 
     /**
      * Налаштування існуючих модальних вікон на сторінці
+     * @private
      */
     _setupExistingModals() {
         // Знаходимо всі модальні вікна на сторінці
@@ -65,7 +73,7 @@ class RaffleModals {
 
         try {
             // Перевіряємо наявність жетонів
-            const userData = await WinixAPI.getUserData();
+            const userData = await api.getUserData();
             const coinsBalance = userData.data?.coins || 0;
 
             if (coinsBalance < 1) {
@@ -92,6 +100,7 @@ class RaffleModals {
      * Отримання деталей розіграшу
      * @param {string} raffleId - ID розіграшу
      * @returns {Promise<Object>} - Дані розіграшу
+     * @private
      */
     async _getRaffleDetails(raffleId) {
         try {
@@ -103,7 +112,7 @@ class RaffleModals {
                 window.showLoading('Завантаження деталей розіграшу...');
             }
 
-            const response = await WinixAPI.apiRequest(`/api/raffles/${raffleId}`, 'GET');
+            const response = await api.apiRequest(`/api/raffles/${raffleId}`, 'GET');
 
             if (typeof window.hideLoading === 'function') {
                 window.hideLoading();
@@ -130,6 +139,7 @@ class RaffleModals {
      * Обробка деталей розіграшу
      * @param {Object} raffleData - Дані розіграшу
      * @param {string} raffleType - Тип розіграшу ('daily' або 'main')
+     * @private
      */
     _processRaffleDetails(raffleData, raffleType) {
         if (!raffleData) {
@@ -159,10 +169,11 @@ class RaffleModals {
      * @param {HTMLElement} modal - Елемент модального вікна
      * @param {Object} raffleData - Дані розіграшу
      * @param {string} raffleType - Тип розіграшу ('daily' або 'main')
+     * @private
      */
     async _updateModalFields(modal, raffleData, raffleType) {
         // Отримуємо баланс жетонів
-        const userData = await WinixAPI.getUserData();
+        const userData = await api.getUserData();
         const coinsBalance = userData.data?.coins || 0;
 
         // Встановлюємо поля для введення кількості жетонів
@@ -223,6 +234,7 @@ class RaffleModals {
     /**
      * Оновлення полів у модальному вікні для щоденного розіграшу
      * @param {Object} raffleData - Дані розіграшу
+     * @private
      */
     _updateDailyRaffleModal(raffleData) {
         const titleElement = document.getElementById('daily-modal-title');
@@ -250,6 +262,7 @@ class RaffleModals {
     /**
      * Оновлення полів у модальному вікні для основного розіграшу
      * @param {Object} raffleData - Дані розіграшу
+     * @private
      */
     _updateMainRaffleModal(raffleData) {
         const titleElement = document.getElementById('main-modal-title');
@@ -285,6 +298,7 @@ class RaffleModals {
      * @param {string} raffleId - ID розіграшу
      * @param {string} raffleType - Тип розіграшу ('daily' або 'main')
      * @param {string} inputId - ID поля для введення кількості жетонів
+     * @private
      */
     async _participateInRaffle(raffleId, raffleType, inputId) {
         if (!raffleId) {
@@ -324,8 +338,8 @@ class RaffleModals {
             }
 
             // Оновлюємо відображення розіграшів
-            if (typeof window.rafflesModule?.activeRaffles?.displayActiveRaffles === 'function') {
-                window.rafflesModule.activeRaffles.displayActiveRaffles();
+            if (typeof WinixRaffles.active?.displayRaffles === 'function') {
+                WinixRaffles.active.displayRaffles();
             }
         } else {
             // Показуємо повідомлення про помилку
@@ -337,6 +351,7 @@ class RaffleModals {
      * Генерація HTML для розподілу призів
      * @param {Object} prizeDistribution - Об'єкт з розподілом призів
      * @returns {string} - HTML-розмітка
+     * @private
      */
     _generatePrizeDistributionHTML(prizeDistribution) {
         if (!prizeDistribution || typeof prizeDistribution !== 'object' || Object.keys(prizeDistribution).length === 0) {
@@ -386,6 +401,7 @@ class RaffleModals {
      * Форматування списку місць
      * @param {Array} places - Масив з місцями
      * @returns {string} - Відформатований текст місць
+     * @private
      */
     _formatPlaces(places) {
         if (!places || !Array.isArray(places) || places.length === 0) {
@@ -543,6 +559,7 @@ class RaffleModals {
      * Генерування HTML для списку переможців
      * @param {Array} winners - Масив з переможцями
      * @returns {string} - HTML-розмітка
+     * @private
      */
     _generateWinnersListHTML(winners) {
         if (!winners || !Array.isArray(winners) || winners.length === 0) {
@@ -631,4 +648,10 @@ class RaffleModals {
     }
 }
 
-export default new RaffleModals();
+// Створюємо екземпляр класу
+const raffleModals = new RaffleModals();
+
+// Додаємо в глобальний об'єкт для зворотної сумісності
+WinixRaffles.modals = raffleModals;
+
+export default raffleModals;
