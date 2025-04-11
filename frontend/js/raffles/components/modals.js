@@ -3,7 +3,7 @@
  * Відповідає за створення та управління модальними вікнами для розіграшів
  */
 
-import { formatDate, formatCurrency } from '../utils/formatters.js';
+import { formatDate } from '../utils/formatters.js';
 import { showToast } from '../utils/ui-helpers.js';
 import participationModule from '../modules/participation.js';
 import api from '../services/api.js';
