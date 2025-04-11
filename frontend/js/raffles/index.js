@@ -3,11 +3,11 @@
  * Об'єднує всі підмодулі та експортує єдиний інтерфейс для роботи з розіграшами
  */
 
-import activeRaffles from './active.js';
-import history from './history.js';
-import stats from './stats.js';
+import activeRaffles from './modules/active.js';
+import history from './modules/history.js';
+import stats from './modules/stats.js';
 import cards from './cards.js';
-import participation from './participation.js';
+import participation from './modules/participation.js';
 import modals from './components/modals.js';
 import admin from './admin/index.js';
 import { formatDate, formatCurrency, formatNumber } from './formatters.js';

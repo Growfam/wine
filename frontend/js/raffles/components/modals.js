@@ -5,7 +5,7 @@
 
 import { formatDate, formatCurrency } from '../formatters.js';
 import { showToast } from '../ui-helpers.js';
-import raffleParticipation from '../participation.js';
+import raffleParticipation from '../modules/participation.js';
 import WinixAPI from '../../api/winix-api.js';
 
 class RaffleModals {
