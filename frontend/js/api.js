@@ -22,9 +22,14 @@
 
         // Визначаємо URL на основі поточного середовища
         const hostname = window.location.hostname;
+
+        // Конкретні умови для локального середовища
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
             // Локальне середовище - використовуємо порт 8080
             return `http://${hostname}:8080`;
+        } else if (hostname.includes('testenv') || hostname.includes('staging')) {
+            // Тестові середовища
+            return `https://${hostname}`;
         } else {
             // Продакшн середовище
             return 'https://winixbot.com';
@@ -51,13 +56,13 @@
     // Відстеження запитів, щоб запобігти повторним викликам
     let _lastRequestsByEndpoint = {};
 
-    // Мінімальний інтервал між однаковими запитами
+    // Мінімальний інтервал між однаковими запитами (збільшені інтервали)
     const REQUEST_THROTTLE = {
-        '/user/': 3000,
-        '/staking': 5000,
-        '/balance': 3000,
-        '/transactions': 10000,
-        'default': 2000
+        '/user/': 5000,
+        '/staking': 8000,
+        '/balance': 5000,
+        '/transactions': 15000,
+        'default': 4000
     };
 
     // Лічильник запитів
@@ -345,7 +350,22 @@
         return refreshPromise;
     }
 
-    // ======== ФУНКЦІЯ API-ЗАПИТУ ========
+    // ======== ФУНКЦІЇ API-ЗАПИТУ ========
+
+    /**
+     * Функція для примусового скидання зависаючих запитів
+     * @returns {boolean} Чи було виконано скидання
+     */
+    function resetPendingRequests() {
+        // Якщо є більше 3 активних запитів, потенційно маємо проблему
+        if (_activeEndpoints.size > 3) {
+            console.warn(`🔌 API: Виявлено ${_activeEndpoints.size} активних запитів, скидаємо стан`);
+            _activeEndpoints.clear();
+            _pendingRequests = {};
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Безпосереднє виконання запиту без додаткової логіки
@@ -387,6 +407,11 @@
             const userId = getUserId();
             if (userId && !options.skipUserIdCheck) {
                 headers['X-Telegram-User-Id'] = userId;
+            }
+
+            // Перевірка чи пристрій онлайн
+            if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+                throw new Error("Пристрій офлайн");
             }
 
             // Параметри запиту
@@ -485,7 +510,10 @@
                     });
                 }
 
-                return Promise.reject(new Error("Занадто частий запит"));
+                return Promise.reject({
+                    message: "Занадто частий запит",
+                    retryAfter: throttleTime - (now - lastRequestTime)
+                });
             }
 
             // Оновлюємо відстеження запитів
@@ -506,8 +534,30 @@
 
                 // Створюємо новий запит тільки якщо це критично важливо
                 if (!options.forceContinue) {
-                    return Promise.reject(new Error("Запит вже виконується"));
+                    return Promise.reject({
+                        message: "Запит вже виконується",
+                        source: 'parallel'
+                    });
                 }
+            }
+
+            // Перевірка чи пристрій онлайн
+            if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+                console.warn("🔌 API: Пристрій офлайн, використовуємо кеш");
+
+                // Якщо є кеш для запитів даних користувача
+                if (isUserProfileRequest && _userCache) {
+                    return {
+                        status: 'success',
+                        data: _userCache,
+                        source: 'cache_offline'
+                    };
+                }
+
+                return Promise.reject({
+                    message: "Пристрій офлайн",
+                    source: 'offline'
+                });
             }
 
             // Додаємо запит до активних
@@ -602,7 +652,7 @@
 
                         // Пауза перед наступною спробою
                         if (attempt < retries - 1) {
-                            const delay = Math.pow(2, attempt) * 300; // Експоненційна затримка
+                            const delay = Math.pow(2, attempt) * 500; // Експоненційна затримка
                             await new Promise(resolve => setTimeout(resolve, delay));
                         }
                     } catch (fetchError) {
@@ -625,7 +675,7 @@
                         }
 
                         // Затримка перед наступною спробою
-                        const delay = Math.pow(2, attempt) * 300;
+                        const delay = Math.pow(2, attempt) * 500;
                         await new Promise(resolve => setTimeout(resolve, delay));
                     }
                 }
@@ -694,6 +744,14 @@
                 // Оновлюємо стан підключення при помилці
                 _connectionState.failedAttempts++;
 
+                // Скидаємо стан запиту
+                _activeEndpoints.delete(endpoint);
+
+                // Якщо запит тривав занадто довго, очищаємо інші потенційно зависаючі запити
+                if (now - _lastRequestTime > 15000) {
+                    resetPendingRequests();
+                }
+
                 // Обробка конкретних типів помилок
                 console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
 
@@ -756,6 +814,25 @@
         }
     }
 
+    // Додаємо автоматичне скидання старих запитів раз на хвилину
+    setInterval(() => {
+        const now = Date.now();
+
+        // Якщо є запити, які виконуються більше 30 секунд, скидаємо їх
+        let hasLongRunningRequests = false;
+        for (const [key, time] of Object.entries(_lastRequestsByEndpoint)) {
+            if (now - time > 30000) {
+                hasLongRunningRequests = true;
+                delete _lastRequestsByEndpoint[key];
+                console.warn(`🔌 API: Скинуто старий запит: ${key}`);
+            }
+        }
+
+        if (hasLongRunningRequests) {
+            resetPendingRequests();
+        }
+    }, 60000);
+
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
     /**
@@ -765,6 +842,36 @@
      */
     async function getUserData(forceRefresh = false) {
         const isSettingsPage = window.location.pathname.includes('general.html');
+
+        // Перевірка чи пристрій онлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
+            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані");
+
+            // Якщо є кешовані дані, повертаємо їх
+            if (_userCache) {
+                return {status: 'success', data: _userCache, source: 'cache_offline'};
+            }
+
+            // В офлайн режимі на сторінці налаштувань повертаємо симульовані дані
+            if (isSettingsPage) {
+                return {
+                    status: 'success',
+                    data: DUMMY_USER_DATA,
+                    source: 'simulated_offline'
+                };
+            }
+
+            // Створюємо базові дані з localStorage
+            return {
+                status: 'success',
+                data: {
+                    telegram_id: getUserId() || 'unknown',
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_offline'
+            };
+        }
 
         // Використовуємо кеш, якщо можливо
         if (!forceRefresh && _userCache && (Date.now() - _userCacheTime < USER_CACHE_TTL)) {
@@ -833,7 +940,23 @@
                 };
             }
 
-            throw error;
+            // Якщо є кешовані дані, повертаємо їх
+            if (_userCache) {
+                return {status: 'success', data: _userCache, source: 'cache_after_error'};
+            }
+
+            // Створюємо базові дані з localStorage
+            const localData = {
+                telegram_id: id,
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            };
+
+            return {
+                status: 'success',
+                data: localData,
+                source: 'local_storage_fallback'
+            };
         }
     }
 
@@ -846,7 +969,36 @@
             throw new Error("ID користувача не знайдено");
         }
 
-        return apiRequest(`user/${userId}/balance`);
+        // Перевірка чи пристрій онлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
+
+            // Повертаємо дані з localStorage
+            return {
+                status: 'success',
+                data: {
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_offline'
+            };
+        }
+
+        try {
+            return await apiRequest(`user/${userId}/balance`);
+        } catch (error) {
+            console.error("🔌 API: Помилка отримання балансу:", error);
+
+            // Повертаємо дані з localStorage при помилці
+            return {
+                status: 'success',
+                data: {
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_fallback'
+            };
+        }
     }
 
     // ======== ФУНКЦІЇ ДЛЯ СТЕЙКІНГУ ========
@@ -963,9 +1115,13 @@
                     // Спробуємо отримати з localStorage
                     const stakingDataStr = localStorage.getItem('stakingData') || localStorage.getItem('winix_staking');
                     if (stakingDataStr) {
-                        const localData = JSON.parse(stakingDataStr);
-                        if (localData && localData.stakingId) {
-                            targetStakingId = localData.stakingId;
+                        try {
+                            const localData = JSON.parse(stakingDataStr);
+                            if (localData && localData.stakingId) {
+                                targetStakingId = localData.stakingId;
+                            }
+                        } catch (e) {
+                            console.warn("🔌 API: Помилка парсингу даних стейкінгу з localStorage:", e);
                         }
                     }
                 }
