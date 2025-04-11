@@ -1,851 +1,479 @@
 /**
- * stats.js - Модуль для роботи зі статистикою розіграшів
- * Відповідає за обчислення і відображення статистики розіграшів для користувача
+ * stats.js - Модуль для роботи зі статистикою розіграшів WINIX
+ * Відповідає за збір, розрахунок та відображення статистики розіграшів.
  */
 
-import { formatCurrency, formatNumber } from './formatters.js';
-import { showToast } from '../../ui.js';
-import WinixAPI from '../../api.js';
+import WinixRaffles from '../globals.js';
+import api from '../services/api.js';
+import { showToast } from '../utils/ui-helpers.js';
+import { formatCurrency, formatNumber } from '../utils/formatters.js';
 
-class RaffleStats {
+// Ключі для кешування
+const CACHE_KEYS = {
+    USER_STATS: 'user_statistics',
+    GLOBAL_STATS: 'global_statistics',
+    LAST_UPDATE: 'stats_last_update'
+};
+
+// Визначення елементів UI для оновлення
+const UI_ELEMENTS = {
+    totalParticipated: 'total-participated',
+    totalWins: 'total-wins',
+    totalWinixWon: 'total-winix-won',
+    totalTokensSpent: 'total-tokens-spent'
+};
+
+// Інтервал оновлення статистики (мілісекунди)
+const STATS_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 хвилин
+
+/**
+ * Клас для роботи зі статистикою розіграшів
+ */
+class StatisticsModule {
+    /**
+     * Конструктор класу
+     */
     constructor() {
-        this._statsData = null;
-        this._charts = {};
-        this._isLoading = false;
-        this._lastUpdate = 0;
-        this._updateInterval = 300000; // 5 хвилин
+        // Прапорець ініціалізації
+        this._initialized = false;
+
+        // Поточні дані статистики
+        this._currentStats = null;
+
+        // Прапорець для індикації процесу оновлення
+        this._isUpdating = false;
+
+        // Час останнього оновлення
+        this._lastUpdateTime = 0;
     }
 
     /**
-     * Отримання персональної статистики розіграшів користувача
-     * @param {boolean} forceRefresh - Примусове оновлення даних
-     * @returns {Promise<Object>} - Дані статистики
+     * Ініціалізація модуля
      */
-    async getUserRaffleStats(forceRefresh = false) {
-        try {
-            const now = Date.now();
-
-            // Перевіряємо кеш, якщо не потрібно примусове оновлення
-            if (!forceRefresh && this._statsData && (now - this._lastUpdate < this._updateInterval)) {
-                console.log("📋 Raffles Stats: Використання кешованих даних статистики");
-                return this._statsData;
-            }
-
-            if (this._isLoading) {
-                console.log("⏳ Raffles Stats: Завантаження вже виконується");
-                return this._statsData;
-            }
-
-            this._isLoading = true;
-            this._showStatsLoader();
-
-            // Отримуємо ID користувача
-            const userId = await WinixAPI.getUserId();
-            if (!userId) {
-                throw new Error('ID користувача не знайдено');
-            }
-
-            // Отримуємо дані з API
-            const response = await WinixAPI.apiRequest(`/api/user/${userId}/stats/raffles`, 'GET');
-
-            this._hideStatsLoader();
-            this._isLoading = false;
-            this._lastUpdate = now;
-
-            if (response.status === 'success') {
-                this._statsData = response.data || {};
-                console.log(`✅ Raffle Stats: Отримано дані статистики користувача`, this._statsData);
-                return this._statsData;
-            } else {
-                throw new Error(response.message || 'Помилка отримання статистики розіграшів');
-            }
-        } catch (error) {
-            console.error('❌ Помилка отримання статистики розіграшів:', error);
-            this._hideStatsLoader();
-            this._isLoading = false;
-            showToast('Помилка завантаження статистики: ' + error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Відображення статистики користувача
-     * @param {string} containerId - ID контейнера для відображення
-     * @param {boolean} forceRefresh - Примусове оновлення даних
-     */
-    async displayUserStats(containerId = 'user-stats-container', forceRefresh = false) {
-        const container = document.getElementById(containerId);
-        if (!container) {
-            console.error(`Контейнер з ID '${containerId}' не знайдено`);
+    init() {
+        if (this._initialized) {
             return;
         }
 
-        try {
-            // Отримуємо дані статистики
-            const stats = await this.getUserRaffleStats(forceRefresh);
-
-            if (!stats) {
-                container.innerHTML = this._createErrorMessageHTML(containerId);
-                return;
-            }
-
-            // Формуємо HTML для відображення
-            container.innerHTML = this._createUserStatsHTML(stats);
-
-            // Додаємо обробники подій
-            this._addUserStatsEventListeners(containerId);
-
-            // Якщо доступні графіки, ініціалізуємо їх
-            if (typeof Chart !== 'undefined') {
-                this._initUserCharts(stats);
-            } else {
-                console.warn("Chart.js не знайдено, графіки не будуть відображені");
-            }
-        } catch (error) {
-            console.error('Помилка відображення статистики:', error);
-            container.innerHTML = this._createErrorMessageHTML(containerId);
-        }
-    }
-
-    /**
-     * Отримання історії розіграшів за період
-     * @param {string} period - Період (week, month, year, all)
-     * @returns {Promise<Object>} - Дані історії
-     */
-    async getRaffleHistory(period = 'month') {
-        try {
-            this._showStatsLoader();
-
-            // Отримуємо ID користувача
-            const userId = await WinixAPI.getUserId();
-            if (!userId) {
-                throw new Error('ID користувача не знайдено');
-            }
-
-            // Отримуємо дані з API
-            const response = await WinixAPI.apiRequest(`/api/user/${userId}/stats/raffles/history?period=${period}`, 'GET');
-
-            this._hideStatsLoader();
-
-            if (response.status === 'success') {
-                console.log(`✅ Raffle Stats: Отримано історію розіграшів за період ${period}`, response.data);
-                return response.data || {};
-            } else {
-                throw new Error(response.message || 'Помилка отримання історії розіграшів');
-            }
-        } catch (error) {
-            console.error(`❌ Помилка отримання історії розіграшів за період ${period}:`, error);
-            this._hideStatsLoader();
-            showToast('Помилка завантаження історії: ' + error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Оновлення статистики користувача
-     * @param {string} containerId - ID контейнера
-     */
-    async refreshStats(containerId = 'user-stats-container') {
-        await this.displayUserStats(containerId, true);
-    }
-
-    /**
-     * Експорт даних статистики
-     */
-    async exportStatsData() {
-        if (!this._statsData) {
-            showToast('Немає даних для експорту');
-            return;
-        }
+        console.log("📊 Stats: Ініціалізація модуля статистики");
 
         try {
-            // Генеруємо дані для CSV
-            let csvContent = "data:text/csv;charset=utf-8,";
+            // Спочатку отримуємо кешовані дані
+            this._currentStats = this._getStatsFromCache();
 
-            // Заголовок CSV з часом експорту
-            const now = new Date();
-            csvContent += `WINIX Raffle Stats - Export Date: ${now.toLocaleString()}\r\n\r\n`;
+            // Оновлюємо відображення з кешованими даними
+            if (this._currentStats) {
+                this.updateStatisticsDisplay(this._currentStats);
+            }
 
-            // Додаємо основні метрики
-            csvContent += "Metric,Value\r\n";
+            // Завантажуємо свіжі дані з сервера
+            this.fetchStatistics().then(stats => {
+                // Оновлюємо статистику
+                this._currentStats = stats;
+                this.updateStatisticsDisplay(stats);
+            });
 
-            // Додаємо всі дані зі statsData
-            Object.entries(this._statsData).forEach(([key, value]) => {
-                // Пропускаємо складні об'єкти
-                if (typeof value !== 'object') {
-                    csvContent += `${key},${value}\r\n`;
+            // Обробник подій для оновлення історії розіграшів
+            document.addEventListener('raffle-history-loaded', (event) => {
+                if (event.detail && Array.isArray(event.detail.history)) {
+                    this.updateStatsFromHistory(event.detail.history);
                 }
             });
 
-            // Створюємо посилання для завантаження
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `raffle_stats_${now.toISOString().split('T')[0]}.csv`);
-            document.body.appendChild(link);
-
-            // Клікаємо на посилання для запуску завантаження
-            link.click();
-
-            // Видаляємо посилання
-            document.body.removeChild(link);
-
-            // Показуємо повідомлення про успіх
-            showToast('Статистику успішно експортовано');
-        } catch (error) {
-            console.error('Помилка експорту статистики:', error);
-            showToast('Не вдалося експортувати статистику');
-        }
-    }
-
-    /**
-     * Створення HTML для статистики користувача
-     * @param {Object} stats - Дані статистики
-     * @returns {string} - HTML-розмітка
-     */
-    _createUserStatsHTML(stats) {
-        return `
-            <div class="stats-dashboard user-stats">
-                <div class="stats-header">
-                    <h2 class="stats-title">Ваша статистика розіграшів</h2>
-                    <button class="stats-refresh-btn" id="refresh-stats-btn">
-                        <span class="refresh-icon">🔄</span> Оновити
-                    </button>
-                </div>
-                
-                <div class="stats-summary">
-                    <div class="stats-card">
-                        <div class="stats-card-value">${stats.total_participated || 0}</div>
-                        <div class="stats-card-label">Всього розіграшів</div>
-                        <div class="stats-card-icon">🎮</div>
-                    </div>
-                    <div class="stats-card">
-                        <div class="stats-card-value">${stats.wins_count || 0}</div>
-                        <div class="stats-card-label">Перемог</div>
-                        <div class="stats-card-icon">🏆</div>
-                    </div>
-                    <div class="stats-card">
-                        <div class="stats-card-value">${formatCurrency(stats.total_winix_won || 0)}</div>
-                        <div class="stats-card-label">WINIX виграно</div>
-                        <div class="stats-card-icon">💰</div>
-                    </div>
-                    <div class="stats-card">
-                        <div class="stats-card-value">${stats.total_tokens_spent || 0}</div>
-                        <div class="stats-card-label">Витрачено жетонів</div>
-                        <div class="stats-card-icon">🎟️</div>
-                    </div>
-                </div>
-                
-                <div class="stats-section">
-                    <h3 class="stats-section-title">Розподіл участі в розіграшах</h3>
-                    <div class="stats-charts">
-                        <div class="stats-chart-container">
-                            <canvas id="raffle-types-chart"></canvas>
-                        </div>
-                        <div class="stats-chart-container">
-                            <canvas id="raffle-status-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="stats-section">
-                    <h3 class="stats-section-title">Історія участі в розіграшах</h3>
-                    <div class="stats-period-selector" id="history-period-selector">
-                        <button class="period-btn" data-period="week">Тиждень</button>
-                        <button class="period-btn active" data-period="month">Місяць</button>
-                        <button class="period-btn" data-period="year">Рік</button>
-                        <button class="period-btn" data-period="all">Всі</button>
-                    </div>
-                    <div class="stats-chart-container large-chart">
-                        <canvas id="participation-history-chart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="stats-insights">
-                    <h3 class="stats-section-title">Статистичні висновки</h3>
-                    <div class="insights-container" id="user-insights-container">
-                        <div class="insight-item">
-                            <div class="insight-icon">🏆</div>
-                            <div class="insight-content">
-                                <div class="insight-title">Успішність участі</div>
-                                <div class="insight-value">${this._calculateWinRate(stats)}%</div>
-                                <div class="insight-description">перемог від усіх участей</div>
-                            </div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-icon">📈</div>
-                            <div class="insight-content">
-                                <div class="insight-title">Ефективність жетонів</div>
-                                <div class="insight-value">${this._calculateTokenEfficiency(stats)}</div>
-                                <div class="insight-description">WINIX за 1 жетон</div>
-                            </div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-icon">🎟️</div>
-                            <div class="insight-content">
-                                <div class="insight-title">Середня участь</div>
-                                <div class="insight-value">${this._calculateAvgTokensPerRaffle(stats)}</div>
-                                <div class="insight-description">жетонів на розіграш</div>
-                            </div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-icon">⭐</div>
-                            <div class="insight-content">
-                                <div class="insight-title">Найкраще місце</div>
-                                <div class="insight-value">${stats.best_place || '-'}</div>
-                                <div class="insight-description">найвища позиція</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="stats-achievements">
-                    <h3 class="stats-section-title">Досягнення</h3>
-                    <div class="achievements-grid">
-                        ${this._generateAchievementsHTML(stats.achievements || {})}
-                    </div>
-                </div>
-
-                <div class="stats-footer">
-                    <button class="stats-export-btn" id="export-stats-btn">
-                        <span class="export-icon">📊</span> Експортувати статистику
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * Створення HTML для повідомлення про помилку
-     * @param {string} containerId - ID контейнера для відображення
-     * @returns {string} - HTML-розмітка
-     */
-    _createErrorMessageHTML(containerId) {
-        return `
-            <div class="stats-error">
-                <div class="stats-error-icon">❌</div>
-                <div class="stats-error-message">Не вдалося завантажити статистику розіграшів</div>
-                <button class="stats-retry-btn" onclick="window.rafflesModule.stats.refreshStats('${containerId}')">Спробувати ще раз</button>
-            </div>
-        `;
-    }
-
-    /**
-     * Додавання обробників подій для елементів статистики
-     * @param {string} containerId - ID контейнера для відображення
-     */
-    _addUserStatsEventListeners(containerId) {
-        // Обробник оновлення статистики
-        document.getElementById('refresh-stats-btn')?.addEventListener('click', () => {
-            this.refreshStats(containerId);
-        });
-
-        // Обробник експорту статистики
-        document.getElementById('export-stats-btn')?.addEventListener('click', () => {
-            this.exportStatsData();
-        });
-
-        // Обробник для кнопок періоду історії
-        document.querySelectorAll('#history-period-selector .period-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                // Знімаємо активний клас з усіх кнопок
-                document.querySelectorAll('#history-period-selector .period-btn').forEach(b => {
-                    b.classList.remove('active');
-                });
-
-                // Додаємо активний клас до натиснутої кнопки
-                btn.classList.add('active');
-
-                // Отримуємо вибраний період
-                const period = btn.getAttribute('data-period');
-
-                // Оновлюємо графік історії
-                await this._updateHistoryChart(period);
+            // Обробник подій для участі в розіграшах
+            document.addEventListener('raffle-participated', (event) => {
+                if (event.detail) {
+                    this.updateParticipationStats(event.detail.tokensSpent || 0);
+                }
             });
+
+            // Обробник подій для виграшів
+            document.addEventListener('raffle-win', (event) => {
+                if (event.detail) {
+                    this.updateWinStats(
+                        event.detail.winixAmount || 0,
+                        event.detail.raffleId,
+                        event.detail.details
+                    );
+                }
+            });
+
+            this._initialized = true;
+            console.log("✅ Stats: Модуль статистики успішно ініціалізовано");
+        } catch (error) {
+            console.error("❌ Stats: Помилка ініціалізації модуля статистики:", error);
+        }
+    }
+
+    /**
+     * Отримання елемента DOM
+     * @param {string} id - ID елемента
+     * @returns {HTMLElement|null} - Елемент DOM або null, якщо не знайдено
+     * @private
+     */
+    _getElement(id) {
+        return document.getElementById(id);
+    }
+
+    /**
+     * Безпечне оновлення текстового вмісту елемента
+     * @param {string} id - ID елемента
+     * @param {string|number} value - Нове значення
+     * @param {Function} formatter - Функція форматування (необов'язково)
+     * @private
+     */
+    _updateElementText(id, value, formatter = null) {
+        const element = this._getElement(id);
+        if (element) {
+            const formattedValue = formatter ? formatter(value) : value;
+            element.textContent = formattedValue;
+        }
+    }
+
+    /**
+     * Отримання статистики з кешу
+     * @returns {Object|null} Об'єкт статистики або null
+     * @private
+     */
+    _getStatsFromCache() {
+        // Перевіряємо наявність WinixCache
+        if (window.WinixCache && typeof window.WinixCache.get === 'function') {
+            return window.WinixCache.get('STATS', CACHE_KEYS.USER_STATS);
+        } else {
+            // Резервний варіант - використання localStorage напряму
+            try {
+                const cachedData = localStorage.getItem('winix_stats');
+                return cachedData ? JSON.parse(cachedData) : null;
+            } catch (e) {
+                console.warn("⚠️ Stats: Помилка читання кешу статистики:", e);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Збереження статистики в кеш
+     * @param {Object} stats - Об'єкт статистики
+     * @private
+     */
+    _saveStatsToCache(stats) {
+        // Перевіряємо наявність WinixCache
+        if (window.WinixCache && typeof window.WinixCache.set === 'function') {
+            window.WinixCache.set('STATS', CACHE_KEYS.USER_STATS, stats);
+            window.WinixCache.set('STATS', CACHE_KEYS.LAST_UPDATE, Date.now());
+        } else {
+            // Резервний варіант - використання localStorage напряму
+            try {
+                localStorage.setItem('winix_stats', JSON.stringify(stats));
+                localStorage.setItem('winix_stats_updated', Date.now().toString());
+            } catch (e) {
+                console.warn("⚠️ Stats: Помилка збереження кешу статистики:", e);
+            }
+        }
+    }
+
+    /**
+     * Отримання даних статистики з API
+     * @param {boolean} forceRefresh - Примусове оновлення
+     * @returns {Promise<Object>} Проміс з даними статистики
+     */
+    async fetchStatistics(forceRefresh = false) {
+        // Перевіряємо, чи не відбувається вже оновлення
+        if (this._isUpdating) {
+            console.log("⏳ Stats: Оновлення статистики вже виконується");
+            return this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
+        }
+
+        // Перевіряємо, чи потрібно оновлювати дані
+        const now = Date.now();
+        if (!forceRefresh && this._lastUpdateTime > 0 && (now - this._lastUpdateTime) < STATS_UPDATE_INTERVAL) {
+            console.log("⏳ Stats: Використання кешованої статистики");
+            return this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
+        }
+
+        this._isUpdating = true;
+
+        try {
+            // Перевіряємо наявність API
+            if (!api || typeof api.apiRequest !== 'function') {
+                throw new Error("API недоступне");
+            }
+
+            // Отримуємо ID користувача
+            const userId = api.getUserId();
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
+            }
+
+            // Виконуємо запит до API
+            const response = await api.apiRequest(`/api/user/${userId}/statistics`, 'GET', null, {
+                timeout: 10000,
+                suppressErrors: true
+            });
+
+            if (response.status === 'success' && response.data) {
+                // Оновлюємо статистику
+                this._currentStats = response.data;
+                this._lastUpdateTime = now;
+
+                // Зберігаємо в кеш
+                this._saveStatsToCache(this._currentStats);
+
+                return this._currentStats;
+            } else {
+                throw new Error(response.message || "Помилка отримання статистики");
+            }
+        } catch (error) {
+            console.warn("⚠️ Stats: Помилка отримання статистики:", error.message);
+
+            // Якщо є кешована статистика - використовуємо її
+            const cachedStats = this._getStatsFromCache();
+            if (cachedStats) {
+                console.log("📋 Stats: Використання кешованої статистики після помилки");
+                return cachedStats;
+            }
+
+            // Якщо немає кешу - повертаємо стандартні значення
+            return this.getDefaultStats();
+        } finally {
+            this._isUpdating = false;
+        }
+    }
+
+    /**
+     * Отримання статистики за замовчуванням
+     * @returns {Object} Об'єкт статистики з нульовими значеннями
+     */
+    getDefaultStats() {
+        return {
+            totalParticipated: 0,
+            totalWins: 0,
+            totalWinixWon: 0,
+            totalTokensSpent: 0,
+            winRate: 0,
+            lastRaffle: null,
+            lastWin: null
+        };
+    }
+
+    /**
+     * Розрахунок додаткової статистики
+     * @param {Object} basicStats - Базова статистика
+     * @returns {Object} Розширена статистика
+     */
+    calculateExtendedStats(basicStats) {
+        const stats = { ...basicStats };
+
+        // Розрахунок відсотка виграшів
+        if (stats.totalParticipated > 0) {
+            stats.winRate = (stats.totalWins / stats.totalParticipated) * 100;
+        } else {
+            stats.winRate = 0;
+        }
+
+        // Розрахунок середнього виграшу
+        if (stats.totalWins > 0) {
+            stats.averageWin = stats.totalWinixWon / stats.totalWins;
+        } else {
+            stats.averageWin = 0;
+        }
+
+        // Розрахунок ефективності витрат жетонів
+        if (stats.totalTokensSpent > 0) {
+            stats.tokenEfficiency = stats.totalWinixWon / stats.totalTokensSpent;
+        } else {
+            stats.tokenEfficiency = 0;
+        }
+
+        return stats;
+    }
+
+    /**
+     * Оновлення відображення статистики
+     * @param {Object} stats - Об'єкт статистики
+     */
+    updateStatisticsDisplay(stats) {
+        // Якщо немає статистики, використовуємо порожні значення
+        const data = stats || this.getDefaultStats();
+
+        // Оновлюємо елементи інтерфейсу
+        this._updateElementText(UI_ELEMENTS.totalParticipated, data.totalParticipated, formatNumber);
+        this._updateElementText(UI_ELEMENTS.totalWins, data.totalWins, formatNumber);
+        this._updateElementText(UI_ELEMENTS.totalWinixWon, data.totalWinixWon, formatCurrency);
+        this._updateElementText(UI_ELEMENTS.totalTokensSpent, data.totalTokensSpent, formatNumber);
+
+        // Генеруємо подію оновлення статистики
+        document.dispatchEvent(new CustomEvent('statistics-updated', {
+            detail: data
+        }));
+    }
+
+    /**
+     * Оновлення статистики на основі участі в розіграші
+     * @param {number} tokensSpent - Кількість витрачених жетонів
+     */
+    updateParticipationStats(tokensSpent) {
+        // Отримуємо поточну статистику
+        const stats = this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
+
+        // Оновлюємо лічильники
+        stats.totalParticipated = (stats.totalParticipated || 0) + 1;
+        stats.totalTokensSpent = (stats.totalTokensSpent || 0) + tokensSpent;
+
+        // Зберігаємо оновлену статистику
+        this._currentStats = stats;
+        this._saveStatsToCache(stats);
+
+        // Оновлюємо відображення
+        this.updateStatisticsDisplay(stats);
+    }
+
+    /**
+     * Оновлення статистики на основі виграшу в розіграші
+     * @param {number} winixAmount - Кількість виграних WINIX
+     * @param {string} raffleId - ID розіграшу
+     * @param {Object} raffleDetails - Деталі розіграшу
+     */
+    updateWinStats(winixAmount, raffleId, raffleDetails = {}) {
+        // Отримуємо поточну статистику
+        const stats = this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
+
+        // Оновлюємо лічильники
+        stats.totalWins = (stats.totalWins || 0) + 1;
+        stats.totalWinixWon = (stats.totalWinixWon || 0) + winixAmount;
+        stats.lastWin = {
+            date: new Date().toISOString(),
+            amount: winixAmount,
+            raffleId: raffleId,
+            details: raffleDetails
+        };
+
+        // Зберігаємо оновлену статистику
+        this._currentStats = stats;
+        this._saveStatsToCache(stats);
+
+        // Оновлюємо відображення
+        this.updateStatisticsDisplay(stats);
+    }
+
+    /**
+     * Оновлення статистики на основі історії розіграшів
+     * @param {Array} history - Масив історії розіграшів
+     */
+    updateStatsFromHistory(history) {
+        if (!Array.isArray(history) || history.length === 0) {
+            return;
+        }
+
+        // Отримуємо поточну статистику
+        const stats = this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
+
+        // Підрахунок статистики з історії
+        let participated = 0;
+        let wins = 0;
+        let winixWon = 0;
+        let tokensSpent = 0;
+
+        history.forEach(item => {
+            // Рахуємо участь
+            participated++;
+
+            // Додаємо витрачені жетони
+            if (item.tokensSpent) {
+                tokensSpent += parseInt(item.tokensSpent);
+            }
+
+            // Рахуємо виграші
+            if (item.won || item.result === 'win' || (item.prize && parseInt(item.prize) > 0)) {
+                wins++;
+
+                // Додаємо виграні WINIX
+                if (item.prize) {
+                    winixWon += parseInt(item.prize);
+                }
+            }
         });
+
+        // Оновлюємо статистику, якщо вона більша за поточну
+        stats.totalParticipated = Math.max(stats.totalParticipated || 0, participated);
+        stats.totalWins = Math.max(stats.totalWins || 0, wins);
+        stats.totalWinixWon = Math.max(stats.totalWinixWon || 0, winixWon);
+        stats.totalTokensSpent = Math.max(stats.totalTokensSpent || 0, tokensSpent);
+
+        // Зберігаємо оновлену статистику
+        this._currentStats = stats;
+        this._saveStatsToCache(stats);
+
+        // Оновлюємо відображення
+        this.updateStatisticsDisplay(stats);
     }
 
     /**
-     * Ініціалізація графіків для панелі користувача
-     * @param {Object} stats - Дані статистики користувача
+     * Синхронізація локальної статистики з сервером
+     * @returns {Promise<Object>} Об'єкт із синхронізованою статистикою
      */
-    _initUserCharts(stats) {
-        if (typeof Chart === 'undefined') {
-            console.warn("Chart.js не знайдено, графіки не будуть відображені");
-            return;
-        }
+    async syncStatisticsWithServer() {
+        try {
+            // Отримуємо дані з сервера
+            const serverStats = await this.fetchStatistics(true);
 
-        // Графік типів розіграшів (пончик)
-        this._initRaffleTypesChart(stats);
+            // Отримуємо локальні дані
+            const localStats = this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
 
-        // Графік статусів розіграшів (пончик)
-        this._initRaffleStatusChart(stats);
+            // Об'єднуємо дані (використовуємо вищі значення)
+            const mergedStats = {
+                totalParticipated: Math.max(serverStats.totalParticipated || 0, localStats.totalParticipated || 0),
+                totalWins: Math.max(serverStats.totalWins || 0, localStats.totalWins || 0),
+                totalWinixWon: Math.max(serverStats.totalWinixWon || 0, localStats.totalWinixWon || 0),
+                totalTokensSpent: Math.max(serverStats.totalTokensSpent || 0, localStats.totalTokensSpent || 0),
+                lastWin: serverStats.lastWin || localStats.lastWin,
+                lastRaffle: serverStats.lastRaffle || localStats.lastRaffle
+            };
 
-        // Графік історії участі (лінійний)
-        // Початково завантажуємо дані за місяць
-        this._updateHistoryChart('month');
-    }
+            // Розраховуємо розширену статистику
+            const extendedStats = this.calculateExtendedStats(mergedStats);
 
-    /**
-     * Ініціалізація графіка типів розіграшів
-     * @param {Object} stats - Дані статистики користувача
-     */
-    _initRaffleTypesChart(stats) {
-        const ctx = document.getElementById('raffle-types-chart');
-        if (!ctx) return;
+            // Зберігаємо оновлену статистику
+            this._currentStats = extendedStats;
+            this._saveStatsToCache(extendedStats);
 
-        // Підготовка даних
-        const typeData = {
-            labels: ['Щоденні', 'Джекпот'],
-            datasets: [{
-                data: [
-                    stats.daily_participated || 0,
-                    stats.jackpot_participated || 0
-                ],
-                backgroundColor: [
-                    'rgba(33, 150, 243, 1)',
-                    'rgba(0, 201, 167, 1)'
-                ],
-                borderWidth: 0,
-                hoverOffset: 4
-            }]
-        };
+            // Оновлюємо відображення
+            this.updateStatisticsDisplay(extendedStats);
 
-        // Налаштування графіка
-        const config = {
-            type: 'doughnut',
-            data: typeData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: {
-                            color: 'white',
-                            font: {
-                                size: 12
-                            },
-                            padding: 20
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Типи розіграшів',
-                        color: 'white',
-                        font: {
-                            size: 16
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 20
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.raw || 0;
-                                const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                                return `${label}: ${value} (${percentage}%)`;
-                            }
-                        }
-                    }
-                },
-                cutout: '60%'
-            }
-        };
+            console.log("✅ Stats: Статистику успішно синхронізовано з сервером");
 
-        // Створюємо графік
-        if (this._charts.typeChart) {
-            this._charts.typeChart.destroy();
-        }
-
-        this._charts.typeChart = new Chart(ctx, config);
-    }
-
-    /**
-     * Ініціалізація графіка статусів розіграшів
-     * @param {Object} stats - Дані статистики користувача
-     */
-    _initRaffleStatusChart(stats) {
-        const ctx = document.getElementById('raffle-status-chart');
-        if (!ctx) return;
-
-        // Підготовка даних
-        const statusData = {
-            labels: ['Перемоги', 'Участь без перемоги'],
-            datasets: [{
-                data: [
-                    stats.wins_count || 0,
-                    (stats.total_participated || 0) - (stats.wins_count || 0)
-                ],
-                backgroundColor: [
-                    'rgba(255, 215, 0, 1)',
-                    'rgba(78, 181, 247, 1)'
-                ],
-                borderWidth: 0,
-                hoverOffset: 4
-            }]
-        };
-
-        // Налаштування графіка
-        const config = {
-            type: 'doughnut',
-            data: statusData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right',
-                        labels: {
-                            color: 'white',
-                            font: {
-                                size: 12
-                            },
-                            padding: 20
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Результати участі',
-                        color: 'white',
-                        font: {
-                            size: 16
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 20
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.raw || 0;
-                                const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
-                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                                return `${label}: ${value} (${percentage}%)`;
-                            }
-                        }
-                    }
-                },
-                cutout: '60%'
-            }
-        };
-
-        // Створюємо графік
-        if (this._charts.statusChart) {
-            this._charts.statusChart.destroy();
-        }
-
-        this._charts.statusChart = new Chart(ctx, config);
-    }
-
-    /**
-     * Оновлення графіка історії участі
-     * @param {string} period - Період (week, month, year, all)
-     */
-    async _updateHistoryChart(period = 'month') {
-        const ctx = document.getElementById('participation-history-chart');
-        if (!ctx) return;
-
-        // Отримуємо дані історії за вказаний період
-        const historyData = await this.getRaffleHistory(period);
-        if (!historyData || !historyData.dates || !historyData.participation) {
-            return;
-        }
-
-        // Підготовка даних для графіка
-        const chartData = {
-            labels: historyData.dates,
-            datasets: [
-                {
-                    label: 'Всього участей',
-                    data: historyData.participation,
-                    borderColor: 'rgba(33, 150, 243, 1)',
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        const {ctx, chartArea} = chart;
-
-                        if (!chartArea) {
-                            return 'rgba(33, 150, 243, 1)';
-                        }
-
-                        // Створюємо градієнт
-                        const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-                        gradient.addColorStop(0, 'rgba(33, 150, 243, 0.1)');
-                        gradient.addColorStop(1, 'rgba(33, 150, 243, 0.4)');
-
-                        return gradient;
-                    },
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    yAxisID: 'y'
-                },
-                {
-                    label: 'Перемоги',
-                    data: historyData.wins || [],
-                    borderColor: 'rgba(255, 215, 0, 1)',
-                    backgroundColor: 'rgba(255, 215, 0, 1)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.4,
-                    pointStyle: 'rect',
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    yAxisID: 'y1'
-                }
-            ]
-        };
-
-        // Налаштування графіка
-        const config = {
-            type: 'line',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            color: 'white',
-                            font: {
-                                size: 12
-                            },
-                            padding: 20,
-                            usePointStyle: true
-                        }
-                    },
-                    title: {
-                        display: true,
-                        text: `Історія участі в розіграшах (${this._getPeriodName(period)})`,
-                        color: 'white',
-                        font: {
-                            size: 16
-                        },
-                        padding: {
-                            top: 10,
-                            bottom: 20
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: function(tooltipItems) {
-                                return tooltipItems[0].label;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
-                        },
-                        ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)'
-                        }
-                    },
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Кількість участей',
-                            color: 'rgba(255, 255, 255, 0.7)'
-                        },
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
-                        },
-                        ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)'
-                        }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Кількість перемог',
-                            color: 'rgba(255, 255, 255, 0.7)'
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                            color: 'rgba(255, 255, 255, 0.1)'
-                        },
-                        ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)'
-                        }
-                    }
-                }
-            }
-        };
-
-        // Створюємо або оновлюємо графік
-        if (this._charts.historyChart) {
-            this._charts.historyChart.destroy();
-        }
-
-        this._charts.historyChart = new Chart(ctx, config);
-    }
-
-    /**
-     * Генерування HTML для досягнень користувача
-     * @param {Object} achievements - Об'єкт з досягненнями
-     * @returns {string} - HTML-розмітка
-     */
-    _generateAchievementsHTML(achievements) {
-        if (Object.keys(achievements).length === 0) {
-            return `
-                <div class="empty-achievements">
-                    <div class="empty-icon">🏆</div>
-                    <p>Досягнення поки відсутні. Беріть участь у розіграшах, щоб розблокувати досягнення!</p>
-                </div>
-            `;
-        }
-
-        return Object.entries(achievements).map(([id, achievement]) => {
-            const isUnlocked = achievement.unlocked;
-            const progressText = achievement.progress_type === 'count'
-                ? `${achievement.current_progress}/${achievement.required_progress}`
-                : `${achievement.current_progress}%`;
-
-            const progressWidth = Math.min(100, Math.max(0,
-                achievement.progress_type === 'count'
-                    ? (achievement.current_progress / achievement.required_progress) * 100
-                    : achievement.current_progress
-            ));
-
-            return `
-                <div class="achievement-card ${isUnlocked ? 'unlocked' : 'locked'}">
-                    <div class="achievement-icon">${achievement.icon}</div>
-                    <div class="achievement-info">
-                        <div class="achievement-title">
-                            ${achievement.title}
-                            ${!isUnlocked ? '<span class="lock-icon">🔒</span>' : ''}
-                        </div>
-                        <div class="achievement-description">${achievement.description}</div>
-                        <div class="achievement-progress-bar">
-                            <div class="achievement-progress" style="width: ${progressWidth}%"></div>
-                        </div>
-                        <div class="achievement-progress-text">${progressText}</div>
-                    </div>
-                    <div class="achievement-reward">
-                        <div class="reward-label">Нагорода:</div>
-                        <div class="reward-value">${achievement.reward}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    /**
-     * Обчислення відсотка перемог
-     * @param {Object} stats - Дані статистики користувача
-     * @returns {number} - Відсоток перемог
-     */
-    _calculateWinRate(stats) {
-        const totalParticipated = stats.total_participated || 0;
-        const winsCount = stats.wins_count || 0;
-
-        if (totalParticipated === 0) return 0;
-        return Math.round((winsCount / totalParticipated) * 100);
-    }
-
-    /**
-     * Обчислення ефективності жетонів (WINIX на 1 жетон)
-     * @param {Object} stats - Дані статистики користувача
-     * @returns {string} - Ефективність жетонів
-     */
-    _calculateTokenEfficiency(stats) {
-        const totalWinixWon = stats.total_winix_won || 0;
-        const totalTokensSpent = stats.total_tokens_spent || 0;
-
-        if (totalTokensSpent === 0) return '0';
-        return (totalWinixWon / totalTokensSpent).toFixed(2);
-    }
-
-    /**
-     * Обчислення середньої кількості жетонів на розіграш
-     * @param {Object} stats - Дані статистики користувача
-     * @returns {string} - Середня кількість жетонів
-     */
-    _calculateAvgTokensPerRaffle(stats) {
-        const totalTokensSpent = stats.total_tokens_spent || 0;
-        const totalParticipated = stats.total_participated || 0;
-
-        if (totalParticipated === 0) return '0';
-        return (totalTokensSpent / totalParticipated).toFixed(1);
-    }
-
-    /**
-     * Отримання назви періоду
-     * @param {string} period - Код періоду
-     * @returns {string} - Назва періоду
-     */
-    _getPeriodName(period) {
-        switch (period) {
-            case 'week': return 'тиждень';
-            case 'month': return 'місяць';
-            case 'year': return 'рік';
-            case 'all': return 'весь час';
-            default: return period;
-        }
-    }
-
-    /**
-     * Показати індикатор завантаження для статистики
-     */
-    _showStatsLoader() {
-        if (typeof window.showLoading === 'function') {
-            window.showLoading('Завантаження статистики...');
-            return;
-        }
-
-        // Запасний варіант, якщо глобальна функція відсутня
-        let loader = document.getElementById('stats-loader');
-
-        if (!loader) {
-            loader = document.createElement('div');
-            loader.id = 'stats-loader';
-            loader.className = 'stats-loader';
-            loader.innerHTML = `
-                <div class="loader-spinner"></div>
-                <div class="loader-text">Завантаження статистики...</div>
-            `;
-            document.body.appendChild(loader);
-        }
-
-        loader.style.display = 'flex';
-    }
-
-    /**
-     * Приховати індикатор завантаження для статистики
-     */
-    _hideStatsLoader() {
-        if (typeof window.hideLoading === 'function') {
-            window.hideLoading();
-            return;
-        }
-
-        // Запасний варіант, якщо глобальна функція відсутня
-        const loader = document.getElementById('stats-loader');
-        if (loader) {
-            loader.style.display = 'none';
+            return extendedStats;
+        } catch (error) {
+            console.warn("⚠️ Stats: Помилка синхронізації статистики:", error);
+            return this._currentStats;
         }
     }
 }
 
-export default new RaffleStats();
+// Створюємо екземпляр класу
+const statisticsModule = new StatisticsModule();
+
+// Додаємо в глобальний об'єкт для зворотної сумісності
+WinixRaffles.stats = statisticsModule;
+
+// Автоматична ініціалізація
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => statisticsModule.init());
+} else {
+    setTimeout(() => statisticsModule.init(), 100);
+}
+
+// Підписуємося на події WinixCore
+document.addEventListener('winix-initialized', function() {
+    console.log("🔄 Stats: WinixCore ініціалізовано, оновлюємо статистику");
+    setTimeout(() => {
+        if (!statisticsModule._initialized) {
+            statisticsModule.init();
+        } else {
+            // Оновлюємо статистику
+            statisticsModule.fetchStatistics().then(stats => statisticsModule.updateStatisticsDisplay(stats));
+        }
+    }, 500);
+});
+
+export default statisticsModule;

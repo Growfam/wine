@@ -3,7 +3,7 @@
  * Надає функції для управління та аналізу учасників розіграшів
  */
 
-import WinixAPI, { adminAPI } from '../services/api.js';
+import api from '../services/api.js';
 import { showToast } from '../utils/ui-helpers.js';
 import { formatDate } from '../utils/formatters.js';
 
@@ -48,9 +48,9 @@ class RaffleParticipants {
 
         try {
             // Перевіряємо, чи є доступ до адмін API
-            if (adminAPI.getAdminId()) {
+            if (api.getAdminId && api.getAdminId()) {
                 // Якщо є доступ адміністратора, використовуємо адмін API
-                const response = await adminAPI.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
+                const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
 
                 this._isLoading = false;
                 this._hideLoader();
@@ -65,12 +65,12 @@ class RaffleParticipants {
                 }
             } else {
                 // Якщо немає доступу адміністратора, використовуємо звичайний API
-                const userId = WinixAPI.getUserId();
+                const userId = api.getUserId();
                 if (!userId) {
                     throw new Error('ID користувача не знайдено');
                 }
 
-                const response = await WinixAPI.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
+                const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
 
                 this._isLoading = false;
                 this._hideLoader();
@@ -107,7 +107,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!adminAPI.getAdminId()) {
+        if (!api.getAdminId || !api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return null;
         }
@@ -116,7 +116,7 @@ class RaffleParticipants {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/participants`, 'POST', {
+            const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'POST', {
                 user_id: userId,
                 entry_count: entryCount
             });
@@ -153,7 +153,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!adminAPI.getAdminId()) {
+        if (!api.getAdminId || !api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -162,7 +162,7 @@ class RaffleParticipants {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/participants/${participantId}`, 'DELETE');
+            const response = await api.apiRequest(`/raffles/${raffleId}/participants/${participantId}`, 'DELETE');
 
             this._hideLoader();
 
@@ -196,7 +196,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!adminAPI.getAdminId()) {
+        if (!api.getAdminId || !api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -205,7 +205,7 @@ class RaffleParticipants {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/participants/${participantId}/refund`, 'POST');
+            const response = await api.apiRequest(`/raffles/${raffleId}/participants/${participantId}/refund`, 'POST');
 
             this._hideLoader();
 
@@ -241,7 +241,7 @@ class RaffleParticipants {
 
         try {
             // Виконуємо запит
-            const response = await WinixAPI.apiRequest(`/raffles/${raffleId}/winners`, 'GET');
+            const response = await api.apiRequest(`/raffles/${raffleId}/winners`, 'GET');
 
             this._hideLoader();
 
@@ -271,7 +271,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!adminAPI.getAdminId()) {
+        if (!api.getAdminId || !api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -280,7 +280,7 @@ class RaffleParticipants {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/winners`, 'PUT', { winners });
+            const response = await api.apiRequest(`/raffles/${raffleId}/winners`, 'PUT', { winners });
 
             this._hideLoader();
 

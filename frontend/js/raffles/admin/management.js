@@ -3,7 +3,7 @@
  * Надає функції для створення, редагування та управління розіграшами
  */
 
-import { adminAPI } from '../services/api.js';
+import api from '../services/api.js';
 import { showToast, showConfirm } from '../utils/ui-helpers.js';
 import { formatDate } from '../utils/formatters.js';
 
@@ -80,7 +80,7 @@ class RaffleManagement {
             }
 
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(url, 'GET');
+            const response = await api.apiRequest(url, 'GET');
 
             this._isLoading = false;
             this._hideLoader();
@@ -133,7 +133,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}`, 'GET');
+            const response = await api.apiRequest(`/raffles/${raffleId}`, 'GET');
 
             this._hideLoader();
 
@@ -176,7 +176,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest('/raffles', 'POST', raffleData);
+            const response = await api.apiRequest('/raffles', 'POST', raffleData);
 
             this._hideLoader();
 
@@ -215,7 +215,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}`, 'PUT', updateData);
+            const response = await api.apiRequest(`/raffles/${raffleId}`, 'PUT', updateData);
 
             this._hideLoader();
 
@@ -257,7 +257,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}`, 'DELETE');
+            const response = await api.apiRequest(`/raffles/${raffleId}`, 'DELETE');
 
             this._hideLoader();
 
@@ -299,7 +299,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/finish`, 'POST');
+            const response = await api.apiRequest(`/raffles/${raffleId}/finish`, 'POST');
 
             this._hideLoader();
 
@@ -335,7 +335,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
+            const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
 
             this._hideLoader();
 
@@ -361,7 +361,7 @@ class RaffleManagement {
 
         try {
             // Виконуємо запит
-            const response = await adminAPI.apiRequest('/raffles/check-expired', 'POST');
+            const response = await api.apiRequest('/raffles/check-expired', 'POST');
 
             this._hideLoader();
 
