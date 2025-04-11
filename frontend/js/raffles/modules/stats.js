@@ -29,6 +29,14 @@ const UI_ELEMENTS = {
 const CACHE_KEY = 'winix_user_statistics';
 
 /**
+ * Перевірка, чи пристрій онлайн
+ * @returns {boolean} Стан підключення
+ */
+function isOnline() {
+    return typeof navigator.onLine === 'undefined' || navigator.onLine;
+}
+
+/**
  * Клас для роботи зі статистикою розіграшів
  */
 class StatisticsModule {
@@ -47,8 +55,8 @@ class StatisticsModule {
                 this.updateStatisticsDisplay(_currentStats);
             }
 
-            // Завантажуємо свіжі дані з сервера
-            this.fetchStatistics().then(stats => {
+            // Завантажуємо свіжі дані
+            this.updateStatistics().then(stats => {
                 // Оновлюємо статистику
                 _currentStats = stats;
                 this.updateStatisticsDisplay(stats);
@@ -200,7 +208,7 @@ class StatisticsModule {
     }
 
     /**
-     * Отримання даних статистики з API
+     * Отримання даних статистики на основі історії розіграшів
      * @param {boolean} forceRefresh - Примусове оновлення
      * @returns {Promise<Object>} Проміс з даними статистики
      */
@@ -220,45 +228,61 @@ class StatisticsModule {
 
         _isUpdating = true;
 
-        // Використовуємо централізований лоадер
-        showLoading('Оновлення статистики...', 'stats-update');
-
         try {
-            // Отримуємо ID користувача
-            const userId = api.getUserId();
-            if (!userId) {
-                throw new Error("ID користувача не знайдено");
+            // Оскільки ендпоінту статистики немає - обчислюємо її на основі історії розіграшів
+            showLoading('Оновлення статистики...', 'stats-update');
+
+            // Отримуємо історію розіграшів
+            let history = [];
+
+            try {
+                // Отримуємо ID користувача
+                const userId = api.getUserId();
+                if (!userId) {
+                    throw new Error("ID користувача не знайдено");
+                }
+
+                // Спробуємо запитати історію розіграшів
+                const response = await api.getRafflesHistory({}, true);
+
+                if (Array.isArray(response)) {
+                    history = response;
+                } else if (response && response.data && Array.isArray(response.data)) {
+                    history = response.data;
+                }
+            } catch (historyError) {
+                console.warn("⚠️ Stats: Помилка отримання історії:", historyError.message);
+
+                // Якщо є доступ до модуля історії, спробуємо отримати дані з нього
+                if (WinixRaffles && WinixRaffles.history && typeof WinixRaffles.history.getRafflesHistory === 'function') {
+                    try {
+                        history = await WinixRaffles.history.getRafflesHistory({}, false);
+                    } catch (moduleError) {
+                        console.warn("⚠️ Stats: Не вдалося отримати історію з модуля:", moduleError);
+                    }
+                }
             }
 
-            // Виконуємо запит до API
-            const response = await api.apiRequest(`/api/user/${userId}/statistics`, 'GET', null, {
-                timeout: 10000,
-                suppressErrors: true,
-                hideLoader: true // Використовуємо власний лоадер
-            });
+            // Обчислюємо статистику на основі історії
+            const stats = this.calculateStatsFromHistory(history);
 
-            // Приховуємо лоадер і скидаємо прапорець
+            // Оновлюємо час останнього оновлення
+            _lastUpdateTime = now;
+
+            // Зберігаємо в кеш
+            this._saveStatsToCache(stats);
+
+            // Приховуємо лоадер
             hideLoading('stats-update');
             _isUpdating = false;
 
-            if (response.status === 'success' && response.data) {
-                // Оновлюємо статистику
-                const stats = response.data;
-                _lastUpdateTime = now;
+            // Емітуємо подію про оновлення статистики
+            WinixRaffles.events.emit('statistics-updated', {
+                data: stats,
+                source: 'history'
+            });
 
-                // Зберігаємо в кеш
-                this._saveStatsToCache(stats);
-
-                // Емітуємо подію про оновлення статистики
-                WinixRaffles.events.emit('statistics-updated', {
-                    data: stats,
-                    source: 'api'
-                });
-
-                return stats;
-            } else {
-                throw new Error(response.message || "Помилка отримання статистики");
-            }
+            return stats;
         } catch (error) {
             console.warn("⚠️ Stats: Помилка отримання статистики:", error.message);
 
@@ -274,6 +298,81 @@ class StatisticsModule {
             }
 
             // Якщо немає кешу - повертаємо стандартні значення
+            return this.getDefaultStats();
+        }
+    }
+
+    /**
+     * Розрахунок статистики на основі історії розіграшів
+     * @param {Array} history - Історія розіграшів
+     * @returns {Object} Об'єкт статистики
+     */
+    calculateStatsFromHistory(history = []) {
+        // Базова статистика
+        const stats = this.getDefaultStats();
+
+        if (!Array.isArray(history) || history.length === 0) {
+            return stats;
+        }
+
+        try {
+            // Фільтруємо дані для безпечної обробки
+            const safeHistory = history.filter(item => item && typeof item === 'object');
+
+            // Загальна кількість участей
+            stats.totalParticipated = safeHistory.length;
+
+            // Обчислюємо решту статистики
+            safeHistory.forEach(item => {
+                // Рахуємо витрачені жетони
+                if (item.tokensSpent || item.entry_count) {
+                    const tokens = parseInt(item.tokensSpent || item.entry_count || 0);
+                    if (!isNaN(tokens)) {
+                        stats.totalTokensSpent += tokens;
+                    }
+                }
+
+                // Рахуємо перемоги та виграші
+                if (item.status === 'won' || item.won) {
+                    stats.totalWins++;
+
+                    // Обчислюємо суму виграшу
+                    if (item.prize) {
+                        const match = item.prize.match(/(\d+(?:\.\d+)?)\s*WINIX/i);
+                        if (match) {
+                            const winAmount = parseFloat(match[1]);
+                            if (!isNaN(winAmount)) {
+                                stats.totalWinixWon += winAmount;
+                            }
+                        }
+                    }
+
+                    // Запам'ятовуємо останній виграш
+                    if (!stats.lastWin || (item.date && new Date(item.date) > new Date(stats.lastWin.date))) {
+                        stats.lastWin = {
+                            date: item.date,
+                            amount: item.prize,
+                            raffleId: item.raffle_id
+                        };
+                    }
+                }
+
+                // Запам'ятовуємо останню участь
+                if (!stats.lastRaffle || (item.date && new Date(item.date) > new Date(stats.lastRaffle.date))) {
+                    stats.lastRaffle = {
+                        date: item.date,
+                        raffleId: item.raffle_id,
+                        title: item.title
+                    };
+                }
+            });
+
+            // Розрахунок додаткових показників
+            const extendedStats = this.calculateExtendedStats(stats);
+
+            return extendedStats;
+        } catch (error) {
+            console.error("❌ Stats: Помилка обчислення статистики з історії:", error);
             return this.getDefaultStats();
         }
     }
@@ -344,6 +443,158 @@ class StatisticsModule {
         WinixRaffles.events.emit('statistics-displayed', {
             data
         });
+    }
+
+    /**
+     * Відображення статистики користувача
+     * @param {string} containerId - ID контейнера для відображення
+     * @param {boolean} forceRefresh - Примусове оновлення даних
+     */
+    async displayUserStats(containerId = 'user-stats-container', forceRefresh = false) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            console.error(`Контейнер з ID '${containerId}' не знайдено`);
+            return;
+        }
+
+        try {
+            // Додаємо заглушку до контейнера
+            container.innerHTML = `
+                <div class="loading-placeholder">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Завантаження статистики...</div>
+                </div>
+            `;
+
+            // Перевіряємо підключення
+            if (!isOnline() && !forceRefresh) {
+                // В офлайн режимі використовуємо кешовані дані
+                const cachedStats = this._getStatsFromCache();
+                if (cachedStats) {
+                    this.updateStatisticsDisplay(cachedStats);
+                    this._renderStatsUI(container, cachedStats);
+                    return;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-stats">
+                            <div class="empty-stats-icon">📊</div>
+                            <h3>Статистика недоступна в офлайн режимі</h3>
+                            <p>Підключіться до Інтернету для оновлення статистики.</p>
+                        </div>
+                    `;
+                    return;
+                }
+            }
+
+            // Отримуємо дані статистики
+            const stats = await this.updateStatistics(forceRefresh);
+
+            // Відображаємо статистику
+            this._renderStatsUI(container, stats);
+
+            // Оновлюємо відображення
+            this.updateStatisticsDisplay(stats);
+
+            // Емітуємо подію про відображення статистики
+            WinixRaffles.events.emit('statistics-displayed', {
+                containerId,
+                data: stats
+            });
+        } catch (error) {
+            console.error("Помилка відображення статистики:", error);
+            container.innerHTML = `
+                <div class="empty-stats">
+                    <div class="empty-stats-icon">📊</div>
+                    <h3>Не вдалося завантажити статистику</h3>
+                    <p>Спробуйте оновити сторінку або повторіть спробу пізніше.</p>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Рендерінг інтерфейсу статистики
+     * @param {HTMLElement} container - Контейнер для відображення
+     * @param {Object} stats - Дані статистики
+     * @private
+     */
+    _renderStatsUI(container, stats) {
+        // Форматування чисел для відображення
+        const formatWithDecimals = (value) => {
+            return Math.round(value * 100) / 100;
+        };
+
+        // Створюємо HTML для статистики
+        const html = `
+            <div class="stats-container">
+                <div class="stats-header">
+                    <h2>Ваша статистика розіграшів</h2>
+                    <button id="refresh-stats-btn" class="refresh-btn">
+                        <span class="refresh-icon">🔄</span>
+                    </button>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stats-card">
+                        <div class="stats-card-title">Всього участей</div>
+                        <div class="stats-card-value" id="total-participated">${formatNumber(stats.totalParticipated)}</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-card-title">Перемоги</div>
+                        <div class="stats-card-value" id="total-wins">${formatNumber(stats.totalWins)}</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-card-title">Виграно WINIX</div>
+                        <div class="stats-card-value" id="total-winix-won">${formatCurrency(stats.totalWinixWon)}</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="stats-card-title">Витрачено жетонів</div>
+                        <div class="stats-card-value" id="total-tokens-spent">${formatNumber(stats.totalTokensSpent)}</div>
+                    </div>
+                </div>
+                
+                <div class="stats-extended">
+                    <div class="stats-item">
+                        <div class="stats-item-label">Відсоток виграшів:</div>
+                        <div class="stats-item-value">${formatWithDecimals(stats.winRate)}%</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-item-label">Середній виграш:</div>
+                        <div class="stats-item-value">${formatWithDecimals(stats.averageWin)} WINIX</div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-item-label">Ефективність жетонів:</div>
+                        <div class="stats-item-value">${formatWithDecimals(stats.tokenEfficiency)} WINIX/жетон</div>
+                    </div>
+                </div>
+                
+                ${stats.lastWin ? `
+                <div class="stats-last-win">
+                    <h3>Останній виграш</h3>
+                    <div class="last-win-details">
+                        <div class="win-date">${stats.lastWin.date}</div>
+                        <div class="win-amount">${stats.lastWin.amount}</div>
+                    </div>
+                </div>` : ''}
+            </div>
+        `;
+
+        // Оновлюємо контейнер
+        container.innerHTML = html;
+
+        // Додаємо обробник події для кнопки оновлення
+        const refreshButton = document.getElementById('refresh-stats-btn');
+        if (refreshButton) {
+            refreshButton.addEventListener('click', () => {
+                this.updateStatistics(true).then(updatedStats => {
+                    this._renderStatsUI(container, updatedStats);
+                    this.updateStatisticsDisplay(updatedStats);
+                }).catch(error => {
+                    console.error("Помилка оновлення статистики:", error);
+                    showToast("Не вдалося оновити статистику", "error");
+                });
+            });
+        }
     }
 
     /**
@@ -427,63 +678,17 @@ class StatisticsModule {
 
         console.log(`📊 Stats: Аналіз історії розіграшів, ${history.length} записів`);
 
-        // Отримуємо поточну статистику
-        const stats = _currentStats || this._getStatsFromCache() || this.getDefaultStats();
-
-        // Підрахунок статистики з історії
-        let participated = 0;
-        let wins = 0;
-        let winixWon = 0;
-        let tokensSpent = 0;
-
-        // Створюємо копію для безпечної обробки
-        const safeHistory = [...history].filter(item => item !== null && typeof item === 'object');
-
-        safeHistory.forEach(item => {
-            try {
-                // Рахуємо участь
-                participated++;
-
-                // Додаємо витрачені жетони
-                if (item.tokensSpent || item.entry_count) {
-                    tokensSpent += parseInt(item.tokensSpent || item.entry_count || 0);
-                }
-
-                // Рахуємо виграші
-                if (item.won || item.status === 'won' || (item.prize && parseInt(item.prize) > 0)) {
-                    wins++;
-
-                    // Додаємо виграні WINIX
-                    if (item.prize) {
-                        // Витягуємо числову суму з рядка призу (тільки для WINIX)
-                        const match = item.prize.match(/(\d+(?:\.\d+)?)\s*WINIX/i);
-                        if (match) {
-                            winixWon += parseFloat(match[1]);
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('⚠️ Stats: Помилка обробки елемента історії:', e);
-            }
-        });
-
-        // Оновлюємо статистику, якщо вона більша за поточну
-        stats.totalParticipated = Math.max(stats.totalParticipated || 0, participated);
-        stats.totalWins = Math.max(stats.totalWins || 0, wins);
-        stats.totalWinixWon = Math.max(stats.totalWinixWon || 0, winixWon);
-        stats.totalTokensSpent = Math.max(stats.totalTokensSpent || 0, tokensSpent);
-
-        // Оновлюємо додаткову статистику
-        const updatedStats = this.calculateExtendedStats(stats);
+        // Розраховуємо статистику на основі історії
+        const calculatedStats = this.calculateStatsFromHistory(history);
 
         // Зберігаємо оновлену статистику
-        _currentStats = updatedStats;
-        this._saveStatsToCache(updatedStats);
+        _currentStats = calculatedStats;
+        this._saveStatsToCache(calculatedStats);
 
         // Оновлюємо відображення
-        this.updateStatisticsDisplay(updatedStats);
+        this.updateStatisticsDisplay(calculatedStats);
 
-        console.log(`📊 Stats: Статистику оновлено з історії, ${wins} перемог, ${winixWon} WINIX`);
+        console.log(`📊 Stats: Статистику оновлено з історії, ${calculatedStats.totalWins} перемог, ${calculatedStats.totalWinixWon} WINIX`);
     }
 
     /**
@@ -493,7 +698,7 @@ class StatisticsModule {
      */
     async updateStatistics(forceRefresh = true) {
         try {
-            // Отримуємо дані з сервера
+            // Отримуємо дані з сервера/історії
             const stats = await this.fetchStatistics(forceRefresh);
 
             // Оновлюємо відображення
