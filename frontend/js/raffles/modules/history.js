@@ -842,37 +842,55 @@ class HistoryModule {
      */
     _addHistoryCardEventListeners() {
         try {
-            document.querySelectorAll('.history-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    const raffleId = card.getAttribute('data-raffle-id');
-                    if (!raffleId) return;
+            const cards = document.querySelectorAll('.history-card');
 
-                    const historyItem = _historyData.find(item => item && item.raffle_id === raffleId);
+            if (!cards || cards.length === 0) {
+                console.log("Не знайдено картки для додавання обробників подій");
+                return false;
+            }
 
-                    if (historyItem) {
-                        // Емітуємо подію показу деталей історії розіграшу
-                        WinixRaffles.events.emit('show-history-details', {
-                            raffleData: historyItem
-                        });
-                    } else {
-                        // Якщо не знайдено в масиві, спробуємо отримати з API
-                        this.getRaffleHistoryDetails(raffleId).then(details => {
-                            if (details) {
-                                WinixRaffles.events.emit('show-history-details', {
-                                    raffleData: details
-                                });
-                            } else {
-                                showToast('Не вдалося отримати деталі розіграшу', 'error');
-                            }
-                        }).catch(error => {
-                            console.error("Помилка отримання деталей розіграшу:", error);
-                            showToast('Помилка отримання деталей розіграшу', 'error');
-                        });
-                    }
-                });
+            let successCount = 0;
+
+            cards.forEach(card => {
+                try {
+                    card.addEventListener('click', () => {
+                        const raffleId = card.getAttribute('data-raffle-id');
+                        if (!raffleId) return;
+
+                        const historyItem = _historyData.find(item => item && item.raffle_id === raffleId);
+
+                        if (historyItem) {
+                            // Емітуємо подію показу деталей історії розіграшу
+                            WinixRaffles.events.emit('show-history-details', {
+                                raffleData: historyItem
+                            });
+                        } else {
+                            // Якщо не знайдено в масиві, спробуємо отримати з API
+                            this.getRaffleHistoryDetails(raffleId).then(details => {
+                                if (details) {
+                                    WinixRaffles.events.emit('show-history-details', {
+                                        raffleData: details
+                                    });
+                                } else {
+                                    showToast('Не вдалося отримати деталі розіграшу', 'error');
+                                }
+                            }).catch(error => {
+                                console.error("Помилка отримання деталей розіграшу:", error);
+                                showToast('Помилка отримання деталей розіграшу', 'error');
+                            });
+                        }
+                    });
+                    successCount++;
+                } catch (cardError) {
+                    console.error("Помилка додавання обробника для картки:", cardError);
+                }
             });
+
+            console.log(`Додано обробники для ${successCount} з ${cards.length} карток`);
+            return successCount > 0;
         } catch (error) {
             console.error("Помилка додавання обробників подій для карток:", error);
+            return false;
         }
     }
 
@@ -893,10 +911,24 @@ class HistoryModule {
             wonRaffles.forEach(raffle => {
                 if (!raffle || !raffle.prize) return;
 
-                // Витягуємо числову суму з рядка призу (тільки для WINIX)
-                const match = raffle.prize.match(/(\d+(?:\.\d+)?)\s*WINIX/i);
+                // Покращений спосіб вилучення числової частини призу
+                // Спочатку шукаємо у форматі "X WINIX"
+                let match = raffle.prize.match(/(\d+(?:[.,]\d+)?)\s*(?:WINIX|winix)/i);
+
+                // Якщо не знайдено, шукаємо будь-яке число
+                if (!match) {
+                    match = raffle.prize.match(/(\d+(?:[.,]\d+)?)/);
+                }
+
                 if (match) {
-                    total += parseFloat(match[1]);
+                    // Нормалізуємо число (замінюємо кому на крапку)
+                    const numStr = match[1].replace(',', '.');
+                    const value = parseFloat(numStr);
+
+                    // Перевіряємо, що число валідне
+                    if (!isNaN(value)) {
+                        total += value;
+                    }
                 }
             });
 

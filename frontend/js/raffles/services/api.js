@@ -7,7 +7,8 @@ import WinixRaffles from '../globals.js';
 import { showToast } from '../utils/ui-helpers.js';
 
 // Базовий URL для API-запитів
-const API_BASE_URL = WinixRaffles.config.apiBaseUrl || '/api';
+const API_BASE_URL = WinixRaffles && WinixRaffles.config ?
+    (WinixRaffles.config.apiBaseUrl || '/api') : '/api';
 
 // Дані авторизації
 let _token = null;
@@ -37,49 +38,84 @@ let _responseCache = {};
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 хвилин
 
 /**
+ * Валідує ID як непорожній рядок або число
+ * @param {string|number} id - ID для валідації
+ * @returns {string|null} - Валідований ID або null
+ * @private
+ */
+function _validateId(id) {
+    if (id === null || id === undefined) return null;
+
+    // Перетворюємо на рядок
+    const strId = String(id).trim();
+
+    // Перевіряємо, чи непорожній
+    if (!strId) return null;
+
+    // Перевіряємо, чи містить тільки цифри, букви та деякі спецсимволи
+    if (/^[a-zA-Z0-9_\-:]{1,64}$/.test(strId)) {
+        return strId;
+    }
+
+    return null;
+}
+
+/**
  * Отримати ID користувача з усіх можливих джерел
  * @returns {string|null} ID користувача або null, якщо не знайдено
  */
 export function getUserId() {
-    // 1. Використовуємо кешований ID, якщо він є
-    if (_userId) {
-        return _userId;
-    }
+    try {
+        // 1. Використовуємо кешований ID, якщо він є
+        if (_userId && _validateId(_userId)) {
+            return _userId;
+        }
 
-    // 2. Перевіряємо Telegram WebApp
-    if (window.Telegram && window.Telegram.WebApp) {
+        // 2. Перевіряємо Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp) {
+            try {
+                if (window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user &&
+                    window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                    const telegramId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
+                    if (_validateId(telegramId)) {
+                        _userId = telegramId;
+                        return _userId;
+                    }
+                }
+            } catch (e) {
+                console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
+            }
+        }
+
+        // 3. Перевіряємо localStorage
         try {
-            if (window.Telegram.WebApp.initDataUnsafe &&
-                window.Telegram.WebApp.initDataUnsafe.user &&
-                window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-                _userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+            const localId = localStorage.getItem('telegram_user_id');
+            if (_validateId(localId)) {
+                _userId = localId;
                 return _userId;
             }
         } catch (e) {
-            console.warn("🔌 API: Помилка отримання ID з Telegram WebApp:", e);
+            // Ігноруємо помилки localStorage
+            console.warn("🔌 API: Помилка отримання ID з localStorage:", e);
         }
-    }
 
-    // 3. Перевіряємо localStorage
-    try {
-        const localId = localStorage.getItem('telegram_user_id');
-        if (localId) {
-            _userId = localId;
-            return _userId;
+        // 4. Перевіряємо глобальний об'єкт конфігурації
+        if (window.WinixConfig && window.WinixConfig.userId) {
+            const configId = String(window.WinixConfig.userId);
+            if (_validateId(configId)) {
+                _userId = configId;
+                return _userId;
+            }
         }
-    } catch (e) {
-        // Ігноруємо помилки localStorage
-    }
 
-    // 4. Перевіряємо глобальний об'єкт конфігурації
-    if (window.WinixConfig && window.WinixConfig.userId) {
-        _userId = window.WinixConfig.userId.toString();
-        return _userId;
+        // ID не знайдено
+        return null;
+    } catch (error) {
+        console.error("🔌 API: Критична помилка отримання ID користувача:", error);
+        return null;
     }
-
-    // ID не знайдено
-    return null;
 }
 
 /**
@@ -87,26 +123,38 @@ export function getUserId() {
  * @returns {string|null} Токен авторизації або null, якщо не знайдено
  */
 export function getAuthToken() {
-    // 1. Використовуємо кешований токен, якщо він є
-    if (_token) {
-        return _token;
-    }
-
-    // 2. Спробуємо отримати токен з localStorage
     try {
-        _token = localStorage.getItem('auth_token');
-        return _token;
-    } catch (e) {
-        // Ігноруємо помилки localStorage
-    }
+        // 1. Використовуємо кешований токен, якщо він є
+        if (_token) {
+            return _token;
+        }
 
-    // 3. Перевіряємо глобальний об'єкт конфігурації
-    if (window.WinixConfig && window.WinixConfig.authToken) {
-        _token = window.WinixConfig.authToken;
-        return _token;
-    }
+        // 2. Спробуємо отримати токен з localStorage
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (token && typeof token === 'string' && token.length > 5) {
+                _token = token;
+                return _token;
+            }
+        } catch (e) {
+            // Ігноруємо помилки localStorage
+            console.warn("🔌 API: Помилка отримання токену з localStorage:", e);
+        }
 
-    return null;
+        // 3. Перевіряємо глобальний об'єкт конфігурації
+        if (window.WinixConfig && window.WinixConfig.authToken) {
+            const configToken = window.WinixConfig.authToken;
+            if (typeof configToken === 'string' && configToken.length > 5) {
+                _token = configToken;
+                return _token;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error("🔌 API: Критична помилка отримання токену авторизації:", error);
+        return null;
+    }
 }
 
 /**
@@ -116,9 +164,13 @@ export function getAuthToken() {
 export function getAdminId() {
     try {
         // 1. Перевіряємо наявність ID адміністратора в localStorage
-        const adminId = localStorage.getItem('admin_user_id');
-        if (adminId) {
-            return adminId;
+        try {
+            const adminId = localStorage.getItem('admin_user_id');
+            if (_validateId(adminId)) {
+                return adminId;
+            }
+        } catch (e) {
+            console.warn("🔌 API: Помилка отримання ID адміністратора з localStorage:", e);
         }
 
         // 2. Перевіряємо наявність адмін-прав в Telegram WebApp
@@ -127,12 +179,18 @@ export function getAdminId() {
             window.Telegram.WebApp.initDataUnsafe.user &&
             window.Telegram.WebApp.initDataUnsafe.user.is_admin) {
 
-            return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+            const telegramId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
+            if (_validateId(telegramId)) {
+                return telegramId;
+            }
         }
 
         // 3. Перевіряємо глобальний об'єкт конфігурації
         if (window.WinixConfig && window.WinixConfig.isAdmin) {
-            return getUserId();
+            const userId = getUserId();
+            if (_validateId(userId)) {
+                return userId;
+            }
         }
 
         return null;
@@ -149,6 +207,8 @@ export function getAdminId() {
  * @private
  */
 function _getThrottleTime(endpoint) {
+    if (!endpoint) return REQUEST_THROTTLE.default;
+
     for (const key in REQUEST_THROTTLE) {
         if (endpoint.includes(key)) {
             return REQUEST_THROTTLE[key];
@@ -164,17 +224,24 @@ function _getThrottleTime(endpoint) {
  * @private
  */
 function _checkCache(cacheKey) {
-    const cachedItem = _responseCache[cacheKey];
-    if (!cachedItem) return null;
+    try {
+        if (!cacheKey) return null;
 
-    const now = Date.now();
-    if (now > cachedItem.expires) {
-        // Кеш застарів, видаляємо його
-        delete _responseCache[cacheKey];
+        const cachedItem = _responseCache[cacheKey];
+        if (!cachedItem) return null;
+
+        const now = Date.now();
+        if (now > cachedItem.expires) {
+            // Кеш застарів, видаляємо його
+            delete _responseCache[cacheKey];
+            return null;
+        }
+
+        return cachedItem.data;
+    } catch (error) {
+        console.error("🔌 API: Помилка перевірки кешу:", error);
         return null;
     }
-
-    return cachedItem.data;
 }
 
 /**
@@ -185,16 +252,22 @@ function _checkCache(cacheKey) {
  * @private
  */
 function _addToCache(cacheKey, data, ttl = DEFAULT_CACHE_TTL) {
-    _responseCache[cacheKey] = {
-        data,
-        created: Date.now(),
-        expires: Date.now() + ttl
-    };
+    try {
+        if (!cacheKey || !data) return;
 
-    // Очищення старих записів, якщо кеш занадто великий
-    const cacheSize = Object.keys(_responseCache).length;
-    if (cacheSize > 50) {
-        _cleanupCache();
+        _responseCache[cacheKey] = {
+            data,
+            created: Date.now(),
+            expires: Date.now() + ttl
+        };
+
+        // Очищення старих записів, якщо кеш занадто великий
+        const cacheSize = Object.keys(_responseCache).length;
+        if (cacheSize > 50) {
+            _cleanupCache();
+        }
+    } catch (error) {
+        console.error("🔌 API: Помилка додавання до кешу:", error);
     }
 }
 
@@ -203,31 +276,44 @@ function _addToCache(cacheKey, data, ttl = DEFAULT_CACHE_TTL) {
  * @private
  */
 function _cleanupCache() {
-    const now = Date.now();
-    let count = 0;
+    try {
+        const now = Date.now();
+        let count = 0;
 
-    // Видаляємо застарілі елементи
-    Object.keys(_responseCache).forEach(key => {
-        if (_responseCache[key].expires < now) {
-            delete _responseCache[key];
-            count++;
-        }
-    });
-
-    // Якщо все ще забагато записів, видаляємо найстаріші
-    const remainingSize = Object.keys(_responseCache).length;
-    if (remainingSize > 30) {
-        const sortedEntries = Object.entries(_responseCache)
-            .sort(([, a], [, b]) => a.created - b.created);
-
-        // Видаляємо 10 найстаріших записів
-        sortedEntries.slice(0, 10).forEach(([key]) => {
-            delete _responseCache[key];
-            count++;
+        // Видаляємо застарілі елементи
+        Object.keys(_responseCache).forEach(key => {
+            if (_responseCache[key] && _responseCache[key].expires < now) {
+                delete _responseCache[key];
+                count++;
+            }
         });
-    }
 
-    console.log(`🧹 API: Очищено ${count} застарілих або надлишкових записів кешу`);
+        // Якщо все ще забагато записів, видаляємо найстаріші
+        const remainingSize = Object.keys(_responseCache).length;
+        if (remainingSize > 30) {
+            try {
+                const sortedEntries = Object.entries(_responseCache)
+                    .sort(([, a], [, b]) => a.created - b.created);
+
+                // Видаляємо 10 найстаріших записів
+                sortedEntries.slice(0, 10).forEach(([key]) => {
+                    delete _responseCache[key];
+                    count++;
+                });
+            } catch (sortError) {
+                console.error("🔌 API: Помилка сортування записів кешу:", sortError);
+                // Альтернативний підхід - просто видаляємо перші 10 записів
+                Object.keys(_responseCache).slice(0, 10).forEach(key => {
+                    delete _responseCache[key];
+                    count++;
+                });
+            }
+        }
+
+        console.log(`🧹 API: Очищено ${count} застарілих або надлишкових записів кешу`);
+    } catch (error) {
+        console.error("🔌 API: Помилка очищення кешу:", error);
+    }
 }
 
 /**
@@ -250,10 +336,11 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         }
 
         // Нормалізуємо метод
-        method = method.toUpperCase();
+        method = (method || 'GET').toUpperCase();
 
         // Формуємо ключі для відстеження запитів
-        const requestKey = `${method}:${endpoint}:${JSON.stringify(data || {})}`;
+        const dataString = data ? JSON.stringify(data) : '';
+        const requestKey = `${method}:${endpoint}:${dataString}`;
 
         // Перевіряємо обмеження частоти запитів
         const now = Date.now();
@@ -334,7 +421,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         // Готуємо заголовки
         const headers = {
             'Content-Type': 'application/json',
-            ...options.headers
+            ...(options.headers || {})
         };
 
         // Додаємо ID користувача і токен авторизації, якщо вони є
@@ -376,16 +463,20 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         // Встановлюємо таймаут
         const timeout = options.timeout || 10000;
         const timeoutId = setTimeout(() => {
-            controller.abort();
-            delete _requestTimeouts[requestKey];
-            delete _requestsInProgress[requestKey];
-            console.warn(`🔌 API: Таймаут запиту ${requestKey}`);
+            try {
+                controller.abort();
+                delete _requestTimeouts[requestKey];
+                delete _requestsInProgress[requestKey];
+                console.warn(`🔌 API: Таймаут запиту ${requestKey}`);
+            } catch (abortError) {
+                console.error("🔌 API: Помилка при скасуванні запиту:", abortError);
+            }
         }, timeout);
 
         _requestTimeouts[requestKey] = timeoutId;
 
         // Показуємо індикатор завантаження
-        if (!options.hideLoader) {
+        if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
             // Використовуємо централізоване управління лоадером
             WinixRaffles.loader.show('Завантаження...', `api-${requestKey}`);
         }
@@ -409,8 +500,33 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
                 throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
             }
 
-            // Парсимо відповідь
-            const jsonData = await response.json();
+            // Парсимо відповідь з обробкою помилок
+            let jsonData;
+            try {
+                jsonData = await response.json();
+            } catch (parseError) {
+                console.error("🔌 API: Помилка парсингу JSON відповіді:", parseError);
+                throw new Error(`Помилка обробки відповіді сервера: ${parseError.message}`);
+            }
+
+            // Перевіряємо структуру відповіді
+            if (!jsonData || (jsonData.status !== 'success' && !options.allowNonSuccessResponse)) {
+                console.warn("🔌 API: Отримано неочікувану структуру відповіді:", jsonData);
+
+                // Спеціальна обробка для розіграшів
+                if (endpoint.includes('/raffles') && !endpoint.includes('participate')) {
+                    // Повертаємо дані навіть якщо структура неочікувана
+                    return {
+                        status: 'success',
+                        data: jsonData.data || [],
+                        message: jsonData.message || 'Дані отримано з нестандартною структурою',
+                        source: 'transformed'
+                    };
+                }
+
+                // Для інших випадків повертаємо дані як є
+                return jsonData;
+            }
 
             // Кешуємо відповідь для GET запитів
             if (method === 'GET' && !options.noCache) {
@@ -431,6 +547,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
                 };
             }
 
+            // Інші запити - передаємо помилку далі
             throw error;
         } finally {
             // Знімаємо таймаут і прапорець виконання
@@ -441,7 +558,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             delete _requestsInProgress[requestKey];
 
             // Приховуємо індикатор завантаження
-            if (!options.hideLoader) {
+            if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
                 WinixRaffles.loader.hide(`api-${requestKey}`);
             }
         }
@@ -449,11 +566,13 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         console.error(`🔌 API: Помилка запиту ${endpoint}:`, error.message);
 
         // Генеруємо подію про помилку API
-        WinixRaffles.events.emit('api-error', {
-            error: error,
-            endpoint: endpoint,
-            method: method
-        });
+        if (WinixRaffles && WinixRaffles.events) {
+            WinixRaffles.events.emit('api-error', {
+                error: error,
+                endpoint: endpoint,
+                method: method
+            });
+        }
 
         // Повертаємо об'єкт з помилкою
         return {
@@ -469,19 +588,26 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
  * @returns {number} Кількість очищених запитів
  */
 export function forceCleanupRequests() {
-    const count = Object.keys(_requestsInProgress).length;
+    try {
+        const count = Object.keys(_requestsInProgress).length;
 
-    // Очищення активних запитів
-    _requestsInProgress = {};
+        // Очищення активних запитів
+        _requestsInProgress = {};
 
-    // Очищення таймаутів
-    for (const key in _requestTimeouts) {
-        clearTimeout(_requestTimeouts[key]);
-        delete _requestTimeouts[key];
+        // Очищення таймаутів
+        for (const key in _requestTimeouts) {
+            if (_requestTimeouts[key]) {
+                clearTimeout(_requestTimeouts[key]);
+                delete _requestTimeouts[key];
+            }
+        }
+
+        console.log(`🔌 API: Примусово очищено ${count} активних запитів`);
+        return count;
+    } catch (error) {
+        console.error("🔌 API: Помилка при очищенні активних запитів:", error);
+        return 0;
     }
-
-    console.log(`🔌 API: Примусово очищено ${count} активних запитів`);
-    return count;
 }
 
 /**
@@ -490,18 +616,26 @@ export function forceCleanupRequests() {
  * @returns {Promise<Object>} Дані користувача
  */
 export async function getUserData(forceRefresh = false) {
-    const userId = getUserId();
-    if (!userId) {
+    try {
+        const userId = getUserId();
+        if (!userId) {
+            return {
+                status: 'error',
+                message: 'ID користувача не знайдено'
+            };
+        }
+
+        return await apiRequest(`/user/${userId}`, 'GET', null, {
+            bypassCache: forceRefresh,
+            cacheTTL: 5 * 60 * 1000 // 5 хвилин
+        });
+    } catch (error) {
+        console.error("🔌 API: Помилка отримання даних користувача:", error);
         return {
             status: 'error',
-            message: 'ID користувача не знайдено'
+            message: 'Помилка отримання даних користувача: ' + error.message
         };
     }
-
-    return await apiRequest(`/user/${userId}`, 'GET', null, {
-        bypassCache: forceRefresh,
-        cacheTTL: 5 * 60 * 1000 // 5 хвилин
-    });
 }
 
 /**
@@ -510,18 +644,26 @@ export async function getUserData(forceRefresh = false) {
  * @returns {Promise<Object>} Баланс користувача
  */
 export async function getBalance(forceRefresh = false) {
-    const userId = getUserId();
-    if (!userId) {
+    try {
+        const userId = getUserId();
+        if (!userId) {
+            return {
+                status: 'error',
+                message: 'ID користувача не знайдено'
+            };
+        }
+
+        return await apiRequest(`/user/${userId}/balance`, 'GET', null, {
+            bypassCache: forceRefresh,
+            cacheTTL: 2 * 60 * 1000 // 2 хвилини
+        });
+    } catch (error) {
+        console.error("🔌 API: Помилка отримання балансу користувача:", error);
         return {
             status: 'error',
-            message: 'ID користувача не знайдено'
+            message: 'Помилка отримання балансу: ' + error.message
         };
     }
-
-    return await apiRequest(`/user/${userId}/balance`, 'GET', null, {
-        bypassCache: forceRefresh,
-        cacheTTL: 2 * 60 * 1000 // 2 хвилини
-    });
 }
 
 /**
@@ -529,25 +671,30 @@ export async function getBalance(forceRefresh = false) {
  * @param {string} type - Тип даних для оновлення ('all', 'user', 'raffles')
  */
 export function invalidateCache(type = 'all') {
-    let count = 0;
+    try {
+        let count = 0;
 
-    if (type === 'all') {
-        // Очищаємо весь кеш
-        count = Object.keys(_responseCache).length;
-        _responseCache = {};
-    } else {
-        // Очищаємо кеш певного типу
-        Object.keys(_responseCache).forEach(key => {
-            if ((type === 'user' && key.includes('/user/')) ||
-                (type === 'raffles' && key.includes('/raffles'))) {
-                delete _responseCache[key];
-                count++;
-            }
-        });
+        if (type === 'all') {
+            // Очищаємо весь кеш
+            count = Object.keys(_responseCache).length;
+            _responseCache = {};
+        } else {
+            // Очищаємо кеш певного типу
+            Object.keys(_responseCache).forEach(key => {
+                if ((type === 'user' && key.includes('/user/')) ||
+                    (type === 'raffles' && key.includes('/raffles'))) {
+                    delete _responseCache[key];
+                    count++;
+                }
+            });
+        }
+
+        console.log(`🧹 API: Очищено ${count} записів кешу типу "${type}"`);
+        return count;
+    } catch (error) {
+        console.error("🔌 API: Помилка при очищенні кешу:", error);
+        return 0;
     }
-
-    console.log(`🧹 API: Очищено ${count} записів кешу типу "${type}"`);
-    return count;
 }
 
 /**
@@ -555,12 +702,21 @@ export function invalidateCache(type = 'all') {
  * @returns {Object} Статистика запитів
  */
 export function getApiStats() {
-    return {
-        activeRequests: Object.keys(_requestsInProgress).length,
-        cacheSize: Object.keys(_responseCache).length,
-        lastRequestTime: _lastRequestTime,
-        throttleSettings: REQUEST_THROTTLE,
-    };
+    try {
+        return {
+            activeRequests: Object.keys(_requestsInProgress).length,
+            cacheSize: Object.keys(_responseCache).length,
+            lastRequestTime: _lastRequestTime,
+            throttleSettings: REQUEST_THROTTLE,
+        };
+    } catch (error) {
+        console.error("🔌 API: Помилка отримання статистики API:", error);
+        return {
+            error: error.message,
+            activeRequests: 0,
+            cacheSize: 0
+        };
+    }
 }
 
 /**
@@ -591,7 +747,9 @@ const api = {
 };
 
 // Додаємо в глобальний об'єкт для зворотної сумісності
-WinixRaffles.api = api;
+if (WinixRaffles) {
+    WinixRaffles.api = api;
+}
 
 // Для повної зворотної сумісності додаємо в window
 window.WinixAPI = api;

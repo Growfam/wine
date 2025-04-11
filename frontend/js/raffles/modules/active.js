@@ -33,35 +33,44 @@ class ActiveRaffles {
     init() {
         console.log("🎮 Активні розіграші: Ініціалізація...");
 
-        // Обробники подій для перемикання вкладок
-        const tabButtons = document.querySelectorAll('.tab-button');
-        if (tabButtons.length > 0) {
-            console.log(`Знайдено ${tabButtons.length} кнопок вкладок`);
-            tabButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const tabName = button.getAttribute('data-tab');
-                    this.switchTab(tabName);
+        try {
+            // Обробники подій для перемикання вкладок
+            const tabButtons = document.querySelectorAll('.tab-button');
+            if (tabButtons.length > 0) {
+                console.log(`Знайдено ${tabButtons.length} кнопок вкладок`);
+                tabButtons.forEach(button => {
+                    if (button) {
+                        button.addEventListener('click', () => {
+                            const tabName = button.getAttribute('data-tab');
+                            if (tabName) {
+                                this.switchTab(tabName);
+                            }
+                        });
+                    }
                 });
+            }
+
+            // Отримуємо дані активних розіграшів
+            this.getActiveRaffles().then(() => {
+                // Відображаємо активні розіграші
+                this.displayRaffles();
+            }).catch(error => {
+                console.error("Помилка при отриманні активних розіграшів:", error);
+                // Скидаємо всі стани у випадку помилки
+                this.resetAllStates();
             });
-        }
 
-        // Отримуємо дані активних розіграшів
-        this.getActiveRaffles().then(() => {
-            // Відображаємо активні розіграші
-            this.displayRaffles();
-        }).catch(error => {
-            console.error("Помилка при отриманні активних розіграшів:", error);
-            // Скидаємо всі стани у випадку помилки
+            // Налаштовуємо кнопки участі для розіграшів
+            this._setupRaffleButtons();
+
+            // Встановлюємо обробники подій для комунікації з іншими модулями
+            this._setupEventListeners();
+
+            console.log("✅ Активні розіграші: Ініціалізацію завершено");
+        } catch (error) {
+            console.error("❌ Критична помилка при ініціалізації модуля активних розіграшів:", error);
             this.resetAllStates();
-        });
-
-        // Налаштовуємо кнопки участі для розіграшів
-        this._setupRaffleButtons();
-
-        // Встановлюємо обробники подій для комунікації з іншими модулями
-        this._setupEventListeners();
-
-        console.log("✅ Активні розіграші: Ініціалізацію завершено");
+        }
     }
 
     /**
@@ -80,7 +89,7 @@ class ActiveRaffles {
 
             // Автоматичне скидання зависаючих запитів
             if (_isLoading && (now - _lastRafflesUpdateTime > 30000)) {
-                console.warn("⚠️ Raffles: Виявлено зависаючий запит розіграшів, скидаємо стан");
+                console.warn("⚠️ Raffles: Виявлено потенційно зависаючий запит розіграшів, скидаємо стан");
                 _isLoading = false;
                 if (_loadingTimeoutId) {
                     clearTimeout(_loadingTimeoutId);
@@ -128,16 +137,18 @@ class ActiveRaffles {
             }
 
             if (response && response.status === 'success') {
-                _activeRaffles = response.data || [];
+                _activeRaffles = Array.isArray(response.data) ? response.data : [];
                 _lastRafflesUpdateTime = now;
 
                 console.log(`✅ Raffles: Отримано ${_activeRaffles.length} активних розіграшів`);
 
                 // Генеруємо подію оновлення розіграшів
-                WinixRaffles.events.emit('raffles-updated', {
-                    count: _activeRaffles.length,
-                    data: _activeRaffles
-                });
+                if (WinixRaffles && WinixRaffles.events) {
+                    WinixRaffles.events.emit('raffles-updated', {
+                        count: _activeRaffles.length,
+                        data: _activeRaffles
+                    });
+                }
 
                 return _activeRaffles;
             } else {
@@ -168,10 +179,12 @@ class ActiveRaffles {
             showToast('Не вдалося завантажити розіграші. Спробуйте пізніше.', 'error');
 
             // Генеруємо подію про помилку
-            WinixRaffles.events.emit('raffles-error', {
-                message: error.message || 'Помилка отримання розіграшів',
-                error
-            });
+            if (WinixRaffles && WinixRaffles.events) {
+                WinixRaffles.events.emit('raffles-error', {
+                    message: error.message || 'Помилка отримання розіграшів',
+                    error
+                });
+            }
 
             // Повертаємо кешовані дані у випадку помилки
             return _activeRaffles || [];
@@ -228,8 +241,10 @@ class ActiveRaffles {
             }
 
             // Створюємо список основних і міні-розіграшів
-            const mainRaffles = raffles.filter(raffle => !raffle.is_daily);
-            const miniRaffles = raffles.filter(raffle => raffle.is_daily);
+            const mainRaffles = Array.isArray(raffles) ?
+                raffles.filter(raffle => raffle && raffle.is_daily === false) : [];
+            const miniRaffles = Array.isArray(raffles) ?
+                raffles.filter(raffle => raffle && raffle.is_daily === true) : [];
 
             // Відображаємо основний розіграш
             if (mainRaffleContainer && mainRaffles.length > 0) {
@@ -253,8 +268,12 @@ class ActiveRaffles {
                 if (miniRaffles.length > 0) {
                     // Додаємо кожен міні-розіграш
                     miniRaffles.forEach(raffle => {
-                        const miniRaffleElement = this._createMiniRaffleElement(raffle);
-                        miniRafflesContainer.appendChild(miniRaffleElement);
+                        if (raffle) {
+                            const miniRaffleElement = this._createMiniRaffleElement(raffle);
+                            if (miniRaffleElement) {
+                                miniRafflesContainer.appendChild(miniRaffleElement);
+                            }
+                        }
                     });
                 } else {
                     // Додаємо елемент для бонусу новачка, якщо міні-розіграшів немає
@@ -266,10 +285,12 @@ class ActiveRaffles {
             this._startRaffleTimers();
 
             // Генеруємо подію про оновлення відображення
-            WinixRaffles.events.emit('raffles-displayed', {
-                mainCount: mainRaffles.length,
-                miniCount: miniRaffles.length
-            });
+            if (WinixRaffles && WinixRaffles.events) {
+                WinixRaffles.events.emit('raffles-displayed', {
+                    mainCount: mainRaffles.length,
+                    miniCount: miniRaffles.length
+                });
+            }
         } catch (error) {
             console.error("Помилка при завантаженні активних розіграшів:", error);
             hideLoading('active-raffles-display');
@@ -295,32 +316,54 @@ class ActiveRaffles {
      * @param {string} tabName - Назва вкладки для активації
      */
     switchTab(tabName) {
+        if (!tabName) {
+            console.error("Назва вкладки не вказана");
+            return;
+        }
+
         console.log(`🎮 Raffles: Переключення на вкладку ${tabName}`);
 
-        // Оновлюємо активну вкладку
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabSections = document.querySelectorAll('.tab-content');
+        try {
+            // Оновлюємо активну вкладку
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabSections = document.querySelectorAll('.tab-content');
 
-        // Знімаємо активний стан з усіх вкладок і секцій
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabSections.forEach(section => section.classList.remove('active'));
+            // Знімаємо активний стан з усіх вкладок і секцій
+            if (tabButtons && tabButtons.length > 0) {
+                tabButtons.forEach(btn => {
+                    if (btn) btn.classList.remove('active');
+                });
+            }
 
-        // Додаємо активний стан до вибраної вкладки і секції
-        const activeTabButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
-        const activeTabSection = document.getElementById(`${tabName}-raffles`);
+            if (tabSections && tabSections.length > 0) {
+                tabSections.forEach(section => {
+                    if (section) section.classList.remove('active');
+                });
+            }
 
-        if (activeTabButton) activeTabButton.classList.add('active');
-        if (activeTabSection) activeTabSection.classList.add('active');
+            // Додаємо активний стан до вибраної вкладки і секції
+            const activeTabButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+            const activeTabSection = document.getElementById(`${tabName}-raffles`);
 
-        // Генеруємо подію про зміну вкладки
-        WinixRaffles.events.emit('tab-switched', { tab: tabName });
+            if (activeTabButton) activeTabButton.classList.add('active');
+            if (activeTabSection) activeTabSection.classList.add('active');
 
-        // Якщо це вкладка з історією, повідомляємо через подію
-        if (tabName === 'past' || tabName === 'history') {
-            WinixRaffles.events.emit('history-tab-requested', {});
-        } else if (tabName === 'active') {
-            // Оновлюємо активні розіграші
-            this.displayRaffles();
+            // Генеруємо подію про зміну вкладки
+            if (WinixRaffles && WinixRaffles.events) {
+                WinixRaffles.events.emit('tab-switched', { tab: tabName });
+            }
+
+            // Якщо це вкладка з історією, повідомляємо через подію
+            if (tabName === 'past' || tabName === 'history') {
+                if (WinixRaffles && WinixRaffles.events) {
+                    WinixRaffles.events.emit('history-tab-requested', {});
+                }
+            } else if (tabName === 'active') {
+                // Оновлюємо активні розіграші
+                this.displayRaffles();
+            }
+        } catch (error) {
+            console.error("Помилка при переключенні вкладок:", error);
         }
     }
 
@@ -345,7 +388,9 @@ class ActiveRaffles {
         hideLoading('active-raffles-display');
 
         // Очищаємо активні запити через API
-        api.forceCleanupRequests();
+        if (api && typeof api.forceCleanupRequests === 'function') {
+            api.forceCleanupRequests();
+        }
 
         console.log("🔄 Raffles: Примусове скидання всіх станів");
         return true;
@@ -355,16 +400,20 @@ class ActiveRaffles {
      * Знищення модуля при вивантаженні сторінки
      */
     destroy() {
-        // Зупиняємо таймери
-        this._stopRaffleTimers();
+        try {
+            // Зупиняємо таймери
+            this._stopRaffleTimers();
 
-        // Скидаємо стани
-        this.resetAllStates();
+            // Скидаємо стани
+            this.resetAllStates();
 
-        // Видаляємо обробники подій
-        this._removeEventListeners();
+            // Видаляємо обробники подій
+            this._removeEventListeners();
 
-        console.log("🚫 Raffles: Модуль активних розіграшів знищено");
+            console.log("🚫 Raffles: Модуль активних розіграшів знищено");
+        } catch (error) {
+            console.error("Помилка при знищенні модуля активних розіграшів:", error);
+        }
     }
 
     /**
@@ -372,14 +421,22 @@ class ActiveRaffles {
      * @private
      */
     _setupEventListeners() {
-        // Обробник події успішної участі в розіграші
-        WinixRaffles.events.on('raffle-participated', (data) => {
-            console.log('Отримано подію участі в розіграші:', data);
-            // Оновлюємо дані після успішної участі
-            this.getActiveRaffles(true).then(() => {
-                this.displayRaffles();
-            });
-        });
+        try {
+            // Обробник події успішної участі в розіграші
+            if (WinixRaffles && WinixRaffles.events) {
+                WinixRaffles.events.on('raffle-participated', (data) => {
+                    console.log('Отримано подію участі в розіграші:', data);
+                    // Оновлюємо дані після успішної участі
+                    this.getActiveRaffles(true).then(() => {
+                        this.displayRaffles();
+                    }).catch(error => {
+                        console.error("Помилка оновлення даних після участі:", error);
+                    });
+                });
+            }
+        } catch (error) {
+            console.error("Помилка встановлення обробників подій:", error);
+        }
     }
 
     /**
@@ -388,6 +445,7 @@ class ActiveRaffles {
      */
     _removeEventListeners() {
         // Тут можна відписатися від подій, якщо це необхідно
+        // Наразі цей метод є заглушкою для майбутньої реалізації
     }
 
     /**
@@ -397,84 +455,146 @@ class ActiveRaffles {
      * @private
      */
     _displayMainRaffle(container, raffle) {
-        if (!container || !raffle) return;
-
-        // Створюємо HTML для основного розіграшу
-        container.innerHTML = `
-            <img class="main-raffle-image" src="${raffle.image_url || '/assets/prize-poster.gif'}" alt="${raffle.title}">
-            <div class="main-raffle-content">
-                <div class="main-raffle-header">
-                    <h3 class="main-raffle-title">${raffle.title}</h3>
-                    <div class="main-raffle-cost">
-                        <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
-                        <span>${raffle.entry_fee} жетон${raffle.entry_fee !== 1 ? 'и' : ''}</span>
-                    </div>
-                </div>
-
-                <span class="main-raffle-prize">${raffle.prize_amount} ${raffle.prize_currency}</span>
-
-                <div class="timer-container">
-                    <div class="timer-block">
-                        <span class="timer-value" id="days">00</span>
-                        <span class="timer-label">днів</span>
-                    </div>
-                    <div class="timer-block">
-                        <span class="timer-value" id="hours">00</span>
-                        <span class="timer-label">год</span>
-                    </div>
-                    <div class="timer-block">
-                        <span class="timer-value" id="minutes">00</span>
-                        <span class="timer-label">хв</span>
-                    </div>
-                </div>
-
-                <div class="prize-distribution">
-                    <div class="prize-distribution-title">Розподіл призів (${raffle.winners_count} переможців):</div>
-                    <div class="prize-list">
-                        ${generatePrizeDistributionHTML(raffle.prize_distribution)}
-                    </div>
-                </div>
-
-                <div class="main-raffle-participants">
-                    <div class="participants-info">Учасників: <span class="participants-count">${raffle.participants_count || 0}</span></div>
-                    <div class="share-container">
-                        <button class="share-button" id="share-raffle-btn" data-raffle-id="${raffle.id}">Поділитися</button>
-                    </div>
-                </div>
-
-                <div class="progress-bar">
-                    <div class="progress" style="width: ${calculateProgressByTime(raffle.start_time, raffle.end_time)}%"></div>
-                </div>
-
-                <button class="join-button" data-raffle-id="${raffle.id}" data-raffle-type="main">Взяти участь</button>
-            </div>
-        `;
-
-        // Оновлюємо таймер
-        this._updateRaffleTimers();
-
-        // Додаємо обробники подій
-        const joinButton = container.querySelector('.join-button');
-        if (joinButton) {
-            joinButton.addEventListener('click', () => {
-                const raffleId = joinButton.getAttribute('data-raffle-id');
-                const raffleType = joinButton.getAttribute('data-raffle-type');
-                // Замість прямого виклику, генеруємо подію для відкриття деталей
-                WinixRaffles.events.emit('open-raffle-details', {
-                    raffleId,
-                    raffleType
-                });
-            });
+        if (!container || !raffle) {
+            console.error("Не вказано контейнер або дані розіграшу");
+            return;
         }
 
-        // Додаємо обробник для кнопки "Поділитися"
-        const shareButton = container.querySelector('#share-raffle-btn');
-        if (shareButton) {
-            shareButton.addEventListener('click', () => {
-                const raffleId = shareButton.getAttribute('data-raffle-id');
-                // Замість прямого виклику, генеруємо подію для поширення розіграшу
-                WinixRaffles.events.emit('share-raffle', { raffleId });
-            });
+        try {
+            // Перевіряємо наявність необхідних полів
+            const title = raffle.title || 'Розіграш';
+            const entryFee = raffle.entry_fee || 0;
+            const prizeAmount = raffle.prize_amount || 0;
+            const prizeCurrency = raffle.prize_currency || 'WINIX';
+            const winnersCount = raffle.winners_count || 1;
+            const participantsCount = raffle.participants_count || 0;
+            const raffleId = raffle.id || 'unknown';
+
+            // Розраховуємо безпечно прогрес
+            let progressWidth = 0;
+            if (raffle.start_time && raffle.end_time) {
+                try {
+                    progressWidth = calculateProgressByTime(raffle.start_time, raffle.end_time);
+                } catch (e) {
+                    console.error("Помилка розрахунку прогресу:", e);
+                }
+            }
+
+            // Формуємо HTML для розподілу призів
+            let prizeDistributionHTML = '';
+            if (raffle.prize_distribution && typeof raffle.prize_distribution === 'object') {
+                try {
+                    prizeDistributionHTML = generatePrizeDistributionHTML(raffle.prize_distribution);
+                } catch (e) {
+                    console.error("Помилка генерації розподілу призів:", e);
+                    prizeDistributionHTML = '<div class="prize-item"><span class="prize-place">Інформація недоступна</span></div>';
+                }
+            } else {
+                prizeDistributionHTML = '<div class="prize-item"><span class="prize-place">Інформація відсутня</span></div>';
+            }
+
+            // Створюємо HTML для основного розіграшу
+            container.innerHTML = `
+                <img class="main-raffle-image" src="${raffle.image_url || '/assets/prize-poster.gif'}" alt="${title}">
+                <div class="main-raffle-content">
+                    <div class="main-raffle-header">
+                        <h3 class="main-raffle-title">${title}</h3>
+                        <div class="main-raffle-cost">
+                            <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
+                            <span>${entryFee} жетон${entryFee !== 1 ? 'и' : ''}</span>
+                        </div>
+                    </div>
+
+                    <span class="main-raffle-prize">${prizeAmount} ${prizeCurrency}</span>
+
+                    <div class="timer-container">
+                        <div class="timer-block">
+                            <span class="timer-value" id="days">00</span>
+                            <span class="timer-label">днів</span>
+                        </div>
+                        <div class="timer-block">
+                            <span class="timer-value" id="hours">00</span>
+                            <span class="timer-label">год</span>
+                        </div>
+                        <div class="timer-block">
+                            <span class="timer-value" id="minutes">00</span>
+                            <span class="timer-label">хв</span>
+                        </div>
+                    </div>
+
+                    <div class="prize-distribution">
+                        <div class="prize-distribution-title">Розподіл призів (${winnersCount} переможців):</div>
+                        <div class="prize-list">
+                            ${prizeDistributionHTML}
+                        </div>
+                    </div>
+
+                    <div class="main-raffle-participants">
+                        <div class="participants-info">Учасників: <span class="participants-count">${participantsCount}</span></div>
+                        <div class="share-container">
+                            <button class="share-button" id="share-raffle-btn" data-raffle-id="${raffleId}">Поділитися</button>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div class="progress" style="width: ${progressWidth}%"></div>
+                    </div>
+
+                    <button class="join-button" data-raffle-id="${raffleId}" data-raffle-type="main">Взяти участь</button>
+                </div>
+            `;
+
+            // Оновлюємо таймер
+            this._updateRaffleTimers();
+
+            // Додаємо обробники подій
+            const joinButton = container.querySelector('.join-button');
+            if (joinButton) {
+                joinButton.addEventListener('click', () => {
+                    const raffleId = joinButton.getAttribute('data-raffle-id');
+                    if (!raffleId) {
+                        console.error("ID розіграшу не знайдено");
+                        return;
+                    }
+
+                    const raffleType = joinButton.getAttribute('data-raffle-type') || 'main';
+
+                    // Генеруємо подію для відкриття деталей розіграшу
+                    if (WinixRaffles && WinixRaffles.events) {
+                        WinixRaffles.events.emit('open-raffle-details', {
+                            raffleId,
+                            raffleType
+                        });
+                    }
+                });
+            }
+
+            // Додаємо обробник для кнопки "Поділитися"
+            const shareButton = container.querySelector('#share-raffle-btn');
+            if (shareButton) {
+                shareButton.addEventListener('click', () => {
+                    const raffleId = shareButton.getAttribute('data-raffle-id');
+                    if (!raffleId) {
+                        console.error("ID розіграшу не знайдено");
+                        return;
+                    }
+
+                    // Генеруємо подію для поширення розіграшу
+                    if (WinixRaffles && WinixRaffles.events) {
+                        WinixRaffles.events.emit('share-raffle', { raffleId });
+                    }
+                });
+            }
+        } catch (error) {
+            console.error("Помилка відображення основного розіграшу:", error);
+            // Виводимо повідомлення про помилку у контейнер
+            container.innerHTML = `
+                <div class="raffle-error">
+                    <div class="error-icon">⚠️</div>
+                    <h3>Помилка відображення розіграшу</h3>
+                    <p>Сталася помилка при відображенні даних розіграшу.</p>
+                </div>
+            `;
         }
     }
 
@@ -487,66 +607,98 @@ class ActiveRaffles {
     _createMiniRaffleElement(raffle) {
         if (!raffle) return null;
 
-        // Створюємо контейнер
-        const miniRaffle = document.createElement('div');
-        miniRaffle.className = 'mini-raffle';
-        miniRaffle.setAttribute('data-raffle-id', raffle.id);
-
-        // Розраховуємо час, що залишився
-        let timeLeftText = '';
         try {
-            const now = new Date();
-            const endTime = new Date(raffle.end_time);
-            const timeLeft = endTime - now;
+            // Створюємо контейнер
+            const miniRaffle = document.createElement('div');
+            miniRaffle.className = 'mini-raffle';
+            miniRaffle.setAttribute('data-raffle-id', raffle.id || 'unknown');
 
-            if (timeLeft > 0) {
-                const timeLeftData = formatTimeLeft(timeLeft, 'short');
-                timeLeftText = `Залишилось: ${timeLeftData.text}`;
-            } else {
-                timeLeftText = 'Завершується';
+            // Розраховуємо час, що залишився
+            let timeLeftText = '';
+            try {
+                // Перевіряємо наявність та валідність дати завершення
+                if (raffle.end_time) {
+                    const now = new Date();
+                    const endTime = new Date(raffle.end_time);
+
+                    // Перевіряємо, чи валідна дата
+                    if (!isNaN(endTime.getTime())) {
+                        const timeLeft = endTime - now;
+
+                        if (timeLeft > 0) {
+                            const timeLeftData = formatTimeLeft(timeLeft, 'short');
+                            timeLeftText = `Залишилось: ${timeLeftData.text}`;
+                        } else {
+                            timeLeftText = 'Завершується';
+                        }
+                    } else {
+                        timeLeftText = 'Час не визначено';
+                    }
+                } else {
+                    timeLeftText = 'Час не визначено';
+                }
+            } catch (error) {
+                console.error("Помилка розрахунку часу міні-розіграшу:", error);
+                timeLeftText = 'Час не визначено';
             }
-        } catch (error) {
-            console.error("Помилка розрахунку часу міні-розіграшу:", error);
-            timeLeftText = 'Час не визначено';
-        }
 
-        // Форматуємо кількість переможців
-        const winnersCount = raffle.winners_count || 1;
-        const winnersText = `${raffle.prize_amount} ${raffle.prize_currency} (${winnersCount} переможців)`;
+            // Перевіряємо наявність необхідних полів
+            const title = raffle.title || 'Розіграш';
+            const entryFee = raffle.entry_fee || 0;
+            const prizeAmount = raffle.prize_amount || 0;
+            const prizeCurrency = raffle.prize_currency || 'WINIX';
+            const winnersCount = raffle.winners_count || 1;
+            const raffleId = raffle.id || 'unknown';
 
-        // Формуємо HTML
-        miniRaffle.innerHTML = `
-            <div class="mini-raffle-info">
-                <div class="mini-raffle-title">${raffle.title}</div>
-                <div class="mini-raffle-cost">
-                    <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
-                    <span>${raffle.entry_fee} жетон${raffle.entry_fee !== 1 ? 'и' : ''}</span>
+            // Форматуємо кількість переможців
+            const winnersText = `${prizeAmount} ${prizeCurrency} (${winnersCount} переможців)`;
+
+            // Формуємо HTML
+            miniRaffle.innerHTML = `
+                <div class="mini-raffle-info">
+                    <div class="mini-raffle-title">${title}</div>
+                    <div class="mini-raffle-cost">
+                        <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
+                        <span>${entryFee} жетон${entryFee !== 1 ? 'и' : ''}</span>
+                    </div>
+                    <div class="mini-raffle-prize">${winnersText}</div>
+                    <div class="mini-raffle-time">${timeLeftText}</div>
                 </div>
-                <div class="mini-raffle-prize">${winnersText}</div>
-                <div class="mini-raffle-time">${timeLeftText}</div>
-            </div>
-            <button class="mini-raffle-button" data-raffle-id="${raffle.id}" data-raffle-type="daily">Участь</button>
-        `;
+                <button class="mini-raffle-button" data-raffle-id="${raffleId}" data-raffle-type="daily">Участь</button>
+            `;
 
-        // Додаємо обробник натискання
-        const button = miniRaffle.querySelector('.mini-raffle-button');
-        if (button) {
-            button.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
+            // Додаємо обробник натискання
+            const button = miniRaffle.querySelector('.mini-raffle-button');
+            if (button) {
+                button.addEventListener('click', (event) => {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
 
-                const raffleId = button.getAttribute('data-raffle-id');
-                const raffleType = button.getAttribute('data-raffle-type');
+                    const raffleId = button.getAttribute('data-raffle-id');
+                    if (!raffleId) {
+                        console.error("ID розіграшу не знайдено");
+                        return;
+                    }
 
-                // Замість прямого виклику, генеруємо подію для відкриття деталей
-                WinixRaffles.events.emit('open-raffle-details', {
-                    raffleId,
-                    raffleType
+                    const raffleType = button.getAttribute('data-raffle-type') || 'daily';
+
+                    // Генеруємо подію для відкриття деталей розіграшу
+                    if (WinixRaffles && WinixRaffles.events) {
+                        WinixRaffles.events.emit('open-raffle-details', {
+                            raffleId,
+                            raffleType
+                        });
+                    }
                 });
-            });
-        }
+            }
 
-        return miniRaffle;
+            return miniRaffle;
+        } catch (error) {
+            console.error("Помилка створення елементу міні-розіграшу:", error);
+            return null;
+        }
     }
 
     /**
@@ -557,56 +709,74 @@ class ActiveRaffles {
     _addNewbieBonusElement(container) {
         if (!container) return;
 
-        const newbieBonus = document.createElement('div');
-        newbieBonus.className = 'mini-raffle';
-        newbieBonus.setAttribute('data-raffle-id', 'newbie');
+        try {
+            const newbieBonus = document.createElement('div');
+            newbieBonus.className = 'mini-raffle';
+            newbieBonus.setAttribute('data-raffle-id', 'newbie');
 
-        newbieBonus.innerHTML = `
-            <div class="mini-raffle-info">
-                <div class="mini-raffle-title">Бонус новачка</div>
-                <div class="mini-raffle-cost">
-                    <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
-                    <span>0 жетонів</span>
+            newbieBonus.innerHTML = `
+                <div class="mini-raffle-info">
+                    <div class="mini-raffle-title">Бонус новачка</div>
+                    <div class="mini-raffle-cost">
+                        <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
+                        <span>0 жетонів</span>
+                    </div>
+                    <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
+                    <div class="mini-raffle-time">Доступно тільки новим користувачам</div>
                 </div>
-                <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
-                <div class="mini-raffle-time">Доступно тільки новим користувачам</div>
-            </div>
-            <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
-        `;
+                <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
+            `;
 
-        const button = newbieBonus.querySelector('.mini-raffle-button');
-        if (button) {
-            button.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
+            const button = newbieBonus.querySelector('.mini-raffle-button');
+            if (button) {
+                button.addEventListener('click', async (event) => {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
 
-                // Замість прямого виклику, генеруємо подію для отримання бонусу
-                WinixRaffles.events.emit('claim-newbie-bonus', {
-                    element: button,
-                    container: newbieBonus
+                    // Генеруємо подію для отримання бонусу новачка
+                    if (WinixRaffles && WinixRaffles.events) {
+                        WinixRaffles.events.emit('claim-newbie-bonus', {
+                            element: button,
+                            container: newbieBonus
+                        });
+                    }
                 });
-            });
-        }
-
-        container.appendChild(newbieBonus);
-
-        // Перевіряємо, чи вже отримано бонус
-        api.getUserData().then(userData => {
-            if (userData && userData.data && userData.data.newbie_bonus_claimed) {
-                // Деактивуємо кнопку
-                if (button) {
-                    button.textContent = 'Отримано';
-                    button.disabled = true;
-                    button.style.opacity = '0.6';
-                    button.style.cursor = 'default';
-                }
-
-                // Додаємо водяний знак
-                WinixRaffles.utils.markElement(newbieBonus);
             }
-        }).catch(err => {
-            console.error("Помилка перевірки статусу бонусу:", err);
-        });
+
+            container.appendChild(newbieBonus);
+
+            // Перевіряємо, чи вже отримано бонус
+            try {
+                if (api && typeof api.getUserData === 'function') {
+                    api.getUserData()
+                        .then(userData => {
+                            if (userData && userData.data && userData.data.newbie_bonus_claimed) {
+                                // Деактивуємо кнопку
+                                if (button) {
+                                    button.textContent = 'Отримано';
+                                    button.disabled = true;
+                                    button.style.opacity = '0.6';
+                                    button.style.cursor = 'default';
+                                }
+
+                                // Додаємо водяний знак
+                                if (WinixRaffles && WinixRaffles.utils && typeof WinixRaffles.utils.markElement === 'function') {
+                                    WinixRaffles.utils.markElement(newbieBonus);
+                                }
+                            }
+                        })
+                        .catch(err => {
+                            console.error("Помилка перевірки статусу бонусу:", err);
+                        });
+                }
+            } catch (error) {
+                console.error("Помилка перевірки статусу бонусу:", error);
+            }
+        } catch (error) {
+            console.error("Помилка створення елементу бонусу новачка:", error);
+        }
     }
 
     /**
@@ -630,8 +800,14 @@ class ActiveRaffles {
      * @private
      */
     _stopRaffleTimers() {
-        _timerIntervals.forEach(interval => clearInterval(interval));
-        _timerIntervals = [];
+        if (_timerIntervals && _timerIntervals.length > 0) {
+            _timerIntervals.forEach(interval => {
+                if (interval) {
+                    clearInterval(interval);
+                }
+            });
+            _timerIntervals = [];
+        }
     }
 
     /**
@@ -645,31 +821,48 @@ class ActiveRaffles {
             const hoursElement = document.querySelector('#hours');
             const minutesElement = document.querySelector('#minutes');
 
-            if (daysElement && hoursElement && minutesElement && _activeRaffles && Array.isArray(_activeRaffles)) {
+            if (daysElement && hoursElement && minutesElement &&
+                _activeRaffles && Array.isArray(_activeRaffles) && _activeRaffles.length > 0) {
+
                 // Знаходимо основний розіграш
-                const mainRaffle = _activeRaffles.find(raffle => !raffle.is_daily);
+                const mainRaffle = _activeRaffles.find(raffle => raffle && raffle.is_daily === false);
 
                 if (mainRaffle && mainRaffle.end_time) {
-                    const now = new Date();
-                    const endTime = new Date(mainRaffle.end_time);
-                    const timeLeft = endTime - now;
+                    try {
+                        const now = new Date();
+                        const endTime = new Date(mainRaffle.end_time);
 
-                    if (timeLeft > 0) {
-                        const timeLeftData = formatTimeLeft(timeLeft);
-                        daysElement.textContent = timeLeftData.days;
-                        hoursElement.textContent = timeLeftData.hours;
-                        minutesElement.textContent = timeLeftData.minutes;
-                    } else {
+                        // Перевіряємо, чи валідна дата
+                        if (!isNaN(endTime.getTime())) {
+                            const timeLeft = endTime - now;
+
+                            if (timeLeft > 0) {
+                                const timeLeftData = formatTimeLeft(timeLeft);
+                                daysElement.textContent = timeLeftData.days;
+                                hoursElement.textContent = timeLeftData.hours;
+                                minutesElement.textContent = timeLeftData.minutes;
+                            } else {
+                                daysElement.textContent = '00';
+                                hoursElement.textContent = '00';
+                                minutesElement.textContent = '00';
+
+                                // Розіграш завершено, оновлюємо дані
+                                this.getActiveRaffles(true).then(() => {
+                                    this.displayRaffles();
+                                }).catch(err => {
+                                    console.error("Помилка оновлення після завершення таймера:", err);
+                                });
+                            }
+                        } else {
+                            daysElement.textContent = '00';
+                            hoursElement.textContent = '00';
+                            minutesElement.textContent = '00';
+                        }
+                    } catch (error) {
+                        console.error("Помилка оновлення таймера головного розіграшу:", error);
                         daysElement.textContent = '00';
                         hoursElement.textContent = '00';
                         minutesElement.textContent = '00';
-
-                        // Розіграш завершено, оновлюємо дані
-                        this.getActiveRaffles(true).then(() => {
-                            this.displayRaffles();
-                        }).catch(err => {
-                            console.error("Помилка оновлення після завершення таймера:", err);
-                        });
                     }
                 }
             }
@@ -677,44 +870,61 @@ class ActiveRaffles {
             // Оновлюємо таймери міні-розіграшів
             const miniRaffleTimeElements = document.querySelectorAll('.mini-raffle-time');
 
-            if (miniRaffleTimeElements.length > 0 && _activeRaffles && Array.isArray(_activeRaffles)) {
+            if (miniRaffleTimeElements && miniRaffleTimeElements.length > 0 &&
+                _activeRaffles && Array.isArray(_activeRaffles) && _activeRaffles.length > 0) {
+
                 // Знаходимо щоденні розіграші
-                const dailyRaffles = _activeRaffles.filter(raffle => raffle && raffle.is_daily);
+                const dailyRaffles = _activeRaffles.filter(raffle => raffle && raffle.is_daily === true);
 
                 if (dailyRaffles.length > 0) {
                     const miniRaffles = document.querySelectorAll('.mini-raffle');
 
-                    miniRaffles.forEach(raffleElement => {
-                        const raffleId = raffleElement.getAttribute('data-raffle-id');
-                        const timeElement = raffleElement.querySelector('.mini-raffle-time');
+                    if (miniRaffles && miniRaffles.length > 0) {
+                        miniRaffles.forEach(raffleElement => {
+                            if (!raffleElement) return;
 
-                        if (!timeElement || raffleId === 'newbie') return;
+                            const raffleId = raffleElement.getAttribute('data-raffle-id');
+                            const timeElement = raffleElement.querySelector('.mini-raffle-time');
 
-                        const raffle = dailyRaffles.find(r => r && r.id === raffleId);
-                        if (!raffle || !raffle.end_time) return;
+                            if (!timeElement || !raffleId || raffleId === 'newbie') return;
 
-                        const now = new Date();
-                        const endTime = new Date(raffle.end_time);
-                        const timeLeft = endTime - now;
+                            const raffle = dailyRaffles.find(r => r && r.id === raffleId);
+                            if (!raffle || !raffle.end_time) return;
 
-                        if (timeLeft > 0) {
-                            const timeLeftData = formatTimeLeft(timeLeft, 'short');
-                            timeElement.textContent = `Залишилось: ${timeLeftData.text}`;
-                        } else {
-                            timeElement.textContent = 'Завершується';
+                            try {
+                                const now = new Date();
+                                const endTime = new Date(raffle.end_time);
 
-                            // Розіграш завершено, оновлюємо дані
-                            this.getActiveRaffles(true).then(() => {
-                                this.displayRaffles();
-                            }).catch(err => {
-                                console.error("Помилка оновлення після завершення таймера міні-розіграшу:", err);
-                            });
-                        }
-                    });
+                                // Перевіряємо, чи валідна дата
+                                if (!isNaN(endTime.getTime())) {
+                                    const timeLeft = endTime - now;
+
+                                    if (timeLeft > 0) {
+                                        const timeLeftData = formatTimeLeft(timeLeft, 'short');
+                                        timeElement.textContent = `Залишилось: ${timeLeftData.text}`;
+                                    } else {
+                                        timeElement.textContent = 'Завершується';
+
+                                        // Розіграш завершено, оновлюємо дані
+                                        this.getActiveRaffles(true).then(() => {
+                                            this.displayRaffles();
+                                        }).catch(err => {
+                                            console.error("Помилка оновлення після завершення таймера міні-розіграшу:", err);
+                                        });
+                                    }
+                                } else {
+                                    timeElement.textContent = 'Час не визначено';
+                                }
+                            } catch (error) {
+                                console.error("Помилка оновлення таймера міні-розіграшу:", error);
+                                timeElement.textContent = 'Час не визначено';
+                            }
+                        });
+                    }
                 }
             }
         } catch (error) {
-            console.error("Помилка оновлення таймерів:", error);
+            console.error("Критична помилка оновлення таймерів:", error);
         }
     }
 
@@ -724,6 +934,7 @@ class ActiveRaffles {
      */
     _setupRaffleButtons() {
         // Кнопки обробляються через обробники подій, що відправляють повідомлення до інших модулів
+        // Цей метод є заглушкою для майбутньої реалізації
     }
 }
 
@@ -731,7 +942,9 @@ class ActiveRaffles {
 const activeRafflesModule = new ActiveRaffles();
 
 // Додаємо в глобальний об'єкт для зворотної сумісності
-WinixRaffles.active = activeRafflesModule;
+if (WinixRaffles) {
+    WinixRaffles.active = activeRafflesModule;
+}
 
 console.log("🎮 WINIX Raffles: Ініціалізація модуля активних розіграшів");
 
