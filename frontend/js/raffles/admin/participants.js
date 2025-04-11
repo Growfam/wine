@@ -47,42 +47,22 @@ class RaffleParticipants {
         this._showLoader();
 
         try {
-            // Перевіряємо, чи є доступ до адмін API
-            if (api.getAdminId && api.getAdminId()) {
-                // Якщо є доступ адміністратора, використовуємо адмін API
-                const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
+            // Визначаємо URL для запиту
+            const url = `/raffles/${raffleId}/participants`;
 
-                this._isLoading = false;
-                this._hideLoader();
+            // Виконуємо запит через API
+            const response = await api.apiRequest(url, 'GET');
 
-                if (response.status === 'success') {
-                    // Кешуємо результат
-                    this._participantsCache[raffleId] = response.data;
-                    this._currentRaffleId = raffleId;
-                    return response.data;
-                } else {
-                    throw new Error(response.message || 'Помилка отримання учасників розіграшу');
-                }
+            this._isLoading = false;
+            this._hideLoader();
+
+            if (response.status === 'success') {
+                // Кешуємо результат
+                this._participantsCache[raffleId] = response.data;
+                this._currentRaffleId = raffleId;
+                return response.data;
             } else {
-                // Якщо немає доступу адміністратора, використовуємо звичайний API
-                const userId = api.getUserId();
-                if (!userId) {
-                    throw new Error('ID користувача не знайдено');
-                }
-
-                const response = await api.apiRequest(`/raffles/${raffleId}/participants`, 'GET');
-
-                this._isLoading = false;
-                this._hideLoader();
-
-                if (response.status === 'success') {
-                    // Кешуємо результат
-                    this._participantsCache[raffleId] = response.data;
-                    this._currentRaffleId = raffleId;
-                    return response.data;
-                } else {
-                    throw new Error(response.message || 'Помилка отримання учасників розіграшу');
-                }
+                throw new Error(response.message || 'Помилка отримання учасників розіграшу');
             }
         } catch (error) {
             console.error(`❌ Помилка отримання учасників розіграшу ${raffleId}:`, error);
@@ -107,7 +87,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!api.getAdminId || !api.getAdminId()) {
+        if (!api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return null;
         }
@@ -153,7 +133,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!api.getAdminId || !api.getAdminId()) {
+        if (!api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -196,7 +176,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!api.getAdminId || !api.getAdminId()) {
+        if (!api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -271,7 +251,7 @@ class RaffleParticipants {
         }
 
         // Перевіряємо, чи є доступ до адмін API
-        if (!api.getAdminId || !api.getAdminId()) {
+        if (!api.getAdminId()) {
             showToast('Недостатньо прав для виконання цієї дії', 'error');
             return false;
         }
@@ -420,8 +400,8 @@ class RaffleParticipants {
         }
 
         // Перший і останній учасник
-        const firstEntry = new Date(Math.min(...entryDates));
-        const lastEntry = new Date(Math.max(...entryDates));
+        const firstEntry = new Date(Math.min(...entryDates.map(d => d.getTime())));
+        const lastEntry = new Date(Math.max(...entryDates.map(d => d.getTime())));
 
         // Розподіл за днями тижня
         const dayOfWeekStats = [0, 0, 0, 0, 0, 0, 0]; // Пн, Вт, Ср, Чт, Пт, Сб, Нд

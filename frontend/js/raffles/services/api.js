@@ -5,7 +5,7 @@
 
 import WinixRaffles from '../globals.js';
 import { showLoading, hideLoading, showToast } from '../utils/ui-helpers.js';
-import { getCache, setCache, CACHE_TYPES } from '../utils/cache.js';
+import { getCache, setCache } from '../utils/cache.js';
 
 // Базовий URL для API-запитів
 const API_BASE_URL = WinixRaffles.config.apiBaseUrl || '/api';
@@ -63,7 +63,9 @@ export function getUserId() {
             _userId = localId;
             return _userId;
         }
-    } catch (e) {}
+    } catch (e) {
+        // Ігноруємо помилки localStorage
+    }
 
     // ID не знайдено
     return null;
@@ -83,7 +85,9 @@ export function getAuthToken() {
     try {
         _token = localStorage.getItem('auth_token');
         return _token;
-    } catch (e) {}
+    } catch (e) {
+        // Ігноруємо помилки localStorage
+    }
 
     return null;
 }
@@ -444,9 +448,6 @@ const api = {
         parallelLimit: PARALLEL_REQUESTS_LIMIT
     }
 };
-
-// Експортуємо adminAPI для зворотної сумісності
-export const adminAPI = api;
 
 // Для зворотної сумісності додаємо в глобальний об'єкт
 WinixRaffles.api = api;

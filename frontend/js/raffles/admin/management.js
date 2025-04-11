@@ -37,10 +37,248 @@ class RaffleManagement {
             return;
         }
 
+        // Додаємо стилі для адмін-панелі, якщо вони потрібні
+        this._createAdminStyles();
+
         // Відображаємо список розіграшів
         this.displayRafflesList();
 
         console.log("✅ Raffle Management: Ініціалізацію завершено");
+    }
+
+    /**
+     * Створення стилів для адмін-панелі розіграшів
+     * @private
+     */
+    _createAdminStyles() {
+        // Перевіряємо, чи вже є стилі
+        if (document.getElementById('admin-raffles-styles')) {
+            return;
+        }
+
+        const styleElement = document.createElement('style');
+        styleElement.id = 'admin-raffles-styles';
+        styleElement.textContent = `
+            /* Стилі для адмін-панелі розіграшів */
+            .admin-filters {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .filter-group {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            
+            .admin-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 1rem;
+                background: rgba(30, 39, 70, 0.8);
+                border-radius: 0.5rem;
+                overflow: hidden;
+            }
+            
+            .admin-table th, .admin-table td {
+                padding: 0.75rem;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            .admin-table th {
+                background: rgba(20, 30, 60, 0.7);
+                color: white;
+                font-weight: bold;
+            }
+            
+            .admin-table tr:hover td {
+                background: rgba(30, 113, 161, 0.1);
+            }
+            
+            .admin-table .no-data {
+                text-align: center;
+                padding: 2rem;
+                color: rgba(255, 255, 255, 0.5);
+            }
+            
+            .admin-button {
+                background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+                border: none;
+                border-radius: 0.5rem;
+                padding: 0.5rem 1rem;
+                color: white;
+                font-size: 0.875rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .admin-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }
+            
+            .admin-button:active {
+                transform: translateY(0);
+            }
+            
+            .status-badge {
+                display: inline-block;
+                padding: 0.25rem 0.5rem;
+                border-radius: 0.25rem;
+                font-size: 0.75rem;
+                font-weight: bold;
+            }
+            
+            .status-active {
+                background: rgba(0, 201, 167, 0.2);
+                color: rgba(0, 201, 167, 1);
+            }
+            
+            .status-completed {
+                background: rgba(76, 175, 80, 0.2);
+                color: rgba(76, 175, 80, 1);
+            }
+            
+            .status-cancelled {
+                background: rgba(244, 67, 54, 0.2);
+                color: rgba(244, 67, 54, 1);
+            }
+            
+            .actions-cell {
+                white-space: nowrap;
+                display: flex;
+                gap: 0.25rem;
+            }
+            
+            .action-btn {
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                font-size: 1rem;
+                padding: 0.25rem;
+                border-radius: 0.25rem;
+                transition: all 0.2s ease;
+            }
+            
+            .action-btn:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+            
+            .admin-pagination {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 1rem;
+                margin-top: 1rem;
+            }
+            
+            .admin-pagination button {
+                background: rgba(30, 39, 70, 0.8);
+                border: none;
+                border-radius: 0.25rem;
+                padding: 0.5rem 1rem;
+                color: white;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .admin-pagination button:hover:not(:disabled) {
+                background: rgba(30, 113, 161, 0.8);
+            }
+            
+            .admin-pagination button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            
+            /* Стилі для модальних вікон */
+            .admin-modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+            
+            .admin-modal.show {
+                display: flex;
+                opacity: 1;
+            }
+            
+            .admin-modal-content {
+                background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
+                border-radius: 0.5rem;
+                width: 90%;
+                max-width: 600px;
+                max-height: 90vh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+                animation: modalFadeIn 0.3s ease;
+            }
+            
+            .admin-modal-content.wide-modal {
+                max-width: 900px;
+            }
+            
+            @keyframes modalFadeIn {
+                from { transform: scale(0.9); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+            }
+            
+            .admin-modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            .admin-modal-header h2 {
+                margin: 0;
+                color: white;
+                font-size: 1.25rem;
+            }
+            
+            .admin-modal-close {
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 1.5rem;
+                cursor: pointer;
+                transition: color 0.2s ease;
+            }
+            
+            .admin-modal-close:hover {
+                color: white;
+            }
+            
+            .admin-modal-body {
+                padding: 1rem;
+                overflow-y: auto;
+            }
+            
+            .admin-modal-footer {
+                display: flex;
+                justify-content: flex-end;
+                gap: 0.5rem;
+                padding: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        `;
+
+        document.head.appendChild(styleElement);
     }
 
     /**
@@ -618,9 +856,151 @@ class RaffleManagement {
      * Відкриття модального вікна створення розіграшу
      */
     async openCreateRaffleModal() {
-        // Тут буде імплементація відкриття модального вікна створення розіграшу
-        // Ця функція буде реалізована при розробці UI-компонентів
-        console.log("Відкриття модального вікна створення розіграшу");
+        // Створюємо модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.id = 'create-raffle-modal';
+
+        // Отримуємо поточну дату та дату через тиждень для полів дат
+        const now = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+
+        const nowStr = now.toISOString().slice(0, 16);
+        const nextWeekStr = nextWeek.toISOString().slice(0, 16);
+
+        // Заповнюємо модальне вікно
+        modal.innerHTML = `
+            <div class="admin-modal-content">
+                <div class="admin-modal-header">
+                    <h2>Створення нового розіграшу</h2>
+                    <span class="admin-modal-close">&times;</span>
+                </div>
+                <div class="admin-modal-body">
+                    <form id="create-raffle-form">
+                        <div class="form-group">
+                            <label for="title">Назва розіграшу*</label>
+                            <input type="text" id="title" name="title" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">Опис</label>
+                            <textarea id="description" name="description" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="prize_amount">Сума призу*</label>
+                                <input type="number" id="prize_amount" name="prize_amount" min="1" step="0.01" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="prize_currency">Валюта призу*</label>
+                                <select id="prize_currency" name="prize_currency" required>
+                                    <option value="WINIX" selected>WINIX</option>
+                                    <option value="USDT">USDT</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="entry_fee">Вартість участі (жетони)*</label>
+                                <input type="number" id="entry_fee" name="entry_fee" min="1" step="1" value="1" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="winners_count">Кількість переможців*</label>
+                                <input type="number" id="winners_count" name="winners_count" min="1" step="1" value="1" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="start_time">Дата початку*</label>
+                                <input type="datetime-local" id="start_time" name="start_time" value="${nowStr}" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="end_time">Дата завершення*</label>
+                                <input type="datetime-local" id="end_time" name="end_time" value="${nextWeekStr}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="image_url">URL зображення</label>
+                            <input type="text" id="image_url" name="image_url" placeholder="assets/prize-poster.gif">
+                        </div>
+                        
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="is_daily" name="is_daily">
+                            <label for="is_daily">Щоденний розіграш</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" class="admin-button cancel-btn">Скасувати</button>
+                    <button type="button" class="admin-button save-btn">Створити розіграш</button>
+                </div>
+            </div>
+        `;
+
+        // Додаємо модальне вікно на сторінку
+        document.body.appendChild(modal);
+
+        // Показуємо модальне вікно
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+
+        // Додаємо обробники подій
+        const closeBtn = modal.querySelector('.admin-modal-close');
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        const saveBtn = modal.querySelector('.save-btn');
+        const form = modal.querySelector('#create-raffle-form');
+
+        // Функція закриття
+        const closeModal = () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        // Обробники для закриття
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+
+        // Обробник для збереження
+        saveBtn.addEventListener('click', async () => {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Збираємо дані форми
+            const formData = {
+                title: form.querySelector('#title').value,
+                description: form.querySelector('#description').value,
+                prize_amount: parseFloat(form.querySelector('#prize_amount').value),
+                prize_currency: form.querySelector('#prize_currency').value,
+                entry_fee: parseInt(form.querySelector('#entry_fee').value),
+                winners_count: parseInt(form.querySelector('#winners_count').value),
+                start_time: new Date(form.querySelector('#start_time').value).toISOString(),
+                end_time: new Date(form.querySelector('#end_time').value).toISOString(),
+                image_url: form.querySelector('#image_url').value,
+                is_daily: form.querySelector('#is_daily').checked,
+            };
+
+            // Створюємо розіграш
+            const result = await this.createRaffle(formData);
+
+            if (result) {
+                closeModal();
+                this.displayRafflesList();
+            }
+        });
     }
 
     /**
@@ -628,9 +1008,156 @@ class RaffleManagement {
      * @param {string} raffleId - ID розіграшу
      */
     async openEditRaffleModal(raffleId) {
-        // Тут буде імплементація відкриття модального вікна редагування розіграшу
-        // Ця функція буде реалізована при розробці UI-компонентів
-        console.log(`Відкриття модального вікна редагування розіграшу ${raffleId}`);
+        const raffle = await this.getRaffleDetails(raffleId);
+
+        if (!raffle) {
+            showToast('Не вдалося отримати дані розіграшу');
+            return;
+        }
+
+        // Створюємо модальне вікно
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.id = 'edit-raffle-modal';
+
+        // Форматуємо дати
+        const startTime = new Date(raffle.start_time);
+        const endTime = new Date(raffle.end_time);
+
+        const startTimeStr = startTime.toISOString().slice(0, 16);
+        const endTimeStr = endTime.toISOString().slice(0, 16);
+
+        modal.innerHTML = `
+            <div class="admin-modal-content">
+                <div class="admin-modal-header">
+                    <h2>Редагування розіграшу</h2>
+                    <span class="admin-modal-close">&times;</span>
+                </div>
+                <div class="admin-modal-body">
+                    <form id="edit-raffle-form">
+                        <div class="form-group">
+                            <label for="edit-title">Назва розіграшу*</label>
+                            <input type="text" id="edit-title" name="title" value="${raffle.title}" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-description">Опис</label>
+                            <textarea id="edit-description" name="description" rows="3">${raffle.description || ''}</textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="edit-prize_amount">Сума призу*</label>
+                                <input type="number" id="edit-prize_amount" name="prize_amount" min="1" step="0.01" value="${raffle.prize_amount}" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="edit-prize_currency">Валюта призу*</label>
+                                <select id="edit-prize_currency" name="prize_currency" required>
+                                    <option value="WINIX" ${raffle.prize_currency === 'WINIX' ? 'selected' : ''}>WINIX</option>
+                                    <option value="USDT" ${raffle.prize_currency === 'USDT' ? 'selected' : ''}>USDT</option>
+                                    <option value="USD" ${raffle.prize_currency === 'USD' ? 'selected' : ''}>USD</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="edit-entry_fee">Вартість участі (жетони)*</label>
+                                <input type="number" id="edit-entry_fee" name="entry_fee" min="1" step="1" value="${raffle.entry_fee}" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="edit-winners_count">Кількість переможців*</label>
+                                <input type="number" id="edit-winners_count" name="winners_count" min="1" step="1" value="${raffle.winners_count}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label for="edit-start_time">Дата початку*</label>
+                                <input type="datetime-local" id="edit-start_time" name="start_time" value="${startTimeStr}" required>
+                            </div>
+                            
+                            <div class="form-group half">
+                                <label for="edit-end_time">Дата завершення*</label>
+                                <input type="datetime-local" id="edit-end_time" name="end_time" value="${endTimeStr}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-image_url">URL зображення</label>
+                            <input type="text" id="edit-image_url" name="image_url" value="${raffle.image_url || ''}">
+                        </div>
+                        
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="edit-is_daily" name="is_daily" ${raffle.is_daily ? 'checked' : ''}>
+                            <label for="edit-is_daily">Щоденний розіграш</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" class="admin-button cancel-btn">Скасувати</button>
+                    <button type="button" class="admin-button save-btn">Зберегти зміни</button>
+                </div>
+            </div>
+        `;
+
+        // Додаємо модальне вікно на сторінку
+        document.body.appendChild(modal);
+
+        // Показуємо модальне вікно
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+
+        // Додаємо обробники подій
+        const closeBtn = modal.querySelector('.admin-modal-close');
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        const saveBtn = modal.querySelector('.save-btn');
+        const form = modal.querySelector('#edit-raffle-form');
+
+        // Функція закриття
+        const closeModal = () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        // Обробники для закриття
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+
+        // Обробник для збереження
+        saveBtn.addEventListener('click', async () => {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Збираємо дані форми
+            const formData = {
+                title: form.querySelector('#edit-title').value,
+                description: form.querySelector('#edit-description').value,
+                prize_amount: parseFloat(form.querySelector('#edit-prize_amount').value),
+                prize_currency: form.querySelector('#edit-prize_currency').value,
+                entry_fee: parseInt(form.querySelector('#edit-entry_fee').value),
+                winners_count: parseInt(form.querySelector('#edit-winners_count').value),
+                start_time: new Date(form.querySelector('#edit-start_time').value).toISOString(),
+                end_time: new Date(form.querySelector('#edit-end_time').value).toISOString(),
+                image_url: form.querySelector('#edit-image_url').value,
+                is_daily: form.querySelector('#edit-is_daily').checked,
+            };
+
+            // Оновлюємо розіграш
+            const result = await this.updateRaffle(raffleId, formData);
+
+            if (result) {
+                closeModal();
+                this.displayRafflesList();
+            }
+        });
     }
 
     /**
@@ -638,9 +1165,125 @@ class RaffleManagement {
      * @param {string} raffleId - ID розіграшу
      */
     async openRaffleDetailsModal(raffleId) {
-        // Тут буде імплементація відкриття модального вікна деталей розіграшу
-        // Ця функція буде реалізована при розробці UI-компонентів
         console.log(`Відкриття модального вікна деталей розіграшу ${raffleId}`);
+        const raffle = await this.getRaffleDetails(raffleId);
+
+        if (!raffle) {
+            showToast('Не вдалося отримати дані розіграшу');
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.id = 'raffle-details-modal';
+
+        // Визначаємо статус
+        const statusClass =
+            raffle.status === 'active' ? 'status-active' :
+            raffle.status === 'completed' ? 'status-completed' :
+            'status-cancelled';
+
+        const statusText =
+            raffle.status === 'active' ? 'Активний' :
+            raffle.status === 'completed' ? 'Завершено' :
+            'Скасовано';
+
+        // Додаткова перевірка типу розіграшу
+        const raffleType = raffle.is_daily ? 'Щоденний розіграш' : 'Джекпот';
+
+        // Форматуємо дати
+        const startTimeStr = formatDate(raffle.start_time);
+        const endTimeStr = formatDate(raffle.end_time);
+
+        modal.innerHTML = `
+            <div class="admin-modal-content wide-modal">
+                <div class="admin-modal-header">
+                    <h2>Деталі розіграшу</h2>
+                    <span class="admin-modal-close">&times;</span>
+                </div>
+                <div class="admin-modal-body">
+                    <div class="raffle-header">
+                        <h2>${raffle.title}</h2>
+                        <span class="status-badge ${statusClass}">${statusText}</span>
+                    </div>
+                    
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">ID розіграшу:</div>
+                            <div class="detail-value">${raffle.id}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Тип:</div>
+                            <div class="detail-value">${raffleType}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Призовий фонд:</div>
+                            <div class="detail-value">${raffle.prize_amount} ${raffle.prize_currency}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Вартість участі:</div>
+                            <div class="detail-value">${raffle.entry_fee} жетонів</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Кількість переможців:</div>
+                            <div class="detail-value">${raffle.winners_count}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Початок:</div>
+                            <div class="detail-value">${startTimeStr}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Завершення:</div>
+                            <div class="detail-value">${endTimeStr}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Кількість учасників:</div>
+                            <div class="detail-value">${raffle.participants_count || 0}</div>
+                        </div>
+                    </div>
+
+                    <div class="raffle-description">
+                        <h3>Опис</h3>
+                        <p>${raffle.description || 'Опис відсутній'}</p>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" class="admin-button view-participants-btn" data-raffle-id="${raffle.id}">Переглянути учасників</button>
+                    <button type="button" class="admin-button close-btn">Закрити</button>
+                </div>
+            </div>
+        `;
+
+        // Додаємо модальне вікно на сторінку
+        document.body.appendChild(modal);
+
+        // Показуємо модальне вікно
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+
+        // Додаємо обробники подій
+        const closeBtn = modal.querySelector('.admin-modal-close');
+        const closeActionBtn = modal.querySelector('.close-btn');
+        const viewParticipantsBtn = modal.querySelector('.view-participants-btn');
+
+        // Функція закриття
+        const closeModal = () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        // Обробники для закриття
+        closeBtn.addEventListener('click', closeModal);
+        closeActionBtn.addEventListener('click', closeModal);
+
+        // Обробник для перегляду учасників
+        viewParticipantsBtn.addEventListener('click', () => {
+            closeModal();
+            this.openParticipantsModal(raffleId);
+        });
     }
 
     /**
@@ -648,9 +1291,138 @@ class RaffleManagement {
      * @param {string} raffleId - ID розіграшу
      */
     async openParticipantsModal(raffleId) {
-        // Тут буде імплементація відкриття модального вікна зі списком учасників
-        // Ця функція буде реалізована при розробці UI-компонентів
         console.log(`Відкриття модального вікна зі списком учасників розіграшу ${raffleId}`);
+        const result = await this.getRaffleParticipants(raffleId);
+
+        if (!result) {
+            showToast('Не вдалося отримати список учасників');
+            return;
+        }
+
+        const { raffle, participants } = result;
+
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.id = 'participants-modal';
+
+        modal.innerHTML = `
+            <div class="admin-modal-content wide-modal">
+                <div class="admin-modal-header">
+                    <h2>Учасники розіграшу</h2>
+                    <span class="admin-modal-close">&times;</span>
+                </div>
+                <div class="admin-modal-body">
+                    <div class="participants-header">
+                        <h3>${raffle.title}</h3>
+                        <p>Загальна кількість учасників: ${participants.length}</p>
+                    </div>
+                    
+                    <div class="participants-table-container">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>№</th>
+                                    <th>Користувач</th>
+                                    <th>Telegram ID</th>
+                                    <th>Жетони</th>
+                                    <th>Дата участі</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${participants.length === 0 ? `
+                                    <tr>
+                                        <td colspan="6" class="no-data">Учасників не знайдено</td>
+                                    </tr>
+                                ` : ''}
+                                
+                                ${participants.map((participant, index) => {
+                                    const statusClass = 
+                                        participant.is_winner ? 'status-won' : 
+                                        participant.status === 'refunded' ? 'status-refunded' : 
+                                        'status-participated';
+                                    
+                                    const statusText = 
+                                        participant.is_winner ? 'Переможець' : 
+                                        participant.status === 'refunded' ? 'Повернуто' : 
+                                        'Учасник';
+                                    
+                                    const entryTimeStr = formatDate(participant.entry_time);
+                                    
+                                    return `
+                                        <tr>
+                                            <td>${index + 1}</td>
+                                            <td>${participant.username}</td>
+                                            <td>${participant.telegram_id}</td>
+                                            <td>${participant.entry_count}</td>
+                                            <td>${entryTimeStr}</td>
+                                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" class="admin-button download-btn">Завантажити CSV</button>
+                    <button type="button" class="admin-button close-btn">Закрити</button>
+                </div>
+            </div>
+        `;
+
+        // Додаємо модальне вікно на сторінку
+        document.body.appendChild(modal);
+
+        // Показуємо модальне вікно
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
+
+        // Додаємо обробники подій
+        const closeBtn = modal.querySelector('.admin-modal-close');
+        const closeActionBtn = modal.querySelector('.close-btn');
+        const downloadBtn = modal.querySelector('.download-btn');
+
+        // Функція закриття
+        const closeModal = () => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        };
+
+        // Обробники для закриття
+        closeBtn.addEventListener('click', closeModal);
+        closeActionBtn.addEventListener('click', closeModal);
+
+        // Обробник для завантаження CSV
+        downloadBtn.addEventListener('click', () => {
+            // Генеруємо CSV
+            let csv = 'Номер,Користувач,Telegram ID,Жетони,Дата участі,Статус\n';
+
+            participants.forEach((participant, index) => {
+                const statusText =
+                    participant.is_winner ? 'Переможець' :
+                    participant.status === 'refunded' ? 'Повернуто' :
+                    'Учасник';
+
+                const entryTimeStr = formatDate(participant.entry_time);
+
+                csv += `${index + 1},"${participant.username}",${participant.telegram_id},${participant.entry_count},"${entryTimeStr}","${statusText}"\n`;
+            });
+
+            // Створюємо посилання для завантаження
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `raffle-participants-${raffle.id}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
     }
 
     /**

@@ -409,43 +409,21 @@ class StatisticsModule {
     }
 
     /**
-     * Синхронізація локальної статистики з сервером
-     * @returns {Promise<Object>} Об'єкт із синхронізованою статистикою
+     * Оновлення статистики
+     * @returns {Promise<Object>} Об'єкт з актуальною статистикою
      */
-    async syncStatisticsWithServer() {
+    async updateStatistics() {
         try {
             // Отримуємо дані з сервера
-            const serverStats = await this.fetchStatistics(true);
-
-            // Отримуємо локальні дані
-            const localStats = this._currentStats || this._getStatsFromCache() || this.getDefaultStats();
-
-            // Об'єднуємо дані (використовуємо вищі значення)
-            const mergedStats = {
-                totalParticipated: Math.max(serverStats.totalParticipated || 0, localStats.totalParticipated || 0),
-                totalWins: Math.max(serverStats.totalWins || 0, localStats.totalWins || 0),
-                totalWinixWon: Math.max(serverStats.totalWinixWon || 0, localStats.totalWinixWon || 0),
-                totalTokensSpent: Math.max(serverStats.totalTokensSpent || 0, localStats.totalTokensSpent || 0),
-                lastWin: serverStats.lastWin || localStats.lastWin,
-                lastRaffle: serverStats.lastRaffle || localStats.lastRaffle
-            };
-
-            // Розраховуємо розширену статистику
-            const extendedStats = this.calculateExtendedStats(mergedStats);
-
-            // Зберігаємо оновлену статистику
-            this._currentStats = extendedStats;
-            this._saveStatsToCache(extendedStats);
+            const stats = await this.fetchStatistics(true);
 
             // Оновлюємо відображення
-            this.updateStatisticsDisplay(extendedStats);
+            this.updateStatisticsDisplay(stats);
 
-            console.log("✅ Stats: Статистику успішно синхронізовано з сервером");
-
-            return extendedStats;
+            return stats;
         } catch (error) {
-            console.warn("⚠️ Stats: Помилка синхронізації статистики:", error);
-            return this._currentStats;
+            console.warn("⚠️ Stats: Помилка оновлення статистики:", error);
+            return this._currentStats || this.getDefaultStats();
         }
     }
 }
