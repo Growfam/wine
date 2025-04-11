@@ -4,8 +4,7 @@
  */
 
 import WinixRaffles from '../globals.js';
-import { showLoading, hideLoading, showToast } from '../utils/ui-helpers.js';
-import { getCache, setCache } from '../utils/cache.js';
+import { showToast } from '../utils/ui-helpers.js';
 
 // Базовий URL для API-запитів
 const API_BASE_URL = WinixRaffles.config.apiBaseUrl || '/api';
@@ -30,6 +29,12 @@ const PARALLEL_REQUESTS_LIMIT = 5;
 
 // Таймаути для запитів
 let _requestTimeouts = {};
+
+// Кеш відповідей для GET запитів
+let _responseCache = {};
+
+// Максимальний час життя кешу
+const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 хвилин
 
 /**
  * Отримати ID користувача з усіх можливих джерел
@@ -67,6 +72,12 @@ export function getUserId() {
         // Ігноруємо помилки localStorage
     }
 
+    // 4. Перевіряємо глобальний об'єкт конфігурації
+    if (window.WinixConfig && window.WinixConfig.userId) {
+        _userId = window.WinixConfig.userId.toString();
+        return _userId;
+    }
+
     // ID не знайдено
     return null;
 }
@@ -89,6 +100,12 @@ export function getAuthToken() {
         // Ігноруємо помилки localStorage
     }
 
+    // 3. Перевіряємо глобальний об'єкт конфігурації
+    if (window.WinixConfig && window.WinixConfig.authToken) {
+        _token = window.WinixConfig.authToken;
+        return _token;
+    }
+
     return null;
 }
 
@@ -98,19 +115,24 @@ export function getAuthToken() {
  */
 export function getAdminId() {
     try {
-        // Перевіряємо наявність ID адміністратора в localStorage
+        // 1. Перевіряємо наявність ID адміністратора в localStorage
         const adminId = localStorage.getItem('admin_user_id');
         if (adminId) {
             return adminId;
         }
 
-        // Перевіряємо наявність адмін-прав в Telegram WebApp
+        // 2. Перевіряємо наявність адмін-прав в Telegram WebApp
         if (window.Telegram && window.Telegram.WebApp &&
             window.Telegram.WebApp.initDataUnsafe &&
             window.Telegram.WebApp.initDataUnsafe.user &&
             window.Telegram.WebApp.initDataUnsafe.user.is_admin) {
 
             return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        }
+
+        // 3. Перевіряємо глобальний об'єкт конфігурації
+        if (window.WinixConfig && window.WinixConfig.isAdmin) {
+            return getUserId();
         }
 
         return null;
@@ -133,6 +155,79 @@ function _getThrottleTime(endpoint) {
         }
     }
     return REQUEST_THROTTLE.default;
+}
+
+/**
+ * Перевірка кешу для запиту
+ * @param {string} cacheKey - Ключ кешу
+ * @returns {Object|null} Дані з кешу або null
+ * @private
+ */
+function _checkCache(cacheKey) {
+    const cachedItem = _responseCache[cacheKey];
+    if (!cachedItem) return null;
+
+    const now = Date.now();
+    if (now > cachedItem.expires) {
+        // Кеш застарів, видаляємо його
+        delete _responseCache[cacheKey];
+        return null;
+    }
+
+    return cachedItem.data;
+}
+
+/**
+ * Додавання відповіді в кеш
+ * @param {string} cacheKey - Ключ кешу
+ * @param {Object} data - Дані для кешування
+ * @param {number} ttl - Час життя кешу в мілісекундах
+ * @private
+ */
+function _addToCache(cacheKey, data, ttl = DEFAULT_CACHE_TTL) {
+    _responseCache[cacheKey] = {
+        data,
+        created: Date.now(),
+        expires: Date.now() + ttl
+    };
+
+    // Очищення старих записів, якщо кеш занадто великий
+    const cacheSize = Object.keys(_responseCache).length;
+    if (cacheSize > 50) {
+        _cleanupCache();
+    }
+}
+
+/**
+ * Очищення застарілих елементів кешу
+ * @private
+ */
+function _cleanupCache() {
+    const now = Date.now();
+    let count = 0;
+
+    // Видаляємо застарілі елементи
+    Object.keys(_responseCache).forEach(key => {
+        if (_responseCache[key].expires < now) {
+            delete _responseCache[key];
+            count++;
+        }
+    });
+
+    // Якщо все ще забагато записів, видаляємо найстаріші
+    const remainingSize = Object.keys(_responseCache).length;
+    if (remainingSize > 30) {
+        const sortedEntries = Object.entries(_responseCache)
+            .sort(([, a], [, b]) => a.created - b.created);
+
+        // Видаляємо 10 найстаріших записів
+        sortedEntries.slice(0, 10).forEach(([key]) => {
+            delete _responseCache[key];
+            count++;
+        });
+    }
+
+    console.log(`🧹 API: Очищено ${count} застарілих або надлишкових записів кешу`);
 }
 
 /**
@@ -193,7 +288,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
 
         // Перевіряємо кеш для GET запитів
         if (method === 'GET' && !options.bypassCache) {
-            const cachedData = getCache('RAFFLE', requestKey);
+            const cachedData = _checkCache(requestKey);
             if (cachedData) {
                 return { ...cachedData, source: 'cache' };
             }
@@ -291,7 +386,8 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
 
         // Показуємо індикатор завантаження
         if (!options.hideLoader) {
-            showLoading('Завантаження...');
+            // Використовуємо централізоване управління лоадером
+            WinixRaffles.loader.show('Завантаження...', `api-${requestKey}`);
         }
 
         try {
@@ -310,17 +406,19 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
                     };
                 }
 
-                throw new Error(`Помилка сервера: ${response.status}`);
+                throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
             }
 
             // Парсимо відповідь
             const jsonData = await response.json();
 
             // Кешуємо відповідь для GET запитів
-            if (method === 'GET') {
-                setCache('RAFFLE', requestKey, jsonData);
+            if (method === 'GET' && !options.noCache) {
+                const cacheTTL = options.cacheTTL || DEFAULT_CACHE_TTL;
+                _addToCache(requestKey, jsonData, cacheTTL);
             }
 
+            // Повертаємо відповідь
             return jsonData;
         } catch (error) {
             // Обробка спеціальних помилок для розіграшів
@@ -344,20 +442,18 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
 
             // Приховуємо індикатор завантаження
             if (!options.hideLoader) {
-                hideLoading();
+                WinixRaffles.loader.hide(`api-${requestKey}`);
             }
         }
     } catch (error) {
         console.error(`🔌 API: Помилка запиту ${endpoint}:`, error.message);
 
         // Генеруємо подію про помилку API
-        document.dispatchEvent(new CustomEvent('api-error', {
-            detail: {
-                error: error,
-                endpoint: endpoint,
-                method: method
-            }
-        }));
+        WinixRaffles.events.emit('api-error', {
+            error: error,
+            endpoint: endpoint,
+            method: method
+        });
 
         // Повертаємо об'єкт з помилкою
         return {
@@ -403,7 +499,8 @@ export async function getUserData(forceRefresh = false) {
     }
 
     return await apiRequest(`/user/${userId}`, 'GET', null, {
-        bypassCache: forceRefresh
+        bypassCache: forceRefresh,
+        cacheTTL: 5 * 60 * 1000 // 5 хвилин
     });
 }
 
@@ -422,8 +519,48 @@ export async function getBalance(forceRefresh = false) {
     }
 
     return await apiRequest(`/user/${userId}/balance`, 'GET', null, {
-        bypassCache: forceRefresh
+        bypassCache: forceRefresh,
+        cacheTTL: 2 * 60 * 1000 // 2 хвилини
     });
+}
+
+/**
+ * Оновлення кешу API
+ * @param {string} type - Тип даних для оновлення ('all', 'user', 'raffles')
+ */
+export function invalidateCache(type = 'all') {
+    let count = 0;
+
+    if (type === 'all') {
+        // Очищаємо весь кеш
+        count = Object.keys(_responseCache).length;
+        _responseCache = {};
+    } else {
+        // Очищаємо кеш певного типу
+        Object.keys(_responseCache).forEach(key => {
+            if ((type === 'user' && key.includes('/user/')) ||
+                (type === 'raffles' && key.includes('/raffles'))) {
+                delete _responseCache[key];
+                count++;
+            }
+        });
+    }
+
+    console.log(`🧹 API: Очищено ${count} записів кешу типу "${type}"`);
+    return count;
+}
+
+/**
+ * Отримання статистики використання API
+ * @returns {Object} Статистика запитів
+ */
+export function getApiStats() {
+    return {
+        activeRequests: Object.keys(_requestsInProgress).length,
+        cacheSize: Object.keys(_responseCache).length,
+        lastRequestTime: _lastRequestTime,
+        throttleSettings: REQUEST_THROTTLE,
+    };
 }
 
 /**
@@ -441,6 +578,10 @@ const api = {
     getUserData,
     getBalance,
 
+    // Функції управління кешем
+    invalidateCache,
+    getApiStats,
+
     // Конфігурація
     config: {
         baseUrl: API_BASE_URL,
@@ -449,7 +590,7 @@ const api = {
     }
 };
 
-// Для зворотної сумісності додаємо в глобальний об'єкт
+// Додаємо в глобальний об'єкт для зворотної сумісності
 WinixRaffles.api = api;
 
 // Для повної зворотної сумісності додаємо в window

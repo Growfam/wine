@@ -3,7 +3,7 @@
  */
 
 import WinixRaffles from '../globals.js';
-import { showLoading, hideLoading, showToast } from '../utils/ui-helpers.js';
+import { showLoading, hideLoading, showToast, copyToClipboard } from '../utils/ui-helpers.js';
 import api from '../services/api.js';
 import { formatDate } from '../utils/formatters.js';
 
@@ -20,6 +20,7 @@ let _historyCache = {
     ttl: 300000 // 5 хвилин
 };
 let _raffleDetailsCache = {};
+
 const RETRY_DELAYS = [2000, 5000, 10000, 15000];
 const MIN_REQUEST_INTERVAL = 15000;
 
@@ -33,6 +34,9 @@ class HistoryModule {
     init() {
         console.log("📋 Історія розіграшів: Ініціалізація...");
 
+        // Підписуємося на події
+        this._setupEventListeners();
+
         // Перевіряємо наявність контейнера для історії
         const historyContainer = document.getElementById('history-container');
         if (historyContainer) {
@@ -44,22 +48,43 @@ class HistoryModule {
 
             // Додаємо кнопку перед контейнером
             historyContainer.parentNode.insertBefore(exportButton, historyContainer);
-
-            // Автоматично відображаємо історію
-            this.displayHistory('history-container');
         }
 
         console.log("✅ Історія розіграшів: Ініціалізацію завершено");
     }
 
     /**
+     * Налаштування обробників подій
+     * @private
+     */
+    _setupEventListeners() {
+        // Підписуємося на подію запиту на відображення вкладки історії
+        WinixRaffles.events.on('history-tab-requested', () => {
+            this.displayHistory('history-container');
+        });
+
+        // Підписуємося на подію запиту на оновлення історії
+        WinixRaffles.events.on('refresh-history', (data) => {
+            const containerId = data && data.containerId ? data.containerId : 'history-container';
+            this.displayHistory(containerId, true);
+        });
+    }
+
+    /**
      * Отримання історії розіграшів
      * @param {Object} filters - Фільтри для запиту
+     * @param {boolean} forceRefresh - Примусове оновлення
      * @returns {Promise<Array>} Список історії розіграшів
      */
-    async getRafflesHistory(filters = {}) {
+    async getRafflesHistory(filters = {}, forceRefresh = false) {
         try {
             const now = Date.now();
+
+            // Перевіряємо кеш, якщо не вимагається примусове оновлення
+            if (!forceRefresh && _historyCache.data && now - _historyCache.timestamp < _historyCache.ttl) {
+                console.log("📋 Raffle History: Використовуємо кешовані дані");
+                return Promise.resolve(_historyCache.data);
+            }
 
             // Автоматичне очищення прапорця, якщо запит тривав занадто довго
             if (_requestInProgress && now - _lastRequestTime > 30000) {
@@ -75,7 +100,7 @@ class HistoryModule {
             if (_requestInProgress) {
                 console.log("⏳ Raffle History: Запит уже виконується, використовуємо кеш");
                 // Якщо кеш є - повертаємо його
-                if (_historyCache.data && now - _historyCache.timestamp < _historyCache.ttl) {
+                if (_historyCache.data) {
                     return Promise.resolve(_historyCache.data);
                 }
                 // Повертаємо поточні дані
@@ -86,17 +111,6 @@ class HistoryModule {
             const timeSinceLastRequest = now - _lastRequestTime;
             if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _historyData.length > 0) {
                 console.log(`⏳ Raffle History: Занадто частий запит, минуло ${Math.floor(timeSinceLastRequest/1000)}с`);
-                return Promise.resolve(_historyData);
-            }
-
-            // Перевіряємо кеш перед запитом
-            if (_historyCache.data && now - _historyCache.timestamp < _historyCache.ttl) {
-                console.log("📋 Raffle History: Використовуємо кешовані дані");
-                return Promise.resolve(_historyCache.data);
-            }
-
-            if (_isLoading) {
-                console.log("⏳ Raffle History: Завантаження вже виконується");
                 return Promise.resolve(_historyData);
             }
 
@@ -116,7 +130,8 @@ class HistoryModule {
                 }
             }, 30000); // 30 секунд максимальний час виконання запиту
 
-            showLoading('Завантаження історії розіграшів...');
+            // Використовуємо централізований лоадер
+            showLoading('Завантаження історії розіграшів...', 'history-request');
 
             // Отримуємо дані з API
             const userId = api.getUserId();
@@ -141,24 +156,17 @@ class HistoryModule {
                 ? `/api/user/${userId}/raffles-history?${queryParams.substring(1)}`
                 : `/api/user/${userId}/raffles-history`;
 
-            // Встановлюємо таймаут для запиту
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Таймаут запиту')), 15000);
-            });
-
-            // Покращено параметри запиту
-            const fetchPromise = api.apiRequest(url, 'GET', null, {
+            // Покращені параметри запиту з реалізацією повторних спроб
+            const response = await api.apiRequest(url, 'GET', null, {
                 timeout: 15000,
                 allowParallel: false,
                 suppressErrors: true,
+                hideLoader: true, // Вже використовуємо власний лоадер
                 forceCleanup: _failedAttempts > 0
             });
 
-            // Виконуємо запит з таймаутом
-            const response = await Promise.race([fetchPromise, timeoutPromise]);
-
             // ЗАВЖДИ скидаємо прапорці після завершення запиту
-            hideLoading();
+            hideLoading('history-request');
             _isLoading = false;
             _requestInProgress = false;
             _failedAttempts = 0; // Скидаємо лічильник при успіху
@@ -194,10 +202,11 @@ class HistoryModule {
                     ttl: _historyCache.ttl
                 };
 
-                // Викликаємо подію про оновлення історії
-                document.dispatchEvent(new CustomEvent('winix:history-updated', {
-                    detail: { data: _historyData }
-                }));
+                // Емітуємо подію про оновлення історії
+                WinixRaffles.events.emit('history-updated', {
+                    count: _historyData.length,
+                    data: _historyData
+                });
 
                 return _historyData;
             } else {
@@ -227,7 +236,7 @@ class HistoryModule {
             _failedAttempts++;
 
             // ОБОВ'ЯЗКОВО скидаємо прапорці
-            hideLoading();
+            hideLoading('history-request');
             _isLoading = false;
             _requestInProgress = false;
 
@@ -245,7 +254,7 @@ class HistoryModule {
 
                 // Не показуємо повідомлення про помилку при першій спробі
                 if (_failedAttempts > 1) {
-                    showToast('Не вдалося завантажити історію розіграшів. Спробуйте пізніше.');
+                    showToast('Не вдалося завантажити історію розіграшів. Спробуйте пізніше.', 'error');
                 }
 
                 // Використовуємо існуючі дані, якщо є
@@ -282,7 +291,7 @@ class HistoryModule {
             }
 
             // Якщо всі спроби невдалі, показуємо помилку і повертаємо порожній масив
-            showToast('Не вдалося завантажити історію розіграшів');
+            showToast('Не вдалося завантажити історію розіграшів', 'error');
             // Гарантуємо, що повертаємо масив при помилці
             _historyData = [];
             return _historyData;
@@ -329,10 +338,11 @@ class HistoryModule {
                 await new Promise(resolve => setTimeout(resolve, 3000 - timeSinceLastRequest));
             }
 
-            showLoading('Завантаження деталей розіграшу...');
+            // Використовуємо централізований лоадер
+            showLoading('Завантаження деталей розіграшу...', `history-details-${raffleId}`);
 
             try {
-                // ВИПРАВЛЕНО: Змінено URL шлях на правильний
+                // Виправлений URL шлях
                 const response = await api.apiRequest(
                     `/api/user/${userId}/raffles-history/${raffleId}`,
                     'GET',
@@ -340,11 +350,12 @@ class HistoryModule {
                     {
                         timeout: 8000,
                         suppressErrors: true,
+                        hideLoader: true, // Вже використовуємо власний лоадер
                         forceCleanup: true
                     }
                 );
 
-                hideLoading();
+                hideLoading(`history-details-${raffleId}`);
                 _lastRequestTime = Date.now();
 
                 if (response && response.status === 'success') {
@@ -363,7 +374,19 @@ class HistoryModule {
                             return item;
                         });
                         _historyData = updatedHistoryData;
+
+                        // Оновлюємо також у кеші
+                        if (_historyCache.data) {
+                            _historyCache.data = updatedHistoryData;
+                        }
                     }
+
+                    // Емітуємо подію про отримання деталей розіграшу
+                    WinixRaffles.events.emit('raffle-details-loaded', {
+                        raffleId,
+                        data: response.data
+                    });
+
                     return response.data;
                 } else {
                     throw new Error((response && response.message) || 'Помилка отримання деталей розіграшу');
@@ -385,11 +408,11 @@ class HistoryModule {
             }
         } catch (error) {
             console.error(`❌ Помилка отримання деталей розіграшу ${raffleId}:`, error);
-            hideLoading();
+            hideLoading(`history-details-${raffleId}`);
 
             // Показуємо помилку тільки якщо не знайдено ніяких даних
             if (!_historyData.find(item => item && item.raffle_id === raffleId)) {
-                showToast('Не вдалося завантажити деталі розіграшу');
+                showToast('Не вдалося завантажити деталі розіграшу', 'error');
             }
 
             // Створюємо базові дані розіграшу якщо нічого не знайдено
@@ -410,8 +433,9 @@ class HistoryModule {
     /**
      * Відображення історії розіграшів
      * @param {string} containerId - ID контейнера для відображення
+     * @param {boolean} forceRefresh - Примусове оновлення даних
      */
-    async displayHistory(containerId = 'history-container') {
+    async displayHistory(containerId = 'history-container', forceRefresh = false) {
         const container = document.getElementById(containerId);
         if (!container) {
             console.error(`Контейнер з ID '${containerId}' не знайдено`);
@@ -422,7 +446,7 @@ class HistoryModule {
         this._addStatsGrid(container);
 
         // Перш ніж робити запит, відобразимо індикатор завантаження
-        if (!_historyData.length) {
+        if (!_historyData.length || forceRefresh) {
             container.innerHTML = `
                 <div class="history-loader">
                     <div class="loader-spinner"></div>
@@ -433,7 +457,7 @@ class HistoryModule {
 
         try {
             // Отримуємо дані історії
-            const history = await this.getRafflesHistory();
+            const history = await this.getRafflesHistory({}, forceRefresh);
 
             // Якщо дані відсутні або порожні
             if (!history || !Array.isArray(history) || history.length === 0) {
@@ -482,6 +506,9 @@ class HistoryModule {
                             <option value="year">Рік</option>
                         </select>
                     </div>
+                    <button id="refresh-history-btn" class="refresh-btn">
+                        <span class="refresh-icon">🔄</span>
+                    </button>
                 </div>
 
                 <div class="history-stats">
@@ -540,13 +567,20 @@ class HistoryModule {
                 this._applyHistoryFilters(containerId);
             });
 
+            // Додаємо обробник для кнопки оновлення
+            document.getElementById('refresh-history-btn')?.addEventListener('click', () => {
+                this.displayHistory(containerId, true);
+            });
+
             // Додаємо обробники подій для карток історії
             this._addHistoryCardEventListeners();
 
             // Оновлюємо статистику
-            if (WinixRaffles.stats && typeof WinixRaffles.stats.updateHistoryStats === 'function') {
-                WinixRaffles.stats.updateHistoryStats(history);
-            }
+            WinixRaffles.events.emit('history-displayed', {
+                total: history.length,
+                wins: wonRaffles.length,
+                participated: participatedRaffles.length
+            });
         } catch (error) {
             console.error("Помилка відображення історії:", error);
             container.innerHTML = this._createEmptyHistoryHTML('Щось пішло не так. Спробуйте оновити сторінку.');
@@ -554,127 +588,18 @@ class HistoryModule {
     }
 
     /**
-     * Показати деталі розіграшу з історії
-     * @param {Object} raffleData - Дані розіграшу
-     */
-    showRaffleHistoryDetails(raffleData) {
-        if (!raffleData) {
-            showToast('Не вдалося отримати дані розіграшу');
-            return;
-        }
-
-        // Видаляємо існуюче модальне вікно, якщо воно є
-        const existingModal = document.getElementById('raffle-history-modal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Створюємо модальне вікно
-        const modal = document.createElement('div');
-        modal.id = 'raffle-history-modal';
-        modal.className = 'raffle-modal';
-
-        // Генеруємо список переможців, якщо вони є
-        let winnersHTML = '';
-        if (raffleData.winners && Array.isArray(raffleData.winners) && raffleData.winners.length > 0) {
-            winnersHTML = this._generateWinnersListHTML(raffleData.winners);
-        } else {
-            winnersHTML = '<div class="no-winners">Інформація про переможців відсутня</div>';
-        }
-
-        // Визначаємо статус і клас статусу
-        const statusClass = raffleData.status === 'won' ? 'win-status' : 'participated-status';
-        const statusText = raffleData.status === 'won' ? 'Ви перемогли' : 'Участь без перемоги';
-
-        // Визначаємо тип розіграшу
-        const raffleType = raffleData.is_daily ? 'Щоденний розіграш' : 'Гранд розіграш';
-
-        // Формуємо HTML для модального вікна
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title">${raffleData.title || 'Деталі розіграшу'}</h2>
-                    <span class="modal-close">×</span>
-                </div>
-                
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Дата:</div>
-                        <div class="detail-value">${raffleData.date || 'Не вказано'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Тип:</div>
-                        <div class="detail-value">${raffleType}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Призовий фонд:</div>
-                        <div class="detail-value prize-value">${raffleData.prize || '0 WINIX'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Ваш результат:</div>
-                        <div class="detail-value ${statusClass}">${statusText}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Використано жетонів:</div>
-                        <div class="detail-value">${raffleData.entry_count || 0}</div>
-                    </div>
-                    ${raffleData.status === 'won' ? `
-                    <div class="detail-item">
-                        <div class="detail-label">Ваше місце:</div>
-                        <div class="detail-value winner-place-value">${raffleData.place || '-'}</div>
-                    </div>
-                    ` : ''}
-                </div>
-                
-                <div class="winners-container">
-                    <h3>Переможці розіграшу</h3>
-                    <div class="winners-list">
-                        ${winnersHTML}
-                    </div>
-                </div>
-                
-                <button class="join-button" id="close-history-btn">ЗАКРИТИ</button>
-            </div>
-        `;
-
-        // Додаємо модальне вікно на сторінку
-        document.body.appendChild(modal);
-
-        // Додаємо обробники подій
-        const closeButton = modal.querySelector('.modal-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', function() {
-                modal.classList.remove('open');
-                setTimeout(() => modal.remove(), 300);
-            });
-        }
-
-        const closeActionButton = modal.querySelector('#close-history-btn');
-        if (closeActionButton) {
-            closeActionButton.addEventListener('click', function() {
-                modal.classList.remove('open');
-                setTimeout(() => modal.remove(), 300);
-            });
-        }
-
-        // Показуємо модальне вікно
-        requestAnimationFrame(() => {
-            modal.classList.add('open');
-        });
-
-        return modal;
-    }
-
-    /**
      * Експорт історії розіграшів у CSV
      */
-    exportHistoryToCSV() {
-        if (!_historyData || !Array.isArray(_historyData) || _historyData.length === 0) {
-            showToast('Немає даних для експорту');
-            return;
-        }
-
+    async exportHistoryToCSV() {
         try {
+            // Отримуємо актуальні дані
+            const history = await this.getRafflesHistory();
+
+            if (!history || !Array.isArray(history) || history.length === 0) {
+                showToast('Немає даних для експорту', 'warning');
+                return;
+            }
+
             // Генеруємо заголовки
             const headers = [
                 'Дата',
@@ -687,7 +612,7 @@ class HistoryModule {
             ];
 
             // Генеруємо рядки даних
-            const rows = _historyData.map(item => {
+            const rows = history.map(item => {
                 if (!item) return ['-', '-', '-', '-', '-', '-', '-'];
 
                 return [
@@ -707,7 +632,20 @@ class HistoryModule {
                 ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
             ].join('\n');
 
-            // Створюємо посилання для завантаження
+            // Спробуємо використати API для завантаження файлу
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showSaveFilePicker) {
+                try {
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+                    window.Telegram.WebApp.showSaveFilePicker('winix_raffle_history.csv', blob);
+                    showToast('Історію розіграшів успішно експортовано', 'success');
+                    return;
+                } catch (e) {
+                    console.warn('Помилка при використанні Telegram API для завантаження:', e);
+                    // Продовжуємо зі стандартним способом
+                }
+            }
+
+            // Стандартний спосіб завантаження
             const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
             const link = document.createElement('a');
             link.setAttribute('href', encodedUri);
@@ -720,10 +658,10 @@ class HistoryModule {
             // Видаляємо посилання
             document.body.removeChild(link);
 
-            showToast('Історію розіграшів успішно експортовано');
+            showToast('Історію розіграшів успішно експортовано', 'success');
         } catch (error) {
             console.error('Помилка експорту історії:', error);
-            showToast('Не вдалося експортувати історію');
+            showToast('Не вдалося експортувати історію', 'error');
         }
     }
 
@@ -740,6 +678,9 @@ class HistoryModule {
             clearTimeout(_requestTimeoutId);
             _requestTimeoutId = null;
         }
+
+        // Приховуємо лоадер
+        hideLoading('history-request');
 
         console.log("🔄 Raffle History: Примусове скидання стану запитів");
         return true;
@@ -767,6 +708,16 @@ class HistoryModule {
         }
 
         console.log("🧹 Raffle History: Кеш очищено");
+    }
+
+    /**
+     * Очищення ресурсів і закриття модуля
+     */
+    destroy() {
+        this.resetRequestState();
+        this.clearCache();
+
+        console.log("🚫 Raffle History: Модуль історії розіграшів закрито");
     }
 
     /**
@@ -835,7 +786,7 @@ class HistoryModule {
             this.displayHistory(containerId);
         }).catch(error => {
             console.error("Помилка при застосуванні фільтрів:", error);
-            showToast('Помилка при застосуванні фільтрів');
+            showToast('Помилка при застосуванні фільтрів', 'error');
         });
     }
 
@@ -880,45 +831,9 @@ class HistoryModule {
                 <div class="empty-history-icon">🎮</div>
                 <h3>Історія розіграшів порожня</h3>
                 <p>${message}</p>
-                <button class="join-raffle-btn" onclick="window.WinixRaffles.active.switchTab('active')">Перейти до розіграшів</button>
+                <button class="join-raffle-btn" onclick="window.rafflesModule.switchTab('active')">Перейти до розіграшів</button>
             </div>
         `;
-    }
-
-    /**
-     * Генерування HTML для списку переможців
-     * @param {Array} winners - Список переможців
-     * @returns {string} HTML-розмітка
-     * @private
-     */
-    _generateWinnersListHTML(winners) {
-        if (!winners || !Array.isArray(winners) || winners.length === 0) {
-            return '<div class="no-winners">Інформація про переможців відсутня</div>';
-        }
-
-        return winners.map(winner => {
-            if (!winner) return '';
-
-            // Визначаємо клас для місця (top-1, top-2, top-3)
-            const placeClass = winner.place <= 3 ? `place-${winner.place}` : 'default-place';
-
-            // Визначаємо, чи це поточний користувач
-            const currentUserClass = winner.isCurrentUser ? 'current-user' : '';
-
-            // Формуємо HTML для одного переможця
-            return `
-                <div class="winner-item ${currentUserClass}" ${winner.isCurrentUser ? 'title="Це ви!"' : ''}>
-                    <div class="winner-place ${placeClass}">
-                        <span>${winner.place}</span>
-                    </div>
-                    <div class="winner-info">
-                        <div class="winner-name">${winner.username || 'Користувач'}</div>
-                        <div class="winner-id">ID: ${winner.userId || 'невідомо'}</div>
-                    </div>
-                    <div class="winner-prize">${winner.prize || '0 WINIX'}</div>
-                </div>
-            `;
-        }).join('');
     }
 
     /**
@@ -935,18 +850,23 @@ class HistoryModule {
                     const historyItem = _historyData.find(item => item && item.raffle_id === raffleId);
 
                     if (historyItem) {
-                        this.showRaffleHistoryDetails(historyItem);
+                        // Емітуємо подію показу деталей історії розіграшу
+                        WinixRaffles.events.emit('show-history-details', {
+                            raffleData: historyItem
+                        });
                     } else {
                         // Якщо не знайдено в масиві, спробуємо отримати з API
                         this.getRaffleHistoryDetails(raffleId).then(details => {
                             if (details) {
-                                this.showRaffleHistoryDetails(details);
+                                WinixRaffles.events.emit('show-history-details', {
+                                    raffleData: details
+                                });
                             } else {
-                                showToast('Не вдалося отримати деталі розіграшу');
+                                showToast('Не вдалося отримати деталі розіграшу', 'error');
                             }
                         }).catch(error => {
                             console.error("Помилка отримання деталей розіграшу:", error);
-                            showToast('Помилка отримання деталей розіграшу');
+                            showToast('Помилка отримання деталей розіграшу', 'error');
                         });
                     }
                 });
@@ -993,5 +913,12 @@ const historyModule = new HistoryModule();
 
 // Додаємо в глобальний об'єкт для зворотної сумісності
 WinixRaffles.history = historyModule;
+
+// Автоматична ініціалізація при завантаженні
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => historyModule.init());
+} else {
+    setTimeout(() => historyModule.init(), 100);
+}
 
 export default historyModule;
