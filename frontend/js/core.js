@@ -1,5 +1,7 @@
 /**
  * core.js - Базова функціональність WINIX
+ * Оптимізована версія з покращеною інтеграцією з API та Auth модулями
+ * @version 1.1.0
  */
 
 (function() {
@@ -17,6 +19,16 @@
 
     // Прапорець для індикатора завантаження
     let _loaderVisible = false;
+
+    // Лічильник останнього запиту
+    let _lastRequestTime = 0;
+
+    // Мінімальний інтервал між запитами
+    const MIN_REQUEST_INTERVAL = 5000; // 5 секунд
+
+    // Перевірка доступності модулів
+    const hasApiModule = () => window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
+    const hasAuthModule = () => window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
 
     // ======== УТИЛІТИ ========
 
@@ -106,36 +118,65 @@
      * @param {boolean} forceRefresh - Примусово оновити
      */
     async function getUserData(forceRefresh = false) {
-        // Якщо у нас вже є дані і не потрібно оновлювати
-        if (_userData && !forceRefresh) {
-            return _userData;
+        // Перевіряємо частоту запитів
+        const now = Date.now();
+        if (!forceRefresh && (now - _lastRequestTime < MIN_REQUEST_INTERVAL)) {
+            console.log("🔄 Core: Занадто частий запит даних користувача, використовуємо кеш");
+            // Якщо у нас вже є дані і не потрібно оновлювати
+            if (_userData) {
+                return _userData;
+            }
         }
 
+        _lastRequestTime = now;
+
         try {
-            // Отримуємо дані з API
-            const response = await window.WinixAPI.getUserData();
+            // Перевіряємо наявність модулів
+            if (hasAuthModule()) {
+                // Використовуємо WinixAuth, якщо доступний
+                const userData = await window.WinixAuth.getUserData(forceRefresh);
 
-            if (response.status === 'success' && response.data) {
-                _userData = response.data;
+                if (userData) {
+                    _userData = userData;
 
-                // Зберігаємо дані в localStorage
-                saveToStorage('userData', _userData);
+                    // Оновлюємо дані в localStorage
+                    saveToStorage('userData', _userData);
 
-                // Оновлюємо баланс
-                if (_userData.balance !== undefined) {
-                    saveToStorage('userTokens', _userData.balance);
-                    saveToStorage('winix_balance', _userData.balance);
+                    // Генеруємо подію оновлення
+                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                        detail: { userData: _userData },
+                        source: 'core.js'
+                    }));
+
+                    return _userData;
                 }
+            } else if (hasApiModule()) {
+                // Використовуємо WinixAPI, якщо доступний
+                const response = await window.WinixAPI.getUserData(forceRefresh);
 
-                if (_userData.coins !== undefined) {
-                    saveToStorage('userCoins', _userData.coins);
-                    saveToStorage('winix_coins', _userData.coins);
+                if (response && response.status === 'success' && response.data) {
+                    _userData = response.data;
+
+                    // Оновлюємо дані в localStorage
+                    saveToStorage('userData', _userData);
+
+                    // Генеруємо подію оновлення
+                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                        detail: { userData: _userData },
+                        source: 'core.js'
+                    }));
+
+                    return _userData;
                 }
-
-                // Повертаємо дані
-                return _userData;
             } else {
-                throw new Error(response.message || 'Не вдалося отримати дані користувача');
+                // Якщо немає модулів - використовуємо дані з localStorage
+                const storedUserData = getFromStorage('userData', null, true);
+                if (storedUserData) {
+                    _userData = storedUserData;
+                    return _userData;
+                }
+
+                throw new Error('API та Auth модулі недоступні');
             }
         } catch (error) {
             console.error('Помилка отримання даних користувача:', error);
@@ -148,8 +189,9 @@
             }
 
             // Створюємо мінімальні дані користувача
+            const userId = getUserId();
             _userData = {
-                telegram_id: window.WinixAPI.getUserId() || 'unknown',
+                telegram_id: userId || 'unknown',
                 balance: parseFloat(getFromStorage('userTokens', '0')),
                 coins: parseInt(getFromStorage('userCoins', '0'))
             };
@@ -159,26 +201,68 @@
     }
 
     /**
+     * Отримання ID користувача
+     * @returns {string|null} ID користувача або null
+     */
+    function getUserId() {
+        // Використовуємо API або Auth модуль, якщо доступні
+        if (hasApiModule()) {
+            return window.WinixAPI.getUserId();
+        } else if (hasAuthModule() && window.WinixAuth.isValidId) {
+            return window.WinixAuth.getUserIdFromAllSources?.() || null;
+        }
+
+        // Резервний варіант - зі сховища
+        const storedId = getFromStorage('telegram_user_id');
+        if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+            return storedId;
+        }
+
+        // З DOM
+        const userIdElement = getElement('#user-id');
+        if (userIdElement && userIdElement.textContent) {
+            const id = userIdElement.textContent.trim();
+            if (id && id !== 'undefined' && id !== 'null') {
+                return id;
+            }
+        }
+
+        // З URL
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            if (urlId) {
+                return urlId;
+            }
+        } catch (e) {}
+
+        return null;
+    }
+
+    /**
      * Оновлення відображення користувача
      */
     function updateUserDisplay() {
         try {
+            // Отримуємо актуальні дані
+            const userData = _userData || {};
+            const userId = userData.telegram_id || getUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
+            const username = userData.username || getFromStorage('username', 'User');
+
             // Оновлюємо ID користувача
             const userIdElement = getElement('#user-id');
             if (userIdElement) {
-                userIdElement.textContent = _userData?.telegram_id ||
-                                           window.WinixAPI.getUserId() ||
-                                           getFromStorage('telegram_user_id', 'Unknown ID');
+                userIdElement.textContent = userId;
             }
 
             // Оновлюємо ім'я користувача
             const usernameElement = getElement('#username');
-            if (usernameElement && _userData?.username) {
-                usernameElement.textContent = _userData.username;
+            if (usernameElement) {
+                usernameElement.textContent = username;
             }
 
             // Оновлюємо аватар
-            updateUserAvatar();
+            updateUserAvatar(username);
         } catch (e) {
             console.error('Помилка оновлення відображення користувача:', e);
         }
@@ -186,8 +270,9 @@
 
     /**
      * Оновлення аватара користувача
+     * @param {string} username - Ім'я користувача
      */
-    function updateUserAvatar() {
+    function updateUserAvatar(username) {
         try {
             const avatarElement = getElement('#profile-avatar');
             if (!avatarElement) return;
@@ -196,7 +281,7 @@
             avatarElement.innerHTML = '';
 
             // Перевіряємо наявність зображення аватара
-            const username = _userData?.username || getFromStorage('username', 'User');
+            username = username || _userData?.username || getFromStorage('username', 'User');
             const avatarSrc = getFromStorage('userAvatarSrc') || getFromStorage('avatarSrc');
 
             if (avatarSrc) {
@@ -272,35 +357,49 @@
      */
     async function refreshBalance() {
         try {
-            // Отримуємо баланс з API
-            const response = await window.WinixAPI.getBalance();
+            let balanceData;
 
-            if (response.status === 'success' && response.data) {
-                // Оновлюємо дані користувача
-                if (!_userData) _userData = {};
+            // Перевіряємо наявність API модуля
+            if (hasApiModule()) {
+                // Отримуємо баланс з API
+                const response = await window.WinixAPI.getBalance();
 
-                _userData.balance = response.data.balance || _userData.balance;
-                _userData.coins = response.data.coins || _userData.coins;
-
-                // Зберігаємо в localStorage
-                saveToStorage('userTokens', _userData.balance);
-                saveToStorage('winix_balance', _userData.balance);
-                saveToStorage('userCoins', _userData.coins);
-                saveToStorage('winix_coins', _userData.coins);
-
-                // Оновлюємо відображення
-                updateBalanceDisplay();
-
-                return {
-                    success: true,
-                    data: {
-                        balance: _userData.balance,
-                        coins: _userData.coins
-                    }
-                };
+                if (response && response.status === 'success' && response.data) {
+                    balanceData = response.data;
+                } else {
+                    throw new Error(response?.message || 'Не вдалося отримати баланс');
+                }
             } else {
-                throw new Error(response.message || 'Не вдалося оновити баланс');
+                // Якщо API недоступний, отримуємо повні дані користувача
+                const userData = await getUserData(true);
+                balanceData = {
+                    balance: userData.balance || 0,
+                    coins: userData.coins || 0
+                };
             }
+
+            // Оновлюємо дані користувача
+            if (!_userData) _userData = {};
+
+            _userData.balance = balanceData.balance || _userData.balance || 0;
+            _userData.coins = balanceData.coins || _userData.coins || 0;
+
+            // Зберігаємо в localStorage
+            saveToStorage('userTokens', _userData.balance);
+            saveToStorage('winix_balance', _userData.balance);
+            saveToStorage('userCoins', _userData.coins);
+            saveToStorage('winix_coins', _userData.coins);
+
+            // Оновлюємо відображення
+            updateBalanceDisplay();
+
+            return {
+                success: true,
+                data: {
+                    balance: _userData.balance,
+                    coins: _userData.coins
+                }
+            };
         } catch (error) {
             console.error('Помилка оновлення балансу:', error);
 
@@ -376,7 +475,8 @@
 
             // Генеруємо подію оновлення даних користувача
             document.dispatchEvent(new CustomEvent('user-data-updated', {
-                detail: { userData }
+                detail: { userData },
+                source: 'core.js'
             }));
 
             return {
@@ -405,16 +505,28 @@
         // Зупиняємо попередній інтервал
         if (_refreshInterval) {
             clearInterval(_refreshInterval);
+            _refreshInterval = null;
+        }
+
+        // Перевіряємо, чи вже запущене оновлення в інших модулях
+        if (hasAuthModule() && window.WinixAuth._periodicUpdateInterval) {
+            console.log("🔄 Core: Періодичне оновлення вже запущено в Auth модулі");
+            return;
         }
 
         // Запускаємо періодичну синхронізацію
         _refreshInterval = setInterval(async () => {
             try {
-                await syncUserData();
+                // Перевіряємо мінімальний інтервал
+                if (Date.now() - _lastRequestTime >= MIN_REQUEST_INTERVAL) {
+                    await syncUserData();
+                }
             } catch (e) {
                 console.warn('Помилка автоматичної синхронізації:', e);
             }
         }, interval);
+
+        console.log(`🔄 Core: Періодичне оновлення запущено (інтервал: ${interval}ms)`);
     }
 
     /**
@@ -424,6 +536,7 @@
         if (_refreshInterval) {
             clearInterval(_refreshInterval);
             _refreshInterval = null;
+            console.log("⏹️ Core: Періодичне оновлення зупинено");
         }
     }
 
@@ -454,13 +567,17 @@
             // Ініціалізуємо навігацію
             initNavigation();
 
-            // Запускаємо автоматичну синхронізацію
-            startAutoSync();
+            // Запускаємо автоматичну синхронізацію, якщо не запущена в Auth
+            if (!hasAuthModule() || !window.WinixAuth._periodicUpdateInterval) {
+                startAutoSync();
+            }
 
             console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
             // Викликаємо подію ініціалізації
             document.dispatchEvent(new CustomEvent('winix-initialized'));
+
+            return true;
         } catch (error) {
             console.error('Помилка ініціалізації ядра WINIX:', error);
 
@@ -469,13 +586,42 @@
             updateBalanceDisplay();
 
             document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
+
+            return false;
         }
     }
+
+    // ======== ОБРОБНИКИ ПОДІЙ ========
+
+    // Обробник події оновлення даних користувача
+    document.addEventListener('user-data-updated', function(event) {
+        if (event.detail && event.detail.userData && event.source !== 'core.js') {
+            console.log("🔄 Core: Отримано подію оновлення даних користувача");
+            _userData = event.detail.userData;
+            updateUserDisplay();
+            updateBalanceDisplay();
+        }
+    });
+
+    // Обробник події підключення до мережі
+    window.addEventListener('online', function() {
+        console.log("🔄 Core: З'єднання з мережею відновлено");
+        // Синхронізуємо дані
+        syncUserData();
+    });
+
+    // Обробник події відключення від мережі
+    window.addEventListener('offline', function() {
+        console.warn("⚠️ Core: Втрачено з'єднання з мережею");
+    });
 
     // ======== ПУБЛІЧНИЙ API ========
 
     // Експортуємо публічний API
     window.WinixCore = {
+        // Версія модуля
+        version: '1.1.0',
+
         // Утиліти
         getElement,
         saveToStorage,
@@ -484,6 +630,7 @@
 
         // Функції користувача
         getUserData,
+        getUserId,
         updateUserDisplay,
         getBalance,
         getCoins,
@@ -493,7 +640,10 @@
         // Функції для синхронізації даних
         syncUserData,
         startAutoSync,
-        stopAutoSync
+        stopAutoSync,
+
+        // Ініціалізація
+        init
     };
 
     // Ініціалізуємо ядро при завантаженні сторінки

@@ -1,35 +1,13 @@
 /**
- * api.js - Централізований сервіс для роботи з API розіграшів
- * Доповнює основний API системи новими функціями, не перезаписуючи існуючі
+ * api.js - Сервіс для роботи з API розіграшів
+ * Інтеграція з основним API системи
+ * @version 1.1.0
  */
 
 import WinixRaffles from '../globals.js';
 
-// Визначення базового URL для API
-const determineBaseUrl = () => {
-    // Спочатку перевіряємо налаштування у локальному конфігу
-    if (WinixRaffles && WinixRaffles.config && WinixRaffles.config.apiBaseUrl) {
-        return WinixRaffles.config.apiBaseUrl;
-    }
-
-    // Перевіряємо глобальний конфіг
-    if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
-        return window.WinixConfig.apiBaseUrl;
-    }
-
-    // Визначаємо URL на основі поточного середовища
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // Локальне середовище - використовуємо порт 8080
-        return `http://${hostname}:8080/api`;
-    } else {
-        // Продакшн середовище
-        return 'https://winixbot.com/api';
-    }
-};
-
-// Базовий URL для API-запитів
-const RAFFLES_API_BASE_URL = determineBaseUrl();
+// Перевірка доступності основного API
+const hasMainApi = () => window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
 
 // Константи для відстеження запитів
 const REQUEST_THROTTLE = {
@@ -38,26 +16,14 @@ const REQUEST_THROTTLE = {
     'default': 2000                 // 2 секунди для всіх інших
 };
 
-// Отримання основного API, якщо він існує
-const mainAPI = window.WinixAPI || {};
-
-/**
- * Перевірка наявності функції в основному API
- * @param {string} funcName - Назва функції
- * @returns {boolean} True, якщо функція існує
- */
-function hasMainAPIFunction(funcName) {
-    return mainAPI && typeof mainAPI[funcName] === 'function';
-}
-
 /**
  * Отримати ID користувача
- * @returns {string|null} ID користувача або null, якщо не знайдено
+ * @returns {string|null} ID користувача або null
  */
 export function getUserId() {
     // Використовуємо основний API, якщо доступний
-    if (hasMainAPIFunction('getUserId')) {
-        return mainAPI.getUserId();
+    if (hasMainApi()) {
+        return window.WinixAPI.getUserId();
     }
 
     // Резервна реалізація
@@ -93,12 +59,12 @@ export function getUserId() {
 
 /**
  * Отримання токену авторизації
- * @returns {string|null} Токен авторизації або null, якщо не знайдено
+ * @returns {string|null} Токен авторизації або null
  */
 export function getAuthToken() {
     // Використовуємо основний API, якщо доступний
-    if (hasMainAPIFunction('getAuthToken')) {
-        return mainAPI.getAuthToken();
+    if (hasMainApi()) {
+        return window.WinixAPI.getAuthToken();
     }
 
     // Резервна реалізація
@@ -133,14 +99,42 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
 
     // Якщо основний API доступний і опція useMainAPI не false, використовуємо його
-    if (hasMainAPIFunction('apiRequest') && options.useMainAPI !== false) {
+    if (hasMainApi() && options.useMainAPI !== false) {
         try {
-            return await mainAPI.apiRequest(cleanEndpoint, method, data, options);
+            return await window.WinixAPI.apiRequest(cleanEndpoint, method, data, options);
         } catch (mainApiError) {
             console.warn("🔌 Raffles API: Помилка в основному API, використовуємо резервний:", mainApiError);
             // Якщо основний API видав помилку, продовжуємо з нашою реалізацією
         }
     }
+
+    // Отримуємо базовий URL API
+    const apiBaseUrl = (() => {
+        // Спочатку перевіряємо налаштування у локальному конфігу
+        if (WinixRaffles && WinixRaffles.config && WinixRaffles.config.apiBaseUrl) {
+            return WinixRaffles.config.apiBaseUrl;
+        }
+
+        // Перевіряємо глобальний конфіг
+        if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
+            return window.WinixConfig.apiBaseUrl;
+        }
+
+        // Перевіряємо основний API
+        if (hasMainApi() && window.WinixAPI.config && window.WinixAPI.config.baseUrl) {
+            return `${window.WinixAPI.config.baseUrl}/api`;
+        }
+
+        // Визначаємо URL на основі поточного середовища
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // Локальне середовище - використовуємо порт 8080
+            return `http://${hostname}:8080/api`;
+        } else {
+            // Продакшн середовище
+            return 'https://winixbot.com/api';
+        }
+    })();
 
     // Резервна реалізація API запиту
     try {
@@ -149,10 +143,29 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             WinixRaffles.loader.show(options.loaderMessage || 'Завантаження...', `raffles-api-${cleanEndpoint}`);
         }
 
-        // Формуємо URL
+        // Додаємо мітку часу для запобігання кешуванню
         const timestamp = Date.now();
         const hasQuery = cleanEndpoint.includes('?');
-        const url = `${RAFFLES_API_BASE_URL}/${cleanEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+
+        // Формуємо URL
+        // Перевіряємо, чи endpoint вже містить 'api/'
+        let normalizedEndpoint = cleanEndpoint;
+        if (!normalizedEndpoint.startsWith('api/') && !normalizedEndpoint.startsWith('/api/')) {
+            normalizedEndpoint = `api/${normalizedEndpoint}`;
+        }
+
+        // Формуємо повний URL
+        let baseUrlWithoutTrailingSlash = apiBaseUrl.endsWith('/')
+            ? apiBaseUrl.slice(0, -1)
+            : apiBaseUrl;
+
+        // Видаляємо '/api' з кінця базового URL, якщо він там є
+        baseUrlWithoutTrailingSlash = baseUrlWithoutTrailingSlash.endsWith('/api')
+            ? baseUrlWithoutTrailingSlash.slice(0, -4)
+            : baseUrlWithoutTrailingSlash;
+
+        // Формуємо фінальний URL
+        const url = `${baseUrlWithoutTrailingSlash}/${normalizedEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
 
         // Отримуємо ID користувача
         const userId = getUserId();
@@ -250,7 +263,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         return {
             status: 'error',
             message: error.message || 'Сталася помилка при виконанні запиту',
-            source: error.source || 'raffles_api'
+            source: 'raffles_api'
         };
     }
 }
@@ -262,8 +275,8 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
  */
 export async function getUserData(forceRefresh = false) {
     // Використовуємо основний API, якщо доступний
-    if (hasMainAPIFunction('getUserData')) {
-        return mainAPI.getUserData(forceRefresh);
+    if (hasMainApi()) {
+        return window.WinixAPI.getUserData(forceRefresh);
     }
 
     try {
@@ -296,8 +309,8 @@ export async function getUserData(forceRefresh = false) {
  */
 export async function getBalance(forceRefresh = false) {
     // Використовуємо основний API, якщо доступний
-    if (hasMainAPIFunction('getBalance')) {
-        return mainAPI.getBalance(forceRefresh);
+    if (hasMainApi()) {
+        return window.WinixAPI.getBalance(forceRefresh);
     }
 
     try {
@@ -420,8 +433,12 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
 
         if (response && response.status === 'success') {
             // Оновлюємо баланс користувача
-            if (hasMainAPIFunction('getBalance')) {
-                await mainAPI.getBalance(true);
+            if (hasMainApi()) {
+                try {
+                    await window.WinixAPI.getBalance(true);
+                } catch (e) {
+                    console.warn("🔌 Raffles API: Помилка оновлення балансу після участі:", e);
+                }
             }
 
             return {
@@ -459,8 +476,12 @@ export async function claimNewbieBonus() {
 
         if (response && (response.status === 'success' || response.status === 'already_claimed')) {
             // Оновлюємо баланс користувача
-            if (hasMainAPIFunction('getBalance')) {
-                await mainAPI.getBalance(true);
+            if (hasMainApi()) {
+                try {
+                    await window.WinixAPI.getBalance(true);
+                } catch (e) {
+                    console.warn("🔌 Raffles API: Помилка оновлення балансу після отримання бонусу:", e);
+                }
             }
 
             return {
@@ -482,7 +503,7 @@ export async function claimNewbieBonus() {
 
 // Створюємо об'єкт з API функціями для модуля розіграшів
 const rafflesAPI = {
-    // Основні функції для сумісності
+    // Основні функції
     apiRequest,
     getUserId,
     getAuthToken,
@@ -497,20 +518,23 @@ const rafflesAPI = {
 
     // Конфігурація
     config: {
-        baseUrl: RAFFLES_API_BASE_URL,
+        baseUrl: hasMainApi() ? window.WinixAPI.config.baseUrl : null,
         throttle: REQUEST_THROTTLE
     },
 
     // Метадані
-    _version: '1.0.0',
+    _version: '1.1.0',
     _type: 'raffles'
 };
 
 // Розширюємо основний API новими функціями, якщо він існує
-if (window.WinixAPI) {
+if (hasMainApi()) {
     // Додаємо до основного API всі нові функції, яких там немає
     Object.keys(rafflesAPI).forEach(key => {
-        if (!window.WinixAPI[key] && key !== 'apiRequest' && key !== 'getUserId' && key !== 'getAuthToken') {
+        if (!window.WinixAPI[key] &&
+            key !== 'apiRequest' &&
+            key !== 'getUserId' &&
+            key !== 'getAuthToken') {
             window.WinixAPI[key] = rafflesAPI[key];
         }
     });
