@@ -89,6 +89,34 @@ export function getAuthToken() {
 }
 
 /**
+ * Отримання ID адміністратора (для адмін-функцій)
+ * @returns {string|null} ID адміністратора або null
+ */
+export function getAdminId() {
+    try {
+        // Перевіряємо наявність ID адміністратора в localStorage
+        const adminId = localStorage.getItem('admin_user_id');
+        if (adminId) {
+            return adminId;
+        }
+
+        // Перевіряємо наявність адмін-прав в Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp &&
+            window.Telegram.WebApp.initDataUnsafe &&
+            window.Telegram.WebApp.initDataUnsafe.user &&
+            window.Telegram.WebApp.initDataUnsafe.user.is_admin) {
+
+            return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        }
+
+        return null;
+    } catch (e) {
+        console.warn("🔌 API: Помилка отримання ID адміністратора:", e);
+        return null;
+    }
+}
+
+/**
  * Отримати час обмеження для ендпоінту
  * @param {string} endpoint - URL ендпоінту
  * @returns {number} Час обмеження в мілісекундах
@@ -218,6 +246,12 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         if (authToken) {
             headers['Authorization'] = authToken.startsWith('Bearer ') ?
                 authToken : `Bearer ${authToken}`;
+        }
+
+        // Додаємо ID адміністратора, якщо доступний
+        const adminId = getAdminId();
+        if (adminId) {
+            headers['X-Admin-User-Id'] = adminId;
         }
 
         // Готуємо параметри запиту
@@ -396,6 +430,7 @@ const api = {
     apiRequest,
     getUserId,
     getAuthToken,
+    getAdminId,
     forceCleanupRequests,
 
     // Функції для роботи з користувачем
@@ -409,6 +444,9 @@ const api = {
         parallelLimit: PARALLEL_REQUESTS_LIMIT
     }
 };
+
+// Експортуємо adminAPI для зворотної сумісності
+export const adminAPI = api;
 
 // Для зворотної сумісності додаємо в глобальний об'єкт
 WinixRaffles.api = api;

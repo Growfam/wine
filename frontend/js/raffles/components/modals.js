@@ -5,7 +5,7 @@
 
 import { formatDate, formatCurrency } from '../utils/formatters.js';
 import { showToast } from '../utils/ui-helpers.js';
-import raffleParticipation from '../modules/participation.js';
+import participationModule from '../modules/participation.js';
 import api from '../services/api.js';
 import WinixRaffles from '../globals.js';
 
@@ -320,7 +320,7 @@ class RaffleModals {
         }
 
         // Делегуємо участь у розіграші до відповідного модуля
-        const result = await raffleParticipation.participateInRaffle(raffleId, entryCount);
+        const result = await participationModule.participateInRaffle(raffleId, entryCount);
 
         // Обробляємо результат
         if (result.status === 'success') {
@@ -566,7 +566,7 @@ class RaffleModals {
             return '<div class="no-winners">Інформація про переможців відсутня</div>';
         }
 
-        // Сортуємо переможців за місцем
+        // Сортуємо переможців за місцем (спочатку найвищі)
         const sortedWinners = [...winners].sort((a, b) => {
             if (!a || !b || !a.place || !b.place) return 0;
             return a.place - b.place;

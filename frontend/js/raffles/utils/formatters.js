@@ -44,6 +44,15 @@ export function formatCurrency(amount, currency = 'WINIX') {
 }
 
 /**
+ * Форматування числа з використанням роздільників
+ * @param {number} num - Число для форматування
+ * @returns {string} Відформатоване число
+ */
+export function formatNumber(num) {
+    return new Intl.NumberFormat('uk-UA').format(num);
+}
+
+/**
  * Додавання ведучого нуля до числа (для годин, хвилин тощо)
  * @param {number} num - Число для форматування
  * @returns {string} Число з ведучим нулем (якщо потрібно)
@@ -99,6 +108,7 @@ export function formatPlaces(places) {
 WinixRaffles.utils.formatters = {
     formatDate,
     formatCurrency,
+    formatNumber,
     padZero,
     formatPlaces
 };
@@ -106,6 +116,7 @@ WinixRaffles.utils.formatters = {
 // Для зручного доступу додаємо форматери до utils
 WinixRaffles.utils.formatDate = formatDate;
 WinixRaffles.utils.formatCurrency = formatCurrency;
+WinixRaffles.utils.formatNumber = formatNumber;
 WinixRaffles.utils.padZero = padZero;
 WinixRaffles.utils.formatPlaces = formatPlaces;
 
@@ -115,6 +126,7 @@ console.log("🎮 WINIX Raffles: Ініціалізація утиліт фор�
 export default {
     formatDate,
     formatCurrency,
+    formatNumber,
     padZero,
     formatPlaces
 };

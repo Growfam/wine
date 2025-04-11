@@ -6,12 +6,12 @@
 import activeRaffles from './modules/active.js';
 import history from './modules/history.js';
 import stats from './modules/stats.js';
-import cards from './cards.js';
+import cards from './components/cards.js';
 import participation from './modules/participation.js';
 import modals from './components/modals.js';
 import admin from './admin/index.js';
-import { formatDate, formatCurrency, formatNumber } from './formatters.js';
-import { showToast, showLoading, hideLoading, showConfirm } from './ui-helpers.js';
+import { formatDate, formatCurrency, formatNumber } from './utils/formatters.js';
+import { showToast, showLoading, hideLoading, showConfirm } from './utils/ui-helpers.js';
 
 /**
  * Клас для управління модулями розіграшів і забезпечення єдиної точки входу
