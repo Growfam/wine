@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Додаємо кореневу папку бекенду до шляху Python для імпортів
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +27,9 @@ except ImportError:
     def create_transaction_record(telegram_id, type_name, amount, description,
                                   status="pending", extra_data=None):
         try:
+            # Додаємо UTC зону до datetime
+            now = datetime.now(timezone.utc)
+
             transaction_data = {
                 "id": str(uuid.uuid4()),
                 "telegram_id": telegram_id,
@@ -34,7 +37,8 @@ except ImportError:
                 "amount": amount,
                 "description": description,
                 "status": status,
-                "created_at": datetime.now().isoformat()
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat()  # Додаємо поле updated_at
             }
             if extra_data:
                 transaction_data.update(extra_data)
@@ -57,7 +61,14 @@ except ImportError:
             if not transaction_id:
                 return False
 
-            result = supabase.table("transactions").update({"status": status}).eq("id", transaction_id).execute()
+            # Додаємо поле updated_at з UTC зоною
+            now = datetime.now(timezone.utc)
+
+            result = supabase.table("transactions").update({
+                "status": status,
+                "updated_at": now.isoformat()
+            }).eq("id", transaction_id).execute()
+
             return bool(result and result.data)
         except Exception as e:
             logger.error(f"update_transaction_status: Помилка оновлення статусу транзакції {transaction_id}: {str(e)}")
@@ -81,7 +92,7 @@ def get_user_complete_balance(telegram_id):
             "coins": int(user.get("coins", 0)),
             "in_staking": float(user.get("staking_amount", 0)),
             "expected_rewards": float(user.get("staking_expected_reward", 0)),
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
         return jsonify({
