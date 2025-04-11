@@ -7,7 +7,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -26,22 +26,22 @@ if parent_dir not in sys.path:
 from supabase_client import supabase, execute_transaction
 
 
-def create_transaction_record(telegram_id: str, transaction_type: str, amount: float,
+def create_transaction_record(telegram_id: str, type_name: str, amount: float,
                               description: str, status: str = "pending",
-                              raffle_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                              extra_data: Optional[Dict[str, Any]] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
     Створює запис транзакції в базі даних
 
     Args:
         telegram_id: Ідентифікатор користувача
-        transaction_type: Тип транзакції (fee/reward/refund/etc)
+        type_name: Тип транзакції (fee/reward/refund/etc)
         amount: Сума транзакції
         description: Опис транзакції
         status: Статус транзакції (pending/completed/failed)
-        raffle_id: ID пов'язаного розіграшу (якщо є)
+        extra_data: Додаткові дані для транзакції (опціонально)
 
     Returns:
-        Дані створеної транзакції або None у випадку помилки
+        Кортеж (дані створеної транзакції, ID транзакції) або (None, None) у випадку помилки
     """
     try:
         # Генеруємо унікальний ID транзакції
@@ -52,7 +52,7 @@ def create_transaction_record(telegram_id: str, transaction_type: str, amount: f
         transaction_data = {
             "id": transaction_id,
             "telegram_id": str(telegram_id),
-            "type": transaction_type,
+            "type": type_name,
             "amount": float(amount),
             "description": description,
             "status": status,
@@ -60,30 +60,30 @@ def create_transaction_record(telegram_id: str, transaction_type: str, amount: f
             "updated_at": now
         }
 
-        # Додаємо raffle_id, якщо він є
-        if raffle_id:
-            transaction_data["raffle_id"] = raffle_id
+        # Додаємо додаткові дані, якщо вони є
+        if extra_data and isinstance(extra_data, dict):
+            transaction_data.update(extra_data)
 
-        # Виконуємо запит до бази даних з таймаутом
+        # Виконуємо запит до бази даних
         try:
-            response = supabase.table("transactions").insert(transaction_data).execute(timeout=5)
+            response = supabase.table("transactions").insert(transaction_data).execute()
         except Exception as e:
             logger.error(f"create_transaction_record: Помилка запиту до БД - {str(e)}")
-            raise
+            return None, None
 
         if not response.data:
             logger.error(f"create_transaction_record: Помилка створення транзакції для користувача {telegram_id}")
-            return None
+            return None, None
 
-        # Повертаємо дані транзакції
-        return response.data[0]
+        # Повертаємо дані транзакції та ID
+        return response.data[0], transaction_id
     except Exception as e:
         logger.error(f"create_transaction_record: Помилка - {str(e)}")
-        return None
+        return None, None
 
 
 def update_transaction_status(transaction_id: str, status: str,
-                              additional_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+                              additional_data: Optional[Dict[str, Any]] = None) -> bool:
     """
     Оновлює статус транзакції
 
@@ -93,9 +93,12 @@ def update_transaction_status(transaction_id: str, status: str,
         additional_data: Додаткові дані для оновлення
 
     Returns:
-        Оновлені дані транзакції або None у випадку помилки
+        True, якщо оновлення успішне, False у випадку помилки
     """
     try:
+        if not transaction_id:
+            return False
+
         # Підготовка даних для оновлення
         update_data = {
             "status": status,
@@ -106,25 +109,20 @@ def update_transaction_status(transaction_id: str, status: str,
         if additional_data and isinstance(additional_data, dict):
             update_data.update(additional_data)
 
-        # Виконуємо запит до бази даних з таймаутом
+        # Виконуємо запит до бази даних
         try:
-            response = supabase.table("transactions").update(update_data).eq("id", transaction_id).execute(timeout=5)
+            response = supabase.table("transactions").update(update_data).eq("id", transaction_id).execute()
         except Exception as e:
             logger.error(f"update_transaction_status: Помилка запиту до БД - {str(e)}")
-            raise
+            return False
 
-        if not response.data:
-            logger.error(f"update_transaction_status: Помилка оновлення статусу транзакції {transaction_id}")
-            return None
-
-        # Повертаємо оновлені дані транзакції
-        return response.data[0]
+        return bool(response and response.data)
     except Exception as e:
         logger.error(f"update_transaction_status: Помилка - {str(e)}")
-        return None
+        return False
 
 
-def execute_balance_transaction(telegram_id: str, amount: float, transaction_type: str,
+def execute_balance_transaction(telegram_id: str, amount: float, type_name: str,
                                 description: str, raffle_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Виконує транзакцію з балансом користувача з атомарністю
@@ -132,7 +130,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
     Args:
         telegram_id: Ідентифікатор користувача
         amount: Сума транзакції (від'ємна для списання)
-        transaction_type: Тип транзакції (fee/reward/refund/etc)
+        type_name: Тип транзакції (fee/reward/refund/etc)
         description: Опис транзакції
         raffle_id: ID пов'язаного розіграшу (якщо є)
 
@@ -142,7 +140,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
     try:
         # Отримуємо поточні дані користувача
         try:
-            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute(timeout=5)
+            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute()
         except Exception as e:
             logger.error(f"execute_balance_transaction: Помилка запиту даних користувача - {str(e)}")
             return {
@@ -183,24 +181,27 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
                 transaction_data = {
                     "id": transaction_id,
                     "telegram_id": str(telegram_id),
-                    "type": transaction_type,
+                    "type": type_name,
                     "amount": float(amount),
                     "description": description,
                     "status": "pending",
-                    "raffle_id": raffle_id,
                     "created_at": now,
-                    "updated_at": now,
-                    "previous_balance": current_balance
+                    "updated_at": now
                 }
 
-                txn.table("transactions").insert(transaction_data).execute(timeout=5)
+                # Додаємо raffle_id, якщо він є
+                if raffle_id:
+                    transaction_data["raffle_id"] = raffle_id
+
+                transaction_data["previous_balance"] = current_balance
+
+                txn.table("transactions").insert(transaction_data).execute()
 
                 # 2. Оновлюємо баланс користувача
-                txn.table("winix").update({"balance": new_balance}).eq("telegram_id", str(telegram_id)).execute(timeout=5)
+                txn.table("winix").update({"balance": new_balance, "updated_at": now}).eq("telegram_id", str(telegram_id)).execute()
 
                 # 3. Оновлюємо статус транзакції
-                txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id",
-                                                                                                transaction_id).execute(timeout=5)
+                txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id", transaction_id).execute()
 
             return {
                 "status": "success",
@@ -218,7 +219,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
                     "status": "failed",
                     "error_message": str(e),
                     "updated_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", transaction_id).execute(timeout=5)
+                }).eq("id", transaction_id).execute()
             except:
                 pass
 
@@ -235,7 +236,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
         }
 
 
-def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: str,
+def execute_coin_transaction(telegram_id: str, amount: int, type_name: str,
                              description: str, raffle_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Виконує транзакцію з жетонами користувача з атомарністю
@@ -243,7 +244,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
     Args:
         telegram_id: Ідентифікатор користувача
         amount: Кількість жетонів (від'ємна для списання)
-        transaction_type: Тип транзакції (fee/reward/refund/etc)
+        type_name: Тип транзакції (fee/reward/refund/etc)
         description: Опис транзакції
         raffle_id: ID пов'язаного розіграшу (якщо є)
 
@@ -253,7 +254,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
     try:
         # Отримуємо поточні дані користувача
         try:
-            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute(timeout=5)
+            user_response = supabase.table("winix").select("*").eq("telegram_id", str(telegram_id)).execute()
         except Exception as e:
             logger.error(f"execute_coin_transaction: Помилка запиту даних користувача - {str(e)}")
             return {
@@ -294,24 +295,30 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
                 transaction_data = {
                     "id": transaction_id,
                     "telegram_id": str(telegram_id),
-                    "type": transaction_type,
+                    "type": type_name,
                     "amount": amount,
                     "description": description,
                     "status": "pending",
-                    "raffle_id": raffle_id,
                     "created_at": now,
-                    "updated_at": now,
-                    "previous_coins": current_coins
+                    "updated_at": now
                 }
 
-                txn.table("transactions").insert(transaction_data).execute(timeout=5)
+                # Додаємо raffle_id, якщо він є
+                if raffle_id:
+                    transaction_data["raffle_id"] = raffle_id
+
+                transaction_data["previous_coins"] = current_coins
+
+                txn.table("transactions").insert(transaction_data).execute()
 
                 # 2. Оновлюємо кількість жетонів користувача
-                txn.table("winix").update({"coins": new_coins}).eq("telegram_id", str(telegram_id)).execute(timeout=5)
+                txn.table("winix").update({
+                    "coins": new_coins,
+                    "updated_at": now
+                }).eq("telegram_id", str(telegram_id)).execute()
 
                 # 3. Оновлюємо статус транзакції
-                txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id",
-                                                                                                transaction_id).execute(timeout=5)
+                txn.table("transactions").update({"status": "completed", "updated_at": now}).eq("id", transaction_id).execute()
 
             return {
                 "status": "success",
@@ -329,7 +336,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
                     "status": "failed",
                     "error_message": str(e),
                     "updated_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", transaction_id).execute(timeout=5)
+                }).eq("id", transaction_id).execute()
             except:
                 pass
 
@@ -347,7 +354,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
 
 
 def get_user_transactions(telegram_id: str, limit: int = 20, offset: int = 0,
-                          transaction_type: Optional[str] = None) -> Dict[str, Any]:
+                          type_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Отримує список транзакцій користувача
 
@@ -355,7 +362,7 @@ def get_user_transactions(telegram_id: str, limit: int = 20, offset: int = 0,
         telegram_id: Ідентифікатор користувача
         limit: Максимальна кількість транзакцій
         offset: Зміщення для пагінації
-        transaction_type: Фільтр за типом транзакції
+        type_name: Фільтр за типом транзакції
 
     Returns:
         Список транзакцій
@@ -370,15 +377,15 @@ def get_user_transactions(telegram_id: str, limit: int = 20, offset: int = 0,
         query = supabase.table("transactions").select("*").eq("telegram_id", str(telegram_id))
 
         # Додаємо фільтр за типом транзакції, якщо він вказаний
-        if transaction_type:
-            query = query.eq("type", transaction_type)
+        if type_name:
+            query = query.eq("type", type_name)
 
         # Додаємо сортування та пагінацію
         query = query.order("created_at", desc=True).limit(limit).offset(offset)
 
-        # Виконуємо запит з таймаутом
+        # Виконуємо запит
         try:
-            response = query.execute(timeout=8)
+            response = query.execute()
         except Exception as e:
             logger.error(f"get_user_transactions: Помилка запиту транзакцій - {str(e)}")
             return {
@@ -389,10 +396,10 @@ def get_user_transactions(telegram_id: str, limit: int = 20, offset: int = 0,
         # Отримуємо загальну кількість транзакцій
         try:
             count_query = supabase.table("transactions").select("count", count="exact").eq("telegram_id", str(telegram_id))
-            if transaction_type:
-                count_query = count_query.eq("type", transaction_type)
+            if type_name:
+                count_query = count_query.eq("type", type_name)
 
-            count_response = count_query.execute(timeout=5)
+            count_response = count_query.execute()
             total_count = count_response.count if hasattr(count_response, 'count') else 0
         except Exception as e:
             logger.error(f"get_user_transactions: Помилка підрахунку транзакцій - {str(e)}")
