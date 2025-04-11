@@ -1,38 +1,61 @@
 /**
- * admin_raffles.js - Модуль для адміністрування розіграшів WINIX
+ * index.js - Головний модуль адміністрування розіграшів
+ * Відповідає за управління розіграшами в адмін-панелі
  */
 
-(function() {
-    'use strict';
+import AdminAPI from '../../api/admin-api.js';
+import { formatDate, formatCurrency } from '../formatters.js';
+import { showToast, showConfirm } from '../ui-helpers.js';
 
-    console.log("🎮 Admin Raffles: Ініціалізація адмін-модуля розіграшів");
+class RaffleAdmin {
+    constructor() {
+        this._isLoading = false;
+        this._rafflesList = [];
+        this._currentPage = 1;
+        this._itemsPerPage = 10;
+        this._totalItems = 0;
+        this._statusFilter = null;
+        this._raffleDetailsCache = {};
+    }
 
-    // ======== ПРИВАТНІ ЗМІННІ ========
-    let _isLoading = false;
-    let _rafflesList = [];
-    let _currentPage = 1;
-    let _itemsPerPage = 10;
-    let _totalItems = 0;
-    let _statusFilter = null;
+    /**
+     * Ініціалізація модуля адміністрування розіграшів
+     */
+    init() {
+        console.log("🎮 Admin Raffles: Ініціалізація адмін-модуля розіграшів");
 
-    // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З API ========
+        // Перевіряємо наявність контейнера для адмін-панелі
+        const container = document.getElementById('admin-raffles-container');
+        if (container) {
+            // Додаємо стилі для адмін-панелі
+            this._createAdminStyles();
+
+            // Відображаємо список розіграшів
+            this.displayRafflesList();
+        }
+
+        console.log("✅ Admin Raffles: Ініціалізацію завершено");
+    }
 
     /**
      * Отримання всіх розіграшів для адмін-панелі
+     * @param {number} page - Номер сторінки
+     * @param {string} statusFilter - Фільтр за статусом
+     * @returns {Promise<Object>} - Результат запиту
      */
-    async function getAllRaffles(page = 1, statusFilter = null) {
+    async getAllRaffles(page = 1, statusFilter = null) {
         try {
-            if (_isLoading) {
+            if (this._isLoading) {
                 console.log("⏳ Admin Raffles: Завантаження вже виконується");
                 return;
             }
 
-            _isLoading = true;
-            showAdminLoader();
+            this._isLoading = true;
+            this._showAdminLoader();
 
             // Збереження поточного стану
-            _currentPage = page;
-            _statusFilter = statusFilter;
+            this._currentPage = page;
+            this._statusFilter = statusFilter;
 
             // Будуємо URL із параметрами
             let url = '/api/admin/raffles';
@@ -43,7 +66,7 @@
             }
 
             params.push(`page=${page}`);
-            params.push(`limit=${_itemsPerPage}`);
+            params.push(`limit=${this._itemsPerPage}`);
 
             if (params.length > 0) {
                 url += '?' + params.join('&');
@@ -51,24 +74,24 @@
 
             // Виконуємо запит з адмін-заголовком
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(url, 'GET', null, headers);
+            const response = await AdminAPI.apiRequest(url, 'GET', null, headers);
 
-            hideAdminLoader();
-            _isLoading = false;
+            this._hideAdminLoader();
+            this._isLoading = false;
 
             if (response.status === 'success') {
-                _rafflesList = response.data || [];
-                _totalItems = response.pagination?.total || _rafflesList.length;
+                this._rafflesList = response.data || [];
+                this._totalItems = response.pagination?.total || this._rafflesList.length;
 
                 return {
-                    raffles: _rafflesList,
+                    raffles: this._rafflesList,
                     pagination: {
-                        currentPage: _currentPage,
-                        totalPages: Math.ceil(_totalItems / _itemsPerPage),
-                        totalItems: _totalItems
+                        currentPage: this._currentPage,
+                        totalPages: Math.ceil(this._totalItems / this._itemsPerPage),
+                        totalItems: this._totalItems
                     }
                 };
             } else {
@@ -76,49 +99,60 @@
             }
         } catch (error) {
             console.error('❌ Помилка отримання розіграшів:', error);
-            hideAdminLoader();
-            _isLoading = false;
-            showAdminError('Помилка завантаження розіграшів: ' + error.message);
+            this._hideAdminLoader();
+            this._isLoading = false;
+            this._showAdminError('Помилка завантаження розіграшів: ' + error.message);
             return null;
         }
     }
 
     /**
      * Отримання деталей конкретного розіграшу
+     * @param {string} raffleId - ID розіграшу
+     * @returns {Promise<Object>} - Деталі розіграшу
      */
-    async function getRaffleDetails(raffleId) {
+    async getRaffleDetails(raffleId) {
         try {
             if (!raffleId) {
                 throw new Error('ID розіграшу не вказано');
             }
 
-            showAdminLoader();
+            // Перевіряємо кеш
+            if (this._raffleDetailsCache[raffleId]) {
+                return this._raffleDetailsCache[raffleId];
+            }
+
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'GET', null, headers);
+            const response = await AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'GET', null, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
+                // Зберігаємо в кеш
+                this._raffleDetailsCache[raffleId] = response.data;
                 return response.data;
             } else {
                 throw new Error(response.message || 'Помилка отримання деталей розіграшу');
             }
         } catch (error) {
             console.error(`❌ Помилка отримання деталей розіграшу ${raffleId}:`, error);
-            hideAdminLoader();
-            showAdminError('Помилка завантаження деталей розіграшу: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка завантаження деталей розіграшу: ' + error.message);
             return null;
         }
     }
 
     /**
      * Створення нового розіграшу
+     * @param {Object} raffleData - Дані розіграшу
+     * @returns {Promise<Object>} - Результат операції
      */
-    async function createRaffle(raffleData) {
+    async createRaffle(raffleData) {
         try {
             if (!raffleData) {
                 throw new Error('Дані розіграшу не вказано');
@@ -132,34 +166,37 @@
                 throw new Error(`Відсутні обов'язкові поля: ${missingFields.join(', ')}`);
             }
 
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest('/api/admin/raffles', 'POST', raffleData, headers);
+            const response = await AdminAPI.apiRequest('/api/admin/raffles', 'POST', raffleData, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
-                showAdminSuccess('Розіграш успішно створено');
+                this._showAdminSuccess('Розіграш успішно створено');
                 return response.data;
             } else {
                 throw new Error(response.message || 'Помилка створення розіграшу');
             }
         } catch (error) {
             console.error('❌ Помилка створення розіграшу:', error);
-            hideAdminLoader();
-            showAdminError('Помилка створення розіграшу: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка створення розіграшу: ' + error.message);
             return null;
         }
     }
 
     /**
      * Оновлення існуючого розіграшу
+     * @param {string} raffleId - ID розіграшу
+     * @param {Object} updateData - Дані для оновлення
+     * @returns {Promise<Object>} - Результат операції
      */
-    async function updateRaffle(raffleId, updateData) {
+    async updateRaffle(raffleId, updateData) {
         try {
             if (!raffleId) {
                 throw new Error('ID розіграшу не вказано');
@@ -169,124 +206,141 @@
                 throw new Error('Дані для оновлення не вказано');
             }
 
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'PUT', updateData, headers);
+            const response = await AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'PUT', updateData, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
-                showAdminSuccess('Розіграш успішно оновлено');
+                // Очищаємо кеш для цього розіграшу
+                delete this._raffleDetailsCache[raffleId];
+
+                this._showAdminSuccess('Розіграш успішно оновлено');
                 return response.data;
             } else {
                 throw new Error(response.message || 'Помилка оновлення розіграшу');
             }
         } catch (error) {
             console.error(`❌ Помилка оновлення розіграшу ${raffleId}:`, error);
-            hideAdminLoader();
-            showAdminError('Помилка оновлення розіграшу: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка оновлення розіграшу: ' + error.message);
             return null;
         }
     }
 
     /**
      * Видалення розіграшу
+     * @param {string} raffleId - ID розіграшу
+     * @returns {Promise<boolean>} - Результат операції
      */
-    async function deleteRaffle(raffleId) {
+    async deleteRaffle(raffleId) {
         try {
             if (!raffleId) {
                 throw new Error('ID розіграшу не вказано');
             }
 
             // Запитуємо підтвердження
-            if (!confirm('Ви впевнені, що хочете видалити цей розіграш? Ця дія не може бути скасована.')) {
-                return null;
+            const confirmed = await showConfirm('Ви впевнені, що хочете видалити цей розіграш? Ця дія не може бути скасована.');
+            if (!confirmed) {
+                return false;
             }
 
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'DELETE', null, headers);
+            const response = await AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}`, 'DELETE', null, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
-                showAdminSuccess('Розіграш успішно видалено');
+                // Очищаємо кеш для цього розіграшу
+                delete this._raffleDetailsCache[raffleId];
+
+                this._showAdminSuccess('Розіграш успішно видалено');
                 return true;
             } else {
                 throw new Error(response.message || 'Помилка видалення розіграшу');
             }
         } catch (error) {
             console.error(`❌ Помилка видалення розіграшу ${raffleId}:`, error);
-            hideAdminLoader();
-            showAdminError('Помилка видалення розіграшу: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка видалення розіграшу: ' + error.message);
             return false;
         }
     }
 
     /**
-     * Завершення розіграшу
+     * Завершення розіграшу і визначення переможців
+     * @param {string} raffleId - ID розіграшу
+     * @returns {Promise<Object>} - Результат операції
      */
-    async function finishRaffle(raffleId) {
+    async finishRaffle(raffleId) {
         try {
             if (!raffleId) {
                 throw new Error('ID розіграшу не вказано');
             }
 
             // Запитуємо підтвердження
-            if (!confirm('Ви впевнені, що хочете завершити цей розіграш зараз? Будуть визначені переможці.')) {
+            const confirmed = await showConfirm('Ви впевнені, що хочете завершити цей розіграш зараз? Будуть визначені переможці.');
+            if (!confirmed) {
                 return null;
             }
 
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}/finish`, 'POST', null, headers);
+            const response = await AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}/finish`, 'POST', null, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
-                showAdminSuccess('Розіграш успішно завершено. Переможці визначені.');
+                // Очищаємо кеш для цього розіграшу
+                delete this._raffleDetailsCache[raffleId];
+
+                this._showAdminSuccess('Розіграш успішно завершено. Переможці визначені.');
                 return response.data;
             } else {
                 throw new Error(response.message || 'Помилка завершення розіграшу');
             }
         } catch (error) {
             console.error(`❌ Помилка завершення розіграшу ${raffleId}:`, error);
-            hideAdminLoader();
-            showAdminError('Помилка завершення розіграшу: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка завершення розіграшу: ' + error.message);
             return null;
         }
     }
 
     /**
      * Отримання учасників розіграшу
+     * @param {string} raffleId - ID розіграшу
+     * @returns {Promise<Object>} - Дані учасників
      */
-    async function getRaffleParticipants(raffleId) {
+    async getRaffleParticipants(raffleId) {
         try {
             if (!raffleId) {
                 throw new Error('ID розіграшу не вказано');
             }
 
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}/participants`, 'GET', null, headers);
+            const response = await AdminAPI.apiRequest(`/api/admin/raffles/${raffleId}/participants`, 'GET', null, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
                 return response.data;
@@ -295,34 +349,35 @@
             }
         } catch (error) {
             console.error(`❌ Помилка отримання учасників розіграшу ${raffleId}:`, error);
-            hideAdminLoader();
-            showAdminError('Помилка завантаження учасників: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка завантаження учасників: ' + error.message);
             return null;
         }
     }
 
     /**
      * Перевірка та завершення прострочених розіграшів
+     * @returns {Promise<Object>} - Результат операції
      */
-    async function checkExpiredRaffles() {
+    async checkExpiredRaffles() {
         try {
-            showAdminLoader();
+            this._showAdminLoader();
 
             const headers = {
-                'X-Admin-User-Id': window.AdminAPI.getAdminId()
+                'X-Admin-User-Id': AdminAPI.getAdminId()
             };
 
-            const response = await window.AdminAPI.apiRequest('/api/admin/raffles/check-expired', 'POST', null, headers);
+            const response = await AdminAPI.apiRequest('/api/admin/raffles/check-expired', 'POST', null, headers);
 
-            hideAdminLoader();
+            this._hideAdminLoader();
 
             if (response.status === 'success') {
                 const finishedCount = response.finished_count || 0;
 
                 if (finishedCount > 0) {
-                    showAdminSuccess(`Завершено ${finishedCount} прострочених розіграшів`);
+                    this._showAdminSuccess(`Завершено ${finishedCount} прострочених розіграшів`);
                 } else {
-                    showAdminInfo('Прострочені розіграші не знайдено');
+                    this._showAdminInfo('Прострочені розіграші не знайдено');
                 }
 
                 return response;
@@ -331,18 +386,16 @@
             }
         } catch (error) {
             console.error('❌ Помилка перевірки прострочених розіграшів:', error);
-            hideAdminLoader();
-            showAdminError('Помилка перевірки розіграшів: ' + error.message);
+            this._hideAdminLoader();
+            this._showAdminError('Помилка перевірки розіграшів: ' + error.message);
             return null;
         }
     }
 
-    // ======== ФУНКЦІЇ ДЛЯ РОБОТИ З UI ========
-
     /**
      * Відображення списку розіграшів в адмін-панелі
      */
-    async function displayRafflesList() {
+    async displayRafflesList() {
         const rafflesContainer = document.getElementById('admin-raffles-container');
         if (!rafflesContainer) {
             console.error('Контейнер для списку розіграшів не знайдено');
@@ -350,7 +403,7 @@
         }
 
         // Отримуємо розіграші
-        const result = await getAllRaffles(_currentPage, _statusFilter);
+        const result = await this.getAllRaffles(this._currentPage, this._statusFilter);
 
         if (!result) {
             rafflesContainer.innerHTML = '<div class="admin-error-message">Помилка завантаження розіграшів</div>';
@@ -366,9 +419,9 @@
                     <label>Фільтр за статусом:</label>
                     <select id="status-filter">
                         <option value="">Всі</option>
-                        <option value="active" ${_statusFilter === 'active' ? 'selected' : ''}>Активні</option>
-                        <option value="completed" ${_statusFilter === 'completed' ? 'selected' : ''}>Завершені</option>
-                        <option value="cancelled" ${_statusFilter === 'cancelled' ? 'selected' : ''}>Скасовані</option>
+                        <option value="active" ${this._statusFilter === 'active' ? 'selected' : ''}>Активні</option>
+                        <option value="completed" ${this._statusFilter === 'completed' ? 'selected' : ''}>Завершені</option>
+                        <option value="cancelled" ${this._statusFilter === 'cancelled' ? 'selected' : ''}>Скасовані</option>
                     </select>
                 </div>
                 <button id="add-raffle-btn" class="admin-button">Створити розіграш</button>
@@ -402,7 +455,7 @@
             // Додаємо рядки для кожного розіграшу
             raffles.forEach(raffle => {
                 const endDate = new Date(raffle.end_time);
-                const formattedDate = endDate.toLocaleString('uk-UA');
+                const formattedDate = formatDate(raffle.end_time);
 
                 const statusClass =
                     raffle.status === 'active' ? 'status-active' :
@@ -416,7 +469,7 @@
 
                 tableHTML += `
                     <tr data-raffle-id="${raffle.id}">
-                        <td>${raffle.id.substring(0, 8)}...</td>
+                        <td>${this._truncateText(raffle.id, 8)}</td>
                         <td>${raffle.title}</td>
                         <td>${raffle.prize_amount} ${raffle.prize_currency}</td>
                         <td>${raffle.entry_fee} жетонів</td>
@@ -459,76 +512,81 @@
         rafflesContainer.innerHTML = tableHTML;
 
         // Додаємо обробники подій
-        document.getElementById('status-filter')?.addEventListener('change', function() {
-            const status = this.value;
-            _statusFilter = status || null;
-            _currentPage = 1;
-            displayRafflesList();
+        this._addEventListeners();
+    }
+
+    /**
+     * Додавання обробників подій до елементів інтерфейсу
+     */
+    _addEventListeners() {
+        document.getElementById('status-filter')?.addEventListener('change', (e) => {
+            const status = e.target.value;
+            this._statusFilter = status || null;
+            this._currentPage = 1;
+            this.displayRafflesList();
         });
 
-        document.getElementById('add-raffle-btn')?.addEventListener('click', function() {
-            openCreateRaffleModal();
+        document.getElementById('add-raffle-btn')?.addEventListener('click', () => {
+            this.openCreateRaffleModal();
         });
 
-        document.getElementById('check-expired-btn')?.addEventListener('click', function() {
-            checkExpiredRaffles().then(() => {
-                displayRafflesList();
-            });
+        document.getElementById('check-expired-btn')?.addEventListener('click', async () => {
+            await this.checkExpiredRaffles();
+            this.displayRafflesList();
         });
 
-        document.getElementById('prev-page')?.addEventListener('click', function() {
-            if (_currentPage > 1) {
-                _currentPage--;
-                displayRafflesList();
+        document.getElementById('prev-page')?.addEventListener('click', () => {
+            if (this._currentPage > 1) {
+                this._currentPage--;
+                this.displayRafflesList();
             }
         });
 
-        document.getElementById('next-page')?.addEventListener('click', function() {
-            if (_currentPage < pagination.totalPages) {
-                _currentPage++;
-                displayRafflesList();
+        document.getElementById('next-page')?.addEventListener('click', () => {
+            const totalPages = Math.ceil(this._totalItems / this._itemsPerPage);
+            if (this._currentPage < totalPages) {
+                this._currentPage++;
+                this.displayRafflesList();
             }
         });
 
         // Додаємо обробники для кнопок дій
         document.querySelectorAll('.view-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const raffleId = this.getAttribute('data-raffle-id');
-                openRaffleDetailsModal(raffleId);
+            btn.addEventListener('click', (e) => {
+                const raffleId = e.target.getAttribute('data-raffle-id');
+                this.openRaffleDetailsModal(raffleId);
             });
         });
 
         document.querySelectorAll('.edit-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const raffleId = this.getAttribute('data-raffle-id');
-                openEditRaffleModal(raffleId);
+            btn.addEventListener('click', (e) => {
+                const raffleId = e.target.getAttribute('data-raffle-id');
+                this.openEditRaffleModal(raffleId);
             });
         });
 
         document.querySelectorAll('.finish-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const raffleId = this.getAttribute('data-raffle-id');
-                finishRaffle(raffleId).then(() => {
-                    displayRafflesList();
-                });
+            btn.addEventListener('click', async (e) => {
+                const raffleId = e.target.getAttribute('data-raffle-id');
+                await this.finishRaffle(raffleId);
+                this.displayRafflesList();
             });
         });
 
         document.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const raffleId = this.getAttribute('data-raffle-id');
-                deleteRaffle(raffleId).then((success) => {
-                    if (success) {
-                        displayRafflesList();
-                    }
-                });
+            btn.addEventListener('click', async (e) => {
+                const raffleId = e.target.getAttribute('data-raffle-id');
+                const success = await this.deleteRaffle(raffleId);
+                if (success) {
+                    this.displayRafflesList();
+                }
             });
         });
 
         document.querySelectorAll('.participants-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const raffleId = this.getAttribute('data-raffle-id');
-                openParticipantsModal(raffleId);
+            btn.addEventListener('click', (e) => {
+                const raffleId = e.target.getAttribute('data-raffle-id');
+                this.openParticipantsModal(raffleId);
             });
         });
     }
@@ -536,7 +594,7 @@
     /**
      * Відкриття модального вікна для створення розіграшу
      */
-    function openCreateRaffleModal() {
+    openCreateRaffleModal() {
         // Створюємо модальне вікно
         const modal = document.createElement('div');
         modal.className = 'admin-modal';
@@ -647,7 +705,15 @@
             modal.classList.add('show');
         }, 10);
 
-        // Додаємо обробники подій
+        // Додаємо обробники подій для модального вікна
+        this._setupCreateRaffleModalEvents(modal);
+    }
+
+    /**
+     * Налаштування обробників подій для модального вікна створення розіграшу
+     * @param {HTMLElement} modal - Елемент модального вікна
+     */
+    _setupCreateRaffleModalEvents(modal) {
         const closeBtn = modal.querySelector('.admin-modal-close');
         const cancelBtn = modal.querySelector('.cancel-btn');
         const saveBtn = modal.querySelector('.save-btn');
@@ -657,40 +723,17 @@
         const distributionList = modal.querySelector('#prize-distribution-list');
 
         // Оновлення розподілу призів при зміні кількості переможців
-        winnersCountInput.addEventListener('change', function() {
-            updatePrizeDistribution(parseInt(this.value), prizeCurrencySelect.value);
+        winnersCountInput.addEventListener('change', () => {
+            this._updatePrizeDistribution(parseInt(winnersCountInput.value), prizeCurrencySelect.value, distributionList);
         });
 
         // Оновлення валюти призу в розподілі
-        prizeCurrencySelect.addEventListener('change', function() {
+        prizeCurrencySelect.addEventListener('change', () => {
             const currencyElements = distributionList.querySelectorAll('.prize-currency');
             currencyElements.forEach(el => {
-                el.textContent = this.value;
+                el.textContent = prizeCurrencySelect.value;
             });
         });
-
-        // Функція оновлення розподілу призів
-        function updatePrizeDistribution(count, currency) {
-            // Очищаємо список
-            distributionList.innerHTML = '';
-
-            // Додаємо необхідну кількість полів
-            for (let i = 1; i <= count; i++) {
-                const item = document.createElement('div');
-                item.className = 'prize-distribution-item';
-
-                // Розраховуємо суму для поточного місця (спрощена версія)
-                const amount = i === 1 ? 100 : i <= 3 ? 50 : 25;
-
-                item.innerHTML = `
-                    <span>${i} місце:</span>
-                    <input type="number" class="prize-amount" data-place="${i}" value="${amount}" min="1" step="0.01">
-                    <span class="prize-currency">${currency}</span>
-                `;
-
-                distributionList.appendChild(item);
-            }
-        }
 
         // Закриття модального вікна
         function closeModal() {
@@ -704,7 +747,7 @@
         cancelBtn.addEventListener('click', closeModal);
 
         // Збереження розіграшу
-        saveBtn.addEventListener('click', async function() {
+        saveBtn.addEventListener('click', async () => {
             // Перевірка валідності форми
             if (!form.checkValidity()) {
                 form.reportValidity();
@@ -740,27 +783,28 @@
             formData.prize_distribution = prizeDistribution;
 
             // Створюємо розіграш
-            const result = await createRaffle(formData);
+            const result = await this.createRaffle(formData);
 
             if (result) {
                 closeModal();
-                displayRafflesList(); // Оновлюємо список розіграшів
+                this.displayRafflesList(); // Оновлюємо список розіграшів
             }
         });
 
         // Ініціалізуємо розподіл призів
-        updatePrizeDistribution(parseInt(winnersCountInput.value), prizeCurrencySelect.value);
+        this._updatePrizeDistribution(parseInt(winnersCountInput.value), prizeCurrencySelect.value, distributionList);
     }
 
     /**
      * Відкриття модального вікна для редагування розіграшу
+     * @param {string} raffleId - ID розіграшу
      */
-    async function openEditRaffleModal(raffleId) {
+    async openEditRaffleModal(raffleId) {
         // Отримуємо дані розіграшу
-        const raffle = await getRaffleDetails(raffleId);
+        const raffle = await this.getRaffleDetails(raffleId);
 
         if (!raffle) {
-            showAdminError('Не вдалося отримати дані розіграшу');
+            this._showAdminError('Не вдалося отримати дані розіграшу');
             return;
         }
 
@@ -871,6 +915,18 @@
 
         // Генеруємо розподіл призів
         const distributionList = modal.querySelector('#edit-prize-distribution-list');
+        this._generatePrizeDistributionEditor(raffle, distributionList);
+
+        // Додаємо обробники подій для модального вікна
+        this._setupEditRaffleModalEvents(modal, raffleId);
+    }
+
+    /**
+     * Генерація елементів редактора розподілу призів
+     * @param {Object} raffle - Дані розіграшу
+     * @param {HTMLElement} distributionList - Контейнер для елементів розподілу
+     */
+    _generatePrizeDistributionEditor(raffle, distributionList) {
         const prizeDistribution = raffle.prize_distribution || {};
 
         for (let i = 1; i <= raffle.winners_count; i++) {
@@ -891,59 +947,38 @@
 
             distributionList.appendChild(item);
         }
+    }
 
-        // Додаємо обробники подій
+    /**
+     * Налаштування обробників подій для модального вікна редагування розіграшу
+     * @param {HTMLElement} modal - Елемент модального вікна
+     * @param {string} raffleId - ID розіграшу
+     */
+    _setupEditRaffleModalEvents(modal, raffleId) {
         const closeBtn = modal.querySelector('.admin-modal-close');
         const cancelBtn = modal.querySelector('.cancel-btn');
         const saveBtn = modal.querySelector('.save-btn');
         const form = modal.querySelector('#edit-raffle-form');
         const winnersCountInput = modal.querySelector('#edit-winners_count');
         const prizeCurrencySelect = modal.querySelector('#edit-prize_currency');
+        const distributionList = modal.querySelector('#edit-prize-distribution-list');
 
         // Оновлення розподілу призів при зміні кількості переможців
-        winnersCountInput.addEventListener('change', function() {
-            updateEditPrizeDistribution(parseInt(this.value), prizeCurrencySelect.value);
+        winnersCountInput.addEventListener('change', () => {
+            this._updateEditPrizeDistribution(
+                parseInt(winnersCountInput.value),
+                prizeCurrencySelect.value,
+                distributionList
+            );
         });
 
         // Оновлення валюти призу в розподілі
-        prizeCurrencySelect.addEventListener('change', function() {
+        prizeCurrencySelect.addEventListener('change', () => {
             const currencyElements = distributionList.querySelectorAll('.prize-currency');
             currencyElements.forEach(el => {
-                el.textContent = this.value;
+                el.textContent = prizeCurrencySelect.value;
             });
         });
-
-        // Функція оновлення розподілу призів
-        function updateEditPrizeDistribution(count, currency) {
-            // Зберігаємо поточні значення
-            const currentValues = {};
-            distributionList.querySelectorAll('.prize-distribution-item').forEach(item => {
-                const place = item.querySelector('.prize-amount').getAttribute('data-place');
-                const amount = parseFloat(item.querySelector('.prize-amount').value);
-                currentValues[place] = amount;
-            });
-
-            // Очищаємо список
-            distributionList.innerHTML = '';
-
-            // Додаємо необхідну кількість полів
-            for (let i = 1; i <= count; i++) {
-                const item = document.createElement('div');
-                item.className = 'prize-distribution-item';
-
-                // Використовуємо збережене значення або розраховуємо нове
-                const place = i.toString();
-                const amount = currentValues[place] || (i === 1 ? 100 : i <= 3 ? 50 : 25);
-
-                item.innerHTML = `
-                    <span>${i} місце:</span>
-                    <input type="number" class="prize-amount" data-place="${i}" value="${amount}" min="1" step="0.01">
-                    <span class="prize-currency">${currency}</span>
-                `;
-
-                distributionList.appendChild(item);
-            }
-        }
 
         // Закриття модального вікна
         function closeEditModal() {
@@ -957,7 +992,7 @@
         cancelBtn.addEventListener('click', closeEditModal);
 
         // Збереження змін
-        saveBtn.addEventListener('click', async function() {
+        saveBtn.addEventListener('click', async () => {
             // Перевірка валідності форми
             if (!form.checkValidity()) {
                 form.reportValidity();
@@ -993,24 +1028,90 @@
             formData.prize_distribution = prizeDistribution;
 
             // Оновлюємо розіграш
-            const result = await updateRaffle(raffleId, formData);
+            const result = await this.updateRaffle(raffleId, formData);
 
             if (result) {
                 closeEditModal();
-                displayRafflesList(); // Оновлюємо список розіграшів
+                this.displayRafflesList(); // Оновлюємо список розіграшів
             }
         });
     }
 
     /**
-     * Відкриття модального вікна для перегляду деталей розіграшу
+     * Оновлення елементів для редагування розподілу призів
+     * @param {number} count - Кількість переможців
+     * @param {string} currency - Валюта призу
+     * @param {HTMLElement} distributionList - Контейнер для елементів розподілу
      */
-    async function openRaffleDetailsModal(raffleId) {
+    _updateEditPrizeDistribution(count, currency, distributionList) {
+        // Зберігаємо поточні значення
+        const currentValues = {};
+        distributionList.querySelectorAll('.prize-distribution-item').forEach(item => {
+            const place = item.querySelector('.prize-amount').getAttribute('data-place');
+            const amount = parseFloat(item.querySelector('.prize-amount').value);
+            currentValues[place] = amount;
+        });
+
+        // Очищаємо список
+        distributionList.innerHTML = '';
+
+        // Додаємо необхідну кількість полів
+        for (let i = 1; i <= count; i++) {
+            const item = document.createElement('div');
+            item.className = 'prize-distribution-item';
+
+            // Використовуємо збережене значення або розраховуємо нове
+            const place = i.toString();
+            const amount = currentValues[place] || (i === 1 ? 100 : i <= 3 ? 50 : 25);
+
+            item.innerHTML = `
+                <span>${i} місце:</span>
+                <input type="number" class="prize-amount" data-place="${i}" value="${amount}" min="1" step="0.01">
+                <span class="prize-currency">${currency}</span>
+            `;
+
+            distributionList.appendChild(item);
+        }
+    }
+
+    /**
+     * Оновлення розподілу призів
+     * @param {number} count - Кількість переможців
+     * @param {string} currency - Валюта призу
+     * @param {HTMLElement} distributionList - Контейнер для елементів розподілу
+     */
+    _updatePrizeDistribution(count, currency, distributionList) {
+        // Очищаємо список
+        distributionList.innerHTML = '';
+
+        // Додаємо необхідну кількість полів
+        for (let i = 1; i <= count; i++) {
+            const item = document.createElement('div');
+            item.className = 'prize-distribution-item';
+
+            // Розраховуємо суму для поточного місця (спрощена версія)
+            const amount = i === 1 ? 100 : i <= 3 ? 50 : 25;
+
+            item.innerHTML = `
+                <span>${i} місце:</span>
+                <input type="number" class="prize-amount" data-place="${i}" value="${amount}" min="1" step="0.01">
+                <span class="prize-currency">${currency}</span>
+            `;
+
+            distributionList.appendChild(item);
+        }
+    }
+
+    /**
+     * Відкриття модального вікна з деталями розіграшу
+     * @param {string} raffleId - ID розіграшу
+     */
+    async openRaffleDetailsModal(raffleId) {
         // Отримуємо дані розіграшу
-        const raffle = await getRaffleDetails(raffleId);
+        const raffle = await this.getRaffleDetails(raffleId);
 
         if (!raffle) {
-            showAdminError('Не вдалося отримати дані розіграшу');
+            this._showAdminError('Не вдалося отримати дані розіграшу');
             return;
         }
 
@@ -1020,13 +1121,9 @@
         modal.id = 'raffle-details-modal';
 
         // Форматуємо дати
-        const startTime = new Date(raffle.start_time);
-        const endTime = new Date(raffle.end_time);
-        const createdAt = new Date(raffle.created_at);
-
-        const startTimeStr = startTime.toLocaleString('uk-UA');
-        const endTimeStr = endTime.toLocaleString('uk-UA');
-        const createdAtStr = createdAt.toLocaleString('uk-UA');
+        const startTimeStr = formatDate(raffle.start_time);
+        const endTimeStr = formatDate(raffle.end_time);
+        const createdAtStr = formatDate(raffle.created_at);
 
         // Визначаємо статус
         const statusClass =
@@ -1040,50 +1137,10 @@
             'Скасовано';
 
         // Генеруємо HTML для розподілу призів
-        let prizeDistributionHTML = '';
-        const prizeDistribution = raffle.prize_distribution || {};
-
-        for (let i = 1; i <= raffle.winners_count; i++) {
-            const place = i.toString();
-            const prizeData = prizeDistribution[place] || {};
-            const amount = prizeData.amount || 0;
-            const currency = prizeData.currency || raffle.prize_currency;
-
-            prizeDistributionHTML += `
-                <div class="prize-item">
-                    <span class="prize-place">${i} місце:</span>
-                    <span class="prize-value">${amount} ${currency}</span>
-                </div>
-            `;
-        }
+        const prizeDistributionHTML = this._generatePrizeDistributionHTML(raffle);
 
         // Генеруємо HTML для переможців (якщо є)
-        let winnersHTML = '';
-        if (raffle.status === 'completed' && raffle.winners && raffle.winners.length > 0) {
-            winnersHTML = `
-                <div class="details-section">
-                    <h3>Переможці розіграшу</h3>
-                    <div class="winners-list">
-            `;
-
-            raffle.winners.forEach(winner => {
-                winnersHTML += `
-                    <div class="winner-item">
-                        <div class="winner-place">${winner.place} місце</div>
-                        <div class="winner-info">
-                            <span class="winner-username">${winner.username}</span>
-                            <span class="winner-id">ID: ${winner.telegram_id}</span>
-                        </div>
-                        <div class="winner-prize">${winner.prize_amount} ${winner.prize_currency}</div>
-                    </div>
-                `;
-            });
-
-            winnersHTML += `
-                    </div>
-                </div>
-            `;
-        }
+        const winnersHTML = this._generateRaffleWinnersHTML(raffle);
 
         // Заповнюємо модальне вікно
         modal.innerHTML = `
@@ -1201,7 +1258,16 @@
             modal.classList.add('show');
         }, 10);
 
-        // Додаємо обробники подій
+        // Налаштовуємо обробники подій
+        this._setupDetailsModalEvents(modal, raffleId);
+    }
+
+    /**
+     * Налаштування обробників подій для модального вікна з деталями розіграшу
+     * @param {HTMLElement} modal - Елемент модального вікна
+     * @param {string} raffleId - ID розіграшу
+     */
+    _setupDetailsModalEvents(modal, raffleId) {
         const closeBtn = modal.querySelector('.admin-modal-close');
         const cancelBtn = modal.querySelector('.close-btn');
         const viewParticipantsBtn = modal.querySelector('.view-participants-btn');
@@ -1218,21 +1284,85 @@
         cancelBtn.addEventListener('click', closeDetailsModal);
 
         // Перегляд учасників
-        viewParticipantsBtn.addEventListener('click', function() {
+        viewParticipantsBtn.addEventListener('click', () => {
             closeDetailsModal();
-            openParticipantsModal(raffleId);
+            this.openParticipantsModal(raffleId);
         });
     }
 
     /**
-     * Відкриття модального вікна для перегляду учасників розіграшу
+     * Генерування HTML для розподілу призів
+     * @param {Object} raffle - Дані розіграшу
+     * @returns {string} - HTML-розмітка
      */
-    async function openParticipantsModal(raffleId) {
+    _generatePrizeDistributionHTML(raffle) {
+        const prizeDistribution = raffle.prize_distribution || {};
+        let html = '';
+
+        for (let i = 1; i <= raffle.winners_count; i++) {
+            const place = i.toString();
+            const prizeData = prizeDistribution[place] || {};
+            const amount = prizeData.amount || 0;
+            const currency = prizeData.currency || raffle.prize_currency;
+
+            html += `
+                <div class="prize-item">
+                    <span class="prize-place">${i} місце:</span>
+                    <span class="prize-value">${amount} ${currency}</span>
+                </div>
+            `;
+        }
+
+        return html || '<div class="prize-item"><span class="prize-place">Інформація про призи відсутня</span></div>';
+    }
+
+    /**
+     * Генерування HTML для переможців розіграшу
+     * @param {Object} raffle - Дані розіграшу
+     * @returns {string} - HTML-розмітка
+     */
+    _generateRaffleWinnersHTML(raffle) {
+        if (raffle.status !== 'completed' || !raffle.winners || !Array.isArray(raffle.winners) || raffle.winners.length === 0) {
+            return '';
+        }
+
+        let winnersHTML = `
+            <div class="details-section">
+                <h3>Переможці розіграшу</h3>
+                <div class="winners-list">
+        `;
+
+        raffle.winners.forEach(winner => {
+            winnersHTML += `
+                <div class="winner-item">
+                    <div class="winner-place">${winner.place} місце</div>
+                    <div class="winner-info">
+                        <span class="winner-username">${winner.username}</span>
+                        <span class="winner-id">ID: ${winner.telegram_id}</span>
+                    </div>
+                    <div class="winner-prize">${winner.prize_amount} ${winner.prize_currency}</div>
+                </div>
+            `;
+        });
+
+        winnersHTML += `
+                </div>
+            </div>
+        `;
+
+        return winnersHTML;
+    }
+
+    /**
+     * Відкриття модального вікна з учасниками розіграшу
+     * @param {string} raffleId - ID розіграшу
+     */
+    async openParticipantsModal(raffleId) {
         // Отримуємо дані учасників
-        const result = await getRaffleParticipants(raffleId);
+        const result = await this.getRaffleParticipants(raffleId);
 
         if (!result) {
-            showAdminError('Не вдалося отримати дані учасників');
+            this._showAdminError('Не вдалося отримати дані учасників');
             return;
         }
 
@@ -1286,8 +1416,7 @@
                                         participant.status === 'refunded' ? 'Повернуто' : 
                                         'Учасник';
                                     
-                                    const entryTime = new Date(participant.entry_time);
-                                    const entryTimeStr = entryTime.toLocaleString('uk-UA');
+                                    const entryTimeStr = formatDate(participant.entry_time);
                                     
                                     return `
                                         <tr>
@@ -1319,7 +1448,17 @@
             modal.classList.add('show');
         }, 10);
 
-        // Додаємо обробники подій
+        // Налаштовуємо обробники подій
+        this._setupParticipantsModalEvents(modal, raffle, participants);
+    }
+
+    /**
+     * Налаштування обробників подій для модального вікна з учасниками
+     * @param {HTMLElement} modal - Елемент модального вікна
+     * @param {Object} raffle - Дані розіграшу
+     * @param {Array} participants - Дані учасників
+     */
+    _setupParticipantsModalEvents(modal, raffle, participants) {
         const closeBtn = modal.querySelector('.admin-modal-close');
         const cancelBtn = modal.querySelector('.close-btn');
         const downloadBtn = modal.querySelector('.download-btn');
@@ -1336,7 +1475,7 @@
         cancelBtn.addEventListener('click', closeParticipantsModal);
 
         // Завантаження CSV
-        downloadBtn.addEventListener('click', function() {
+        downloadBtn.addEventListener('click', () => {
             // Генеруємо CSV
             let csv = 'Номер,Користувач,Telegram ID,Жетони,Дата участі,Статус\n';
 
@@ -1347,7 +1486,7 @@
                     'Учасник';
 
                 const entryTime = new Date(participant.entry_time);
-                const entryTimeStr = entryTime.toLocaleString('uk-UA');
+                const entryTimeStr = formatDate(participant.entry_time);
 
                 csv += `${index + 1},"${participant.username}",${participant.telegram_id},${participant.entry_count},"${entryTimeStr}","${statusText}"\n`;
             });
@@ -1357,7 +1496,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', `raffle-participants-${raffleId}.csv`);
+            link.setAttribute('download', `raffle-participants-${raffle.id}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -1365,12 +1504,10 @@
         });
     }
 
-    // ======== ДОПОМІЖНІ ФУНКЦІЇ ========
-
     /**
      * Показати індикатор завантаження
      */
-    function showAdminLoader() {
+    _showAdminLoader() {
         let loader = document.getElementById('admin-loader');
 
         if (!loader) {
@@ -1387,7 +1524,7 @@
     /**
      * Приховати індикатор завантаження
      */
-    function hideAdminLoader() {
+    _hideAdminLoader() {
         const loader = document.getElementById('admin-loader');
         if (loader) {
             loader.style.display = 'none';
@@ -1396,29 +1533,34 @@
 
     /**
      * Показати повідомлення про помилку
+     * @param {string} message - Текст повідомлення
      */
-    function showAdminError(message) {
-        showAdminNotification(message, 'error');
+    _showAdminError(message) {
+        this._showAdminNotification(message, 'error');
     }
 
     /**
      * Показати повідомлення про успіх
+     * @param {string} message - Текст повідомлення
      */
-    function showAdminSuccess(message) {
-        showAdminNotification(message, 'success');
+    _showAdminSuccess(message) {
+        this._showAdminNotification(message, 'success');
     }
 
     /**
      * Показати інформаційне повідомлення
+     * @param {string} message - Текст повідомлення
      */
-    function showAdminInfo(message) {
-        showAdminNotification(message, 'info');
+    _showAdminInfo(message) {
+        this._showAdminNotification(message, 'info');
     }
 
     /**
      * Загальна функція для показу повідомлень
+     * @param {string} message - Текст повідомлення
+     * @param {string} type - Тип повідомлення (info, success, error)
      */
-    function showAdminNotification(message, type = 'info') {
+    _showAdminNotification(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `admin-notification ${type}`;
         notification.innerHTML = message;
@@ -1437,30 +1579,17 @@
         }, 5000);
     }
 
-    // ======== ІНІЦІАЛІЗАЦІЯ ========
-
-    /**
-     * Ініціалізація модуля адмін-панелі розіграшів
-     */
-    function init() {
-        console.log("🎮 Admin Raffles: Ініціалізація...");
-
-        // Створюємо стилі для адмін-панелі розіграшів
-        createAdminStyles();
-
-        // Додаємо обробники подій
-        window.addEventListener('load', function() {
-            displayRafflesList();
-        });
-
-        console.log("✅ Admin Raffles: Ініціалізацію завершено");
-    }
-
     /**
      * Створення стилів для адмін-панелі розіграшів
      */
-    function createAdminStyles() {
+    _createAdminStyles() {
+        // Перевіряємо, чи вже є стилі
+        if (document.getElementById('admin-raffles-styles')) {
+            return;
+        }
+
         const styleElement = document.createElement('style');
+        styleElement.id = 'admin-raffles-styles';
         styleElement.textContent = `
             /* Стилі для адмін-панелі розіграшів */
             .admin-filters {
@@ -1585,26 +1714,6 @@
             
             .action-btn:hover {
                 background: rgba(255, 255, 255, 0.1);
-            }
-            
-            .view-btn {
-                color: rgba(33, 150, 243, 0.8);
-            }
-            
-            .edit-btn {
-                color: rgba(255, 152, 0, 0.8);
-            }
-            
-            .finish-btn {
-                color: rgba(0, 201, 167, 0.8);
-            }
-            
-            .delete-btn {
-                color: rgba(244, 67, 54, 0.8);
-            }
-            
-            .participants-btn {
-                color: rgba(156, 39, 176, 0.8);
             }
             
             .admin-pagination {
@@ -2060,24 +2169,17 @@
         document.head.appendChild(styleElement);
     }
 
-    // Експортуємо публічний API
-    window.AdminRaffles = {
-        init,
-        displayRafflesList,
-        getAllRaffles,
-        getRaffleDetails,
-        createRaffle,
-        updateRaffle,
-        deleteRaffle,
-        finishRaffle,
-        getRaffleParticipants,
-        checkExpiredRaffles,
-        openCreateRaffleModal,
-        openEditRaffleModal,
-        openRaffleDetailsModal,
-        openParticipantsModal
-    };
+    /**
+     * Обрізання тексту та доповнення трьома крапками
+     * @param {string} text - Текст для обрізання
+     * @param {number} maxLength - Максимальна довжина тексту
+     * @returns {string} - Обрізаний текст
+     */
+    _truncateText(text, maxLength) {
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
+    }
+}
 
-    // Ініціалізуємо модуль
-    init();
-})();
+export default new RaffleAdmin();

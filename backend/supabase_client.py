@@ -10,9 +10,9 @@ import json
 import uuid
 import functools
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional, Union, Tuple, Callable, TypeVar
+from typing import Dict, Any, List, Optional, Callable, TypeVar
 from contextlib import contextmanager
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, Timeout, ConnectTimeout, ReadTimeout
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -28,11 +28,13 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-# Константи для кешування
+# Константи для кешування та запитів
 CACHE_TIMEOUT = int(os.getenv("CACHE_TIMEOUT", "300"))  # 5 хвилин за замовчуванням
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "True").lower() == "true"
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))  # максимум 3 спроби
 RETRY_DELAY = float(os.getenv("RETRY_DELAY", "1.0"))  # початкова затримка 1 секунда
+DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "10"))  # таймаут запиту в секундах
+MAX_CACHE_SIZE = int(os.getenv("MAX_CACHE_SIZE", "1000"))  # максимальний розмір кешу
 
 # Перевірка наявності критичних змінних
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -62,6 +64,7 @@ class CacheStats:
         self.misses = 0
         self.invalidations = 0
         self.entries = 0
+        self.last_cleanup = time.time()
 
     def get_stats(self) -> Dict[str, Any]:
         """Повертає поточну статистику кешування"""
@@ -74,7 +77,8 @@ class CacheStats:
             "invalidations": self.invalidations,
             "entries": self.entries,
             "hit_rate": f"{hit_rate:.2f}%",
-            "cache_enabled": CACHE_ENABLED
+            "cache_enabled": CACHE_ENABLED,
+            "last_cleanup": datetime.fromtimestamp(self.last_cleanup).isoformat()
         }
 
 
@@ -151,6 +155,46 @@ def cache_set(key: str, data: Any, timeout: int = CACHE_TIMEOUT) -> None:
     }
     cache_stats.entries = len(_cache)
 
+    # Перевіряємо розмір кешу
+    if len(_cache) > MAX_CACHE_SIZE or (current_time - cache_stats.last_cleanup > 3600):
+        cleanup_cache()
+
+
+def cleanup_cache() -> None:
+    """Очищує застарілі записи в кеші"""
+    if not CACHE_ENABLED:
+        return
+
+    current_time = time.time()
+    keys_to_delete = []
+
+    # Знаходимо всі застарілі записи
+    for key, entry in list(_cache.items()):
+        if current_time > entry.get("термін_дії", 0):
+            keys_to_delete.append(key)
+
+    # Видаляємо застарілі записи
+    for key in keys_to_delete:
+        _cache.pop(key, None)
+
+    # Якщо після очищення застарілих записів кеш все ще занадто великий,
+    # видаляємо найстаріші записи
+    if len(_cache) > MAX_CACHE_SIZE:
+        # Сортуємо за часом створення (найстаріші спочатку)
+        sorted_keys = sorted(_cache.keys(),
+                           key=lambda k: _cache[k].get("час_створення", 0))
+
+        # Видаляємо найстаріші записи, щоб досягти 75% від максимального розміру
+        target_size = int(MAX_CACHE_SIZE * 0.75)
+        keys_to_delete = sorted_keys[:len(_cache) - target_size]
+
+        for key in keys_to_delete:
+            _cache.pop(key, None)
+
+    cache_stats.entries = len(_cache)
+    cache_stats.last_cleanup = current_time
+    logger.info(f"Очищено {len(keys_to_delete)} застарілих записів у кеші. Поточний розмір: {len(_cache)}")
+
 
 def cached(timeout: int = CACHE_TIMEOUT):
     """
@@ -168,7 +212,7 @@ def cached(timeout: int = CACHE_TIMEOUT):
         def wrapper(*args, **kwargs) -> T:
             # Ігноруємо кешування для функцій зміни даних
             if func.__name__.startswith(('update_', 'create_', 'delete_', 'add_')):
-                # Інвалідуємо кеш для get_ функцій, що містять той самий перший аргумент
+                # Інвалідуємо кеш для get_ функцій, що мають спільне ім'я сутності
                 if args:
                     invalidate_cache_for_entity(args[0])
                 return func(*args, **kwargs)
@@ -203,7 +247,8 @@ def invalidate_cache_for_entity(entity_id: Any) -> None:
     keys_to_delete = []
     entity_id_str = str(entity_id)
 
-    for key in _cache.keys():
+    # Використовуємо list() для створення копії ключів
+    for key in list(_cache.keys()):
         if entity_id_str in key:
             keys_to_delete.append(key)
 
@@ -217,13 +262,35 @@ def invalidate_cache_for_entity(entity_id: Any) -> None:
         logger.debug(f"Інвалідовано {len(keys_to_delete)} записів у кеші для {entity_id}")
 
 
-def clear_cache() -> None:
-    """Повністю очищує кеш"""
+def clear_cache(pattern: Optional[str] = None) -> int:
+    """
+    Повністю очищує кеш або його частину за патерном
+
+    Args:
+        pattern: Опціональний патерн для часткового очищення
+
+    Returns:
+        Кількість видалених записів
+    """
     global _cache
-    _cache = {}
-    cache_stats.entries = 0
-    cache_stats.invalidations += 1
-    logger.info("Кеш повністю очищено")
+    deleted_count = 0
+
+    if pattern:
+        keys_to_delete = [key for key in list(_cache.keys()) if pattern in key]
+        for key in keys_to_delete:
+            _cache.pop(key, None)
+        deleted_count = len(keys_to_delete)
+        cache_stats.entries = len(_cache)
+        cache_stats.invalidations += 1
+        logger.info(f"Очищено {deleted_count} записів у кеші за патерном '{pattern}'")
+    else:
+        deleted_count = len(_cache)
+        _cache = {}
+        cache_stats.entries = 0
+        cache_stats.invalidations += 1
+        logger.info(f"Кеш повністю очищено ({deleted_count} записів)")
+
+    return deleted_count
 
 
 @contextmanager
@@ -291,7 +358,7 @@ def retry_supabase(func: Callable[[], T], max_retries: int = MAX_RETRIES,
     while retries < max_retries:
         try:
             return func()
-        except (RequestException, ConnectionError) as e:
+        except (RequestException, ConnectionError, Timeout, ConnectTimeout, ReadTimeout) as e:
             # Мережеві помилки або помилки з'єднання
             last_error = e
             retries += 1
@@ -363,7 +430,7 @@ def get_user(telegram_id: str) -> Optional[Dict[str, Any]]:
         # Виконуємо запит з повторними спробами
         def fetch_user():
             # Створюємо запит
-            res = supabase.table("winix").select("*").eq("telegram_id", telegram_id).execute()
+            res = supabase.table("winix").select("*").eq("telegram_id", telegram_id).execute(timeout=DEFAULT_TIMEOUT)
 
             if not res.data:
                 logger.warning(f"get_user: Користувача з ID {telegram_id} не знайдено")
@@ -402,6 +469,7 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
         referral_code = str(uuid.uuid4())[:8].upper()
 
         # Створюємо базові дані для нового користувача
+        now = datetime.now(timezone.utc)
         data = {
             "telegram_id": telegram_id,
             "username": username,
@@ -419,7 +487,8 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
             "badge_beginner_reward_claimed": False,
             "badge_rich_reward_claimed": False,
             "wins_count": 0,
-            "created_at": datetime.now(timezone.utc).isoformat()
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }
 
         logger.info(f"force_create_user: Примусове створення користувача: {telegram_id}")
@@ -428,7 +497,7 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
         # Спроба вставити дані напряму
         try:
             with execute_transaction() as txn:
-                res = txn.table("winix").insert(data).execute()
+                res = txn.table("winix").insert(data).execute(timeout=DEFAULT_TIMEOUT)
 
                 # Створюємо транзакцію для початкових жетонів
                 if res.data:
@@ -438,9 +507,10 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
                         "amount": 3,
                         "description": "Початкові жетони при реєстрації",
                         "status": "completed",
-                        "created_at": datetime.now(timezone.utc).isoformat()
+                        "created_at": now.isoformat(),
+                        "updated_at": now.isoformat()
                     }
-                    txn.table("transactions").insert(transaction_data).execute()
+                    txn.table("transactions").insert(transaction_data).execute(timeout=DEFAULT_TIMEOUT)
 
             if res.data:
                 logger.info(f"force_create_user: Користувача {telegram_id} успішно створено")
@@ -540,12 +610,17 @@ def update_balance(telegram_id: str, amount: float) -> Optional[Dict[str, Any]]:
                     "description": f"Оновлення балансу ({'+' if amount >= 0 else ''}{amount})",
                     "status": "completed",
                     "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                     "previous_balance": current_balance
                 }
-                txn.table("transactions").insert(transaction_data).execute()
+                txn.table("transactions").insert(transaction_data).execute(timeout=DEFAULT_TIMEOUT)
 
                 # Потім оновлюємо баланс
-                result = txn.table("winix").update({"balance": new_balance}).eq("telegram_id", telegram_id).execute()
+                result = txn.table("winix").update({
+                    "balance": new_balance,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }).eq("telegram_id", telegram_id).execute(timeout=DEFAULT_TIMEOUT)
+
         except Exception as e:
             logger.error(f"update_balance: Помилка транзакції: {str(e)}")
             raise e
@@ -556,7 +631,7 @@ def update_balance(telegram_id: str, amount: float) -> Optional[Dict[str, Any]]:
         # Перевіряємо, чи потрібно активувати бейдж багатія
         if new_balance >= 50000 and not user.get("badge_rich", False):
             logger.info(f"🏆 Користувач {telegram_id} отримує бейдж багатія")
-            supabase.table("winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute()
+            supabase.table("winix").update({"badge_rich": True}).eq("telegram_id", telegram_id).execute(timeout=DEFAULT_TIMEOUT)
 
         return result.data[0] if result.data else None
     except Exception as e:
@@ -613,12 +688,16 @@ def update_coins(telegram_id: str, amount: int) -> Optional[Dict[str, Any]]:
                     "description": f"Оновлення жетонів ({'+' if amount >= 0 else ''}{amount})",
                     "status": "completed",
                     "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                     "previous_coins": current_coins
                 }
-                txn.table("transactions").insert(transaction_data).execute()
+                txn.table("transactions").insert(transaction_data).execute(timeout=DEFAULT_TIMEOUT)
 
                 # Потім оновлюємо кількість жетонів
-                result = txn.table("winix").update({"coins": new_coins}).eq("telegram_id", telegram_id).execute()
+                result = txn.table("winix").update({
+                    "coins": new_coins,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }).eq("telegram_id", telegram_id).execute(timeout=DEFAULT_TIMEOUT)
         except Exception as e:
             logger.error(f"update_coins: Помилка транзакції: {str(e)}")
             raise e
@@ -677,7 +756,7 @@ def update_user(telegram_id: str, data: Dict[str, Any]) -> Optional[Dict[str, An
 
         # Виконуємо запит з повторними спробами
         def update_user_data():
-            res = supabase.table("winix").update(valid_data).eq("telegram_id", telegram_id).execute()
+            res = supabase.table("winix").update(valid_data).eq("telegram_id", telegram_id).execute(timeout=DEFAULT_TIMEOUT)
             return res.data[0] if res.data else None
 
         result = retry_supabase(update_user_data)
@@ -729,6 +808,7 @@ def check_and_update_badges(telegram_id: str) -> Optional[Dict[str, Any]]:
 
         # Якщо є оновлення, зберігаємо їх
         if updates:
+            updates["updated_at"] = datetime.now(timezone.utc).isoformat()
             logger.info(f"check_and_update_badges: Оновлення бейджів користувача {telegram_id}: {updates}")
             return update_user(telegram_id, updates)
 
@@ -772,11 +852,11 @@ def create_staking_session(user_id: str, amount_staked: float, staking_days: int
             if staking_days == 7:
                 reward_percent = 5.0
             elif staking_days == 14:
-                reward_percent = 9.0
+                reward_percent = 7.5
             elif staking_days == 28:
-                reward_percent = 15.0
+                reward_percent = 10.0
             else:
-                reward_percent = 9.0  # За замовчуванням
+                reward_percent = 5.0  # За замовчуванням
 
         # Розраховуємо дати з урахуванням часових поясів
         started_at = datetime.now(timezone.utc)
@@ -808,7 +888,10 @@ def create_staking_session(user_id: str, amount_staked: float, staking_days: int
             with execute_transaction() as txn:
                 # 1. Спочатку списуємо кошти з балансу
                 new_balance = current_balance - amount_staked
-                txn.table("winix").update({"balance": new_balance}).eq("telegram_id", user_id).execute()
+                txn.table("winix").update({
+                    "balance": new_balance,
+                    "updated_at": started_at_str
+                }).eq("telegram_id", user_id).execute(timeout=DEFAULT_TIMEOUT)
 
                 # 2. Записуємо транзакцію списання коштів
                 stake_transaction = {
@@ -818,9 +901,10 @@ def create_staking_session(user_id: str, amount_staked: float, staking_days: int
                     "description": f"Стейкінг на {staking_days} днів ({reward_percent}% річних)",
                     "status": "completed",
                     "created_at": started_at_str,
+                    "updated_at": started_at_str,
                     "staking_id": session_id
                 }
-                txn.table("transactions").insert(stake_transaction).execute()
+                txn.table("transactions").insert(stake_transaction).execute(timeout=DEFAULT_TIMEOUT)
 
                 # 3. Створюємо запис стейкінгу
                 staking_data = {
@@ -834,9 +918,11 @@ def create_staking_session(user_id: str, amount_staked: float, staking_days: int
                     "ends_at": ends_at_str,
                     "is_active": True,
                     "cancelled_early": False,
-                    "final_amount_paid": 0  # Спочатку 0, буде оновлено при закритті
+                    "final_amount_paid": 0,  # Спочатку 0, буде оновлено при закритті
+                    "created_at": started_at_str,
+                    "updated_at": started_at_str
                 }
-                staking_result = txn.table("staking_sessions").insert(staking_data).execute()
+                staking_result = txn.table("staking_sessions").insert(staking_data).execute(timeout=DEFAULT_TIMEOUT)
 
                 # Отримуємо дані створеної сесії
                 result = staking_result.data[0] if staking_result.data else None
@@ -844,6 +930,9 @@ def create_staking_session(user_id: str, amount_staked: float, staking_days: int
                 if not result:
                     # Якщо не вдалося створити сесію стейкінгу, відбувається відкат транзакції
                     raise ValueError("Не вдалося створити сесію стейкінгу")
+
+                # Інвалідуємо кеш для користувача
+                invalidate_cache_for_entity(user_id)
 
                 return result
         except Exception as e:
@@ -889,7 +978,7 @@ def get_user_staking_sessions(user_id: str, active_only: bool = False) -> Option
             query = query.order("started_at", desc=True)
 
             # Виконуємо запит
-            res = query.execute()
+            res = query.execute(timeout=DEFAULT_TIMEOUT)
 
             if not res.data:
                 # Якщо не знайдено за telegram_id, спробуємо за user_id
@@ -899,7 +988,7 @@ def get_user_staking_sessions(user_id: str, active_only: bool = False) -> Option
                     query = query.eq("is_active", True)
 
                 query = query.order("started_at", desc=True)
-                res = query.execute()
+                res = query.execute(timeout=DEFAULT_TIMEOUT)
 
             logger.info(f"get_user_staking_sessions: Отримано {len(res.data) if res.data else 0} сесій")
 
@@ -931,7 +1020,7 @@ def get_staking_session(session_id: str) -> Optional[Dict[str, Any]]:
 
         # Виконуємо запит з повторними спробами
         def fetch_staking_session():
-            res = supabase.table("staking_sessions").select("*").eq("id", session_id).execute()
+            res = supabase.table("staking_sessions").select("*").eq("id", session_id).execute(timeout=DEFAULT_TIMEOUT)
 
             if not res.data:
                 logger.warning(f"get_staking_session: Сесію стейкінгу {session_id} не знайдено")
@@ -985,7 +1074,7 @@ def update_staking_session(session_id: str, update_data: Dict[str, Any]) -> Opti
 
         # Виконуємо запит з повторними спробами
         def update_staking():
-            res = supabase.table("staking_sessions").update(update_data).eq("id", session_id).execute()
+            res = supabase.table("staking_sessions").update(update_data).eq("id", session_id).execute(timeout=DEFAULT_TIMEOUT)
 
             if not res.data:
                 logger.warning(f"update_staking_session: Supabase не повернув даних")
@@ -1063,16 +1152,19 @@ def complete_staking_session(session_id: str, final_amount: Optional[float] = No
 
         # Оновлення даних в транзакції для атомарності
         try:
+            now = datetime.now(timezone.utc).isoformat()
+
             with execute_transaction() as txn:
                 # 1. Оновлюємо статус сесії стейкінгу
                 update_data = {
                     "is_active": False,
                     "cancelled_early": cancelled_early,
                     "final_amount_paid": float(final_amount),
-                    "completed_at": datetime.now(timezone.utc).isoformat()
+                    "completed_at": now,
+                    "updated_at": now
                 }
 
-                staking_result = txn.table("staking_sessions").update(update_data).eq("id", session_id).execute()
+                staking_result = txn.table("staking_sessions").update(update_data).eq("id", session_id).execute(timeout=DEFAULT_TIMEOUT)
 
                 # 2. Нараховуємо кошти на баланс користувача
                 user = get_user(user_id)
@@ -1080,7 +1172,10 @@ def complete_staking_session(session_id: str, final_amount: Optional[float] = No
                     current_balance = float(user.get("balance", 0))
                     new_balance = current_balance + final_amount
 
-                    txn.table("winix").update({"balance": new_balance}).eq("telegram_id", user_id).execute()
+                    txn.table("winix").update({
+                        "balance": new_balance,
+                        "updated_at": now
+                    }).eq("telegram_id", user_id).execute(timeout=DEFAULT_TIMEOUT)
 
                     # 3. Створюємо транзакцію для повернення коштів
                     transaction_type = "unstake_penalty" if cancelled_early else "unstake_reward"
@@ -1092,25 +1187,27 @@ def complete_staking_session(session_id: str, final_amount: Optional[float] = No
                         "amount": final_amount,
                         "description": transaction_desc,
                         "status": "completed",
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                        "staking_id": session_id
+                        "created_at": now,
+                        "updated_at": now,
+                        "staking_id": session_id,
+                        "previous_balance": current_balance
                     }
 
-                    txn.table("transactions").insert(transaction_data).execute()
+                    txn.table("transactions").insert(transaction_data).execute(timeout=DEFAULT_TIMEOUT)
 
                 result = staking_result.data[0] if staking_result.data else None
 
                 if not result:
                     raise ValueError("Не вдалося завершити сесію стейкінгу")
 
+                # Інвалідуємо кеш для сесії та користувача
+                invalidate_cache_for_entity(session_id)
+                invalidate_cache_for_entity(user_id)
+
                 return result
         except Exception as e:
             logger.error(f"complete_staking_session: Помилка транзакції: {str(e)}")
             raise e
-
-        # Інвалідуємо кеш для сесії та користувача
-        invalidate_cache_for_entity(session_id)
-        invalidate_cache_for_entity(user_id)
     except Exception as e:
         logger.error(f"complete_staking_session: Помилка: {str(e)}", exc_info=True)
         return None
@@ -1138,7 +1235,7 @@ def delete_staking_session(session_id: str) -> bool:
 
         # Виконуємо запит з повторними спробами
         def delete_staking():
-            res = supabase.table("staking_sessions").delete().eq("id", session_id).execute()
+            res = supabase.table("staking_sessions").delete().eq("id", session_id).execute(timeout=DEFAULT_TIMEOUT)
 
             # Перевіряємо успішність видалення
             success = res and res.data and len(res.data) > 0
@@ -1183,7 +1280,7 @@ def get_all_active_staking_sessions() -> List[Dict[str, Any]]:
 
         # Виконуємо запит з повторними спробами
         def fetch_active_sessions():
-            res = supabase.table("staking_sessions").select("*").eq("is_active", True).execute()
+            res = supabase.table("staking_sessions").select("*").eq("is_active", True).execute(timeout=DEFAULT_TIMEOUT)
 
             logger.info(f"get_all_active_staking_sessions: Отримано {len(res.data) if res.data else 0} активних сесій")
 
@@ -1410,7 +1507,7 @@ def calculate_total_staking_stats() -> Dict[str, Any]:
             # Оптимізуємо запит для зменшення обсягу даних
             all_sessions_res = supabase.table("staking_sessions").select(
                 "id,is_active,amount_staked,final_amount_paid,cancelled_early,staking_days"
-            ).execute()
+            ).execute(timeout=DEFAULT_TIMEOUT)
 
             if not all_sessions_res.data:
                 logger.info("calculate_total_staking_stats: Немає даних стейкінгу")
@@ -1433,13 +1530,13 @@ def calculate_total_staking_stats() -> Dict[str, Any]:
                     "14_days": sum(1 for s in sessions if s.get("staking_days") == 14),
                     "28_days": sum(1 for s in sessions if s.get("staking_days") == 28)
                 },
-                "updated_at": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             logger.info(f"calculate_total_staking_stats: Статистику успішно розраховано")
             return stats
 
-        return retry_supabase(fetch_staking_stats) or {}
+        return retry_supabase(fetch_staking_stats)
     except Exception as e:
         logger.error(f"calculate_total_staking_stats: Помилка: {str(e)}", exc_info=True)
         return {
@@ -1586,7 +1683,7 @@ def test_supabase_connection() -> Dict[str, Any]:
         # Спроба виконати простий запит
         try:
             start_time = time.time()
-            res = supabase.table("winix").select("count").limit(1).execute()
+            res = supabase.table("winix").select("count").limit(1).execute(timeout=DEFAULT_TIMEOUT)
             end_time = time.time()
             response_time = end_time - start_time
 
@@ -1601,7 +1698,7 @@ def test_supabase_connection() -> Dict[str, Any]:
 
             insert_test = False
             try:
-                test_insert = supabase.table("winix").insert(test_data).execute()
+                test_insert = supabase.table("winix").insert(test_data).execute(timeout=DEFAULT_TIMEOUT)
                 insert_test = bool(test_insert.data)
             except Exception as e:
                 insert_test = False
@@ -1613,9 +1710,11 @@ def test_supabase_connection() -> Dict[str, Any]:
                 "timeout": CACHE_TIMEOUT,
                 "entries": cache_stats.entries,
                 "hit_rate": f"{(cache_stats.hits / (cache_stats.hits + cache_stats.misses)) * 100:.2f}%" if (
-                                                                                                                        cache_stats.hits + cache_stats.misses) > 0 else "0.00%",
+                                                                                                                      cache_stats.hits + cache_stats.misses) > 0 else "0.00%",
                 "hits": cache_stats.hits,
-                "misses": cache_stats.misses
+                "misses": cache_stats.misses,
+                "invalidations": cache_stats.invalidations,
+                "last_cleanup": datetime.fromtimestamp(cache_stats.last_cleanup).isoformat()
             }
 
             return {
@@ -1646,6 +1745,9 @@ def test_supabase_connection() -> Dict[str, Any]:
             "details": None
         }
 
+
+# Очищення кешу від застарілих записів при завантаженні модуля
+cleanup_cache()
 
 # Якщо цей файл запускається напряму, виконати тести з'єднання
 if __name__ == "__main__":
@@ -1749,11 +1851,19 @@ if __name__ == "__main__":
                         "amount": 10.0,
                         "description": "Тестова транзакція",
                         "status": "completed",
-                        "created_at": datetime.now(timezone.utc).isoformat()
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     }).execute()
                 print(f"✓ Транзакція успішно виконана")
             except Exception as e:
-                print(f"✗ Помилка виконання транзакції: {str(e)}")
+                print(f"✗ Помилка при тестуванні транзакції: {str(e)}")
+
+            # Видаляємо тестового користувача
+            try:
+                supabase.table("winix").delete().eq("telegram_id", test_id).execute()
+                print(f"✓ Тестового користувача {test_id} успішно видалено")
+            except Exception as e:
+                print(f"✗ Помилка при видаленні тестового користувача: {str(e)}")
 
         except Exception as e:
             print(f"✗ Помилка при тестуванні: {str(e)}")

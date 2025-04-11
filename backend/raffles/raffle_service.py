@@ -9,12 +9,11 @@ import time
 import logging
 import threading
 import schedule
-import requests
 import secrets
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -27,12 +26,12 @@ logger = logging.getLogger(__name__)
 
 # Імпортуємо необхідні модулі
 try:
-    from ..supabase_client import supabase, get_user, execute_transaction
+    from ..supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
     from ..raffles.controllers import finish_raffle, check_and_finish_expired_raffles
 except ImportError:
     # Альтернативний імпорт для прямого запуску
     try:
-        from supabase_client import supabase, get_user, execute_transaction
+        from supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
         from raffles.controllers import finish_raffle, check_and_finish_expired_raffles
     except ImportError:
         logger.critical("Помилка імпорту критичних модулів. Сервіс не може бути запущено.")
@@ -99,6 +98,7 @@ def send_telegram_message(chat_id: str, message: str, retry_count: int = 0) -> b
         return False
 
     try:
+        import requests
         url = f"{TELEGRAM_API_URL}/sendMessage"
         payload = {
             "chat_id": chat_id,
@@ -122,18 +122,15 @@ def send_telegram_message(chat_id: str, message: str, retry_count: int = 0) -> b
                 time.sleep(delay)
                 return send_telegram_message(chat_id, message, retry_count + 1)
             return False
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Мережева помилка при відправці Telegram повідомлення: {str(e)}")
 
-        # Спроба повторно відправити повідомлення при мережевих помилках
+        # Спроба повторно відправити повідомлення при помилках
         if retry_count < MAX_RETRY_ATTEMPTS:
             delay = 2 ** retry_count
             logger.info(f"Повторна спроба через {delay} секунд...")
             time.sleep(delay)
             return send_telegram_message(chat_id, message, retry_count + 1)
-        return False
-    except Exception as e:
-        logger.error(f"Неочікувана помилка при відправці Telegram повідомлення: {str(e)}")
         return False
 
 
@@ -261,7 +258,7 @@ class RaffleService:
 
         logger.info("Планувальник успішно налаштовано")
 
-    def run_task(self, task_name: str, task_func: Callable) -> Dict[str, Any]:
+    def run_task(self, task_name: str, task_func) -> Dict[str, Any]:
         """Запуск задачі з логуванням статусу та обробкою помилок"""
         # Запобігаємо одночасному виконанню однієї і тієї ж задачі
         with self.state.task_lock:
