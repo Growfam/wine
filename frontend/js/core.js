@@ -1,6 +1,5 @@
 /**
  * core.js - Базова функціональність WINIX
- * Вдосконалена версія з покращеною синхронізацією модулів
  */
 
 (function() {
@@ -13,23 +12,11 @@
     // Дані користувача
     let _userData = null;
 
-    // Час останнього оновлення даних
-    let _lastUserDataUpdateTime = 0;
-
-    // Час останнього запиту даних
-    let _lastRequestTime = 0;
-
-    // Мінімальний інтервал між запитами
-    const MIN_REQUEST_INTERVAL = 5000; // 5 секунд, узгоджено з API та AUTH
-
     // Інтервал автооновлення
     let _refreshInterval = null;
 
     // Прапорець для індикатора завантаження
     let _loaderVisible = false;
-
-    // Прапорець для запиту даних
-    let _fetchingUserData = false;
 
     // ======== УТИЛІТИ ========
 
@@ -119,38 +106,17 @@
      * @param {boolean} forceRefresh - Примусово оновити
      */
     async function getUserData(forceRefresh = false) {
-        // ЗМІНЕНО: Додано перевірку на частоту запитів
-        const now = Date.now();
-        const timeSinceLastRequest = now - _lastRequestTime;
-
-        // Якщо запити занадто часті і є дані - використовуємо кеш
-        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _userData && !forceRefresh) {
-            console.log(`📋 Core: Використання кешованих даних користувача (${Math.floor(timeSinceLastRequest/1000)}с з останнього запиту)`);
-            return _userData;
-        }
-
         // Якщо у нас вже є дані і не потрібно оновлювати
         if (_userData && !forceRefresh) {
             return _userData;
         }
 
-        // Запобігання паралельним запитам
-        if (_fetchingUserData) {
-            console.log("⏳ Core: Запит даних користувача вже виконується");
-            return _userData || {}; // Повертаємо існуючі дані або порожній об'єкт
-        }
-
-        _fetchingUserData = true;
-        _lastRequestTime = now;
-
         try {
-            // ЗМІНЕНО: Додано перехоплення та обробку помилок, використовуємо forceRefresh=false
-            // для кращої координації з API модулем
-            const response = await window.WinixAPI.getUserData(forceRefresh);
+            // Отримуємо дані з API
+            const response = await window.WinixAPI.getUserData();
 
             if (response.status === 'success' && response.data) {
                 _userData = response.data;
-                _lastUserDataUpdateTime = now;
 
                 // Зберігаємо дані в localStorage
                 saveToStorage('userData', _userData);
@@ -166,40 +132,13 @@
                     saveToStorage('winix_coins', _userData.coins);
                 }
 
-                // ДОДАНО: Генеруємо подію оновлення даних для інших модулів
-                document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: _userData,
-                    source: 'core.js'
-                }));
-
                 // Повертаємо дані
-                return _userData;
-            } else if (response.source && response.source.includes('cache')) {
-                // Використовуємо кешовані дані з API
-                _userData = response.data;
-                _lastUserDataUpdateTime = now;
-
                 return _userData;
             } else {
                 throw new Error(response.message || 'Не вдалося отримати дані користувача');
             }
         } catch (error) {
             console.error('Помилка отримання даних користувача:', error);
-
-            // ЗМІНЕНО: Більш детальна обробка помилок
-            if (error.source === 'throttle') {
-                console.warn(`⏳ Core: Обмеження частоти запитів. Наступна спроба через ${Math.ceil(error.retryAfter/1000)}с`);
-
-                // Якщо є затримка запиту - плануємо автоматичну повторну спробу
-                if (error.retryAfter && error.retryAfter > 0) {
-                    setTimeout(() => {
-                        _fetchingUserData = false;
-                        getUserData(true);
-                    }, error.retryAfter + 100);
-                }
-
-                return _userData || {};
-            }
 
             // У випадку помилки використовуємо дані з localStorage
             const storedUserData = getFromStorage('userData', null, true);
@@ -216,8 +155,6 @@
             };
 
             return _userData;
-        } finally {
-            _fetchingUserData = false;
         }
     }
 
@@ -335,22 +272,6 @@
      */
     async function refreshBalance() {
         try {
-            // ЗМІНЕНО: Перевіряємо частоту запитів
-            const now = Date.now();
-            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL) {
-                console.log(`⏳ Core: Занадто частий запит балансу (${Math.floor((now - _lastRequestTime)/1000)}с)`);
-                return {
-                    success: true,
-                    data: {
-                        balance: getBalance(),
-                        coins: getCoins()
-                    },
-                    source: 'cache'
-                };
-            }
-
-            _lastRequestTime = now;
-
             // Отримуємо баланс з API
             const response = await window.WinixAPI.getBalance();
 
@@ -369,14 +290,6 @@
 
                 // Оновлюємо відображення
                 updateBalanceDisplay();
-
-                // Генеруємо подію оновлення балансу
-                document.dispatchEvent(new CustomEvent('balance-updated', {
-                    detail: {
-                        balance: _userData.balance,
-                        coins: _userData.coins
-                    }
-                }));
 
                 return {
                     success: true,
@@ -433,7 +346,7 @@
                     // Визначаємо URL для переходу
                     let url;
                     if (section === 'home') {
-                      url = 'original-index.html'; // Змінюємо на правильний шлях
+                        url = 'index.html';
                     } else {
                         url = `${section}.html`;
                     }
@@ -454,41 +367,17 @@
      */
     async function syncUserData() {
         try {
-            // ЗМІНЕНО: Перевіряємо, чи не було оновлення з іншого модуля нещодавно
-            const now = Date.now();
-            if ((now - _lastUserDataUpdateTime) < 10000) { // Якщо дані оновлювались менше 10 секунд тому
-                console.log("📋 Core: Дані користувача оновлені нещодавно, пропускаємо запит");
-                return {
-                    success: true,
-                    data: _userData,
-                    source: 'recently_updated'
-                };
-            }
-
-            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL) {
-                console.log(`⏳ Core: Занадто частий запит, залишилось ${Math.ceil((MIN_REQUEST_INTERVAL - (now - _lastRequestTime))/1000)}с`);
-                return {
-                    success: true,
-                    data: _userData,
-                    source: 'throttled'
-                };
-            }
-
-            if (_fetchingUserData) {
-                console.log("⏳ Core: Синхронізація вже виконується");
-                return {
-                    success: true,
-                    data: _userData,
-                    source: 'in_progress'
-                };
-            }
-
-            // Отримуємо дані користувача (forceRefresh=false для використання кешу API)
-            const userData = await getUserData(false);
+            // Отримуємо дані користувача
+            const userData = await getUserData(true);
 
             // Оновлюємо відображення
             updateUserDisplay();
             updateBalanceDisplay();
+
+            // Генеруємо подію оновлення даних користувача
+            document.dispatchEvent(new CustomEvent('user-data-updated', {
+                detail: { userData }
+            }));
 
             return {
                 success: true,
@@ -521,28 +410,11 @@
         // Запускаємо періодичну синхронізацію
         _refreshInterval = setInterval(async () => {
             try {
-                // ЗМІНЕНО: Перевіряємо умови перед запуском синхронізації
-                const now = Date.now();
-                if ((now - _lastUserDataUpdateTime) < 60000) {
-                    // Якщо дані оновлювались менше хвилини тому, пропускаємо
-                    console.log("📋 Core: Дані користувача оновлені нещодавно, пропускаємо автоматичну синхронізацію");
-                    return;
-                }
-
-                if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL || _fetchingUserData) {
-                    // Занадто частий запит або вже виконується запит
-                    console.log("⏳ Core: Пропускаємо автоматичну синхронізацію через обмеження");
-                    return;
-                }
-
-                console.log("🔄 Core: Виконання автоматичної синхронізації даних");
                 await syncUserData();
             } catch (e) {
                 console.warn('Помилка автоматичної синхронізації:', e);
             }
         }, interval);
-
-        console.log(`🔄 Core: Запущено автоматичну синхронізацію з інтервалом ${interval/1000}с`);
     }
 
     /**
@@ -552,7 +424,6 @@
         if (_refreshInterval) {
             clearInterval(_refreshInterval);
             _refreshInterval = null;
-            console.log("⏹️ Core: Автоматичну синхронізацію зупинено");
         }
     }
 
@@ -573,25 +444,8 @@
                 }
             }
 
-            // ДОДАНО: Обробник подій для координації з іншими модулями
-            document.addEventListener('user-data-updated', function(event) {
-                if (event.detail && event.source !== 'core.js') {
-                    console.log("📋 Core: Отримано оновлені дані користувача з іншого модуля");
-                    _userData = event.detail;
-                    _lastUserDataUpdateTime = Date.now();
-                    updateUserDisplay();
-                    updateBalanceDisplay();
-                }
-            });
-
-            // ДОДАНО: Реакція на помилки API
-            document.addEventListener('api-error', function(event) {
-                console.warn("⚠️ Core: Отримано повідомлення про помилку API:", event.detail.error.message);
-            });
-
-            // Отримуємо дані користувача з використанням API
-            // ЗМІНЕНО: форсувати оновлення не потрібно, API сам вирішить, чи використовувати кеш
-            await getUserData(false);
+            // Отримуємо дані користувача
+            await getUserData();
 
             // Оновлюємо відображення
             updateUserDisplay();
@@ -601,11 +455,7 @@
             initNavigation();
 
             // Запускаємо автоматичну синхронізацію
-            // ЗМІНЕНО: збільшено інтервал для узгодження з іншими модулями
-            const isSettingsPage = window.location.pathname.includes('general.html');
-            if (!isSettingsPage) {
-                startAutoSync(120000); // 2 хвилини, рідше ніж раніше для уникнення конфліктів
-            }
+            startAutoSync();
 
             console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
@@ -652,14 +502,4 @@
     } else {
         init();
     }
-
-    // ДОДАНО: Обробник подій зміни сторінки
-    window.addEventListener('popstate', function() {
-        const isSettingsPage = window.location.pathname.includes('general.html');
-        if (isSettingsPage) {
-            stopAutoSync();
-        } else {
-            startAutoSync(120000);
-        }
-    });
 })();
