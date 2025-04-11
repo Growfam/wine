@@ -4,8 +4,8 @@
  */
 
 import { formatCurrency, formatNumber } from './formatters.js';
-import { showToast } from '../ui.js';
-import WinixAPI from '../api.js';
+import { showToast } from '../../ui.js';
+import WinixAPI from '../../api.js';
 
 class RaffleStats {
     constructor() {
