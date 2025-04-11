@@ -11,7 +11,22 @@
     // ======== ПРИВАТНІ ЗМІННІ ========
 
     // Базовий URL API
-    const API_BASE_URL = '';
+    const API_BASE_URL = (() => {
+        // Перевіряємо глобальний конфіг, якщо він існує
+        if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
+            return window.WinixConfig.apiBaseUrl;
+        }
+
+        // Визначаємо URL на основі поточного середовища
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            // Локальне середовище - використовуємо порт 8080
+            return `http://${hostname}:8080/api`;
+        } else {
+            // Продакшн середовище
+            return 'https://winixbot.com/api';
+        }
+    })();
 
     // Режим відлагодження
     let _debugMode = false;
@@ -235,7 +250,20 @@
             // Додаємо мітку часу для запобігання кешуванню
             const timestamp = Date.now();
             const hasQuery = endpoint.includes('?');
-            const url = `${API_BASE_URL}${endpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+
+            // Формуємо URL запиту
+            // Якщо шлях вже включає базовий URL або починається з http, використовуємо його як є
+            let url;
+            if (endpoint.startsWith('http') || endpoint.startsWith(API_BASE_URL)) {
+                url = `${endpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+            } else {
+                // Видаляємо початковий слеш, якщо він є в endpoint і API_BASE_URL закінчується на слеш
+                let cleanEndpoint = endpoint;
+                if (endpoint.startsWith('/') && API_BASE_URL.endsWith('/')) {
+                    cleanEndpoint = endpoint.substring(1);
+                }
+                url = `${API_BASE_URL}${cleanEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+            }
 
             // Показуємо індикатор завантаження
             if (!options.hideLoader) {
@@ -540,6 +568,42 @@
         return apiRequest(`/api/user/${userId}/balance`);
     }
 
+    /**
+     * Отримання токену авторизації
+     * @returns {string|null} Токен авторизації або null, якщо не знайдено
+     */
+    function getAuthToken() {
+        try {
+            // Спробуємо отримати токен з localStorage
+            const token = localStorage.getItem('auth_token');
+            if (token && typeof token === 'string' && token.length > 5) {
+                return token;
+            }
+
+            // Альтернативні джерела токену
+            // 1. Перевіряємо глобальний об'єкт конфігурації
+            if (window.WinixConfig && window.WinixConfig.authToken) {
+                return window.WinixConfig.authToken;
+            }
+
+            // 2. Перевіряємо URL-параметри
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token') || urlParams.get('auth_token');
+                if (urlToken && urlToken.length > 5) {
+                    // Зберігаємо знайдений токен
+                    localStorage.setItem('auth_token', urlToken);
+                    return urlToken;
+                }
+            } catch (e) {}
+
+            return null;
+        } catch (e) {
+            console.warn("🔌 API: Помилка отримання токену:", e);
+            return null;
+        }
+    }
+
     // ======== ФУНКЦІЇ ДЛЯ СТЕЙКІНГУ ========
 
     /**
@@ -752,6 +816,16 @@
     }
 
     /**
+     * Примусове очищення всіх активних запитів
+     */
+    function forceCleanupRequests() {
+        _lastRequestsByEndpoint = {};
+        _apiRequestInProgress = false;
+        console.log("🔌 API: Примусово очищено відстеження запитів");
+        return true;
+    }
+
+    /**
      * Очищення кешу API
      */
     function clearCache() {
@@ -771,10 +845,19 @@
             return this;
         },
 
+        // Інформація про конфігурацію
+        config: {
+            baseUrl: API_BASE_URL,
+            version: '1.0.2',
+            environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
+        },
+
         // Базові функції
         apiRequest,
         getUserId,
+        getAuthToken,
         clearCache,
+        forceCleanupRequests,
 
         // Функції користувача
         getUserData,
@@ -797,5 +880,5 @@
     window.apiRequest = apiRequest;
     window.getUserId = getUserId;
 
-    console.log("✅ API: Модуль успішно ініціалізовано");
+    console.log(`✅ API: Модуль успішно ініціалізовано (URL: ${API_BASE_URL})`);
 })();
