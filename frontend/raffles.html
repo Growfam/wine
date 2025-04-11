@@ -6,25 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Розіграші</title>
 
+    <!-- Базовий скрипт Telegram WebApp - він потрібен для роботи з Telegram -->
     <script src="js/telegram-web-app.js"></script>
     <script>
     // Ініціалізація та перевірка Telegram WebApp
     (function() {
         console.log("🔄 Ініціалізація Telegram WebApp...");
 
-        // Перевіряємо, чи скрипт завантажився
         if (!window.Telegram || !window.Telegram.WebApp) {
             console.error("❌ Telegram WebApp API не завантажено. Перевірте шлях до файлу.");
             return;
         }
 
         try {
-            // Ініціалізуємо Telegram WebApp
             window.Telegram.WebApp.ready();
             window.Telegram.WebApp.expand();
             console.log("✅ Telegram WebApp успішно ініціалізовано");
 
-            // Перевіряємо наявність даних користувача
             if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
                 const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
                 localStorage.setItem('telegram_user_id', userId);
@@ -38,14 +36,10 @@
     })();
     </script>
 
-    <!-- Завантаження скриптів -->
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
+    <!-- Скрипти, які точно не будуть конфліктувати з системою розіграшів -->
     <script src="js/language.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/raffles.js"></script>
 
+    <!-- Необхідний стиль для сторінки -->
     <style>
         :root {
             /* Основні кольори для преміальної теми */
@@ -291,12 +285,12 @@
         }
 
         /* Розділи активних і минулих розіграшів */
-        .raffles-section {
+        .tab-content {
             width: 100%;
             display: none;
         }
 
-        .raffles-section.active {
+        .tab-content.active {
             display: block;
         }
 
@@ -990,7 +984,7 @@
         }
 
         /* Спінер завантаження */
-        .spinner {
+        #loading-spinner {
             display: none;
             position: fixed;
             top: 0;
@@ -1004,7 +998,7 @@
             backdrop-filter: blur(3px);
         }
 
-        .spinner.show {
+        #loading-spinner.show {
             display: flex;
         }
 
@@ -1023,7 +1017,7 @@
         }
 
         /* Спливаюче повідомлення */
-        .toast-message {
+        #toast-message {
             position: fixed;
             top: 1.25rem;
             left: 50%;
@@ -1044,7 +1038,7 @@
             width: 90%;
         }
 
-        .toast-message.show {
+        #toast-message.show {
             opacity: 1;
             transform: translate(-50%, 0.625rem);
         }
@@ -1381,115 +1375,12 @@
             </div>
 
             <!-- Секція активних розіграшів -->
-            <div class="raffles-section active" id="active-raffles">
-                <!-- Основний розіграш (Джекпот) -->
-                <div class="main-raffle">
-                    <span class="new-badge">НОВИЙ</span>
-                    <img class="main-raffle-image" src="assets/prize-poster.gif" alt="Розіграш призу">
-                    <div class="main-raffle-content">
-                        <div class="main-raffle-header">
-                            <h3 class="main-raffle-title">Великий Джекпот</h3>
-                            <div class="main-raffle-cost">
-                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                                <span>3 жетони</span>
-                            </div>
-                        </div>
-
-                        <span class="main-raffle-prize">$250 + 550,000 WINIX</span>
-
-                        <div class="timer-container">
-                            <div class="timer-block">
-                                <span class="timer-value" id="days">00</span>
-                                <span class="timer-label">днів</span>
-                            </div>
-                            <div class="timer-block">
-                                <span class="timer-value" id="hours">00</span>
-                                <span class="timer-label">годин</span>
-                            </div>
-                            <div class="timer-block">
-                                <span class="timer-value" id="minutes">00</span>
-                                <span class="timer-label">хвилин</span>
-                            </div>
-                        </div>
-
-                        <div class="prize-distribution">
-                            <div class="prize-distribution-title">Розподіл призів (10 переможців):</div>
-                            <div class="prize-list">
-                                <div class="prize-item">
-                                    <span class="prize-place">1 місце:</span>
-                                    <span class="prize-value">$125 + 165,000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">2 місце:</span>
-                                    <span class="prize-value">$65 + 110,000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">3 місце:</span>
-                                    <span class="prize-value">$35 + 82,500 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">4 місце:</span>
-                                    <span class="prize-value">$15 + 60,000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">5 місце:</span>
-                                    <span class="prize-value">$10 + 55,000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">6-10 місця:</span>
-                                    <span class="prize-value">15,500 WINIX кожному</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="main-raffle-participants">
-                            <div class="participants-info">Учасників: <span class="participants-count">0</span></div>
-                            <div class="share-container">
-                                <button class="share-button" id="share-raffle-btn">Поділитися</button>
-                            </div>
-                        </div>
-
-                        <div class="progress-bar">
-                            <div class="progress" style="width: 5%"></div>
-                        </div>
-
-                        <button class="join-button" data-raffle-id="raffle1" data-raffle-type="main" onclick="openRaffleDetails('raffle1', 'main')">Взяти участь</button>
-                    </div>
-                </div>
-
-                <!-- Щоденні міні-розіграші -->
-                <div class="mini-raffles-title">Щоденні розіграші $WINIX</div>
-
-                <div class="mini-raffle">
-                    <div class="mini-raffle-info">
-                        <div class="mini-raffle-title">Щоденний розіграш</div>
-                        <div class="mini-raffle-cost">
-                            <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                            <span>1 жетон</span>
-                        </div>
-                        <div class="mini-raffle-prize">90,000 WINIX (20 переможців)</div>
-                        <div class="mini-raffle-time">Залишилось: 23 год 24 хв</div>
-                    </div>
-                    <button class="mini-raffle-button" data-raffle-id="mini1" data-raffle-type="daily" onclick="openRaffleDetails('mini1', 'daily')">Участь</button>
-                </div>
-
-                <div class="mini-raffle">
-                    <div class="mini-raffle-info">
-                        <div class="mini-raffle-title">Бонус новачка</div>
-                        <div class="mini-raffle-cost">
-                            <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                            <span>0 жетонів</span>
-                        </div>
-                        <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
-                        <div class="mini-raffle-time">Отримайте бонус за реєстрацію</div>
-                    </div>
-                    <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
-                </div>
+            <div class="tab-content active" id="active-raffles">
+                <!-- Контейнер для даних розіграшів, які будуть додані системою -->
             </div>
 
             <!-- Секція минулих розіграшів -->
-            <div class="raffles-section" id="past-raffles">
-                <div class="history-title">Історія розіграшів</div>
+            <div class="tab-content" id="history-raffles">
                 <div id="history-container">
                     <div class="loading-placeholder">
                         <div class="loading-spinner"></div>
@@ -1497,6 +1388,11 @@
                         <div class="loading-subtext">Зачекайте, будь ласка</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Секція статистики -->
+            <div class="tab-content" id="stats-raffles">
+                <div id="user-stats-container"></div>
             </div>
 
             <!-- Статистика розіграшів -->
@@ -1547,153 +1443,87 @@
             </div>
         </div>
 
-        <!-- Модальне вікно для головного розіграшу -->
-        <div class="raffle-modal" id="main-raffle-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="main-modal-title">Великий Джекпот</h2>
-                    <span class="modal-close" id="main-modal-close" onclick="closeModal('main-raffle-modal')">×</span>
-                </div>
-                <img class="prize-image" id="main-prize-image" src="assets/prize-poster.gif" alt="Розіграш призу">
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Приз:</div>
-                        <div class="detail-value" id="main-prize-value">$250 + 550,000 WINIX (10 переможців)</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Вартість участі:</div>
-                        <div class="detail-value">3 жетони за 1 квиток</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Закінчення розіграшу:</div>
-                        <div class="detail-value" id="main-end-time">10 червня 2025, 12:00</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="main-participants">0</div>
-                    </div>
-                </div>
-                <div class="prize-description" id="main-description">
-                    Грандіозний Джекпот-розіграш з призовим фондом $250 та 550,000 WINIX! 10 щасливих переможців отримають цінні призи.
-                    <br><br>
-                    Перше місце забирає 50% призового фонду у доларах ($125) та 30% фонду WINIX (165,000)!
-                </div>
-                <div class="participation-info">
-                    <h3>Умови участі:</h3>
-                    <ul>
-                        <li>Для участі потрібно 3 жетони за 1 квиток</li>
-                        <li>Кожен придбаний квиток збільшує ваш шанс на перемогу</li>
-                        <li>Переможці визначаються автоматично після закінчення часу розіграшу</li>
-                        <li>Результати будуть опубліковані одразу після завершення</li>
-                        <li>Перші 5 переможців отримують частку загального призового фонду у доларах та токенах</li>
-                        <li>Переможці з 6 по 10 місце отримують токени WINIX</li>
-                    </ul>
-                </div>
-                <div class="token-input-container">
-                    <input type="number" class="token-input" id="main-token-amount" placeholder="Кількість квитків" min="1" value="1">
-                    <button class="all-button" id="main-all-tokens-btn">ВСІ</button>
-                </div>
-                <button class="join-button" id="main-join-btn" data-raffle-id="raffle1" data-raffle-type="main">Взяти участь</button>
-            </div>
-        </div>
-
-        <!-- Модальне вікно для щоденного розіграшу -->
-        <div class="daily-raffle-modal" id="daily-raffle-modal">
-            <div class="daily-modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="daily-modal-title">Щоденний розіграш</h2>
-                    <span class="modal-close" id="daily-modal-close" onclick="closeModal('daily-raffle-modal')">×</span>
-                </div>
-                <img class="prize-image" id="daily-prize-image" src="assets/daily-prize1.png" alt="Щоденний розіграш">
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Приз:</div>
-                        <div class="detail-value" id="daily-prize-value">90,000 WINIX (20 переможців)</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Вартість участі:</div>
-                        <div class="detail-value">1 жетон за 1 квиток</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Закінчення розіграшу:</div>
-                        <div class="detail-value" id="daily-end-time">11 квітня 2025, 12:00</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="daily-participants">0</div>
-                    </div>
-                </div>
-                <div class="prize-description" id="daily-description">
-                    Щоденний розіграш 90,000 WINIX для 20 переможців! Розподіл призів залежить від місця в рейтингу переможців. Розіграш проводиться щодня, переможці визначаються автоматично о 12:00.
-                </div>
-                <div class="participation-info">
-                    <h3>Умови участі:</h3>
-                    <ul>
-                        <li>Для участі потрібен 1 жетон за 1 квиток</li>
-                        <li>Кожен придбаний квиток збільшує ваш шанс на перемогу</li>
-                        <li>Розіграш проводиться щодня</li>
-                        <li>Переможці визначаються щодня о 12:00</li>
-                        <li>Результати з'являться в історії розіграшів</li>
-                        <li>Гарантований приз - 150 WINIX кожному переможцю</li>
-                    </ul>
-                </div>
-                <div class="token-input-container">
-                    <input type="number" class="token-input" id="daily-token-amount" placeholder="Кількість квитків" min="1" value="1">
-                    <button class="all-button" id="daily-all-tokens-btn">ВСІ</button>
-                </div>
-                <button class="join-button" id="daily-join-btn" data-raffle-id="mini1" data-raffle-type="daily">Взяти участь</button>
-            </div>
-        </div>
-
-        <!-- Модальне вікно для історії розіграшу -->
-        <div class="raffle-modal" id="raffle-history-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title">Деталі розіграшу</h2>
-                    <span class="modal-close">×</span>
-                </div>
-
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Дата:</div>
-                        <div class="detail-value" id="history-date">01.04.2025</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Приз:</div>
-                        <div class="detail-value prize-value" id="history-prize">90,000 WINIX</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Використано жетонів:</div>
-                        <div class="detail-value" id="history-tokens">5</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Результат:</div>
-                        <div class="detail-value" id="history-result">Участь без перемоги</div>
-                    </div>
-                </div>
-
-                <div class="winners-container">
-                    <h3>Переможці розіграшу</h3>
-                    <div class="winners-list" id="winners-list">
-                        <!-- Тут буде список переможців -->
-                    </div>
-                </div>
-
-                <button class="join-button" id="close-history-btn">ЗАКРИТИ</button>
-            </div>
-        </div>
-
-        <!-- Спінер завантаження -->
-        <div class="spinner" id="loading-spinner">
+        <!-- Контейнер для спінера завантаження -->
+        <div id="loading-spinner">
             <div class="spinner-inner"></div>
         </div>
 
-        <!-- Повідомлення toast -->
-        <div class="toast-message" id="toast-message"></div>
+        <!-- Контейнер для повідомлень toast -->
+        <div id="toast-message"></div>
     </div>
 
-    <!-- Скрипти для розіграшів -->
-    <script src="js/raffle_history.js"></script>
-    <script src="js/raffle_stats.js"></script>
+    <!-- Підключення нової модульної системи розіграшів через тип модуля -->
+    <script type="module">
+        // Імпортуємо модуль розіграшів
+        import rafflesModule from './js/raffles/index.js';
+
+        // Після завантаження DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("🎮 WINIX: Ініціалізація сторінки розіграшів");
+
+            // Ініціалізуємо модуль розіграшів
+            rafflesModule.init();
+
+            // Оновлюємо ID користувача, якщо доступно
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = userId;
+                }
+
+                // Оновлюємо ініціали в аватарі
+                updateAvatarInitials(userId);
+            }
+
+            // Створюємо глобальні функції для взаємодії з модулем
+            window.switchRaffleTab = function(tabName) {
+                rafflesModule.switchTab(tabName);
+            };
+
+            window.openRaffleDetails = function(raffleId, raffleType) {
+                if (window.WinixRaffles && window.WinixRaffles.events) {
+                    window.WinixRaffles.events.emit('open-raffle-details', {
+                        raffleId,
+                        raffleType
+                    });
+                }
+            };
+
+            window.closeModal = function(modalId) {
+                if (window.WinixRaffles && window.WinixRaffles.modals) {
+                    window.WinixRaffles.modals.closeModal(modalId);
+                }
+            };
+
+            // Встановлюємо вкладку за замовчуванням (або з локального сховища)
+            const savedTab = localStorage.getItem('active_raffle_tab') || 'active';
+            rafflesModule.switchTab(savedTab);
+
+            console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
+        });
+
+        // Функція для оновлення ініціалів в аватарі
+        function updateAvatarInitials(userId) {
+            const avatar = document.getElementById('profile-avatar');
+            if (avatar) {
+                // Якщо є дані з Telegram
+                if (window.Telegram && window.Telegram.WebApp &&
+                    window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user) {
+
+                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                    if (user.first_name) {
+                        avatar.textContent = user.first_name.charAt(0).toUpperCase();
+                    }
+                } else {
+                    // Якщо немає даних, використовуємо перший символ ID як ініціал
+                    if (userId) {
+                        avatar.textContent = 'W'; // Використовуємо W як за замовчуванням
+                    }
+                }
+            }
+        }
+    </script>
 </body>
 </html>
