@@ -3,7 +3,7 @@
  * Надає функції для управління та аналізу учасників розіграшів
  */
 
-import WinixAPI, { adminAPI } from './api.js';
+import WinixAPI, { adminAPI } from '../services/api.js';
 import { showToast } from '../utils/ui-helpers.js';
 import { formatDate } from '../utils/formatters.js';
 

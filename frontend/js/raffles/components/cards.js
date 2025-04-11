@@ -2,16 +2,27 @@
  * Компоненти для відображення карток розіграшів
  */
 
-(function() {
-    'use strict';
+import WinixRaffles from '../globals.js';
+import { formatDate, formatPlaces } from '../utils/formatters.js';
+import { markElement, showToast } from '../utils/ui-helpers.js';
 
-    console.log("🎮 WINIX Raffles: Ініціалізація компонентів карток");
+/**
+ * Клас з компонентами для відображення карток розіграшів
+ */
+class RaffleCards {
+    /**
+     * Ініціалізація модуля карток
+     */
+    constructor() {
+        console.log("🎮 WINIX Raffles: Ініціалізація компонентів карток");
+    }
 
-    // Експортуємо компоненти
-    window.WinixRaffles.components = window.WinixRaffles.components || {};
-
-    // Відображення основного розіграшу
-    window.WinixRaffles.components.displayMainRaffle = function(container, raffle) {
+    /**
+     * Відображення основного розіграшу
+     * @param {HTMLElement} container - Контейнер для відображення
+     * @param {Object} raffle - Дані розіграшу
+     */
+    displayMainRaffle(container, raffle) {
         if (!container || !raffle) return;
 
         // Створюємо HTML для основного розіграшу
@@ -46,7 +57,7 @@
                 <div class="prize-distribution">
                     <div class="prize-distribution-title">Розподіл призів (${raffle.winners_count} переможців):</div>
                     <div class="prize-list">
-                        ${window.WinixRaffles.components.generatePrizeDistributionHTML(raffle.prize_distribution)}
+                        ${this.generatePrizeDistributionHTML(raffle.prize_distribution)}
                     </div>
                 </div>
 
@@ -58,7 +69,7 @@
                 </div>
 
                 <div class="progress-bar">
-                    <div class="progress" style="width: ${window.WinixRaffles.components.calculateProgressWidth(raffle)}%"></div>
+                    <div class="progress" style="width: ${this.calculateProgressWidth(raffle)}%"></div>
                 </div>
 
                 <button class="join-button" data-raffle-id="${raffle.id}" data-raffle-type="main">Взяти участь</button>
@@ -66,7 +77,9 @@
         `;
 
         // Оновлюємо таймер
-        window.WinixRaffles.active._updateRaffleTimers();
+        if (WinixRaffles.active && typeof WinixRaffles.active._updateRaffleTimers === 'function') {
+            WinixRaffles.active._updateRaffleTimers();
+        }
 
         // Додаємо обробники подій
         const joinButton = container.querySelector('.join-button');
@@ -74,7 +87,9 @@
             joinButton.addEventListener('click', function() {
                 const raffleId = this.getAttribute('data-raffle-id');
                 const raffleType = this.getAttribute('data-raffle-type');
-                window.WinixRaffles.participation.openRaffleDetails(raffleId, raffleType);
+                if (WinixRaffles.participation && typeof WinixRaffles.participation.openRaffleDetails === 'function') {
+                    WinixRaffles.participation.openRaffleDetails(raffleId, raffleType);
+                }
             });
         }
 
@@ -83,13 +98,19 @@
         if (shareButton) {
             shareButton.addEventListener('click', function() {
                 const raffleId = this.getAttribute('data-raffle-id');
-                window.WinixRaffles.participation.shareRaffle(raffleId);
+                if (WinixRaffles.participation && typeof WinixRaffles.participation.shareRaffle === 'function') {
+                    WinixRaffles.participation.shareRaffle(raffleId);
+                }
             });
         }
-    };
+    }
 
-    // Створення елементу міні-розіграшу
-    window.WinixRaffles.components.createMiniRaffleElement = function(raffle) {
+    /**
+     * Створення елементу міні-розіграшу
+     * @param {Object} raffle - Дані розіграшу
+     * @returns {HTMLElement} Елемент міні-розіграшу
+     */
+    createMiniRaffleElement(raffle) {
         if (!raffle) return null;
 
         // Створюємо контейнер
@@ -137,21 +158,26 @@
         // Додаємо обробник натискання
         const button = miniRaffle.querySelector('.mini-raffle-button');
         if (button) {
-            button.addEventListener('click', function(event) {
+            button.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
 
-                const raffleId = this.getAttribute('data-raffle-id');
-                const raffleType = this.getAttribute('data-raffle-type');
-                window.WinixRaffles.participation.openRaffleDetails(raffleId, raffleType);
+                const raffleId = button.getAttribute('data-raffle-id');
+                const raffleType = button.getAttribute('data-raffle-type');
+                if (WinixRaffles.participation && typeof WinixRaffles.participation.openRaffleDetails === 'function') {
+                    WinixRaffles.participation.openRaffleDetails(raffleId, raffleType);
+                }
             });
         }
 
         return miniRaffle;
-    };
+    }
 
-    // Додавання елементу бонусу новачка
-    window.WinixRaffles.components.addNewbieBonusElement = function(container) {
+    /**
+     * Додавання елементу бонусу новачка
+     * @param {HTMLElement} container - Контейнер для додавання
+     */
+    addNewbieBonusElement(container) {
         if (!container) return;
 
         const newbieBonus = document.createElement('div');
@@ -162,7 +188,7 @@
             <div class="mini-raffle-info">
                 <div class="mini-raffle-title">Бонус новачка</div>
                 <div class="mini-raffle-cost">
-                    <img class="token-icon" src="/assets/token-icon.png" alt="Жетон">
+                    <img class="token-icon" src="./assets/token-icon.png" alt="Жетон">
                     <span>0 жетонів</span>
                 </div>
                 <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
@@ -173,39 +199,41 @@
 
         const button = newbieBonus.querySelector('.mini-raffle-button');
         if (button) {
-            button.addEventListener('click', async function(event) {
+            button.addEventListener('click', async (event) => {
                 event.preventDefault();
                 event.stopPropagation();
 
-                const result = await window.WinixRaffles.participation.claimNewbieBonus();
+                if (WinixRaffles.participation && typeof WinixRaffles.participation.claimNewbieBonus === 'function') {
+                    const result = await WinixRaffles.participation.claimNewbieBonus();
 
-                if (result.status === 'success') {
-                    window.WinixRaffles.utils.showToast(`Ви отримали ${result.data.amount} WINIX як бонус новачка!`);
+                    if (result.status === 'success') {
+                        showToast(`Ви отримали ${result.data.amount} WINIX як бонус новачка!`);
 
-                    // Деактивуємо кнопку
-                    this.textContent = 'Отримано';
-                    this.disabled = true;
-                    this.style.opacity = '0.6';
-                    this.style.cursor = 'default';
+                        // Деактивуємо кнопку
+                        button.textContent = 'Отримано';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'default';
 
-                    // Додаємо водяний знак
-                    window.WinixRaffles.utils.markElement(newbieBonus);
+                        // Додаємо водяний знак
+                        markElement(newbieBonus);
 
-                    // Оновлюємо баланс
-                    window.WinixRaffles.participation.updateUserBalance();
-                } else if (result.status === 'already_claimed') {
-                    window.WinixRaffles.utils.showToast('Ви вже отримали бонус новачка');
+                        // Оновлюємо баланс
+                        WinixRaffles.participation.updateUserBalance();
+                    } else if (result.status === 'already_claimed') {
+                        showToast('Ви вже отримали бонус новачка');
 
-                    // Деактивуємо кнопку
-                    this.textContent = 'Отримано';
-                    this.disabled = true;
-                    this.style.opacity = '0.6';
-                    this.style.cursor = 'default';
+                        // Деактивуємо кнопку
+                        button.textContent = 'Отримано';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'default';
 
-                    // Додаємо водяний знак
-                    window.WinixRaffles.utils.markElement(newbieBonus);
-                } else {
-                    window.WinixRaffles.utils.showToast(result.message || 'Помилка отримання бонусу');
+                        // Додаємо водяний знак
+                        markElement(newbieBonus);
+                    } else {
+                        showToast(result.message || 'Помилка отримання бонусу');
+                    }
                 }
             });
         }
@@ -225,16 +253,20 @@
                     }
 
                     // Додаємо водяний знак
-                    window.WinixRaffles.utils.markElement(newbieBonus);
+                    markElement(newbieBonus);
                 }
             }).catch(err => {
                 console.error("Помилка перевірки статусу бонусу:", err);
             });
         }
-    };
+    }
 
-    // Генерація HTML для розподілу призів
-    window.WinixRaffles.components.generatePrizeDistributionHTML = function(prizeDistribution) {
+    /**
+     * Генерація HTML для розподілу призів
+     * @param {Object} prizeDistribution - Об'єкт з розподілом призів
+     * @returns {string} - HTML-розмітка
+     */
+    generatePrizeDistributionHTML(prizeDistribution) {
         if (!prizeDistribution || typeof prizeDistribution !== 'object' || Object.keys(prizeDistribution).length === 0) {
             return '<div class="prize-item"><span class="prize-place">Інформація відсутня</span></div>';
         }
@@ -265,7 +297,7 @@
         // Створюємо HTML для кожної групи призів
         for (const key in groupedPrizes) {
             const group = groupedPrizes[key];
-            const placesText = window.WinixRaffles.utils.formatPlaces(group.places);
+            const placesText = formatPlaces(group.places);
 
             html += `
                 <div class="prize-item">
@@ -276,10 +308,14 @@
         }
 
         return html;
-    };
+    }
 
-    // Розрахунок ширини прогрес-бару
-    window.WinixRaffles.components.calculateProgressWidth = function(raffle) {
+    /**
+     * Розрахунок ширини прогрес-бару
+     * @param {Object} raffle - Дані розіграшу
+     * @returns {number} - Ширина прогрес-бару
+     */
+    calculateProgressWidth(raffle) {
         if (!raffle || !raffle.start_time || !raffle.end_time) {
             return 0;
         }
@@ -304,5 +340,19 @@
             console.error("Помилка розрахунку прогресу:", error);
             return 0;
         }
-    };
-})();
+    }
+}
+
+// Створюємо екземпляр класу
+const raffleCards = new RaffleCards();
+
+// Додаємо в глобальний об'єкт для зворотної сумісності
+WinixRaffles.components = WinixRaffles.components || {};
+WinixRaffles.components.displayMainRaffle = raffleCards.displayMainRaffle.bind(raffleCards);
+WinixRaffles.components.createMiniRaffleElement = raffleCards.createMiniRaffleElement.bind(raffleCards);
+WinixRaffles.components.addNewbieBonusElement = raffleCards.addNewbieBonusElement.bind(raffleCards);
+WinixRaffles.components.generatePrizeDistributionHTML = raffleCards.generatePrizeDistributionHTML.bind(raffleCards);
+WinixRaffles.components.calculateProgressWidth = raffleCards.calculateProgressWidth.bind(raffleCards);
+
+// Експортуємо модуль
+export default raffleCards;

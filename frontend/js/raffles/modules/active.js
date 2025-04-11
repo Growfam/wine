@@ -2,10 +2,10 @@
  * active.js - Модуль для роботи з активними розіграшами WINIX
  */
 
-import WinixRaffles from './globals.js';
-import api from './services/api.js';
-import { showLoading, hideLoading, showToast } from './utils/ui-helpers.js';
-import { padZero } from './utils/formatters.js';
+import WinixRaffles from '../globals.js';
+import api from '../services/api.js';
+import { showLoading, hideLoading, showToast } from '../utils/ui-helpers.js';
+import { padZero } from '../utils/formatters.js';
 
 // Приватні змінні
 let _activeRaffles = null;
