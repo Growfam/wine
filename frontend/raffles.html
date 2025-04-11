@@ -1227,6 +1227,32 @@
             font-style: italic;
         }
 
+        /* Кнопка повернення назад */
+        .back-button {
+            position: absolute;
+            top: 0.75rem;
+            left: 0.75rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: none;
+            color: white;
+            font-size: 1.25rem;
+            cursor: pointer;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            z-index: 15;
+        }
+
+        .back-button:hover {
+            background: rgba(30, 113, 161, 0.5);
+            transform: scale(1.05);
+        }
+
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
             :root {
@@ -1314,35 +1340,15 @@
                 border-radius: 1.25rem;
             }
         }
-
-        .back-button {
-            position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: none;
-            color: white;
-            font-size: 1.25rem;
-            cursor: pointer;
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-            z-index: 15;
-        }
-
-        .back-button:hover {
-            background: rgba(30, 113, 161, 0.5);
-            transform: scale(1.05);
-        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Кнопка повернення назад -->
+        <button class="back-button" onclick="window.history.back()">
+            &#8592;
+        </button>
+
         <!-- Хедер з аватаром користувача -->
         <div class="header">
             <div class="user-profile" id="profile-link">
@@ -1372,15 +1378,115 @@
             <div class="raffle-tabs">
                 <button class="tab-button active" data-tab="active" onclick="switchRaffleTab('active')">Активні</button>
                 <button class="tab-button" data-tab="past" onclick="switchRaffleTab('past')">Минулі</button>
+                <button class="tab-button" data-tab="stats" onclick="switchRaffleTab('stats')">Статистика</button>
             </div>
 
             <!-- Секція активних розіграшів -->
             <div class="tab-content active" id="active-raffles">
-                <!-- Контейнер для даних розіграшів, які будуть додані системою -->
+                <!-- Головний розіграш -->
+                <div class="main-raffle">
+                    <div class="new-badge">НОВИЙ</div>
+                    <img class="main-raffle-image" src="assets/prize-poster.gif" alt="ChatPot розіграш">
+                    <div class="main-raffle-content">
+                        <div class="main-raffle-header">
+                            <h3 class="main-raffle-title">ChatPot розіграш #26</h3>
+                            <div class="main-raffle-cost">
+                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                                <span>3 жетони</span>
+                            </div>
+                        </div>
+
+                        <span class="main-raffle-prize">250$ + 550000 WINIX</span>
+
+                        <div class="timer-container">
+                            <div class="timer-block">
+                                <span class="timer-value" id="days">05</span>
+                                <span class="timer-label">днів</span>
+                            </div>
+                            <div class="timer-block">
+                                <span class="timer-value" id="hours">12</span>
+                                <span class="timer-label">год</span>
+                            </div>
+                            <div class="timer-block">
+                                <span class="timer-value" id="minutes">34</span>
+                                <span class="timer-label">хв</span>
+                            </div>
+                        </div>
+
+                        <div class="prize-distribution">
+                            <div class="prize-distribution-title">Розподіл призів (10 переможців):</div>
+                            <div class="prize-list">
+                                <div class="prize-item">
+                                    <span class="prize-place">1 місце:</span>
+                                    <span class="prize-value">125$ + 250000 WINIX</span>
+                                </div>
+                                <div class="prize-item">
+                                    <span class="prize-place">2 місце:</span>
+                                    <span class="prize-value">75$ + 150000 WINIX</span>
+                                </div>
+                                <div class="prize-item">
+                                    <span class="prize-place">3 місце:</span>
+                                    <span class="prize-value">50$ + 75000 WINIX</span>
+                                </div>
+                                <div class="prize-item">
+                                    <span class="prize-place">4-10 місця:</span>
+                                    <span class="prize-value">10000 WINIX</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="main-raffle-participants">
+                            <div class="participants-info">Учасників: <span class="participants-count">217</span></div>
+                            <div class="share-container">
+                                <button class="share-button" id="share-raffle-btn" data-raffle-id="main26">Поділитися</button>
+                            </div>
+                        </div>
+
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 65%"></div>
+                        </div>
+
+                        <button class="join-button" data-raffle-id="main26" data-raffle-type="main">Взяти участь</button>
+                    </div>
+                </div>
+
+                <!-- Заголовок щоденних розіграшів -->
+                <h2 class="mini-raffles-title">Щоденні розіграші</h2>
+
+                <!-- Контейнер для міні-розіграшів -->
+                <div class="mini-raffles-container">
+                    <!-- Щоденний розіграш -->
+                    <div class="mini-raffle" data-raffle-id="daily89">
+                        <div class="mini-raffle-info">
+                            <div class="mini-raffle-title">Щоденний розіграш #89</div>
+                            <div class="mini-raffle-cost">
+                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                                <span>1 жетон</span>
+                            </div>
+                            <div class="mini-raffle-prize">90000 WINIX (15 переможців)</div>
+                            <div class="mini-raffle-time">Залишилось: 18г 45хв</div>
+                        </div>
+                        <button class="mini-raffle-button" data-raffle-id="daily89" data-raffle-type="daily">Участь</button>
+                    </div>
+
+                    <!-- Бонус новачка -->
+                    <div class="mini-raffle" data-raffle-id="newbie">
+                        <div class="mini-raffle-info">
+                            <div class="mini-raffle-title">Бонус новачка</div>
+                            <div class="mini-raffle-cost">
+                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
+                                <span>0 жетонів</span>
+                            </div>
+                            <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
+                            <div class="mini-raffle-time">Доступно тільки новим користувачам</div>
+                        </div>
+                        <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Секція минулих розіграшів -->
-            <div class="tab-content" id="history-raffles">
+            <div class="tab-content" id="past-raffles">
                 <div id="history-container">
                     <div class="loading-placeholder">
                         <div class="loading-spinner"></div>
@@ -1392,7 +1498,29 @@
 
             <!-- Секція статистики -->
             <div class="tab-content" id="stats-raffles">
-                <div id="user-stats-container"></div>
+                <div id="user-stats-container">
+                    <div class="statistics-container">
+                        <div class="statistics-title">Моя статистика</div>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-participated">5</div>
+                                <div class="stat-label">Участь у розіграшах</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-wins">2</div>
+                                <div class="stat-label">Виграші</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-winix-won">85000</div>
+                                <div class="stat-label">WINIX виграно</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="total-tokens-spent">15</div>
+                                <div class="stat-label">Витрачено жетонів</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Статистика розіграшів -->
@@ -1400,28 +1528,28 @@
                 <div class="statistics-title">Статистика участі</div>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value" id="total-participated">0</div>
+                        <div class="stat-value" id="total-participated">5</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-wins">0</div>
+                        <div class="stat-value" id="total-wins">2</div>
                         <div class="stat-label">Виграші</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-winix-won">0</div>
+                        <div class="stat-value" id="total-winix-won">85000</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-tokens-spent">0</div>
+                        <div class="stat-value" id="total-tokens-spent">15</div>
                         <div class="stat-label">Витрачено жетонів</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Навігаційне меню -->
+        <!-- Навігаційна панель -->
         <div class="nav-bar">
-            <div class="nav-item" data-section="home" onclick="window.location.href='index.html'">
+            <div class="nav-item active" data-section="home" onclick="window.location.href='index.html'">
                 <div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div>
                 <span data-lang-key="home">Головна</span>
             </div>
@@ -1437,9 +1565,139 @@
                 <div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div>
                 <span data-lang-key="wallet">Гаманець</span>
             </div>
-            <div class="nav-item active" data-section="general" onclick="window.location.href='general.html'">
+            <div class="nav-item" data-section="general" onclick="window.location.href='general.html'">
                 <div class="icon-wrapper"><img src="assets/general-icon.png" alt="Загальне"></div>
                 <span data-lang-key="general">Загальне</span>
+            </div>
+        </div>
+
+        <!-- Модальне вікно для головного розіграшу -->
+        <div class="raffle-modal" id="main-raffle-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="main-modal-title">ChatPot розіграш #26</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+
+                <img class="prize-image" id="main-prize-image" src="assets/prize-poster.gif" alt="Головний розіграш">
+
+                <div class="prize-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Призовий фонд:</div>
+                        <div class="detail-value prize-value" id="main-prize-value">250$ + 550000 WINIX</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Переможців:</div>
+                        <div class="detail-value" id="main-winners">10</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Учасників:</div>
+                        <div class="detail-value" id="main-participants">217</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Дата завершення:</div>
+                        <div class="detail-value" id="main-end-time">15.04.2025 15:00</div>
+                    </div>
+                </div>
+
+                <div class="prize-description" id="main-description">
+                    Грандіозний розіграш з чудовими призами! Використайте жетони для участі та збільшіть свої шанси на перемогу. Кожен жетон - це додатковий шанс виграти!
+                </div>
+
+                <div id="main-prize-distribution" class="prize-distribution">
+                    <div class="prize-distribution-title">Розподіл призів (10 переможців):</div>
+                    <div class="prize-list">
+                        <div class="prize-item">
+                            <span class="prize-place">1 місце:</span>
+                            <span class="prize-value">125$ + 250000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">2 місце:</span>
+                            <span class="prize-value">75$ + 150000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">3 місце:</span>
+                            <span class="prize-value">50$ + 75000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">4-10 місця:</span>
+                            <span class="prize-value">10000 WINIX</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="token-input-container">
+                    <input type="number" id="main-token-amount" min="1" value="1" class="token-input">
+                    <button id="main-all-tokens-btn" class="all-button">ВСІ</button>
+                </div>
+
+                <button id="main-join-btn" class="join-button" data-raffle-id="main26" data-raffle-type="main">Взяти участь за 3 жетони</button>
+            </div>
+        </div>
+
+        <!-- Модальне вікно для щоденного розіграшу -->
+        <div class="raffle-modal" id="daily-raffle-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="daily-modal-title">Щоденний розіграш #89</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+
+                <div class="prize-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Призовий фонд:</div>
+                        <div class="detail-value prize-value" id="daily-prize-value">90000 WINIX</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Переможців:</div>
+                        <div class="detail-value" id="daily-winners">15</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Учасників:</div>
+                        <div class="detail-value" id="daily-participants">124</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Дата завершення:</div>
+                        <div class="detail-value" id="daily-end-time">11.04.2025 15:00</div>
+                    </div>
+                </div>
+
+                <div class="prize-description" id="daily-description">
+                    Щоденний розіграш з призами для переможців! Використайте жетони для участі. Розіграш проводиться щодня о 15:00.
+                </div>
+
+                <div id="daily-prize-distribution" class="prize-distribution">
+                    <div class="prize-distribution-title">Розподіл призів (15 переможців):</div>
+                    <div class="prize-list">
+                        <div class="prize-item">
+                            <span class="prize-place">1 місце:</span>
+                            <span class="prize-value">20000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">2 місце:</span>
+                            <span class="prize-value">15000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">3 місце:</span>
+                            <span class="prize-value">10000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">4-10 місця:</span>
+                            <span class="prize-value">5000 WINIX</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">11-15 місця:</span>
+                            <span class="prize-value">3000 WINIX</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="token-input-container">
+                    <input type="number" id="daily-token-amount" min="1" value="1" class="token-input">
+                    <button id="daily-all-tokens-btn" class="all-button">ВСІ</button>
+                </div>
+
+                <button id="daily-join-btn" class="join-button" data-raffle-id="daily89" data-raffle-type="daily">Взяти участь за 1 жетон</button>
             </div>
         </div>
 
@@ -1451,6 +1709,230 @@
         <!-- Контейнер для повідомлень toast -->
         <div id="toast-message"></div>
     </div>
+
+    <!-- Додаємо глобальну функцію для переключення вкладок -->
+    <script>
+        // Глобальна функція для перемикання вкладок
+        function switchRaffleTab(tabName) {
+            console.log("Перемикання на вкладку:", tabName);
+
+            // Вимикаємо активний клас для всіх вкладок
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Активуємо вибрану вкладку
+            const selectedTab = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+            if (selectedTab) {
+                selectedTab.classList.add('active');
+            }
+
+            // Ховаємо всі контенти вкладок
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Показуємо вибраний контент
+            const selectedContent = document.getElementById(`${tabName}-raffles`);
+            if (selectedContent) {
+                selectedContent.classList.add('active');
+            }
+
+            // Спробуємо викликати функцію модуля, якщо вона вже доступна
+            if (window.rafflesModule && typeof window.rafflesModule.switchTab === 'function') {
+                window.rafflesModule.switchTab(tabName);
+            }
+        }
+
+        // Функція для відображення модального вікна розіграшу
+        function showRaffleModal(raffleId, raffleType) {
+            const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('open');
+
+                // Додаємо обробники закриття
+                const closeButtons = modal.querySelectorAll('.modal-close, .cancel-btn');
+                closeButtons.forEach(btn => {
+                    btn.onclick = function() {
+                        modal.classList.remove('open');
+                    }
+                });
+
+                // Закриття по кліку на фон
+                modal.onclick = function(event) {
+                    if (event.target === modal) {
+                        modal.classList.remove('open');
+                    }
+                };
+            }
+        }
+
+        // Функція для участі в розіграші
+        function participateInRaffle(raffleId, raffleType) {
+            const tokensNeeded = raffleType === 'daily' ? 1 : 3;
+            const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
+
+            if (userCoins < tokensNeeded) {
+                showToast('Недостатньо жетонів для участі в розіграші!', 'error');
+                return;
+            }
+
+            // Оновлюємо баланс (в реальному випадку тут буде API запит)
+            document.getElementById('user-coins').textContent = userCoins - tokensNeeded;
+
+            // Закриваємо модальне вікно
+            const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('open');
+            }
+
+            // Показуємо повідомлення про успіх
+            showToast('Ви успішно взяли участь у розіграші!', 'success');
+
+            // Оновлюємо статистику
+            const totalParticipated = document.querySelectorAll('#total-participated');
+            const totalTokensSpent = document.querySelectorAll('#total-tokens-spent');
+
+            totalParticipated.forEach(el => {
+                const current = parseInt(el.textContent) || 0;
+                el.textContent = current + 1;
+            });
+
+            totalTokensSpent.forEach(el => {
+                const current = parseInt(el.textContent) || 0;
+                el.textContent = current + tokensNeeded;
+            });
+        }
+
+        // Функція для отримання бонусу новачка
+        function claimNewbieBonus() {
+            const newbieButton = document.querySelector('.mini-raffle[data-raffle-id="newbie"] .mini-raffle-button');
+            if (newbieButton) {
+                newbieButton.textContent = 'Отримано';
+                newbieButton.disabled = true;
+                newbieButton.style.opacity = '0.6';
+
+                // Оновлюємо баланс користувача
+                const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
+                const userTokens = parseInt(document.getElementById('user-tokens').textContent) || 0;
+
+                document.getElementById('user-coins').textContent = userCoins + 1;
+                document.getElementById('user-tokens').textContent = userTokens + 500;
+
+                // Показуємо повідомлення
+                showToast('Бонус новачка отримано: 500 WINIX + 1 жетон!', 'success');
+            }
+        }
+
+        // Функція для показу повідомлень toast
+        function showToast(message, type = 'info', duration = 3000) {
+            const toast = document.getElementById('toast-message');
+            if (!toast) return;
+
+            toast.textContent = message;
+            toast.className = 'toast-message ' + type;
+
+            // Додаємо клас для показу
+            setTimeout(() => toast.classList.add('show'), 10);
+
+            // Ховаємо повідомлення після затримки
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Додавання обробників подій при завантаженні сторінки
+        document.addEventListener('DOMContentLoaded', function() {
+            // Налаштування кнопок головного розіграшу
+            const mainJoinButtons = document.querySelectorAll('.join-button[data-raffle-type="main"]');
+            mainJoinButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const raffleId = this.getAttribute('data-raffle-id');
+                    showRaffleModal(raffleId, 'main');
+                });
+            });
+
+            // Налаштування кнопок щоденного розіграшу
+            const dailyJoinButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-type="daily"]');
+            dailyJoinButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const raffleId = this.getAttribute('data-raffle-id');
+                    showRaffleModal(raffleId, 'daily');
+                });
+            });
+
+            // Кнопка отримання бонусу новачка
+            const newbieButton = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
+            if (newbieButton) {
+                newbieButton.addEventListener('click', claimNewbieBonus);
+            }
+
+            // Кнопки в модальних вікнах
+            const mainJoinBtn = document.getElementById('main-join-btn');
+            if (mainJoinBtn) {
+                mainJoinBtn.addEventListener('click', function() {
+                    const raffleId = this.getAttribute('data-raffle-id');
+                    participateInRaffle(raffleId, 'main');
+                });
+            }
+
+            const dailyJoinBtn = document.getElementById('daily-join-btn');
+            if (dailyJoinBtn) {
+                dailyJoinBtn.addEventListener('click', function() {
+                    const raffleId = this.getAttribute('data-raffle-id');
+                    participateInRaffle(raffleId, 'daily');
+                });
+            }
+
+            // Кнопки "ВСІ" для токенів
+            const mainAllBtn = document.getElementById('main-all-tokens-btn');
+            if (mainAllBtn) {
+                mainAllBtn.addEventListener('click', function() {
+                    const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
+                    const maxTokens = Math.floor(userCoins / 3);
+                    document.getElementById('main-token-amount').value = maxTokens > 0 ? maxTokens : 1;
+                });
+            }
+
+            const dailyAllBtn = document.getElementById('daily-all-tokens-btn');
+            if (dailyAllBtn) {
+                dailyAllBtn.addEventListener('click', function() {
+                    const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
+                    document.getElementById('daily-token-amount').value = userCoins > 0 ? userCoins : 1;
+                });
+            }
+
+            // Кнопки поділитися
+            const shareButtons = document.querySelectorAll('.share-button');
+            shareButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    showToast('Посилання на розіграш скопійовано!', 'success');
+                });
+            });
+
+            // Модальні вікна: закриття по кліку на хрестик
+            const closeButtons = document.querySelectorAll('.modal-close');
+            closeButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const modal = this.closest('.raffle-modal');
+                    if (modal) {
+                        modal.classList.remove('open');
+                    }
+                });
+            });
+
+            // Оновлюємо ID користувача, якщо доступно
+            const userId = localStorage.getItem('telegram_user_id');
+            if (userId) {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = userId;
+                }
+            }
+        });
+    </script>
 
     <!-- Підключення нової модульної системи розіграшів через тип модуля -->
     <script type="module">
@@ -1476,29 +1958,8 @@
                 updateAvatarInitials(userId);
             }
 
-            // Створюємо глобальні функції для взаємодії з модулем
-            window.switchRaffleTab = function(tabName) {
-                rafflesModule.switchTab(tabName);
-            };
-
-            window.openRaffleDetails = function(raffleId, raffleType) {
-                if (window.WinixRaffles && window.WinixRaffles.events) {
-                    window.WinixRaffles.events.emit('open-raffle-details', {
-                        raffleId,
-                        raffleType
-                    });
-                }
-            };
-
-            window.closeModal = function(modalId) {
-                if (window.WinixRaffles && window.WinixRaffles.modals) {
-                    window.WinixRaffles.modals.closeModal(modalId);
-                }
-            };
-
-            // Встановлюємо вкладку за замовчуванням (або з локального сховища)
-            const savedTab = localStorage.getItem('active_raffle_tab') || 'active';
-            rafflesModule.switchTab(savedTab);
+            // Експортуємо функції в глобальну область видимості
+            window.rafflesModule = rafflesModule;
 
             console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
         });
