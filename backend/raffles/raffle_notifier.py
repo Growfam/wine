@@ -11,7 +11,7 @@ import requests
 import json
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 
 # Імпортуємо необхідні модулі
 try:
-    from ..supabase_client import supabase, get_user
+    from ..supabase_client import supabase, get_user, cache_get, cache_set, clear_cache
 except ImportError:
     # Альтернативний імпорт для прямого запуску
     try:
-        from supabase_client import supabase, get_user
+        from supabase_client import supabase, get_user, cache_get, cache_set, clear_cache
     except ImportError:
         logger.critical("Помилка імпорту необхідних модулів. Модуль не може бути ініціалізовано.")
         sys.exit(1)
@@ -153,9 +153,6 @@ def send_telegram_message(
 
     Returns:
         bool: True якщо повідомлення успішно відправлено, False інакше
-
-    Raises:
-        TelegramApiException: При критичних помилках Telegram API
     """
     if not TELEGRAM_BOT_TOKEN:
         logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлення.")

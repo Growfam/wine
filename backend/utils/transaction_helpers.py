@@ -7,7 +7,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, Any, Optional
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -28,7 +28,7 @@ from supabase_client import supabase, execute_transaction
 
 def create_transaction_record(telegram_id: str, transaction_type: str, amount: float,
                               description: str, status: str = "pending",
-                              raffle_id: Optional[str] = None) -> Dict[str, Any]:
+                              raffle_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Створює запис транзакції в базі даних
 
@@ -83,7 +83,7 @@ def create_transaction_record(telegram_id: str, transaction_type: str, amount: f
 
 
 def update_transaction_status(transaction_id: str, status: str,
-                              additional_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                              additional_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """
     Оновлює статус транзакції
 
@@ -137,7 +137,7 @@ def execute_balance_transaction(telegram_id: str, amount: float, transaction_typ
         raffle_id: ID пов'язаного розіграшу (якщо є)
 
     Returns:
-        Дані про результат транзакції або None у випадку помилки
+        Дані про результат транзакції або словник з помилкою
     """
     try:
         # Отримуємо поточні дані користувача
@@ -248,7 +248,7 @@ def execute_coin_transaction(telegram_id: str, amount: int, transaction_type: st
         raffle_id: ID пов'язаного розіграшу (якщо є)
 
     Returns:
-        Дані про результат транзакції або None у випадку помилки
+        Дані про результат транзакції або словник з помилкою
     """
     try:
         # Отримуємо поточні дані користувача
