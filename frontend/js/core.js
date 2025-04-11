@@ -23,12 +23,37 @@
     // Лічильник останнього запиту
     let _lastRequestTime = 0;
 
-    // Мінімальний інтервал між запитами
-    const MIN_REQUEST_INTERVAL = 5000; // 5 секунд
+    // Мінімальний інтервал між запитами (збільшено з 5 до 15 секунд)
+    const MIN_REQUEST_INTERVAL = 15000;
 
-    // Перевірка доступності модулів
-    const hasApiModule = () => window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
-    const hasAuthModule = () => window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
+    // Час життя кешу даних користувача
+    const USER_CACHE_TTL = 300000; // 5 хвилин
+
+    // Прапорець, що вказує, чи виконується запит до API
+    let _requestInProgress = false;
+
+    // Перевірка доступності модулів з повною перевіркою
+    const hasApiModule = () => {
+        try {
+            return window.WinixAPI &&
+                   typeof window.WinixAPI.apiRequest === 'function' &&
+                   typeof window.WinixAPI.getUserId === 'function';
+        } catch (e) {
+            console.error("🔄 Core: Помилка перевірки API модуля:", e);
+            return false;
+        }
+    };
+
+    const hasAuthModule = () => {
+        try {
+            return window.WinixAuth &&
+                   typeof window.WinixAuth.getUserData === 'function' &&
+                   typeof window.WinixAuth.getUserIdFromAllSources === 'function';
+        } catch (e) {
+            console.error("🔄 Core: Помилка перевірки Auth модуля:", e);
+            return false;
+        }
+    };
 
     // ======== УТИЛІТИ ========
 
@@ -64,8 +89,10 @@
             } else {
                 localStorage.setItem(key, value);
             }
+            return true;
         } catch (e) {
             console.error(`Помилка збереження в localStorage: ${key}`, e);
+            return false;
         }
     }
 
@@ -111,6 +138,53 @@
         }
     }
 
+    /**
+     * Перевірка, чи пристрій онлайн
+     * @returns {boolean} Стан підключення
+     */
+    function isOnline() {
+        return typeof navigator.onLine === 'undefined' || navigator.onLine;
+    }
+
+    /**
+     * Функція безпечного очікування завантаження API та Auth модулів
+     * @param {number} maxWaitTime - Максимальний час очікування в мс
+     * @returns {Promise<boolean>} Результат очікування
+     */
+    async function waitForModules(maxWaitTime = 5000) {
+        const startTime = Date.now();
+        const checkInterval = 200; // 200 мс між перевірками
+
+        // Функція для перевірки доступності обох модулів
+        const checkModules = () => hasApiModule() && hasAuthModule();
+
+        // Якщо модулі вже доступні, повертаємо true
+        if (checkModules()) {
+            console.log("🔄 Core: API та Auth модулі вже доступні");
+            return true;
+        }
+
+        // Очікуємо завантаження модулів
+        return new Promise(resolve => {
+            const intervalId = setInterval(() => {
+                // Перевіряємо доступність модулів
+                if (checkModules()) {
+                    clearInterval(intervalId);
+                    console.log("🔄 Core: API та Auth модулі успішно завантажені");
+                    resolve(true);
+                    return;
+                }
+
+                // Перевіряємо таймаут
+                if (Date.now() - startTime > maxWaitTime) {
+                    clearInterval(intervalId);
+                    console.warn("⚠️ Core: Час очікування завантаження модулів вичерпано");
+                    resolve(false);
+                }
+            }, checkInterval);
+        });
+    }
+
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
     /**
@@ -118,6 +192,34 @@
      * @param {boolean} forceRefresh - Примусово оновити
      */
     async function getUserData(forceRefresh = false) {
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline() && !forceRefresh) {
+            console.warn("🔄 Core: Пристрій офлайн, використовуємо кешовані дані");
+
+            // Якщо є збережені дані, повертаємо їх
+            if (_userData) {
+                return _userData;
+            }
+
+            // Створюємо базові дані з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
+                return _userData;
+            }
+
+            // Створюємо мінімальні дані користувача з localStorage
+            const userId = getUserId();
+            _userData = {
+                telegram_id: userId || 'unknown',
+                balance: parseFloat(getFromStorage('userTokens', '0')),
+                coins: parseInt(getFromStorage('userCoins', '0')),
+                source: 'localStorage_offline'
+            };
+
+            return _userData;
+        }
+
         // Перевіряємо частоту запитів
         const now = Date.now();
         if (!forceRefresh && (now - _lastRequestTime < MIN_REQUEST_INTERVAL)) {
@@ -128,13 +230,33 @@
             }
         }
 
+        // Запобігаємо паралельним запитам
+        if (_requestInProgress && !forceRefresh) {
+            console.log("🔄 Core: Запит даних користувача вже виконується");
+
+            // Якщо у нас вже є дані, повертаємо їх
+            if (_userData) {
+                return _userData;
+            }
+
+            // Завантажуємо з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
+                return _userData;
+            }
+        }
+
         _lastRequestTime = now;
+        _requestInProgress = true;
 
         try {
             // Перевіряємо наявність модулів
             if (hasAuthModule()) {
                 // Використовуємо WinixAuth, якщо доступний
                 const userData = await window.WinixAuth.getUserData(forceRefresh);
+
+                _requestInProgress = false;
 
                 if (userData) {
                     _userData = userData;
@@ -154,11 +276,24 @@
                 // Використовуємо WinixAPI, якщо доступний
                 const response = await window.WinixAPI.getUserData(forceRefresh);
 
+                _requestInProgress = false;
+
                 if (response && response.status === 'success' && response.data) {
                     _userData = response.data;
 
                     // Оновлюємо дані в localStorage
                     saveToStorage('userData', _userData);
+
+                    // Зберігаємо також окремі поля для сумісності
+                    if (_userData.balance !== undefined) {
+                        saveToStorage('userTokens', _userData.balance.toString());
+                        saveToStorage('winix_balance', _userData.balance.toString());
+                    }
+
+                    if (_userData.coins !== undefined) {
+                        saveToStorage('userCoins', _userData.coins.toString());
+                        saveToStorage('winix_coins', _userData.coins.toString());
+                    }
 
                     // Генеруємо подію оновлення
                     document.dispatchEvent(new CustomEvent('user-data-updated', {
@@ -169,6 +304,8 @@
                     return _userData;
                 }
             } else {
+                _requestInProgress = false;
+
                 // Якщо немає модулів - використовуємо дані з localStorage
                 const storedUserData = getFromStorage('userData', null, true);
                 if (storedUserData) {
@@ -176,10 +313,22 @@
                     return _userData;
                 }
 
-                throw new Error('API та Auth модулі недоступні');
+                console.warn('🔄 Core: API та Auth модулі недоступні');
+
+                // Створюємо мінімальні дані користувача
+                const userId = getUserId();
+                _userData = {
+                    telegram_id: userId || 'unknown',
+                    balance: parseFloat(getFromStorage('userTokens', '0')),
+                    coins: parseInt(getFromStorage('userCoins', '0')),
+                    source: 'localStorage_no_modules'
+                };
+
+                return _userData;
             }
         } catch (error) {
             console.error('Помилка отримання даних користувача:', error);
+            _requestInProgress = false;
 
             // У випадку помилки використовуємо дані з localStorage
             const storedUserData = getFromStorage('userData', null, true);
@@ -193,7 +342,8 @@
             _userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(getFromStorage('userTokens', '0')),
-                coins: parseInt(getFromStorage('userCoins', '0'))
+                coins: parseInt(getFromStorage('userCoins', '0')),
+                source: 'localStorage_after_error'
             };
 
             return _userData;
@@ -207,24 +357,41 @@
     function getUserId() {
         // Використовуємо API або Auth модуль, якщо доступні
         if (hasApiModule()) {
-            return window.WinixAPI.getUserId();
-        } else if (hasAuthModule() && window.WinixAuth.isValidId) {
-            return window.WinixAuth.getUserIdFromAllSources?.() || null;
+            try {
+                return window.WinixAPI.getUserId();
+            } catch (e) {
+                console.warn("🔄 Core: Помилка отримання ID через API:", e);
+            }
+        } else if (hasAuthModule() && typeof window.WinixAuth.getUserIdFromAllSources === 'function') {
+            try {
+                return window.WinixAuth.getUserIdFromAllSources();
+            } catch (e) {
+                console.warn("🔄 Core: Помилка отримання ID через Auth:", e);
+            }
         }
 
         // Резервний варіант - зі сховища
-        const storedId = getFromStorage('telegram_user_id');
-        if (storedId && storedId !== 'undefined' && storedId !== 'null') {
-            return storedId;
+        try {
+            const storedId = getFromStorage('telegram_user_id');
+            if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                return storedId;
+            }
+        } catch (e) {
+            console.warn("🔄 Core: Помилка отримання ID зі сховища:", e);
         }
 
         // З DOM
-        const userIdElement = getElement('#user-id');
-        if (userIdElement && userIdElement.textContent) {
-            const id = userIdElement.textContent.trim();
-            if (id && id !== 'undefined' && id !== 'null') {
-                return id;
+        try {
+            const userIdElement = getElement('#user-id');
+            if (userIdElement && userIdElement.textContent) {
+                const id = userIdElement.textContent.trim();
+                if (id && id !== 'undefined' && id !== 'null') {
+                    saveToStorage('telegram_user_id', id);
+                    return id;
+                }
             }
+        } catch (e) {
+            console.warn("🔄 Core: Помилка отримання ID з DOM:", e);
         }
 
         // З URL
@@ -232,9 +399,12 @@
             const urlParams = new URLSearchParams(window.location.search);
             const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
             if (urlId) {
+                saveToStorage('telegram_user_id', urlId);
                 return urlId;
             }
-        } catch (e) {}
+        } catch (e) {
+            console.warn("🔄 Core: Помилка отримання ID з URL:", e);
+        }
 
         return null;
     }
@@ -357,6 +527,23 @@
      */
     async function refreshBalance() {
         try {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
+
+                // Оновлюємо відображення з локальних даних
+                updateBalanceDisplay();
+
+                return {
+                    success: true,
+                    offline: true,
+                    data: {
+                        balance: getBalance(),
+                        coins: getCoins()
+                    }
+                };
+            }
+
             let balanceData;
 
             // Перевіряємо наявність API модуля
@@ -408,7 +595,11 @@
 
             return {
                 success: false,
-                message: error.message || 'Не вдалося оновити баланс'
+                message: error.message || 'Не вдалося оновити баланс',
+                data: {
+                    balance: getBalance(),
+                    coins: getCoins()
+                }
             };
         }
     }
@@ -466,6 +657,26 @@
      */
     async function syncUserData() {
         try {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані");
+
+                // Оновлюємо відображення з локальних даних
+                updateUserDisplay();
+                updateBalanceDisplay();
+
+                return {
+                    success: true,
+                    offline: true,
+                    data: _userData || {
+                        telegram_id: getUserId() || 'unknown',
+                        balance: getBalance(),
+                        coins: getCoins(),
+                        source: 'localStorage_offline'
+                    }
+                };
+            }
+
             // Отримуємо дані користувача
             const userData = await getUserData(true);
 
@@ -492,7 +703,8 @@
 
             return {
                 success: false,
-                message: error.message || 'Не вдалося синхронізувати дані користувача'
+                message: error.message || 'Не вдалося синхронізувати дані користувача',
+                data: _userData
             };
         }
     }
@@ -517,8 +729,14 @@
         // Запускаємо періодичну синхронізацію
         _refreshInterval = setInterval(async () => {
             try {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    console.warn("🔄 Core: Пристрій офлайн, пропускаємо синхронізацію");
+                    return;
+                }
+
                 // Перевіряємо мінімальний інтервал
-                if (Date.now() - _lastRequestTime >= MIN_REQUEST_INTERVAL) {
+                if (Date.now() - _lastRequestTime >= MIN_REQUEST_INTERVAL && !_requestInProgress) {
                     await syncUserData();
                 }
             } catch (e) {
@@ -556,6 +774,9 @@
                     console.warn("Помилка ініціалізації Telegram WebApp:", e);
                 }
             }
+
+            // Очікуємо завантаження API та Auth модулів
+            await waitForModules();
 
             // Отримуємо дані користувача
             await getUserData();
@@ -606,8 +827,15 @@
     // Обробник події підключення до мережі
     window.addEventListener('online', function() {
         console.log("🔄 Core: З'єднання з мережею відновлено");
-        // Синхронізуємо дані
-        syncUserData();
+
+        // Оновлюємо дані після відновлення з'єднання
+        setTimeout(() => {
+            syncUserData().then(() => {
+                console.log("🔄 Core: Дані успішно синхронізовано після відновлення з'єднання");
+            }).catch(error => {
+                console.warn("⚠️ Core: Помилка синхронізації після відновлення з'єднання:", error);
+            });
+        }, 1000);
     });
 
     // Обробник події відключення від мережі
@@ -627,6 +855,7 @@
         saveToStorage,
         getFromStorage,
         formatCurrency,
+        isOnline,
 
         // Функції користувача
         getUserData,
@@ -643,13 +872,19 @@
         stopAutoSync,
 
         // Ініціалізація
-        init
+        init,
+        waitForModules
     };
 
     // Ініціалізуємо ядро при завантаженні сторінки
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        init();
+        // Додаємо невелику затримку для дозавантаження інших модулів
+        setTimeout(() => {
+            init().catch(e => {
+                console.error("Помилка ініціалізації ядра:", e);
+            });
+        }, 100);
     }
 })();

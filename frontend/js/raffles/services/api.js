@@ -7,13 +7,36 @@
 import WinixRaffles from '../globals.js';
 
 // Перевірка доступності основного API
-const hasMainApi = () => window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
+const hasMainApi = () => {
+    try {
+        return window.WinixAPI &&
+               typeof window.WinixAPI.apiRequest === 'function' &&
+               typeof window.WinixAPI.getUserId === 'function';
+    } catch (e) {
+        console.error("🔌 Raffles API: Помилка перевірки головного API:", e);
+        return false;
+    }
+};
 
-// Константи для відстеження запитів
+// Константи для відстеження запитів (збільшені інтервали)
 const REQUEST_THROTTLE = {
-    '/raffles-history': 15000,      // 15 секунд для історії розіграшів
-    '/participate-raffle': 3000,    // 3 секунди для участі в розіграшах
-    'default': 2000                 // 2 секунди для всіх інших
+    '/raffles-history': 30000,      // 30 секунд для історії розіграшів
+    '/participate-raffle': 5000,    // 5 секунд для участі в розіграшах
+    '/raffles': 10000,              // 10 секунд для списку розіграшів
+    'default': 3000                 // 3 секунди для всіх інших
+};
+
+// Відстеження часу останніх запитів
+const _lastRequestTimes = {};
+
+// Активні запити
+const _activeRequests = {};
+
+// Кеш даних
+const _cache = {
+    activeRaffles: {data: null, timestamp: 0, ttl: 60000}, // 1 хвилина
+    history: {data: null, timestamp: 0, ttl: 300000}, // 5 хвилин
+    userData: {data: null, timestamp: 0, ttl: 120000} // 2 хвилини
 };
 
 /**
@@ -23,7 +46,11 @@ const REQUEST_THROTTLE = {
 export function getUserId() {
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
-        return window.WinixAPI.getUserId();
+        try {
+            return window.WinixAPI.getUserId();
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання ID з основного API:", e);
+        }
     }
 
     // Резервна реалізація
@@ -45,9 +72,22 @@ export function getUserId() {
         // Перевіряємо localStorage
         try {
             const localId = localStorage.getItem('telegram_user_id');
-            if (localId) return localId;
+            if (localId && localId !== 'undefined' && localId !== 'null') return localId;
         } catch (e) {
             console.warn("🔌 Raffles API: Помилка отримання ID з localStorage:", e);
+        }
+
+        // Перевіряємо DOM елемент
+        try {
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement && userIdElement.textContent) {
+                const domId = userIdElement.textContent.trim();
+                if (domId && domId !== 'undefined' && domId !== 'null') {
+                    return domId;
+                }
+            }
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання ID з DOM:", e);
         }
 
         return null;
@@ -64,7 +104,11 @@ export function getUserId() {
 export function getAuthToken() {
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
-        return window.WinixAPI.getAuthToken();
+        try {
+            return window.WinixAPI.getAuthToken();
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання токену з основного API:", e);
+        }
     }
 
     // Резервна реалізація
@@ -87,6 +131,96 @@ export function getAuthToken() {
 }
 
 /**
+ * Отримання правильного базового URL API
+ * @returns {string} Базовий URL API
+ */
+function getApiBaseUrl() {
+    // Спочатку перевіряємо налаштування у локальному конфігу
+    if (WinixRaffles && WinixRaffles.config && WinixRaffles.config.apiBaseUrl) {
+        return WinixRaffles.config.apiBaseUrl;
+    }
+
+    // Перевіряємо глобальний конфіг
+    if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
+        // Переконуємося, що URL не закінчується на /api
+        const url = window.WinixConfig.apiBaseUrl;
+        return url.endsWith('/api') ? url : url + '/api';
+    }
+
+    // Перевіряємо основний API
+    if (hasMainApi() && window.WinixAPI.config && window.WinixAPI.config.baseUrl) {
+        const baseUrl = window.WinixAPI.config.baseUrl;
+        return baseUrl.endsWith('/api') ? baseUrl : baseUrl + '/api';
+    }
+
+    // Визначаємо URL на основі поточного середовища
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Локальне середовище - використовуємо порт 8080
+        return `http://${hostname}:8080/api`;
+    } else if (hostname.includes('testenv') || hostname.includes('staging')) {
+        // Тестові середовища
+        return `https://${hostname}/api`;
+    } else {
+        // Продакшн середовище
+        return 'https://winixbot.com/api';
+    }
+}
+
+/**
+ * Перевірка і управління обмеженням частоти запитів
+ * @param {string} endpoint - Endpoint API
+ * @returns {boolean} Дозволено виконати запит
+ */
+function canMakeRequest(endpoint) {
+    const now = Date.now();
+
+    // Визначаємо мінімальний інтервал для ендпоінту
+    let throttleTime = REQUEST_THROTTLE.default;
+    for (const key in REQUEST_THROTTLE) {
+        if (endpoint.includes(key)) {
+            throttleTime = REQUEST_THROTTLE[key];
+            break;
+        }
+    }
+
+    // Перевіряємо, коли був останній запит
+    const lastRequestTime = _lastRequestTimes[endpoint] || 0;
+    if (now - lastRequestTime < throttleTime) {
+        console.warn(`🔌 Raffles API: Занадто частий запит до ${endpoint}, залишилось ${Math.ceil((throttleTime - (now - lastRequestTime))/1000)}с`);
+        return false;
+    }
+
+    // Оновлюємо час останнього запиту
+    _lastRequestTimes[endpoint] = now;
+    return true;
+}
+
+/**
+ * Очищення зависаючих запитів
+ */
+function cleanupHangingRequests() {
+    const now = Date.now();
+    for (const endpoint in _activeRequests) {
+        if (now - _activeRequests[endpoint] > 30000) { // 30 секунд
+            console.warn(`🔌 Raffles API: Виявлено зависаючий запит до ${endpoint}, очищаємо`);
+            delete _activeRequests[endpoint];
+        }
+    }
+}
+
+/**
+ * Примусове очищення всіх активних запитів
+ */
+export function forceCleanupRequests() {
+    for (const endpoint in _activeRequests) {
+        delete _activeRequests[endpoint];
+    }
+    console.log("🔌 Raffles API: Примусово очищено всі активні запити");
+    return true;
+}
+
+/**
  * Універсальна функція для виконання API-запитів розіграшів
  * @param {string} endpoint - URL ендпоінту
  * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
@@ -95,46 +229,112 @@ export function getAuthToken() {
  * @returns {Promise<Object>} Результат запиту
  */
 export async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
+    // Якщо пристрій офлайн, одразу повертаємо помилку
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !options.bypassOfflineCheck) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, запит не виконано");
+
+        // Повертаємо кешовані дані, якщо такі є
+        const cacheKey = getCacheKeyFromEndpoint(endpoint);
+        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${endpoint} в офлайн режимі`);
+            return {
+                status: 'success',
+                data: _cache[cacheKey].data,
+                source: 'cache_offline'
+            };
+        }
+
+        return {
+            status: 'error',
+            message: 'Пристрій офлайн',
+            source: 'offline'
+        };
+    }
+
     // Якщо endpoint починається з "/", видаляємо цей символ
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+
+    // Перевіряємо, чи можна виконати запит (обмеження частоти)
+    if (!options.bypassThrottle && !canMakeRequest(cleanEndpoint)) {
+        // Перевіряємо, чи є кешовані дані
+        const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} через обмеження частоти`);
+            return {
+                status: 'success',
+                data: _cache[cacheKey].data,
+                source: 'cache_throttled'
+            };
+        }
+
+        return {
+            status: 'error',
+            message: 'Занадто частий запит',
+            source: 'throttled'
+        };
+    }
+
+    // Перевіряємо, чи запит вже виконується
+    if (_activeRequests[cleanEndpoint] && !options.allowParallel) {
+        console.warn(`🔌 Raffles API: Запит до ${cleanEndpoint} вже виконується`);
+
+        // Перевіряємо, чи є кешовані дані
+        const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} через паралельний запит`);
+            return {
+                status: 'success',
+                data: _cache[cacheKey].data,
+                source: 'cache_parallel'
+            };
+        }
+
+        return {
+            status: 'error',
+            message: 'Запит вже виконується',
+            source: 'parallel'
+        };
+    }
+
+    // Очищаємо зависаючі запити
+    cleanupHangingRequests();
+
+    // Позначаємо запит як активний
+    _activeRequests[cleanEndpoint] = Date.now();
 
     // Якщо основний API доступний і опція useMainAPI не false, використовуємо його
     if (hasMainApi() && options.useMainAPI !== false) {
         try {
-            return await window.WinixAPI.apiRequest(cleanEndpoint, method, data, options);
+            const response = await window.WinixAPI.apiRequest(cleanEndpoint, method, data, options);
+
+            // Кешуємо результат, якщо потрібно
+            cacheResponse(cleanEndpoint, response);
+
+            // Видаляємо запит з активних
+            delete _activeRequests[cleanEndpoint];
+
+            return response;
         } catch (mainApiError) {
             console.warn("🔌 Raffles API: Помилка в основному API, використовуємо резервний:", mainApiError);
-            // Якщо основний API видав помилку, продовжуємо з нашою реалізацією
+
+            // Отримуємо кешовані дані у випадку помилки
+            const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+            if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+                console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} після помилки основного API`);
+
+                // Видаляємо запит з активних
+                delete _activeRequests[cleanEndpoint];
+
+                return {
+                    status: 'success',
+                    data: _cache[cacheKey].data,
+                    source: 'cache_after_main_api_error'
+                };
+            }
+
+            // Якщо кеш не знайдено, продовжуємо з нашою реалізацією
         }
     }
-
-    // Отримуємо базовий URL API
-    const apiBaseUrl = (() => {
-        // Спочатку перевіряємо налаштування у локальному конфігу
-        if (WinixRaffles && WinixRaffles.config && WinixRaffles.config.apiBaseUrl) {
-            return WinixRaffles.config.apiBaseUrl;
-        }
-
-        // Перевіряємо глобальний конфіг
-        if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
-            return window.WinixConfig.apiBaseUrl;
-        }
-
-        // Перевіряємо основний API
-        if (hasMainApi() && window.WinixAPI.config && window.WinixAPI.config.baseUrl) {
-            return `${window.WinixAPI.config.baseUrl}/api`;
-        }
-
-        // Визначаємо URL на основі поточного середовища
-        const hostname = window.location.hostname;
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            // Локальне середовище - використовуємо порт 8080
-            return `http://${hostname}:8080/api`;
-        } else {
-            // Продакшн середовище
-            return 'https://winixbot.com/api';
-        }
-    })();
 
     // Резервна реалізація API запиту
     try {
@@ -143,29 +343,37 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             WinixRaffles.loader.show(options.loaderMessage || 'Завантаження...', `raffles-api-${cleanEndpoint}`);
         }
 
+        // Формуємо базовий URL API
+        const apiBaseUrl = getApiBaseUrl();
+
         // Додаємо мітку часу для запобігання кешуванню
         const timestamp = Date.now();
         const hasQuery = cleanEndpoint.includes('?');
 
         // Формуємо URL
         // Перевіряємо, чи endpoint вже містить 'api/'
-        let normalizedEndpoint = cleanEndpoint;
-        if (!normalizedEndpoint.startsWith('api/') && !normalizedEndpoint.startsWith('/api/')) {
-            normalizedEndpoint = `api/${normalizedEndpoint}`;
+        let urlEndpoint = cleanEndpoint;
+        if (urlEndpoint.startsWith('api/')) {
+            urlEndpoint = urlEndpoint.substring(4);
         }
 
         // Формуємо повний URL
-        let baseUrlWithoutTrailingSlash = apiBaseUrl.endsWith('/')
-            ? apiBaseUrl.slice(0, -1)
-            : apiBaseUrl;
+        let apiUrlBase = apiBaseUrl;
+        // Видаляємо дублікат /api якщо він є
+        if (apiUrlBase.endsWith('/api') && urlEndpoint.startsWith('api/')) {
+            urlEndpoint = urlEndpoint.substring(4);
+        } else if (apiUrlBase.endsWith('/api') && urlEndpoint.startsWith('/api/')) {
+            urlEndpoint = urlEndpoint.substring(5);
+        }
 
-        // Видаляємо '/api' з кінця базового URL, якщо він там є
-        baseUrlWithoutTrailingSlash = baseUrlWithoutTrailingSlash.endsWith('/api')
-            ? baseUrlWithoutTrailingSlash.slice(0, -4)
-            : baseUrlWithoutTrailingSlash;
+        // Переконуємося, що URL не має подвійних слешів
+        if (apiUrlBase.endsWith('/') && urlEndpoint.startsWith('/')) {
+            urlEndpoint = urlEndpoint.substring(1);
+        } else if (!apiUrlBase.endsWith('/') && !urlEndpoint.startsWith('/')) {
+            apiUrlBase += '/';
+        }
 
-        // Формуємо фінальний URL
-        const url = `${baseUrlWithoutTrailingSlash}/${normalizedEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+        const url = `${apiUrlBase}${urlEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
 
         // Отримуємо ID користувача
         const userId = getUserId();
@@ -214,6 +422,11 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         try {
+            // Логуємо URL для діагностики
+            if (options.debug || WinixRaffles.config.debug) {
+                console.log(`🔌 Raffles API: Виконую запит ${method} ${url}`);
+            }
+
             // Виконуємо запит
             const response = await fetch(url, requestOptions);
 
@@ -228,6 +441,17 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             // Парсимо відповідь
             const jsonData = await response.json();
 
+            // Кешуємо результат, якщо потрібно
+            cacheResponse(cleanEndpoint, jsonData);
+
+            // Приховуємо індикатор завантаження
+            if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
+                WinixRaffles.loader.hide(`raffles-api-${cleanEndpoint}`);
+            }
+
+            // Видаляємо запит з активних
+            delete _activeRequests[cleanEndpoint];
+
             return jsonData;
         } catch (error) {
             // Перевіряємо, чи запит був скасований через таймаут
@@ -236,11 +460,6 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             }
 
             throw error;
-        } finally {
-            // Приховуємо індикатор завантаження
-            if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
-                WinixRaffles.loader.hide(`raffles-api-${cleanEndpoint}`);
-            }
         }
     } catch (error) {
         console.error(`🔌 Raffles API: Помилка запиту ${endpoint}:`, error);
@@ -259,12 +478,79 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             });
         }
 
+        // Отримуємо кешовані дані у випадку помилки
+        const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} після помилки запиту`);
+            return {
+                status: 'success',
+                data: _cache[cacheKey].data,
+                source: 'cache_after_error'
+            };
+        }
+
+        // Видаляємо запит з активних
+        delete _activeRequests[cleanEndpoint];
+
         // Повертаємо об'єкт з помилкою
         return {
             status: 'error',
             message: error.message || 'Сталася помилка при виконанні запиту',
-            source: 'raffles_api'
+            source: 'raffles_api',
+            error: error
         };
+    }
+}
+
+/**
+ * Визначення ключа кешу на основі endpoint
+ * @param {string} endpoint - Endpoint запиту
+ * @returns {string|null} Ключ кешу або null
+ */
+function getCacheKeyFromEndpoint(endpoint) {
+    if (endpoint.includes('raffles') && !endpoint.includes('history')) {
+        return 'activeRaffles';
+    } else if (endpoint.includes('history')) {
+        return 'history';
+    } else if (endpoint.includes('user')) {
+        return 'userData';
+    }
+    return null;
+}
+
+/**
+ * Кешування відповіді API
+ * @param {string} endpoint - Endpoint запиту
+ * @param {Object} response - Відповідь API
+ */
+function cacheResponse(endpoint, response) {
+    if (!response || response.status !== 'success' || !response.data) return;
+
+    const cacheKey = getCacheKeyFromEndpoint(endpoint);
+    if (!cacheKey) return;
+
+    _cache[cacheKey] = {
+        data: response.data,
+        timestamp: Date.now(),
+        ttl: _cache[cacheKey]?.ttl || 60000
+    };
+}
+
+/**
+ * Очищення кешу
+ * @param {string} [cacheKey] - Ключ кешу для очищення (якщо не вказано, очищується весь кеш)
+ */
+export function clearCache(cacheKey) {
+    if (cacheKey && _cache[cacheKey]) {
+        _cache[cacheKey].data = null;
+        _cache[cacheKey].timestamp = 0;
+        console.log(`🔌 Raffles API: Кеш ${cacheKey} очищено`);
+    } else {
+        for (const key in _cache) {
+            _cache[key].data = null;
+            _cache[key].timestamp = 0;
+        }
+        console.log("🔌 Raffles API: Весь кеш очищено");
     }
 }
 
@@ -274,9 +560,58 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
  * @returns {Promise<Object>} Дані користувача
  */
 export async function getUserData(forceRefresh = false) {
+    // Перевірка чи пристрій онлайн
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані користувача");
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.userData && _cache.userData.data) {
+            return {
+                status: 'success',
+                data: _cache.userData.data,
+                source: 'cache_offline'
+            };
+        }
+
+        // Повертаємо базові дані з localStorage
+        return {
+            status: 'success',
+            data: {
+                telegram_id: getUserId() || 'unknown',
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'localStorage_offline'
+        };
+    }
+
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
-        return window.WinixAPI.getUserData(forceRefresh);
+        try {
+            const result = await window.WinixAPI.getUserData(forceRefresh);
+
+            // Кешуємо результат
+            if (result.status === 'success' && result.data) {
+                _cache.userData = {
+                    data: result.data,
+                    timestamp: Date.now(),
+                    ttl: _cache.userData?.ttl || 120000
+                };
+            }
+
+            return result;
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання даних користувача з основного API:", e);
+
+            // Якщо є кешовані дані, повертаємо їх
+            if (_cache.userData && _cache.userData.data) {
+                return {
+                    status: 'success',
+                    data: _cache.userData.data,
+                    source: 'cache_after_error'
+                };
+            }
+        }
     }
 
     try {
@@ -288,15 +623,42 @@ export async function getUserData(forceRefresh = false) {
             };
         }
 
+        // Перевіряємо кеш, якщо не потрібне примусове оновлення
+        if (!forceRefresh && _cache.userData && _cache.userData.data &&
+            (Date.now() - _cache.userData.timestamp) < _cache.userData.ttl) {
+            return {
+                status: 'success',
+                data: _cache.userData.data,
+                source: 'cache'
+            };
+        }
+
         return await apiRequest(`user/${userId}`, 'GET', null, {
             useMainAPI: false, // Не використовувати основний API для уникнення рекурсії
-            bypassCache: forceRefresh,
-            cacheTTL: 5 * 60 * 1000 // 5 хвилин
+            bypassThrottle: forceRefresh, // Ігноруємо обмеження частоти для примусового оновлення
+            timeout: 5000 // Коротший таймаут
         });
     } catch (error) {
         console.error("🔌 Raffles API: Помилка отримання даних користувача:", error);
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.userData && _cache.userData.data) {
+            return {
+                status: 'success',
+                data: _cache.userData.data,
+                source: 'cache_after_error'
+            };
+        }
+
+        // Повертаємо базові дані з localStorage
         return {
-            status: 'error',
+            status: 'success',
+            data: {
+                telegram_id: getUserId() || 'unknown',
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'localStorage_fallback',
             message: 'Помилка отримання даних користувача: ' + error.message
         };
     }
@@ -308,9 +670,28 @@ export async function getUserData(forceRefresh = false) {
  * @returns {Promise<Object>} Баланс користувача
  */
 export async function getBalance(forceRefresh = false) {
+    // Перевірка чи пристрій онлайн
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані балансу");
+
+        // Повертаємо базові дані з localStorage
+        return {
+            status: 'success',
+            data: {
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'localStorage_offline'
+        };
+    }
+
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
-        return window.WinixAPI.getBalance(forceRefresh);
+        try {
+            return await window.WinixAPI.getBalance(forceRefresh);
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання балансу з основного API:", e);
+        }
     }
 
     try {
@@ -324,12 +705,20 @@ export async function getBalance(forceRefresh = false) {
 
         return await apiRequest(`user/${userId}/balance`, 'GET', null, {
             useMainAPI: false, // Не використовувати основний API для уникнення рекурсії
-            bypassCache: forceRefresh
+            bypassThrottle: forceRefresh,
+            timeout: 5000 // Коротший таймаут
         });
     } catch (error) {
         console.error("🔌 Raffles API: Помилка отримання балансу користувача:", error);
+
+        // Повертаємо дані з localStorage при помилці
         return {
-            status: 'error',
+            status: 'success',
+            data: {
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'localStorage_fallback',
             message: 'Помилка отримання балансу: ' + error.message
         };
     }
@@ -343,19 +732,62 @@ export async function getBalance(forceRefresh = false) {
  * @returns {Promise<Array>} Список активних розіграшів
  */
 export async function getActiveRaffles(forceRefresh = false) {
+    // Перевірка чи пристрій онлайн
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані розіграшів");
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.activeRaffles && _cache.activeRaffles.data) {
+            return _cache.activeRaffles.data;
+        }
+
+        // Якщо кешу немає, повертаємо порожній масив
+        return [];
+    }
+
+    // Перевіряємо кеш, якщо не потрібне примусове оновлення
+    if (!forceRefresh && _cache.activeRaffles && _cache.activeRaffles.data &&
+        (Date.now() - _cache.activeRaffles.timestamp) < _cache.activeRaffles.ttl) {
+        return _cache.activeRaffles.data;
+    }
+
     try {
         const response = await apiRequest('raffles', 'GET', null, {
-            timeout: 15000,
-            loaderMessage: 'Завантаження розіграшів...'
+            timeout: 10000, // Зменшуємо таймаут для прискорення
+            loaderMessage: 'Завантаження розіграшів...',
+            bypassThrottle: forceRefresh
         });
 
         if (response && response.status === 'success') {
-            return Array.isArray(response.data) ? response.data : [];
+            const resultData = Array.isArray(response.data) ? response.data : [];
+
+            // Оновлюємо кеш
+            _cache.activeRaffles = {
+                data: resultData,
+                timestamp: Date.now(),
+                ttl: _cache.activeRaffles?.ttl || 60000
+            };
+
+            return resultData;
         }
 
-        throw new Error(response.message || 'Помилка отримання розіграшів');
+        // Якщо є помилка, але є кешовані дані, повертаємо їх
+        if (_cache.activeRaffles && _cache.activeRaffles.data) {
+            console.warn("🔌 Raffles API: Використовуємо кешовані дані розіграшів після помилки");
+            return _cache.activeRaffles.data;
+        }
+
+        // Інакше повертаємо порожній масив
+        return [];
     } catch (error) {
         console.error('Помилка отримання активних розіграшів:', error);
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.activeRaffles && _cache.activeRaffles.data) {
+            console.warn("🔌 Raffles API: Використовуємо кешовані дані розіграшів після помилки");
+            return _cache.activeRaffles.data;
+        }
+
         return [];
     }
 }
@@ -363,9 +795,29 @@ export async function getActiveRaffles(forceRefresh = false) {
 /**
  * Отримання історії розіграшів
  * @param {Object} filters - Фільтри для запиту
+ * @param {boolean} forceRefresh - Примусове оновлення
  * @returns {Promise<Array>} Список історії розіграшів
  */
-export async function getRafflesHistory(filters = {}) {
+export async function getRafflesHistory(filters = {}, forceRefresh = false) {
+    // Перевірка чи пристрій онлайн
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані історії");
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.history && _cache.history.data) {
+            return _cache.history.data;
+        }
+
+        // Якщо кешу немає, повертаємо порожній масив
+        return [];
+    }
+
+    // Перевіряємо кеш, якщо не потрібне примусове оновлення і немає фільтрів
+    if (!forceRefresh && !Object.keys(filters).length && _cache.history && _cache.history.data &&
+        (Date.now() - _cache.history.timestamp) < _cache.history.ttl) {
+        return _cache.history.data;
+    }
+
     try {
         const userId = getUserId();
         if (!userId) {
@@ -390,17 +842,42 @@ export async function getRafflesHistory(filters = {}) {
             : `user/${userId}/raffles-history`;
 
         const response = await apiRequest(url, 'GET', null, {
-            timeout: 15000,
-            loaderMessage: 'Завантаження історії розіграшів...'
+            timeout: 10000,
+            loaderMessage: 'Завантаження історії розіграшів...',
+            bypassThrottle: forceRefresh
         });
 
         if (response && response.status === 'success') {
-            return Array.isArray(response.data) ? response.data : [];
+            const resultData = Array.isArray(response.data) ? response.data : [];
+
+            // Оновлюємо кеш тільки якщо немає фільтрів або це примусове оновлення
+            if (!Object.keys(filters).length || forceRefresh) {
+                _cache.history = {
+                    data: resultData,
+                    timestamp: Date.now(),
+                    ttl: _cache.history?.ttl || 300000
+                };
+            }
+
+            return resultData;
+        }
+
+        // Якщо є помилка, але є кешовані дані, повертаємо їх
+        if (_cache.history && _cache.history.data) {
+            console.warn("🔌 Raffles API: Використовуємо кешовані дані історії після помилки");
+            return _cache.history.data;
         }
 
         return [];
     } catch (error) {
         console.error('Помилка отримання історії розіграшів:', error);
+
+        // Якщо є кешовані дані, повертаємо їх
+        if (_cache.history && _cache.history.data) {
+            console.warn("🔌 Raffles API: Використовуємо кешовані дані історії після помилки");
+            return _cache.history.data;
+        }
+
         return [];
     }
 }
@@ -413,6 +890,15 @@ export async function getRafflesHistory(filters = {}) {
  */
 export async function participateInRaffle(raffleId, entryCount = 1) {
     try {
+        // Перевірка чи пристрій онлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+            return {
+                status: 'error',
+                message: 'Не вдалося взяти участь: пристрій офлайн',
+                source: 'offline'
+            };
+        }
+
         const userId = getUserId();
         if (!userId) {
             throw new Error('ID користувача не знайдено');
@@ -427,11 +913,14 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
             raffle_id: raffleId,
             entry_count: entryCount
         }, {
-            timeout: 15000,
+            timeout: 10000,
             loaderMessage: 'Беремо участь у розіграші...'
         });
 
         if (response && response.status === 'success') {
+            // Оновлюємо кеш розіграшів після успішної участі
+            clearCache('activeRaffles');
+
             // Оновлюємо баланс користувача
             if (hasMainApi()) {
                 try {
@@ -439,7 +928,13 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
                 } catch (e) {
                     console.warn("🔌 Raffles API: Помилка оновлення балансу після участі:", e);
                 }
+            } else {
+                // Або оновлюємо баланс через власний API
+                await getBalance(true);
             }
+
+            // Оновлюємо дані користувача
+            clearCache('userData');
 
             return {
                 status: 'success',
@@ -464,6 +959,15 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
  */
 export async function claimNewbieBonus() {
     try {
+        // Перевірка чи пристрій онлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+            return {
+                status: 'error',
+                message: 'Не вдалося отримати бонус: пристрій офлайн',
+                source: 'offline'
+            };
+        }
+
         const userId = getUserId();
         if (!userId) {
             throw new Error('ID користувача не знайдено');
@@ -482,7 +986,13 @@ export async function claimNewbieBonus() {
                 } catch (e) {
                     console.warn("🔌 Raffles API: Помилка оновлення балансу після отримання бонусу:", e);
                 }
+            } else {
+                // Або оновлюємо баланс через власний API
+                await getBalance(true);
             }
+
+            // Оновлюємо дані користувача
+            clearCache('userData');
 
             return {
                 status: response.status,
@@ -509,6 +1019,8 @@ const rafflesAPI = {
     getAuthToken,
     getUserData,
     getBalance,
+    forceCleanupRequests,
+    clearCache,
 
     // Специфічні функції для розіграшів
     getActiveRaffles,
@@ -518,7 +1030,7 @@ const rafflesAPI = {
 
     // Конфігурація
     config: {
-        baseUrl: hasMainApi() ? window.WinixAPI.config.baseUrl : null,
+        baseUrl: getApiBaseUrl(),
         throttle: REQUEST_THROTTLE
     },
 
@@ -553,6 +1065,24 @@ if (hasMainApi()) {
 if (WinixRaffles) {
     WinixRaffles.api = rafflesAPI;
 }
+
+// Обробник події онлайн/офлайн
+window.addEventListener('online', () => {
+    console.log("🔌 Raffles API: З'єднання з мережею відновлено");
+
+    // Автоматично оновлюємо кеш при відновленні з'єднання
+    setTimeout(() => {
+        getActiveRaffles(true).then(() => {
+            console.log("🔌 Raffles API: Кеш розіграшів оновлено після відновлення з'єднання");
+        }).catch(e => {
+            console.warn("🔌 Raffles API: Помилка оновлення кешу розіграшів:", e);
+        });
+    }, 1000);
+});
+
+window.addEventListener('offline', () => {
+    console.warn("🔌 Raffles API: З'єднання з мережею втрачено");
+});
 
 console.log("🔌 Raffles API: Ініціалізацію завершено");
 

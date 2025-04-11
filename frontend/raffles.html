@@ -6,7 +6,130 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Розіграші</title>
 
-    <!-- Базовий скрипт Telegram WebApp - він потрібен для роботи з Telegram -->
+    <!-- Базові стилі та скрипти завантажуються першими -->
+    <style>
+        /* Стиль для індикатора завантаження при ініціалізації */
+        .initial-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .initial-loader-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        .initial-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: #007cc9;
+            animation: initialSpin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes initialSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- Показуємо індикатор завантаження відразу, щоб користувач бачив, що сторінка завантажується -->
+    <script>
+        // Створюємо початковий лоадер
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!document.querySelector('.initial-loader')) {
+                const loader = document.createElement('div');
+                loader.className = 'initial-loader';
+                loader.innerHTML = `
+                    <div class="initial-loader-content">
+                        <div class="initial-spinner"></div>
+                        <p>Завантаження WINIX...</p>
+                    </div>
+                `;
+                document.body.appendChild(loader);
+
+                // Видаляємо лоадер після завантаження сторінки або за таймаутом
+                window.addEventListener('load', removeInitialLoader);
+                setTimeout(removeInitialLoader, 5000); // Запобіжник - видалити за 5 секунд
+            }
+        });
+
+        // Функція видалення початкового лоадера
+        function removeInitialLoader() {
+            const loader = document.querySelector('.initial-loader');
+            if (loader) {
+                loader.style.opacity = '0';
+                loader.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => {
+                    if (loader.parentNode) {
+                        loader.parentNode.removeChild(loader);
+                    }
+                }, 500);
+            }
+        }
+
+        // Глобальні функції для показу/приховування лоадера
+        window.showLoading = function(message) {
+            const spinner = document.getElementById('loading-spinner');
+            const spinnerText = document.getElementById('loading-spinner-text');
+
+            if (spinner) {
+                spinner.classList.add('show');
+                if (spinnerText && message) {
+                    spinnerText.textContent = message;
+                }
+            }
+        };
+
+        window.hideLoading = function() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.classList.remove('show');
+            }
+        };
+
+        // Глобальна функція для показу повідомлень
+        window.showToast = function(message, type) {
+            const toast = document.getElementById('toast-message');
+            if (!toast) return;
+
+            toast.textContent = message || '';
+            toast.className = 'toast-message ' + (type || '');
+
+            // Додаємо клас для показу
+            setTimeout(() => toast.classList.add('show'), 10);
+
+            // Ховаємо повідомлення після затримки
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        };
+
+        // Перевірка стану мережі
+        function updateOnlineStatus() {
+            const condition = navigator.onLine ? "online" : "offline";
+            if (condition === "offline") {
+                showToast("Пристрій зараз у режимі оффлайн. Деякі функції можуть бути недоступні.", "warning");
+            } else {
+                showToast("З'єднання з мережею відновлено", "success");
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+    </script>
+
+    <!-- Базовий скрипт Telegram WebApp -->
     <script src="js/telegram-web-app.js"></script>
     <script>
     // Ініціалізація та перевірка Telegram WebApp
@@ -27,9 +150,27 @@
                 const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
                 localStorage.setItem('telegram_user_id', userId);
                 console.log("✅ Отримано Telegram ID:", userId);
+
+                // Оновлюємо ID на сторінці
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement) {
+                    userIdElement.textContent = userId;
+                }
             } else {
                 console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
+
+                // Завантажуємо ID з localStorage
+                const storedId = localStorage.getItem('telegram_user_id');
+                if (storedId) {
+                    const userIdElement = document.getElementById('user-id');
+                    if (userIdElement) {
+                        userIdElement.textContent = storedId;
+                    }
+                }
             }
+
+            // Повідомляємо про завершення ініціалізації Telegram WebApp
+            document.dispatchEvent(new CustomEvent('telegram-ready'));
         } catch (e) {
             console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
         }
@@ -38,8 +179,8 @@
 
     <!-- Скрипти, які точно не будуть конфліктувати з системою розіграшів -->
     <script src="js/language.js"></script>
-    <script src="js/auth.js"></script>
-
+    <script src="js/api.js" defer></script>
+    <script src="js/auth.js" defer></script>
 
     <!-- Необхідний стиль для сторінки -->
     <style>
@@ -1045,6 +1186,21 @@
             transform: translate(-50%, 0.625rem);
         }
 
+        #toast-message.error {
+            background: linear-gradient(135deg, #B71C1C, #D32F2F);
+            border-color: rgba(255, 99, 71, 0.5);
+        }
+
+        #toast-message.success {
+            background: linear-gradient(135deg, #1B5E20, #388E3C);
+            border-color: rgba(80, 200, 120, 0.5);
+        }
+
+        #toast-message.warning {
+            background: linear-gradient(135deg, #E65100, #F57C00);
+            border-color: rgba(255, 193, 7, 0.5);
+        }
+
         /* Стилі для сторінки завантаження */
         .loading-placeholder {
             display: flex;
@@ -1063,6 +1219,11 @@
             border-radius: 50%;
             animation: spinner 1s linear infinite;
             margin-bottom: 1rem;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .loading-text {
@@ -1342,7 +1503,84 @@
                 border-radius: 1.25rem;
             }
         }
+
+        /* Режим офлайн */
+        .offline-message {
+            background: linear-gradient(145deg, rgba(255, 152, 0, 0.2), rgba(255, 87, 34, 0.1));
+            border: 1px solid rgba(255, 152, 0, 0.3);
+            border-radius: var(--item-border-radius);
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .offline-message-icon {
+            font-size: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        .offline-message-text {
+            flex: 1;
+            font-size: 0.875rem;
+            color: var(--text-color);
+        }
     </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Перевірка стану мережі та показ відповідного повідомлення
+            if (!navigator.onLine) {
+                showOfflineMessage();
+            }
+
+            // Обробники подій для оновлення стану мережі
+            window.addEventListener('online', function() {
+                hideOfflineMessage();
+                showToast("З'єднання з мережею відновлено", "success");
+
+                // Перезавантажуємо основні дані через деякий час
+                setTimeout(function() {
+                    if (typeof window.rafflesModule !== 'undefined' &&
+                        typeof window.rafflesModule.switchTab === 'function') {
+                        window.rafflesModule.switchTab('active');
+                    }
+                }, 1000);
+            });
+
+            window.addEventListener('offline', function() {
+                showOfflineMessage();
+                showToast("З'єднання з мережею втрачено. Деякі функції недоступні.", "warning");
+            });
+
+            function showOfflineMessage() {
+                // Перевіряємо, чи повідомлення вже є на сторінці
+                if (!document.querySelector('.offline-message')) {
+                    const container = document.querySelector('.raffles-container');
+                    if (container) {
+                        const offlineMsg = document.createElement('div');
+                        offlineMsg.className = 'offline-message';
+                        offlineMsg.innerHTML = `
+                            <div class="offline-message-icon">📶</div>
+                            <div class="offline-message-text">
+                                Ви перебуваєте в режимі офлайн.
+                                Показано кешовані дані. Деякі функції недоступні.
+                            </div>
+                        `;
+                        container.insertBefore(offlineMsg, container.firstChild);
+                    }
+                }
+            }
+
+            function hideOfflineMessage() {
+                const offlineMsg = document.querySelector('.offline-message');
+                if (offlineMsg) {
+                    offlineMsg.remove();
+                }
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -1387,68 +1625,10 @@
             <div class="tab-content active" id="active-raffles">
                 <!-- Головний розіграш -->
                 <div class="main-raffle">
-                    <div class="new-badge">НОВИЙ</div>
-                    <img class="main-raffle-image" src="assets/prize-poster.gif" alt="ChatPot розіграш">
-                    <div class="main-raffle-content">
-                        <div class="main-raffle-header">
-                            <h3 class="main-raffle-title">ChatPot розіграш #26</h3>
-                            <div class="main-raffle-cost">
-                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                                <span>3 жетони</span>
-                            </div>
-                        </div>
-
-                        <span class="main-raffle-prize">250$ + 550000 WINIX</span>
-
-                        <div class="timer-container">
-                            <div class="timer-block">
-                                <span class="timer-value" id="days">05</span>
-                                <span class="timer-label">днів</span>
-                            </div>
-                            <div class="timer-block">
-                                <span class="timer-value" id="hours">12</span>
-                                <span class="timer-label">год</span>
-                            </div>
-                            <div class="timer-block">
-                                <span class="timer-value" id="minutes">34</span>
-                                <span class="timer-label">хв</span>
-                            </div>
-                        </div>
-
-                        <div class="prize-distribution">
-                            <div class="prize-distribution-title">Розподіл призів (10 переможців):</div>
-                            <div class="prize-list">
-                                <div class="prize-item">
-                                    <span class="prize-place">1 місце:</span>
-                                    <span class="prize-value">125$ + 250000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">2 місце:</span>
-                                    <span class="prize-value">75$ + 150000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">3 місце:</span>
-                                    <span class="prize-value">50$ + 75000 WINIX</span>
-                                </div>
-                                <div class="prize-item">
-                                    <span class="prize-place">4-10 місця:</span>
-                                    <span class="prize-value">10000 WINIX</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="main-raffle-participants">
-                            <div class="participants-info">Учасників: <span class="participants-count">217</span></div>
-                            <div class="share-container">
-                                <button class="share-button" id="share-raffle-btn" data-raffle-id="main26">Поділитися</button>
-                            </div>
-                        </div>
-
-                        <div class="progress-bar">
-                            <div class="progress" style="width: 65%"></div>
-                        </div>
-
-                        <button class="join-button" data-raffle-id="main26" data-raffle-type="main">Взяти участь</button>
+                    <div class="loading-placeholder">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Завантаження розіграшів...</div>
+                        <div class="loading-subtext">Зачекайте, будь ласка</div>
                     </div>
                 </div>
 
@@ -1457,32 +1637,10 @@
 
                 <!-- Контейнер для міні-розіграшів -->
                 <div class="mini-raffles-container">
-                    <!-- Щоденний розіграш -->
-                    <div class="mini-raffle" data-raffle-id="daily89">
-                        <div class="mini-raffle-info">
-                            <div class="mini-raffle-title">Щоденний розіграш #89</div>
-                            <div class="mini-raffle-cost">
-                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                                <span>1 жетон</span>
-                            </div>
-                            <div class="mini-raffle-prize">90000 WINIX (15 переможців)</div>
-                            <div class="mini-raffle-time">Залишилось: 18г 45хв</div>
-                        </div>
-                        <button class="mini-raffle-button" data-raffle-id="daily89" data-raffle-type="daily">Участь</button>
-                    </div>
-
-                    <!-- Бонус новачка -->
-                    <div class="mini-raffle" data-raffle-id="newbie">
-                        <div class="mini-raffle-info">
-                            <div class="mini-raffle-title">Бонус новачка</div>
-                            <div class="mini-raffle-cost">
-                                <img class="token-icon" src="assets/token-icon.png" alt="Жетон">
-                                <span>0 жетонів</span>
-                            </div>
-                            <div class="mini-raffle-prize">500 WINIX + 1 жетон</div>
-                            <div class="mini-raffle-time">Доступно тільки новим користувачам</div>
-                        </div>
-                        <button class="mini-raffle-button" data-raffle-id="newbie">Отримати</button>
+                    <!-- Тут будуть щоденні розіграші -->
+                    <div class="loading-placeholder">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-subtext">Завантаження щоденних розіграшів...</div>
                     </div>
                 </div>
             </div>
@@ -1505,19 +1663,19 @@
                         <div class="statistics-title">Моя статистика</div>
                         <div class="stats-grid">
                             <div class="stat-card">
-                                <div class="stat-value" id="total-participated">5</div>
+                                <div class="stat-value" id="total-participated">-</div>
                                 <div class="stat-label">Участь у розіграшах</div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-value" id="total-wins">2</div>
+                                <div class="stat-value" id="total-wins">-</div>
                                 <div class="stat-label">Виграші</div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-value" id="total-winix-won">85000</div>
+                                <div class="stat-value" id="total-winix-won">-</div>
                                 <div class="stat-label">WINIX виграно</div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-value" id="total-tokens-spent">15</div>
+                                <div class="stat-value" id="total-tokens-spent">-</div>
                                 <div class="stat-label">Витрачено жетонів</div>
                             </div>
                         </div>
@@ -1530,19 +1688,19 @@
                 <div class="statistics-title">Статистика участі</div>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value" id="total-participated">5</div>
+                        <div class="stat-value" id="total-participated">-</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-wins">2</div>
+                        <div class="stat-value" id="total-wins">-</div>
                         <div class="stat-label">Виграші</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-winix-won">85000</div>
+                        <div class="stat-value" id="total-winix-won">-</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-tokens-spent">15</div>
+                        <div class="stat-value" id="total-tokens-spent">-</div>
                         <div class="stat-label">Витрачено жетонів</div>
                     </div>
                 </div>
@@ -1551,7 +1709,7 @@
 
         <!-- Навігаційна панель -->
         <div class="nav-bar">
-            <div class="nav-item active" data-section="home" onclick="window.location.href='index.html'">
+            <div class="nav-item" data-section="home" onclick="window.location.href='index.html'">
                 <div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div>
                 <span data-lang-key="home">Головна</span>
             </div>
@@ -1706,14 +1864,107 @@
         <!-- Контейнер для спінера завантаження -->
         <div id="loading-spinner">
             <div class="spinner-inner"></div>
+            <div id="loading-spinner-text" style="color: white; margin-top: 10px; text-align: center;"></div>
         </div>
 
         <!-- Контейнер для повідомлень toast -->
         <div id="toast-message"></div>
     </div>
 
-    <!-- Додаємо глобальну функцію для переключення вкладок -->
+    <!-- Скрипт для обробки помилок і збоїв сторінки -->
     <script>
+        // Обробка невловлених помилок
+        window.addEventListener('error', function(event) {
+            console.error("Невловлена помилка:", event.message, "у", event.filename, "рядок:", event.lineno);
+
+            // Логуємо помилку для подальшого аналізу
+            try {
+                localStorage.setItem('last_error', JSON.stringify({
+                    message: event.message,
+                    file: event.filename,
+                    line: event.lineno,
+                    time: new Date().toISOString(),
+                    online: navigator.onLine
+                }));
+            } catch (e) {}
+
+            // Запобігаємо повному зависанню сторінки
+            if (event.message && (
+                event.message.includes("Maximum call stack size exceeded") ||
+                event.message.includes("Script error") ||
+                event.message.includes("Cannot read property") ||
+                event.message.includes("undefined is not an object")
+            )) {
+                if (!document.getElementById('fatal-error-message')) {
+                    // Створюємо елемент з повідомленням про помилку
+                    const errorDiv = document.createElement('div');
+                    errorDiv.id = 'fatal-error-message';
+                    errorDiv.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#b71c1c;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999;text-align:center;';
+                    errorDiv.innerHTML = `
+                        <p>Виникла помилка в роботі програми. Спробуйте оновити сторінку.</p>
+                        <button onclick="location.reload()" style="margin-top:10px;padding:5px 15px;border:none;border-radius:5px;background:#ff9800;color:#1a1a2e;cursor:pointer;">
+                            Оновити сторінку
+                        </button>
+                    `;
+                    document.body.appendChild(errorDiv);
+                }
+            }
+        });
+
+        // Функція для ініціалізації сторінки після збою
+        function recoverFromFailure() {
+            console.log("Відновлення сторінки після збою");
+
+            // Видаляємо початковий лоадер, якщо він завис
+            removeInitialLoader();
+
+            // Ховаємо усі лоадери
+            window.hideLoading();
+
+            // Ініціалізуємо ID користувача
+            try {
+                const storedId = localStorage.getItem('telegram_user_id');
+                if (storedId) {
+                    const userIdElement = document.getElementById('user-id');
+                    if (userIdElement) userIdElement.textContent = storedId;
+                }
+            } catch (e) {}
+
+            // Відновлюємо дані балансу з localStorage
+            try {
+                const tokens = localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0';
+                const coins = localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0';
+
+                const userTokens = document.getElementById('user-tokens');
+                const userCoins = document.getElementById('user-coins');
+
+                if (userTokens) userTokens.textContent = tokens;
+                if (userCoins) userCoins.textContent = coins;
+            } catch (e) {}
+
+            // Оновлюємо аватар
+            try {
+                const avatar = document.getElementById('profile-avatar');
+                if (avatar) {
+                    avatar.textContent = 'W';
+                }
+            } catch (e) {}
+
+            // Показуємо повідомлення про проблеми з сервером
+            showToast("Виникли проблеми з завантаженням даних. Перевірте підключення до Інтернету.", "warning");
+        }
+
+        // Таймаут для перевірки стану сторінки
+        setTimeout(function() {
+            // Якщо початковий лоадер все ще відображається через 8 секунд,
+            // спробуємо відновити сторінку
+            const loader = document.querySelector('.initial-loader');
+            if (loader) {
+                console.warn("Виявлено зависання завантаження сторінки");
+                recoverFromFailure();
+            }
+        }, 8000);
+
         // Глобальна функція для перемикання вкладок
         function switchRaffleTab(tabName) {
             console.log("Перемикання на вкладку:", tabName);
@@ -1745,195 +1996,6 @@
                 window.rafflesModule.switchTab(tabName);
             }
         }
-
-        // Функція для відображення модального вікна розіграшу
-        function showRaffleModal(raffleId, raffleType) {
-            const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.add('open');
-
-                // Додаємо обробники закриття
-                const closeButtons = modal.querySelectorAll('.modal-close, .cancel-btn');
-                closeButtons.forEach(btn => {
-                    btn.onclick = function() {
-                        modal.classList.remove('open');
-                    }
-                });
-
-                // Закриття по кліку на фон
-                modal.onclick = function(event) {
-                    if (event.target === modal) {
-                        modal.classList.remove('open');
-                    }
-                };
-            }
-        }
-
-        // Функція для участі в розіграші
-        function participateInRaffle(raffleId, raffleType) {
-            const tokensNeeded = raffleType === 'daily' ? 1 : 3;
-            const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
-
-            if (userCoins < tokensNeeded) {
-                showToast('Недостатньо жетонів для участі в розіграші!', 'error');
-                return;
-            }
-
-            // Оновлюємо баланс (в реальному випадку тут буде API запит)
-            document.getElementById('user-coins').textContent = userCoins - tokensNeeded;
-
-            // Закриваємо модальне вікно
-            const modalId = raffleType === 'daily' ? 'daily-raffle-modal' : 'main-raffle-modal';
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.remove('open');
-            }
-
-            // Показуємо повідомлення про успіх
-            showToast('Ви успішно взяли участь у розіграші!', 'success');
-
-            // Оновлюємо статистику
-            const totalParticipated = document.querySelectorAll('#total-participated');
-            const totalTokensSpent = document.querySelectorAll('#total-tokens-spent');
-
-            totalParticipated.forEach(el => {
-                const current = parseInt(el.textContent) || 0;
-                el.textContent = current + 1;
-            });
-
-            totalTokensSpent.forEach(el => {
-                const current = parseInt(el.textContent) || 0;
-                el.textContent = current + tokensNeeded;
-            });
-        }
-
-        // Функція для отримання бонусу новачка
-        function claimNewbieBonus() {
-            const newbieButton = document.querySelector('.mini-raffle[data-raffle-id="newbie"] .mini-raffle-button');
-            if (newbieButton) {
-                newbieButton.textContent = 'Отримано';
-                newbieButton.disabled = true;
-                newbieButton.style.opacity = '0.6';
-
-                // Оновлюємо баланс користувача
-                const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
-                const userTokens = parseInt(document.getElementById('user-tokens').textContent) || 0;
-
-                document.getElementById('user-coins').textContent = userCoins + 1;
-                document.getElementById('user-tokens').textContent = userTokens + 500;
-
-                // Показуємо повідомлення
-                showToast('Бонус новачка отримано: 500 WINIX + 1 жетон!', 'success');
-            }
-        }
-
-        // Функція для показу повідомлень toast
-        function showToast(message, type = 'info', duration = 3000) {
-            const toast = document.getElementById('toast-message');
-            if (!toast) return;
-
-            toast.textContent = message;
-            toast.className = 'toast-message ' + type;
-
-            // Додаємо клас для показу
-            setTimeout(() => toast.classList.add('show'), 10);
-
-            // Ховаємо повідомлення після затримки
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, duration);
-        }
-
-        // Додавання обробників подій при завантаженні сторінки
-        document.addEventListener('DOMContentLoaded', function() {
-            // Налаштування кнопок головного розіграшу
-            const mainJoinButtons = document.querySelectorAll('.join-button[data-raffle-type="main"]');
-            mainJoinButtons.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const raffleId = this.getAttribute('data-raffle-id');
-                    showRaffleModal(raffleId, 'main');
-                });
-            });
-
-            // Налаштування кнопок щоденного розіграшу
-            const dailyJoinButtons = document.querySelectorAll('.mini-raffle-button[data-raffle-type="daily"]');
-            dailyJoinButtons.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const raffleId = this.getAttribute('data-raffle-id');
-                    showRaffleModal(raffleId, 'daily');
-                });
-            });
-
-            // Кнопка отримання бонусу новачка
-            const newbieButton = document.querySelector('.mini-raffle-button[data-raffle-id="newbie"]');
-            if (newbieButton) {
-                newbieButton.addEventListener('click', claimNewbieBonus);
-            }
-
-            // Кнопки в модальних вікнах
-            const mainJoinBtn = document.getElementById('main-join-btn');
-            if (mainJoinBtn) {
-                mainJoinBtn.addEventListener('click', function() {
-                    const raffleId = this.getAttribute('data-raffle-id');
-                    participateInRaffle(raffleId, 'main');
-                });
-            }
-
-            const dailyJoinBtn = document.getElementById('daily-join-btn');
-            if (dailyJoinBtn) {
-                dailyJoinBtn.addEventListener('click', function() {
-                    const raffleId = this.getAttribute('data-raffle-id');
-                    participateInRaffle(raffleId, 'daily');
-                });
-            }
-
-            // Кнопки "ВСІ" для токенів
-            const mainAllBtn = document.getElementById('main-all-tokens-btn');
-            if (mainAllBtn) {
-                mainAllBtn.addEventListener('click', function() {
-                    const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
-                    const maxTokens = Math.floor(userCoins / 3);
-                    document.getElementById('main-token-amount').value = maxTokens > 0 ? maxTokens : 1;
-                });
-            }
-
-            const dailyAllBtn = document.getElementById('daily-all-tokens-btn');
-            if (dailyAllBtn) {
-                dailyAllBtn.addEventListener('click', function() {
-                    const userCoins = parseInt(document.getElementById('user-coins').textContent) || 0;
-                    document.getElementById('daily-token-amount').value = userCoins > 0 ? userCoins : 1;
-                });
-            }
-
-            // Кнопки поділитися
-            const shareButtons = document.querySelectorAll('.share-button');
-            shareButtons.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    showToast('Посилання на розіграш скопійовано!', 'success');
-                });
-            });
-
-            // Модальні вікна: закриття по кліку на хрестик
-            const closeButtons = document.querySelectorAll('.modal-close');
-            closeButtons.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const modal = this.closest('.raffle-modal');
-                    if (modal) {
-                        modal.classList.remove('open');
-                    }
-                });
-            });
-
-            // Оновлюємо ID користувача, якщо доступно
-            const userId = localStorage.getItem('telegram_user_id');
-            if (userId) {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement) {
-                    userIdElement.textContent = userId;
-                }
-            }
-        });
     </script>
 
     <!-- Підключення нової модульної системи розіграшів через тип модуля -->
@@ -1945,25 +2007,68 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log("🎮 WINIX: Ініціалізація сторінки розіграшів");
 
-            // Ініціалізуємо модуль розіграшів
-            rafflesModule.init();
+            try {
+                // Перевіряємо, чи вже завантажено API та Auth модулі
+                const checkModules = async () => {
+                    // Перевіряємо чи завантажилися модулі API та Auth
+                    const apiLoaded = window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
+                    const authLoaded = window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
 
-            // Оновлюємо ID користувача, якщо доступно
-            const userId = localStorage.getItem('telegram_user_id');
-            if (userId) {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement) {
-                    userIdElement.textContent = userId;
+                    if (!apiLoaded || !authLoaded) {
+                        console.log("🎮 WINIX: Очікування завантаження модулів API та Auth...");
+
+                        // Чекаємо максимум 5 секунд для завантаження модулів
+                        for (let i = 0; i < 10; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+
+                            const apiNowLoaded = window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
+                            const authNowLoaded = window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
+
+                            if (apiNowLoaded && authNowLoaded) {
+                                console.log("🎮 WINIX: Модулі API та Auth успішно завантажені");
+                                break;
+                            }
+                        }
+                    }
+
+                    // Ініціалізуємо модуль розіграшів
+                    rafflesModule.init();
+
+                    // Видаляємо початковий лоадер
+                    removeInitialLoader();
+                };
+
+                // Запускаємо перевірку модулів
+                checkModules();
+
+                // Оновлюємо ID користувача, якщо доступно
+                const userId = localStorage.getItem('telegram_user_id');
+                if (userId) {
+                    const userIdElement = document.getElementById('user-id');
+                    if (userIdElement) {
+                        userIdElement.textContent = userId;
+                    }
+
+                    // Оновлюємо ініціали в аватарі
+                    updateAvatarInitials(userId);
                 }
 
-                // Оновлюємо ініціали в аватарі
-                updateAvatarInitials(userId);
+                // Експортуємо функції в глобальну область видимості
+                window.rafflesModule = rafflesModule;
+
+                console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
+            } catch (error) {
+                console.error("❌ WINIX: Помилка ініціалізації сторінки розіграшів:", error);
+
+                // Видаляємо початковий лоадер у випадку помилки
+                removeInitialLoader();
+
+                // Показуємо повідомлення про помилку
+                showToast("Помилка ініціалізації сторінки. Спробуйте оновити сторінку.", "error");
+
+                // Спроба відновлення після збою
+                recoverFromFailure();
             }
-
-            // Експортуємо функції в глобальну область видимості
-            window.rafflesModule = rafflesModule;
-
-            console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
         });
 
         // Функція для оновлення ініціалів в аватарі

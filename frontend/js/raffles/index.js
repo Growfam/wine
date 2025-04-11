@@ -10,7 +10,7 @@ import stats from './modules/stats.js';
 import cards from './components/cards.js';
 import participation from './modules/participation.js';
 import modals from './components/modals.js';
-import admin from './admin/index.js';
+import admin from './admin/management.js';
 import {
     formatDate,
     formatCurrency,
@@ -22,6 +22,14 @@ import {
     hideLoading,
     showConfirm
 } from './utils/ui-helpers.js';
+
+/**
+ * Перевірка, чи пристрій онлайн
+ * @returns {boolean} Стан підключення
+ */
+function isOnline() {
+    return typeof navigator.onLine === 'undefined' || navigator.onLine;
+}
 
 /**
  * Клас для управління модулями розіграшів і забезпечення єдиної точки входу
@@ -54,46 +62,140 @@ class RafflesModule {
         // Прапорець ініціалізації
         this._initialized = false;
 
+        // Прапорець, що відстежує процес ініціалізації
+        this._initializationInProgress = false;
+
+        // Лічильник спроб ініціалізації
+        this._initializationAttempts = 0;
+
+        // Максимальна кількість спроб ініціалізації
+        this._maxInitializationAttempts = 3;
+
+        // Таймаут для повторної спроби ініціалізації
+        this._initializationTimeout = null;
+
         // Список обробників подій для можливості видалення
         this._eventListeners = [];
     }
 
     /**
      * Ініціалізація всіх модулів розіграшів
+     * @param {boolean} forceInit - Примусова ініціалізація, навіть якщо в процесі
+     * @returns {Promise<RafflesModule>} Екземпляр модуля
      */
-    init() {
-        if (this._initialized) {
+    async init(forceInit = false) {
+        // Якщо вже ініціалізовано або в процесі ініціалізації
+        if (this._initialized && !forceInit) {
             console.warn("Raffles Module: Модуль уже ініціалізовано");
             return this;
         }
 
-        console.log("🎮 Raffles Module: Ініціалізація основного модуля розіграшів");
+        // Запобігаємо паралельним викликам init
+        if (this._initializationInProgress && !forceInit) {
+            console.warn("Raffles Module: Ініціалізація вже виконується");
+            return this;
+        }
 
-        // Додаємо обробники подій для перемикання вкладок
-        this._initTabSwitching();
+        // Очищаємо таймаут, якщо він є
+        if (this._initializationTimeout) {
+            clearTimeout(this._initializationTimeout);
+            this._initializationTimeout = null;
+        }
 
-        // Ініціалізуємо підмодулі
-        this.activeRaffles.init();
-        this.history.init();
-        this.modals.init();
-        this.stats.init();
-        this.participation.init();
+        this._initializationInProgress = true;
+        this._initializationAttempts++;
 
-        // Перевіряємо, чи користувач є адміністратором
-        this._checkAdminAccess();
+        try {
+            console.log("🎮 Raffles Module: Ініціалізація основного модуля розіграшів");
 
-        // Підписуємося на події
-        this._setupEventListeners();
+            // Додаємо обробники подій для перемикання вкладок
+            this._initTabSwitching();
 
-        // Експортуємо глобальні функції
-        this.exportGlobalFunctions();
+            // Ініціалізуємо підмодулі по черзі, з обробкою помилок
+            // Порядок ініціалізації важливий для залежностей між модулями
 
-        // Встановлюємо прапорець ініціалізації
-        this._initialized = true;
+            // Спочатку ініціалізуємо модалі, оскільки вони використовуються іншими модулями
+            try {
+                await Promise.resolve(this.modals.init());
+                console.log("✅ Raffles Module: Модалі успішно ініціалізовано");
+            } catch (error) {
+                console.error("❌ Помилка ініціалізації модалей:", error);
+                // Не критична помилка, продовжуємо ініціалізацію
+            }
 
-        console.log("✅ Raffles Module: Ініціалізацію завершено");
+            // Ініціалізуємо активні розіграші
+            try {
+                await Promise.resolve(this.activeRaffles.init());
+                console.log("✅ Raffles Module: Активні розіграші успішно ініціалізовано");
+            } catch (error) {
+                console.error("❌ Помилка ініціалізації активних розіграшів:", error);
+                // Не критична помилка, продовжуємо ініціалізацію
+            }
 
-        return this;
+            // Ініціалізуємо історію і статистику паралельно,
+            // але не чекаємо на їх завершення для продовження
+            Promise.resolve(this.history.init()).catch(error => {
+                console.error("❌ Помилка ініціалізації історії:", error);
+            });
+
+            Promise.resolve(this.stats.init()).catch(error => {
+                console.error("❌ Помилка ініціалізації статистики:", error);
+            });
+
+            // Ініціалізуємо модуль участі
+            try {
+                await Promise.resolve(this.participation.init());
+                console.log("✅ Raffles Module: Модуль участі успішно ініціалізовано");
+            } catch (error) {
+                console.error("❌ Помилка ініціалізації модуля участі:", error);
+                // Не критична помилка, продовжуємо ініціалізацію
+            }
+
+            // Перевіряємо, чи користувач є адміністратором
+            this._checkAdminAccess();
+
+            // Підписуємося на події
+            this._setupEventListeners();
+
+            // Експортуємо глобальні функції
+            this.exportGlobalFunctions();
+
+            // Встановлюємо прапорець ініціалізації
+            this._initialized = true;
+            this._initializationInProgress = false;
+
+            console.log("✅ Raffles Module: Ініціалізацію завершено");
+
+            return this;
+        } catch (error) {
+            console.error("❌ Критична помилка при ініціалізації модуля розіграшів:", error);
+
+            // Скидаємо прапорець ініціалізації в процесі
+            this._initializationInProgress = false;
+
+            // Якщо кількість спроб менша за максимальну, повторюємо ініціалізацію
+            if (this._initializationAttempts < this._maxInitializationAttempts) {
+                console.log(`🔄 Raffles Module: Повторна спроба ініціалізації (${this._initializationAttempts}/${this._maxInitializationAttempts})...`);
+
+                // Очищаємо попередні стани
+                this.resetAllStates();
+
+                // Чекаємо 3 секунди перед повторною спробою
+                this._initializationTimeout = setTimeout(() => {
+                    this.init(true);
+                }, 3000);
+            } else {
+                console.error("❌ Raffles Module: Досягнуто максимальної кількості спроб ініціалізації");
+
+                // Показуємо повідомлення про помилку
+                this.ui.showToast("Не вдалося ініціалізувати модуль розіграшів", "error");
+
+                // Скидаємо лічильник спроб
+                this._initializationAttempts = 0;
+            }
+
+            return this;
+        }
     }
 
     /**
@@ -101,35 +203,59 @@ class RafflesModule {
      * @param {string} tabName - Назва вкладки для активації
      */
     switchTab(tabName) {
+        if (!tabName) {
+            console.error("Название вкладки не указано");
+            return;
+        }
+
         console.log(`🎮 Raffles: Переключення на вкладку ${tabName}`);
 
-        // Оновлюємо активну вкладку
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabSections = document.querySelectorAll('.tab-content');
+        try {
+            // Оновлюємо активну вкладку
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabSections = document.querySelectorAll('.tab-content');
 
-        // Знімаємо активний стан з усіх вкладок і секцій
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabSections.forEach(section => section.classList.remove('active'));
+            // Знімаємо активний стан з усіх вкладок і секцій
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabSections.forEach(section => section.classList.remove('active'));
 
-        // Додаємо активний стан до вибраної вкладки і секції
-        const activeTabButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
-        const activeTabSection = document.getElementById(`${tabName}-raffles`);
+            // Додаємо активний стан до вибраної вкладки і секції
+            const activeTabButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+            const activeTabSection = document.getElementById(`${tabName}-raffles`);
 
-        if (activeTabButton) activeTabButton.classList.add('active');
-        if (activeTabSection) activeTabSection.classList.add('active');
+            if (activeTabButton) activeTabButton.classList.add('active');
+            if (activeTabSection) activeTabSection.classList.add('active');
 
-        // Емітуємо подію про зміну вкладки
-        WinixRaffles.events.emit('tab-switched', { tab: tabName });
+            // Емітуємо подію про зміну вкладки
+            WinixRaffles.events.emit('tab-switched', { tab: tabName });
 
-        // Викликаємо відповідні функції в залежності від вкладки
-        if (tabName === 'past' || tabName === 'history') {
-            this.history.displayHistory('history-container');
-        } else if (tabName === 'active') {
-            this.activeRaffles.displayRaffles();
-        } else if (tabName === 'stats') {
-            this.stats.displayUserStats('user-stats-container');
-        } else if (tabName === 'admin' && this._isAdmin) {
-            this.admin.displayRafflesList();
+            // Викликаємо відповідні функції в залежності від вкладки
+            if (tabName === 'past' || tabName === 'history') {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    this.ui.showToast("Історія недоступна без підключення до Інтернету", "warning");
+                } else {
+                    this.history.displayHistory('history-container');
+                }
+            } else if (tabName === 'active') {
+                this.activeRaffles.displayRaffles();
+            } else if (tabName === 'stats') {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    this.ui.showToast("Статистика недоступна без підключення до Інтернету", "warning");
+                } else {
+                    this.stats.displayUserStats('user-stats-container');
+                }
+            } else if (tabName === 'admin' && this._isAdmin) {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    this.ui.showToast("Адмін-панель недоступна без підключення до Інтернету", "warning");
+                } else {
+                    this.admin.displayRafflesList();
+                }
+            }
+        } catch (error) {
+            console.error("Помилка при переключенні вкладок:", error);
         }
     }
 
@@ -164,13 +290,18 @@ class RafflesModule {
      * @private
      */
     _initTabSwitching() {
+        // Очищаємо попередні обробники, щоб уникнути дублювання
+        this._removeEventListeners();
+
         // Обробники подій для перемикання вкладок
         const tabButtons = document.querySelectorAll('.tab-button');
         if (tabButtons.length > 0) {
             tabButtons.forEach(button => {
                 const clickHandler = () => {
                     const tabName = button.getAttribute('data-tab');
-                    this.switchTab(tabName);
+                    if (tabName) {
+                        this.switchTab(tabName);
+                    }
                 };
 
                 button.addEventListener('click', clickHandler);
@@ -192,7 +323,7 @@ class RafflesModule {
     _setupEventListeners() {
         // Обробник ініціалізації сервісу
         const initHandler = () => {
-            if (!this._initialized) {
+            if (!this._initialized && !this._initializationInProgress) {
                 this.init();
             }
         };
@@ -225,6 +356,34 @@ class RafflesModule {
             event: 'user-data-updated',
             handler: userDataHandler
         });
+
+        // Обробники подій онлайн/офлайн
+        const onlineHandler = () => {
+            console.log("🎮 Raffles Module: З'єднання з мережею відновлено");
+
+            // Оновлюємо активні дані
+            const activeTab = document.querySelector('.tab-button.active');
+            if (activeTab) {
+                const tabName = activeTab.getAttribute('data-tab');
+                if (tabName) {
+                    this.switchTab(tabName);
+                }
+            }
+        };
+
+        const offlineHandler = () => {
+            console.warn("🎮 Raffles Module: З'єднання з мережею втрачено");
+            this.ui.showToast("З'єднання з мережею втрачено. Деякі функції можуть бути недоступні.", "warning");
+        };
+
+        window.addEventListener('online', onlineHandler);
+        window.addEventListener('offline', offlineHandler);
+
+        // Зберігаємо обробники
+        this._eventListeners.push(
+            { element: window, event: 'online', handler: onlineHandler },
+            { element: window, event: 'offline', handler: offlineHandler }
+        );
     }
 
     /**
@@ -251,6 +410,12 @@ class RafflesModule {
 
         // Додаємо функції для глобального використання
         window.openRaffleDetails = (raffleId, raffleType) => {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                this.ui.showToast("Деталі розіграшу недоступні без підключення до Інтернету", "warning");
+                return;
+            }
+
             WinixRaffles.events.emit('open-raffle-details', { raffleId, raffleType });
         };
 
@@ -262,7 +427,8 @@ class RafflesModule {
         window.rafflesFunctions = {
             switchTab: this.switchTab.bind(this),
             loadRaffleHistory: this.history.displayHistory.bind(this.history),
-            resetAllStates: this.resetAllStates.bind(this)
+            resetAllStates: this.resetAllStates.bind(this),
+            isOnline: isOnline
         };
 
         return this;
@@ -273,14 +439,30 @@ class RafflesModule {
      */
     resetAllStates() {
         // Скидання станів у всіх модулях
-        this.activeRaffles.resetAllStates();
+        try {
+            if (this.activeRaffles && typeof this.activeRaffles.resetAllStates === 'function') {
+                this.activeRaffles.resetAllStates();
+            }
+        } catch (e) {
+            console.error("Помилка скидання стану активних розіграшів:", e);
+        }
 
-        if (this.history && typeof this.history.resetRequestState === 'function') {
-            this.history.resetRequestState();
+        try {
+            if (this.history && typeof this.history.resetRequestState === 'function') {
+                this.history.resetRequestState();
+            }
+        } catch (e) {
+            console.error("Помилка скидання стану історії:", e);
         }
 
         // Закриття всіх модальних вікон
-        this.modals.closeAllModals();
+        try {
+            if (this.modals && typeof this.modals.closeAllModals === 'function') {
+                this.modals.closeAllModals();
+            }
+        } catch (e) {
+            console.error("Помилка закриття модальних вікон:", e);
+        }
 
         // Приховування лоадерів
         WinixRaffles.loader.hideAll();
@@ -301,36 +483,38 @@ class RafflesModule {
         // Скидаємо всі стани
         this.resetAllStates();
 
+        // Очищаємо таймаути
+        if (this._initializationTimeout) {
+            clearTimeout(this._initializationTimeout);
+            this._initializationTimeout = null;
+        }
+
         // Видаляємо обробники подій
         this._removeEventListeners();
 
         // Знищуємо підмодулі
-        if (this.activeRaffles && typeof this.activeRaffles.destroy === 'function') {
-            this.activeRaffles.destroy();
-        }
+        const destroyModule = (module, name) => {
+            try {
+                if (module && typeof module.destroy === 'function') {
+                    module.destroy();
+                    console.log(`🚫 Raffles Module: Модуль ${name} успішно знищено`);
+                }
+            } catch (e) {
+                console.error(`Помилка знищення модуля ${name}:`, e);
+            }
+        };
 
-        if (this.history && typeof this.history.destroy === 'function') {
-            this.history.destroy();
-        }
-
-        if (this.stats && typeof this.stats.destroy === 'function') {
-            this.stats.destroy();
-        }
-
-        if (this.modals && typeof this.modals.destroy === 'function') {
-            this.modals.destroy();
-        }
-
-        if (this.participation && typeof this.participation.destroy === 'function') {
-            this.participation.destroy();
-        }
-
-        if (this.admin && typeof this.admin.destroy === 'function') {
-            this.admin.destroy();
-        }
+        destroyModule(this.activeRaffles, 'активних розіграшів');
+        destroyModule(this.history, 'історії');
+        destroyModule(this.stats, 'статистики');
+        destroyModule(this.modals, 'модальних вікон');
+        destroyModule(this.participation, 'участі');
+        destroyModule(this.admin, 'адміністрування');
 
         // Скидаємо прапорець ініціалізації
         this._initialized = false;
+        this._initializationInProgress = false;
+        this._initializationAttempts = 0;
 
         console.log("✅ Raffles Module: Модулі успішно знищено");
 
@@ -347,11 +531,18 @@ export default rafflesModule;
 // Автоматична ініціалізація при завантаженні
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        rafflesModule.init();
+        // Додаємо затримку для гарантованого завантаження інших модулів
+        setTimeout(() => {
+            rafflesModule.init().catch(e => {
+                console.error("Помилка ініціалізації модуля розіграшів:", e);
+            });
+        }, 500);
     });
 } else {
     // У випадку, якщо DOM вже завантажено
     setTimeout(() => {
-        rafflesModule.init();
-    }, 100);
+        rafflesModule.init().catch(e => {
+            console.error("Помилка ініціалізації модуля розіграшів:", e);
+        });
+    }, 500);
 }

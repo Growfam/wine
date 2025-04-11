@@ -22,6 +22,15 @@ let _lastRafflesUpdateTime = 0;
 const RAFFLES_CACHE_TTL = 60000; // 1 хвилина
 let _loadingTimeoutId = null;
 let _timerIntervals = [];
+let _requestId = 0; // Унікальний ідентифікатор запиту
+
+/**
+ * Перевірка, чи пристрій онлайн
+ * @returns {boolean} Стан підключення
+ */
+function isOnline() {
+    return typeof navigator.onLine === 'undefined' || navigator.onLine;
+}
 
 /**
  * Модуль активних розіграшів
@@ -50,6 +59,13 @@ class ActiveRaffles {
                 });
             }
 
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                console.warn("🎮 Активні розіграші: Пристрій офлайн, пропускаємо початковий запит");
+                this.displayOfflineData();
+                return;
+            }
+
             // Отримуємо дані активних розіграшів
             this.getActiveRaffles().then(() => {
                 // Відображаємо активні розіграші
@@ -58,6 +74,8 @@ class ActiveRaffles {
                 console.error("Помилка при отриманні активних розіграшів:", error);
                 // Скидаємо всі стани у випадку помилки
                 this.resetAllStates();
+                // Показуємо дані в офлайн режимі або помилку
+                this.displayOfflineData();
             });
 
             // Налаштовуємо кнопки участі для розіграшів
@@ -70,6 +88,64 @@ class ActiveRaffles {
         } catch (error) {
             console.error("❌ Критична помилка при ініціалізації модуля активних розіграшів:", error);
             this.resetAllStates();
+            this.displayOfflineData();
+        }
+    }
+
+    /**
+     * Відображення даних в офлайн режимі або при помилці
+     */
+    displayOfflineData() {
+        try {
+            // Отримуємо контейнери для розіграшів
+            const mainRaffleContainer = document.querySelector('.main-raffle');
+            const miniRafflesContainer = document.querySelector('.mini-raffles-container');
+
+            if (!mainRaffleContainer && !miniRafflesContainer) {
+                console.error("❌ Raffles: Не знайдено контейнери для розіграшів");
+                return;
+            }
+
+            // Завантажуємо локальні дані, якщо є
+            const cachedRaffles = localStorage.getItem('winix_active_raffles');
+            if (cachedRaffles) {
+                try {
+                    const parsedRaffles = JSON.parse(cachedRaffles);
+                    if (Array.isArray(parsedRaffles) && parsedRaffles.length > 0) {
+                        console.log("📋 Raffles: Використання кешованих даних розіграшів з localStorage");
+                        _activeRaffles = parsedRaffles;
+                        this.displayRaffles(parsedRaffles);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Raffles: Помилка парсингу кешованих даних:", e);
+                }
+            }
+
+            // Якщо немає кешованих даних, показуємо повідомлення
+            if (mainRaffleContainer) {
+                let statusMessage = !isOnline()
+                    ? "Немає з'єднання з Інтернетом. Перевірте підключення та спробуйте знову."
+                    : "Не вдалося завантажити розіграші. Спробуйте оновити сторінку.";
+
+                mainRaffleContainer.innerHTML = `
+                    <div class="empty-raffles">
+                        <div class="empty-raffles-icon">⚠️</div>
+                        <h3>Дані недоступні</h3>
+                        <p>${statusMessage}</p>
+                        <button class="join-raffle-btn" onclick="location.reload()">Оновити сторінку</button>
+                    </div>
+                `;
+            }
+
+            // Очищаємо контейнер міні-розіграшів
+            if (miniRafflesContainer) {
+                miniRafflesContainer.innerHTML = '';
+                // Додаємо елемент для бонусу новачка
+                this._addNewbieBonusElement(miniRafflesContainer);
+            }
+        } catch (error) {
+            console.error("❌ Критична помилка відображення офлайн даних:", error);
         }
     }
 
@@ -80,6 +156,28 @@ class ActiveRaffles {
      */
     async getActiveRaffles(forceRefresh = false) {
         try {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline() && !forceRefresh) {
+                console.warn("🎮 Активні розіграші: Пристрій офлайн, повертаємо кешовані дані");
+
+                // Завантажуємо з локального сховища
+                const cachedRaffles = localStorage.getItem('winix_active_raffles');
+                if (cachedRaffles) {
+                    try {
+                        const parsedRaffles = JSON.parse(cachedRaffles);
+                        if (Array.isArray(parsedRaffles)) {
+                            _activeRaffles = parsedRaffles;
+                            return _activeRaffles;
+                        }
+                    } catch (e) {
+                        console.warn("⚠️ Raffles: Помилка парсингу кешованих даних:", e);
+                    }
+                }
+
+                // Якщо немає кешованих даних, повертаємо поточні або порожній масив
+                return _activeRaffles || [];
+            }
+
             // Перевіряємо кеш
             const now = Date.now();
             if (!forceRefresh && _activeRaffles && (now - _lastRafflesUpdateTime < RAFFLES_CACHE_TTL)) {
@@ -104,6 +202,7 @@ class ActiveRaffles {
 
             _isLoading = true;
             _lastRafflesUpdateTime = now;
+            const currentRequestId = ++_requestId;
 
             // Встановлюємо таймаут для автоматичного скидання
             if (_loadingTimeoutId) {
@@ -114,7 +213,7 @@ class ActiveRaffles {
                     console.warn("⚠️ Raffles: Завантаження розіграшів триває занадто довго, скидаємо стан");
                     _isLoading = false;
                 }
-            }, 30000); // 30 секунд
+            }, 20000); // 20 секунд
 
             // Використовуємо централізоване управління лоадером
             showLoading('Завантаження розіграшів...', 'active-raffles');
@@ -125,6 +224,13 @@ class ActiveRaffles {
                 suppressErrors: true,
                 forceCleanup: forceRefresh
             });
+
+            // Перевіряємо, чи це актуальний запит
+            if (currentRequestId !== _requestId) {
+                console.warn("⚠️ Raffles: Отримано відповідь для застарілого запиту, ігноруємо");
+                hideLoading('active-raffles');
+                return _activeRaffles || [];
+            }
 
             // ЗАВЖДИ приховуємо лоадер і скидаємо прапорець
             hideLoading('active-raffles');
@@ -139,6 +245,13 @@ class ActiveRaffles {
             if (response && response.status === 'success') {
                 _activeRaffles = Array.isArray(response.data) ? response.data : [];
                 _lastRafflesUpdateTime = now;
+
+                // Зберігаємо дані в localStorage для offline доступу
+                try {
+                    localStorage.setItem('winix_active_raffles', JSON.stringify(_activeRaffles));
+                } catch (e) {
+                    console.warn("⚠️ Raffles: Помилка збереження даних в localStorage:", e);
+                }
 
                 console.log(`✅ Raffles: Отримано ${_activeRaffles.length} активних розіграшів`);
 
@@ -186,15 +299,31 @@ class ActiveRaffles {
                 });
             }
 
-            // Повертаємо кешовані дані у випадку помилки
+            // Завантажуємо з локального сховища у випадку помилки
+            const cachedRaffles = localStorage.getItem('winix_active_raffles');
+            if (cachedRaffles) {
+                try {
+                    const parsedRaffles = JSON.parse(cachedRaffles);
+                    if (Array.isArray(parsedRaffles)) {
+                        console.warn("📋 Raffles: Використання даних з localStorage після помилки");
+                        _activeRaffles = parsedRaffles;
+                        return _activeRaffles;
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Raffles: Помилка парсингу кешованих даних:", e);
+                }
+            }
+
+            // Повертаємо кешовані дані або порожній масив у випадку помилки
             return _activeRaffles || [];
         }
     }
 
     /**
      * Відображення активних розіграшів
+     * @param {Array} forcedRaffles - Примусовий список розіграшів для відображення
      */
-    async displayRaffles() {
+    async displayRaffles(forcedRaffles = null) {
         console.log("🎮 Raffles: Відображення активних розіграшів");
 
         // Отримуємо контейнери для розіграшів
@@ -210,8 +339,8 @@ class ActiveRaffles {
         showLoading('Завантаження розіграшів...', 'active-raffles-display');
 
         try {
-            // Отримуємо активні розіграші
-            const raffles = await this.getActiveRaffles(true);
+            // Отримуємо активні розіграші (або використовуємо вже надані)
+            const raffles = forcedRaffles || await this.getActiveRaffles(!isOnline());
 
             // Приховуємо індикатор завантаження
             hideLoading('active-raffles-display');
@@ -299,11 +428,15 @@ class ActiveRaffles {
             showToast('Не вдалося завантажити розіграші. Спробуйте пізніше.', 'error');
 
             if (mainRaffleContainer) {
+                let errorMessage = !isOnline()
+                    ? "Немає з'єднання з Інтернетом. Перевірте підключення."
+                    : "Сталася помилка при спробі завантажити розіграші.";
+
                 mainRaffleContainer.innerHTML = `
                     <div class="empty-raffles">
                         <div class="empty-raffles-icon">❌</div>
                         <h3>Помилка завантаження</h3>
-                        <p>Сталася помилка при спробі завантажити розіграші. Спробуйте оновити сторінку.</p>
+                        <p>${errorMessage} Спробуйте оновити сторінку.</p>
                         <button class="join-raffle-btn" onclick="location.reload()">Оновити сторінку</button>
                     </div>
                 `;
@@ -359,8 +492,13 @@ class ActiveRaffles {
                     WinixRaffles.events.emit('history-tab-requested', {});
                 }
             } else if (tabName === 'active') {
-                // Оновлюємо активні розіграші
-                this.displayRaffles();
+                // Оновлюємо активні розіграші, якщо ми онлайн
+                if (isOnline()) {
+                    this.displayRaffles();
+                } else {
+                    // В офлайн режимі показуємо кешовані дані
+                    this.displayOfflineData();
+                }
             }
         } catch (error) {
             console.error("Помилка при переключенні вкладок:", error);
@@ -426,14 +564,34 @@ class ActiveRaffles {
             if (WinixRaffles && WinixRaffles.events) {
                 WinixRaffles.events.on('raffle-participated', (data) => {
                     console.log('Отримано подію участі в розіграші:', data);
-                    // Оновлюємо дані після успішної участі
+                    // Оновлюємо дані після успішної участі, якщо ми онлайн
+                    if (isOnline()) {
+                        this.getActiveRaffles(true).then(() => {
+                            this.displayRaffles();
+                        }).catch(error => {
+                            console.error("Помилка оновлення даних після участі:", error);
+                        });
+                    }
+                });
+            }
+
+            // Обробник події зміни стану мережі
+            window.addEventListener('online', () => {
+                console.log("🔄 Raffles: З'єднання з мережею відновлено");
+
+                // Оновлюємо дані після відновлення з'єднання
+                setTimeout(() => {
                     this.getActiveRaffles(true).then(() => {
                         this.displayRaffles();
                     }).catch(error => {
-                        console.error("Помилка оновлення даних після участі:", error);
+                        console.error("Помилка оновлення даних після відновлення з'єднання:", error);
                     });
-                });
-            }
+                }, 1000);
+            });
+
+            window.addEventListener('offline', () => {
+                console.warn("⚠️ Raffles: З'єднання з мережею втрачено");
+            });
         } catch (error) {
             console.error("Помилка встановлення обробників подій:", error);
         }
@@ -444,8 +602,18 @@ class ActiveRaffles {
      * @private
      */
     _removeEventListeners() {
-        // Тут можна відписатися від подій, якщо це необхідно
-        // Наразі цей метод є заглушкою для майбутньої реалізації
+        try {
+            // Видаляємо обробники подій мережі
+            window.removeEventListener('online', () => {});
+            window.removeEventListener('offline', () => {});
+
+            // Якщо є власні обробники подій WinixRaffles, відписуємося від них
+            if (WinixRaffles && WinixRaffles.events) {
+                WinixRaffles.events.off('raffle-participated', () => {});
+            }
+        } catch (error) {
+            console.error("Помилка видалення обробників подій:", error);
+        }
     }
 
     /**
@@ -495,7 +663,7 @@ class ActiveRaffles {
 
             // Створюємо HTML для основного розіграшу
             container.innerHTML = `
-                <img class="main-raffle-image" src="${raffle.image_url || '/assets/prize-poster.gif'}" alt="${title}">
+                <img class="main-raffle-image" src="${raffle.image_url || '/assets/prize-poster.gif'}" alt="${title}" onerror="this.src='/assets/prize-poster.gif'">
                 <div class="main-raffle-content">
                     <div class="main-raffle-header">
                         <h3 class="main-raffle-title">${title}</h3>
@@ -558,6 +726,12 @@ class ActiveRaffles {
                     }
 
                     const raffleType = joinButton.getAttribute('data-raffle-type') || 'main';
+
+                    // Перевіряємо, чи ми онлайн
+                    if (!isOnline()) {
+                        showToast("Неможливо взяти участь без підключення до Інтернету", "error");
+                        return;
+                    }
 
                     // Генеруємо подію для відкриття деталей розіграшу
                     if (WinixRaffles && WinixRaffles.events) {
@@ -684,6 +858,12 @@ class ActiveRaffles {
 
                     const raffleType = button.getAttribute('data-raffle-type') || 'daily';
 
+                    // Перевіряємо, чи ми онлайн
+                    if (!isOnline()) {
+                        showToast("Неможливо взяти участь без підключення до Інтернету", "error");
+                        return;
+                    }
+
                     // Генеруємо подію для відкриття деталей розіграшу
                     if (WinixRaffles && WinixRaffles.events) {
                         WinixRaffles.events.emit('open-raffle-details', {
@@ -735,6 +915,12 @@ class ActiveRaffles {
                         event.stopPropagation();
                     }
 
+                    // Перевіряємо, чи ми онлайн
+                    if (!isOnline()) {
+                        showToast("Неможливо отримати бонус без підключення до Інтернету", "error");
+                        return;
+                    }
+
                     // Генеруємо подію для отримання бонусу новачка
                     if (WinixRaffles && WinixRaffles.events) {
                         WinixRaffles.events.emit('claim-newbie-bonus', {
@@ -749,6 +935,20 @@ class ActiveRaffles {
 
             // Перевіряємо, чи вже отримано бонус
             try {
+                const newbieBonusClaimed = localStorage.getItem('newbie_bonus_claimed') === 'true';
+
+                if (newbieBonusClaimed) {
+                    // Деактивуємо кнопку
+                    if (button) {
+                        button.textContent = 'Отримано';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'default';
+                    }
+
+                    return;
+                }
+
                 if (api && typeof api.getUserData === 'function') {
                     api.getUserData()
                         .then(userData => {
@@ -761,10 +961,8 @@ class ActiveRaffles {
                                     button.style.cursor = 'default';
                                 }
 
-                                // Додаємо водяний знак
-                                if (WinixRaffles && WinixRaffles.utils && typeof WinixRaffles.utils.markElement === 'function') {
-                                    WinixRaffles.utils.markElement(newbieBonus);
-                                }
+                                // Зберігаємо статус в localStorage
+                                localStorage.setItem('newbie_bonus_claimed', 'true');
                             }
                         })
                         .catch(err => {
@@ -846,12 +1044,14 @@ class ActiveRaffles {
                                 hoursElement.textContent = '00';
                                 minutesElement.textContent = '00';
 
-                                // Розіграш завершено, оновлюємо дані
-                                this.getActiveRaffles(true).then(() => {
-                                    this.displayRaffles();
-                                }).catch(err => {
-                                    console.error("Помилка оновлення після завершення таймера:", err);
-                                });
+                                // Розіграш завершено, оновлюємо дані тільки якщо ми онлайн
+                                if (isOnline()) {
+                                    this.getActiveRaffles(true).then(() => {
+                                        this.displayRaffles();
+                                    }).catch(err => {
+                                        console.error("Помилка оновлення після завершення таймера:", err);
+                                    });
+                                }
                             }
                         } else {
                             daysElement.textContent = '00';
@@ -905,12 +1105,14 @@ class ActiveRaffles {
                                     } else {
                                         timeElement.textContent = 'Завершується';
 
-                                        // Розіграш завершено, оновлюємо дані
-                                        this.getActiveRaffles(true).then(() => {
-                                            this.displayRaffles();
-                                        }).catch(err => {
-                                            console.error("Помилка оновлення після завершення таймера міні-розіграшу:", err);
-                                        });
+                                        // Розіграш завершено, оновлюємо дані тільки якщо ми онлайн
+                                        if (isOnline()) {
+                                            this.getActiveRaffles(true).then(() => {
+                                                this.displayRaffles();
+                                            }).catch(err => {
+                                                console.error("Помилка оновлення після завершення таймера міні-розіграшу:", err);
+                                            });
+                                        }
                                     }
                                 } else {
                                     timeElement.textContent = 'Час не визначено';

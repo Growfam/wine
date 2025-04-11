@@ -20,9 +20,20 @@ let _historyCache = {
     ttl: 300000 // 5 хвилин
 };
 let _raffleDetailsCache = {};
+let _requestId = 0; // Унікальний ідентифікатор запиту
 
-const RETRY_DELAYS = [2000, 5000, 10000, 15000];
-const MIN_REQUEST_INTERVAL = 15000;
+// Константи
+const RETRY_DELAYS = [2000, 5000, 10000]; // Зменшена кількість повторних спроб
+const MIN_REQUEST_INTERVAL = 15000; // Збільшено інтервал між запитами
+const MAX_RETRIES = 2; // Максимальна кількість повторних спроб
+
+/**
+ * Перевірка, чи пристрій онлайн
+ * @returns {boolean} Стан підключення
+ */
+function isOnline() {
+    return typeof navigator.onLine === 'undefined' || navigator.onLine;
+}
 
 /**
  * Клас для роботи з історією розіграшів
@@ -50,7 +61,47 @@ class HistoryModule {
             historyContainer.parentNode.insertBefore(exportButton, historyContainer);
         }
 
+        // Відновлюємо кешовані дані, якщо вони є
+        this._loadCachedHistory();
+
         console.log("✅ Історія розіграшів: Ініціалізацію завершено");
+    }
+
+    /**
+     * Завантаження кешованих даних історії з localStorage
+     * @private
+     */
+    _loadCachedHistory() {
+        try {
+            const cachedHistory = localStorage.getItem('winix_raffles_history');
+            if (cachedHistory) {
+                const parsedHistory = JSON.parse(cachedHistory);
+                if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+                    _historyData = parsedHistory;
+                    _historyCache.data = parsedHistory;
+                    _historyCache.timestamp = Date.now();
+                    console.log(`📋 Історія розіграшів: Відновлено ${parsedHistory.length} записів з localStorage`);
+                }
+            }
+        } catch (e) {
+            console.warn("⚠️ Історія розіграшів: Помилка завантаження кешу:", e);
+        }
+    }
+
+    /**
+     * Збереження даних історії в localStorage
+     * @param {Array} data - Дані для збереження
+     * @private
+     */
+    _saveHistoryToCache(data) {
+        if (!Array.isArray(data)) return;
+
+        try {
+            localStorage.setItem('winix_raffles_history', JSON.stringify(data));
+            console.log(`📋 Історія розіграшів: Збережено ${data.length} записів в localStorage`);
+        } catch (e) {
+            console.warn("⚠️ Історія розіграшів: Помилка збереження в localStorage:", e);
+        }
     }
 
     /**
@@ -68,6 +119,19 @@ class HistoryModule {
             const containerId = data && data.containerId ? data.containerId : 'history-container';
             this.displayHistory(containerId, true);
         });
+
+        // Обробники подій мережі
+        window.addEventListener('online', () => {
+            console.log("🔄 Історія розіграшів: З'єднання з мережею відновлено");
+            // Очищуємо стан запитів на випадок, якщо запит був активний при відключенні
+            this.resetRequestState();
+        });
+
+        window.addEventListener('offline', () => {
+            console.warn("⚠️ Історія розіграшів: З'єднання з мережею втрачено");
+            // При втраті з'єднання переривати поточні запити
+            this.resetRequestState();
+        });
     }
 
     /**
@@ -80,15 +144,33 @@ class HistoryModule {
         try {
             const now = Date.now();
 
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline() && !forceRefresh) {
+                console.warn("📋 Історія розіграшів: Пристрій офлайн, використовуємо кешовані дані");
+
+                // Якщо є кешовані дані, повертаємо їх
+                if (_historyCache.data && Array.isArray(_historyCache.data)) {
+                    return _historyCache.data;
+                }
+
+                // Якщо є дані, які зберегли раніше
+                if (_historyData && _historyData.length > 0) {
+                    return _historyData;
+                }
+
+                // Повертаємо порожній масив, якщо немає даних
+                return [];
+            }
+
             // Перевіряємо кеш, якщо не вимагається примусове оновлення
             if (!forceRefresh && _historyCache.data && now - _historyCache.timestamp < _historyCache.ttl) {
-                console.log("📋 Raffle History: Використовуємо кешовані дані");
+                console.log("📋 Історія розіграшів: Використовуємо кешовані дані");
                 return Promise.resolve(_historyCache.data);
             }
 
             // Автоматичне очищення прапорця, якщо запит тривав занадто довго
             if (_requestInProgress && now - _lastRequestTime > 30000) {
-                console.warn("⚠️ Raffle History: Виявлено зависаючий запит, очищаємо стан");
+                console.warn("⚠️ Історія розіграшів: Виявлено зависаючий запит, очищаємо стан");
                 _requestInProgress = false;
                 if (_requestTimeoutId) {
                     clearTimeout(_requestTimeoutId);
@@ -98,7 +180,7 @@ class HistoryModule {
 
             // Перевіряємо, чи запит вже в процесі
             if (_requestInProgress) {
-                console.log("⏳ Raffle History: Запит уже виконується, використовуємо кеш");
+                console.log("⏳ Історія розіграшів: Запит уже виконується, використовуємо кеш");
                 // Якщо кеш є - повертаємо його
                 if (_historyCache.data) {
                     return Promise.resolve(_historyCache.data);
@@ -109,14 +191,15 @@ class HistoryModule {
 
             // Перевіряємо інтервал між запитами
             const timeSinceLastRequest = now - _lastRequestTime;
-            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _historyData.length > 0) {
-                console.log(`⏳ Raffle History: Занадто частий запит, минуло ${Math.floor(timeSinceLastRequest/1000)}с`);
+            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _historyData.length > 0 && !forceRefresh) {
+                console.log(`⏳ Історія розіграшів: Занадто частий запит, минуло ${Math.floor(timeSinceLastRequest/1000)}с`);
                 return Promise.resolve(_historyData);
             }
 
             _isLoading = true;
             _requestInProgress = true;
             _lastRequestTime = now;
+            const currentRequestId = ++_requestId;
 
             // Встановлюємо таймаут для автоматичного скидання прапорця
             if (_requestTimeoutId) {
@@ -124,11 +207,11 @@ class HistoryModule {
             }
             _requestTimeoutId = setTimeout(() => {
                 if (_requestInProgress) {
-                    console.warn("⚠️ Raffle History: Запит виконується занадто довго, скидаємо прапорець");
+                    console.warn("⚠️ Історія розіграшів: Запит виконується занадто довго, скидаємо прапорець");
                     _requestInProgress = false;
                     _isLoading = false;
                 }
-            }, 30000); // 30 секунд максимальний час виконання запиту
+            }, 20000); // 20 секунд максимальний час виконання запиту
 
             // Використовуємо централізований лоадер
             showLoading('Завантаження історії розіграшів...', 'history-request');
@@ -153,10 +236,10 @@ class HistoryModule {
 
             // Додаємо параметри до URL, якщо вони є
             const url = queryParams
-                ? `/api/user/${userId}/raffles-history?${queryParams.substring(1)}`
-                : `/api/user/${userId}/raffles-history`;
+                ? `user/${userId}/raffles-history?${queryParams.substring(1)}`
+                : `user/${userId}/raffles-history`;
 
-            // Покращені параметри запиту з реалізацією повторних спроб
+            // Покращені параметри запиту
             const response = await api.apiRequest(url, 'GET', null, {
                 timeout: 15000,
                 allowParallel: false,
@@ -164,6 +247,13 @@ class HistoryModule {
                 hideLoader: true, // Вже використовуємо власний лоадер
                 forceCleanup: _failedAttempts > 0
             });
+
+            // Перевіряємо, чи це актуальний запит
+            if (currentRequestId !== _requestId) {
+                console.warn("⚠️ Історія розіграшів: Отримано відповідь для застарілого запиту, ігноруємо");
+                hideLoading('history-request');
+                return _historyData || [];
+            }
 
             // ЗАВЖДИ скидаємо прапорці після завершення запиту
             hideLoading('history-request');
@@ -193,7 +283,7 @@ class HistoryModule {
                 }
 
                 _historyData = response.data;
-                console.log(`✅ Raffle History: Отримано ${_historyData.length} записів історії`);
+                console.log(`✅ Історія розіграшів: Отримано ${_historyData.length} записів історії`);
 
                 // Оновлюємо кеш
                 _historyCache = {
@@ -201,6 +291,9 @@ class HistoryModule {
                     timestamp: now,
                     ttl: _historyCache.ttl
                 };
+
+                // Зберігаємо в localStorage для офлайн доступу
+                this._saveHistoryToCache(_historyData);
 
                 // Емітуємо подію про оновлення історії
                 WinixRaffles.events.emit('history-updated', {
@@ -213,7 +306,7 @@ class HistoryModule {
                 // Якщо статус не успіх, але є дані - перевіряємо джерело
                 if (response && response.source && response.source.includes('fallback')) {
                     // Це спеціальний випадок фолбека в API
-                    console.warn(`Raffle History: Отримано фолбек-відповідь: ${response.source}`);
+                    console.warn(`Історія розіграшів: Отримано фолбек-відповідь: ${response.source}`);
 
                     if (Array.isArray(response.data)) {
                         _historyData = response.data;
@@ -223,6 +316,10 @@ class HistoryModule {
                             timestamp: now,
                             ttl: 60000 // Коротший TTL для фолбеку
                         };
+
+                        // Зберігаємо в localStorage для офлайн доступу
+                        this._saveHistoryToCache(_historyData);
+
                         return _historyData;
                     }
                 }
@@ -246,37 +343,27 @@ class HistoryModule {
                 _requestTimeoutId = null;
             }
 
-            // Для серверної помилки 500 або 404, спробуємо повернути порожній масив
-            if (error.status === 500 || error.status === 404 ||
-                error.source === 'parallel' || error.message.includes('already') ||
-                error.message.includes('таймаут')) {
-                console.warn("⚠️ Raffle History: Отримана помилка. Повертаємо порожній масив");
+            // Не показуємо помилку при першій спробі
+            if (_failedAttempts > 1) {
+                showToast('Не вдалося завантажити історію розіграшів. Спробуйте пізніше.', 'error');
+            }
 
-                // Не показуємо повідомлення про помилку при першій спробі
-                if (_failedAttempts > 1) {
-                    showToast('Не вдалося завантажити історію розіграшів. Спробуйте пізніше.', 'error');
-                }
-
-                // Використовуємо існуючі дані, якщо є
-                if (_historyData.length > 0) {
-                    return _historyData;
-                }
-
-                // Перевіряємо кеш
-                if (_historyCache.data) {
-                    console.log("📋 Raffle History: Використовуємо кешовані дані після помилки");
-                    return _historyCache.data;
-                }
-
-                // Повертаємо порожній масив як останній варіант
-                _historyData = [];
+            // Для серверної помилки або помилки паралельного запиту, повертаємо кешовані дані
+            if (_historyData.length > 0) {
                 return _historyData;
             }
 
-            // Для інших помилок спробуємо повторити запит з затримкою
-            if (_failedAttempts <= RETRY_DELAYS.length) {
-                const retryDelay = RETRY_DELAYS[_failedAttempts - 1];
-                console.log(`🔄 Raffle History: Спроба повторного запиту через ${retryDelay/1000}с`);
+            // Перевіряємо кеш
+            if (_historyCache.data) {
+                console.log("📋 Історія розіграшів: Використовуємо кешовані дані після помилки");
+                return _historyCache.data;
+            }
+
+            // Якщо немає даних навіть у кеші, тоді перевіряємо, чи слід повторити спробу
+            if (_failedAttempts <= MAX_RETRIES) {
+                const retryIndex = Math.min(_failedAttempts - 1, RETRY_DELAYS.length - 1);
+                const retryDelay = RETRY_DELAYS[retryIndex];
+                console.log(`🔄 Історія розіграшів: Спроба повторного запиту через ${retryDelay/1000}с`);
 
                 // Повертаємо проміс з таймаутом і повторним запитом
                 return new Promise(resolve => {
@@ -290,11 +377,8 @@ class HistoryModule {
                 });
             }
 
-            // Якщо всі спроби невдалі, показуємо помилку і повертаємо порожній масив
-            showToast('Не вдалося завантажити історію розіграшів', 'error');
-            // Гарантуємо, що повертаємо масив при помилці
-            _historyData = [];
-            return _historyData;
+            // Якщо всі спроби невдалі, повертаємо порожній масив
+            return [];
         }
     }
 
@@ -309,16 +393,41 @@ class HistoryModule {
                 throw new Error('ID розіграшу не вказано');
             }
 
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                console.warn("📋 Історія розіграшів: Пристрій офлайн, використовуємо кешовані деталі");
+
+                // Перевіряємо кеш деталей
+                if (_raffleDetailsCache[raffleId]) {
+                    return _raffleDetailsCache[raffleId];
+                }
+
+                // Перевіряємо спочатку локальні дані
+                const localRaffleData = _historyData.find(item => item && item.raffle_id === raffleId);
+                if (localRaffleData) {
+                    return localRaffleData;
+                }
+
+                // Якщо даних немає, повертаємо базову структуру
+                return {
+                    raffle_id: raffleId,
+                    title: "Дані недоступні",
+                    winners: [],
+                    status: "unknown",
+                    source: "offline_fallback"
+                };
+            }
+
             // Перевіряємо кеш деталей
             if (_raffleDetailsCache[raffleId]) {
-                console.log(`📋 Raffle History: Використання кешованих деталей для розіграшу ${raffleId}`);
+                console.log(`📋 Історія розіграшів: Використання кешованих деталей для розіграшу ${raffleId}`);
                 return _raffleDetailsCache[raffleId];
             }
 
             // Перевіряємо спочатку локальні дані
             const localRaffleData = _historyData.find(item => item && item.raffle_id === raffleId);
             if (localRaffleData && localRaffleData.winners) {
-                console.log("📋 Raffle History: Використання локальних даних для деталей розіграшу");
+                console.log("📋 Історія розіграшів: Використання локальних даних для деталей розіграшу");
 
                 // Кешуємо результат
                 _raffleDetailsCache[raffleId] = localRaffleData;
@@ -344,7 +453,7 @@ class HistoryModule {
             try {
                 // Виправлений URL шлях
                 const response = await api.apiRequest(
-                    `/api/user/${userId}/raffles-history/${raffleId}`,
+                    `user/${userId}/raffles-history/${raffleId}`,
                     'GET',
                     null,
                     {
@@ -379,6 +488,9 @@ class HistoryModule {
                         if (_historyCache.data) {
                             _historyCache.data = updatedHistoryData;
                         }
+
+                        // Зберігаємо в localStorage
+                        this._saveHistoryToCache(_historyData);
                     }
 
                     // Емітуємо подію про отримання деталей розіграшу
@@ -396,7 +508,7 @@ class HistoryModule {
 
                 // Якщо є локальні дані - повертаємо їх
                 if (localRaffleData) {
-                    console.log("📋 Raffle History: Повертаємо локальні дані після помилки API");
+                    console.log("📋 Історія розіграшів: Повертаємо локальні дані після помилки API");
 
                     // Кешуємо результат
                     _raffleDetailsCache[raffleId] = localRaffleData;
@@ -420,7 +532,8 @@ class HistoryModule {
                 raffle_id: raffleId,
                 title: "Дані недоступні",
                 winners: [],
-                status: "unknown"
+                status: "unknown",
+                source: "fallback_after_error"
             };
 
             // Кешуємо результат
@@ -448,20 +561,33 @@ class HistoryModule {
         // Перш ніж робити запит, відобразимо індикатор завантаження
         if (!_historyData.length || forceRefresh) {
             container.innerHTML = `
-                <div class="history-loader">
-                    <div class="loader-spinner"></div>
-                    <div class="loader-text">Завантаження історії...</div>
+                <div class="loading-placeholder">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Завантаження історії...</div>
+                    <div class="loading-subtext">Зачекайте, будь ласка</div>
                 </div>
             `;
         }
 
         try {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline() && !forceRefresh) {
+                // Якщо офлайн, показуємо кешовані дані, якщо є
+                if (_historyData.length === 0) {
+                    container.innerHTML = this._createEmptyHistoryHTML("Немає з'єднання з Інтернетом. Перевірте підключення та спробуйте знову.");
+                    return;
+                }
+            }
+
             // Отримуємо дані історії
             const history = await this.getRafflesHistory({}, forceRefresh);
 
             // Якщо дані відсутні або порожні
             if (!history || !Array.isArray(history) || history.length === 0) {
                 container.innerHTML = this._createEmptyHistoryHTML();
+
+                // Оновлюємо статистику з нулями
+                this._updateStatistics(0, 0, 0, 0);
                 return;
             }
 
@@ -569,6 +695,11 @@ class HistoryModule {
 
             // Додаємо обробник для кнопки оновлення
             document.getElementById('refresh-history-btn')?.addEventListener('click', () => {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    showToast("Немає з'єднання з Інтернетом. Перевірте підключення та спробуйте знову.", "error");
+                    return;
+                }
                 this.displayHistory(containerId, true);
             });
 
@@ -576,6 +707,10 @@ class HistoryModule {
             this._addHistoryCardEventListeners();
 
             // Оновлюємо статистику
+            const totalSpent = this._calculateTotalTokensSpent(history);
+            this._updateStatistics(history.length, wonRaffles.length, this._getTotalPrizeAmountNumber(wonRaffles), totalSpent);
+
+            // Відправляємо подію про відображення історії
             WinixRaffles.events.emit('history-displayed', {
                 total: history.length,
                 wins: wonRaffles.length,
@@ -583,7 +718,11 @@ class HistoryModule {
             });
         } catch (error) {
             console.error("Помилка відображення історії:", error);
-            container.innerHTML = this._createEmptyHistoryHTML('Щось пішло не так. Спробуйте оновити сторінку.');
+            let errorMessage = !isOnline()
+                ? "Немає з'єднання з Інтернетом. Перевірте підключення та спробуйте знову."
+                : "Щось пішло не так. Спробуйте оновити сторінку.";
+
+            container.innerHTML = this._createEmptyHistoryHTML(errorMessage);
         }
     }
 
@@ -592,6 +731,17 @@ class HistoryModule {
      */
     async exportHistoryToCSV() {
         try {
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline()) {
+                const offlineHistory = _historyData.length > 0 ? _historyData : (_historyCache.data || []);
+                if (offlineHistory.length === 0) {
+                    showToast("Немає даних для експорту. Підключіться до Інтернету, щоб оновити історію.", "error");
+                    return;
+                }
+                // Якщо є кешовані дані, використовуємо їх
+                return this._generateAndDownloadCSV(offlineHistory);
+            }
+
             // Отримуємо актуальні дані
             const history = await this.getRafflesHistory();
 
@@ -600,68 +750,115 @@ class HistoryModule {
                 return;
             }
 
-            // Генеруємо заголовки
-            const headers = [
-                'Дата',
-                'Назва розіграшу',
-                'Тип',
-                'Приз',
-                'Витрачено жетонів',
-                'Результат',
-                'Статус'
-            ];
-
-            // Генеруємо рядки даних
-            const rows = history.map(item => {
-                if (!item) return ['-', '-', '-', '-', '-', '-', '-'];
-
-                return [
-                    item.date || '-',
-                    item.title || 'Розіграш',
-                    item.is_daily ? 'Щоденний' : 'Джекпот',
-                    item.prize || '0 WINIX',
-                    item.entry_count || 0,
-                    item.result || '-',
-                    item.status === 'won' ? 'Перемога' : 'Участь'
-                ];
-            });
-
-            // Об'єднуємо все в CSV
-            const csvContent = [
-                headers.join(','),
-                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-            ].join('\n');
-
-            // Спробуємо використати API для завантаження файлу
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showSaveFilePicker) {
-                try {
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-                    window.Telegram.WebApp.showSaveFilePicker('winix_raffle_history.csv', blob);
-                    showToast('Історію розіграшів успішно експортовано', 'success');
-                    return;
-                } catch (e) {
-                    console.warn('Помилка при використанні Telegram API для завантаження:', e);
-                    // Продовжуємо зі стандартним способом
-                }
-            }
-
-            // Стандартний спосіб завантаження
-            const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
-            const link = document.createElement('a');
-            link.setAttribute('href', encodedUri);
-            link.setAttribute('download', 'winix_raffle_history.csv');
-            document.body.appendChild(link);
-
-            // Клікаємо на посилання
-            link.click();
-
-            // Видаляємо посилання
-            document.body.removeChild(link);
-
-            showToast('Історію розіграшів успішно експортовано', 'success');
+            this._generateAndDownloadCSV(history);
         } catch (error) {
             console.error('Помилка експорту історії:', error);
             showToast('Не вдалося експортувати історію', 'error');
+        }
+    }
+
+    /**
+     * Генерація та завантаження CSV-файлу
+     * @param {Array} history - Дані історії для експорту
+     * @private
+     */
+    _generateAndDownloadCSV(history) {
+        // Генеруємо заголовки
+        const headers = [
+            'Дата',
+            'Назва розіграшу',
+            'Тип',
+            'Приз',
+            'Витрачено жетонів',
+            'Результат',
+            'Статус'
+        ];
+
+        // Генеруємо рядки даних
+        const rows = history.map(item => {
+            if (!item) return ['-', '-', '-', '-', '-', '-', '-'];
+
+            return [
+                item.date || '-',
+                item.title || 'Розіграш',
+                item.is_daily ? 'Щоденний' : 'Джекпот',
+                item.prize || '0 WINIX',
+                item.entry_count || 0,
+                item.result || '-',
+                item.status === 'won' ? 'Перемога' : 'Участь'
+            ];
+        });
+
+        // Об'єднуємо все в CSV
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
+
+        // Спробуємо використати API для завантаження файлу
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showSaveFilePicker) {
+            try {
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+                window.Telegram.WebApp.showSaveFilePicker('winix_raffle_history.csv', blob);
+                showToast('Історію розіграшів успішно експортовано', 'success');
+                return;
+            } catch (e) {
+                console.warn('Помилка при використанні Telegram API для завантаження:', e);
+                // Продовжуємо зі стандартним способом
+            }
+        }
+
+        // Стандартний спосіб завантаження
+        const encodedUri = encodeURI('data:text/csv;charset=utf-8,' + csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'winix_raffle_history.csv');
+        document.body.appendChild(link);
+
+        // Клікаємо на посилання
+        link.click();
+
+        // Видаляємо посилання
+        document.body.removeChild(link);
+
+        showToast('Історію розіграшів успішно експортовано', 'success');
+    }
+
+    /**
+     * Оновлення статистики
+     * @param {number} total - Загальна кількість розіграшів
+     * @param {number} wins - Кількість перемог
+     * @param {number} winixWon - Кількість виграних WINIX
+     * @param {number} tokensSpent - Витрачено жетонів
+     * @private
+     */
+    _updateStatistics(total, wins, winixWon, tokensSpent) {
+        try {
+            // Оновлюємо статистику в DOM
+            const totalParticipated = document.querySelectorAll('#total-participated');
+            const totalWins = document.querySelectorAll('#total-wins');
+            const totalWinixWon = document.querySelectorAll('#total-winix-won');
+            const totalTokensSpent = document.querySelectorAll('#total-tokens-spent');
+
+            totalParticipated.forEach(el => {
+                el.textContent = total || 0;
+            });
+
+            totalWins.forEach(el => {
+                el.textContent = wins || 0;
+            });
+
+            totalWinixWon.forEach(el => {
+                el.textContent = typeof winixWon === 'number'
+                    ? new Intl.NumberFormat('uk-UA').format(winixWon)
+                    : winixWon || 0;
+            });
+
+            totalTokensSpent.forEach(el => {
+                el.textContent = tokensSpent || 0;
+            });
+        } catch (error) {
+            console.error("Помилка оновлення статистики:", error);
         }
     }
 
@@ -682,7 +879,7 @@ class HistoryModule {
         // Приховуємо лоадер
         hideLoading('history-request');
 
-        console.log("🔄 Raffle History: Примусове скидання стану запитів");
+        console.log("🔄 Історія розіграшів: Примусове скидання стану запитів");
         return true;
     }
 
@@ -707,7 +904,7 @@ class HistoryModule {
             _requestTimeoutId = null;
         }
 
-        console.log("🧹 Raffle History: Кеш очищено");
+        console.log("🧹 Історія розіграшів: Кеш очищено");
     }
 
     /**
@@ -717,7 +914,11 @@ class HistoryModule {
         this.resetRequestState();
         this.clearCache();
 
-        console.log("🚫 Raffle History: Модуль історії розіграшів закрито");
+        // Видаляємо обробники подій мережі
+        window.removeEventListener('online', () => {});
+        window.removeEventListener('offline', () => {});
+
+        console.log("🚫 Історія розіграшів: Модуль історії розіграшів закрито");
     }
 
     /**
@@ -727,7 +928,7 @@ class HistoryModule {
     setCacheTTL(ttl) {
         if (typeof ttl === 'number' && ttl > 0) {
             _historyCache.ttl = ttl;
-            console.log(`🔄 Raffle History: Встановлено TTL кешу: ${ttl}ms`);
+            console.log(`🔄 Історія розіграшів: Встановлено TTL кешу: ${ttl}ms`);
         }
     }
 
@@ -773,6 +974,12 @@ class HistoryModule {
      * @private
      */
     _applyHistoryFilters(containerId) {
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline()) {
+            showToast("Фільтри недоступні в офлайн режимі", "warning");
+            return;
+        }
+
         const typeFilter = document.getElementById('history-type-filter')?.value || 'all';
         const statusFilter = document.getElementById('history-status-filter')?.value || 'all';
         const periodFilter = document.getElementById('history-period-filter')?.value || 'all';
@@ -826,12 +1033,16 @@ class HistoryModule {
     _createEmptyHistoryHTML(customMessage) {
         const message = customMessage || 'Ви ще не брали участі в розіграшах WINIX. Спробуйте свою удачу вже сьогодні!';
 
+        const refreshButton = isOnline()
+            ? '<button class="join-raffle-btn" onclick="window.rafflesModule.switchTab(\'active\')">Перейти до розіграшів</button>'
+            : '<button class="join-raffle-btn" onclick="location.reload()">Оновити сторінку</button>';
+
         return `
             <div class="empty-history">
                 <div class="empty-history-icon">🎮</div>
                 <h3>Історія розіграшів порожня</h3>
                 <p>${message}</p>
-                <button class="join-raffle-btn" onclick="window.rafflesModule.switchTab('active')">Перейти до розіграшів</button>
+                ${refreshButton}
             </div>
         `;
     }
@@ -857,27 +1068,54 @@ class HistoryModule {
                         const raffleId = card.getAttribute('data-raffle-id');
                         if (!raffleId) return;
 
-                        const historyItem = _historyData.find(item => item && item.raffle_id === raffleId);
+                        // Спочатку шукаємо дані в кеші
+                        const cachedItem = _raffleDetailsCache[raffleId];
+                        if (cachedItem) {
+                            WinixRaffles.events.emit('show-history-details', {
+                                raffleData: cachedItem
+                            });
+                            return;
+                        }
 
+                        // Потім шукаємо в локальних даних
+                        const historyItem = _historyData.find(item => item && item.raffle_id === raffleId);
                         if (historyItem) {
                             // Емітуємо подію показу деталей історії розіграшу
                             WinixRaffles.events.emit('show-history-details', {
                                 raffleData: historyItem
                             });
+
+                            // Якщо ми онлайн, додатково намагаємося отримати більше деталей
+                            if (isOnline()) {
+                                this.getRaffleHistoryDetails(raffleId).then(details => {
+                                    if (details && details.raffle_id === raffleId) {
+                                        WinixRaffles.events.emit('update-history-details', {
+                                            raffleData: details
+                                        });
+                                    }
+                                }).catch(error => {
+                                    console.warn("Помилка додаткового запиту деталей розіграшу:", error);
+                                });
+                            }
                         } else {
                             // Якщо не знайдено в масиві, спробуємо отримати з API
-                            this.getRaffleHistoryDetails(raffleId).then(details => {
-                                if (details) {
-                                    WinixRaffles.events.emit('show-history-details', {
-                                        raffleData: details
-                                    });
-                                } else {
-                                    showToast('Не вдалося отримати деталі розіграшу', 'error');
-                                }
-                            }).catch(error => {
-                                console.error("Помилка отримання деталей розіграшу:", error);
-                                showToast('Помилка отримання деталей розіграшу', 'error');
-                            });
+                            if (isOnline()) {
+                                this.getRaffleHistoryDetails(raffleId).then(details => {
+                                    if (details) {
+                                        WinixRaffles.events.emit('show-history-details', {
+                                            raffleData: details
+                                        });
+                                    } else {
+                                        showToast('Не вдалося отримати деталі розіграшу', 'error');
+                                    }
+                                }).catch(error => {
+                                    console.error("Помилка отримання деталей розіграшу:", error);
+                                    showToast('Помилка отримання деталей розіграшу', 'error');
+                                });
+                            } else {
+                                // В офлайн режимі показуємо повідомлення
+                                showToast("Деталі розіграшу недоступні без підключення до Інтернету", "warning");
+                            }
                         }
                     });
                     successCount++;
@@ -895,14 +1133,25 @@ class HistoryModule {
     }
 
     /**
-     * Отримання загальної суми виграшів
+     * Отримання загальної суми виграшів (відформатовано)
      * @param {Array} wonRaffles - Список виграних розіграшів
      * @returns {string} Відформатована сума
      * @private
      */
     _getTotalPrizeAmount(wonRaffles) {
+        const amount = this._getTotalPrizeAmountNumber(wonRaffles);
+        return new Intl.NumberFormat('uk-UA').format(amount);
+    }
+
+    /**
+     * Отримання загальної суми виграшів (число)
+     * @param {Array} wonRaffles - Список виграних розіграшів
+     * @returns {number} Сума виграшів
+     * @private
+     */
+    _getTotalPrizeAmountNumber(wonRaffles) {
         if (!wonRaffles || !Array.isArray(wonRaffles)) {
-            return '0';
+            return 0;
         }
 
         let total = 0;
@@ -932,10 +1181,42 @@ class HistoryModule {
                 }
             });
 
-            return total.toLocaleString('uk-UA');
+            return total;
         } catch (error) {
             console.error("Помилка розрахунку загальної суми виграшів:", error);
-            return '0';
+            return 0;
+        }
+    }
+
+    /**
+     * Розрахунок загальної кількості витрачених жетонів
+     * @param {Array} history - Дані історії розіграшів
+     * @returns {number} Кількість витрачених жетонів
+     * @private
+     */
+    _calculateTotalTokensSpent(history) {
+        if (!history || !Array.isArray(history)) {
+            return 0;
+        }
+
+        let total = 0;
+
+        try {
+            history.forEach(item => {
+                if (item && typeof item.entry_count === 'number') {
+                    total += item.entry_count;
+                } else if (item && typeof item.entry_count === 'string') {
+                    const value = parseInt(item.entry_count, 10);
+                    if (!isNaN(value)) {
+                        total += value;
+                    }
+                }
+            });
+
+            return total;
+        } catch (error) {
+            console.error("Помилка розрахунку загальної кількості жетонів:", error);
+            return 0;
         }
     }
 }
