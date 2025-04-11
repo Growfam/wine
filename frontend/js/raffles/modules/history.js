@@ -7,6 +7,21 @@ import { showLoading, hideLoading, showToast, copyToClipboard } from '../utils/u
 import api from '../services/api.js';
 import { formatDate } from '../utils/formatters.js';
 
+/**
+ * Перевірка доступності основного API
+ * @returns {boolean} Доступність API
+ */
+function hasMainApi() {
+    try {
+        return window.WinixAPI &&
+               typeof window.WinixAPI.apiRequest === 'function' &&
+               typeof window.WinixAPI.getUserId === 'function';
+    } catch (e) {
+        console.error("🔌 Історія розіграшів: Помилка перевірки головного API:", e);
+        return false;
+    }
+}
+
 // Приватні змінні
 let _historyData = [];
 let _isLoading = false;
@@ -239,6 +254,15 @@ class HistoryModule {
                 ? `user/${userId}/raffles-history?${queryParams.substring(1)}`
                 : `user/${userId}/raffles-history`;
 
+            // Додати оновлення токену перед запитом до API
+            if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
+                try {
+                    await window.WinixAPI.refreshToken();
+                } catch (e) {
+                    console.warn("🔌 Історія розіграшів: Помилка оновлення токену:", e);
+                }
+            }
+
             // Покращені параметри запиту
             const response = await api.apiRequest(url, 'GET', null, {
                 timeout: 15000,
@@ -449,6 +473,15 @@ class HistoryModule {
 
             // Використовуємо централізований лоадер
             showLoading('Завантаження деталей розіграшу...', `history-details-${raffleId}`);
+
+            // Додати оновлення токену перед запитом до API
+            if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
+                try {
+                    await window.WinixAPI.refreshToken();
+                } catch (e) {
+                    console.warn("🔌 Історія розіграшів: Помилка оновлення токену:", e);
+                }
+            }
 
             try {
                 // Виправлений URL шлях

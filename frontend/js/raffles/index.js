@@ -240,11 +240,27 @@ class RafflesModule {
             } else if (tabName === 'active') {
                 this.activeRaffles.displayRaffles();
             } else if (tabName === 'stats') {
-                // Перевіряємо, чи пристрій онлайн
-                if (!isOnline()) {
-                    this.ui.showToast("Статистика недоступна без підключення до Інтернету", "warning");
+                // Перевіряємо, чи модуль статистики має необхідну функцію
+                if (this.stats && typeof this.stats.displayUserStats === 'function') {
+                    // Перевіряємо, чи пристрій онлайн
+                    if (!isOnline()) {
+                        this.ui.showToast("Статистика недоступна без підключення до Інтернету", "warning");
+                    } else {
+                        this.stats.displayUserStats('user-stats-container');
+                    }
                 } else {
-                    this.stats.displayUserStats('user-stats-container');
+                    console.error("❌ Функція displayUserStats не знайдена в модулі статистики");
+                    // Відображаємо резервне повідомлення
+                    const container = document.getElementById('user-stats-container');
+                    if (container) {
+                        container.innerHTML = `
+                            <div class="empty-stats">
+                                <div class="empty-stats-icon">📊</div>
+                                <h3>Статистика тимчасово недоступна</h3>
+                                <p>Спробуйте оновити сторінку або повторіть спробу пізніше.</p>
+                            </div>
+                        `;
+                    }
                 }
             } else if (tabName === 'admin' && this._isAdmin) {
                 // Перевіряємо, чи пристрій онлайн
@@ -256,6 +272,7 @@ class RafflesModule {
             }
         } catch (error) {
             console.error("Помилка при переключенні вкладок:", error);
+            this.ui.showToast("Помилка при зміні вкладки", "error");
         }
     }
 
@@ -366,7 +383,10 @@ class RafflesModule {
             if (activeTab) {
                 const tabName = activeTab.getAttribute('data-tab');
                 if (tabName) {
-                    this.switchTab(tabName);
+                    // Затримка для запобігання негайних запитів після відновлення з'єднання
+                    setTimeout(() => {
+                        this.switchTab(tabName);
+                    }, 2000);
                 }
             }
         };
@@ -465,7 +485,9 @@ class RafflesModule {
         }
 
         // Приховування лоадерів
-        WinixRaffles.loader.hideAll();
+        if (WinixRaffles && WinixRaffles.loader && typeof WinixRaffles.loader.hideAll === 'function') {
+            WinixRaffles.loader.hideAll();
+        }
 
         return this;
     }

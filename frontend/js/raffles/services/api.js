@@ -20,10 +20,10 @@ const hasMainApi = () => {
 
 // Константи для відстеження запитів (збільшені інтервали)
 const REQUEST_THROTTLE = {
-    '/raffles-history': 30000,      // 30 секунд для історії розіграшів
-    '/participate-raffle': 5000,    // 5 секунд для участі в розіграшах
-    '/raffles': 10000,              // 10 секунд для списку розіграшів
-    'default': 3000                 // 3 секунди для всіх інших
+    '/raffles-history': 90000,      // 90 секунд для історії розіграшів
+    '/participate-raffle': 15000,   // 15 секунд для участі в розіграшах
+    '/raffles': 30000,              // 30 секунд для списку розіграшів
+    'default': 10000                // 10 секунд для всіх інших
 };
 
 // Відстеження часу останніх запитів
@@ -221,6 +221,24 @@ export function forceCleanupRequests() {
 }
 
 /**
+ * Оновлення токену авторизації
+ * @returns {Promise<boolean>} Результат оновлення
+ */
+export async function refreshToken() {
+    if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
+        try {
+            await window.WinixAPI.refreshToken();
+            console.log("🔄 Токен оновлено перед запитом");
+            return true;
+        } catch (e) {
+            console.warn("🔌 Помилка оновлення токену:", e);
+            return false;
+        }
+    }
+    return false;
+}
+
+/**
  * Універсальна функція для виконання API-запитів розіграшів
  * @param {string} endpoint - URL ендпоінту
  * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
@@ -305,6 +323,15 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
     // Якщо основний API доступний і опція useMainAPI не false, використовуємо його
     if (hasMainApi() && options.useMainAPI !== false) {
         try {
+            // Оновлюємо токен перед важливими запитами
+            if (cleanEndpoint.includes('history') || cleanEndpoint.includes('participate')) {
+                try {
+                    await refreshToken();
+                } catch (tokenError) {
+                    console.warn("🔌 Raffles API: Помилка оновлення токену перед запитом:", tokenError);
+                }
+            }
+
             const response = await window.WinixAPI.apiRequest(cleanEndpoint, method, data, options);
 
             // Кешуємо результат, якщо потрібно
@@ -423,7 +450,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
 
         try {
             // Логуємо URL для діагностики
-            if (options.debug || WinixRaffles.config.debug) {
+            if (options.debug || (WinixRaffles.config && WinixRaffles.config.debug)) {
                 console.log(`🔌 Raffles API: Виконую запит ${method} ${url}`);
             }
 
@@ -588,6 +615,9 @@ export async function getUserData(forceRefresh = false) {
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
         try {
+            // Оновлюємо токен перед запитом
+            await refreshToken();
+
             const result = await window.WinixAPI.getUserData(forceRefresh);
 
             // Кешуємо результат
@@ -688,6 +718,9 @@ export async function getBalance(forceRefresh = false) {
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
         try {
+            // Оновлюємо токен перед запитом
+            await refreshToken();
+
             return await window.WinixAPI.getBalance(forceRefresh);
         } catch (e) {
             console.warn("🔌 Raffles API: Помилка отримання балансу з основного API:", e);
@@ -752,6 +785,9 @@ export async function getActiveRaffles(forceRefresh = false) {
     }
 
     try {
+        // Оновлюємо токен перед запитом
+        await refreshToken();
+
         const response = await apiRequest('raffles', 'GET', null, {
             timeout: 10000, // Зменшуємо таймаут для прискорення
             loaderMessage: 'Завантаження розіграшів...',
@@ -824,6 +860,9 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
             throw new Error('ID користувача не знайдено');
         }
 
+        // Оновлюємо токен перед запитом історії
+        await refreshToken();
+
         // Формуємо параметри запиту
         let queryParams = '';
         if (filters.type && filters.type !== 'all') {
@@ -842,7 +881,7 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
             : `user/${userId}/raffles-history`;
 
         const response = await apiRequest(url, 'GET', null, {
-            timeout: 10000,
+            timeout: 15000, // Збільшуємо таймаут для історії
             loaderMessage: 'Завантаження історії розіграшів...',
             bypassThrottle: forceRefresh
         });
@@ -909,11 +948,14 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
             throw new Error('Кількість жетонів повинна бути більшою за нуль');
         }
 
+        // Оновлюємо токен перед важливим запитом
+        await refreshToken();
+
         const response = await apiRequest(`user/${userId}/participate-raffle`, 'POST', {
             raffle_id: raffleId,
             entry_count: entryCount
         }, {
-            timeout: 10000,
+            timeout: 15000, // Збільшуємо таймаут для важливої операції
             loaderMessage: 'Беремо участь у розіграші...'
         });
 
@@ -973,6 +1015,9 @@ export async function claimNewbieBonus() {
             throw new Error('ID користувача не знайдено');
         }
 
+        // Оновлюємо токен перед важливим запитом
+        await refreshToken();
+
         const response = await apiRequest(`user/${userId}/claim-newbie-bonus`, 'POST', null, {
             timeout: 10000,
             loaderMessage: 'Отримуємо бонус новачка...'
@@ -1021,6 +1066,7 @@ const rafflesAPI = {
     getBalance,
     forceCleanupRequests,
     clearCache,
+    refreshToken,
 
     // Специфічні функції для розіграшів
     getActiveRaffles,
