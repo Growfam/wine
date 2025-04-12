@@ -111,6 +111,17 @@ class RafflesModule {
         try {
             console.log("🎮 Raffles Module: Ініціалізація основного модуля розіграшів");
 
+            // Оновлюємо дані користувача при ініціалізації модуля
+        if (WinixRaffles.api && typeof WinixRaffles.api.getUserData === 'function') {
+            try {
+                console.log("🔄 Raffles Module: Оновлюємо дані користувача");
+                const userData = await WinixRaffles.api.getUserData(true);
+                console.log("✅ Raffles Module: Дані користувача оновлено");
+            } catch (userError) {
+                console.warn("⚠️ Raffles Module: Помилка оновлення даних користувача:", userError);
+            }
+        }
+
             // Додаємо обробники подій для перемикання вкладок
             this._initTabSwitching();
 
