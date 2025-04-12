@@ -276,79 +276,89 @@
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
      */
-    async function refreshToken() {
-        // Перевіряємо, чи вже відбувається оновлення
-        if (_pendingRequests['refresh-token']) {
-            return _pendingRequests['refresh-token'];
-        }
+   async function refreshToken() {
+    // Перевіряємо, чи вже відбувається оновлення
+    if (_pendingRequests['refresh-token']) {
+        return _pendingRequests['refresh-token'];
+    }
 
-        // Створюємо проміс для відстеження запиту
-        const refreshPromise = new Promise(async (resolve, reject) => {
-            try {
-                // Отримуємо ID користувача
-                const userId = getUserId();
-                if (!userId) {
-                    throw new Error("ID користувача не знайдено");
-                }
+    // Створюємо проміс для відстеження запиту
+    const refreshPromise = new Promise(async (resolve, reject) => {
+        try {
+            // Отримуємо ID користувача
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error("ID користувача не знайдено");
+            }
 
-                console.log("🔄 API: Початок оновлення токену");
+            console.log("🔄 API: Початок оновлення токену");
 
-                // Використовуємо rawApiRequest без токену, щоб уникнути рекурсії
-                const response = await rawApiRequest(`${API_BASE_URL}/api/auth/refresh-token`, 'POST', {
+            // Використовуємо rawApiRequest без токену, щоб уникнути рекурсії
+            const response = await fetch(`${API_BASE_URL}/api/auth/refresh-token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Telegram-User-Id': userId
+                },
+                body: JSON.stringify({
                     telegram_id: userId,
                     token: _authToken || ''
-                }, {
-                    timeout: 8000,
-                    skipTokenCheck: true
-                });
+                })
+            });
 
-                if (response && response.status === 'success' && response.token) {
-                    // Зберігаємо новий токен
-                    _authToken = response.token;
-
-                    // Визначаємо час закінчення токену
-                    if (response.expires_at) {
-                        _authTokenExpiry = new Date(response.expires_at).getTime();
-                    } else if (response.expires_in) {
-                        _authTokenExpiry = Date.now() + (response.expires_in * 1000);
-                    } else {
-                        // За замовчуванням 24 години
-                        _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
-                    }
-
-                    // Зберігаємо в localStorage
-                    try {
-                        localStorage.setItem('auth_token', _authToken);
-                        localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
-                    } catch (e) {
-                        console.warn("🔌 API: Помилка збереження токену в localStorage:", e);
-                    }
-
-                    console.log("✅ API: Токен успішно оновлено");
-
-                    // Відправляємо подію про оновлення токену
-                    document.dispatchEvent(new CustomEvent('token-refreshed', {
-                        detail: { token: _authToken, expires_at: _authTokenExpiry }
-                    }));
-
-                    resolve(_authToken);
-                } else {
-                    throw new Error(response.message || "Помилка оновлення токену");
-                }
-            } catch (error) {
-                console.error("❌ API: Помилка оновлення токену:", error);
-                reject(error);
-            } finally {
-                // Видаляємо запит зі списку активних
-                delete _pendingRequests['refresh-token'];
+            if (!response.ok) {
+                throw new Error(`Помилка HTTP: ${response.status}`);
             }
-        });
 
-        // Зберігаємо проміс для відстеження запиту
-        _pendingRequests['refresh-token'] = refreshPromise;
+            const data = await response.json();
 
-        return refreshPromise;
-    }
+            if (data && data.status === 'success' && data.token) {
+                // Зберігаємо новий токен
+                _authToken = data.token;
+
+                // Визначаємо час закінчення токену
+                if (data.expires_at) {
+                    _authTokenExpiry = new Date(data.expires_at).getTime();
+                } else if (data.expires_in) {
+                    _authTokenExpiry = Date.now() + (data.expires_in * 1000);
+                } else {
+                    // За замовчуванням 24 години
+                    _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+                }
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('auth_token', _authToken);
+                    localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                } catch (e) {
+                    console.warn("🔌 API: Помилка збереження токену в localStorage:", e);
+                }
+
+                console.log("✅ API: Токен успішно оновлено");
+
+                // Відправляємо подію про оновлення токену
+                document.dispatchEvent(new CustomEvent('token-refreshed', {
+                    detail: { token: _authToken, expires_at: _authTokenExpiry }
+                }));
+
+                resolve(_authToken);
+            } else {
+                throw new Error(data.message || "Помилка оновлення токену");
+            }
+        } catch (error) {
+            console.error("❌ API: Помилка оновлення токену:", error);
+            reject(error);
+        } finally {
+            // Видаляємо запит зі списку активних
+            delete _pendingRequests['refresh-token'];
+        }
+    });
+
+    // Зберігаємо проміс для відстеження запиту
+    _pendingRequests['refresh-token'] = refreshPromise;
+
+    return refreshPromise;
+}
 
     // ======== ФУНКЦІЇ API-ЗАПИТУ ========
 
