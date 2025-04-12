@@ -1,7 +1,7 @@
 /**
  * api.js - Сервіс для роботи з API розіграшів
  * Інтеграція з основним API системи
- * @version 1.1.0
+ * @version 1.1.1
  */
 
 import WinixRaffles from '../globals.js';
@@ -20,14 +20,19 @@ const hasMainApi = () => {
 
 // Константи для відстеження запитів (збільшені інтервали)
 const REQUEST_THROTTLE = {
-    '/raffles-history': 90000,      // 90 секунд для історії розіграшів
+    '/raffles-history': 120000,     // 2 хвилини для історії розіграшів
     '/participate-raffle': 15000,   // 15 секунд для участі в розіграшах
     '/raffles': 30000,              // 30 секунд для списку розіграшів
-    'default': 10000                // 10 секунд для всіх інших
+    '/balance': 20000,              // 20 секунд для балансу
+    '/refresh-token': 60000,        // 1 хвилина для оновлення токену
+    'default': 15000                // 15 секунд для всіх інших
 };
 
-// Відстеження часу останніх запитів
+// Відстеження часу останніх запитів - ініціалізуємо об'єкт, щоб уникнути помилок
 const _lastRequestTimes = {};
+
+// Глобальна змінна для відстеження часу останнього запиту
+let _lastRequestTime = Date.now(); // Ініціалізуємо поточним часом
 
 // Активні запити
 const _activeRequests = {};
@@ -173,6 +178,11 @@ function getApiBaseUrl() {
  * @returns {boolean} Дозволено виконати запит
  */
 function canMakeRequest(endpoint) {
+    // Ініціалізуємо _lastRequestTimes, якщо він не визначений
+    if (typeof _lastRequestTimes !== 'object') {
+        window._lastRequestTimes = {};
+    }
+
     const now = Date.now();
 
     // Визначаємо мінімальний інтервал для ендпоінту
@@ -193,6 +203,7 @@ function canMakeRequest(endpoint) {
 
     // Оновлюємо час останнього запиту
     _lastRequestTimes[endpoint] = now;
+    _lastRequestTime = now; // Оновлюємо глобальну змінну
     return true;
 }
 
@@ -225,6 +236,17 @@ export function forceCleanupRequests() {
  * @returns {Promise<boolean>} Результат оновлення
  */
 export async function refreshToken() {
+    // Додати перевірку на частоту запитів
+    const now = Date.now();
+    // Використовуємо _lastRequestTimes для відстеження останнього оновлення токену
+    if (_lastRequestTimes['refresh-token'] && now - _lastRequestTimes['refresh-token'] < REQUEST_THROTTLE['/refresh-token']) {
+        console.log("🔄 Занадто часте оновлення токена, пропускаємо");
+        return Promise.resolve(false);
+    }
+
+    _lastRequestTimes['refresh-token'] = now;
+    _lastRequestTime = now; // Оновлюємо глобальну змінну
+
     if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
         try {
             await window.WinixAPI.refreshToken();
@@ -319,6 +341,7 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
 
     // Позначаємо запит як активний
     _activeRequests[cleanEndpoint] = Date.now();
+    _lastRequestTime = Date.now(); // Оновлюємо глобальну змінну
 
     // Якщо основний API доступний і опція useMainAPI не false, використовуємо його
     if (hasMainApi() && options.useMainAPI !== false) {
@@ -1081,7 +1104,7 @@ const rafflesAPI = {
     },
 
     // Метадані
-    _version: '1.1.0',
+    _version: '1.1.1',
     _type: 'raffles'
 };
 
