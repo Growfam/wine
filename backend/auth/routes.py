@@ -10,7 +10,9 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 # Змінено імпорт для правильної роботи в Docker/Railway
-from settings.config import JWT_SECRET, JWT_ALGORITHM
+from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+
+
 
 
 def register_auth_routes(app):
