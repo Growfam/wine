@@ -28,6 +28,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Додаємо директорію додатку до шляху Python
+app_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(app_dir)
+sys.path.insert(0, root_dir)
+sys.path.insert(0, app_dir)
+
 # Визначаємо базову директорію проекту
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(BACKEND_DIR)
@@ -47,7 +53,7 @@ def create_app(config_name=None):
     )
 
     # Завантажуємо конфігурацію
-    from backend.settings import current_config
+    from settings import current_config
     app.config.from_object(current_config)
 
     # Секретний ключ для сесій
