@@ -17,7 +17,11 @@ try:
 except ImportError:
     import controllers
 
-from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+# Імпортуємо змінні конфігурації
+try:
+    from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+except ImportError:
+    from settings.config import JWT_SECRET, JWT_ALGORITHM
 
 
 
