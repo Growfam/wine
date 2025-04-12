@@ -27,14 +27,15 @@ except ImportError:
 
 # Часові обмеження для маршрутів
 RATE_LIMITS = {
-    "get_active_raffles": 10,  # 10 секунд між запитами
+    "get_active_raffles": 5,  # 5 секунд між запитами
     "get_raffles_history": 60,  # 60 секунд між запитами
-    "get_user_raffles": 15,  # 15 секунд між запитами
+    "get_user_raffles": 10,  # 10 секунд між запитами
     "participate_in_raffle": 3,  # 3 секунди між запитами
 }
 
 # Відстеження останніх запитів користувачів
 last_requests = {}
+
 
 
 def require_authentication(f):
@@ -207,6 +208,35 @@ def parallel_request_handler(f):
 
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
+
+    # Спочатку додайте новий маршрут для балансу
+    @app.route('/api/user/<telegram_id>/balance', methods=['GET'])
+    def get_user_balance_endpoint(telegram_id):
+        """Спеціальний ендпоінт для отримання балансу без обмеження частоти"""
+        try:
+            # Отримуємо дані користувача
+            from backend.users.controllers import get_user_info
+            user = get_user_info(telegram_id)
+
+            if not user:
+                return jsonify({
+                    "status": "error",
+                    "message": "Користувача не знайдено"
+                }), 404
+
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "balance": user.get("balance", 0),
+                    "coins": user.get("coins", 0)
+                }
+            })
+        except Exception as e:
+            logger.error(f"Помилка отримання балансу: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка сервера: {str(e)}"
+            }), 500
 
     # Публічні маршрути для користувачів
     @app.route('/api/raffles', methods=['GET'])
@@ -409,3 +439,4 @@ def register_raffles_routes(app):
                 "status": "error",
                 "message": "Помилка отримання статистики розіграшів"
             }), 500
+
