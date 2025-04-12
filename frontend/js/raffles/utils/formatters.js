@@ -328,7 +328,10 @@ export function generatePrizeDistributionHTML(prizeDistribution) {
         let html = '';
 
         // Створюємо масив місць з валідними числовими ключами
-        const places = keys.filter(key => !isNaN(parseInt(key))).map(key => parseInt(key)).sort((a, b) => a - b);
+        const places = keys
+            .filter(key => !isNaN(parseInt(key)))
+            .map(key => parseInt(key))
+            .sort((a, b) => a - b);
 
         if (places.length === 0) {
             return '<div class="prize-item"><span class="prize-place">Інформація відсутня</span></div>';

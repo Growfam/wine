@@ -22,11 +22,11 @@ function hasMainApi() {
     }
 }
 
-// Приватні змінні
+// Приватні змінні - ініціалізуємо з дефолтними значеннями, щоб уникнути ReferenceError
 let _historyData = [];
 let _isLoading = false;
 let _failedAttempts = 0;
-let _lastRequestTime = 0;
+let _lastRequestTime = Date.now(); // Ініціалізація значенням часу
 let _requestInProgress = false;
 let _requestTimeoutId = null;
 let _historyCache = {
@@ -250,9 +250,12 @@ class HistoryModule {
             }
 
             // Додаємо параметри до URL, якщо вони є
-            const url = queryParams
-                ? `user/${userId}/raffles-history?${queryParams.substring(1)}`
-                : `user/${userId}/raffles-history`;
+            let url = '';
+            if (queryParams) {
+                url = `user/${userId}/raffles-history?${queryParams.substring(1)}`;
+            } else {
+                url = `user/${userId}/raffles-history`;
+            }
 
             // Додати оновлення токену перед запитом до API
             if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
@@ -263,92 +266,97 @@ class HistoryModule {
                 }
             }
 
-            // Покращені параметри запиту
-            const response = await api.apiRequest(url, 'GET', null, {
-                timeout: 15000,
-                allowParallel: false,
-                suppressErrors: true,
-                hideLoader: true, // Вже використовуємо власний лоадер
-                forceCleanup: _failedAttempts > 0
-            });
+            try {
+                // Покращені параметри запиту
+                const response = await api.apiRequest(url, 'GET', null, {
+                    timeout: 15000,
+                    allowParallel: false,
+                    suppressErrors: true,
+                    hideLoader: true, // Вже використовуємо власний лоадер
+                    forceCleanup: _failedAttempts > 0
+                });
 
-            // Перевіряємо, чи це актуальний запит
-            if (currentRequestId !== _requestId) {
-                console.warn("⚠️ Історія розіграшів: Отримано відповідь для застарілого запиту, ігноруємо");
+                // Перевіряємо, чи це актуальний запит
+                if (currentRequestId !== _requestId) {
+                    console.warn("⚠️ Історія розіграшів: Отримано відповідь для застарілого запиту, ігноруємо");
+                    hideLoading('history-request');
+                    return _historyData || [];
+                }
+
+                // ЗАВЖДИ скидаємо прапорці після завершення запиту
                 hideLoading('history-request');
-                return _historyData || [];
-            }
+                _isLoading = false;
+                _requestInProgress = false;
+                _failedAttempts = 0; // Скидаємо лічильник при успіху
 
-            // ЗАВЖДИ скидаємо прапорці після завершення запиту
-            hideLoading('history-request');
-            _isLoading = false;
-            _requestInProgress = false;
-            _failedAttempts = 0; // Скидаємо лічильник при успіху
+                // Очищаємо таймаут
+                if (_requestTimeoutId) {
+                    clearTimeout(_requestTimeoutId);
+                    _requestTimeoutId = null;
+                }
 
-            // Очищаємо таймаут
-            if (_requestTimeoutId) {
-                clearTimeout(_requestTimeoutId);
-                _requestTimeoutId = null;
-            }
+                if (response && response.status === 'success') {
+                    // Перевіряємо, чи отримані дані - це масив
+                    if (!Array.isArray(response.data)) {
+                        // Якщо дані не масив, але успішний статус - повертаємо порожній масив
+                        console.warn("Отримано некоректні дані історії (не масив):", response.data);
+                        _historyData = [];
+                        // Оновлюємо кеш пустими даними
+                        _historyCache = {
+                            data: [],
+                            timestamp: now,
+                            ttl: _historyCache.ttl
+                        };
+                        return _historyData;
+                    }
 
-            if (response && response.status === 'success') {
-                // Перевіряємо, чи отримані дані - це масив
-                if (!Array.isArray(response.data)) {
-                    // Якщо дані не масив, але успішний статус - повертаємо порожній масив
-                    console.warn("Отримано некоректні дані історії (не масив):", response.data);
-                    _historyData = [];
-                    // Оновлюємо кеш пустими даними
+                    _historyData = response.data;
+                    console.log(`✅ Історія розіграшів: Отримано ${_historyData.length} записів історії`);
+
+                    // Оновлюємо кеш
                     _historyCache = {
-                        data: [],
+                        data: _historyData,
                         timestamp: now,
                         ttl: _historyCache.ttl
                     };
+
+                    // Зберігаємо в localStorage для офлайн доступу
+                    this._saveHistoryToCache(_historyData);
+
+                    // Емітуємо подію про оновлення історії
+                    WinixRaffles.events.emit('history-updated', {
+                        count: _historyData.length,
+                        data: _historyData
+                    });
+
                     return _historyData;
-                }
+                } else {
+                    // Якщо статус не успіх, але є дані - перевіряємо джерело
+                    if (response && response.source && response.source.includes('fallback')) {
+                        // Це спеціальний випадок фолбека в API
+                        console.warn(`Історія розіграшів: Отримано фолбек-відповідь: ${response.source}`);
 
-                _historyData = response.data;
-                console.log(`✅ Історія розіграшів: Отримано ${_historyData.length} записів історії`);
+                        if (Array.isArray(response.data)) {
+                            _historyData = response.data;
+                            // Оновлюємо кеш
+                            _historyCache = {
+                                data: _historyData,
+                                timestamp: now,
+                                ttl: 60000 // Коротший TTL для фолбеку
+                            };
 
-                // Оновлюємо кеш
-                _historyCache = {
-                    data: _historyData,
-                    timestamp: now,
-                    ttl: _historyCache.ttl
-                };
+                            // Зберігаємо в localStorage для офлайн доступу
+                            this._saveHistoryToCache(_historyData);
 
-                // Зберігаємо в localStorage для офлайн доступу
-                this._saveHistoryToCache(_historyData);
-
-                // Емітуємо подію про оновлення історії
-                WinixRaffles.events.emit('history-updated', {
-                    count: _historyData.length,
-                    data: _historyData
-                });
-
-                return _historyData;
-            } else {
-                // Якщо статус не успіх, але є дані - перевіряємо джерело
-                if (response && response.source && response.source.includes('fallback')) {
-                    // Це спеціальний випадок фолбека в API
-                    console.warn(`Історія розіграшів: Отримано фолбек-відповідь: ${response.source}`);
-
-                    if (Array.isArray(response.data)) {
-                        _historyData = response.data;
-                        // Оновлюємо кеш
-                        _historyCache = {
-                            data: _historyData,
-                            timestamp: now,
-                            ttl: 60000 // Коротший TTL для фолбеку
-                        };
-
-                        // Зберігаємо в localStorage для офлайн доступу
-                        this._saveHistoryToCache(_historyData);
-
-                        return _historyData;
+                            return _historyData;
+                        }
                     }
-                }
 
-                throw new Error((response && response.message) || 'Помилка отримання історії розіграшів');
+                    throw new Error((response && response.message) || 'Помилка отримання історії розіграшів');
+                }
+            } catch (apiError) {
+                // Переобробляємо помилку API
+                throw apiError;
             }
         } catch (error) {
             console.error('❌ Помилка отримання історії розіграшів:', error);
@@ -365,6 +373,14 @@ class HistoryModule {
             if (_requestTimeoutId) {
                 clearTimeout(_requestTimeoutId);
                 _requestTimeoutId = null;
+            }
+
+            // Покращена обробка помилок
+            // Додайте перевірку на помилку ReferenceError
+            if (error.name === 'ReferenceError' && error.message && error.message.includes('_lastRequestTime')) {
+                console.warn("📌 Виявлено помилку з невизначеною змінною _lastRequestTime. Спроба виправлення...");
+                // Присвоюємо значення прямо тут
+                _lastRequestTime = Date.now();
             }
 
             // Не показуємо помилку при першій спробі
@@ -392,11 +408,13 @@ class HistoryModule {
                 // Повертаємо проміс з таймаутом і повторним запитом
                 return new Promise(resolve => {
                     setTimeout(() => {
-                        this.getRafflesHistory(filters).then(resolve).catch(err => {
-                            // У випадку помилки при повторній спробі повертаємо порожній масив
-                            console.error("Помилка повторного запиту:", err);
-                            resolve([]);
-                        });
+                        this.getRafflesHistory(filters)
+                            .then(resolve)
+                            .catch(err => {
+                                // У випадку помилки при повторній спробі повертаємо порожній масив
+                                console.error("Помилка повторного запиту:", err);
+                                resolve([]);
+                            });
                     }, retryDelay);
                 });
             }
@@ -874,21 +892,23 @@ class HistoryModule {
             const totalTokensSpent = document.querySelectorAll('#total-tokens-spent');
 
             totalParticipated.forEach(el => {
-                el.textContent = total || 0;
+                if (el) el.textContent = total || 0;
             });
 
             totalWins.forEach(el => {
-                el.textContent = wins || 0;
+                if (el) el.textContent = wins || 0;
             });
 
             totalWinixWon.forEach(el => {
-                el.textContent = typeof winixWon === 'number'
-                    ? new Intl.NumberFormat('uk-UA').format(winixWon)
-                    : winixWon || 0;
+                if (el) {
+                    el.textContent = typeof winixWon === 'number'
+                        ? new Intl.NumberFormat('uk-UA').format(winixWon)
+                        : winixWon || 0;
+                }
             });
 
             totalTokensSpent.forEach(el => {
-                el.textContent = tokensSpent || 0;
+                if (el) el.textContent = tokensSpent || 0;
             });
         } catch (error) {
             console.error("Помилка оновлення статистики:", error);
@@ -1013,9 +1033,14 @@ class HistoryModule {
             return;
         }
 
-        const typeFilter = document.getElementById('history-type-filter')?.value || 'all';
-        const statusFilter = document.getElementById('history-status-filter')?.value || 'all';
-        const periodFilter = document.getElementById('history-period-filter')?.value || 'all';
+        // Отримуємо значення фільтрів з безпечною перевіркою
+        const typeFilterEl = document.getElementById('history-type-filter');
+        const statusFilterEl = document.getElementById('history-status-filter');
+        const periodFilterEl = document.getElementById('history-period-filter');
+
+        const typeFilter = typeFilterEl ? (typeFilterEl.value || 'all') : 'all';
+        const statusFilter = statusFilterEl ? (statusFilterEl.value || 'all') : 'all';
+        const periodFilter = periodFilterEl ? (periodFilterEl.value || 'all') : 'all';
 
         // Оновлюємо відображення з новими фільтрами
         this.getRafflesHistory({
