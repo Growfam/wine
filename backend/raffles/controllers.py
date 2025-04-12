@@ -219,7 +219,8 @@ def get_active_raffles():
             .order("end_time") \
             .limit(limit) \
             .offset(offset) \
-            .execute(timeout=8)  # додаємо таймаут в 8 секунд
+            .execute()
+
     except Exception as e:
         logger.error(f"Помилка запиту активних розіграшів: {str(e)}")
         return jsonify({"status": "success", "data": [], "error": str(e)})
@@ -299,7 +300,7 @@ def get_raffle_details(raffle_id):
 
     # Отримуємо дані розіграшу з таймаутом
     try:
-        response = supabase.table("raffles").select("*").eq("id", raffle_id).execute(timeout=8)
+        response = supabase.table("raffles").select("*").eq("id", raffle_id)
     except Exception as e:
         logger.error(f"Помилка запиту деталей розіграшу {raffle_id}: {str(e)}")
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
@@ -344,7 +345,7 @@ def get_raffle_details(raffle_id):
     if raffle.get("status") == "completed":
         try:
             winners_response = supabase.table("raffle_winners").select("*").eq("raffle_id", raffle_id).order(
-                "place").execute(timeout=5)
+                "place").execute()
 
             if winners_response.data:
                 winners = []
@@ -393,7 +394,7 @@ def participate_in_raffle(telegram_id, data):
 
     # Отримуємо розіграш
     try:
-        raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute(timeout=5)
+        raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
     except Exception as e:
         logger.error(f"Помилка запиту розіграшу {raffle_id}: {str(e)}")
         raise ValueError(f"Помилка запиту розіграшу: {str(e)}")
@@ -425,7 +426,7 @@ def participate_in_raffle(telegram_id, data):
         participation_response = supabase.table("raffle_participants").select("*") \
             .eq("raffle_id", raffle_id) \
             .eq("telegram_id", telegram_id) \
-            .execute(timeout=5)
+            .execute()
     except Exception as e:
         logger.error(f"Помилка запиту участі користувача {telegram_id} в розіграші {raffle_id}: {str(e)}")
         raise ValueError(f"Помилка запиту участі: {str(e)}")
@@ -573,7 +574,7 @@ def get_user_raffles(telegram_id):
     try:
         participants_response = supabase.table("raffle_participants").select("*") \
             .eq("telegram_id", telegram_id) \
-            .execute(timeout=5)
+            .execute()
     except Exception as e:
         logger.error(f"Помилка запиту участі користувача {telegram_id}: {str(e)}")
         return jsonify({"status": "success", "data": []})
@@ -590,7 +591,7 @@ def get_user_raffles(telegram_id):
     # Отримуємо дані цих розіграшів
     try:
         # Використовуємо запит in_ для вибірки кількох розіграшів одночасно
-        raffles_response = supabase.table("raffles").select("*").in_("id", raffle_ids).execute(timeout=5)
+        raffles_response = supabase.table("raffles").select("*").in_("id", raffle_ids).execute()
     except Exception as e:
         logger.error(f"Помилка запиту розіграшів {raffle_ids}: {str(e)}")
         return jsonify({"status": "success", "data": []})
@@ -673,7 +674,7 @@ def get_raffles_history(telegram_id):
                 .eq("telegram_id", telegram_id) \
                 .order("entry_time", desc=True) \
                 .limit(50) \
-                .execute(timeout=8)
+                .execute()
         except Exception as e:
             logger.error(f"Помилка запиту участі користувача {telegram_id}: {str(e)}")
             return jsonify({"status": "success", "data": []})
@@ -692,7 +693,8 @@ def get_raffles_history(telegram_id):
             raffles_response = supabase.table("raffles") \
                 .select("id,title,prize_amount,prize_currency,end_time,status,is_daily") \
                 .in_("id", raffle_ids) \
-                .execute(timeout=8)
+                .execute()
+
         except Exception as e:
             logger.error(f"Помилка запиту розіграшів {raffle_ids}: {str(e)}")
             return jsonify({"status": "success", "data": []})
@@ -708,7 +710,7 @@ def get_raffles_history(telegram_id):
             winners_response = supabase.table("raffle_winners") \
                 .select("*") \
                 .eq("telegram_id", telegram_id) \
-                .execute(timeout=5)
+                .execute()
 
             winners_by_raffle = {w.get("raffle_id"): w for w in winners_response.data if w.get("raffle_id")}
         except Exception as e:
@@ -771,14 +773,14 @@ def get_raffles_history(telegram_id):
                         .eq("raffle_id", raffle_id) \
                         .order("place") \
                         .limit(5) \
-                        .execute(timeout=5)
+                        .execute()
 
                     if all_winners_response.data:
                         # Отримуємо інформацію про всіх переможців оптимізованим запитом
                         winner_ids = [w.get("telegram_id") for w in all_winners_response.data if w.get("telegram_id")]
                         users_response = supabase.table("winix").select("telegram_id,username").in_("telegram_id",
-                                                                                                    winner_ids).execute(
-                            timeout=5)
+                                                                                                    winner_ids).execute()
+
 
                         # Створюємо словник користувачів за id
                         users_by_id = {u.get("telegram_id"): u for u in users_response.data if u.get("telegram_id")}
@@ -903,7 +905,7 @@ def get_all_raffles(status_filter=None, admin_id=None):
 
     # Виконуємо запит
     try:
-        response = query.execute(timeout=10)
+        response = query.execute()
     except Exception as e:
         logger.error(f"Помилка отримання розіграшів: {str(e)}")
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
@@ -1379,7 +1381,7 @@ def check_and_finish_expired_raffles():
         expired_raffles_response = supabase.table("raffles").select("*") \
             .eq("status", "active") \
             .lt("end_time", now.isoformat()) \
-            .execute(timeout=10)
+            .execute()
     except Exception as e:
         logger.error(f"Помилка запиту прострочених розіграшів: {str(e)}")
         return {
