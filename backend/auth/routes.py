@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from ..settings.config import JWT_SECRET, JWT_ALGORITHM
+from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
 
 
 def register_auth_routes(app):
