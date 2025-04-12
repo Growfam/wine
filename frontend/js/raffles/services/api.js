@@ -753,42 +753,40 @@ export async function getUserData(forceRefresh = false) {
 
             const result = await window.WinixAPI.getUserData(forceRefresh);
 
-            // Оновлюємо відображення балансу в інтерфейсі
-            if (resultData && (resultData.balance !== undefined || resultData.coins !== undefined)) {
-                // Оновлюємо localStorage
-                if (resultData.balance !== undefined) {
-                    localStorage.setItem('userTokens', resultData.balance.toString());
-                    localStorage.setItem('winix_balance', resultData.balance.toString());
-                }
+            // Виправлена версія - змінено resultData на result.data
+if (result && result.status === 'success' && result.data) {
+    // Оновлюємо localStorage
+    if (result.data.balance !== undefined) {
+        localStorage.setItem('userTokens', result.data.balance.toString());
+        localStorage.setItem('winix_balance', result.data.balance.toString());
+    }
 
-                if (resultData.coins !== undefined) {
-                    localStorage.setItem('userCoins', resultData.coins.toString());
-                    localStorage.setItem('winix_coins', resultData.coins.toString());
-                }
+    if (result.data.coins !== undefined) {
+        localStorage.setItem('userCoins', result.data.coins.toString());
+        localStorage.setItem('winix_coins', result.data.coins.toString());
+    }
 
-                // Оновлюємо елементи інтерфейсу напряму
-                setTimeout(() => {
-                    try {
-                        // Оновлюємо елементи з класами
-                        const balanceElements = document.querySelectorAll('.user-balance, .balance-value, .tokens-count');
-                        balanceElements.forEach(el => {
-                            if (el && resultData.balance !== undefined) {
-                                el.textContent = resultData.balance;
-                            }
-                        });
+    // Оновлюємо елементи інтерфейсу напряму
+    setTimeout(() => {
+        try {
+            // Оновлюємо елементи з ID
+            const tokensElement = document.getElementById('user-tokens');
+            const coinsElement = document.getElementById('user-coins');
 
-                        const coinsElements = document.querySelectorAll('.user-coins, .coins-value, .tokens-count');
-                        coinsElements.forEach(el => {
-                            if (el && resultData.coins !== undefined) {
-                                el.textContent = resultData.coins;
-                            }
-                        });
+            if (tokensElement && result.data.balance !== undefined) {
+                tokensElement.textContent = result.data.balance;
+            }
 
-                        console.log("✅ Raffles API: Оновлено відображення балансу на сторінці");
-                    } catch (uiError) {
-                        console.error("❌ Raffles API: Помилка оновлення інтерфейсу:", uiError);
-                    }
-                }, 100);
+            if (coinsElement && result.data.coins !== undefined) {
+                coinsElement.textContent = result.data.coins;
+            }
+
+            console.log("✅ Raffles API: Оновлено відображення балансу на сторінці");
+        } catch (uiError) {
+            console.error("❌ Raffles API: Помилка оновлення інтерфейсу:", uiError);
+        }
+    }, 100);
+
 
                 // Відправляємо подію для інших модулів
                 document.dispatchEvent(new CustomEvent('balance-updated', {
