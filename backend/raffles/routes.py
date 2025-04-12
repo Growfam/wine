@@ -17,7 +17,9 @@ try:
 except ImportError:
     import controllers
 
-from settings.config import JWT_SECRET, JWT_ALGORITHM
+from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+
+
 
 # Часові обмеження для маршрутів
 RATE_LIMITS = {

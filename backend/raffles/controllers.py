@@ -264,8 +264,7 @@ def get_active_raffles():
 
     # Отримуємо загальну кількість активних розіграшів для пагінації
     try:
-        count_response = supabase.table("raffles").select("count", count="exact").eq("status", "active").execute(
-            timeout=5)
+        count_response = supabase.table("raffles").select("count", count="exact").eq("status", "active").execute()
         total_count = count_response.count if hasattr(count_response, 'count') else len(raffles_data)
     except Exception as e:
         logger.error(f"Помилка підрахунку активних розіграшів: {str(e)}")

@@ -189,7 +189,7 @@ class RaffleService:
         try:
             self.state.active = False
             if self.state.thread:
-                self.state.thread.join(timeout=5.0)
+                self.state.thread.join()
 
             logger.info("✅ Сервіс розіграшів зупинено")
 

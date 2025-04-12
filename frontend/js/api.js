@@ -296,7 +296,7 @@
                 // Використовуємо rawApiRequest без токену, щоб уникнути рекурсії
                 const response = await rawApiRequest(`${API_BASE_URL}/api/auth/refresh-token`, 'POST', {
                     telegram_id: userId,
-                    current_token: _authToken || ''
+                    token: _authToken || ''
                 }, {
                     timeout: 8000,
                     skipTokenCheck: true
