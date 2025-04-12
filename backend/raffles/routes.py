@@ -17,9 +17,7 @@ try:
 except ImportError:
     import controllers
 
-# Секретний ключ для JWT
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-here")
-JWT_ALGORITHM = "HS256"
+from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
 
 # Часові обмеження для маршрутів
 RATE_LIMITS = {

@@ -1,11 +1,16 @@
 from flask import request, jsonify
 import logging
+import jwt
+from datetime import datetime, timezone, timedelta
 from . import controllers
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+
 
 def register_auth_routes(app):
     @app.route('/api/auth', methods=['POST'])
@@ -22,10 +27,17 @@ def register_auth_routes(app):
             logger.info(f"auth_user: Результат verify_user: {user}")
 
             if user:
+                from datetime import datetime, timezone
+
                 # Визначаємо, чи це новий користувач (для відображення вітального повідомлення)
-                from datetime import datetime
-                is_new_user = user.get('created_at') and (datetime.now() - datetime.fromisoformat(
-                    user['created_at'].replace('Z', '+00:00'))).total_seconds() < 60
+                is_new_user = False
+                if user.get('created_at'):
+                    try:
+                        created_at = datetime.fromisoformat(user['created_at'].replace('Z', '+00:00'))
+                        is_new_user = (datetime.now(timezone.utc) - created_at).total_seconds() < 60
+                    except (ValueError, TypeError):
+                        # Обробка помилок парсингу дати
+                        logger.warning(f"Помилка при визначенні часу створення користувача")
 
                 return jsonify({
                     'status': 'success',
@@ -48,4 +60,74 @@ def register_auth_routes(app):
             return jsonify({
                 'status': 'error',
                 'message': str(e)
+            }), 500
+
+    @app.route('/api/auth/refresh-token', methods=['POST'])
+    def refresh_token():
+        """Оновлення JWT токену авторизації"""
+        try:
+            # Перевіряємо наявність токена в заголовках
+            auth_header = request.headers.get("Authorization")
+            if not auth_header or not auth_header.startswith("Bearer "):
+                logger.warning("refresh_token: Відсутній токен у заголовку")
+                return jsonify({
+                    "status": "error",
+                    "message": "Необхідний токен авторизації"
+                }), 401
+
+            # Отримуємо токен
+            token = auth_header.split(" ")[1]
+
+            try:
+                # Декодуємо токен для отримання ID користувача
+                payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                user_id = payload.get("user_id")
+
+                if not user_id:
+                    logger.warning("refresh_token: Невалідний токен (user_id відсутній)")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Невалідний токен"
+                    }), 401
+
+                # Отримуємо дані користувача для перевірки
+                user = controllers.get_user_data(user_id)
+                if not user:
+                    logger.warning(f"refresh_token: Користувача {user_id} не знайдено")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Користувача не знайдено"
+                    }), 404
+
+                # Створюємо новий токен з оновленим терміном дії
+                expiration = datetime.now(timezone.utc) + timedelta(days=7)
+
+                new_token = jwt.encode({
+                    "user_id": user_id,
+                    "exp": expiration
+                }, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+                logger.info(f"refresh_token: Токен успішно оновлено для {user_id}")
+                return jsonify({
+                    "status": "success",
+                    "token": new_token,
+                    "expires_at": expiration.isoformat()
+                })
+            except jwt.ExpiredSignatureError:
+                logger.warning("refresh_token: Токен протерміновано")
+                return jsonify({
+                    "status": "error",
+                    "message": "Термін дії токена минув, потрібна повторна авторизація"
+                }), 401
+            except jwt.InvalidTokenError:
+                logger.warning("refresh_token: Невалідний токен")
+                return jsonify({
+                    "status": "error",
+                    "message": "Недійсний токен авторизації"
+                }), 401
+        except Exception as e:
+            logger.error(f"refresh_token: Помилка: {str(e)}", exc_info=True)
+            return jsonify({
+                "status": "error",
+                "message": "Помилка сервера при оновленні токену"
             }), 500
