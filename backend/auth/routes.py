@@ -9,7 +9,8 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
+# Змінено імпорт для правильної роботи в Docker/Railway
+from settings.config import JWT_SECRET, JWT_ALGORITHM
 
 
 def register_auth_routes(app):
@@ -69,43 +70,92 @@ def register_auth_routes(app):
             # Перевіряємо наявність токена в заголовках
             auth_header = request.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
-                logger.warning("refresh_token: Відсутній токен у заголовку")
+                # Спробуємо отримати токен з тіла запиту
+                data = request.json or {}
+                if 'token' in data and data['token']:
+                    token = data['token']
+                    logger.info("refresh_token: Отримано токен з тіла запиту")
+                else:
+                    logger.warning("refresh_token: Відсутній токен у заголовку та тілі запиту")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Необхідний токен авторизації"
+                    }), 401
+            else:
+                # Отримуємо токен з заголовка
+                token = auth_header.split(" ")[1]
+
+            # Додаткова перевірка формату токена
+            if not token or len(token) < 10:
+                logger.warning("refresh_token: Токен надто короткий або відсутній")
                 return jsonify({
                     "status": "error",
-                    "message": "Необхідний токен авторизації"
+                    "message": "Недійсний формат токена"
                 }), 401
 
-            # Отримуємо токен
-            token = auth_header.split(" ")[1]
-
             try:
-                # Декодуємо токен для отримання ID користувача
-                payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                # Спробуємо декодувати токен для отримання ID користувача
+                try:
+                    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                except jwt.PyJWTError as jwt_error:
+                    logger.warning(f"refresh_token: Помилка декодування JWT: {str(jwt_error)}")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Невалідний токен авторизації: " + str(jwt_error)
+                    }), 401
+
                 user_id = payload.get("user_id")
 
                 if not user_id:
                     logger.warning("refresh_token: Невалідний токен (user_id відсутній)")
                     return jsonify({
                         "status": "error",
-                        "message": "Невалідний токен"
+                        "message": "Невалідний токен (відсутній ID користувача)"
                     }), 401
 
-                # Отримуємо дані користувача для перевірки
-                user = controllers.get_user_data(user_id)
-                if not user:
-                    logger.warning(f"refresh_token: Користувача {user_id} не знайдено")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Користувача не знайдено"
-                    }), 404
+                # Перевіряємо наявність користувача через controllers
+                if controllers.get_user_data(user_id) is None:
+                    logger.warning(f"refresh_token: Користувача {user_id} не знайдено через controllers")
 
+                    # Спробуємо отримати користувача з Supabase напряму
+                    try:
+                        from supabase_client import get_user
+                        supabase_user = get_user(user_id)
+                        if not supabase_user:
+                            logger.warning(f"refresh_token: Користувача {user_id} також не знайдено в Supabase")
+                            return jsonify({
+                                "status": "error",
+                                "message": "Користувача не знайдено"
+                            }), 404
+
+                        logger.info(f"refresh_token: Користувача {user_id} знайдено в Supabase")
+                    except Exception as supabase_error:
+                        logger.error(f"refresh_token: Помилка пошуку в Supabase: {str(supabase_error)}")
+                        return jsonify({
+                            "status": "error",
+                            "message": "Користувача не знайдено"
+                        }), 404
+
+                # Якщо ми дійшли сюди, користувач існує (через controllers або Supabase)
                 # Створюємо новий токен з оновленим терміном дії
                 expiration = datetime.now(timezone.utc) + timedelta(days=7)
 
-                new_token = jwt.encode({
+                # Додаємо додаткові дані в токен для безпеки
+                token_data = {
                     "user_id": user_id,
-                    "exp": expiration
-                }, JWT_SECRET, algorithm=JWT_ALGORITHM)
+                    "exp": expiration,
+                    "iat": datetime.now(timezone.utc),
+                    "type": "access"
+                }
+
+                try:
+                    new_token = jwt.encode(token_data, JWT_SECRET, algorithm=JWT_ALGORITHM)
+                except Exception as encode_error:
+                    logger.error(f"refresh_token: Помилка кодування токена: {str(encode_error)}")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Помилка генерації нового токена"
+                    }), 500
 
                 logger.info(f"refresh_token: Токен успішно оновлено для {user_id}")
                 return jsonify({
@@ -129,5 +179,6 @@ def register_auth_routes(app):
             logger.error(f"refresh_token: Помилка: {str(e)}", exc_info=True)
             return jsonify({
                 "status": "error",
-                "message": "Помилка сервера при оновленні токену"
+                "message": "Помилка сервера при оновленні токену",
+                "details": str(e)
             }), 500

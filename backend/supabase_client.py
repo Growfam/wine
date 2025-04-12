@@ -32,7 +32,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 CACHE_TIMEOUT = int(os.getenv("CACHE_TIMEOUT", "300"))  # 5 хвилин за замовчуванням
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "True").lower() == "true"
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))  # максимум 3 спроби
-RETRY_DELAY = float(os.getenv("RETRY_DELAY", "1.0"))  # початкова затримка 1 секунда
+RETRY_DELAY = float(os.getenv("RETRY_DELAY", "2.5"))  # початкова затримка 2.5 секунда
 DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "10"))  # таймаут запиту в секундах
 MAX_CACHE_SIZE = int(os.getenv("MAX_CACHE_SIZE", "1000"))  # максимальний розмір кешу
 
