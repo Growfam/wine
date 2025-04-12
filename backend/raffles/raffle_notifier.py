@@ -167,7 +167,7 @@ def send_telegram_message(
             "disable_web_page_preview": disable_web_page_preview
         }
 
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, )
 
         if response.status_code == 200:
             return True

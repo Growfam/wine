@@ -106,7 +106,7 @@ def send_telegram_message(chat_id: str, message: str, retry_count: int = 0) -> b
             "parse_mode": "HTML"
         }
 
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, )
 
         if response.status_code == 200:
             return True
