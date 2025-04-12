@@ -305,8 +305,11 @@ def get_raffle_details(raffle_id):
         logger.error(f"Помилка запиту деталей розіграшу {raffle_id}: {str(e)}")
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
 
-    if not response.data:
-        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
+    if not hasattr(response, 'data') or not response.data:
+        return jsonify({
+            "status": "error",
+            "message": "Інформацію про розіграш не знайдено"
+        }), 404
 
     raffle = response.data[0]
 
