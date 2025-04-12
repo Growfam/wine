@@ -28,7 +28,7 @@ except ImportError:
 # Часові обмеження для маршрутів
 RATE_LIMITS = {
     "get_active_raffles": 10,  # 10 секунд між запитами
-    "get_raffles_history": 30,  # 30 секунд між запитами
+    "get_raffles_history": 60,  # 60 секунд між запитами
     "get_user_raffles": 15,  # 15 секунд між запитами
     "participate_in_raffle": 3,  # 3 секунди між запитами
 }

@@ -590,6 +590,43 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             }
         }
 
+        // Обробка 429 помилки - занадто багато запитів
+        if (error.status === 429 ||
+            (error.message && error.message.includes('429')) ||
+            (error.message && error.message.includes('Too Many Requests'))) {
+
+            console.warn(`🔄 Raffles API: Обмеження частоти запитів (429) для ${endpoint}`);
+
+            // Показуємо користувачу повідомлення
+            if (WinixRaffles && WinixRaffles.ui && WinixRaffles.ui.showToast) {
+                WinixRaffles.ui.showToast(
+                    "Занадто багато запитів. Спробуйте знову через кілька секунд.",
+                    "warning"
+                );
+            }
+
+            // Додаємо затримку перед наступним запитом
+            const retryDelay = 5000; // 5 секунд
+
+            // Зберігаємо інформацію про необхідність затримки
+            _lastRequestsByEndpoint[endpoint] = Date.now() + retryDelay;
+
+            // Отримуємо кешовані дані якщо є
+            const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+            if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+                console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} через обмеження запитів`);
+                // Видаляємо запит з активних
+                delete _activeRequests[cleanEndpoint];
+
+                return {
+                    status: 'success',
+                    data: _cache[cacheKey].data,
+                    source: 'cache_rate_limited',
+                    retry_after: retryDelay
+                };
+            }
+        }
+
         // Генеруємо подію про помилку API
         if (WinixRaffles && WinixRaffles.events) {
             WinixRaffles.events.emit('api-error', {
@@ -713,6 +750,53 @@ export async function getUserData(forceRefresh = false) {
             await refreshToken();
 
             const result = await window.WinixAPI.getUserData(forceRefresh);
+
+            // Оновлюємо відображення балансу в інтерфейсі
+            if (resultData && (resultData.balance !== undefined || resultData.coins !== undefined)) {
+                // Оновлюємо localStorage
+                if (resultData.balance !== undefined) {
+                    localStorage.setItem('userTokens', resultData.balance.toString());
+                    localStorage.setItem('winix_balance', resultData.balance.toString());
+                }
+
+                if (resultData.coins !== undefined) {
+                    localStorage.setItem('userCoins', resultData.coins.toString());
+                    localStorage.setItem('winix_coins', resultData.coins.toString());
+                }
+
+                // Оновлюємо елементи інтерфейсу напряму
+                setTimeout(() => {
+                    try {
+                        // Оновлюємо елементи з класами
+                        const balanceElements = document.querySelectorAll('.user-balance, .balance-value, .tokens-count');
+                        balanceElements.forEach(el => {
+                            if (el && resultData.balance !== undefined) {
+                                el.textContent = resultData.balance;
+                            }
+                        });
+
+                        const coinsElements = document.querySelectorAll('.user-coins, .coins-value, .tokens-count');
+                        coinsElements.forEach(el => {
+                            if (el && resultData.coins !== undefined) {
+                                el.textContent = resultData.coins;
+                            }
+                        });
+
+                        console.log("✅ Raffles API: Оновлено відображення балансу на сторінці");
+                    } catch (uiError) {
+                        console.error("❌ Raffles API: Помилка оновлення інтерфейсу:", uiError);
+                    }
+                }, 100);
+
+                // Відправляємо подію для інших модулів
+                document.dispatchEvent(new CustomEvent('balance-updated', {
+                    detail: {
+                        balance: resultData.balance,
+                        coins: resultData.coins,
+                        source: 'raffles-api'
+                    }
+                }));
+            }
 
             // Кешуємо результат
             if (result.status === 'success' && result.data) {
@@ -994,7 +1078,7 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
                 _cache.history = {
                     data: resultData,
                     timestamp: Date.now(),
-                    ttl: _cache.history?.ttl || 300000
+                    ttl: _cache.history?.ttl || 600000
                 };
             }
 
