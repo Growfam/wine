@@ -1,12 +1,12 @@
 /**
  * api.js - Сервіс для роботи з API розіграшів
  * Інтеграція з основним API системи
- * @version 1.2.0
+ * @version 1.1.1
  */
 
 import WinixRaffles from '../globals.js';
 
-// Перевірка доступності основного API
+// Покращена перевірка доступності основного API
 const hasMainApi = () => {
     try {
         return window.WinixAPI &&
@@ -14,17 +14,6 @@ const hasMainApi = () => {
                typeof window.WinixAPI.getUserId === 'function';
     } catch (e) {
         console.error("🔌 Raffles API: Помилка перевірки головного API:", e);
-        return false;
-    }
-};
-
-// Перевірка, чи у головного API є всі необхідні методи
-const hasFullMainApi = () => {
-    try {
-        return hasMainApi() &&
-            typeof window.WinixAPI.refreshToken === 'function' &&
-            typeof window.WinixAPI.getAuthToken === 'function';
-    } catch (e) {
         return false;
     }
 };
@@ -39,7 +28,7 @@ const REQUEST_THROTTLE = {
     'default': 15000                // 15 секунд для всіх інших
 };
 
-// Відстеження часу останніх запитів
+// Відстеження часу останніх запитів - ініціалізуємо об'єкт, щоб уникнути помилок
 const _lastRequestTimes = {};
 
 // Глобальна змінна для відстеження часу останнього запиту
@@ -55,10 +44,6 @@ const _cache = {
     userData: {data: null, timestamp: 0, ttl: 120000} // 2 хвилини
 };
 
-// Токен авторизації
-let _authToken = null;
-let _authTokenExpiry = 0;
-
 /**
  * Отримати ID користувача
  * @returns {string|null} ID користувача або null
@@ -67,8 +52,7 @@ export function getUserId() {
     // Використовуємо основний API, якщо доступний
     if (hasMainApi()) {
         try {
-            const id = window.WinixAPI.getUserId();
-            if (id) return id;
+            return window.WinixAPI.getUserId();
         } catch (e) {
             console.warn("🔌 Raffles API: Помилка отримання ID з основного API:", e);
         }
@@ -124,12 +108,11 @@ export function getUserId() {
  */
 export function getAuthToken() {
     // Використовуємо основний API, якщо доступний
-    if (hasMainApi()) {
+    if (hasMainApi() && typeof window.WinixAPI.getAuthToken === 'function') {
         try {
             const token = window.WinixAPI.getAuthToken();
             if (token) {
-                // Кешуємо токен локально для швидшого доступу
-                _authToken = token;
+                console.log("🔑 Raffles API: Отримано токен з основного API");
                 return token;
             }
         } catch (e) {
@@ -137,43 +120,22 @@ export function getAuthToken() {
         }
     }
 
-    // Перевіряємо локальну змінну для швидшого доступу
-    if (_authToken && _authTokenExpiry > Date.now()) {
-        return _authToken;
-    }
-
-    // Резервна реалізація - localStorage
+    // Резервний варіант - localStorage
     try {
-        // Основний ключ, який використовує головний API
-        const token = localStorage.getItem('auth_token');
-        if (token && typeof token === 'string' && token.length > 5) {
-            _authToken = token;
-
-            // Перевіряємо термін дії
-            const expiryStr = localStorage.getItem('auth_token_expiry');
-            if (expiryStr) {
-                _authTokenExpiry = parseInt(expiryStr);
-            } else {
-                _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000); // 24 години
-            }
-
-            return token;
-        }
-
-        // Перевіряємо альтернативні ключі, які можуть використовуватися
-        const possibleKeys = ['access_token', 'token', 'bearer_token', 'winix_auth_token'];
+        // Перевіряємо різні можливі ключі
+        const possibleKeys = ['auth_token', 'token', 'accessToken'];
         for (const key of possibleKeys) {
-            const altToken = localStorage.getItem(key);
-            if (altToken && typeof altToken === 'string' && altToken.length > 5) {
-                _authToken = altToken;
-                _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000); // 24 години
-                return altToken;
+            const token = localStorage.getItem(key);
+            if (token && typeof token === 'string' && token.length > 5) {
+                console.log(`🔑 Raffles API: Отримано токен з localStorage (ключ: ${key})`);
+                return token;
             }
         }
     } catch (e) {
         console.warn("🔌 Raffles API: Помилка отримання токену з localStorage:", e);
     }
 
+    console.warn("⚠️ Raffles API: Токен авторизації не знайдено");
     return null;
 }
 
@@ -191,26 +153,26 @@ function getApiBaseUrl() {
     if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
         // Переконуємося, що URL не закінчується на /api
         const url = window.WinixConfig.apiBaseUrl;
-        return url.endsWith('/api') ? url : url + '/api';
+        return url.endsWith('/api') ? url.slice(0, -4) : url;
     }
 
     // Перевіряємо основний API
     if (hasMainApi() && window.WinixAPI.config && window.WinixAPI.config.baseUrl) {
         const baseUrl = window.WinixAPI.config.baseUrl;
-        return baseUrl.endsWith('/api') ? baseUrl : baseUrl + '/api';
+        return baseUrl.endsWith('/api') ? baseUrl.slice(0, -4) : baseUrl;
     }
 
     // Визначаємо URL на основі поточного середовища
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         // Локальне середовище - використовуємо порт 8080
-        return `http://${hostname}:8080/api`;
+        return `http://${hostname}:8080`;
     } else if (hostname.includes('testenv') || hostname.includes('staging')) {
         // Тестові середовища
-        return `https://${hostname}/api`;
+        return `https://${hostname}`;
     } else {
         // Продакшн середовище
-        return 'https://winixbot.com/api';
+        return 'https://winixbot.com';
     }
 }
 
@@ -220,6 +182,11 @@ function getApiBaseUrl() {
  * @returns {boolean} Дозволено виконати запит
  */
 function canMakeRequest(endpoint) {
+    // Ініціалізуємо _lastRequestTimes, якщо він не визначений
+    if (typeof _lastRequestTimes !== 'object') {
+        window._lastRequestTimes = {};
+    }
+
     const now = Date.now();
 
     // Визначаємо мінімальний інтервал для ендпоінту
@@ -273,109 +240,64 @@ export function forceCleanupRequests() {
  * @returns {Promise<boolean>} Результат оновлення
  */
 export async function refreshToken() {
-    // Перевіряємо, чи не було нещодавнього оновлення токену
-    const now = Date.now();
-    if (_lastRequestTimes['refresh-token'] && now - _lastRequestTimes['refresh-token'] < REQUEST_THROTTLE['/refresh-token']) {
-        console.log("🔄 Занадто часте оновлення токена, пропускаємо");
-        return false;
-    }
+    console.log("🔄 Raffles API: Починаємо оновлення токену");
 
-    _lastRequestTimes['refresh-token'] = now;
-    _lastRequestTime = now; // Оновлюємо глобальну змінну
-
-    // Оновлюємо токен через основний API, якщо він доступний
-    if (hasFullMainApi()) {
+    // Використовуємо основний API, якщо доступний
+    if (hasMainApi() && typeof window.WinixAPI.refreshToken === 'function') {
         try {
+            console.log("🔄 Raffles API: Спроба оновлення через основний API");
             const result = await window.WinixAPI.refreshToken();
             console.log("✅ Raffles API: Токен успішно оновлено через основний API");
-
-            // Оновлюємо локальний кеш токену
-            _authToken = window.WinixAPI.getAuthToken();
-            try {
-                const expiryStr = localStorage.getItem('auth_token_expiry');
-                if (expiryStr) {
-                    _authTokenExpiry = parseInt(expiryStr);
-                }
-            } catch (e) {}
-
             return true;
         } catch (e) {
-            console.warn("🔌 Raffles API: Помилка оновлення токену через основний API:", e);
-            // Продовжуємо з власною реалізацією
+            console.warn("⚠️ Raffles API: Помилка оновлення через основний API:", e);
+            // Продовжуємо з нашою реалізацією
         }
     }
 
-    // Власна реалізація оновлення токену
+    // Власна реалізація
     try {
-        // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
             throw new Error("ID користувача не знайдено");
         }
 
-        console.log("🔄 Raffles API: Початок оновлення токену");
+        const oldToken = getAuthToken() || '';
+        console.log("🔄 Raffles API: Спроба власного оновлення токену");
 
-        // Формуємо URL
-        const baseUrl = getApiBaseUrl();
-        const refreshUrl = baseUrl.endsWith('/api')
-            ? `${baseUrl}/auth/refresh-token`
-            : `${baseUrl}/api/auth/refresh-token`;
-
-        // Отримуємо поточний токен
-        const currentToken = getAuthToken() || '';
-
-        // Виконуємо запит на оновлення токену
-        const response = await fetch(refreshUrl, {
+        // Створюємо запит напряму
+        const apiBaseUrl = getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/api/auth/refresh-token`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'X-Telegram-User-Id': userId
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 telegram_id: userId,
-                token: currentToken
+                token: oldToken
             })
         });
 
-        // Перевіряємо відповідь
         if (!response.ok) {
             throw new Error(`Помилка HTTP: ${response.status}`);
         }
 
-        const result = await response.json();
+        const data = await response.json();
 
-        if (result && result.status === 'success' && result.token) {
-            // Зберігаємо новий токен
-            _authToken = result.token;
+        if (data && data.status === 'success' && data.token) {
+            console.log("✅ Raffles API: Токен успішно оновлено через власну реалізацію");
+            localStorage.setItem('auth_token', data.token);
 
-            // Визначаємо час закінчення токену
-            if (result.expires_at) {
-                _authTokenExpiry = new Date(result.expires_at).getTime();
-            } else if (result.expires_in) {
-                _authTokenExpiry = Date.now() + (result.expires_in * 1000);
-            } else {
-                // За замовчуванням 24 години
-                _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
+            // Встановлюємо термін дії
+            if (data.expires_at) {
+                localStorage.setItem('auth_token_expiry', new Date(data.expires_at).getTime().toString());
+            } else if (data.expires_in) {
+                localStorage.setItem('auth_token_expiry', (Date.now() + (data.expires_in * 1000)).toString());
             }
-
-            // Зберігаємо в localStorage
-            try {
-                localStorage.setItem('auth_token', _authToken);
-                localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
-            } catch (e) {
-                console.warn("🔌 Raffles API: Помилка збереження токену в localStorage:", e);
-            }
-
-            console.log("✅ Raffles API: Токен успішно оновлено");
-
-            // Відправляємо подію про оновлення токену
-            document.dispatchEvent(new CustomEvent('token-refreshed', {
-                detail: { token: _authToken, expires_at: _authTokenExpiry }
-            }));
 
             return true;
         } else {
-            throw new Error(result.message || "Помилка оновлення токену");
+            throw new Error(data.message || "Не вдалося оновити токен");
         }
     } catch (error) {
         console.error("❌ Raffles API: Помилка оновлення токену:", error);
@@ -384,7 +306,7 @@ export async function refreshToken() {
 }
 
 /**
- * Універсальна функція для виконання API-запитів розіграшів
+ * Універсальна функція для виконання API-запитів
  * @param {string} endpoint - URL ендпоінту
  * @param {string} method - HTTP метод (GET, POST, PUT, DELETE)
  * @param {Object} data - Дані для відправки
@@ -392,38 +314,6 @@ export async function refreshToken() {
  * @returns {Promise<Object>} Результат запиту
  */
 export async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
-    // Якщо доступний основний API, делегуємо йому запит
-    if (hasFullMainApi() && !options.skipMainApi) {
-        try {
-            return await window.WinixAPI.apiRequest(endpoint, method, data, options);
-        } catch (mainApiError) {
-            console.warn("🔌 Raffles API: Помилка при використанні основного API, переключаємось на резервну реалізацію:", mainApiError);
-            // Продовжуємо з власною реалізацією
-        }
-    }
-
-    // Якщо пристрій офлайн, одразу повертаємо помилку
-    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !options.bypassOfflineCheck) {
-        console.warn("🔌 Raffles API: Пристрій офлайн, запит не виконано");
-
-        // Повертаємо кешовані дані, якщо такі є
-        const cacheKey = getCacheKeyFromEndpoint(endpoint);
-        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
-            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${endpoint} в офлайн режимі`);
-            return {
-                status: 'success',
-                data: _cache[cacheKey].data,
-                source: 'cache_offline'
-            };
-        }
-
-        return {
-            status: 'error',
-            message: 'Пристрій офлайн',
-            source: 'offline'
-        };
-    }
-
     // Якщо endpoint починається з "/", видаляємо цей символ
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
 
@@ -469,6 +359,28 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
         };
     }
 
+    // Якщо пристрій офлайн, одразу повертаємо помилку
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !options.bypassOfflineCheck) {
+        console.warn("🔌 Raffles API: Пристрій офлайн, запит не виконано");
+
+        // Повертаємо кешовані дані, якщо такі є
+        const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+        if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+            console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} в офлайн режимі`);
+            return {
+                status: 'success',
+                data: _cache[cacheKey].data,
+                source: 'cache_offline'
+            };
+        }
+
+        return {
+            status: 'error',
+            message: 'Пристрій офлайн',
+            source: 'offline'
+        };
+    }
+
     // Очищаємо зависаючі запити
     cleanupHangingRequests();
 
@@ -476,26 +388,54 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
     _activeRequests[cleanEndpoint] = Date.now();
     _lastRequestTime = Date.now(); // Оновлюємо глобальну змінну
 
-    // Використовуємо централізоване відображення лоадера
-    if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
-        WinixRaffles.loader.show(options.loaderMessage || 'Завантаження...', `raffles-api-${cleanEndpoint}`);
+    // Якщо основний API доступний і опція useMainAPI не false, використовуємо його
+    if (hasMainApi() && options.useMainAPI !== false) {
+        try {
+            // Оновлюємо токен перед важливими запитами
+            if (cleanEndpoint.includes('history') || cleanEndpoint.includes('participate')) {
+                try {
+                    await refreshToken();
+                } catch (tokenError) {
+                    console.warn("🔌 Raffles API: Помилка оновлення токену перед запитом:", tokenError);
+                }
+            }
+
+            const response = await window.WinixAPI.apiRequest(cleanEndpoint, method, data, options);
+
+            // Кешуємо результат, якщо потрібно
+            cacheResponse(cleanEndpoint, response);
+
+            // Видаляємо запит з активних
+            delete _activeRequests[cleanEndpoint];
+
+            return response;
+        } catch (mainApiError) {
+            console.warn("🔌 Raffles API: Помилка в основному API, використовуємо резервний:", mainApiError);
+
+            // Отримуємо кешовані дані у випадку помилки
+            const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+            if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+                console.log(`🔌 Raffles API: Повертаємо кешовані дані для ${cleanEndpoint} після помилки основного API`);
+
+                // Видаляємо запит з активних
+                delete _activeRequests[cleanEndpoint];
+
+                return {
+                    status: 'success',
+                    data: _cache[cacheKey].data,
+                    source: 'cache_after_main_api_error'
+                };
+            }
+
+            // Якщо кеш не знайдено, продовжуємо з нашою реалізацією
+        }
     }
 
+    // Резервна реалізація API запиту
     try {
-        // Оновлюємо токен перед важливими запитами
-        if (!options.skipTokenRefresh && !options.retryAfter401) {
-            try {
-                // Явне оновлення токену перед важливими запитами
-                if (cleanEndpoint.includes('history') || cleanEndpoint.includes('participate')) {
-                    await refreshToken();
-                }
-                // Перевіряємо термін дії токену
-                else if (_authTokenExpiry && _authTokenExpiry < Date.now() + 600000) {
-                    await refreshToken();
-                }
-            } catch (tokenError) {
-                console.warn("🔌 Raffles API: Помилка оновлення токену перед запитом:", tokenError);
-            }
+        // Використовуємо централізоване відображення лоадера
+        if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
+            WinixRaffles.loader.show(options.loaderMessage || 'Завантаження...', `raffles-api-${cleanEndpoint}`);
         }
 
         // Формуємо базовий URL API
@@ -588,33 +528,9 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
                 WinixRaffles.loader.hide(`raffles-api-${cleanEndpoint}`);
             }
 
-            // Якщо отримали 401 - потрібно оновити токен і повторити запит
-            if (response.status === 401 && !options.retryAfter401) {
-                console.warn(`🔌 Raffles API: Отримано 401 для ${cleanEndpoint}, спроба оновити токен`);
-
-                // Оновлюємо токен
-                const tokenRefreshed = await refreshToken();
-
-                if (tokenRefreshed) {
-                    console.log(`🔌 Raffles API: Токен успішно оновлено, повторюємо запит до ${cleanEndpoint}`);
-
-                    // Видаляємо запит зі списку активних
-                    delete _activeRequests[cleanEndpoint];
-
-                    // Повторюємо запит з новим токеном
-                    return await apiRequest(endpoint, method, data, {
-                        ...options,
-                        retryAfter401: true // Прапорець для запобігання нескінченного циклу
-                    });
-                } else {
-                    console.error(`🔌 Raffles API: Не вдалося оновити токен для запиту ${cleanEndpoint}`);
-                    throw new Error(`Помилка авторизації: ${response.status}`);
-                }
-            }
-
-            // Обробляємо інші помилки
+            // Обробляємо відповідь
             if (!response.ok) {
-                throw new Error(`Помилка сервера: ${response.status}`);
+                throw new Error(`Помилка сервера: ${response.status} ${response.statusText}`);
             }
 
             // Парсимо відповідь
@@ -636,11 +552,42 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             throw error;
         }
     } catch (error) {
-        console.error(`🔌 Raffles API: Помилка запиту ${endpoint}:`, error);
+        console.error(`❌ Raffles API: Помилка запиту ${endpoint}:`, error);
 
         // Приховуємо індикатор завантаження
         if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
             WinixRaffles.loader.hide(`raffles-api-${cleanEndpoint}`);
+        }
+
+        // Обробка 401 помилки - спроба оновити токен
+        if (error.status === 401 ||
+            (error.message && error.message.includes('401')) ||
+            (error.message && error.message.includes('Unauthorized'))) {
+
+            console.warn("🔄 Raffles API: Отримано помилку 401, спроба оновити токен");
+
+            // Перевіряємо, що це не повторний запит після вже спробованого оновлення токену
+            if (!options.after401) {
+                try {
+                    const refreshed = await refreshToken();
+
+                    if (refreshed) {
+                        console.log("🔄 Raffles API: Токен оновлено, повторюємо запит");
+
+                        // Повторюємо запит з новим токеном
+                        return await apiRequest(endpoint, method, data, {
+                            ...options,
+                            after401: true  // Запобігання рекурсії
+                        });
+                    } else {
+                        console.warn("⚠️ Raffles API: Не вдалося оновити токен");
+                    }
+                } catch (refreshError) {
+                    console.error("❌ Raffles API: Помилка при спробі оновити токен:", refreshError);
+                }
+            } else {
+                console.warn("⚠️ Raffles API: Повторна помилка 401 навіть після оновлення токену");
+            }
         }
 
         // Генеруємо подію про помилку API
@@ -650,31 +597,6 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
                 endpoint: endpoint,
                 method: method
             });
-        }
-
-        // Спеціальна обробка для 401 помилки
-        if (error.message && error.message.includes('401') && !options.retryAfter401) {
-            console.warn(`🔌 Raffles API: Виявлено помилку 401 у повідомленні для ${cleanEndpoint}`);
-
-            try {
-                // Оновлюємо токен
-                const tokenRefreshed = await refreshToken();
-
-                if (tokenRefreshed) {
-                    console.log(`🔌 Raffles API: Токен успішно оновлено, повторюємо запит до ${cleanEndpoint}`);
-
-                    // Видаляємо запит зі списку активних
-                    delete _activeRequests[cleanEndpoint];
-
-                    // Повторюємо запит з новим токеном
-                    return await apiRequest(endpoint, method, data, {
-                        ...options,
-                        retryAfter401: true // Прапорець для запобігання нескінченного циклу
-                    });
-                }
-            } catch (refreshError) {
-                console.error(`🔌 Raffles API: Помилка оновлення токену після виявлення 401:`, refreshError);
-            }
         }
 
         // Отримуємо кешовані дані у випадку помилки
@@ -756,19 +678,9 @@ export function clearCache(cacheKey) {
 /**
  * Отримання даних користувача
  * @param {boolean} forceRefresh - Примусове оновлення даних
- * @returns {Promise<Object>} Дані користувача
+ * @returns {Promise<Object>} Проміс з даними користувача
  */
 export async function getUserData(forceRefresh = false) {
-    // Якщо доступний основний API, делегуємо йому запит
-    if (hasMainApi()) {
-        try {
-            return await window.WinixAPI.getUserData(forceRefresh);
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка отримання даних користувача з основного API:", e);
-            // Продовжуємо з власною реалізацією
-        }
-    }
-
     // Перевірка чи пристрій онлайн
     if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
         console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані користувача");
@@ -794,64 +706,62 @@ export async function getUserData(forceRefresh = false) {
         };
     }
 
-    // Перевіряємо кеш, якщо не потрібне примусове оновлення
-    if (!forceRefresh && _cache.userData && _cache.userData.data &&
-        (Date.now() - _cache.userData.timestamp) < _cache.userData.ttl) {
-        return {
-            status: 'success',
-            data: _cache.userData.data,
-            source: 'cache'
-        };
+    // Використовуємо основний API, якщо доступний
+    if (hasMainApi()) {
+        try {
+            // Оновлюємо токен перед запитом
+            await refreshToken();
+
+            const result = await window.WinixAPI.getUserData(forceRefresh);
+
+            // Кешуємо результат
+            if (result.status === 'success' && result.data) {
+                _cache.userData = {
+                    data: result.data,
+                    timestamp: Date.now(),
+                    ttl: _cache.userData?.ttl || 120000
+                };
+            }
+
+            return result;
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання даних користувача з основного API:", e);
+
+            // Якщо є кешовані дані, повертаємо їх
+            if (_cache.userData && _cache.userData.data) {
+                return {
+                    status: 'success',
+                    data: _cache.userData.data,
+                    source: 'cache_after_error'
+                };
+            }
+        }
     }
 
     try {
-        // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
-            throw new Error("ID користувача не знайдено");
-        }
-
-        // Виконуємо запит до API
-        const response = await apiRequest(`user/${userId}`, 'GET', null, {
-            timeout: 5000, // Коротший таймаут
-            bypassMainApi: true // Використовуємо власну реалізацію
-        });
-
-        if (response.status === 'success' && response.data) {
-            // Оновлюємо кеш
-            _cache.userData = {
-                data: response.data,
-                timestamp: Date.now(),
-                ttl: _cache.userData?.ttl || 120000
+            return {
+                status: 'error',
+                message: 'ID користувача не знайдено'
             };
-
-            // Зберігаємо дані в localStorage
-            try {
-                if (response.data.balance !== undefined) {
-                    localStorage.setItem('userTokens', response.data.balance.toString());
-                    localStorage.setItem('winix_balance', response.data.balance.toString());
-                }
-
-                if (response.data.coins !== undefined) {
-                    localStorage.setItem('userCoins', response.data.coins.toString());
-                    localStorage.setItem('winix_coins', response.data.coins.toString());
-                }
-
-                // Зберігаємо налаштування повідомлень
-                if (response.data.notifications_enabled !== undefined) {
-                    localStorage.setItem('notifications_enabled', response.data.notifications_enabled.toString());
-                }
-
-                // Відправляємо подію оновлення даних користувача
-                document.dispatchEvent(new CustomEvent('user-data-updated', {
-                    detail: response.data
-                }));
-            } catch (e) {
-                console.warn("🔌 Raffles API: Помилка збереження даних в localStorage:", e);
-            }
         }
 
-        return response;
+        // Перевіряємо кеш, якщо не потрібне примусове оновлення
+        if (!forceRefresh && _cache.userData && _cache.userData.data &&
+            (Date.now() - _cache.userData.timestamp) < _cache.userData.ttl) {
+            return {
+                status: 'success',
+                data: _cache.userData.data,
+                source: 'cache'
+            };
+        }
+
+        return await apiRequest(`user/${userId}`, 'GET', null, {
+            useMainAPI: false, // Не використовувати основний API для уникнення рекурсії
+            bypassThrottle: forceRefresh, // Ігноруємо обмеження частоти для примусового оновлення
+            timeout: 5000 // Коротший таймаут
+        });
     } catch (error) {
         console.error("🔌 Raffles API: Помилка отримання даних користувача:", error);
 
@@ -884,21 +794,11 @@ export async function getUserData(forceRefresh = false) {
  * @returns {Promise<Object>} Баланс користувача
  */
 export async function getBalance(forceRefresh = false) {
-    // Якщо доступний основний API, делегуємо йому запит
-    if (hasMainApi()) {
-        try {
-            return await window.WinixAPI.getBalance(forceRefresh);
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка отримання балансу з основного API:", e);
-            // Продовжуємо з власною реалізацією
-        }
-    }
-
     // Перевірка чи пристрій онлайн
     if (typeof navigator.onLine !== 'undefined' && !navigator.onLine && !forceRefresh) {
         console.warn("🔌 Raffles API: Пристрій офлайн, використовуємо кешовані дані балансу");
 
-        // Повертаємо дані з localStorage
+        // Повертаємо базові дані з localStorage
         return {
             status: 'success',
             data: {
@@ -909,14 +809,31 @@ export async function getBalance(forceRefresh = false) {
         };
     }
 
+    // Використовуємо основний API, якщо доступний
+    if (hasMainApi()) {
+        try {
+            // Оновлюємо токен перед запитом
+            await refreshToken();
+
+            return await window.WinixAPI.getBalance(forceRefresh);
+        } catch (e) {
+            console.warn("🔌 Raffles API: Помилка отримання балансу з основного API:", e);
+        }
+    }
+
     try {
         const userId = getUserId();
         if (!userId) {
-            throw new Error('ID користувача не знайдено');
+            return {
+                status: 'error',
+                message: 'ID користувача не знайдено'
+            };
         }
 
         return await apiRequest(`user/${userId}/balance`, 'GET', null, {
-            bypassMainApi: true // Використовуємо власну реалізацію
+            useMainAPI: false, // Не використовувати основний API для уникнення рекурсії
+            bypassThrottle: forceRefresh,
+            timeout: 5000 // Коротший таймаут
         });
     } catch (error) {
         console.error("🔌 Raffles API: Помилка отримання балансу користувача:", error);
@@ -928,10 +845,13 @@ export async function getBalance(forceRefresh = false) {
                 balance: parseFloat(localStorage.getItem('userTokens') || '0'),
                 coins: parseInt(localStorage.getItem('userCoins') || '0')
             },
-            source: 'localStorage_fallback'
+            source: 'localStorage_fallback',
+            message: 'Помилка отримання балансу: ' + error.message
         };
     }
 }
+
+// Спеціальні функції для розіграшів, які відсутні в основному API
 
 /**
  * Отримання активних розіграшів
@@ -948,20 +868,7 @@ export async function getActiveRaffles(forceRefresh = false) {
             return _cache.activeRaffles.data;
         }
 
-        // Якщо кешу немає, спробуємо отримати дані з localStorage
-        try {
-            const cachedRaffles = localStorage.getItem('winix_active_raffles');
-            if (cachedRaffles) {
-                const parsedRaffles = JSON.parse(cachedRaffles);
-                if (Array.isArray(parsedRaffles)) {
-                    return parsedRaffles;
-                }
-            }
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка читання кешу розіграшів з localStorage:", e);
-        }
-
-        // Якщо нічого не знайдено, повертаємо порожній масив
+        // Якщо кешу немає, повертаємо порожній масив
         return [];
     }
 
@@ -991,13 +898,6 @@ export async function getActiveRaffles(forceRefresh = false) {
                 ttl: _cache.activeRaffles?.ttl || 60000
             };
 
-            // Зберігаємо дані в localStorage
-            try {
-                localStorage.setItem('winix_active_raffles', JSON.stringify(resultData));
-            } catch (e) {
-                console.warn("🔌 Raffles API: Помилка збереження даних розіграшів в localStorage:", e);
-            }
-
             return resultData;
         }
 
@@ -1016,19 +916,6 @@ export async function getActiveRaffles(forceRefresh = false) {
         if (_cache.activeRaffles && _cache.activeRaffles.data) {
             console.warn("🔌 Raffles API: Використовуємо кешовані дані розіграшів після помилки");
             return _cache.activeRaffles.data;
-        }
-
-        // Спробуємо отримати дані з localStorage
-        try {
-            const cachedRaffles = localStorage.getItem('winix_active_raffles');
-            if (cachedRaffles) {
-                const parsedRaffles = JSON.parse(cachedRaffles);
-                if (Array.isArray(parsedRaffles)) {
-                    return parsedRaffles;
-                }
-            }
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка читання кешу розіграшів з localStorage:", e);
         }
 
         return [];
@@ -1051,20 +938,7 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
             return _cache.history.data;
         }
 
-        // Якщо кешу немає, спробуємо отримати дані з localStorage
-        try {
-            const cachedHistory = localStorage.getItem('winix_raffles_history');
-            if (cachedHistory) {
-                const parsedHistory = JSON.parse(cachedHistory);
-                if (Array.isArray(parsedHistory)) {
-                    return parsedHistory;
-                }
-            }
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка читання кешу історії з localStorage:", e);
-        }
-
-        // Якщо нічого не знайдено, повертаємо порожній масив
+        // Якщо кешу немає, повертаємо порожній масив
         return [];
     }
 
@@ -1080,11 +954,12 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
             throw new Error('ID користувача не знайдено');
         }
 
-        // Перед запитом історії оновлюємо токен
+        // Оновлюємо токен перед запитом історії
+        console.log("🔄 Raffles API: Оновлюємо токен перед запитом історії");
         const tokenRefreshed = await refreshToken();
 
         if (!tokenRefreshed) {
-            console.warn("🔌 Raffles API: Не вдалося оновити токен перед запитом історії");
+            console.warn("⚠️ Raffles API: Не вдалося оновити токен перед запитом історії");
         }
 
         // Формуємо параметри запиту
@@ -1108,7 +983,7 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
             timeout: 15000, // Збільшуємо таймаут для історії
             loaderMessage: 'Завантаження історії розіграшів...',
             bypassThrottle: forceRefresh,
-            skipTokenRefresh: true // Вже оновили токен вище
+            after401: false // Дозволяємо обробку 401 помилки
         });
 
         if (response && response.status === 'success') {
@@ -1121,13 +996,6 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
                     timestamp: Date.now(),
                     ttl: _cache.history?.ttl || 300000
                 };
-
-                // Зберігаємо дані в localStorage
-                try {
-                    localStorage.setItem('winix_raffles_history', JSON.stringify(resultData));
-                } catch (e) {
-                    console.warn("🔌 Raffles API: Помилка збереження історії в localStorage:", e);
-                }
             }
 
             return resultData;
@@ -1147,19 +1015,6 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
         if (_cache.history && _cache.history.data) {
             console.warn("🔌 Raffles API: Використовуємо кешовані дані історії після помилки");
             return _cache.history.data;
-        }
-
-        // Спробуємо отримати дані з localStorage
-        try {
-            const cachedHistory = localStorage.getItem('winix_raffles_history');
-            if (cachedHistory) {
-                const parsedHistory = JSON.parse(cachedHistory);
-                if (Array.isArray(parsedHistory)) {
-                    return parsedHistory;
-                }
-            }
-        } catch (e) {
-            console.warn("🔌 Raffles API: Помилка читання кешу історії з localStorage:", e);
         }
 
         return [];
@@ -1194,19 +1049,14 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
         }
 
         // Оновлюємо токен перед важливим запитом
-        const tokenRefreshed = await refreshToken();
-
-        if (!tokenRefreshed) {
-            console.warn("🔌 Raffles API: Не вдалося оновити токен перед участю в розіграші");
-        }
+        await refreshToken();
 
         const response = await apiRequest(`user/${userId}/participate-raffle`, 'POST', {
             raffle_id: raffleId,
             entry_count: entryCount
         }, {
             timeout: 15000, // Збільшуємо таймаут для важливої операції
-            loaderMessage: 'Беремо участь у розіграші...',
-            skipTokenRefresh: true // Вже оновили токен вище
+            loaderMessage: 'Беремо участь у розіграші...'
         });
 
         if (response && response.status === 'success') {
@@ -1289,13 +1139,6 @@ export async function claimNewbieBonus() {
             // Оновлюємо дані користувача
             clearCache('userData');
 
-            // Зберігаємо інформацію в localStorage
-            try {
-                localStorage.setItem('newbie_bonus_claimed', 'true');
-            } catch (e) {
-                console.warn("🔌 Raffles API: Помилка збереження статусу бонусу в localStorage:", e);
-            }
-
             return {
                 status: response.status,
                 message: response.message || 'Бонус новачка успішно отримано',
@@ -1312,24 +1155,6 @@ export async function claimNewbieBonus() {
         };
     }
 }
-
-// Обробник події онлайн/офлайн
-window.addEventListener('online', () => {
-    console.log("🔌 Raffles API: З'єднання з мережею відновлено");
-
-    // Автоматично оновлюємо токен при відновленні з'єднання
-    setTimeout(() => {
-        refreshToken().then(() => {
-            console.log("🔌 Raffles API: Токен оновлено після відновлення з'єднання");
-        }).catch(e => {
-            console.warn("🔌 Raffles API: Помилка оновлення токену після відновлення з'єднання:", e);
-        });
-    }, 1000);
-});
-
-window.addEventListener('offline', () => {
-    console.warn("🔌 Raffles API: З'єднання з мережею втрачено");
-});
 
 // Створюємо об'єкт з API функціями для модуля розіграшів
 const rafflesAPI = {
@@ -1356,7 +1181,7 @@ const rafflesAPI = {
     },
 
     // Метадані
-    _version: '1.2.0',
+    _version: '1.1.1',
     _type: 'raffles'
 };
 
@@ -1387,7 +1212,25 @@ if (WinixRaffles) {
     WinixRaffles.api = rafflesAPI;
 }
 
+// Обробник події онлайн/офлайн
+window.addEventListener('online', () => {
+    console.log("🔌 Raffles API: З'єднання з мережею відновлено");
+
+    // Автоматично оновлюємо кеш при відновленні з'єднання
+    setTimeout(() => {
+        getActiveRaffles(true).then(() => {
+            console.log("🔌 Raffles API: Кеш розіграшів оновлено після відновлення з'єднання");
+        }).catch(e => {
+            console.warn("🔌 Raffles API: Помилка оновлення кешу розіграшів:", e);
+        });
+    }, 1000);
+});
+
+window.addEventListener('offline', () => {
+    console.warn("🔌 Raffles API: З'єднання з мережею втрачено");
+});
+
 console.log("🔌 Raffles API: Ініціалізацію завершено");
 
-// Експортуємо об'єкт з усіма функціями як основний експорт
+// Експортуємо API як основний експорт
 export default rafflesAPI;
