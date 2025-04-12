@@ -23,6 +23,9 @@ import {
     showConfirm
 } from './utils/ui-helpers.js';
 
+// Додана змінна для контролю частоти запитів
+window._lastRequestTime = 0;
+
 /**
  * Перевірка, чи пристрій онлайн
  * @returns {boolean} Стан підключення

@@ -15,6 +15,8 @@ BASE_DIR = Path(__file__).parent.parent.parent
 # Завантажуємо змінні оточення з .env файлу в корені проекту
 load_dotenv(BASE_DIR / '.env')
 
+JWT_SECRET = os.getenv("JWT_SECRET", "winix-secure-jwt-secret-key-2025")
+JWT_ALGORITHM = "HS256"
 
 # Функція для безпечного отримання змінної оточення
 def get_env(key, default=None, required=False, type_cast=None):
