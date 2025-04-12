@@ -47,7 +47,7 @@ def create_app(config_name=None):
     )
 
     # Завантажуємо конфігурацію
-    from settings import current_config
+    from backend.settings import current_config
     app.config.from_object(current_config)
 
     # Секретний ключ для сесій
