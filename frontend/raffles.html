@@ -1990,9 +1990,9 @@
                     if (!apiLoaded || !authLoaded) {
                         console.log("🎮 WINIX: Очікування завантаження модулів API та Auth...");
 
-                        // Чекаємо максимум 5 секунд для завантаження модулів
-                        for (let i = 0; i < 10; i++) {
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                        // Чекаємо максимум 10 секунд для завантаження модулів
+                        for (let i = 0; i < 20; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
 
                             const apiNowLoaded = window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
                             const authNowLoaded = window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
