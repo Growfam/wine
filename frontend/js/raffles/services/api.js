@@ -1127,6 +1127,15 @@ export async function getRafflesHistory(filters = {}, forceRefresh = false) {
  */
 export async function participateInRaffle(raffleId, entryCount = 1) {
     try {
+
+        // Перевірка на валідний UUID
+if (!raffleId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raffleId)) {
+    console.warn(`⚠️ Raffles API: Невалідний UUID: ${raffleId}`);
+    return {
+        status: 'error',
+        message: 'Недійсний ідентифікатор розіграшу'
+    };
+}
         // Перевірка чи пристрій онлайн
         if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
             return {
