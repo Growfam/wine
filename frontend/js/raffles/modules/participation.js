@@ -80,8 +80,14 @@ class ParticipationModule {
     async getRaffleDetails(raffleId) {
         try {
             if (!raffleId) {
-                throw new Error('ID розіграшу не вказано');
-            }
+    throw new Error('ID розіграшу не вказано');
+}
+
+// Перевіряємо формат UUID
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raffleId)) {
+    console.error(`❌ Невалідний UUID розіграшу: ${raffleId}`);
+    return { status: 'error', message: 'ID розіграшу має невірний формат' };
+}
 
             // Перевіряємо кеш
             if (_raffleDetailsCache[raffleId]) {
