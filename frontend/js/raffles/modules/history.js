@@ -62,6 +62,8 @@ class HistoryModule {
         // Підписуємося на події
         this._setupEventListeners();
 
+
+
         // Перевіряємо наявність контейнера для історії
         const historyContainer = document.getElementById('history-container');
         if (historyContainer) {
@@ -650,7 +652,23 @@ _updateStatistics(total, wins, winixWon, tokensSpent) {
             return fallbackData;
         }
     }
-
+/**
+     * Створення HTML для порожньої історії
+     * @param {string} message - Повідомлення для відображення
+     * @returns {string} HTML для порожньої історії
+     * @private
+     */
+    _createEmptyHistoryHTML(message = 'Історія розіграшів порожня') {
+        return `
+            <div class="empty-history">
+                <div class="empty-icon">📋</div>
+                <div class="empty-text">${message}</div>
+                <button id="refresh-history-btn" class="refresh-btn">
+                    <span class="refresh-icon">🔄</span> Оновити історію
+                </button>
+            </div>
+        `;
+    }
     /**
      * Відображення історії розіграшів
      * @param {string} containerId - ID контейнера для відображення
