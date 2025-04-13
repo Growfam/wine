@@ -6,6 +6,94 @@ import WinixRaffles from '../globals.js';
 import { showLoading, hideLoading, showToast } from '../utils/ui-helpers.js';
 import api from '../services/api.js';
 
+// Додайте цей код у початок модуля history.js, після імпортів
+
+// Збільшуємо час між запитами до 2-3 хвилин
+const MIN_REQUEST_INTERVAL = 180000; // 3 хвилин між запитами історії (було 15-30 секунд)
+const CACHE_TIMEOUT = 300000; // Кеш тримаємо 5 хвилин
+
+// Централізована обробка помилки 429
+function handle429Error(endpoint, retryAfter = 60000) {
+    console.warn(`🛑 Виявлено помилку 429 для ${endpoint}, блокуємо запити на ${retryAfter/1000} секунд`);
+
+    // Показуємо користувачу повідомлення
+    if (typeof showToast === 'function') {
+        showToast(
+            "Занадто багато запитів. Будь ласка, зачекайте 1-2 хвилини перед наступним запитом.",
+            "warning",
+            5000
+        );
+    }
+
+    // Встановлюємо блокування на запити
+    _lastRequestTime = Date.now() + retryAfter; // Це блокує запити на вказаний час
+
+    // Виводимо інформаційне повідомлення для користувача
+    const historyContainer = document.getElementById('history-container');
+    if (historyContainer) {
+        historyContainer.innerHTML = `
+            <div class="rate-limit-message">
+                <div class="rate-limit-icon">⏱️</div>
+                <h3>Зачекайте, будь ласка</h3>
+                <p>Перевищено ліміт запитів. Спробуйте знову через 1-2 хвилини.</p>
+                <div class="retry-timer">Доступно через: <span id="retry-countdown">60</span> секунд</div>
+            </div>
+        `;
+
+        // Додаємо зворотний відлік
+        let countdown = 60;
+        const countdownElement = document.getElementById('retry-countdown');
+
+        if (countdownElement) {
+            const timer = setInterval(() => {
+                countdown--;
+                if (countdownElement) countdownElement.textContent = countdown;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    // Дозволяємо спробувати знову
+                    if (historyContainer) {
+                        historyContainer.innerHTML = `
+                            <div class="empty-history">
+                                <div class="empty-history-icon">📋</div>
+                                <h3>Готово до оновлення</h3>
+                                <p>Тепер ви можете спробувати отримати історію знову</p>
+                                <button class="refresh-history-btn" onclick="WinixRaffles.history.displayHistory('history-container', true)">
+                                    <span class="refresh-icon">🔄</span> Оновити
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            }, 1000);
+        }
+    }
+}
+
+// Обробка помилки з data.map
+function safelyProcessData(data) {
+    // Перевіряємо, чи дані є масивом
+    if (!data) return [];
+
+    // Якщо дані вже є масивом, повертаємо їх
+    if (Array.isArray(data)) return data;
+
+    // Якщо дані - об'єкт, який містить масив даних, витягуємо його
+    if (data.data && Array.isArray(data.data)) return data.data;
+
+    // Конвертуємо об'єкт у масив, якщо це можливо
+    if (typeof data === 'object') {
+        try {
+            return Object.values(data);
+        } catch (e) {
+            console.error("❌ Помилка конвертації даних в масив:", e);
+            return [];
+        }
+    }
+
+    // Якщо нічого не спрацювало, повертаємо порожній масив
+    return [];
+}
+
 /**
  * Перевірка доступності основного API
  * @returns {boolean} Доступність API
@@ -268,7 +356,7 @@ _updateStatistics(total, wins, winixWon, tokensSpent) {
 
             // Перевіряємо інтервал між запитами
             const timeSinceLastRequest = now - _lastRequestTime;
-            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL && _historyData.length > 0 && !forceRefresh) {
+            if (timeSinceLastRequest < 180000 && _historyData.length > 0 && !forceRefresh) {
                 console.log(`⏳ Історія розіграшів: Занадто частий запит, минуло ${Math.floor(timeSinceLastRequest/1000)}с`);
                 return Promise.resolve(_historyData);
             }

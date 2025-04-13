@@ -289,21 +289,21 @@ class ParticipationModule {
             }
 
              // Перевірка на валідний UUID
-        if (!raffleId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raffleId)) {
-            console.error(`❌ Невалідний UUID: ${raffleId}`);
-            return {
-                status: 'error',
-                message: 'Недійсний ідентифікатор розіграшу'
-            };
-        }
+            if (!raffleId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raffleId)) {
+                console.error(`❌ Невалідний UUID: ${raffleId}`);
+                return {
+                    status: 'error',
+                    message: 'Недійсний ідентифікатор розіграшу'
+                };
+            }
 
-        // Перевіряємо коректність entryCount
-        if (isNaN(entryCount) || entryCount <= 0) {
-            return {
-                status: 'error',
-                message: 'Кількість жетонів повинна бути більшою за нуль'
-            };
-        }
+            // Перевіряємо коректність entryCount
+            if (isNaN(entryCount) || entryCount <= 0) {
+                return {
+                    status: 'error',
+                    message: 'Кількість жетонів повинна бути більшою за нуль'
+                };
+            }
 
             // Автоматичне скидання зависаючих запитів
             const now = Date.now();
@@ -360,16 +360,17 @@ class ParticipationModule {
             }
 
             if (response && response.status === 'success') {
-                // Оновлюємо баланс користувача
-                await this.updateUserBalance();
+                // Оновлюємо баланс користувача в localStorage
+                const newBalance = response.data?.new_coins_balance;
+                if (newBalance !== undefined) {
+                    try {
+                        localStorage.setItem('userCoins', Math.round(newBalance));
+                    } catch(e) {}
+                }
 
-                // Оповіщаємо про успішну участь
-                if (WinixRaffles && WinixRaffles.events) {
-                    WinixRaffles.events.emit('raffle-participated', {
-                        raffleId: raffleId,
-                        entryCount: entryCount,
-                        timestamp: Date.now()
-                    });
+                // Оновлюємо кеш розіграшу
+                if (_raffleDetailsCache[raffleId]) {
+                    _raffleDetailsCache[raffleId].participants_count += 1;
                 }
 
                 return {
@@ -820,11 +821,32 @@ class ParticipationModule {
                     modal.classList.remove('open');
                 }
 
-                // Оновлюємо баланс
+                // Оновлюємо баланс користувача негайно
                 await this.updateUserBalance();
 
                 // Показуємо повідомлення про успіх
                 showToast(result.message || 'Ви успішно взяли участь у розіграші', 'success');
+
+                // Оновлюємо відображення кількості учасників в розіграші
+                if (_raffleDetailsCache[raffleId]) {
+                    // Оновлюємо відображення кількості учасників на сторінці
+                    const participantsElement = document.querySelector(`[data-raffle-id="${raffleId}"] .participants-count`);
+                    if (participantsElement) {
+                        participantsElement.textContent = _raffleDetailsCache[raffleId].participants_count;
+                    }
+                }
+
+                // Оновлюємо DOM без перезавантаження сторінки
+                this.refreshActiveRaffles(false);
+
+                // Сповіщаємо інші модулі про успішну участь
+                if (WinixRaffles && WinixRaffles.events) {
+                    WinixRaffles.events.emit('raffle-participated', {
+                        raffleId: raffleId,
+                        entryCount: entryCount,
+                        timestamp: Date.now()
+                    });
+                }
 
                 // Якщо є бонус, показуємо повідомлення про нього
                 if (result.data && result.data.bonus_amount) {
@@ -953,11 +975,11 @@ class ParticipationModule {
                     const tokensElement = document.getElementById('user-tokens');
 
                     if (coinsElement) {
-                        coinsElement.textContent = userData.data.coins || 0;
+                        coinsElement.textContent = Math.round(userData.data.coins || 0);
                     }
 
                     if (tokensElement) {
-                        tokensElement.textContent = userData.data.balance || 0;
+                        tokensElement.textContent = Math.round(userData.data.balance || 0);
                     }
                 }
 
@@ -1086,7 +1108,7 @@ class ParticipationModule {
             // Скидаємо прапорці
             _isParticipating = false;
 
-            // Очищаємо кеш
+            // Очищуємо кеш
             _raffleDetailsCache = {};
 
             // Видаляємо обробники подій
