@@ -665,40 +665,43 @@ export async function apiRequest(endpoint, method = 'GET', data = null, options 
             }
 
             // Обробляємо відповідь
-            if (response.status === 429) {
-    const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
-    console.warn(`🔌 Raffles API: Отримано 429 (Too Many Requests) для ${cleanEndpoint}, retry after ${retryAfter}s`);
+            if (!response.ok) {
+                // Спеціальна обробка помилок
+                if (response.status === 429) {
+                    // Занадто багато запитів - повертаємо спеціальну помилку
+                    console.warn(`🔌 Raffles API: Отримано 429 (Too Many Requests) для ${cleanEndpoint}`);
 
-    // Показуємо повідомлення користувачеві
-    if (typeof showToast === 'function') {
-        showToast(
-            `Занадто багато запитів. Спробуйте знову через ${retryAfter} секунд.`,
-            "warning",
-            5000
-        );
-    }
+                    // Показуємо повідомлення користувачеві
+                    if (typeof showToast === 'function') {
+                        showToast(
+                            "Занадто багато запитів. Будь ласка, зачекайте хвилину і спробуйте знову.",
+                            "warning",
+                            5000
+                        );
+                    }
 
-    // Повертаємо кешовані дані, якщо є
-    const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
-    if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
-        return {
-            status: 'success',
-            data: _cache[cacheKey].data,
-            source: 'cache_rate_limited'
-        };
-    }
+                    // Зберігаємо блокування на тривалий період
+                    const retryAfter = 60000; // 1 хвилина
+                    _lastRequestsByEndpoint[cleanEndpoint] = Date.now() + retryAfter;
 
-    // Запланувати автоматичне повторення запиту
-    setTimeout(() => {
-        api.refreshActiveRaffles(true);
-    }, (retryAfter + 1) * 1000);
+                    // Повертаємо кешовані дані, якщо є
+                    const cacheKey = getCacheKeyFromEndpoint(cleanEndpoint);
+                    if (cacheKey && _cache[cacheKey] && _cache[cacheKey].data) {
+                        return {
+                            status: 'success',
+                            data: _cache[cacheKey].data,
+                            source: 'cache_rate_limited'
+                        };
+                    }
 
-    return {
-        status: 'error',
-        code: 429,
-        message: 'Забагато запитів. Повторна спроба запланована автоматично.',
-        retry_after: retryAfter
-    };
+                    // Інакше повертаємо помилку
+                    return {
+                        status: 'error',
+                        code: 429,
+                        message: 'Забагато запитів. Спробуйте пізніше.',
+                        retry_after: retryAfter
+                    };
+                }
 
                 if (response.status === 404 && urlEndpoint.includes('raffles')) {
                     // Розіграш не знайдено - спеціальне обробка
