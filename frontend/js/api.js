@@ -58,11 +58,11 @@
 
     // Мінімальний інтервал між однаковими запитами (збільшені інтервали)
     const REQUEST_THROTTLE = {
-        '/user/': 5000,
-        '/staking': 8000,
-        '/balance': 5000,
-        '/transactions': 15000,
-        'default': 4000
+        '/user/': 10000,    // Збільшено з 5000 до 10000
+        '/staking': 15000,  // Збільшено з 8000 до 15000
+        '/balance': 8000,   // Збільшено з 5000 до 8000
+        '/transactions': 20000, // Збільшено з 15000 до 20000
+        'default': 8000     // Збільшено з 4000 до 8000
     };
 
     // Лічильник запитів
@@ -273,6 +273,17 @@
     }
 
     /**
+     * Перевірка валідності UUID
+     * @param {string} id - ID для перевірки
+     * @returns {boolean} Результат перевірки
+     */
+    function isValidUUID(id) {
+        if (!id || typeof id !== 'string') return false;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
+    }
+
+    /**
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
      */
@@ -434,40 +445,25 @@
             // Додаємо тіло запиту для POST/PUT/PATCH
             if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
                 // Перевірка та коригування raffle_id для запитів участі в розіграші
-if (cleanEndpoint.includes('participate-raffle') && data) {
-    // Переконатися, що raffle_id - валідний рядок
-    if (data.raffle_id) {
-        // Перевірка формату UUID та конвертація
-        if (typeof data.raffle_id !== 'string') {
-            data.raffle_id = String(data.raffle_id);
-            console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
-        }
+                if (url.includes('participate-raffle') && data) {
+                    // Переконатися, що raffle_id - валідний рядок
+                    if (data.raffle_id) {
+                        // Перевірка формату UUID та конвертація
+                        if (typeof data.raffle_id !== 'string') {
+                            data.raffle_id = String(data.raffle_id);
+                            console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
+                        }
 
-        // Перевірка формату UUID
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.raffle_id)) {
-            console.warn(`⚠️ API: Невалідний UUID для участі в розіграші: ${data.raffle_id}`);
-        }
-    } else {
-        console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
-    }
-}
-if (endpoint.includes('participate-raffle') && data) {
-    // Перевіряємо та виправляємо raffle_id перед відправкою
-    if (data.raffle_id) {
-        // Конвертуємо в рядок, якщо потрібно
-        if (typeof data.raffle_id !== 'string') {
-            data.raffle_id = String(data.raffle_id);
-            console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
-        }
-
-        // Перевіряємо на валідність
-        if (data.raffle_id === "unknown" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.raffle_id)) {
-            console.error("❌ API: Невалідний UUID для розіграшу:", data.raffle_id);
-        }
-    } else {
-        console.error("❌ API: Відсутній raffle_id в запиті на участь в розіграші");
-    }
-}
+                        // Перевірка формату UUID
+                        if (!isValidUUID(data.raffle_id)) {
+                            console.error(`❌ API: Невалідний UUID для розіграшу: ${data.raffle_id}`);
+                            throw new Error(`Невалідний ідентифікатор розіграшу: ${data.raffle_id}`);
+                        }
+                    } else {
+                        console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
+                        throw new Error("Відсутній ідентифікатор розіграшу");
+                    }
+                }
                 requestOptions.body = JSON.stringify(data);
             }
 
@@ -482,6 +478,21 @@ if (endpoint.includes('participate-raffle') && data) {
                 if (typeof window.hideLoading === 'function') {
                     window.hideLoading();
                 }
+            }
+
+            // Спеціальна обробка для 404 помилок в розіграшах
+            if (response.status === 404 && url.includes('raffles')) {
+                // Очищуємо кеш розіграшів, якщо такий є
+                if (window.WinixRaffles && window.WinixRaffles.participation) {
+                    window.WinixRaffles.participation.clearInvalidRaffleIds();
+                }
+
+                // Показуємо користувачу більш інформативне повідомлення
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
+                }
+
+                throw new Error("Розіграш не знайдено. ID може бути застарілим.");
             }
 
             // Перевіряємо статус відповіді
@@ -528,6 +539,38 @@ if (endpoint.includes('participate-raffle') && data) {
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
         try {
+            // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
+            if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
+                // Перевіряємо формат UUID
+                if (typeof data.raffle_id !== 'string') {
+                    data.raffle_id = String(data.raffle_id);
+                }
+
+                // Ретельна перевірка формату UUID
+                if (!isValidUUID(data.raffle_id)) {
+                    console.error(`❌ API: Невалідний UUID: ${data.raffle_id}`);
+                    return Promise.reject({
+                        status: 'error',
+                        message: 'Невалідний ідентифікатор розіграшу'
+                    });
+                }
+            }
+
+            // Перевірка endpoint при запиті деталей розіграшу
+            if (endpoint.includes('raffles/')) {
+                const raffleIdMatch = endpoint.match(/raffles\/([0-9a-f-]+)/i);
+                if (raffleIdMatch && raffleIdMatch[1]) {
+                    const raffleId = raffleIdMatch[1];
+                    if (!isValidUUID(raffleId)) {
+                        console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+                        return Promise.reject({
+                            status: 'error',
+                            message: 'Невалідний ідентифікатор розіграшу в URL'
+                        });
+                    }
+                }
+            }
+
             // Перевіряємо, чи це запит до профілю користувача
             const isUserProfileRequest = endpoint.includes('/user/') &&
                                         !endpoint.includes('/staking') &&
@@ -793,7 +836,7 @@ if (endpoint.includes('participate-raffle') && data) {
                 _activeEndpoints.delete(endpoint);
 
                 // Якщо запит тривав занадто довго, очищаємо інші потенційно зависаючі запити
-                if (now - _lastRequestTime > 15000) {
+                if (now - lastRequestTime > 15000) {
                     resetPendingRequests();
                 }
 
@@ -1368,6 +1411,7 @@ if (endpoint.includes('participate-raffle') && data) {
         clearCache,
         forceCleanupRequests,
         reconnect,
+        isValidUUID,
 
         // Функції користувача
         getUserData,
