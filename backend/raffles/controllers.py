@@ -383,13 +383,16 @@ def participate_in_raffle(telegram_id, data):
         raise ValueError("Не вказано ID розіграшу")
 
     raffle_id = data["raffle_id"]
+
     # Перевіряємо валідність UUID
     try:
-        uuid_obj = uuid.UUID(raffle_id)
-        # Перетворюємо в строковий формат для уникнення проблем з типами
-        raffle_id = str(uuid_obj)
+        # Конвертуємо в UUID для перевірки та нормалізації
+        raffle_uuid = uuid.UUID(raffle_id)
+        # Використовуємо нормалізований UUID далі
+        raffle_id = str(raffle_uuid)
     except ValueError:
         raise ValueError(f"Невірний формат ID розіграшу: {raffle_id}")
+
     entry_count = min(int(data.get("entry_count", 1)), MAX_ENTRY_COUNT)
 
     # Перевіряємо кількість жетонів
@@ -464,7 +467,7 @@ def participate_in_raffle(telegram_id, data):
                 "amount": -required_coins,
                 "description": f"Участь у розіграші '{raffle.get('title')}'",
                 "status": "pending",
-                "raffle_id": raffle_id,
+                "raffle_id": raffle_id,  # Використовуємо нормалізований UUID
                 "created_at": now.isoformat()
             }
 
@@ -489,7 +492,7 @@ def participate_in_raffle(telegram_id, data):
             else:
                 # Створюємо нову участь
                 participation_data = {
-                    "raffle_id": raffle_id,
+                    "raffle_id": raffle_id,  # Нормалізований UUID
                     "telegram_id": telegram_id,
                     "entry_time": now.isoformat(),
                     "entry_count": entry_count,

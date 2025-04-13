@@ -451,6 +451,23 @@ if (cleanEndpoint.includes('participate-raffle') && data) {
         console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
     }
 }
+if (endpoint.includes('participate-raffle') && data) {
+    // Перевіряємо та виправляємо raffle_id перед відправкою
+    if (data.raffle_id) {
+        // Конвертуємо в рядок, якщо потрібно
+        if (typeof data.raffle_id !== 'string') {
+            data.raffle_id = String(data.raffle_id);
+            console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
+        }
+
+        // Перевіряємо на валідність
+        if (data.raffle_id === "unknown" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.raffle_id)) {
+            console.error("❌ API: Невалідний UUID для розіграшу:", data.raffle_id);
+        }
+    } else {
+        console.error("❌ API: Відсутній raffle_id в запиті на участь в розіграші");
+    }
+}
                 requestOptions.body = JSON.stringify(data);
             }
 
