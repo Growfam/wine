@@ -103,6 +103,67 @@ class HistoryModule {
     }
 
     /**
+ * Додавання сітки статистики
+ * @param {HTMLElement} container - Контейнер для додавання сітки
+ * @private
+ */
+_addStatsGrid(container) {
+    // Додаємо статистику, якщо її ще немає на сторінці
+    if (!document.querySelector('.stats-grid') && container) {
+        const statsGrid = document.createElement('div');
+        statsGrid.className = 'stats-grid';
+        statsGrid.innerHTML = `
+            <div class="stats-card">
+                <div class="stats-card-title">Всього участей</div>
+                <div class="stats-card-value" id="total-participated">-</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-title">Перемоги</div>
+                <div class="stats-card-value" id="total-wins">-</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-title">Виграно WINIX</div>
+                <div class="stats-card-value" id="total-winix-won">-</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-title">Витрачено жетонів</div>
+                <div class="stats-card-value" id="total-tokens-spent">-</div>
+            </div>
+        `;
+
+        // Додаємо сітку перед контейнером історії
+        if (container.parentNode) {
+            container.parentNode.insertBefore(statsGrid, container);
+        }
+    }
+}
+
+/**
+ * Оновлення статистики
+ * @param {number} total - Загальна кількість розіграшів
+ * @param {number} wins - Кількість перемог
+ * @param {number} winixWon - Кількість виграних WINIX
+ * @param {number} tokensSpent - Витрачено жетонів
+ * @private
+ */
+_updateStatistics(total, wins, winixWon, tokensSpent) {
+    try {
+        // Оновлюємо елементи інтерфейсу
+        const totalParticipated = document.getElementById('total-participated');
+        const totalWins = document.getElementById('total-wins');
+        const totalWinixWon = document.getElementById('total-winix-won');
+        const totalTokensSpent = document.getElementById('total-tokens-spent');
+
+        if (totalParticipated) totalParticipated.textContent = total || 0;
+        if (totalWins) totalWins.textContent = wins || 0;
+        if (totalWinixWon) totalWinixWon.textContent = winixWon || 0;
+        if (totalTokensSpent) totalTokensSpent.textContent = tokensSpent || 0;
+    } catch (error) {
+        console.error("Помилка оновлення статистики:", error);
+    }
+}
+
+    /**
      * Збереження даних історії в localStorage
      * @param {Array} data - Дані для збереження
      * @private

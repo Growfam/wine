@@ -288,20 +288,22 @@ class ParticipationModule {
                 throw new Error('ID розіграшу не вказано');
             }
 
-            // Перевіряємо валідність UUID і ПЕРЕРИВАЄМО виконання при помилці
-            if (!this.isValidRaffleId(raffleId)) {
-                console.error(`❌ Невалідний UUID розіграшу: ${raffleId}`);
-                showToast('Помилка: Невалідний ідентифікатор розіграшу', 'error');
-                return {
-                    status: 'error',
-                    message: 'ID розіграшу має невірний формат'
-                };
-            }
+             // Перевірка на валідний UUID
+        if (!raffleId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raffleId)) {
+            console.error(`❌ Невалідний UUID: ${raffleId}`);
+            return {
+                status: 'error',
+                message: 'Недійсний ідентифікатор розіграшу'
+            };
+        }
 
-            // Перевіряємо коректність entryCount
-            if (isNaN(entryCount) || entryCount <= 0) {
-                throw new Error('Кількість жетонів повинна бути більшою за нуль');
-            }
+        // Перевіряємо коректність entryCount
+        if (isNaN(entryCount) || entryCount <= 0) {
+            return {
+                status: 'error',
+                message: 'Кількість жетонів повинна бути більшою за нуль'
+            };
+        }
 
             // Автоматичне скидання зависаючих запитів
             const now = Date.now();
