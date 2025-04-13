@@ -23,19 +23,16 @@ try:
 except ImportError:
     from settings.config import JWT_SECRET, JWT_ALGORITHM
 
-
-
-# Часові обмеження для маршрутів
+# Часові обмеження для маршрутів (збільшені для зменшення помилок)
 RATE_LIMITS = {
-    "get_active_raffles": 5,  # 5 секунд між запитами
-    "get_raffles_history": 60,  # 60 секунд між запитами
-    "get_user_raffles": 10,  # 10 секунд між запитами
-    "participate_in_raffle": 10,  # 10 секунди між запитами
+    "get_active_raffles": 10,  # 10 секунд між запитами (було 5)
+    "get_raffles_history": 120,  # 120 секунд між запитами (було 60)
+    "get_user_raffles": 20,  # 20 секунд між запитами (було 10)
+    "participate_in_raffle": 20,  # 20 секунд між запитами (було 10)
 }
 
 # Відстеження останніх запитів користувачів
 last_requests = {}
-
 
 
 def require_authentication(f):
@@ -48,7 +45,8 @@ def require_authentication(f):
         if not auth_header or not auth_header.startswith("Bearer "):
             return jsonify({
                 "status": "error",
-                "message": "Необхідна аутентифікація"
+                "message": "Необхідна аутентифікація",
+                "code": "auth_required"
             }), 401
 
         # Отримуємо токен
@@ -62,12 +60,14 @@ def require_authentication(f):
         except jwt.ExpiredSignatureError:
             return jsonify({
                 "status": "error",
-                "message": "Термін дії токена минув"
+                "message": "Термін дії токена минув",
+                "code": "token_expired"
             }), 401
         except jwt.InvalidTokenError:
             return jsonify({
                 "status": "error",
-                "message": "Недійсний токен"
+                "message": "Недійсний токен",
+                "code": "invalid_token"
             }), 401
 
         return f(*args, **kwargs)
@@ -86,7 +86,8 @@ def require_admin(f):
         if not admin_id:
             return jsonify({
                 "status": "error",
-                "message": "Необхідний заголовок X-Admin-Id"
+                "message": "Необхідний заголовок X-Admin-Id",
+                "code": "admin_id_required"
             }), 401
 
         # Отримуємо список адміністраторів з середовища
@@ -96,7 +97,8 @@ def require_admin(f):
             logger.warning(f"Спроба неавторизованого доступу з ID {admin_id}")
             return jsonify({
                 "status": "error",
-                "message": "Доступ заборонено. Ви не є адміністратором."
+                "message": "Доступ заборонено. Ви не є адміністратором.",
+                "code": "admin_access_denied"
             }), 403
 
         return f(*args, **kwargs)
@@ -206,6 +208,44 @@ def parallel_request_handler(f):
     return decorated_function
 
 
+def validate_raffle_id(f):
+    """Декоратор для валідації ID розіграшу"""
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Перевіряємо ID розіграшу в URL
+        if 'raffle_id' in kwargs:
+            raffle_id = kwargs['raffle_id']
+
+            # Перевіряємо валідність UUID
+            if not controllers.is_valid_uuid(raffle_id):
+                logger.warning(f"Невалідний формат ID розіграшу в URL: {raffle_id}")
+                return jsonify({
+                    "status": "error",
+                    "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                    "code": "invalid_raffle_id"
+                }), 400
+
+        # Перевіряємо ID розіграшу в JSON даних
+        if request.method in ['POST', 'PUT'] and request.is_json:
+            data = request.json
+            if data and 'raffle_id' in data:
+                raffle_id = data['raffle_id']
+
+                # Перевіряємо валідність UUID
+                if not controllers.is_valid_uuid(raffle_id):
+                    logger.warning(f"Невалідний формат ID розіграшу в JSON: {raffle_id}")
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                        "code": "invalid_raffle_id"
+                    }), 400
+
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
 
@@ -221,7 +261,8 @@ def register_raffles_routes(app):
             if not user:
                 return jsonify({
                     "status": "error",
-                    "message": "Користувача не знайдено"
+                    "message": "Користувача не знайдено",
+                    "code": "user_not_found"
                 }), 404
 
             return jsonify({
@@ -235,7 +276,41 @@ def register_raffles_routes(app):
             logger.error(f"Помилка отримання балансу: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": f"Помилка сервера: {str(e)}"
+                "message": f"Помилка сервера: {str(e)}",
+                "code": "server_error"
+            }), 500
+
+    # Ендпоінт для перевірки валідності розіграшу перед участю
+    @app.route('/api/raffles/<raffle_id>/check', methods=['GET'])
+    @validate_raffle_id
+    def api_check_raffle_exists(raffle_id):
+        """Перевірка існування розіграшу перед участю"""
+        try:
+            # Перевіряємо існування розіграшу
+            controllers.check_raffle_exists(raffle_id)
+            return jsonify({
+                "status": "success",
+                "message": "Розіграш існує та валідний",
+                "raffle_id": raffle_id
+            })
+        except controllers.RaffleNotFoundException:
+            return jsonify({
+                "status": "error",
+                "message": f"Розіграш з ID {raffle_id} не знайдено",
+                "code": "raffle_not_found"
+            }), 404
+        except controllers.InvalidRaffleIDError:
+            return jsonify({
+                "status": "error",
+                "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                "code": "invalid_raffle_id"
+            }), 400
+        except Exception as e:
+            logger.error(f"Помилка перевірки розіграшу {raffle_id}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка перевірки розіграшу: {str(e)}",
+                "code": "server_error"
             }), 500
 
     # Публічні маршрути для користувачів
@@ -261,6 +336,7 @@ def register_raffles_routes(app):
             })
 
     @app.route('/api/raffles/<raffle_id>', methods=['GET'])
+    @validate_raffle_id
     def api_get_raffle_details(raffle_id):
         """Отримання деталей конкретного розіграшу"""
         return controllers.get_raffle_details(raffle_id)
@@ -268,13 +344,15 @@ def register_raffles_routes(app):
     @app.route('/api/user/<telegram_id>/participate-raffle', methods=['POST'])
     @require_authentication
     @rate_limit('participate_in_raffle')
+    @validate_raffle_id
     def api_participate_in_raffle(telegram_id):
         """Участь у розіграші"""
         # Перевіряємо, чи ID користувача в URL відповідає ID в токені
         if g.user != telegram_id:
             return jsonify({
                 "status": "error",
-                "message": "Доступ заборонено. Ви можете використовувати лише власний ID."
+                "message": "Доступ заборонено. Ви можете використовувати лише власний ID.",
+                "code": "forbidden"
             }), 403
 
         return controllers.participate_in_raffle(telegram_id, request.json)
@@ -289,7 +367,8 @@ def register_raffles_routes(app):
         if g.user != telegram_id:
             return jsonify({
                 "status": "error",
-                "message": "Доступ заборонено. Ви можете переглядати лише власні розіграші."
+                "message": "Доступ заборонено. Ви можете переглядати лише власні розіграші.",
+                "code": "forbidden"
             }), 403
 
         return controllers.get_user_raffles(telegram_id)
@@ -306,7 +385,8 @@ def register_raffles_routes(app):
         if g.user != telegram_id:
             return jsonify({
                 "status": "error",
-                "message": "Доступ заборонено. Ви можете переглядати лише власну історію."
+                "message": "Доступ заборонено. Ви можете переглядати лише власну історію.",
+                "code": "forbidden"
             }), 403
 
         try:
@@ -342,10 +422,26 @@ def register_raffles_routes(app):
         if g.user != telegram_id:
             return jsonify({
                 "status": "error",
-                "message": "Доступ заборонено. Ви можете отримати бонус лише для себе."
+                "message": "Доступ заборонено. Ви можете отримати бонус лише для себе.",
+                "code": "forbidden"
             }), 403
 
         return controllers.claim_newbie_bonus(telegram_id)
+
+    # Утиліта для перевірки всіх активних розіграшів
+    @app.route('/api/tools/validate-raffle-ids', methods=['GET'])
+    def api_validate_raffle_ids():
+        """Перевірка валідності ID всіх розіграшів"""
+        # Перевіряємо наявність заголовка X-Admin-Id
+        admin_id = request.headers.get('X-Admin-Id')
+        if not admin_id or not controllers._is_admin(admin_id):
+            return jsonify({
+                "status": "error",
+                "message": "Доступ заборонено. Потрібні права адміністратора.",
+                "code": "forbidden"
+            }), 403
+
+        return jsonify(controllers.validate_all_active_raffle_ids())
 
     # Адміністраторські маршрути
     @app.route('/api/admin/raffles', methods=['GET'])
@@ -365,6 +461,7 @@ def register_raffles_routes(app):
 
     @app.route('/api/admin/raffles/<raffle_id>', methods=['PUT'])
     @require_admin
+    @validate_raffle_id
     def api_update_raffle(raffle_id):
         """Оновлення розіграшу (для адміністраторів)"""
         admin_id = request.headers.get('X-Admin-Id')
@@ -372,6 +469,7 @@ def register_raffles_routes(app):
 
     @app.route('/api/admin/raffles/<raffle_id>', methods=['DELETE'])
     @require_admin
+    @validate_raffle_id
     def api_delete_raffle(raffle_id):
         """Видалення розіграшу (для адміністраторів)"""
         admin_id = request.headers.get('X-Admin-Id')
@@ -379,6 +477,7 @@ def register_raffles_routes(app):
 
     @app.route('/api/admin/raffles/<raffle_id>/finish', methods=['POST'])
     @require_admin
+    @validate_raffle_id
     def api_finish_raffle(raffle_id):
         """Примусове завершення розіграшу (для адміністраторів)"""
         admin_id = request.headers.get('X-Admin-Id')
@@ -386,6 +485,7 @@ def register_raffles_routes(app):
 
     @app.route('/api/admin/raffles/<raffle_id>/participants', methods=['GET'])
     @require_admin
+    @validate_raffle_id
     def api_get_raffle_participants(raffle_id):
         """Отримання списку учасників розіграшу (для адміністраторів)"""
         admin_id = request.headers.get('X-Admin-Id')
@@ -437,6 +537,6 @@ def register_raffles_routes(app):
             logger.error(f"Помилка отримання статистики розіграшів: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": "Помилка отримання статистики розіграшів"
+                "message": "Помилка отримання статистики розіграшів",
+                "code": "server_error"
             }), 500
-
