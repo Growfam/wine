@@ -658,17 +658,114 @@ _updateStatistics(total, wins, winixWon, tokensSpent) {
      * @returns {string} HTML для порожньої історії
      * @private
      */
-    _createEmptyHistoryHTML(message = 'Історія розіграшів порожня') {
-        return `
-            <div class="empty-history">
-                <div class="empty-icon">📋</div>
-                <div class="empty-text">${message}</div>
-                <button id="refresh-history-btn" class="refresh-btn">
-                    <span class="refresh-icon">🔄</span> Оновити історію
-                </button>
-            </div>
-        `;
+/**
+ * Створення HTML для порожньої історії
+ * @param {string} errorMessage - Опціональне повідомлення про помилку
+ * @returns {string} HTML для відображення
+ * @private
+ */
+_createEmptyHistoryHTML(errorMessage = 'У вас ще немає історії розіграшів') {
+    return `
+        <div class="empty-history">
+            <div class="empty-history-icon">📋</div>
+            <h3>Історія порожня</h3>
+            <p>${errorMessage}</p>
+            <button class="refresh-history-btn" onclick="WinixRaffles.history.displayHistory('history-container', true)">
+                <span class="refresh-icon">🔄</span> Оновити
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * Отримання загальної кількості призів з усіх виграшів
+ * @param {Array} raffles - Масив розіграшів
+ * @returns {string} Загальна сума з валютою
+ * @private
+ */
+_getTotalPrizeAmount(raffles) {
+    if (!Array.isArray(raffles) || raffles.length === 0) return '0 WINIX';
+
+    let total = 0;
+    let currency = 'WINIX';
+
+    try {
+        raffles.forEach(raffle => {
+            if (raffle && raffle.prize) {
+                // Видобуваємо числове значення призу
+                const prizeMatch = raffle.prize.match(/(\d+(?:\.\d+)?)/);
+                if (prizeMatch && prizeMatch[1]) {
+                    total += parseFloat(prizeMatch[1]);
+                }
+
+                // Видобуваємо валюту
+                const currencyMatch = raffle.prize.match(/[^\d\s.,]+/);
+                if (currencyMatch && currencyMatch[0]) {
+                    currency = currencyMatch[0];
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Помилка розрахунку загальної суми призів:", error);
+        return '0 WINIX';
     }
+
+    return `${total.toFixed(2)} ${currency}`;
+}
+
+/**
+ * Отримання загальної кількості призів як число
+ * @param {Array} raffles - Масив розіграшів
+ * @returns {number} Загальна сума
+ * @private
+ */
+_getTotalPrizeAmountNumber(raffles) {
+    if (!Array.isArray(raffles) || raffles.length === 0) return 0;
+
+    let total = 0;
+
+    try {
+        raffles.forEach(raffle => {
+            if (raffle && raffle.prize) {
+                // Видобуваємо числове значення призу
+                const prizeMatch = raffle.prize.match(/(\d+(?:\.\d+)?)/);
+                if (prizeMatch && prizeMatch[1]) {
+                    total += parseFloat(prizeMatch[1]);
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Помилка розрахунку загальної суми призів:", error);
+        return 0;
+    }
+
+    return total;
+}
+
+/**
+ * Розрахунок загальної кількості витрачених жетонів
+ * @param {Array} history - Історія розіграшів
+ * @returns {number} Загальна кількість жетонів
+ * @private
+ */
+_calculateTotalTokensSpent(history) {
+    if (!Array.isArray(history) || history.length === 0) return 0;
+
+    let total = 0;
+
+    try {
+        history.forEach(entry => {
+            if (entry && entry.entry_count) {
+                total += parseInt(entry.entry_count);
+            }
+        });
+    } catch (error) {
+        console.error("Помилка розрахунку витрачених жетонів:", error);
+        return 0;
+    }
+
+    return total;
+}
     /**
      * Відображення історії розіграшів
      * @param {string} containerId - ID контейнера для відображення
