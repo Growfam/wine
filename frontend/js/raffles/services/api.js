@@ -22,13 +22,16 @@ const hasMainApi = () => {
 
 // Константи для відстеження запитів (збільшені інтервали)
 const REQUEST_THROTTLE = {
-    '/raffles-history': 120000,     // 2 хвилини для історії розіграшів
-    '/participate-raffle': 15000,   // 15 секунд для участі в розіграшах
-    '/raffles': 30000,              // 30 секунд для списку розіграшів
-    '/balance': 20000,              // 20 секунд для балансу
+    '/raffles-history': 180000,     // 3 хвилини для історії розіграшів
+    '/participate-raffle': 30000,   // 30 секунд для участі в розіграшах
+    '/raffles': 60000,              // 1 хвилина для списку розіграшів
+    '/balance': 30000,              // 30 секунд для балансу
     '/refresh-token': 60000,        // 1 хвилина для оновлення токену
-    'default': 15000                // 15 секунд для всіх інших
+    'default': 20000                // 20 секунд для всіх інших
 };
+
+// Правильно ініціалізуйте об'єкт для відстеження запитів
+const _lastRequestsByEndpoint = {};
 
 // Відстеження часу останніх запитів - ініціалізуємо об'єкт, щоб уникнути помилок
 const _lastRequestTimes = {};
@@ -755,15 +758,26 @@ export async function getUserData(forceRefresh = false) {
 
             // Виправлена версія - змінено resultData на result.data
 if (result && result.status === 'success' && result.data) {
+
     // Оновлюємо localStorage
     if (result.data.balance !== undefined) {
-        localStorage.setItem('userTokens', result.data.balance.toString());
-        localStorage.setItem('winix_balance', result.data.balance.toString());
+        // Перетворення на число, якщо отримано об'єкт
+        const balance = typeof result.data.balance === 'object'
+            ? parseFloat(result.data.balance.toString())
+            : parseFloat(result.data.balance);
+
+        localStorage.setItem('userTokens', balance.toString());
+        localStorage.setItem('winix_balance', balance.toString());
     }
 
+    // Те саме для жетонів
     if (result.data.coins !== undefined) {
-        localStorage.setItem('userCoins', result.data.coins.toString());
-        localStorage.setItem('winix_coins', result.data.coins.toString());
+        const coins = typeof result.data.coins === 'object'
+            ? parseInt(result.data.coins.toString())
+            : parseInt(result.data.coins);
+
+        localStorage.setItem('userCoins', coins.toString());
+        localStorage.setItem('winix_coins', coins.toString());
     }
 
     // Оновлюємо елементи інтерфейсу напряму
@@ -1117,8 +1131,7 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
         if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
             return {
                 status: 'error',
-                message: 'Не вдалося взяти участь: пристрій офлайн',
-                source: 'offline'
+                message: 'Не вдалося взяти участь: пристрій офлайн'
             };
         }
 
@@ -1127,44 +1140,47 @@ export async function participateInRaffle(raffleId, entryCount = 1) {
             throw new Error('ID користувача не знайдено');
         }
 
-        // Перевіряємо коректність entryCount
-        if (isNaN(entryCount) || entryCount <= 0) {
-            throw new Error('Кількість жетонів повинна бути більшою за нуль');
+        // Перевіряємо наявність жетонів локально перед запитом
+        const userCoins = parseInt(localStorage.getItem('userCoins') || '0');
+        if (userCoins < entryCount) {
+            return {
+                status: 'error',
+                message: 'Недостатньо жетонів для участі'
+            };
         }
 
-        // Оновлюємо токен перед важливим запитом
-        await refreshToken();
+        // Додаємо затримку для запобігання помилок 429
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const response = await apiRequest(`user/${userId}/participate-raffle`, 'POST', {
+        // Додаємо унікальний ідентифікатор для запобігання кешуванню
+        const timestamp = Date.now();
+        const uniqueSuffix = Math.floor(Math.random() * 1000000);
+
+        const response = await apiRequest(`user/${userId}/participate-raffle?t=${timestamp}&uid=${uniqueSuffix}`, 'POST', {
             raffle_id: raffleId,
-            entry_count: entryCount
+            entry_count: entryCount,
+            timestamp: timestamp
         }, {
-            timeout: 15000, // Збільшуємо таймаут для важливої операції
-            loaderMessage: 'Беремо участь у розіграші...'
+            timeout: 20000,
+            loaderMessage: 'Беремо участь у розіграші...',
+            bypassThrottle: true // Важливо: дозволяємо обійти стандартне обмеження частоти
         });
 
         if (response && response.status === 'success') {
-            // Оновлюємо кеш розіграшів після успішної участі
-            clearCache('activeRaffles');
+            // Оновлюємо локальний баланс одразу для швидкого відгуку інтерфейсу
+            const newCoins = Math.max(0, userCoins - entryCount);
+            localStorage.setItem('userCoins', newCoins.toString());
+            localStorage.setItem('winix_coins', newCoins.toString());
 
-            // Оновлюємо баланс користувача
-            if (hasMainApi()) {
-                try {
-                    await window.WinixAPI.getBalance(true);
-                } catch (e) {
-                    console.warn("🔌 Raffles API: Помилка оновлення балансу після участі:", e);
-                }
-            } else {
-                // Або оновлюємо баланс через власний API
-                await getBalance(true);
+            // Оновлюємо відображення на сторінці
+            const coinsElement = document.getElementById('user-coins');
+            if (coinsElement) {
+                coinsElement.textContent = newCoins.toString();
             }
-
-            // Оновлюємо дані користувача
-            clearCache('userData');
 
             return {
                 status: 'success',
-                message: response.data?.message || 'Ви успішно взяли участь у розіграші',
+                message: 'Ви успішно взяли участь у розіграші',
                 data: response.data
             };
         }

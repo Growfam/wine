@@ -75,7 +75,15 @@ export function formatCurrency(amount, currency = 'WINIX') {
             return '0 ' + currency;
         }
 
-        return new Intl.NumberFormat('uk-UA').format(numAmount) + ' ' + currency;
+        // Визначаємо кількість десяткових знаків
+        // Якщо це ціле число або дуже велике число, не показуємо десяткові знаки
+        const isInteger = Number.isInteger(numAmount) || numAmount > 1000;
+        const options = {
+            maximumFractionDigits: isInteger ? 0 : 2,
+            minimumFractionDigits: 0
+        };
+
+        return new Intl.NumberFormat('uk-UA', options).format(numAmount) + ' ' + currency;
     } catch (error) {
         console.error('Помилка форматування валюти:', error);
         return '0 ' + currency;
