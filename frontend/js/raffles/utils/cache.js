@@ -1,13 +1,21 @@
 /**
- * cache.js - Модуль кешування для WINIX WebApp
- * Надає уніфікований інтерфейс для зберігання та отримання кешованих даних,
- * з підтримкою терміну дії, інвалідації та оновлення кешу.
+ * cache.js - Оптимізований модуль кешування для WINIX WebApp
+ * - Додано механізми валідації кешу
+ * - Оптимізовано використання localStorage
+ * - Реалізовано стратегії вичищення застарілих даних
+ * - Покращено резервне копіювання в пам'ять
  */
 
 import WinixRaffles from '../globals.js';
 
+// Версія модуля кешування
+const CACHE_VERSION = '2.0.0';
+
 // Префікс для ключів кешу
 const CACHE_PREFIX = 'winix_cache_';
+
+// Префікс з версією для забезпечення сумісності при оновленнях
+const VERSION_PREFIX = CACHE_PREFIX + 'v2_';
 
 // Типи кешу (для різних просторів імен)
 export const CACHE_TYPES = {
@@ -42,14 +50,32 @@ const DEFAULT_TTL = {
 // Максимальний розмір кешу (у байтах, приблизно 4MB)
 const MAX_CACHE_SIZE = 4 * 1024 * 1024;
 
+// Поріг заповнення для запуску очищення (90%)
+const CLEANUP_THRESHOLD = 0.9;
+
+// Доля кешу, яка повинна бути звільнена при очищенні (30%)
+const CLEANUP_TARGET = 0.3;
+
+// Час життя метаданих кешу (1 година)
+const METADATA_TTL = 60 * 60 * 1000;
+
+// Мінімальний інтервал між автоматичними очищеннями (5 хвилин)
+const MIN_CLEANUP_INTERVAL = 5 * 60 * 1000;
+
 // Прапорець ініціалізації
 let _initialized = false;
 
 // Прапорець доступності localStorage
 let _localStorageAvailable = false;
 
+// Прапорець доступності indexedDB
+let _indexedDBAvailable = false;
+
 // Резервний кеш для випадку недоступності localStorage
-const _memoryCache = {};
+const _memoryCache = new Map();
+
+// Кеш метаданих для оптимізації доступу
+const _metadataCache = new Map();
 
 // Статистика кешу
 let _cacheStats = {
@@ -58,8 +84,19 @@ let _cacheStats = {
     writes: 0,
     errors: 0,
     cleanups: 0,
-    lastCleanup: 0
+    lastCleanup: 0,
+    cacheSize: 0,
+    itemCount: 0
 };
+
+// Час наступного запланованого очищення
+let _nextScheduledCleanup = 0;
+
+// Прапорець блокування паралельного очищення
+let _cleanupLock = false;
+
+// Набір ключів, виключених з автоматичного очищення
+const _protectedKeys = new Set();
 
 /**
  * Перевірка доступності localStorage
@@ -67,13 +104,190 @@ let _cacheStats = {
  */
 function _checkLocalStorageAvailability() {
     try {
-        const testKey = CACHE_PREFIX + 'test';
+        const testKey = VERSION_PREFIX + 'test';
         localStorage.setItem(testKey, 'test');
         const result = localStorage.getItem(testKey) === 'test';
         localStorage.removeItem(testKey);
         return result;
     } catch (e) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Локальне сховище недоступне, перехід у режим пам'яті:", e);
+        } else {
+            console.warn("Локальне сховище недоступне, перехід у режим пам'яті:", e);
+        }
         return false;
+    }
+}
+
+/**
+ * Перевірка доступності indexedDB
+ * @returns {Promise<boolean>} Чи доступний indexedDB
+ */
+async function _checkIndexedDBAvailability() {
+    try {
+        // Перевіряємо наявність indexedDB
+        if (!window.indexedDB) {
+            return false;
+        }
+
+        // Спробуємо відкрити тестову базу даних
+        return new Promise((resolve) => {
+            try {
+                const request = indexedDB.open('winix_test_db', 1);
+
+                request.onerror = () => {
+                    resolve(false);
+                };
+
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+                    db.close();
+                    // Видаляємо тестову базу даних
+                    indexedDB.deleteDatabase('winix_test_db');
+                    resolve(true);
+                };
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Серіалізація значення для збереження
+ * @param {any} value - Значення для серіалізації
+ * @returns {string} Серіалізоване значення
+ * @throws {Error} Помилка серіалізації
+ */
+function _serialize(value) {
+    try {
+        return JSON.stringify(value);
+    } catch (e) {
+        // Для CircularJSON та інших складних об'єктів
+        try {
+            // Спрощуємо структуру об'єкта
+            const simplifiedValue = _simplifyForSerialization(value);
+            return JSON.stringify(simplifiedValue);
+        } catch (innerError) {
+            throw new Error(`Неможливо серіалізувати значення: ${innerError.message}`);
+        }
+    }
+}
+
+/**
+ * Спрощення складних об'єктів для серіалізації
+ * @param {any} value - Значення для спрощення
+ * @returns {any} Спрощене значення
+ * @private
+ */
+function _simplifyForSerialization(value) {
+    // Для примітивних типів повертаємо як є
+    if (value === null || value === undefined ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean') {
+        return value;
+    }
+
+    // Для дат повертаємо ISO рядок
+    if (value instanceof Date) {
+        return { __type: 'Date', value: value.toISOString() };
+    }
+
+    // Для масивів обробляємо кожен елемент
+    if (Array.isArray(value)) {
+        return value.map(item => {
+            try {
+                return _simplifyForSerialization(item);
+            } catch (e) {
+                return null; // Заміняємо проблемні елементи на null
+            }
+        });
+    }
+
+    // Для об'єктів обробляємо кожну властивість
+    if (typeof value === 'object') {
+        const result = {};
+        // Обмежуємо глибину рекурсії
+        const MAX_DEPTH = 3;
+
+        function simplifyObject(obj, depth = 0) {
+            if (depth > MAX_DEPTH) {
+                return { __simplified: true };
+            }
+
+            const result = {};
+
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    try {
+                        const propValue = obj[key];
+
+                        // Рекурсивно обробляємо вкладені об'єкти
+                        if (propValue !== null && typeof propValue === 'object' && !(propValue instanceof Date)) {
+                            result[key] = simplifyObject(propValue, depth + 1);
+                        } else {
+                            result[key] = _simplifyForSerialization(propValue);
+                        }
+                    } catch (e) {
+                        result[key] = null; // Заміняємо проблемні властивості на null
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        return simplifyObject(value);
+    }
+
+    // Для функцій та інших типів повертаємо рядок
+    return String(value);
+}
+
+/**
+ * Десеріалізація значення
+ * @param {string} serialized - Серіалізоване значення
+ * @returns {any} Десеріалізоване значення
+ * @throws {Error} Помилка десеріалізації
+ */
+function _deserialize(serialized) {
+    if (!serialized) return null;
+
+    try {
+        const value = JSON.parse(serialized);
+
+        // Відновлюємо спеціальні типи
+        function restoreSpecialTypes(obj) {
+            if (!obj || typeof obj !== 'object') return obj;
+
+            // Відновлюємо дати
+            if (obj.__type === 'Date' && obj.value) {
+                return new Date(obj.value);
+            }
+
+            // Рекурсивно обробляємо масиви
+            if (Array.isArray(obj)) {
+                return obj.map(item => restoreSpecialTypes(item));
+            }
+
+            // Рекурсивно обробляємо об'єкти
+            if (typeof obj === 'object') {
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                        obj[key] = restoreSpecialTypes(obj[key]);
+                    }
+                }
+            }
+
+            return obj;
+        }
+
+        return restoreSpecialTypes(value);
+    } catch (e) {
+        throw new Error(`Неможливо десеріалізувати значення: ${e.message}`);
     }
 }
 
@@ -84,15 +298,19 @@ function _checkLocalStorageAvailability() {
  */
 function _safeGetItem(key) {
     if (!_localStorageAvailable) {
-        return _memoryCache[key] || null;
+        return _memoryCache.get(key) || null;
     }
 
     try {
         return localStorage.getItem(key);
     } catch (e) {
-        console.warn(`🔌 Cache: Помилка читання з localStorage: ${e.message}`);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn(`Cache: Помилка читання з localStorage: ${e.message}`);
+        } else {
+            console.warn(`Cache: Помилка читання з localStorage: ${e.message}`);
+        }
         _localStorageAvailable = false; // Позначаємо, що localStorage недоступний
-        return _memoryCache[key] || null;
+        return _memoryCache.get(key) || null;
     }
 }
 
@@ -104,7 +322,7 @@ function _safeGetItem(key) {
  */
 function _safeSetItem(key, value) {
     // Зберігаємо в memory cache в будь-якому випадку
-    _memoryCache[key] = value;
+    _memoryCache.set(key, value);
 
     if (!_localStorageAvailable) {
         return false;
@@ -114,17 +332,30 @@ function _safeSetItem(key, value) {
         localStorage.setItem(key, value);
         return true;
     } catch (e) {
-        console.warn(`🔌 Cache: Помилка запису в localStorage: ${e.message}`);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn(`Cache: Помилка запису в localStorage: ${e.message}`);
+        } else {
+            console.warn(`Cache: Помилка запису в localStorage: ${e.message}`);
+        }
 
         // Якщо помилка пов'язана з переповненням, спробуємо очистити кеш
         if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
             try {
                 // Очищаємо старі дані і пробуємо знову
-                cleanupCache();
-                localStorage.setItem(key, value);
-                return true;
-            } catch (retryError) {
-                // Не вдалося навіть після очищення
+                if (forcedCleanupCache(0.5)) { // Звільняємо 50% кешу
+                    try {
+                        localStorage.setItem(key, value);
+                        return true;
+                    } catch (retryError) {
+                        // Не вдалося навіть після очищення
+                        _localStorageAvailable = false;
+                        return false;
+                    }
+                } else {
+                    _localStorageAvailable = false;
+                    return false;
+                }
+            } catch (cleanupError) {
                 _localStorageAvailable = false;
                 return false;
             }
@@ -142,7 +373,10 @@ function _safeSetItem(key, value) {
  */
 function _safeRemoveItem(key) {
     // Видаляємо з memory cache в будь-якому випадку
-    delete _memoryCache[key];
+    _memoryCache.delete(key);
+
+    // Видаляємо з кешу метаданих, якщо є
+    _metadataCache.delete(key);
 
     if (!_localStorageAvailable) {
         return false;
@@ -152,7 +386,11 @@ function _safeRemoveItem(key) {
         localStorage.removeItem(key);
         return true;
     } catch (e) {
-        console.warn(`🔌 Cache: Помилка видалення з localStorage: ${e.message}`);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn(`Cache: Помилка видалення з localStorage: ${e.message}`);
+        } else {
+            console.warn(`Cache: Помилка видалення з localStorage: ${e.message}`);
+        }
         _localStorageAvailable = false;
         return false;
     }
@@ -164,22 +402,54 @@ function _safeRemoveItem(key) {
  */
 function _safeGetKeys() {
     if (!_localStorageAvailable) {
-        return Object.keys(_memoryCache);
+        return Array.from(_memoryCache.keys());
     }
 
     try {
         const keys = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key) {
+            if (key && key.startsWith(VERSION_PREFIX)) {
                 keys.push(key);
             }
         }
         return keys;
     } catch (e) {
-        console.warn(`🔌 Cache: Помилка отримання ключів localStorage: ${e.message}`);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn(`Cache: Помилка отримання ключів localStorage: ${e.message}`);
+        } else {
+            console.warn(`Cache: Помилка отримання ключів localStorage: ${e.message}`);
+        }
         _localStorageAvailable = false;
-        return Object.keys(_memoryCache);
+        return Array.from(_memoryCache.keys());
+    }
+}
+
+/**
+ * Отримання розміру даних в localStorage
+ * @returns {number} Розмір у байтах
+ */
+function _getStorageSize() {
+    if (!_localStorageAvailable) {
+        // Приблизний розмір даних в пам'яті
+        let size = 0;
+        for (const [key, value] of _memoryCache.entries()) {
+            size += (key.length + (value ? value.length : 0)) * 2; // UTF-16 використовує 2 байти на символ
+        }
+        return size;
+    }
+
+    try {
+        let size = 0;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const value = localStorage.getItem(key);
+            size += (key.length + (value ? value.length : 0)) * 2; // UTF-16 використовує 2 байти на символ
+        }
+        return size;
+    } catch (e) {
+        _localStorageAvailable = false;
+        return 0;
     }
 }
 
@@ -191,13 +461,82 @@ function _safeGetKeys() {
  */
 function generateCacheKey(type, key) {
     if (!type || !key) {
-        console.warn("🔌 Cache: Порожній тип або ключ", { type, key });
-        return CACHE_PREFIX + TYPE_PREFIXES.GLOBAL + (key || "unknown");
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Cache: Порожній тип або ключ", { type, key });
+        } else {
+            console.warn("Cache: Порожній тип або ключ", { type, key });
+        }
+        return VERSION_PREFIX + TYPE_PREFIXES.GLOBAL + (key || "unknown");
     }
 
     const normalizedType = type.toUpperCase();
     const cacheType = TYPE_PREFIXES[normalizedType] || TYPE_PREFIXES.GLOBAL;
-    return CACHE_PREFIX + cacheType + key;
+    return VERSION_PREFIX + cacheType + key;
+}
+
+/**
+ * Збереження метаданих для кешу
+ * @private
+ */
+function _saveMetadata() {
+    try {
+        if (!_localStorageAvailable) return;
+
+        // Розмір кешу
+        const cacheSize = _getStorageSize();
+
+        // Зберігаємо метадані
+        const metadata = {
+            version: CACHE_VERSION,
+            stats: _cacheStats,
+            lastUpdated: Date.now()
+        };
+
+        // Оновлюємо розмір кешу в статистиці
+        _cacheStats.cacheSize = cacheSize;
+
+        // Серіалізуємо метадані
+        const serializedMetadata = _serialize(metadata);
+
+        // Зберігаємо в localStorage
+        localStorage.setItem(VERSION_PREFIX + 'metadata', serializedMetadata);
+    } catch (e) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка збереження метаданих:", e);
+        } else {
+            console.error("Cache: Помилка збереження метаданих:", e);
+        }
+    }
+}
+
+/**
+ * Завантаження метаданих кешу
+ * @private
+ */
+function _loadMetadata() {
+    try {
+        if (!_localStorageAvailable) return;
+
+        // Отримуємо метадані
+        const serializedMetadata = localStorage.getItem(VERSION_PREFIX + 'metadata');
+        if (!serializedMetadata) return;
+
+        // Десеріалізуємо метадані
+        const metadata = _deserialize(serializedMetadata);
+        if (!metadata || metadata.version !== CACHE_VERSION) return;
+
+        // Перевіряємо актуальність метаданих
+        if (metadata.lastUpdated && (Date.now() - metadata.lastUpdated < METADATA_TTL)) {
+            // Оновлюємо статистику кешу
+            _cacheStats = { ..._cacheStats, ...metadata.stats };
+        }
+    } catch (e) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка завантаження метаданих:", e);
+        } else {
+            console.error("Cache: Помилка завантаження метаданих:", e);
+        }
+    }
 }
 
 /**
@@ -208,9 +547,13 @@ function generateCacheKey(type, key) {
  * @param {number} ttl - Час життя в мілісекундах (необов'язково)
  * @returns {boolean} Успішність операції
  */
-export function setCache(type, key, data, ttl) {
+export function set(type, key, data, ttl) {
     if (!type || !key) {
-        console.warn("🔌 Cache: Не вказано тип або ключ", { type, key });
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Cache: Не вказано тип або ключ", { type, key });
+        } else {
+            console.warn("Cache: Не вказано тип або ключ", { type, key });
+        }
         _cacheStats.errors++;
         return false;
     }
@@ -228,49 +571,136 @@ export function setCache(type, key, data, ttl) {
             data: data,
             expiresAt: expiresAt,
             createdAt: Date.now(),
-            type: normalizedType
+            type: normalizedType,
+            version: CACHE_VERSION
         };
 
-        // Зберігаємо в localStorage
+        // Генеруємо ключ кешу
         const cacheKey = generateCacheKey(normalizedType, key);
 
         // Серіалізуємо дані, обробляючи можливі помилки
         let serializedData;
         try {
-            serializedData = JSON.stringify(cacheObject);
+            serializedData = _serialize(cacheObject);
         } catch (jsonError) {
-            console.warn(`🔌 Cache: Помилка серіалізації даних для ключа ${key}:`, jsonError);
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.warn(`Cache: Помилка серіалізації даних для ключа ${key}:`, jsonError);
+            } else {
+                console.warn(`Cache: Помилка серіалізації даних для ключа ${key}:`, jsonError);
+            }
             // Спробуємо спростити дані і серіалізувати знову
             try {
                 const simplifiedData = {
                     ...cacheObject,
                     data: typeof data === 'object' ? { simplified: true } : String(data)
                 };
-                serializedData = JSON.stringify(simplifiedData);
+                serializedData = _serialize(simplifiedData);
             } catch (simplifyError) {
-                console.error(`🔌 Cache: Критична помилка серіалізації даних для ключа ${key}:`, simplifyError);
+                if (WinixRaffles.logger) {
+                    WinixRaffles.logger.error(`Cache: Критична помилка серіалізації даних для ключа ${key}:`, simplifyError);
+                } else {
+                    console.error(`Cache: Критична помилка серіалізації даних для ключа ${key}:`, simplifyError);
+                }
                 _cacheStats.errors++;
                 return false;
             }
         }
+
+        // Зберігаємо метадані в кеш
+        _metadataCache.set(cacheKey, {
+            expiresAt,
+            createdAt: Date.now(),
+            type: normalizedType,
+            size: serializedData.length
+        });
 
         // Зберігаємо дані
         const success = _safeSetItem(cacheKey, serializedData);
 
         // Оновлюємо статистику
         _cacheStats.writes++;
+        _cacheStats.itemCount = _metadataCache.size;
 
-        // Перевіряємо розмір кешу та очищаємо старі записи при необхідності
-        if (_cacheStats.writes % 10 === 0) {
-            setTimeout(cleanupCache, 0);
-        }
+        // Перевіряємо необхідність очищення кешу
+        _checkAndScheduleCleanup();
 
         return success;
     } catch (error) {
-        console.error("❌ Cache: Помилка при збереженні даних до кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при збереженні даних до кешу:", error);
+        } else {
+            console.error("Cache: Помилка при збереженні даних до кешу:", error);
+        }
         _cacheStats.errors++;
         return false;
     }
+}
+
+/**
+ * Перевіряє необхідність очищення кешу і планує його
+ * @private
+ */
+function _checkAndScheduleCleanup() {
+    try {
+        // Отримуємо поточний час
+        const now = Date.now();
+
+        // Перевіряємо, чи не заплановано вже очищення
+        if (_nextScheduledCleanup > now) {
+            return;
+        }
+
+        // Отримуємо розмір кешу
+        const cacheSize = _getStorageSize();
+
+        // Якщо розмір кешу перевищує поріг, запускаємо очищення
+        if (cacheSize > MAX_CACHE_SIZE * CLEANUP_THRESHOLD) {
+            // Плануємо очищення
+            _nextScheduledCleanup = now + MIN_CLEANUP_INTERVAL;
+
+            // Запускаємо очищення асинхронно
+            setTimeout(() => {
+                if (!_cleanupLock) {
+                    cleanupCache();
+                }
+            }, 100);
+        }
+    } catch (e) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка перевірки необхідності очищення кешу:", e);
+        } else {
+            console.error("Cache: Помилка перевірки необхідності очищення кешу:", e);
+        }
+    }
+}
+
+/**
+ * Валідує об'єкт кешу
+ * @param {Object} cacheObject - Об'єкт кешу для валідації
+ * @returns {boolean} Результат валідації
+ * @private
+ */
+function _validateCacheObject(cacheObject) {
+    // Перевіряємо наявність усіх необхідних полів
+    if (!cacheObject ||
+        !cacheObject.data ||
+        !cacheObject.expiresAt ||
+        !cacheObject.createdAt ||
+        !cacheObject.type) {
+        return false;
+    }
+
+    // Перевіряємо термін дії
+    if (cacheObject.expiresAt < Date.now()) {
+        return false;
+    }
+
+    // Перевіряємо версію кешу
+    if (cacheObject.version !== CACHE_VERSION) {
+        return false;
+    }
+
+    return true;
 }
 
 /**
@@ -280,9 +710,13 @@ export function setCache(type, key, data, ttl) {
  * @param {any} defaultValue - Значення за замовчуванням, якщо кеш відсутній
  * @returns {any} Дані з кешу або defaultValue
  */
-export function getCache(type, key, defaultValue = null) {
+export function get(type, key, defaultValue = null) {
     if (!type || !key) {
-        console.warn("🔌 Cache: Не вказано тип або ключ", { type, key });
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Cache: Не вказано тип або ключ", { type, key });
+        } else {
+            console.warn("Cache: Не вказано тип або ключ", { type, key });
+        }
         _cacheStats.misses++;
         return defaultValue;
     }
@@ -294,6 +728,16 @@ export function getCache(type, key, defaultValue = null) {
 
         // Отримуємо дані з localStorage
         const cacheKey = generateCacheKey(normalizedType, key);
+
+        // Перевіряємо метадані для швидкої перевірки терміну дії
+        const metadata = _metadataCache.get(cacheKey);
+        if (metadata && metadata.expiresAt < Date.now()) {
+            // Кеш застарів
+            _safeRemoveItem(cacheKey);
+            _cacheStats.misses++;
+            return defaultValue;
+        }
+
         const cachedData = _safeGetItem(cacheKey);
 
         if (!cachedData) {
@@ -304,18 +748,22 @@ export function getCache(type, key, defaultValue = null) {
         // Парсимо дані з кешу
         let cacheObject;
         try {
-            cacheObject = JSON.parse(cachedData);
+            cacheObject = _deserialize(cachedData);
         } catch (parseError) {
-            console.warn(`🔌 Cache: Помилка парсингу даних для ключа ${key}:`, parseError);
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.warn(`Cache: Помилка парсингу даних для ключа ${key}:`, parseError);
+            } else {
+                console.warn(`Cache: Помилка парсингу даних для ключа ${key}:`, parseError);
+            }
             _cacheStats.errors++;
             _safeRemoveItem(cacheKey); // Видаляємо пошкоджені дані
             _cacheStats.misses++;
             return defaultValue;
         }
 
-        // Перевіряємо термін дії
-        if (!cacheObject || !cacheObject.expiresAt || cacheObject.expiresAt < Date.now()) {
-            // Кеш застарів
+        // Валідуємо об'єкт кешу
+        if (!_validateCacheObject(cacheObject)) {
+            // Кеш невалідний
             _safeRemoveItem(cacheKey);
             _cacheStats.misses++;
             return defaultValue;
@@ -323,9 +771,22 @@ export function getCache(type, key, defaultValue = null) {
 
         // Кеш валідний
         _cacheStats.hits++;
+
+        // Оновлюємо метадані з актуальною інформацією
+        _metadataCache.set(cacheKey, {
+            expiresAt: cacheObject.expiresAt,
+            createdAt: cacheObject.createdAt,
+            type: cacheObject.type,
+            size: cachedData.length
+        });
+
         return cacheObject.data;
     } catch (error) {
-        console.error("❌ Cache: Помилка при отриманні даних з кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при отриманні даних з кешу:", error);
+        } else {
+            console.error("Cache: Помилка при отриманні даних з кешу:", error);
+        }
         _cacheStats.errors++;
         return defaultValue;
     }
@@ -337,7 +798,7 @@ export function getCache(type, key, defaultValue = null) {
  * @param {string} key - Ключ для перевірки
  * @returns {boolean} Чи є валідний кеш
  */
-export function hasValidCache(type, key) {
+export function has(type, key) {
     if (!type || !key) {
         return false;
     }
@@ -349,6 +810,13 @@ export function hasValidCache(type, key) {
 
         // Отримуємо дані з localStorage
         const cacheKey = generateCacheKey(normalizedType, key);
+
+        // Спочатку перевіряємо метадані для швидкої перевірки
+        const metadata = _metadataCache.get(cacheKey);
+        if (metadata) {
+            return metadata.expiresAt >= Date.now();
+        }
+
         const cachedData = _safeGetItem(cacheKey);
 
         if (!cachedData) {
@@ -358,20 +826,33 @@ export function hasValidCache(type, key) {
         // Парсимо дані з кешу
         let cacheObject;
         try {
-            cacheObject = JSON.parse(cachedData);
+            cacheObject = _deserialize(cachedData);
         } catch (parseError) {
             _safeRemoveItem(cacheKey); // Видаляємо пошкоджені дані
             return false;
         }
 
-        // Перевіряємо термін дії
-        if (!cacheObject || !cacheObject.expiresAt) {
+        // Валідуємо об'єкт кешу та термін дії
+        if (!_validateCacheObject(cacheObject)) {
+            _safeRemoveItem(cacheKey);
             return false;
         }
 
-        return cacheObject.expiresAt >= Date.now();
+        // Оновлюємо метадані
+        _metadataCache.set(cacheKey, {
+            expiresAt: cacheObject.expiresAt,
+            createdAt: cacheObject.createdAt,
+            type: cacheObject.type,
+            size: cachedData.length
+        });
+
+        return true;
     } catch (error) {
-        console.error("❌ Cache: Помилка при перевірці кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при перевірці кешу:", error);
+        } else {
+            console.error("Cache: Помилка при перевірці кешу:", error);
+        }
         return false;
     }
 }
@@ -382,7 +863,7 @@ export function hasValidCache(type, key) {
  * @param {string} key - Ключ для видалення
  * @returns {boolean} Успішність операції
  */
-export function removeCache(type, key) {
+export function remove(type, key) {
     if (!type || !key) {
         return false;
     }
@@ -394,9 +875,89 @@ export function removeCache(type, key) {
 
         // Видаляємо дані з localStorage
         const cacheKey = generateCacheKey(normalizedType, key);
+
+        // Видаляємо з кешу метаданих
+        _metadataCache.delete(cacheKey);
+
+        // Видаляємо з переліку захищених ключів
+        _protectedKeys.delete(cacheKey);
+
+        // Оновлюємо кількість елементів у статистиці
+        _cacheStats.itemCount = _metadataCache.size;
+
         return _safeRemoveItem(cacheKey);
     } catch (error) {
-        console.error("❌ Cache: Помилка при видаленні даних з кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при видаленні даних з кешу:", error);
+        } else {
+            console.error("Cache: Помилка при видаленні даних з кешу:", error);
+        }
+        return false;
+    }
+}
+
+/**
+ * Захищає ключ кешу від автоматичного очищення
+ * @param {string} type - Тип кешу (з CACHE_TYPES)
+ * @param {string} key - Ключ для захисту
+ * @returns {boolean} Успішність операції
+ */
+export function protect(type, key) {
+    if (!type || !key) {
+        return false;
+    }
+
+    try {
+        // Якщо тип невалідний, використовуємо GLOBAL
+        const normalizedType = (type && type.toUpperCase && CACHE_TYPES[type.toUpperCase()]) ?
+            type.toUpperCase() : 'GLOBAL';
+
+        // Генеруємо ключ кешу
+        const cacheKey = generateCacheKey(normalizedType, key);
+
+        // Додаємо до списку захищених ключів
+        _protectedKeys.add(cacheKey);
+
+        return true;
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при захисті ключа кешу:", error);
+        } else {
+            console.error("Cache: Помилка при захисті ключа кешу:", error);
+        }
+        return false;
+    }
+}
+
+/**
+ * Знімає захист з ключа кешу
+ * @param {string} type - Тип кешу (з CACHE_TYPES)
+ * @param {string} key - Ключ для зняття захисту
+ * @returns {boolean} Успішність операції
+ */
+export function unprotect(type, key) {
+    if (!type || !key) {
+        return false;
+    }
+
+    try {
+        // Якщо тип невалідний, використовуємо GLOBAL
+        const normalizedType = (type && type.toUpperCase && CACHE_TYPES[type.toUpperCase()]) ?
+            type.toUpperCase() : 'GLOBAL';
+
+        // Генеруємо ключ кешу
+        const cacheKey = generateCacheKey(normalizedType, key);
+
+        // Видаляємо з списку захищених ключів
+        _protectedKeys.delete(cacheKey);
+
+        return true;
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при знятті захисту з ключа кешу:", error);
+        } else {
+            console.error("Cache: Помилка при знятті захисту з ключа кешу:", error);
+        }
         return false;
     }
 }
@@ -406,44 +967,57 @@ export function removeCache(type, key) {
  * @param {string} type - Тип кешу для очищення (необов'язково)
  * @returns {number} Кількість видалених записів
  */
-export function clearCacheByType(type = null) {
+export function clear(type = null) {
     try {
         let count = 0;
-        const keys = _safeGetKeys();
+        let prefix = VERSION_PREFIX;
 
+        // Якщо вказано тип, формуємо префікс для цього типу
         if (type && CACHE_TYPES[type.toUpperCase()]) {
-            // Видаляємо дані конкретного типу
             const normalizedType = type.toUpperCase();
-            const prefix = CACHE_PREFIX + TYPE_PREFIXES[normalizedType];
-
-            // Збираємо ключі для видалення
-            const keysToRemove = keys.filter(key => key && key.startsWith(prefix));
-
-            // Видаляємо зібрані ключі
-            keysToRemove.forEach(key => {
-                if (_safeRemoveItem(key)) {
-                    count++;
-                }
-            });
-        } else {
-            // Видаляємо всі дані кешу
-            const prefix = CACHE_PREFIX;
-
-            // Збираємо ключі для видалення
-            const keysToRemove = keys.filter(key => key && key.startsWith(prefix));
-
-            // Видаляємо зібрані ключі
-            keysToRemove.forEach(key => {
-                if (_safeRemoveItem(key)) {
-                    count++;
-                }
-            });
+            prefix = VERSION_PREFIX + TYPE_PREFIXES[normalizedType];
         }
 
-        console.log(`🧹 Cache: Очищено ${count} записів ${type ? `типу ${type}` : 'всіх типів'}`);
+        // Очищаємо кеш в пам'яті
+        if (type) {
+            // Очищаємо тільки вказаний тип
+            for (const [key, metadata] of _metadataCache.entries()) {
+                if (metadata.type === type.toUpperCase()) {
+                    _safeRemoveItem(key);
+                    _metadataCache.delete(key);
+                    count++;
+                }
+            }
+        } else {
+            // Очищаємо всі типи
+            _metadataCache.clear();
+
+            // Отримуємо всі ключі localStorage та видаляємо відповідні записи
+            const keys = _safeGetKeys();
+            for (const key of keys) {
+                if (key.startsWith(prefix)) {
+                    _safeRemoveItem(key);
+                    count++;
+                }
+            }
+        }
+
+        // Оновлюємо кількість елементів у статистиці
+        _cacheStats.itemCount = _metadataCache.size;
+
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log(`Cache: Очищено ${count} записів ${type ? `типу ${type}` : 'всіх типів'}`);
+        } else {
+            console.log(`Cache: Очищено ${count} записів ${type ? `типу ${type}` : 'всіх типів'}`);
+        }
+
         return count;
     } catch (error) {
-        console.error("❌ Cache: Помилка при очищенні кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при очищенні кешу:", error);
+        } else {
+            console.error("Cache: Помилка при очищенні кешу:", error);
+        }
         return 0;
     }
 }
@@ -455,7 +1029,7 @@ export function clearCacheByType(type = null) {
  * @param {number} ttl - Новий час життя в мілісекундах
  * @returns {boolean} Успішність операції
  */
-export function updateCacheTTL(type, key, ttl) {
+export function updateTTL(type, key, ttl) {
     if (!type || !key || !ttl || isNaN(ttl) || ttl <= 0) {
         return false;
     }
@@ -476,7 +1050,7 @@ export function updateCacheTTL(type, key, ttl) {
         // Парсимо дані з кешу
         let cacheObject;
         try {
-            cacheObject = JSON.parse(cachedData);
+            cacheObject = _deserialize(cachedData);
         } catch (parseError) {
             _safeRemoveItem(cacheKey); // Видаляємо пошкоджені дані
             return false;
@@ -486,9 +1060,170 @@ export function updateCacheTTL(type, key, ttl) {
         cacheObject.expiresAt = Date.now() + ttl;
 
         // Зберігаємо оновлений об'єкт
-        return _safeSetItem(cacheKey, JSON.stringify(cacheObject));
+        try {
+            const serializedData = _serialize(cacheObject);
+
+            // Оновлюємо метадані
+            _metadataCache.set(cacheKey, {
+                expiresAt: cacheObject.expiresAt,
+                createdAt: cacheObject.createdAt,
+                type: cacheObject.type,
+                size: serializedData.length
+            });
+
+            return _safeSetItem(cacheKey, serializedData);
+        } catch (serializeError) {
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.error("Cache: Помилка серіалізації при оновленні TTL:", serializeError);
+            } else {
+                console.error("Cache: Помилка серіалізації при оновленні TTL:", serializeError);
+            }
+            return false;
+        }
     } catch (error) {
-        console.error("❌ Cache: Помилка при оновленні TTL кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при оновленні TTL кешу:", error);
+        } else {
+            console.error("Cache: Помилка при оновленні TTL кешу:", error);
+        }
+        return false;
+    }
+}
+
+/**
+ * Примусове очищення кешу, видаляє відповідну частину даних
+ * @param {number} [fraction=0.3] - Частка кешу, яку потрібно звільнити (0-1)
+ * @returns {boolean} Успішність операції
+ */
+export function forcedCleanupCache(fraction = CLEANUP_TARGET) {
+    try {
+        // Перевіряємо валідність параметра
+        if (fraction <= 0 || fraction > 1) {
+            fraction = CLEANUP_TARGET;
+        }
+
+        // Поточний розмір кешу
+        const currentSize = _getStorageSize();
+
+        // Цільовий розмір для видалення
+        const targetRemoveSize = currentSize * fraction;
+
+        // Отримуємо всі ключі кешу
+        const keys = _safeGetKeys();
+
+        // Якщо немає ключів, нічого очищати
+        if (keys.length === 0) {
+            return true;
+        }
+
+        // Збираємо інформацію про кеш
+        const cacheEntries = [];
+
+        for (const key of keys) {
+            // Пропускаємо захищені ключі
+            if (_protectedKeys.has(key)) {
+                continue;
+            }
+
+            // Спробуємо знайти метадані в кеші метаданих
+            let metadata = _metadataCache.get(key);
+
+            if (!metadata) {
+                // Якщо немає в кеші метаданих, спробуємо прочитати з сховища
+                try {
+                    const data = _safeGetItem(key);
+                    if (!data) continue;
+
+                    const size = data.length;
+
+                    try {
+                        const cacheObject = _deserialize(data);
+                        if (!cacheObject) continue;
+
+                        metadata = {
+                            expiresAt: cacheObject.expiresAt || 0,
+                            createdAt: cacheObject.createdAt || 0,
+                            type: cacheObject.type || 'UNKNOWN',
+                            size: size
+                        };
+
+                        // Зберігаємо метадані в кеш
+                        _metadataCache.set(key, metadata);
+                    } catch (parseError) {
+                        // Якщо помилка парсингу, видаляємо ключ
+                        _safeRemoveItem(key);
+                        continue;
+                    }
+                } catch (e) {
+                    // Якщо помилка читання, пропускаємо ключ
+                    continue;
+                }
+            }
+
+            // Додаємо інформацію про ключ до списку
+            cacheEntries.push({
+                key: key,
+                size: metadata.size,
+                expiresAt: metadata.expiresAt || 0,
+                createdAt: metadata.createdAt || 0,
+                type: metadata.type || 'UNKNOWN'
+            });
+        }
+
+        // Сортуємо записи: спочатку застарілі, потім найстаріші
+        cacheEntries.sort((a, b) => {
+            // Спочатку порівнюємо за терміном дії
+            const aExpired = a.expiresAt < Date.now();
+            const bExpired = b.expiresAt < Date.now();
+
+            if (aExpired && !bExpired) return -1;
+            if (!aExpired && bExpired) return 1;
+
+            // Якщо обидва актуальні або обидва застарілі, сортуємо за часом створення
+            return a.createdAt - b.createdAt;
+        });
+
+        // Видаляємо записи, доки не звільнимо достатньо місця
+        let removedSize = 0;
+        let removedCount = 0;
+
+        for (const entry of cacheEntries) {
+            if (removedSize >= targetRemoveSize) {
+                break;
+            }
+
+            if (_safeRemoveItem(entry.key)) {
+                removedSize += entry.size;
+                removedCount++;
+
+                // Видаляємо з кешу метаданих
+                _metadataCache.delete(entry.key);
+            }
+        }
+
+        // Оновлюємо кількість елементів у статистиці
+        _cacheStats.itemCount = _metadataCache.size;
+
+        // Оновлюємо статистику
+        _cacheStats.cleanups++;
+        _cacheStats.lastCleanup = Date.now();
+
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log(`Cache: Примусово очищено ${removedCount} записів, звільнено ${(removedSize / 1024).toFixed(2)} КБ`);
+        } else {
+            console.log(`Cache: Примусово очищено ${removedCount} записів, звільнено ${(removedSize / 1024).toFixed(2)} КБ`);
+        }
+
+        // Зберігаємо метадані
+        _saveMetadata();
+
+        return true;
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при примусовому очищенні кешу:", error);
+        } else {
+            console.error("Cache: Помилка при примусовому очищенні кешу:", error);
+        }
         return false;
     }
 }
@@ -498,97 +1233,244 @@ export function updateCacheTTL(type, key, ttl) {
  * @returns {number} Кількість видалених записів
  */
 export function cleanupCache() {
+    // Перевіряємо, чи не виконується вже очищення
+    if (_cleanupLock) {
+        return 0;
+    }
+
+    _cleanupLock = true;
+
     try {
         const now = Date.now();
 
-        // Не очищуємо кеш частіше ніж раз в 5 хвилин (окрім примусового виклику)
-        if (arguments.length === 0 && now - _cacheStats.lastCleanup < 5 * 60 * 1000) {
+        // Не очищуємо кеш частіше ніж раз в MIN_CLEANUP_INTERVAL (окрім примусового виклику)
+        if (arguments.length === 0 && now - _cacheStats.lastCleanup < MIN_CLEANUP_INTERVAL) {
+            _cleanupLock = false;
             return 0;
         }
 
-        console.log("🧹 Cache: Початок очищення кешу");
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log("Cache: Початок очищення кешу");
+        } else {
+            console.log("Cache: Початок очищення кешу");
+        }
+
         _cacheStats.lastCleanup = now;
+
+        // Оновлюємо інформацію про метадані
+        _updateMetadataFromStorage();
 
         // Збираємо інформацію про всі кеші
         const cacheEntries = [];
         const keys = _safeGetKeys();
 
+        // Збираємо всі записи, видаляючи пошкоджені
         for (const key of keys) {
-            if (key && key.startsWith(CACHE_PREFIX)) {
-                try {
-                    const data = _safeGetItem(key);
-                    if (!data) continue;
+            // Пропускаємо захищені ключі
+            if (_protectedKeys.has(key)) {
+                continue;
+            }
 
-                    let cacheObject;
-                    try {
-                        cacheObject = JSON.parse(data);
-                    } catch (parseError) {
-                        // Невалідний формат кешу, видаляємо
+            try {
+                // Спочатку перевіряємо метадані
+                const metadata = _metadataCache.get(key);
+
+                if (metadata) {
+                    // Якщо запис застарілий, видаляємо його
+                    if (metadata.expiresAt < now) {
                         _safeRemoveItem(key);
+                        _metadataCache.delete(key);
                         continue;
                     }
 
+                    // Додаємо інформацію про запис
                     cacheEntries.push({
                         key: key,
-                        size: data.length,
-                        expiresAt: cacheObject.expiresAt || 0,
-                        createdAt: cacheObject.createdAt || 0,
-                        type: cacheObject.type || 'GLOBAL'
+                        size: metadata.size,
+                        expiresAt: metadata.expiresAt,
+                        createdAt: metadata.createdAt,
+                        type: metadata.type
                     });
-                } catch (entryError) {
-                    // Помилка обробки запису, видаляємо його
-                    _safeRemoveItem(key);
+
+                    // Продовжуємо, оскільки все уже відомо
+                    continue;
                 }
+
+                // Якщо немає метаданих, читаємо дані
+                const data = _safeGetItem(key);
+                if (!data) continue;
+
+                let cacheObject;
+                try {
+                    cacheObject = _deserialize(data);
+                } catch (parseError) {
+                    // Невалідний формат кешу, видаляємо
+                    _safeRemoveItem(key);
+                    continue;
+                }
+
+                // Якщо запис застарілий, видаляємо його
+                if (!cacheObject || !cacheObject.expiresAt || cacheObject.expiresAt < now) {
+                    _safeRemoveItem(key);
+                    continue;
+                }
+
+                // Додаємо інформацію про запис
+                cacheEntries.push({
+                    key: key,
+                    size: data.length,
+                    expiresAt: cacheObject.expiresAt || 0,
+                    createdAt: cacheObject.createdAt || 0,
+                    type: cacheObject.type || 'UNKNOWN'
+                });
+
+                // Оновлюємо метадані
+                _metadataCache.set(key, {
+                    expiresAt: cacheObject.expiresAt,
+                    createdAt: cacheObject.createdAt,
+                    type: cacheObject.type,
+                    size: data.length
+                });
+            } catch (entryError) {
+                // Помилка обробки запису, видаляємо його
+                _safeRemoveItem(key);
+                _metadataCache.delete(key);
             }
         }
 
-        // Видаляємо застарілі записи
+        // Підраховуємо загальний розмір кешу
+        let currentSize = cacheEntries.reduce((total, entry) => total + entry.size, 0);
         let removedCount = 0;
-        for (const entry of cacheEntries) {
-            if (entry.expiresAt < now) {
-                if (_safeRemoveItem(entry.key)) {
-                    removedCount++;
-                }
-            }
-        }
 
         // Якщо розмір кешу перевищує ліміт, видаляємо найстаріші записи
-        let currentSize = cacheEntries.reduce((total, entry) => total + entry.size, 0);
-
-        if (currentSize > MAX_CACHE_SIZE) {
-            console.log(`📦 Cache: Розмір кешу (${currentSize} байт) перевищує ліміт (${MAX_CACHE_SIZE} байт)`);
+        if (currentSize > MAX_CACHE_SIZE * CLEANUP_THRESHOLD) {
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.log(`Cache: Розмір кешу (${(currentSize / 1024).toFixed(2)} КБ) перевищує ліміт (${(MAX_CACHE_SIZE * CLEANUP_THRESHOLD / 1024).toFixed(2)} КБ)`);
+            } else {
+                console.log(`Cache: Розмір кешу (${(currentSize / 1024).toFixed(2)} КБ) перевищує ліміт (${(MAX_CACHE_SIZE * CLEANUP_THRESHOLD / 1024).toFixed(2)} КБ)`);
+            }
 
             try {
                 // Сортуємо за часом створення (спочатку найстаріші)
                 cacheEntries.sort((a, b) => a.createdAt - b.createdAt);
 
                 // Видаляємо найстаріші записи, поки розмір не стане прийнятним
-                while (currentSize > MAX_CACHE_SIZE * 0.8 && cacheEntries.length > 0) {
+                const targetSize = MAX_CACHE_SIZE * (1 - CLEANUP_TARGET);
+
+                while (currentSize > targetSize && cacheEntries.length > 0) {
                     const oldestEntry = cacheEntries.shift();
+
+                    // Пропускаємо захищені ключі
+                    if (_protectedKeys.has(oldestEntry.key)) {
+                        continue;
+                    }
+
                     if (_safeRemoveItem(oldestEntry.key)) {
                         currentSize -= oldestEntry.size;
                         removedCount++;
+
+                        // Видаляємо з кешу метаданих
+                        _metadataCache.delete(oldestEntry.key);
                     }
                 }
             } catch (sortError) {
-                console.error("❌ Cache: Помилка сортування кешу:", sortError);
+                if (WinixRaffles.logger) {
+                    WinixRaffles.logger.error("Cache: Помилка сортування кешу:", sortError);
+                } else {
+                    console.error("Cache: Помилка сортування кешу:", sortError);
+                }
 
                 // Альтернативний спосіб: просто видаляємо перші N записів
                 for (let i = 0; i < Math.min(10, cacheEntries.length); i++) {
+                    // Пропускаємо захищені ключі
+                    if (_protectedKeys.has(cacheEntries[i].key)) {
+                        continue;
+                    }
+
                     if (_safeRemoveItem(cacheEntries[i].key)) {
                         removedCount++;
+
+                        // Видаляємо з кешу метаданих
+                        _metadataCache.delete(cacheEntries[i].key);
                     }
                 }
             }
         }
 
-        console.log(`✅ Cache: Очищення завершено, видалено ${removedCount} записів`);
+        // Оновлюємо кількість елементів у статистиці
+        _cacheStats.itemCount = _metadataCache.size;
+
+        // Оновлюємо статистику
         _cacheStats.cleanups++;
 
+        // Зберігаємо метадані
+        _saveMetadata();
+
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log(`Cache: Очищення завершено, видалено ${removedCount} записів`);
+        } else {
+            console.log(`Cache: Очищення завершено, видалено ${removedCount} записів`);
+        }
+
+        _cleanupLock = false;
         return removedCount;
     } catch (error) {
-        console.error("❌ Cache: Помилка при очищенні кешу:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при очищенні кешу:", error);
+        } else {
+            console.error("Cache: Помилка при очищенні кешу:", error);
+        }
+        _cleanupLock = false;
         return 0;
+    }
+}
+
+/**
+ * Оновлює метадані з даних сховища
+ * @private
+ */
+function _updateMetadataFromStorage() {
+    try {
+        // Отримуємо всі ключі
+        const keys = _safeGetKeys();
+
+        // Обмежуємо кількість ключів для обробки (не більше 100)
+        const keysToProcess = keys.slice(0, 100);
+
+        // Обробляємо тільки ключі, які ще не в кеші метаданих
+        for (const key of keysToProcess) {
+            if (_metadataCache.has(key)) continue;
+
+            try {
+                const data = _safeGetItem(key);
+                if (!data) continue;
+
+                try {
+                    const cacheObject = _deserialize(data);
+                    if (!cacheObject) continue;
+
+                    // Додаємо метадані в кеш
+                    _metadataCache.set(key, {
+                        expiresAt: cacheObject.expiresAt || 0,
+                        createdAt: cacheObject.createdAt || 0,
+                        type: cacheObject.type || 'UNKNOWN',
+                        size: data.length
+                    });
+                } catch (parseError) {
+                    // Невалідний формат кешу, видаляємо
+                    _safeRemoveItem(key);
+                }
+            } catch (e) {
+                // Помилка обробки ключа, пропускаємо
+                continue;
+            }
+        }
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка оновлення метаданих з сховища:", error);
+        } else {
+            console.error("Cache: Помилка оновлення метаданих з сховища:", error);
+        }
     }
 }
 
@@ -596,42 +1478,143 @@ export function cleanupCache() {
  * Отримує статистику кешу
  * @returns {Object} Об'єкт зі статистикою кешу
  */
-export function getCacheStats() {
+export function getStats() {
+    // Оновлюємо розмір кешу
+    _cacheStats.cacheSize = _getStorageSize();
+    _cacheStats.itemCount = _metadataCache.size;
+
     // Підготовка даних про використання локального сховища
     const storageStats = {
-        total: 0,
-        used: 0,
-        items: 0,
-        cacheItems: 0,
-        available: _localStorageAvailable
+        total: _getStorageSize(),
+        used: _cacheStats.cacheSize,
+        items: _cacheStats.itemCount,
+        protected: _protectedKeys.size,
+        available: _localStorageAvailable,
+        maximum: MAX_CACHE_SIZE
     };
-
-    try {
-        // Рахуємо загальне використання localStorage або memory cache
-        const keys = _safeGetKeys();
-
-        for (const key of keys) {
-            const value = _safeGetItem(key) || '';
-
-            storageStats.total += key.length + value.length;
-            storageStats.items++;
-
-            if (key.startsWith(CACHE_PREFIX)) {
-                storageStats.used += key.length + value.length;
-                storageStats.cacheItems++;
-            }
-        }
-    } catch (e) {
-        console.warn("⚠️ Cache: Помилка при підрахунку статистики сховища:", e);
-    }
 
     return {
         ..._cacheStats,
         storage: storageStats,
         hitRate: _cacheStats.hits + _cacheStats.misses > 0
-            ? _cacheStats.hits / (_cacheStats.hits + _cacheStats.misses) * 100
-            : 0
+            ? (_cacheStats.hits / (_cacheStats.hits + _cacheStats.misses) * 100).toFixed(2)
+            : 0,
+        version: CACHE_VERSION
     };
+}
+
+/**
+ * Дефрагментація кешу - переміщення даних з пам'яті в localStorage
+ * @returns {number} Кількість перенесених записів
+ */
+export function defragment() {
+    if (!_localStorageAvailable) {
+        return 0;
+    }
+
+    try {
+        let count = 0;
+
+        // Отримуємо всі ключі в пам'яті
+        for (const [key, value] of _memoryCache.entries()) {
+            // Пропускаємо ключі, які вже є в localStorage
+            try {
+                const existingValue = localStorage.getItem(key);
+                if (existingValue) continue;
+
+                // Переносимо дані в localStorage
+                localStorage.setItem(key, value);
+                count++;
+            } catch (e) {
+                // Якщо помилка переповнення, зупиняємо перенесення
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    break;
+                }
+            }
+        }
+
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log(`Cache: Дефрагментація завершена, перенесено ${count} записів`);
+        } else {
+            console.log(`Cache: Дефрагментація завершена, перенесено ${count} записів`);
+        }
+
+        return count;
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при дефрагментації кешу:", error);
+        } else {
+            console.error("Cache: Помилка при дефрагментації кешу:", error);
+        }
+        return 0;
+    }
+}
+
+/**
+ * Перенесення даних з localStorage в пам'ять при зниженні заряду батареї
+ * @param {number} [threshold=0.15] - Поріг заряду батареї (0-1)
+ * @returns {number} Кількість перенесених записів
+ */
+export function optimizeForLowPower(threshold = 0.15) {
+    try {
+        // Перевіряємо доступність API батареї
+        if (!navigator.getBattery) {
+            return 0;
+        }
+
+        return navigator.getBattery().then(battery => {
+            // Якщо заряд вище порогу, нічого не робимо
+            if (battery.level > threshold) {
+                return 0;
+            }
+
+            // Якщо не на батареї, нічого не робимо
+            if (battery.charging) {
+                return 0;
+            }
+
+            let count = 0;
+
+            // Отримуємо всі ключі localStorage
+            const keys = _safeGetKeys();
+
+            // Переносимо дані в пам'ять
+            for (const key of keys) {
+                try {
+                    const value = localStorage.getItem(key);
+                    if (!value) continue;
+
+                    // Зберігаємо в пам'яті
+                    _memoryCache.set(key, value);
+                    count++;
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.log(`Cache: Оптимізація для низького заряду завершена, збережено в пам'яті ${count} записів`);
+            } else {
+                console.log(`Cache: Оптимізація для низького заряду завершена, збережено в пам'яті ${count} записів`);
+            }
+
+            return count;
+        }).catch(error => {
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.error("Cache: Помилка при оптимізації для низького заряду:", error);
+            } else {
+                console.error("Cache: Помилка при оптимізації для низького заряду:", error);
+            }
+            return 0;
+        });
+    } catch (error) {
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка при оптимізації для низького заряду:", error);
+        } else {
+            console.error("Cache: Помилка при оптимізації для низького заряду:", error);
+        }
+        return 0;
+    }
 }
 
 /**
@@ -647,18 +1630,40 @@ export function init() {
         _localStorageAvailable = _checkLocalStorageAvailability();
 
         if (!_localStorageAvailable) {
-            console.warn("🔌 Cache: localStorage недоступний, використовуємо memory cache");
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.warn("Cache: localStorage недоступний, використовуємо memory cache");
+            } else {
+                console.warn("Cache: localStorage недоступний, використовуємо memory cache");
+            }
         }
 
+        // Завантажуємо метадані
+        _loadMetadata();
+
         // Очищення застарілих даних при ініціалізації
-        cleanupCache();
+        setTimeout(() => {
+            cleanupCache();
+        }, 1000);
+
+        // Перевіряємо доступність indexedDB
+        _checkIndexedDBAvailability().then(available => {
+            _indexedDBAvailable = available;
+        });
 
         // Встановлюємо флаг ініціалізації
         _initialized = true;
 
-        console.log("✅ Cache: Система кешування успішно ініціалізована");
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.log("Cache: Система кешування успішно ініціалізована");
+        } else {
+            console.log("Cache: Система кешування успішно ініціалізована");
+        }
     } catch (error) {
-        console.error("❌ Cache: Помилка ініціалізації системи кешування:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.error("Cache: Помилка ініціалізації системи кешування:", error);
+        } else {
+            console.error("Cache: Помилка ініціалізації системи кешування:", error);
+        }
         // Забезпечуємо, що система все одно працює в режимі memory cache
         _localStorageAvailable = false;
     }
@@ -669,16 +1674,28 @@ if (navigator.getBattery) {
     try {
         navigator.getBattery().then(function(battery) {
             battery.addEventListener('levelchange', function() {
-                if (battery.level < 0.15) {
-                    console.log("🔋 Cache: Низький рівень заряду, оптимізуємо кеш");
-                    cleanupCache();
+                if (battery.level < 0.15 && !battery.charging) {
+                    if (WinixRaffles.logger) {
+                        WinixRaffles.logger.log("Cache: Низький рівень заряду, оптимізуємо кеш");
+                    } else {
+                        console.log("Cache: Низький рівень заряду, оптимізуємо кеш");
+                    }
+                    optimizeForLowPower();
                 }
             });
         }).catch(function(err) {
-            console.warn("⚠️ Cache: Помилка отримання стану батареї:", err);
+            if (WinixRaffles.logger) {
+                WinixRaffles.logger.warn("Cache: Помилка отримання стану батареї:", err);
+            } else {
+                console.warn("Cache: Помилка отримання стану батареї:", err);
+            }
         });
     } catch (batteryError) {
-        console.warn("⚠️ Cache: Помилка доступу до API батареї:", batteryError);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Cache: Помилка доступу до API батареї:", batteryError);
+        } else {
+            console.warn("Cache: Помилка доступу до API батареї:", batteryError);
+        }
     }
 }
 
@@ -686,27 +1703,38 @@ if (navigator.getBattery) {
 window.addEventListener('beforeunload', function() {
     try {
         // Тільки якщо багато записів у кеші
-        const stats = getCacheStats();
-        if (stats.storage.cacheItems > 50) {
-            cleanupCache();
+        const stats = getStats();
+        if (stats.storage.cacheSize > MAX_CACHE_SIZE * 0.5) {
+            // Зберігаємо метадані
+            _saveMetadata();
         }
     } catch (error) {
-        console.warn("⚠️ Cache: Помилка при очищенні кешу перед вивантаженням:", error);
+        if (WinixRaffles.logger) {
+            WinixRaffles.logger.warn("Cache: Помилка при збереженні метаданих перед вивантаженням:", error);
+        } else {
+            console.warn("Cache: Помилка при збереженні метаданих перед вивантаженням:", error);
+        }
     }
 });
 
 // Створюємо об'єкт з усіма функціями кешу
 const cacheAPI = {
-    set: setCache,
-    get: getCache,
-    has: hasValidCache,
-    remove: removeCache,
-    clear: clearCacheByType,
-    updateTTL: updateCacheTTL,
-    cleanup: cleanupCache,
-    getStats: getCacheStats,
+    set,
+    get,
+    has,
+    remove,
+    clear,
+    updateTTL,
+    cleanupCache,
+    forcedCleanupCache,
+    getStats,
+    protect,
+    unprotect,
+    defragment,
+    optimizeForLowPower,
     types: CACHE_TYPES,
-    init
+    init,
+    version: CACHE_VERSION
 };
 
 // Додаємо функції в глобальний об'єкт для зворотної сумісності
@@ -720,7 +1748,11 @@ window.WinixCache = cacheAPI;
 // Автоматична ініціалізація
 init();
 
-console.log("📦 Cache: Ініціалізація системи кешування");
+if (WinixRaffles.logger) {
+    WinixRaffles.logger.log("Cache: Ініціалізація системи кешування");
+} else {
+    console.log("Cache: Ініціалізація системи кешування");
+}
 
 // Експортуємо об'єкт з усіма функціями як основний експорт
 export default cacheAPI;
