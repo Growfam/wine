@@ -15,8 +15,8 @@ import statisticsModule from './modules/stats.js';
 
 // Імпорт компонентів UI
 import { initUIComponents } from './components/componentManager.js';
-import { initFormatters } from './utils/formatters.js';
-import initUiHelpers from './utils/ui-helpers.js';
+import formattersModule from './utils/formatters.js';
+import uiHelpersModule from './utils/ui-helpers.js';
 
 // Класс для керування системою розіграшів
 class RafflesSystem {
@@ -117,10 +117,10 @@ class RafflesSystem {
     // Ініціалізуємо утиліти першими
     try {
       // Ініціалізуємо форматери
-      WinixRaffles.utils = await initFormatters();
+      WinixRaffles.utils = formattersModule;
 
       // Ініціалізуємо UI хелпери
-      WinixRaffles.utils = { ...WinixRaffles.utils, ...await initUiHelpers() };
+      WinixRaffles.utils = { ...WinixRaffles.utils, ...uiHelpersModule };
 
       // Ініціалізуємо UI компоненти
       WinixRaffles.components = await initUIComponents();
