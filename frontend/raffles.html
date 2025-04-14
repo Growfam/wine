@@ -1673,32 +1673,35 @@
             animateParticle(particle);
         }
 
-        function animateParticle(particle) {
-            // Випадковий час анімації
-            const duration = Math.random() * 15 + 10;
+       function animateParticle(particle) {
+    // Випадковий час анімації
+    const duration = Math.random() * 15 + 10;
 
-            // Випадковий кінцевий X (в межах контейнера)
-            const targetX = Math.random() * 100;
-            // Випадковий кінцевий Y (рух вгору)
-            const targetY = -10;
+    // Зберігаємо посилання на контейнер, поки воно ще дійсне
+    const parentContainer = particle.parentNode;
 
-            // Встановлюємо анімацію
-            particle.style.transition = `top ${duration}s linear, left ${duration}s ease-in-out, opacity ${duration}s ease-in`;
+    // Налаштовуємо анімацію...
+    particle.style.transition = `top ${duration}s linear, left ${duration}s ease-in-out, opacity ${duration}s ease-in`;
 
-            // Запускаємо анімацію після короткої затримки
-            setTimeout(() => {
-                particle.style.top = `${targetY}%`;
-                particle.style.left = `${targetX}%`;
-                particle.style.opacity = '0';
-            }, 10);
+    // Запускаємо анімацію
+    setTimeout(() => {
+        particle.style.top = `${-10}%`;
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.opacity = '0';
+    }, 10);
 
-            // Після закінчення анімації перестворюємо частинку
-            setTimeout(() => {
-                if (particle.parentNode) {
-                    particle.parentNode.removeChild(particle);
-                    createParticle(particle.parentNode);
-                }
-            }, duration * 1000);
+    // Після закінчення анімації
+    setTimeout(() => {
+        // Видаляємо частинку, якщо вона ще присутня в DOM
+        if (particle.parentNode) {
+            particle.parentNode.removeChild(particle);
+        }
+
+        // Перевіряємо, чи контейнер все ще існує в DOM
+        if (parentContainer && parentContainer.isConnected) {
+            createParticle(parentContainer);
+        }
+    }, duration * 1000);
         }
     </script>
 
