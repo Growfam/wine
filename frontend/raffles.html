@@ -2,187 +2,8 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <title>WINIX - Розіграші</title>
-
-    <!-- Базові стилі та скрипти завантажуються першими -->
-    <style>
-        /* Стиль для індикатора завантаження при ініціалізації */
-        .initial-loader {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .initial-loader-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: white;
-            text-align: center;
-        }
-        .initial-spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(0, 0, 0, 0.3);
-            border-radius: 50%;
-            border-top-color: #007cc9;
-            animation: initialSpin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        @keyframes initialSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-
-    <!-- Показуємо індикатор завантаження відразу, щоб користувач бачив, що сторінка завантажується -->
-    <script>
-        // Створюємо початковий лоадер
-        document.addEventListener('DOMContentLoaded', function() {
-            if (!document.querySelector('.initial-loader')) {
-                const loader = document.createElement('div');
-                loader.className = 'initial-loader';
-                loader.innerHTML = `
-                    <div class="initial-loader-content">
-                        <div class="initial-spinner"></div>
-                        <p>Завантаження WINIX...</p>
-                    </div>
-                `;
-                document.body.appendChild(loader);
-
-                // Видаляємо лоадер після завантаження сторінки або за таймаутом
-                window.addEventListener('load', removeInitialLoader);
-                setTimeout(removeInitialLoader, 5000); // Запобіжник - видалити за 5 секунд
-            }
-        });
-
-        // Функція видалення початкового лоадера
-        function removeInitialLoader() {
-            const loader = document.querySelector('.initial-loader');
-            if (loader) {
-                loader.style.opacity = '0';
-                loader.style.transition = 'opacity 0.5s ease';
-                setTimeout(() => {
-                    if (loader.parentNode) {
-                        loader.parentNode.removeChild(loader);
-                    }
-                }, 500);
-            }
-        }
-
-        // Глобальні функції для показу/приховування лоадера
-        window.showLoading = function(message) {
-            const spinner = document.getElementById('loading-spinner');
-            const spinnerText = document.getElementById('loading-spinner-text');
-
-            if (spinner) {
-                spinner.classList.add('show');
-                if (spinnerText && message) {
-                    spinnerText.textContent = message;
-                }
-            }
-        };
-
-        window.hideLoading = function() {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.classList.remove('show');
-            }
-        };
-
-        // Глобальна функція для показу повідомлень
-        window.showToast = function(message, type) {
-            const toast = document.getElementById('toast-message');
-            if (!toast) return;
-
-            toast.textContent = message || '';
-            toast.className = 'toast-message ' + (type || '');
-
-            // Додаємо клас для показу
-            setTimeout(() => toast.classList.add('show'), 10);
-
-            // Ховаємо повідомлення після затримки
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        };
-
-        // Перевірка стану мережі
-        function updateOnlineStatus() {
-            const condition = navigator.onLine ? "online" : "offline";
-            if (condition === "offline") {
-                showToast("Пристрій зараз у режимі оффлайн. Деякі функції можуть бути недоступні.", "warning");
-            } else {
-                showToast("З'єднання з мережею відновлено", "success");
-            }
-        }
-
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
-    </script>
-
-    <!-- Базовий скрипт Telegram WebApp -->
-    <script src="js/telegram-web-app.js"></script>
-    <script>
-    // Ініціалізація та перевірка Telegram WebApp
-    (function() {
-        console.log("🔄 Ініціалізація Telegram WebApp...");
-
-        if (!window.Telegram || !window.Telegram.WebApp) {
-            console.error("❌ Telegram WebApp API не завантажено. Перевірте шлях до файлу.");
-            return;
-        }
-
-        try {
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-            console.log("✅ Telegram WebApp успішно ініціалізовано");
-
-            if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                localStorage.setItem('telegram_user_id', userId);
-                console.log("✅ Отримано Telegram ID:", userId);
-
-                // Оновлюємо ID на сторінці
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement) {
-                    userIdElement.textContent = userId;
-                }
-            } else {
-                console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
-
-                // Завантажуємо ID з localStorage
-                const storedId = localStorage.getItem('telegram_user_id');
-                if (storedId) {
-                    const userIdElement = document.getElementById('user-id');
-                    if (userIdElement) {
-                        userIdElement.textContent = storedId;
-                    }
-                }
-            }
-
-            // Повідомляємо про завершення ініціалізації Telegram WebApp
-            document.dispatchEvent(new CustomEvent('telegram-ready'));
-        } catch (e) {
-            console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
-        }
-    })();
-    </script>
-
-    <!-- Скрипти, які точно не будуть конфліктувати з системою розіграшів -->
-    <script src="js/language.js"></script>
-    <script src="js/api.js" defer></script>
-    <script src="js/auth.js" defer></script>
-
-    <!-- Необхідний стиль для сторінки -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WINIX - Преміальні секції розіграшів</title>
     <style>
         :root {
             /* Основні кольори для преміальної теми */
@@ -256,102 +77,16 @@
             scrollbar-color: var(--secondary-color) transparent;
         }
 
-        /* Стилізація скролбару для Chrome/Safari */
-        .container::-webkit-scrollbar {
-            width: 0.375rem; /* 6px */
-        }
-
-        .container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .container::-webkit-scrollbar-thumb {
-            background-color: var(--secondary-color);
-            border-radius: 1.25rem; /* 20px */
-        }
-
+        /* Анімації */
         @keyframes backgroundShift {
             0% { background-position: 0% 0%; }
             50% { background-position: 10% 10%; }
             100% { background-position: 0% 0%; }
         }
 
-        .header {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem 1rem; /* 8px 16px */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 0.25rem 0.625rem var(--shadow-color);
-            width: 100%;
-            height: var(--header-height);
-            margin-bottom: 0.9375rem; /* 15px */
-            position: sticky;
-            top: 0.3125rem; /* 5px */
-            z-index: 10;
-        }
-
-        /* Стилі для аватара користувача */
-        .header .profile-avatar {
-            width: 2.5rem; /* 40px */
-            height: 2.5rem;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem; /* 20px */
-            font-weight: bold;
-            color: white;
-            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-
-        .header .profile-avatar:hover {
-            transform: scale(1.1);
-        }
-
-        .header .profile-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-        }
-
-        .header .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem; /* 8px */
-            cursor: pointer;
-        }
-
-        .header .user-id-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            font-size: 0.75rem; /* 12px */
-        }
-
-        .header .user-id-label {
-            color: var(--text-secondary);
-        }
-
-        .header .user-id-value {
-            font-weight: bold;
-        }
-
-        .header .winix-title {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 1.5rem; /* 24px */
-            font-weight: bold;
-            letter-spacing: 0.125rem; /* 2px */
-            color: var(--text-color);
-            text-shadow: 0 0 0.3125rem rgb(30, 113, 161);
-            animation: glow 11s infinite ease-in-out;
-            text-align: center;
-            flex-grow: 1;
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
 
         @keyframes glow {
@@ -360,46 +95,23 @@
             100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
         }
 
-        .header .balance-container {
-            display: flex;
-            gap: 0.875rem; /* 14px */
-            align-items: center;
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
         }
 
-        .header .jeton-balance, .header .winix-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .header .jeton-balance .balance-value, .header .winix-balance .balance-value {
-            font-size: 0.875rem; /* 14px */
-            font-weight: bold;
+        @keyframes shine {
+            0% { background-position: -100% 0; }
+            100% { background-position: 200% 0; }
         }
 
-        .header .jeton-balance .balance-label, .header .winix-balance .balance-label {
-            font-size: 0.75rem; /* 12px */
-            font-weight: normal;
-        }
-
-        .raffles-container {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.9375rem; /* 15px */
-        }
-
-        .raffles-title {
-            font-size: 1.625rem; /* 26px */
-            font-weight: bold;
-            margin-bottom: 1.25rem; /* 20px */
-            text-align: center;
-            color: var(--text-color);
-            text-shadow: 0 0 0.625rem rgb(30, 113, 161); /* 0 0 10px */
-            letter-spacing: 0.0625rem; /* 1px */
-        }
-
+        /* Загальні стилі */
         .raffle-tabs {
             display: flex;
             width: 100%;
@@ -427,7 +139,6 @@
             box-shadow: 0 0 0.625rem var(--glow-color);
         }
 
-        /* Розділи активних і минулих розіграшів */
         .tab-content {
             width: 100%;
             display: none;
@@ -435,6 +146,99 @@
 
         .tab-content.active {
             display: block;
+        }
+
+        /* Преміальні стилі для заголовків секцій */
+        .section-header {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 1rem;
+            border-radius: var(--card-border-radius);
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(1, 55, 115, 0.8), rgba(0, 15, 30, 0.8));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            animation: fadeIn 0.7s ease-out;
+        }
+
+        .section-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPgogIDxkZWZzPgogICAgPHBhdHRlcm4gaWQ9InBhdHRlcm4iIHg9IjAiIHk9IjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgcGF0dGVyblRyYW5zZm9ybT0icm90YXRlKDQ1KSI+CiAgICAgIDxjaXJjbGUgY3g9IjEwIiBjeT0iMTAiIHI9IjEuNSIgZmlsbD0icmdiYSg3OCwgMTgxLCAyNDcsIDAuMikiIGZpbGwtb3BhY2l0eT0iMC4xNSIvPgogICAgPC9wYXR0ZXJuPgogIDwvZGVmcz4KICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3BhdHRlcm4pIiAvPgo8L3N2Zz4=');
+            opacity: 0.3;
+            z-index: 0;
+        }
+
+        .section-title {
+            position: relative;
+            z-index: 2;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+            text-shadow: 0 0 0.5rem rgba(0, 201, 167, 0.6);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: glow 8s infinite ease-in-out;
+        }
+
+        .section-subtitle {
+            position: relative;
+            z-index: 2;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 80%;
+        }
+
+        .premium-divider {
+            width: 70%;
+            height: 3px;
+            margin: 0.6rem 0;
+            background: var(--premium-gradient);
+            border-radius: 3px;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+        }
+
+        /* Стилі для частинок на фоні */
+        .particles-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(78, 181, 247, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.5;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        /* СТИЛІ ДЛЯ АКТИВНИХ РОЗІГРАШІВ */
+        .active-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 8px rgba(0, 201, 167, 0.5));
         }
 
         /* Стилі для основного розіграшу */
@@ -447,12 +251,18 @@
             box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.4);
             position: relative;
             border: 1px solid rgba(78, 181, 247, 0.2);
+            animation: fadeIn 0.8s ease-out;
         }
 
         .main-raffle-image {
             width: 100%;
             height: 12rem;
             object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .main-raffle:hover .main-raffle-image {
+            transform: scale(1.05);
         }
 
         .main-raffle-content {
@@ -571,7 +381,7 @@
             height: 100%;
             background: var(--premium-gradient);
             border-radius: 1rem;
-            width: 0%;
+            width: 75%;
             transition: width 1s ease-in-out;
         }
 
@@ -588,6 +398,25 @@
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .join-button:before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.3) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: rotate(45deg);
+            animation: shine 3s infinite;
         }
 
         .join-button:hover {
@@ -600,39 +429,18 @@
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
         }
 
-        .prize-distribution {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 0.75rem;
-            padding: 0.75rem;
-            margin: 0.75rem 0;
+        .join-button.participating,
+        .mini-raffle-button.participating {
+            background: var(--secondary-gradient);
+            opacity: 0.7;
+            cursor: default;
         }
 
-        .prize-distribution-title {
-            font-size: 1rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            color: white;
-        }
-
-        .prize-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .prize-item {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.875rem;
-            color: rgba(255, 255, 255, 0.9);
-        }
-
-        .prize-place {
-            font-weight: bold;
-        }
-
-        .prize-value {
-            color: var(--premium-color);
+        .join-button.disabled,
+        .mini-raffle-button.disabled {
+            background: #666;
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         /* Стилі для міні-розіграшів */
@@ -642,6 +450,7 @@
             margin: 1rem 0 0.75rem;
             text-align: center;
             color: var(--text-color);
+            animation: glow 10s infinite ease-in-out;
         }
 
         .mini-raffle {
@@ -657,6 +466,22 @@
             border: 1px solid rgba(78, 181, 247, 0.1);
             position: relative;
             overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: fadeIn 0.5s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .mini-raffle:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .mini-raffle:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .mini-raffle:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
         }
 
         .mini-raffle-info {
@@ -710,53 +535,12 @@
             box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
         }
 
-        /* Стилі для статистики */
-        .statistics-container {
-            width: 100%;
-            background: var(--bg-card);
-            border-radius: var(--card-border-radius);
-            padding: 1rem;
-            margin-top: 1rem;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.1);
-        }
-
-        .statistics-title {
-            font-size: 1.25rem;
-            font-weight: bold;
-            margin-bottom: 0.75rem;
-            text-align: center;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-        }
-
-        .stat-card {
-            background: var(--bg-item);
-            border-radius: var(--item-border-radius);
-            padding: 0.75rem;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: var(--premium-color);
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
-
-        /* Історія розіграшів */
-        .raffles-history {
-            width: 100%;
-            margin-top: 1.25rem;
+        /* СТИЛІ ДЛЯ МИНУЛИХ РОЗІГРАШІВ */
+        .past-icon {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 8px rgba(78, 181, 247, 0.5));
         }
 
         .history-title {
@@ -764,11 +548,13 @@
             font-weight: bold;
             margin-bottom: 0.9375rem;
             text-align: center;
+            color: var(--text-color);
+            animation: glow 10s infinite ease-in-out;
         }
 
         .history-card {
             width: 100%;
-            background: var(--bg-item);
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.7), rgba(15, 52, 96, 0.7));
             border-radius: var(--item-border-radius);
             padding: 0.9375rem;
             margin-bottom: 0.625rem;
@@ -780,11 +566,46 @@
             cursor: pointer;
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             border: 1px solid rgba(78, 181, 247, 0.1);
+            animation: fadeIn 0.5s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .history-card:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .history-card:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .history-card:nth-child(4) {
+            animation-delay: 0.3s;
         }
 
         .history-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .history-card:after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            height: 100%;
+            background: var(--accent-color);
+            opacity: 0.7;
+            border-top-right-radius: var(--item-border-radius);
+            border-bottom-right-radius: var(--item-border-radius);
+        }
+
+        .history-card.won:after {
+            background: var(--positive-color);
+        }
+
+        .history-card.participated:after {
+            background: var(--secondary-color);
         }
 
         .history-date {
@@ -835,1596 +656,416 @@
             opacity: 1;
         }
 
-        /* Поділитися розіграшем */
-        .share-container {
-            display: flex;
-            justify-content: center;
-            margin: 0.5rem 0;
-        }
-
-        .share-button {
-            background: var(--secondary-gradient);
-            border: none;
-            border-radius: 1.25rem;
-            padding: 0.5rem 1rem;
-            color: white;
-            font-size: 0.875rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .share-button:hover {
-            transform: translateY(-0.125rem);
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-        }
-
-        /* Модальне вікно для деталей головного розіграшу */
-        .raffle-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .raffle-modal.open {
-            display: flex;
-        }
-
-        .modal-content {
-            width: 90%;
-            max-width: 31.25rem;
-            background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(15, 52, 96, 0.95));
-            border-radius: var(--card-border-radius);
-            padding: 1.25rem;
-            box-shadow: 0 0.625rem 1.25rem rgba(0, 0, 0, 0.5);
-            animation: modalFadeIn 0.3s ease;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid rgba(78, 181, 247, 0.2);
-        }
-
-        @keyframes modalFadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.25rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 0.625rem;
-        }
-
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: white;
-        }
-
-        .modal-close {
-            font-size: 1.5rem;
-            color: rgba(255, 255, 255, 0.7);
-            cursor: pointer;
-            transition: color 0.3s ease;
-        }
-
-        .modal-close:hover {
-            color: white;
-        }
-
-        .prize-image {
-            width: 100%;
-            height: 12.5rem;
-            border-radius: 0.625rem;
-            object-fit: cover;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-        }
-
-        .prize-details {
-            margin-bottom: 1.25rem;
-        }
-
-        .detail-item {
-            margin-bottom: 0.9375rem;
-        }
-
-        .detail-label {
-            font-size: 0.875rem;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 0.3125rem;
-        }
-
-        .detail-value {
-            font-size: 1rem;
-            color: white;
-            font-weight: bold;
-        }
-
-        .prize-description {
-            margin-bottom: 1.25rem;
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 0.9375rem;
-            line-height: 1.4;
-        }
-
-        .participation-info {
-            background: rgba(0, 0, 0, 0.2);
-            padding: 0.9375rem;
-            border-radius: 0.625rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .participation-info h3 {
-            font-size: 1rem;
-            margin-bottom: 0.625rem;
-            color: white;
-        }
-
-        .participation-info ul {
-            padding-left: 1.25rem;
-            margin-bottom: 0.625rem;
-        }
-
-        .participation-info li {
-            margin-bottom: 0.3125rem;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 0.875rem;
-        }
-
-        .token-input-container {
-            display: flex;
-            width: 100%;
-            gap: 0.625rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .token-input {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 0.625rem;
-            padding: 0.625rem;
-            color: white;
-            font-size: 1rem;
-        }
-
-        .token-input:focus {
-            outline: none;
-            border-color: var(--secondary-color);
-        }
-
-        .all-button {
-            background: linear-gradient(90deg, #FF9800, #FFD700);
-            border: none;
-            border-radius: 0.625rem;
-            padding: 0 0.625rem;
-            color: #1A1A2E;
-            font-size: 0.875rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .all-button:hover {
-            background: linear-gradient(90deg, #FFB74D, #FFE082);
-        }
-
-        /* Модальне вікно для щоденного розіграшу */
-        .daily-raffle-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .daily-raffle-modal.open {
-            display: flex;
-        }
-
-        .daily-modal-content {
-            width: 90%;
-            max-width: 31.25rem;
-            background: linear-gradient(145deg, rgba(15, 52, 96, 0.95), rgba(21, 101, 192, 0.95));
-            border-radius: var(--card-border-radius);
-            padding: 1.25rem;
-            box-shadow: 0 0.625rem 1.25rem rgba(0, 0, 0, 0.5);
-            animation: modalFadeIn 0.3s ease;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid rgba(78, 181, 247, 0.2);
-        }
-
-        /* Навігаційна панель */
-        .nav-bar {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem;
-            padding: 0.5rem;
-            display: flex;
-            justify-content: space-around;
-            width: 90%;
-            max-width: 33.75rem;
-            height: var(--nav-height);
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
-            position: fixed;
-            bottom: 1.875rem;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-        }
-
-        .nav-item {
-            text-align: center;
-            color: var(--text-color);
-            font-size: 0.875rem;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 20%;
-            position: relative;
-            opacity: 0.7;
-            transition: all 0.3s ease;
-        }
-
-        .nav-item.active {
-            opacity: 1;
-        }
-
-        .nav-item .icon-wrapper {
-            width: 3.75rem;
-            height: 3.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 0.75rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.3125rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .nav-item.active .icon-wrapper {
-            background: var(--bg-active);
-            box-shadow: 0 0 0.9375rem var(--glow-color);
-            transform: translateY(-0.1875rem);
-        }
-
-        .nav-item:hover .icon-wrapper {
-            transform: translateY(-0.1875rem);
-        }
-
-        .nav-item img {
-            width: 2.1875rem;
-            height: 2.1875rem;
-            display: block;
-            filter: brightness(0) invert(1);
-            transition: all 0.3s ease;
-        }
-
-        .nav-item.active img {
-            filter: brightness(1.2) invert(1);
-        }
-
-        /* Спінер завантаження */
-        #loading-spinner {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(3px);
-        }
-
-        #loading-spinner.show {
-            display: flex;
-        }
-
-        .spinner-inner {
-            width: 3.125rem;
-            height: 3.125rem;
-            border: 0.3125rem solid rgba(0, 201, 167, 0.3);
-            border-radius: 50%;
-            border-top: 0.3125rem solid #007cc9;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Спливаюче повідомлення */
-        #toast-message {
-            position: fixed;
-            top: 1.25rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #1A1A2E, #0F3460);
-            color: #ffffff;
-            padding: 0.75rem 1.5rem;
-            border-radius: 12px;
-            z-index: 1000;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            border: 1px solid rgba(78, 181, 247, 0.2);
-            opacity: 0;
-            transition: all 0.3s ease;
-            font-size: 0.9375rem;
-            display: flex;
-            align-items: center;
-            max-width: 350px;
-            width: 90%;
-        }
-
-        #toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem);
-        }
-
-        #toast-message.error {
-            background: linear-gradient(135deg, #B71C1C, #D32F2F);
-            border-color: rgba(255, 99, 71, 0.5);
-        }
-
-        #toast-message.success {
-            background: linear-gradient(135deg, #1B5E20, #388E3C);
-            border-color: rgba(80, 200, 120, 0.5);
-        }
-
-        #toast-message.warning {
-            background: linear-gradient(135deg, #E65100, #F57C00);
-            border-color: rgba(255, 193, 7, 0.5);
-        }
-
-        /* Стилі для сторінки завантаження */
-        .loading-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            text-align: center;
-        }
-
-        .loading-spinner {
-            width: 3rem;
-            height: 3rem;
-            border: 0.25rem solid rgba(0, 201, 167, 0.3);
-            border-top: 0.25rem solid var(--secondary-color);
-            border-radius: 50%;
-            animation: spinner 1s linear infinite;
+        /* СТИЛІ ДЛЯ СТАТИСТИКИ */
+        .stats-icon {
+            width: 60px;
+            height: 60px;
             margin-bottom: 1rem;
+            filter: drop-shadow(0 0 8px rgba(78, 181, 247, 0.5));
         }
 
-        @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            color: var(--text-color);
-            font-size: 1.2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .loading-subtext {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        /* Стилі для пустої історії */
-        .empty-history {
-            background: rgba(30, 39, 70, 0.7);
-            border-radius: var(--item-border-radius);
-            padding: 2rem;
-            text-align: center;
+        .statistics-container {
+            width: 100%;
+            background: var(--bg-card);
+            border-radius: var(--card-border-radius);
+            padding: 1.5rem;
+            margin-top: 1rem;
             box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(78, 181, 247, 0.1);
+            animation: fadeIn 0.7s ease-out;
         }
 
-        .empty-history-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: var(--text-secondary);
-            animation: pulse 2s infinite ease-in-out;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.7; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(1); opacity: 0.7; }
-        }
-
-        .empty-history h3 {
+        .statistics-title {
             font-size: 1.25rem;
-            color: var(--text-color);
-            margin-bottom: 0.5rem;
-        }
-
-        .empty-history p {
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
-            font-size: 0.875rem;
-        }
-
-        .empty-history button {
-            background: var(--secondary-gradient);
-            border: none;
-            border-radius: 1.25rem;
-            padding: 0.5rem 1rem;
-            color: white;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .empty-history button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-        }
-
-        /* Значок "нове" для розіграшів */
-        .new-badge {
-            position: absolute;
-            top: 0.5rem;
-            left: 0.5rem;
-            background: linear-gradient(90deg, #FF416C, #FF4B2B);
-            color: white;
-            font-size: 0.7rem;
             font-weight: bold;
-            padding: 0.2rem 0.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            z-index: 2;
-            animation: pulse 1.5s infinite ease-in-out;
+            margin-bottom: 0.75rem;
+            text-align: center;
+            animation: glow 10s infinite ease-in-out;
         }
 
-        /* Стилі для переможців в модальному вікні історії */
-        .winners-list {
-            margin-top: 0.75rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            max-height: 15rem;
-            overflow-y: auto;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
         }
 
-        .winner-item {
-            display: flex;
-            align-items: center;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 0.5rem;
-            padding: 0.75rem;
+        .stat-card {
+            background: var(--bg-item);
+            border-radius: var(--item-border-radius);
+            padding: 1rem;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .stat-card:nth-child(1) {
+            animation-delay: 0.15s;
+        }
+
+        .stat-card:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        .stat-card:nth-child(3) {
+            animation-delay: 0.45s;
+        }
+
+        .stat-card:nth-child(4) {
+            animation-delay: 0.6s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card:before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.1) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: rotate(45deg);
+            animation: shine 5s infinite;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--premium-color);
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #FFD700, #00dfd1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0, 201, 167, 0.3);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* Стилі для медалей (бейджів) */
+        .achievements-container {
+            width: 100%;
+            margin-top: 1.5rem;
+            animation: fadeIn 0.9s ease-out;
+            animation-delay: 0.8s;
+            animation-fill-mode: both;
+        }
+
+        .achievements-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .medals-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 0.75rem;
         }
 
-        .winner-place {
-            width: 2rem;
-            height: 2rem;
-            min-width: 2rem;
-            border-radius: 50%;
+        .medal-card {
+            background: var(--bg-item);
+            border-radius: var(--item-border-radius);
+            padding: 0.75rem;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medal-icon {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 0.5rem;
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
+        }
+
+        .medal-name {
+            font-size: 0.75rem;
             font-weight: bold;
-            color: white;
-        }
-
-        .place-1 {
-            background: linear-gradient(145deg, #FFD700, #FFA500);
-            box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
-        }
-
-        .place-2 {
-            background: linear-gradient(145deg, #C0C0C0, #A9A9A9);
-            box-shadow: 0 0 8px rgba(192, 192, 192, 0.5);
-        }
-
-        .place-3 {
-            background: linear-gradient(145deg, #CD7F32, #A0522D);
-            box-shadow: 0 0 8px rgba(205, 127, 50, 0.5);
-        }
-
-        .default-place {
-            background: rgba(0, 0, 0, 0.3);
-        }
-
-        .winner-info {
-            flex: 1;
-        }
-
-        .winner-name {
-            font-weight: bold;
-            color: white;
+            color: var(--premium-color);
             margin-bottom: 0.25rem;
         }
 
-        .winner-id {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .winner-prize {
-            font-weight: bold;
-            color: var(--premium-color);
-        }
-
-        .current-user {
-            background: linear-gradient(145deg, rgba(30, 113, 161, 0.3), rgba(0, 201, 167, 0.1));
-            border: 1px solid rgba(0, 201, 167, 0.3);
-        }
-
-        .current-user .winner-name {
-            color: var(--premium-color);
-        }
-
-        .no-winners {
-            text-align: center;
-            padding: 1rem;
+        .medal-description {
+            font-size: 0.7rem;
             color: var(--text-secondary);
-            font-style: italic;
-        }
-
-        /* Кнопка повернення назад */
-        .back-button {
-            position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: none;
-            color: white;
-            font-size: 1.25rem;
-            cursor: pointer;
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-            z-index: 15;
-        }
-
-        .back-button:hover {
-            background: rgba(30, 113, 161, 0.5);
-            transform: scale(1.05);
         }
 
         /* Медіа-запити для адаптивності */
         @media (max-width: 450px) {
-            :root {
-                --header-height: 3rem;
-                --nav-height: 4rem;
+            .section-header {
+                height: 120px;
             }
 
-            .header .profile-avatar {
-                width: 2.1875rem;
-                height: 2.1875rem;
-                font-size: 1.125rem;
+            .section-title {
+                font-size: 1.5rem;
             }
 
-            .header .user-id-container {
-                font-size: 0.6875rem;
+            .section-subtitle {
+                font-size: 0.8rem;
             }
 
-            .header .winix-title {
+            .stat-value {
                 font-size: 1.25rem;
             }
 
-            .raffles-title {
-                font-size: 1.375rem;
-            }
-
-            .nav-item .icon-wrapper {
-                width: 3.125rem;
-                height: 3.125rem;
-            }
-
-            .nav-item img {
-                width: 1.875rem;
-                height: 1.875rem;
-            }
-
-            .main-raffle-image {
-                height: 10rem;
-            }
-
-            .timer-block {
-                min-width: 3rem;
-                padding: 0.375rem;
-            }
-
-            .timer-value {
-                font-size: 1rem;
-            }
-
-            .timer-label {
-                font-size: 0.625rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        @media (max-width: 350px) {
-            .header .user-id-container {
-                display: none;
-            }
-
-            .header .balance-label {
-                font-size: 0.6875rem;
-            }
-
-            .prize-distribution {
-                padding: 0.5rem;
-            }
-
-            .prize-item {
-                font-size: 0.75rem;
+            .medals-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
         @media (min-width: 768px) {
-            body {
-                background: linear-gradient(135deg, #141e30, #243b55);
-            }
-
-            .container {
-                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3);
-                margin: 1.25rem auto;
-                height: calc(100vh - 2.5rem);
-                border-radius: 1.25rem;
+            .section-header {
+                height: 180px;
             }
         }
 
-        /* Режим офлайн */
-        .offline-message {
-            background: linear-gradient(145deg, rgba(255, 152, 0, 0.2), rgba(255, 87, 34, 0.1));
-            border: 1px solid rgba(255, 152, 0, 0.3);
-            border-radius: var(--item-border-radius);
-            padding: 0.75rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .offline-message-icon {
-            font-size: 1.5rem;
-            color: var(--accent-color);
-        }
-
-        .offline-message-text {
-            flex: 1;
-            font-size: 0.875rem;
-            color: var(--text-color);
-        }
-
-        /* Додаткові анімаційні стилі */
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        @keyframes shine {
-            0% { background-position: -100% 0; }
-            100% { background-position: 200% 0; }
-        }
-
-        .floating {
-            animation: float 3s ease-in-out infinite;
-        }
-
-        .shine-effect {
-            background-size: 200% 100%;
-            background-image: linear-gradient(
-                to right,
-                transparent 0%,
-                rgba(255, 255, 255, 0.2) 50%,
-                transparent 100%
-            );
-            animation: shine 2s infinite;
-        }
-
-        /* Стилі для частинок на фоні */
-        .particles-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .particle {
-            position: absolute;
-            background: rgba(78, 181, 247, 0.3);
-            border-radius: 50%;
-            pointer-events: none;
-            opacity: 0.5;
-        }
+        /* Стилі для модальних вікон та сповіщень будуть додані динамічно через JS */
     </style>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Перевірка стану мережі та показ відповідного повідомлення
-            if (!navigator.onLine) {
-                showOfflineMessage();
-            }
-
-            // Обробники подій для оновлення стану мережі
-            window.addEventListener('online', function() {
-                hideOfflineMessage();
-                showToast("З'єднання з мережею відновлено", "success");
-
-                // Перезавантажуємо основні дані через деякий час
-                setTimeout(function() {
-                    if (typeof window.rafflesModule !== 'undefined' &&
-                        typeof window.rafflesModule.switchTab === 'function') {
-                        window.rafflesModule.switchTab('active');
-                    }
-                }, 1000);
-            });
-
-            window.addEventListener('offline', function() {
-                showOfflineMessage();
-                showToast("З'єднання з мережею втрачено. Деякі функції недоступні.", "warning");
-            });
-
-            function showOfflineMessage() {
-                // Перевіряємо, чи повідомлення вже є на сторінці
-                if (!document.querySelector('.offline-message')) {
-                    const container = document.querySelector('.raffles-container');
-                    if (container) {
-                        const offlineMsg = document.createElement('div');
-                        offlineMsg.className = 'offline-message';
-                        offlineMsg.innerHTML = `
-                            <div class="offline-message-icon">📶</div>
-                            <div class="offline-message-text">
-                                Ви перебуваєте в режимі офлайн.
-                                Показано кешовані дані. Деякі функції недоступні.
-                            </div>
-                        `;
-                        container.insertBefore(offlineMsg, container.firstChild);
-                    }
-                }
-            }
-
-            function hideOfflineMessage() {
-                const offlineMsg = document.querySelector('.offline-message');
-                if (offlineMsg) {
-                    offlineMsg.remove();
-                }
-            }
-
-            // Додавання частинок на фон
-            createParticles();
-        });
-
-        // Функція для створення плаваючих частинок на фоні
-        // Функція для створення плаваючих частинок на фоні
-function createParticles() {
-    // Шукаємо контейнер
-    const container = document.querySelector('.container');
-    if (!container) {
-        console.warn("Не знайдено контейнер для частинок");
-        return;
-    }
-
-    // Створюємо контейнер для частинок, якщо він ще не існує
-    let particlesContainer = container.querySelector('.particles-container');
-    if (!particlesContainer) {
-        particlesContainer = document.createElement('div');
-        particlesContainer.className = 'particles-container';
-        particlesContainer.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: -1;
-        `;
-        container.appendChild(particlesContainer);
-    }
-
-    // Створюємо частинки з затримкою, щоб вони з'являлись поступово
-    for (let i = 0; i < 20; i++) {
-        setTimeout(() => {
-            if (particlesContainer && document.body.contains(particlesContainer)) {
-                createParticle(particlesContainer);
-            }
-        }, i * 100);
-    }
-}
-
-function createParticle(container) {
-    // Перевіряємо, чи контейнер існує
-    if (!container || !document.body.contains(container)) {
-        return;
-    }
-
-    try {
-        const particle = document.createElement('div');
-        particle.className = 'particle';
-
-        // Випадковий розмір
-        const size = Math.random() * 5 + 2;
-        particle.style.width = `${size}px`;
-        particle.style.height = `${size}px`;
-
-        // Випадкова початкова позиція
-        particle.style.left = `${Math.random() * 100}%`;
-        particle.style.top = `${Math.random() * 100}%`;
-
-        // Випадкове значення прозорості
-        particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
-
-        // Випадковий колір
-        const hue = Math.random() * 40 + 190; // Від блакитного до синього
-        particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
-
-        // Додаємо частинку до контейнера
-        container.appendChild(particle);
-
-        // Зберігаємо посилання на контейнер для безпеки
-        const parentContainer = container;
-
-        // Запускаємо анімацію руху
-        animateParticle(particle, parentContainer);
-    } catch (error) {
-        console.warn("Помилка створення частинки:", error);
-    }
-}
-
-function animateParticle(particle, parentContainer) {
-    // Перевірка, чи елементи існують
-    if (!particle || !document.body.contains(particle)) {
-        return;
-    }
-
-    // Випадковий час анімації
-    const duration = Math.random() * 15 + 10;
-
-    // Встановлюємо анімацію
-    particle.style.transition = `top ${duration}s linear, left ${duration}s ease-in-out, opacity ${duration}s ease-in`;
-
-    // Запускаємо анімацію після короткої затримки
-    setTimeout(() => {
-        if (particle && document.body.contains(particle)) {
-            particle.style.top = `${-10}%`;
-            particle.style.left = `${Math.random() * 100}%`;
-            particle.style.opacity = '0';
-        }
-    }, 10);
-
-    // Після закінчення анімації перестворюємо частинку
-    setTimeout(() => {
-        // Видаляємо частинку, якщо вона все ще в DOM
-        if (particle && document.body.contains(particle)) {
-            if (particle.parentNode) {
-                particle.parentNode.removeChild(particle);
-            }
-        }
-
-        // Створюємо нову частинку, якщо контейнер все ще існує
-        if (parentContainer && document.body.contains(parentContainer)) {
-            createParticle(parentContainer);
-        }
-    }, duration * 1000);
-}
-
-// Безпечний запуск створення частинок
-document.addEventListener('DOMContentLoaded', function() {
-    // Відкладаємо створення частинок на час після повного завантаження DOM
-    setTimeout(function() {
-        try {
-            createParticles();
-        } catch (error) {
-            console.warn("Помилка при створенні частинок:", error);
-        }
-    }, 800);
-});
-    </script>
-
-    <!-- Базовий скрипт для анімацій -->
-    <script>
-        // Функція для створення анімованого входу елементів
-        function animateEntranceSequence(selector, delay = 100, baseDelay = 0) {
-            const elements = document.querySelectorAll(selector);
-            if (!elements.length) return;
-
-            elements.forEach((element, index) => {
-                element.style.opacity = '0';
-                element.style.transform = 'translateY(20px)';
-
-                setTimeout(() => {
-                    element.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                    element.style.opacity = '1';
-                    element.style.transform = 'translateY(0)';
-                }, baseDelay + (index * delay));
-            });
-        }
-
-        // Функція для створення пульсуючого ефекту
-        function addPulseEffect(element) {
-            if (!element) return;
-            element.classList.add('pulse-effect');
-        }
-
-        // Глобальна функція для анімованої зміни тексту
-        window.animateTextChange = function(element, newText) {
-            if (!element) return;
-
-            // Поточний текст
-            const currentText = element.textContent;
-
-            // Якщо текст не змінився, нічого не робимо
-            if (currentText === newText) return;
-
-            // Анімуємо зміну тексту
-            element.style.transition = 'opacity 0.3s ease';
-            element.style.opacity = '0';
-
-            setTimeout(() => {
-                element.textContent = newText;
-                element.style.opacity = '1';
-            }, 300);
-        }
-
-        // Функція для створення ефекту світіння
-        window.addGlowEffect = function(element) {
-            if (!element) return;
-
-            // Додаємо класс для світіння
-            element.classList.add('glow-effect');
-
-            // Відключаємо ефект через певний час, якщо потрібно
-            return function removeGlow() {
-                element.classList.remove('glow-effect');
-            };
-        }
-
-        // Функція для плавної анімації даних лічильників
-        window.animateCounter = function(element, targetValue, duration = 1500) {
-            if (!element) return;
-
-            // Отримуємо поточне значення
-            const startValue = parseInt(element.textContent.replace(/[^0-9.-]+/g, '')) || 0;
-            const difference = targetValue - startValue;
-
-            // Якщо нема різниці, виходимо
-            if (difference === 0) return;
-
-            // Кількість кроків для плавної анімації
-            const steps = 20;
-            const stepTime = duration / steps;
-
-            // Функція для форматування числа (зберігаємо оригінальний формат)
-            const format = (value) => {
-                const original = element.textContent;
-                const numPattern = /[0-9.,]+/;
-
-                // Якщо оригінал містить форматування
-                if (numPattern.test(original)) {
-                    return original.replace(numPattern, value.toLocaleString());
-                }
-
-                return value.toLocaleString();
-            };
-
-            // Запускаємо анімацію
-            let currentStep = 0;
-            const timer = setInterval(() => {
-                currentStep++;
-                const progress = currentStep / steps;
-                const easedProgress = easeOutCubic(progress);
-                const currentValue = Math.floor(startValue + difference * easedProgress);
-
-                element.textContent = format(currentValue);
-
-                if (currentStep >= steps) {
-                    clearInterval(timer);
-                    element.textContent = format(targetValue);
-                }
-            }, stepTime);
-
-            // Функція згладжування анімації
-            function easeOutCubic(x) {
-                return 1 - Math.pow(1 - x, 3);
-            }
-        }
-
-        // Ініціалізація анімацій при завантаженні сторінки
-        document.addEventListener('DOMContentLoaded', function() {
-            // Додаємо клас для анімованого входу елементів
-            document.querySelectorAll('.main-raffle, .mini-raffle, .stat-card').forEach(element => {
-                element.classList.add('animate-entrance');
-            });
-
-            // Відслідковуємо появу елементів у вьюпорті
-            if ('IntersectionObserver' in window) {
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting) {
-                            entry.target.classList.add('visible');
-                            observer.unobserve(entry.target);
-                        }
-                    });
-                }, {
-                    threshold: 0.2
-                });
-
-                document.querySelectorAll('.animate-entrance').forEach(element => {
-                    observer.observe(element);
-                });
-            } else {
-                // Запасний варіант для браузерів без підтримки IntersectionObserver
-                document.querySelectorAll('.animate-entrance').forEach(element => {
-                    element.classList.add('visible');
-                });
-            }
-
-            // Додаємо анімацію для таймерів
-            setInterval(() => {
-                const timerElements = document.querySelectorAll('.timer-value');
-                timerElements.forEach(timer => {
-                    const shouldAnimate = Math.random() > 0.7; // Випадкова анімація для ефекту
-                    if (shouldAnimate) {
-                        timer.classList.add('pulse-effect');
-                        setTimeout(() => {
-                            timer.classList.remove('pulse-effect');
-                        }, 500);
-                    }
-                });
-            }, 3000);
-        });
-    </script>
 </head>
 <body>
-    <div class="container">
-        <!-- Кнопка повернення назад -->
-        <button class="back-button" onclick="window.history.back()">
-            &#8592;
-        </button>
+    <div id="user-id" style="display: none;">7066583465</div>
 
-        <!-- Хедер з аватаром користувача -->
-        <div class="header">
-            <div class="user-profile" id="profile-link">
-                <div class="profile-avatar" id="profile-avatar">W</div>
-                <div class="user-id-container">
-                    <span class="user-id-label">ID:</span>
-                    <span class="user-id-value" id="user-id"></span>
+    <div class="container">
+        <!-- Вкладки розіграшів -->
+        <div class="raffle-tabs">
+            <button class="tab-button active" data-tab="active">Активні</button>
+            <button class="tab-button" data-tab="past">Минулі</button>
+            <button class="tab-button" data-tab="stats">Статистика</button>
+        </div>
+
+        <!-- СЕКЦІЯ АКТИВНИХ РОЗІГРАШІВ -->
+        <div class="tab-content active" id="active-raffles">
+            <!-- Преміальний заголовок секції -->
+            <div class="section-header">
+                <div class="particles-container">
+                    <!-- Частинки будуть додані динамічно через JS -->
+                </div>
+
+                <svg class="active-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="prizeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#FFD700" />
+                            <stop offset="100%" stop-color="#00dfd1" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(78, 181, 247, 0.3)" stroke-width="3" />
+                    <g transform="translate(25, 20)">
+                        <rect x="15" y="40" width="20" height="20" rx="3" fill="url(#prizeGradient)" />
+                        <rect x="0" y="50" width="15" height="10" rx="3" fill="rgba(78, 181, 247, 0.8)" />
+                        <rect x="35" y="50" width="15" height="10" rx="3" fill="rgba(78, 181, 247, 0.8)" />
+                        <path d="M25,10 L32,10 L32,25 C32,30 37,35 42,35 L42,40 C37,40 32,37 29,32 C27,37 22,40 17,40 L17,35 C22,35 27,30 27,25 L27,10 Z" fill="url(#prizeGradient)" />
+                        <ellipse cx="28" cy="10" rx="7" ry="2" fill="url(#prizeGradient)" />
+                        <path d="M23,10 L33,10 L33,0 L23,0 Z" fill="url(#prizeGradient)" />
+                        <ellipse cx="28" cy="0" rx="5" ry="2" fill="url(#prizeGradient)" />
+                    </g>
+                </svg>
+
+                <h2 class="section-title">АКТИВНІ РОЗІГРАШІ</h2>
+                <div class="premium-divider"></div>
+                <p class="section-subtitle">Приймайте участь та вигравайте реальні призи</p>
+            </div>
+
+            <!-- Головний розіграш -->
+            <div class="main-raffle">
+                <!-- Вміст головного розіграшу буде додано динамічно через JS -->
+                <div class="main-raffle-content">
+                    <p>Завантаження розіграшів...</p>
                 </div>
             </div>
-            <div class="winix-title">WINIX</div>
-            <div class="balance-container">
-                <div class="jeton-balance">
-                    <div id="user-coins" class="balance-value">0</div>
-                    <div class="balance-label" data-lang-key="coins">Жетони</div>
-                </div>
-                <div class="winix-balance">
-                    <div id="user-tokens" class="balance-value">0</div>
-                    <div class="balance-label">$WINIX</div>
+
+            <!-- Заголовок щоденних розіграшів -->
+            <h2 class="mini-raffles-title">Щоденні розіграші</h2>
+
+            <!-- Щоденні розіграші -->
+            <div class="mini-raffles-container">
+                <!-- Вміст міні-розіграшів буде додано динамічно через JS -->
+                <div class="mini-raffle">
+                    <div class="mini-raffle-info">
+                        <h3 class="mini-raffle-title">Завантаження...</h3>
+                        <div class="mini-raffle-prize">Очікуйте</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="raffles-container">
-            <div class="raffles-title">Розіграші WINIX</div>
-
-            <!-- Вкладки розіграшів -->
-            <div class="raffle-tabs">
-  <button class="tab-button active" data-tab="active">Активні</button>
-  <button class="tab-button" data-tab="past">Минулі</button>
-  <button class="tab-button" data-tab="stats">Статистика</button>
-</div>
-
-
-
-
-            <!-- Секція активних розіграшів -->
-            <div class="tab-content active" id="active-raffles">
-                <!-- Головний розіграш -->
-                <div class="main-raffle">
-                    <div class="loading-placeholder">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Завантаження розіграшів...</div>
-                        <div class="loading-subtext">Зачекайте, будь ласка</div>
-                    </div>
+        <!-- СЕКЦІЯ МИНУЛИХ РОЗІГРАШІВ -->
+        <div class="tab-content" id="past-raffles">
+            <!-- Преміальний заголовок секції -->
+            <div class="section-header">
+                <div class="particles-container">
+                    <!-- Частинки будуть додані динамічно через JS -->
                 </div>
 
-                <!-- Заголовок щоденних розіграшів -->
-                <h2 class="mini-raffles-title">Щоденні розіграші</h2>
+                <svg class="past-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="clockGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#4eb5f7" />
+                            <stop offset="100%" stop-color="#52C0BD" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(78, 181, 247, 0.3)" stroke-width="3" />
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(78, 181, 247, 0.2)" stroke-width="2" />
+                    <circle cx="50" cy="50" r="35" fill="none" stroke="url(#clockGradient)" stroke-width="2" />
+                    <circle cx="50" cy="50" r="3" fill="#4eb5f7" />
+                    <line x1="50" y1="50" x2="50" y2="25" stroke="#4eb5f7" stroke-width="2" />
+                    <line x1="50" y1="50" x2="70" y2="50" stroke="#4eb5f7" stroke-width="2" />
+                    <path d="M25,90 L30,85 L70,85 L75,90 L75,95 L25,95 Z" fill="url(#clockGradient)" />
+                    <rect x="45" y="85" width="10" height="10" fill="url(#clockGradient)" />
+                </svg>
 
-                <!-- Контейнер для міні-розіграшів -->
-                <div class="mini-raffles-container">
-                    <!-- Тут будуть щоденні розіграші -->
-                    <div class="loading-placeholder">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-subtext">Завантаження щоденних розіграшів...</div>
-                    </div>
-                </div>
+                <h2 class="section-title">МИНУЛІ РОЗІГРАШІ</h2>
+                <div class="premium-divider"></div>
+                <p class="section-subtitle">Історія розіграшів та результати попередніх розіграшів</p>
             </div>
 
-            <!-- Секція минулих розіграшів -->
-            <div class="tab-content" id="past-raffles">
-                <div id="history-container">
-                    <div class="loading-placeholder">
-                        <div class="loading-spinner"></div>
-                        <div class="loading-text">Завантаження історії...</div>
-                        <div class="loading-subtext">Зачекайте, будь ласка</div>
-                    </div>
+            <!-- Історія розіграшів -->
+            <div id="history-container">
+                <!-- Вміст історії розіграшів буде додано динамічно через JS -->
+                <div class="history-card">
+                    <div class="history-date">Завантаження...</div>
+                    <div class="history-prize">Очікуйте завантаження історії</div>
                 </div>
             </div>
+        </div>
 
-            <!-- Статистика розіграшів -->
+        <!-- СЕКЦІЯ СТАТИСТИКИ -->
+        <div class="tab-content" id="stats-raffles">
+            <!-- Преміальний заголовок секції -->
+            <div class="section-header">
+                <div class="particles-container">
+                    <!-- Частинки будуть додані динамічно через JS -->
+                </div>
+
+                <svg class="stats-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="statsGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#4eb5f7" />
+                            <stop offset="100%" stop-color="#52C0BD" />
+                        </linearGradient>
+                    </defs>
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(78, 181, 247, 0.3)" stroke-width="3" />
+
+                    <!-- Графік -->
+                    <rect x="20" y="70" width="60" height="2" fill="url(#statsGradient)" />
+                    <rect x="20" y="30" width="2" height="40" fill="url(#statsGradient)" />
+
+                    <!-- Графік стовпці -->
+                    <rect x="25" y="55" width="8" height="15" rx="1" fill="url(#statsGradient)" />
+                    <rect x="37" y="45" width="8" height="25" rx="1" fill="url(#statsGradient)" />
+                    <rect x="49" y="50" width="8" height="20" rx="1" fill="url(#statsGradient)" />
+                    <rect x="61" y="35" width="8" height="35" rx="1" fill="url(#statsGradient)" />
+                    <rect x="73" y="40" width="8" height="30" rx="1" fill="url(#statsGradient)" />
+
+                    <!-- Кругова діаграма -->
+                    <path d="M75,20 A15,15 0 1,0 90,35" fill="none" stroke="url(#statsGradient)" stroke-width="6" />
+                </svg>
+
+                <h2 class="section-title">СТАТИСТИКА</h2>
+                <div class="premium-divider"></div>
+                <p class="section-subtitle">Статистика вашої участі у розіграшах</p>
+            </div>
+
+            <!-- Статистика -->
             <div class="statistics-container">
-                <div class="statistics-title">Статистика участі</div>
+                <div class="statistics-title">Ваша статистика участі</div>
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="stat-value" id="total-participated">-</div>
+                        <div class="stat-value" id="total-participated">0</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-wins">-</div>
+                        <div class="stat-value" id="total-wins">0</div>
                         <div class="stat-label">Виграші</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-winix-won">-</div>
+                        <div class="stat-value" id="total-winix-won">0</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="total-tokens-spent">-</div>
+                        <div class="stat-value" id="total-tokens-spent">0</div>
                         <div class="stat-label">Витрачено жетонів</div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Навігаційна панель -->
-        <div class="nav-bar">
-            <div class="nav-item" data-section="home" onclick="window.location.href='index.html'">
-                <div class="icon-wrapper"><img src="assets/home-icon.png" alt="Головна"></div>
-                <span data-lang-key="home">Головна</span>
-            </div>
-            <div class="nav-item" data-section="earn" onclick="window.location.href='earn.html'">
-                <div class="icon-wrapper"><img src="assets/earn-icon.png" alt="Заробіток"></div>
-                <span data-lang-key="earn">Заробіток</span>
-            </div>
-            <div class="nav-item" data-section="referrals" onclick="window.location.href='referrals.html'">
-                <div class="icon-wrapper"><img src="assets/referrals-icon.png" alt="Реферали"></div>
-                <span data-lang-key="referrals">Реферали</span>
-            </div>
-            <div class="nav-item" data-section="wallet" onclick="window.location.href='wallet.html'">
-                <div class="icon-wrapper"><img src="assets/wallet-icon.png" alt="Гаманець"></div>
-                <span data-lang-key="wallet">Гаманець</span>
-            </div>
-            <div class="nav-item" data-section="general" onclick="window.location.href='general.html'">
-                <div class="icon-wrapper"><img src="assets/general-icon.png" alt="Загальне"></div>
-                <span data-lang-key="general">Загальне</span>
-            </div>
-        </div>
-
-        <!-- Модальне вікно для головного розіграшу -->
-        <div class="raffle-modal" id="main-raffle-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="main-modal-title">ChatPot розіграш #26</h2>
-                    <span class="modal-close">&times;</span>
-                </div>
-
-                <img class="prize-image" id="main-prize-image" src="assets/prize-poster.gif" alt="Головний розіграш">
-
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Призовий фонд:</div>
-                        <div class="detail-value prize-value" id="main-prize-value">250$ + 550000 WINIX</div>
+            <!-- Досягнення -->
+            <div class="achievements-container">
+                <div class="achievements-title">Ваші досягнення</div>
+                <div class="medals-grid">
+                    <div class="medal-card" id="badge-first">
+                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="25" cy="25" r="20" fill="#FFD700" opacity="0.7" />
+                            <circle cx="25" cy="25" r="17" fill="#FFD700" />
+                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">1</text>
+                        </svg>
+                        <div class="medal-name">Перший розіграш</div>
+                        <div class="medal-description">Взяли участь у першому розіграші</div>
                     </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Переможців:</div>
-                        <div class="detail-value" id="main-winners">10</div>
+                    <div class="medal-card" id="badge-beginner">
+                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="25" cy="25" r="20" fill="#4eb5f7" opacity="0.7" />
+                            <circle cx="25" cy="25" r="17" fill="#4eb5f7" />
+                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">5</text>
+                        </svg>
+                        <div class="medal-name">Постійний учасник</div>
+                        <div class="medal-description">Взяли участь у 5+ розіграшах</div>
                     </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="main-participants">217</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Дата завершення:</div>
-                        <div class="detail-value" id="main-end-time">15.04.2025 15:00</div>
+                    <div class="medal-card" id="badge-winner">
+                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="25" cy="25" r="20" fill="#00dfd1" opacity="0.7" />
+                            <circle cx="25" cy="25" r="17" fill="#00dfd1" />
+                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">W</text>
+                        </svg>
+                        <div class="medal-name">Перший виграш</div>
+                        <div class="medal-description">Виграли свій перший приз</div>
                     </div>
                 </div>
-
-                <div class="prize-description" id="main-description">
-                    Грандіозний розіграш з чудовими призами! Використайте жетони для участі та збільшіть свої шанси на перемогу. Кожен жетон - це додатковий шанс виграти!
-                </div>
-
-                <div id="main-prize-distribution" class="prize-distribution">
-                    <div class="prize-distribution-title">Розподіл призів (10 переможців):</div>
-                    <div class="prize-list">
-                        <div class="prize-item">
-                            <span class="prize-place">1 місце:</span>
-                            <span class="prize-value">125$ + 250000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">2 місце:</span>
-                            <span class="prize-value">75$ + 150000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">3 місце:</span>
-                            <span class="prize-value">50$ + 75000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">4-10 місця:</span>
-                            <span class="prize-value">10000 WINIX</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="token-input-container">
-                    <input type="number" id="main-token-amount" min="1" value="1" class="token-input">
-                    <button id="main-all-tokens-btn" class="all-button">ВСІ</button>
-                </div>
-
-                <button id="main-join-btn" class="join-button" data-raffle-id="main26" data-raffle-type="main">Взяти участь за 3 жетони</button>
             </div>
         </div>
-
-        <!-- Модальне вікно для щоденного розіграшу -->
-        <div class="raffle-modal" id="daily-raffle-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="daily-modal-title">Щоденний розіграш #89</h2>
-                    <span class="modal-close">&times;</span>
-                </div>
-
-                <div class="prize-details">
-                    <div class="detail-item">
-                        <div class="detail-label">Призовий фонд:</div>
-                        <div class="detail-value prize-value" id="daily-prize-value">90000 WINIX</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Переможців:</div>
-                        <div class="detail-value" id="daily-winners">15</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Учасників:</div>
-                        <div class="detail-value" id="daily-participants">124</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Дата завершення:</div>
-                        <div class="detail-value" id="daily-end-time">11.04.2025 15:00</div>
-                    </div>
-                </div>
-
-                <div class="prize-description" id="daily-description">
-                    Щоденний розіграш з призами для переможців! Використайте жетони для участі. Розіграш проводиться щодня о 15:00.
-                </div>
-
-                <div id="daily-prize-distribution" class="prize-distribution">
-                    <div class="prize-distribution-title">Розподіл призів (15 переможців):</div>
-                    <div class="prize-list">
-                        <div class="prize-item">
-                            <span class="prize-place">1 місце:</span>
-                            <span class="prize-value">20000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">2 місце:</span>
-                            <span class="prize-value">15000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">3 місце:</span>
-                            <span class="prize-value">10000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">4-10 місця:</span>
-                            <span class="prize-value">5000 WINIX</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">11-15 місця:</span>
-                            <span class="prize-value">3000 WINIX</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="token-input-container">
-                    <input type="number" id="daily-token-amount" min="1" value="1" class="token-input">
-                    <button id="daily-all-tokens-btn" class="all-button">ВСІ</button>
-                </div>
-
-                <button id="daily-join-btn" class="join-button" data-raffle-id="daily89" data-raffle-type="daily">Взяти участь за 1 жетон</button>
-            </div>
-        </div>
-
-        <!-- Контейнер для спінера завантаження -->
-        <div id="loading-spinner">
-            <div class="spinner-inner"></div>
-            <div id="loading-spinner-text" style="color: white; margin-top: 10px; text-align: center;"></div>
-        </div>
-
-        <!-- Контейнер для повідомлень toast -->
-        <div id="toast-message"></div>
     </div>
 
-    <!-- Скрипт для обробки помилок і збоїв сторінки -->
+    <!-- Підключення JavaScript файлів у правильному порядку -->
+    <script src="js/api.js"></script>
+    <script src="js/raffles/core.js"></script>
+    <script src="js/raffles/participation.js"></script>
+    <script src="js/raffles/history.js"></script>
+    <script src="js/raffles/index.js"></script>
+
     <script>
-        // Обробка невловлених помилок
-        window.addEventListener('error', function(event) {
-            console.error("Невловлена помилка:", event.message, "у", event.filename, "рядок:", event.lineno);
+        // Код ініціалізації, який запускається після завантаження всіх скриптів
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📱 Сторінка розіграшів повністю завантажена');
 
-            // Логуємо помилку для подальшого аналізу
-            try {
-                localStorage.setItem('last_error', JSON.stringify({
-                    message: event.message,
-                    file: event.filename,
-                    line: event.lineno,
-                    time: new Date().toISOString(),
-                    online: navigator.onLine
-                }));
-            } catch (e) {}
+            // Перевірка наявності WinixRaffles та ініціалізація, якщо вона ще не відбулася
+            if (window.WinixRaffles && !WinixRaffles.state.isInitialized) {
+                WinixRaffles.init();
 
-            // Запобігаємо повному зависанню сторінки
-            if (event.message && (
-                event.message.includes("Maximum call stack size exceeded") ||
-                event.message.includes("Script error") ||
-                event.message.includes("Cannot read property") ||
-                event.message.includes("undefined is not an object")
-            )) {
-                if (!document.getElementById('fatal-error-message')) {
-                    // Створюємо елемент з повідомленням про помилку
-                    const errorDiv = document.createElement('div');
-                    errorDiv.id = 'fatal-error-message';
-                    errorDiv.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#b71c1c;color:#fff;padding:10px 20px;border-radius:8px;z-index:9999;text-align:center;';
-                    errorDiv.innerHTML = `
-                        <p>Виникла помилка в роботі програми. Спробуйте оновити сторінку.</p>
-                        <button onclick="location.reload()" style="margin-top:10px;padding:5px 15px;border:none;border-radius:5px;background:#ff9800;color:#1a1a2e;cursor:pointer;">
-                            Оновити сторінку
-                        </button>
-                    `;
-                    document.body.appendChild(errorDiv);
-                }
+                // Генеруємо подію про ініціалізацію для інших модулів
+                document.dispatchEvent(new CustomEvent('winix-raffles-initialized'));
+
+                console.log('✅ Система розіграшів WINIX успішно ініціалізована');
+            } else if (!window.WinixRaffles) {
+                console.error('❌ WinixRaffles не знайдено! Переконайтеся, що всі скрипти правильно підключені.');
             }
         });
-
-        // Функція для ініціалізації сторінки після збою
-        function recoverFromFailure() {
-            console.log("Відновлення сторінки після збою");
-
-            // Видаляємо початковий лоадер, якщо він завис
-            removeInitialLoader();
-
-            // Ховаємо усі лоадери
-            window.hideLoading();
-
-            // Ініціалізуємо ID користувача
-            try {
-                const storedId = localStorage.getItem('telegram_user_id');
-                if (storedId) {
-                    const userIdElement = document.getElementById('user-id');
-                    if (userIdElement) userIdElement.textContent = storedId;
-                }
-            } catch (e) {}
-
-            // Відновлюємо дані балансу з localStorage
-            try {
-                const tokens = localStorage.getItem('userTokens') || localStorage.getItem('winix_balance') || '0';
-                const coins = localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0';
-
-                const userTokens = document.getElementById('user-tokens');
-                const userCoins = document.getElementById('user-coins');
-
-                if (userTokens) userTokens.textContent = tokens;
-                if (userCoins) userCoins.textContent = coins;
-            } catch (e) {}
-
-            // Оновлюємо аватар
-            try {
-                const avatar = document.getElementById('profile-avatar');
-                if (avatar) {
-                    avatar.textContent = 'W';
-                }
-            } catch (e) {}
-
-            // Показуємо повідомлення про проблеми з сервером
-            showToast("Виникли проблеми з завантаженням даних. Перевірте підключення до Інтернету.", "warning");
-        }
-
-        // Таймаут для перевірки стану сторінки
-        setTimeout(function() {
-            // Якщо початковий лоадер все ще відображається через 8 секунд,
-            // спробуємо відновити сторінку
-            const loader = document.querySelector('.initial-loader');
-            if (loader) {
-                console.warn("Виявлено зависання завантаження сторінки");
-                recoverFromFailure();
-            }
-        }, 8000);
-
-        // Глобальна функція для перемикання вкладок
-        function switchRaffleTab(tabName) {
-    console.log("Перемикання на вкладку:", tabName);
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
-
-    document.querySelector(`.tab-button[data-tab="${tabName}"]`)?.classList.add('active');
-    document.getElementById(`${tabName}-raffles`)?.classList.add('active');
-
-    // Примусове приховування спінерів при зміні вкладки
-    document.querySelectorAll('.loading-placeholder').forEach(loader => {
-        loader.style.display = 'none';
-    });
-}
-
-            // Показуємо вибраний контент
-            const selectedContent = document.getElementById(`${tabName}-raffles`);
-            if (selectedContent) {
-                selectedContent.classList.add('active');
-            }
-
-            // Спробуємо викликати функцію модуля, якщо вона вже доступна
-            if (window.rafflesModule && typeof window.rafflesModule.switchTab === 'function') {
-                window.rafflesModule.switchTab(tabName);
-
-        }
-    </script>
-
-    <!-- Підключення нової модульної системи розіграшів через тип модуля -->
-    <script type="module">
-        // Імпортуємо модуль розіграшів та анімацій
-        import rafflesModule from './js/raffles/index.js';
-        import animationsModule from './js/raffles/animations.js';
-
-        // Після завантаження DOM
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("🎮 WINIX: Ініціалізація сторінки розіграшів");
-
-            try {
-                // Перевіряємо, чи вже завантажено API та Auth модулі
-                const checkModules = async () => {
-                    // Перевіряємо чи завантажилися модулі API та Auth
-                    const apiLoaded = window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
-                    const authLoaded = window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
-
-                    if (!apiLoaded || !authLoaded) {
-                        console.log("🎮 WINIX: Очікування завантаження модулів API та Auth...");
-
-                        // Чекаємо максимум 10 секунд для завантаження модулів
-                        for (let i = 0; i < 20; i++) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-
-                            const apiNowLoaded = window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function';
-                            const authNowLoaded = window.WinixAuth && typeof window.WinixAuth.getUserData === 'function';
-
-                            if (apiNowLoaded && authNowLoaded) {
-                                console.log("🎮 WINIX: Модулі API та Auth успішно завантажені");
-                                break;
-                            }
-                        }
-                    }
-
-                    // Ініціалізуємо модуль розіграшів
-                    await rafflesModule.init();
-
-                    // Ініціалізуємо анімаційні ефекти
-                    if (animationsModule && typeof animationsModule.init === 'function') {
-                        await animationsModule.init();
-                        console.log("✨ WINIX: Модуль анімацій успішно ініціалізовано");
-
-                        // Додаємо анімовану появу всіх елементів
-                        setTimeout(() => {
-                            animationsModule.animateEntranceSequence('.main-raffle, .stat-card', 'fadeInScale', 100);
-                            animationsModule.animateEntranceSequence('.mini-raffle', 'fadeInRight', 100);
-
-                            // Додаємо плаваючу анімацію до заголовка
-                            const rafflesTitle = document.querySelector('.raffles-title');
-                            if (rafflesTitle) {
-                                animationsModule.addFloatingAnimation(rafflesTitle, true);
-                            }
-
-                            // Додаємо преміальне світіння до кнопок
-                            document.querySelectorAll('.join-button').forEach(button => {
-                                animationsModule.addPremiumGlow(button, true);
-                            });
-                        }, 500);
-                    }
-
-                    // Видаляємо початковий лоадер
-                    removeInitialLoader();
-                };
-
-                // Запускаємо перевірку модулів
-                checkModules();
-
-                // Оновлюємо ID користувача, якщо доступно
-                const userId = localStorage.getItem('telegram_user_id');
-                if (userId) {
-                    const userIdElement = document.getElementById('user-id');
-                    if (userIdElement) {
-                        userIdElement.textContent = userId;
-                    }
-
-                    // Оновлюємо ініціали в аватарі
-                    updateAvatarInitials(userId);
-                }
-
-                // Експортуємо функції в глобальну область видимості
-                window.rafflesModule = rafflesModule;
-                window.animationsModule = animationsModule;
-
-                console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
-            } catch (error) {
-                console.error("❌ WINIX: Помилка ініціалізації сторінки розіграшів:", error);
-
-                // Видаляємо початковий лоадер у випадку помилки
-                removeInitialLoader();
-
-                // Показуємо повідомлення про помилку
-                showToast("Помилка ініціалізації сторінки. Спробуйте оновити сторінку.", "error");
-
-                // Спроба відновлення після збою
-                recoverFromFailure();
-            }
-        });
-
-        // Функція для оновлення ініціалів в аватарі
-        function updateAvatarInitials(userId) {
-            const avatar = document.getElementById('profile-avatar');
-            if (avatar) {
-                // Якщо є дані з Telegram
-                if (window.Telegram && window.Telegram.WebApp &&
-                    window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user) {
-
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
-                    if (user.first_name) {
-                        avatar.textContent = user.first_name.charAt(0).toUpperCase();
-
-                        // Додаємо анімовану появу аватара
-                        avatar.classList.add('floating');
-                    }
-                } else {
-                    // Якщо немає даних, використовуємо перший символ ID як ініціал
-                    if (userId) {
-                        avatar.textContent = 'W'; // Використовуємо W як за замовчуванням
-                        avatar.classList.add('floating');
-                    }
-                }
-            }
-        }
     </script>
 </body>
 </html>
