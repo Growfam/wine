@@ -969,6 +969,11 @@ export function unprotect(type, key) {
  */
 export function clear(type = null) {
     try {
+
+        // Додаткове очищення заблокованих станів
+    if (window._blockApiRequests) window._blockApiRequests = false;
+    if (window._activeRequests) window._activeRequests = {};
+
         let count = 0;
         let prefix = VERSION_PREFIX;
 
