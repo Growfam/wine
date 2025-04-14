@@ -2424,5 +2424,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     </script>
+// Додайте в кінець raffles.html
+<script type="module">
+  import rafflesSystem from '/js/raffles/index.js';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log("Ручний запуск системи розіграшів");
+    try {
+      rafflesSystem.init().catch(err => {
+        console.error("Помилка ініціалізації:", err);
+      });
+    } catch (e) {
+      console.error("Критична помилка:", e);
+    }
+  });
+</script>
 </body>
 </html>
