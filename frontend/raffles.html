@@ -2426,40 +2426,5 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     </script>
-<script>
-// Почекаємо трохи після завантаження даних і вимкнемо спінер, якщо він все ще активний
-setTimeout(() => {
-  // Знаходимо всі можливі спінери
-  const spinners = document.querySelectorAll('.spinner, .loading-indicator, .loader');
-  spinners.forEach(spinner => {
-    spinner.style.display = 'none';
-  });
-
-  // Оновлюємо елементи сторінки
-  const container = document.getElementById('raffles-container') || document.querySelector('.raffles-list');
-  if (container) {
-    container.style.opacity = '1';
-  }
-
-  console.log("Примусово вимкнено спінери завантаження");
-}, 3000);
-</script>
-    <script>
-// Глобальна змінна для виправлення помилки tabName
-window.activeTab = 'active';
-
-// Додаємо обробники подій для всіх кнопок вкладок
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.tab-button').forEach(button => {
-    button.addEventListener('click', function() {
-      const tab = this.getAttribute('data-tab');
-      if (tab && typeof window.switchRaffleTab === 'function') {
-        window.switchRaffleTab(tab);
-      }
-    });
-  });
-});
-</script>
-<script src="js/raffles/fix-raffles.js"></script>
 </body>
 </html>
