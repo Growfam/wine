@@ -1631,78 +1631,130 @@
         });
 
         // Функція для створення плаваючих частинок на фоні
-        function createParticles() {
-            const container = document.querySelector('.container');
-            if (!container) return;
+        // Функція для створення плаваючих частинок на фоні
+function createParticles() {
+    // Шукаємо контейнер
+    const container = document.querySelector('.container');
+    if (!container) {
+        console.warn("Не знайдено контейнер для частинок");
+        return;
+    }
 
-            // Створюємо контейнер для частинок
-            const particlesContainer = document.createElement('div');
-            particlesContainer.className = 'particles-container';
-            container.appendChild(particlesContainer);
+    // Створюємо контейнер для частинок, якщо він ще не існує
+    let particlesContainer = container.querySelector('.particles-container');
+    if (!particlesContainer) {
+        particlesContainer = document.createElement('div');
+        particlesContainer.className = 'particles-container';
+        particlesContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+        `;
+        container.appendChild(particlesContainer);
+    }
 
-            // Створюємо частинки
-            for (let i = 0; i < 20; i++) {
+    // Створюємо частинки з затримкою, щоб вони з'являлись поступово
+    for (let i = 0; i < 20; i++) {
+        setTimeout(() => {
+            if (particlesContainer && document.body.contains(particlesContainer)) {
                 createParticle(particlesContainer);
             }
-        }
+        }, i * 100);
+    }
+}
 
-        function createParticle(container) {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
+function createParticle(container) {
+    // Перевіряємо, чи контейнер існує
+    if (!container || !document.body.contains(container)) {
+        return;
+    }
 
-            // Випадковий розмір
-            const size = Math.random() * 5 + 2;
-            particle.style.width = `${size}px`;
-            particle.style.height = `${size}px`;
+    try {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
 
-            // Випадкова початкова позиція
-            particle.style.left = `${Math.random() * 100}%`;
-            particle.style.top = `${Math.random() * 100}%`;
+        // Випадковий розмір
+        const size = Math.random() * 5 + 2;
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
 
-            // Випадкове значення прозорості
-            particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
+        // Випадкова початкова позиція
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.top = `${Math.random() * 100}%`;
 
-            // Випадковий колір
-            const hue = Math.random() * 40 + 190; // Від блакитного до синього
-            particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
+        // Випадкове значення прозорості
+        particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
 
-            // Додаємо частинку до контейнера
-            container.appendChild(particle);
+        // Випадковий колір
+        const hue = Math.random() * 40 + 190; // Від блакитного до синього
+        particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
 
-            // Запускаємо анімацію руху
-            animateParticle(particle);
-        }
+        // Додаємо частинку до контейнера
+        container.appendChild(particle);
 
-       function animateParticle(particle) {
+        // Зберігаємо посилання на контейнер для безпеки
+        const parentContainer = container;
+
+        // Запускаємо анімацію руху
+        animateParticle(particle, parentContainer);
+    } catch (error) {
+        console.warn("Помилка створення частинки:", error);
+    }
+}
+
+function animateParticle(particle, parentContainer) {
+    // Перевірка, чи елементи існують
+    if (!particle || !document.body.contains(particle)) {
+        return;
+    }
+
     // Випадковий час анімації
     const duration = Math.random() * 15 + 10;
 
-    // Зберігаємо посилання на контейнер, поки воно ще дійсне
-    const parentContainer = particle.parentNode;
-
-    // Налаштовуємо анімацію...
+    // Встановлюємо анімацію
     particle.style.transition = `top ${duration}s linear, left ${duration}s ease-in-out, opacity ${duration}s ease-in`;
 
-    // Запускаємо анімацію
+    // Запускаємо анімацію після короткої затримки
     setTimeout(() => {
-        particle.style.top = `${-10}%`;
-        particle.style.left = `${Math.random() * 100}%`;
-        particle.style.opacity = '0';
+        if (particle && document.body.contains(particle)) {
+            particle.style.top = `${-10}%`;
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.opacity = '0';
+        }
     }, 10);
 
-    // Після закінчення анімації
+    // Після закінчення анімації перестворюємо частинку
     setTimeout(() => {
-        // Видаляємо частинку, якщо вона ще присутня в DOM
-        if (particle.parentNode) {
-            particle.parentNode.removeChild(particle);
+        // Видаляємо частинку, якщо вона все ще в DOM
+        if (particle && document.body.contains(particle)) {
+            if (particle.parentNode) {
+                particle.parentNode.removeChild(particle);
+            }
         }
 
-        // Перевіряємо, чи контейнер все ще існує в DOM
-        if (parentContainer && parentContainer.isConnected) {
+        // Створюємо нову частинку, якщо контейнер все ще існує
+        if (parentContainer && document.body.contains(parentContainer)) {
             createParticle(parentContainer);
         }
     }, duration * 1000);
+}
+
+// Безпечний запуск створення частинок
+document.addEventListener('DOMContentLoaded', function() {
+    // Відкладаємо створення частинок на час після повного завантаження DOM
+    setTimeout(function() {
+        try {
+            createParticles();
+        } catch (error) {
+            console.warn("Помилка при створенні частинок:", error);
         }
+    }, 800);
+});
     </script>
 
     <!-- Базовий скрипт для анімацій -->
