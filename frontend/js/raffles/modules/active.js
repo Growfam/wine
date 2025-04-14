@@ -47,6 +47,15 @@ class ActiveRafflesManager {
   WinixRaffles.logger.log("Ініціалізація модуля активних розіграшів");
 
   try {
+
+    // Очищення можливих заблокованих запитів
+    if (window._activeRequests) {
+      window._activeRequests = {};
+    }
+    if (window._blockApiRequests) {
+      window._blockApiRequests = false;
+    }
+
     // Знаходимо потрібні DOM елементи
     this._findDOMElements();
 
@@ -193,6 +202,17 @@ _setupRefreshTimers() {
    * @returns {Promise<Array>} - Масив активних розіграшів
    */
   async getActiveRaffles(forceRefresh = false) {
+    // Примусове скидання кешу при форсованому оновленні
+  if (forceRefresh) {
+    this.state.activeRaffles = null;
+    this.state.lastUpdateTime = 0;
+
+    // Очищення активних запитів для уникнення блокування
+    const apiService = WinixRaffles.getModule('api');
+    if (apiService && apiService.forceCleanupRequests) {
+      apiService.forceCleanupRequests();
+    }
+  }
     // Перевіряємо, чи пристрій онлайн
     if (!this._isOnline() && !forceRefresh) {
       WinixRaffles.logger.warn("Пристрій офлайн, повертаємо кешовані дані");

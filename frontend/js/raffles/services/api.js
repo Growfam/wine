@@ -483,6 +483,13 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
   _activeRequests[cleanEndpoint] = Date.now();
   _lastRequestTime = Date.now();
 
+  setTimeout(() => {
+  if (_activeRequests[cleanEndpoint]) {
+    delete _activeRequests[cleanEndpoint];
+    console.log(`Автоматичне очищення запиту: ${cleanEndpoint}`);
+  }
+}, 10000);
+
   // Оновлюємо лічильник
   _requestCounter.total++;
 
@@ -770,6 +777,7 @@ async function apiRequest(endpoint, method = 'GET', data = null, options = {}) {
     if (!options.hideLoader && WinixRaffles && WinixRaffles.loader) {
       WinixRaffles.loader.hide(`raffles-api-${cleanEndpoint}`);
     }
+    delete _activeRequests[cleanEndpoint];
 
     // Обробка 401 помилки - спроба оновити токен
     if (error.status === 401 ||
