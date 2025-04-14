@@ -1,456 +1,484 @@
-javascript/**
- * index.js - Головний інтеграційний модуль для всіх функцій розіграшів
- * @version 2.0.0
+/**
+ * WINIX - Система розіграшів (index.js)
+ * Точка входу для системи розіграшів, підключає всі необхідні модулі
  */
 
-import WinixRaffles from './globals.js';
-import { CONFIG } from './config.js';
+(function() {
+    'use strict';
 
-// Імпорт модулів
-import apiService from './services/api.js';
-import activeRaffles from './modules/active.js';
-import historyModule from './modules/history.js';
-import participationModule from './modules/participation.js';
-import statisticsModule from './modules/stats.js';
+    console.log('🎲 Ініціалізація системи розіграшів WINIX...');
 
-// Імпорт компонентів UI
-import { initUIComponents } from './components/componentManager.js';
-import formattersModule from './utils/formatters.js';
-import uiHelpersModule from './utils/ui-helpers.js';
-
-// Класс для керування системою розіграшів
-class RafflesSystem {
-  constructor() {
-    this.initialized = false;
-    this.initializationPromise = null;
-    this.moduleStatus = new Map();
-
-    // Відстеження стану ініціалізації модулів
-    this._initTimeouts = new Map();
-    this._retryCount = 0;
-    this._maxRetries = 3;
-  }
-
-  /**
-   * Ініціалізація системи розіграшів
-   * @param {Object} config - Налаштування системи
-   * @returns {Promise<void>}
-   */
-  async init(config = {}) {
-    if (this.initialized) {
-      WinixRaffles.logger.warn("Система розіграшів вже ініціалізована");
-      return this.initializationPromise;
+    // Перевірка наявності API модуля
+    if (typeof WinixAPI === 'undefined') {
+        console.error('❌ WinixAPI не знайдено! Переконайтеся, що api.js підключено на сторінці.');
+        return;
     }
 
-    if (this.initializationPromise) {
-      WinixRaffles.logger.log("Ініціалізація вже в процесі, очікуємо завершення");
-      return this.initializationPromise;
+    // Перевірка наявності основного модуля системи розіграшів
+    if (typeof WinixRaffles === 'undefined') {
+        console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено на сторінці.');
+        return;
     }
 
-    this.initializationPromise = new Promise(async (resolve, reject) => {
-      try {
-        // Ініціалізація WinixRaffles з налаштуваннями
-        WinixRaffles.init({
-          debug: config.DEBUG || CONFIG.DEBUG,
-          apiBaseUrl: config.API?.BASE_URL || CONFIG.API.BASE_URL,
-          defaultTTL: config.API?.CACHE_TTL?.DEFAULT || CONFIG.API.CACHE_TTL.USER_DATA
-        });
+    // Анімації інтерфейсу
+    const initAnimations = function() {
+        // Анімація частинок на фоні
+        const createParticles = function() {
+            const containers = document.querySelectorAll('.particles-container');
 
-        WinixRaffles.logger.log("Початок ініціалізації системи розіграшів (v2.0.0)");
+            containers.forEach(container => {
+                // Очищення контейнера перед створенням нових частинок
+                container.innerHTML = '';
 
-        // Ініціалізація модулів в правильному порядку
-        await this._initModulesInOrder();
+                for (let i = 0; i < 10; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
 
-        this.initialized = true;
-        WinixRaffles.logger.log("Систему розіграшів успішно ініціалізовано");
+                    // Випадковий розмір
+                    const size = Math.random() * 5 + 2;
+                    particle.style.width = `${size}px`;
+                    particle.style.height = `${size}px`;
 
-        // Відправляємо подію про успішну ініціалізацію
-        WinixRaffles.events.emit('raffles-system-initialized', {
-          timestamp: Date.now()
-        });
+                    // Випадкова початкова позиція
+                    particle.style.left = `${Math.random() * 100}%`;
+                    particle.style.top = `${Math.random() * 100}%`;
 
-        // Запускаємо автооновлення
-        this._setupAutoRefresh();
+                    // Випадкова прозорість
+                    particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
 
-        resolve();
-      } catch (error) {
-        WinixRaffles.logger.error("Критична помилка ініціалізації системи розіграшів:", error);
+                    // Випадковий колір
+                    const hue = Math.random() * 40 + 190; // Від блакитного до синього
+                    particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
 
-        // Збільшуємо лічильник спроб
-        this._retryCount++;
+                    // Випадкова анімація
+                    const duration = Math.random() * 15 + 5;
+                    particle.style.animationDuration = `${duration}s`;
 
-        // Перевіряємо, чи можна спробувати ще раз
-        if (this._retryCount <= this._maxRetries) {
-          WinixRaffles.logger.log(`Повторна спроба ініціалізації (${this._retryCount}/${this._maxRetries})...`);
-
-          // Скидаємо стан та promise
-          this.initializationPromise = null;
-
-          // Затримка перед повторною спробою
-          setTimeout(() => {
-            this.init(config).catch(reject);
-          }, CONFIG.INITIALIZATION.RETRY_DELAY);
-        } else {
-          // Занадто багато спроб, відхиляємо promise
-          reject(new Error(`Не вдалося ініціалізувати систему після ${this._maxRetries} спроб`));
-
-          // Відправляємо подію про помилку ініціалізації
-          WinixRaffles.events.emit('raffles-system-init-failed', {
-            error,
-            retries: this._retryCount
-          });
-        }
-      }
-    });
-
-    return this.initializationPromise;
-  }
-
-  /**
-   * Ініціалізація модулів у визначеному порядку
-   * @private
-   */
-  async _initModulesInOrder() {
-    // Масив обіцянок ініціалізації модулів
-    const initPromises = [];
-
-    // Ініціалізуємо утиліти першими
-    try {
-      // Ініціалізуємо форматери
-      WinixRaffles.utils = formattersModule;
-
-      // Ініціалізуємо UI хелпери
-      WinixRaffles.utils = { ...WinixRaffles.utils, ...uiHelpersModule };
-
-      // Ініціалізуємо UI компоненти
-      WinixRaffles.components = await initUIComponents();
-
-      WinixRaffles.logger.log("Утиліти та компоненти ініціалізовано");
-    } catch (error) {
-      WinixRaffles.logger.error("Помилка ініціалізації утиліт:", error);
-      throw error;
-    }
-
-    // Проходимо по всіх модулях у порядку ініціалізації
-    for (const moduleName of CONFIG.INITIALIZATION.MODULE_INIT_ORDER) {
-      initPromises.push(this._initModule(moduleName));
-    }
-
-    // Очікуємо завершення всіх ініціалізацій
-    await Promise.allSettled(initPromises);
-
-    // Перевіряємо, чи всі критичні модулі ініціалізовано
-    for (const moduleName of ['api', 'uiComponents', 'active']) {
-      if (this.moduleStatus.get(moduleName) !== 'initialized') {
-        throw new Error(`Критичний модуль ${moduleName} не був ініціалізований`);
-      }
-    }
-  }
-
-  /**
-   * Ініціалізація окремого модуля з таймаутом
-   * @param {string} moduleName - Назва модуля
-   * @returns {Promise<void>}
-   * @private
-   */
-  async _initModule(moduleName) {
-    return new Promise((resolve, reject) => {
-      this.moduleStatus.set(moduleName, 'initializing');
-
-      // Встановлюємо таймаут для ініціалізації
-      const timeoutId = setTimeout(() => {
-        if (this.moduleStatus.get(moduleName) === 'initializing') {
-          WinixRaffles.logger.error(`Таймаут ініціалізації модуля ${moduleName}`);
-          this.moduleStatus.set(moduleName, 'timeout');
-          reject(new Error(`Таймаут ініціалізації модуля ${moduleName}`));
-        }
-      }, CONFIG.INITIALIZATION.TIMEOUT);
-
-      // Зберігаємо таймаут для можливості очищення
-      this._initTimeouts.set(moduleName, timeoutId);
-
-      try {
-        // Вибираємо модуль для ініціалізації
-        let moduleToInit;
-
-        switch(moduleName) {
-          case 'api':
-            moduleToInit = apiService;
-            break;
-          case 'active':
-            moduleToInit = activeRaffles;
-            break;
-          case 'history':
-            moduleToInit = historyModule;
-            break;
-          case 'participation':
-            moduleToInit = participationModule;
-            break;
-          case 'stats':
-            moduleToInit = statisticsModule;
-            break;
-          default:
-            WinixRaffles.logger.warn(`Невідомий модуль ${moduleName}`);
-            clearTimeout(timeoutId);
-            this.moduleStatus.set(moduleName, 'unknown');
-            resolve(); // Пропускаємо невідомі модулі
-            return;
-        }
-
-        // Ініціалізуємо модуль
-        if (moduleToInit && typeof moduleToInit.init === 'function') {
-          // Спроба ініціалізації модуля
-          WinixRaffles.logger.log(`Ініціалізація модуля ${moduleName}`);
-
-          moduleToInit.init()
-            .then(() => {
-              clearTimeout(timeoutId);
-              this.moduleStatus.set(moduleName, 'initialized');
-              WinixRaffles.logger.log(`Модуль ${moduleName} успішно ініціалізовано`);
-              resolve();
-            })
-            .catch((error) => {
-              clearTimeout(timeoutId);
-              this.moduleStatus.set(moduleName, 'error');
-              WinixRaffles.logger.error(`Помилка ініціалізації модуля ${moduleName}:`, error);
-
-              // Для не критичних модулів, продовжуємо без них
-              if (['history', 'stats'].includes(moduleName)) {
-                WinixRaffles.logger.warn(`Пропускаємо не критичний модуль ${moduleName}`);
-                resolve();
-              } else {
-                reject(error);
-              }
+                    container.appendChild(particle);
+                }
             });
-        } else {
-          clearTimeout(timeoutId);
-          this.moduleStatus.set(moduleName, 'not-initializable');
-          WinixRaffles.logger.warn(`Модуль ${moduleName} не має методу init`);
-          resolve(); // Пропускаємо модулі без методу init
-        }
-      } catch (error) {
-        clearTimeout(timeoutId);
-        this.moduleStatus.set(moduleName, 'error');
-        WinixRaffles.logger.error(`Загальна помилка ініціалізації модуля ${moduleName}:`, error);
-        reject(error);
-      }
+        };
+
+        // Анімація прогрес-бару
+        const animateProgressBars = function() {
+            const progress = document.querySelector('.progress');
+            if (progress) {
+                setTimeout(() => {
+                    progress.style.transition = 'width 1.5s ease-in-out';
+                }, 500);
+            }
+        };
+
+        // Запускаємо анімації
+        createParticles();
+        animateProgressBars();
+
+        // Перезапуск анімацій при зміні вкладки
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                setTimeout(() => {
+                    createParticles();
+                    animateProgressBars();
+                }, 100);
+            });
+        });
+    };
+
+    // Ініціалізація обробників для модальних вікон
+    const initModalHandlers = function() {
+        // Функція для показу модального вікна
+        window.showModal = function(title, content) {
+            // Перевіряємо, чи існує вже модальне вікно
+            let modalWrapper = document.querySelector('.modal-wrapper');
+
+            if (!modalWrapper) {
+                // Створюємо модальне вікно
+                modalWrapper = document.createElement('div');
+                modalWrapper.className = 'modal-wrapper';
+                modalWrapper.innerHTML = `
+                    <div class="modal-overlay"></div>
+                    <div class="modal">
+                        <div class="modal-header">
+                            <h3 class="modal-title"></h3>
+                            <button class="modal-close">&times;</button>
+                        </div>
+                        <div class="modal-content"></div>
+                    </div>
+                `;
+
+                document.body.appendChild(modalWrapper);
+
+                // Додаємо обробник для закриття модального вікна
+                modalWrapper.querySelector('.modal-close').addEventListener('click', () => {
+                    modalWrapper.classList.remove('active');
+                    setTimeout(() => {
+                        modalWrapper.remove();
+                    }, 300);
+                });
+
+                // Додаємо обробник для закриття при кліку на оверлей
+                modalWrapper.querySelector('.modal-overlay').addEventListener('click', () => {
+                    modalWrapper.querySelector('.modal-close').click();
+                });
+            }
+
+            // Оновлюємо вміст модального вікна
+            modalWrapper.querySelector('.modal-title').textContent = title;
+            modalWrapper.querySelector('.modal-content').innerHTML = content;
+
+            // Показуємо модальне вікно
+            setTimeout(() => {
+                modalWrapper.classList.add('active');
+            }, 10);
+        };
+    };
+
+    // Ініціалізація обробників сповіщень (тостів)
+    const initToastHandlers = function() {
+        // Функція для показу сповіщення
+        window.showToast = function(message, type = 'info') {
+            // Перевіряємо, чи існує контейнер для сповіщень
+            let toastContainer = document.querySelector('.toast-container');
+
+            if (!toastContainer) {
+                // Створюємо контейнер для сповіщень
+                toastContainer = document.createElement('div');
+                toastContainer.className = 'toast-container';
+                document.body.appendChild(toastContainer);
+            }
+
+            // Створюємо нове сповіщення
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = message;
+
+            // Додаємо кнопку закриття
+            const closeButton = document.createElement('button');
+            closeButton.className = 'toast-close';
+            closeButton.innerHTML = '&times;';
+            closeButton.addEventListener('click', () => {
+                toast.classList.add('toast-hide');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            });
+
+            toast.appendChild(closeButton);
+
+            // Додаємо сповіщення до контейнера
+            toastContainer.appendChild(toast);
+
+            // Показуємо сповіщення
+            setTimeout(() => {
+                toast.classList.add('toast-show');
+            }, 10);
+
+            // Автоматично закриваємо сповіщення через 5 секунд
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.add('toast-hide');
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.remove();
+                        }
+                    }, 300);
+                }
+            }, 5000);
+        };
+    };
+
+    // Ініціалізація індикатора завантаження
+    const initLoadingIndicator = function() {
+        // Функція для показу індикатора завантаження
+        window.showLoading = function() {
+            // Перевіряємо, чи існує індикатор завантаження
+            let loadingWrapper = document.querySelector('.loading-wrapper');
+
+            if (!loadingWrapper) {
+                // Створюємо індикатор завантаження
+                loadingWrapper = document.createElement('div');
+                loadingWrapper.className = 'loading-wrapper';
+                loadingWrapper.innerHTML = `
+                    <div class="loading-overlay"></div>
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                    </div>
+                `;
+
+                document.body.appendChild(loadingWrapper);
+            }
+
+            // Показуємо індикатор завантаження
+            setTimeout(() => {
+                loadingWrapper.classList.add('active');
+            }, 10);
+        };
+
+        // Функція для приховування індикатора завантаження
+        window.hideLoading = function() {
+            const loadingWrapper = document.querySelector('.loading-wrapper');
+
+            if (loadingWrapper) {
+                loadingWrapper.classList.remove('active');
+            }
+        };
+    };
+
+    // Функція ініціалізації допоміжних компонентів
+    const initHelpers = function() {
+        initAnimations();
+        initModalHandlers();
+        initToastHandlers();
+        initLoadingIndicator();
+    };
+
+    // Додаємо CSS стилі для допоміжних компонентів
+    const addHelperStyles = function() {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Стилі для модальних вікон */
+            .modal-wrapper {
+                position: fixed;
+                z-index: 1000;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s ease, visibility 0.3s ease;
+            }
+            
+            .modal-wrapper.active {
+                opacity: 1;
+                visibility: visible;
+            }
+            
+            .modal-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+            }
+            
+            .modal {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 90%;
+                max-width: 500px;
+                background: var(--bg-card);
+                border-radius: var(--card-border-radius);
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+                border: 1px solid var(--border-color);
+            }
+            
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .modal-title {
+                margin: 0;
+                color: var(--text-color);
+                font-size: 1.2rem;
+            }
+            
+            .modal-close {
+                background: none;
+                border: none;
+                color: var(--text-color);
+                font-size: 1.5rem;
+                cursor: pointer;
+            }
+            
+            .modal-content {
+                padding: 15px;
+                color: var(--text-color);
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+            
+            /* Стилі для сповіщень */
+            .toast-container {
+                position: fixed;
+                z-index: 1100;
+                top: 20px;
+                right: 20px;
+                width: 300px;
+            }
+            
+            .toast {
+                position: relative;
+                margin-bottom: 10px;
+                padding: 15px 35px 15px 15px;
+                border-radius: 5px;
+                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+                color: white;
+                opacity: 0;
+                transform: translateY(-20px);
+                transition: opacity 0.3s ease, transform 0.3s ease;
+            }
+            
+            .toast-show {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            
+            .toast-hide {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            
+            .toast-info {
+                background-color: #2196F3;
+            }
+            
+            .toast-success {
+                background-color: #4CAF50;
+            }
+            
+            .toast-warning {
+                background-color: #FF9800;
+            }
+            
+            .toast-error {
+                background-color: #F44336;
+            }
+            
+            .toast-close {
+                position: absolute;
+                top: 5px;
+                right: 5px;
+                background: none;
+                border: none;
+                color: white;
+                font-size: 1.2rem;
+                cursor: pointer;
+            }
+            
+            /* Стилі для індикатора завантаження */
+            .loading-wrapper {
+                position: fixed;
+                z-index: 1200;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s ease, visibility 0.3s ease;
+            }
+            
+            .loading-wrapper.active {
+                opacity: 1;
+                visibility: visible;
+            }
+            
+            .loading-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+            
+            .loading-spinner {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
+            
+            .spinner {
+                width: 50px;
+                height: 50px;
+                border: 5px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                border-top-color: var(--secondary-color);
+                animation: spin 1s ease-in-out infinite;
+            }
+            
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            
+            /* Стилі для медалей (бейджів) */
+            .medal-card.earned .medal-icon {
+                filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+            }
+            
+            .medal-card.earned .medal-name {
+                color: var(--premium-color);
+                text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+            }
+            
+            /* Стилі для кнопок участі */
+            .join-button.participating,
+            .mini-raffle-button.participating {
+                background: var(--secondary-gradient);
+                opacity: 0.7;
+                cursor: default;
+            }
+            
+            /* Стилі для деталей розіграшу */
+            .raffle-details-modal h3 {
+                margin-top: 0;
+                color: var(--premium-color);
+                text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+            }
+            
+            .raffle-details-modal .raffle-info {
+                margin-bottom: 15px;
+            }
+            
+            .winners-list {
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 5px;
+                padding: 10px;
+                margin-top: 15px;
+            }
+            
+            .winners-list h4 {
+                margin-top: 0;
+                color: var(--secondary-color);
+            }
+            
+            .winners-list ul {
+                list-style-type: none;
+                padding-left: 5px;
+            }
+            
+            .winners-list li {
+                margin-bottom: 5px;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            
+            .winners-list li.current-user {
+                background: rgba(76, 175, 80, 0.2);
+                font-weight: bold;
+            }
+        `;
+
+        document.head.appendChild(style);
+    };
+
+    // Ініціалізація при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', function() {
+        // Додаємо стилі для допоміжних компонентів
+        addHelperStyles();
+
+        // Ініціалізуємо допоміжні компоненти
+        initHelpers();
+
+        console.log('✅ Система розіграшів WINIX повністю готова');
     });
-  }
-
-  /**
-   * Налаштування автоматичного оновлення даних
-   * @private
-   */
-  _setupAutoRefresh() {
-    // Активні розіграші
-    if (activeRaffles && typeof activeRaffles.refresh === 'function') {
-      setInterval(() => {
-        if (this.initialized && typeof navigator.onLine !== 'undefined' && navigator.onLine) {
-          activeRaffles.refresh().catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення активних розіграшів:", error);
-          });
-        }
-      }, CONFIG.REFRESH_INTERVALS.ACTIVE_RAFFLES);
-    }
-
-    // Історія розіграшів
-    if (historyModule && typeof historyModule.refresh === 'function') {
-      setInterval(() => {
-        if (this.initialized && typeof navigator.onLine !== 'undefined' && navigator.onLine) {
-          historyModule.refresh().catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення історії розіграшів:", error);
-          });
-        }
-      }, CONFIG.REFRESH_INTERVALS.HISTORY);
-    }
-
-    // Статистика
-    if (statisticsModule && typeof statisticsModule.refresh === 'function') {
-      setInterval(() => {
-        if (this.initialized && typeof navigator.onLine !== 'undefined' && navigator.onLine) {
-          statisticsModule.refresh().catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення статистики:", error);
-          });
-        }
-      }, CONFIG.REFRESH_INTERVALS.STATISTICS);
-    }
-  }
-
-  /**
-   * Оновлення всіх даних
-   * @param {boolean} [force=false] - Примусове оновлення
-   * @returns {Promise<void>}
-   */
-  async refreshAll(force = false) {
-    if (!this.initialized) {
-      WinixRaffles.logger.warn("Система розіграшів не ініціалізована");
-      return;
-    }
-
-    try {
-      WinixRaffles.logger.log("Початок оновлення всіх даних");
-
-      // Паралельно оновлюємо всі модулі
-      const refreshPromises = [];
-
-      // Активні розіграші
-      if (activeRaffles && typeof activeRaffles.refresh === 'function') {
-        refreshPromises.push(
-          activeRaffles.refresh(force).catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення активних розіграшів:", error);
-          })
-        );
-      }
-
-      // Історія розіграшів
-      if (historyModule && typeof historyModule.refresh === 'function') {
-        refreshPromises.push(
-          historyModule.refresh(force).catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення історії розіграшів:", error);
-          })
-        );
-      }
-
-      // Статистика
-      if (statisticsModule && typeof statisticsModule.refresh === 'function') {
-        refreshPromises.push(
-          statisticsModule.refresh(force).catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення статистики:", error);
-          })
-        );
-      }
-
-      // Оновлення даних користувача
-      if (apiService && typeof apiService.getUserData === 'function') {
-        refreshPromises.push(
-          apiService.getUserData(force).catch(error => {
-            WinixRaffles.logger.warn("Помилка оновлення даних користувача:", error);
-          })
-        );
-      }
-
-      // Очікуємо завершення всіх оновлень
-      await Promise.allSettled(refreshPromises);
-
-      WinixRaffles.logger.log("Всі дані оновлено");
-
-      // Відправляємо подію про оновлення даних
-      WinixRaffles.events.emit('all-data-refreshed', {
-        timestamp: Date.now(),
-        forced: force
-      });
-    } catch (error) {
-      WinixRaffles.logger.error("Помилка оновлення даних:", error);
-
-      // Відправляємо подію про помилку оновлення
-      WinixRaffles.events.emit('refresh-error', {
-        error,
-        timestamp: Date.now()
-      });
-    }
-  }
-
-  /**
-   * Знищення системи розіграшів
-   * @returns {Promise<void>}
-   */
-  async destroy() {
-    if (!this.initialized) {
-      WinixRaffles.logger.warn("Система розіграшів не ініціалізована, нічого знищувати");
-      return;
-    }
-
-    try {
-      WinixRaffles.logger.log("Початок знищення системи розіграшів");
-
-      // Очищаємо всі таймаути ініціалізації
-      for (const [moduleName, timeoutId] of this._initTimeouts.entries()) {
-        clearTimeout(timeoutId);
-      }
-
-      // Знищуємо модулі в зворотному порядку
-      const destroyPromises = [];
-
-      for (const moduleName of [...CONFIG.INITIALIZATION.MODULE_INIT_ORDER].reverse()) {
-        // Вибираємо модуль для знищення
-        let moduleToDestroy;
-
-        switch(moduleName) {
-          case 'api':
-            moduleToDestroy = apiService;
-            break;
-          case 'active':
-            moduleToDestroy = activeRaffles;
-            break;
-          case 'history':
-            moduleToDestroy = historyModule;
-            break;
-          case 'participation':
-            moduleToDestroy = participationModule;
-            break;
-          case 'stats':
-            moduleToDestroy = statisticsModule;
-            break;
-        }
-
-        // Знищуємо модуль, якщо є метод destroy
-        if (moduleToDestroy && typeof moduleToDestroy.destroy === 'function') {
-          destroyPromises.push(
-            Promise.resolve().then(() => {
-              WinixRaffles.logger.log(`Знищення модуля ${moduleName}`);
-              return moduleToDestroy.destroy();
-            }).catch(error => {
-              WinixRaffles.logger.error(`Помилка знищення модуля ${moduleName}:`, error);
-            })
-          );
-        }
-      }
-
-      // Очікуємо завершення всіх операцій знищення
-      await Promise.allSettled(destroyPromises);
-
-      // Скидаємо стан системи
-      this.initialized = false;
-      this.initializationPromise = null;
-      this.moduleStatus.clear();
-      this._initTimeouts.clear();
-      this._retryCount = 0;
-
-      WinixRaffles.logger.log("Систему розіграшів успішно знищено");
-
-      // Відправляємо подію про знищення системи
-      WinixRaffles.events.emit('raffles-system-destroyed', {
-        timestamp: Date.now()
-      });
-
-      // Знищуємо глобальний об'єкт WinixRaffles
-      WinixRaffles.destroy();
-    } catch (error) {
-      WinixRaffles.logger.error("Помилка знищення системи розіграшів:", error);
-    }
-  }
-}
-
-// Створюємо єдиний екземпляр системи
-const rafflesSystem = new RafflesSystem();
-
-// Автоматична ініціалізація при завантаженні сторінки
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    if (window.location.pathname.includes('raffles.html')) {
-      rafflesSystem.init(CONFIG).catch(error => {
-        console.error('Помилка ініціалізації системи розіграшів:', error);
-      });
-    }
-  });
-} else if (window.location.pathname.includes('raffles.html')) {
-  // Якщо DOM вже завантажено
-  setTimeout(() => {
-    rafflesSystem.init(CONFIG).catch(error => {
-      console.error('Помилка ініціалізації системи розіграшів:', error);
-    });
-  }, 100);
-}
-
-// Експортуємо систему
-export default rafflesSystem;
+})();
