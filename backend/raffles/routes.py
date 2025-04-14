@@ -2,7 +2,9 @@ from flask import request, jsonify, g
 import logging
 import jwt
 import os
+import sys
 import time
+import uuid  # Додано імпорт для кращої валідації UUID
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -33,6 +35,37 @@ RATE_LIMITS = {
 
 # Відстеження останніх запитів користувачів
 last_requests = {}
+
+
+# Додаємо власну розширену функцію для перевірки валідності UUID
+def is_valid_uuid(uuid_string):
+    """
+    Розширена перевірка валідності UUID з детальною обробкою помилок
+
+    Args:
+        uuid_string: Рядок для перевірки
+
+    Returns:
+        bool: True якщо UUID валідний, False в іншому випадку
+    """
+    # Перевірка на None та порожні рядки
+    if not uuid_string:
+        logger.warning(f"UUID пустий або None")
+        return False
+
+    # Перевірка на мінімальну довжину (повний UUID має 36 символів)
+    if len(uuid_string) < 32:  # Навіть без дефісів UUID повинен мати 32 символи
+        logger.warning(f"UUID занадто короткий ({len(uuid_string)} символів): {uuid_string}")
+        return False
+
+    try:
+        # Спроба перетворити рядок в UUID об'єкт
+        uuid_obj = uuid.UUID(uuid_string)
+        # Перевіряємо рядкове представлення - повинно співпадати з оригіналом
+        return str(uuid_obj) == uuid_string
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.warning(f"Некоректний UUID {uuid_string}: {str(e)}")
+        return False
 
 
 def require_authentication(f):
@@ -217,14 +250,25 @@ def validate_raffle_id(f):
         if 'raffle_id' in kwargs:
             raffle_id = kwargs['raffle_id']
 
-            # Перевіряємо валідність UUID
-            if not controllers.is_valid_uuid(raffle_id):
-                logger.warning(f"Невалідний формат ID розіграшу в URL: {raffle_id}")
+            # Перевірка на занадто короткі ID, які точно не є валідними UUID
+            if len(raffle_id) <= 5:
+                logger.warning(f"Критично невалідний ID розіграшу в URL (занадто короткий): {raffle_id}")
                 return jsonify({
                     "status": "error",
-                    "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                    "message": "Критично невалідний ідентифікатор розіграшу",
                     "code": "invalid_raffle_id"
                 }), 400
+
+            # Перевіряємо валідність UUID спочатку нашої вдосконаленої функцією
+            if not is_valid_uuid(raffle_id):
+                # Потім перевіряємо з функцією контролера для сумісності
+                if not controllers.is_valid_uuid(raffle_id):
+                    logger.warning(f"Невалідний формат ID розіграшу в URL: {raffle_id}")
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                        "code": "invalid_raffle_id"
+                    }), 400
 
         # Перевіряємо ID розіграшу в JSON даних
         if request.method in ['POST', 'PUT'] and request.is_json:
@@ -232,14 +276,25 @@ def validate_raffle_id(f):
             if data and 'raffle_id' in data:
                 raffle_id = data['raffle_id']
 
-                # Перевіряємо валідність UUID
-                if not controllers.is_valid_uuid(raffle_id):
-                    logger.warning(f"Невалідний формат ID розіграшу в JSON: {raffle_id}")
+                # Перевірка на занадто короткі ID, які точно не є валідними UUID
+                if len(str(raffle_id)) <= 5:
+                    logger.warning(f"Критично невалідний ID розіграшу в JSON (занадто короткий): {raffle_id}")
                     return jsonify({
                         "status": "error",
-                        "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                        "message": "Критично невалідний ідентифікатор розіграшу",
                         "code": "invalid_raffle_id"
                     }), 400
+
+                # Перевіряємо валідність UUID спочатку нашою функцією
+                if not is_valid_uuid(str(raffle_id)):
+                    # Потім перевіряємо з функцією контролера для сумісності
+                    if not controllers.is_valid_uuid(str(raffle_id)):
+                        logger.warning(f"Невалідний формат ID розіграшу в JSON: {raffle_id}")
+                        return jsonify({
+                            "status": "error",
+                            "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                            "code": "invalid_raffle_id"
+                        }), 400
 
         return f(*args, **kwargs)
 
@@ -248,6 +303,18 @@ def validate_raffle_id(f):
 
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
+
+    # API-ендпоінт для перевірки валідності UUID
+    @app.route('/api/validate-uuid/<uuid_string>', methods=['GET'])
+    def validate_uuid_endpoint(uuid_string):
+        """Ендпоінт для перевірки валідності UUID"""
+        valid = is_valid_uuid(uuid_string)
+        return jsonify({
+            "status": "success",
+            "valid": valid,
+            "uuid": uuid_string,
+            "message": "UUID валідний" if valid else "UUID невалідний"
+        })
 
     # Спочатку додайте новий маршрут для балансу
     @app.route('/api/user/<telegram_id>/balance', methods=['GET'])
@@ -339,7 +406,28 @@ def register_raffles_routes(app):
     @validate_raffle_id
     def api_get_raffle_details(raffle_id):
         """Отримання деталей конкретного розіграшу"""
-        return controllers.get_raffle_details(raffle_id)
+        try:
+            return controllers.get_raffle_details(raffle_id)
+        except controllers.InvalidRaffleIDError:
+            return jsonify({
+                "status": "error",
+                "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                "code": "invalid_raffle_id"
+            }), 400
+        except controllers.RaffleNotFoundException:
+            return jsonify({
+                "status": "error",
+                "message": f"Розіграш з ID {raffle_id} не знайдено",
+                "code": "raffle_not_found"
+            }), 404
+        except Exception as e:
+            logger.error(f"Помилка отримання деталей розіграшу {raffle_id}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "Помилка отримання деталей розіграшу",
+                "error_details": str(e),
+                "code": "server_error"
+            }), 500
 
     @app.route('/api/user/<telegram_id>/participate-raffle', methods=['POST'])
     @require_authentication
@@ -355,7 +443,59 @@ def register_raffles_routes(app):
                 "code": "forbidden"
             }), 403
 
-        return controllers.participate_in_raffle(telegram_id, request.json)
+        # Додаткова перевірка даних JSON
+        if not request.is_json:
+            return jsonify({
+                "status": "error",
+                "message": "Неверний формат запиту. Очікується JSON.",
+                "code": "invalid_request"
+            }), 400
+
+        data = request.json
+        if not data or not data.get('raffle_id'):
+            return jsonify({
+                "status": "error",
+                "message": "Відсутній ідентифікатор розіграшу в запиті",
+                "code": "missing_raffle_id"
+            }), 400
+
+        # Додаткова перевірка на валідність UUID
+        raffle_id = data.get('raffle_id')
+        if not is_valid_uuid(str(raffle_id)):
+            return jsonify({
+                "status": "error",
+                "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                "code": "invalid_raffle_id"
+            }), 400
+
+        try:
+            return controllers.participate_in_raffle(telegram_id, data)
+        except controllers.InsufficientTokensError as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "code": "insufficient_tokens"
+            }), 400
+        except controllers.RaffleNotFoundException as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "code": "raffle_not_found"
+            }), 404
+        except controllers.RaffleAlreadyEndedError as e:
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "code": "raffle_ended"
+            }), 400
+        except Exception as e:
+            logger.error(f"Помилка участі в розіграші: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "Виникла помилка при участі в розіграші",
+                "error_details": str(e),
+                "code": "server_error"
+            }), 500
 
     @app.route('/api/user/<telegram_id>/raffles', methods=['GET'])
     @require_authentication
@@ -371,7 +511,16 @@ def register_raffles_routes(app):
                 "code": "forbidden"
             }), 403
 
-        return controllers.get_user_raffles(telegram_id)
+        try:
+            return controllers.get_user_raffles(telegram_id)
+        except Exception as e:
+            logger.error(f"Помилка отримання розіграшів користувача {telegram_id}: {str(e)}")
+            # Повертаємо порожній масив при помилці для кращого UX
+            return jsonify({
+                "status": "success",
+                "data": [],
+                "error_details": str(e)
+            })
 
     @app.route('/api/user/<telegram_id>/raffles-history', methods=['GET'])
     @require_authentication
@@ -411,7 +560,7 @@ def register_raffles_routes(app):
             return jsonify({
                 "status": "success",
                 "data": [],
-                "error": str(e)
+                "error_details": str(e)
             })
 
     @app.route('/api/user/<telegram_id>/claim-newbie-bonus', methods=['POST'])
@@ -426,7 +575,15 @@ def register_raffles_routes(app):
                 "code": "forbidden"
             }), 403
 
-        return controllers.claim_newbie_bonus(telegram_id)
+        try:
+            return controllers.claim_newbie_bonus(telegram_id)
+        except Exception as e:
+            logger.error(f"Помилка отримання бонусу новачка для {telegram_id}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка отримання бонусу: {str(e)}",
+                "code": "server_error"
+            }), 500
 
     # Утиліта для перевірки всіх активних розіграшів
     @app.route('/api/tools/validate-raffle-ids', methods=['GET'])
@@ -539,4 +696,44 @@ def register_raffles_routes(app):
                 "status": "error",
                 "message": "Помилка отримання статистики розіграшів",
                 "code": "server_error"
+            }), 500
+
+    # Маршрут для відладки проблем з UUID
+    @app.route('/api/debug/uuid/<uuid_string>', methods=['GET'])
+    def api_debug_uuid(uuid_string):
+        """Ендпоінт для відладки проблем з UUID"""
+        try:
+            # Перевіряємо різними способами
+            valid_our = is_valid_uuid(uuid_string)
+            valid_controllers = controllers.is_valid_uuid(uuid_string)
+
+            # Спроба створення UUID об'єкта
+            try:
+                uuid_obj = uuid.UUID(uuid_string)
+                uuid_created = True
+                uuid_str = str(uuid_obj)
+                uuid_hex = uuid_obj.hex
+                uuid_match = uuid_str == uuid_string
+            except Exception as e:
+                uuid_created = False
+                uuid_str = None
+                uuid_hex = None
+                uuid_match = False
+
+            return jsonify({
+                "status": "success",
+                "uuid_string": uuid_string,
+                "length": len(uuid_string),
+                "valid_our_function": valid_our,
+                "valid_controllers_function": valid_controllers,
+                "uuid_object_created": uuid_created,
+                "uuid_string_from_object": uuid_str,
+                "uuid_hex": uuid_hex,
+                "string_matches": uuid_match
+            })
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка аналізу UUID: {str(e)}",
+                "uuid_string": uuid_string
             }), 500
