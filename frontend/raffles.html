@@ -1526,6 +1526,52 @@
             font-size: 0.875rem;
             color: var(--text-color);
         }
+
+        /* Додаткові анімаційні стилі */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes shine {
+            0% { background-position: -100% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .shine-effect {
+            background-size: 200% 100%;
+            background-image: linear-gradient(
+                to right,
+                transparent 0%,
+                rgba(255, 255, 255, 0.2) 50%,
+                transparent 100%
+            );
+            animation: shine 2s infinite;
+        }
+
+        /* Стилі для частинок на фоні */
+        .particles-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(78, 181, 247, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.5;
+        }
     </style>
 
     <script>
@@ -1579,6 +1625,234 @@
                     offlineMsg.remove();
                 }
             }
+
+            // Додавання частинок на фон
+            createParticles();
+        });
+
+        // Функція для створення плаваючих частинок на фоні
+        function createParticles() {
+            const container = document.querySelector('.container');
+            if (!container) return;
+
+            // Створюємо контейнер для частинок
+            const particlesContainer = document.createElement('div');
+            particlesContainer.className = 'particles-container';
+            container.appendChild(particlesContainer);
+
+            // Створюємо частинки
+            for (let i = 0; i < 20; i++) {
+                createParticle(particlesContainer);
+            }
+        }
+
+        function createParticle(container) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+
+            // Випадковий розмір
+            const size = Math.random() * 5 + 2;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+
+            // Випадкова початкова позиція
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.top = `${Math.random() * 100}%`;
+
+            // Випадкове значення прозорості
+            particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
+
+            // Випадковий колір
+            const hue = Math.random() * 40 + 190; // Від блакитного до синього
+            particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
+
+            // Додаємо частинку до контейнера
+            container.appendChild(particle);
+
+            // Запускаємо анімацію руху
+            animateParticle(particle);
+        }
+
+        function animateParticle(particle) {
+            // Випадковий час анімації
+            const duration = Math.random() * 15 + 10;
+
+            // Випадковий кінцевий X (в межах контейнера)
+            const targetX = Math.random() * 100;
+            // Випадковий кінцевий Y (рух вгору)
+            const targetY = -10;
+
+            // Встановлюємо анімацію
+            particle.style.transition = `top ${duration}s linear, left ${duration}s ease-in-out, opacity ${duration}s ease-in`;
+
+            // Запускаємо анімацію після короткої затримки
+            setTimeout(() => {
+                particle.style.top = `${targetY}%`;
+                particle.style.left = `${targetX}%`;
+                particle.style.opacity = '0';
+            }, 10);
+
+            // Після закінчення анімації перестворюємо частинку
+            setTimeout(() => {
+                if (particle.parentNode) {
+                    particle.parentNode.removeChild(particle);
+                    createParticle(particle.parentNode);
+                }
+            }, duration * 1000);
+        }
+    </script>
+
+    <!-- Базовий скрипт для анімацій -->
+    <script>
+        // Функція для створення анімованого входу елементів
+        function animateEntranceSequence(selector, delay = 100, baseDelay = 0) {
+            const elements = document.querySelectorAll(selector);
+            if (!elements.length) return;
+
+            elements.forEach((element, index) => {
+                element.style.opacity = '0';
+                element.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    element.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    element.style.opacity = '1';
+                    element.style.transform = 'translateY(0)';
+                }, baseDelay + (index * delay));
+            });
+        }
+
+        // Функція для створення пульсуючого ефекту
+        function addPulseEffect(element) {
+            if (!element) return;
+            element.classList.add('pulse-effect');
+        }
+
+        // Глобальна функція для анімованої зміни тексту
+        window.animateTextChange = function(element, newText) {
+            if (!element) return;
+
+            // Поточний текст
+            const currentText = element.textContent;
+
+            // Якщо текст не змінився, нічого не робимо
+            if (currentText === newText) return;
+
+            // Анімуємо зміну тексту
+            element.style.transition = 'opacity 0.3s ease';
+            element.style.opacity = '0';
+
+            setTimeout(() => {
+                element.textContent = newText;
+                element.style.opacity = '1';
+            }, 300);
+        }
+
+        // Функція для створення ефекту світіння
+        window.addGlowEffect = function(element) {
+            if (!element) return;
+
+            // Додаємо класс для світіння
+            element.classList.add('glow-effect');
+
+            // Відключаємо ефект через певний час, якщо потрібно
+            return function removeGlow() {
+                element.classList.remove('glow-effect');
+            };
+        }
+
+        // Функція для плавної анімації даних лічильників
+        window.animateCounter = function(element, targetValue, duration = 1500) {
+            if (!element) return;
+
+            // Отримуємо поточне значення
+            const startValue = parseInt(element.textContent.replace(/[^0-9.-]+/g, '')) || 0;
+            const difference = targetValue - startValue;
+
+            // Якщо нема різниці, виходимо
+            if (difference === 0) return;
+
+            // Кількість кроків для плавної анімації
+            const steps = 20;
+            const stepTime = duration / steps;
+
+            // Функція для форматування числа (зберігаємо оригінальний формат)
+            const format = (value) => {
+                const original = element.textContent;
+                const numPattern = /[0-9.,]+/;
+
+                // Якщо оригінал містить форматування
+                if (numPattern.test(original)) {
+                    return original.replace(numPattern, value.toLocaleString());
+                }
+
+                return value.toLocaleString();
+            };
+
+            // Запускаємо анімацію
+            let currentStep = 0;
+            const timer = setInterval(() => {
+                currentStep++;
+                const progress = currentStep / steps;
+                const easedProgress = easeOutCubic(progress);
+                const currentValue = Math.floor(startValue + difference * easedProgress);
+
+                element.textContent = format(currentValue);
+
+                if (currentStep >= steps) {
+                    clearInterval(timer);
+                    element.textContent = format(targetValue);
+                }
+            }, stepTime);
+
+            // Функція згладжування анімації
+            function easeOutCubic(x) {
+                return 1 - Math.pow(1 - x, 3);
+            }
+        }
+
+        // Ініціалізація анімацій при завантаженні сторінки
+        document.addEventListener('DOMContentLoaded', function() {
+            // Додаємо клас для анімованого входу елементів
+            document.querySelectorAll('.main-raffle, .mini-raffle, .stat-card').forEach(element => {
+                element.classList.add('animate-entrance');
+            });
+
+            // Відслідковуємо появу елементів у вьюпорті
+            if ('IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('visible');
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, {
+                    threshold: 0.2
+                });
+
+                document.querySelectorAll('.animate-entrance').forEach(element => {
+                    observer.observe(element);
+                });
+            } else {
+                // Запасний варіант для браузерів без підтримки IntersectionObserver
+                document.querySelectorAll('.animate-entrance').forEach(element => {
+                    element.classList.add('visible');
+                });
+            }
+
+            // Додаємо анімацію для таймерів
+            setInterval(() => {
+                const timerElements = document.querySelectorAll('.timer-value');
+                timerElements.forEach(timer => {
+                    const shouldAnimate = Math.random() > 0.7; // Випадкова анімація для ефекту
+                    if (shouldAnimate) {
+                        timer.classList.add('pulse-effect');
+                        setTimeout(() => {
+                            timer.classList.remove('pulse-effect');
+                        }, 500);
+                    }
+                });
+            }, 3000);
         });
     </script>
 </head>
@@ -1973,8 +2247,9 @@
 
     <!-- Підключення нової модульної системи розіграшів через тип модуля -->
     <script type="module">
-        // Імпортуємо модуль розіграшів
+        // Імпортуємо модуль розіграшів та анімацій
         import rafflesModule from './js/raffles/index.js';
+        import animationsModule from './js/raffles/animations.js';
 
         // Після завантаження DOM
         document.addEventListener('DOMContentLoaded', () => {
@@ -2005,7 +2280,30 @@
                     }
 
                     // Ініціалізуємо модуль розіграшів
-                    rafflesModule.init();
+                    await rafflesModule.init();
+
+                    // Ініціалізуємо анімаційні ефекти
+                    if (animationsModule && typeof animationsModule.init === 'function') {
+                        await animationsModule.init();
+                        console.log("✨ WINIX: Модуль анімацій успішно ініціалізовано");
+
+                        // Додаємо анімовану появу всіх елементів
+                        setTimeout(() => {
+                            animationsModule.animateEntranceSequence('.main-raffle, .stat-card', 'fadeInScale', 100);
+                            animationsModule.animateEntranceSequence('.mini-raffle', 'fadeInRight', 100);
+
+                            // Додаємо плаваючу анімацію до заголовка
+                            const rafflesTitle = document.querySelector('.raffles-title');
+                            if (rafflesTitle) {
+                                animationsModule.addFloatingAnimation(rafflesTitle, true);
+                            }
+
+                            // Додаємо преміальне світіння до кнопок
+                            document.querySelectorAll('.join-button').forEach(button => {
+                                animationsModule.addPremiumGlow(button, true);
+                            });
+                        }, 500);
+                    }
 
                     // Видаляємо початковий лоадер
                     removeInitialLoader();
@@ -2028,6 +2326,7 @@
 
                 // Експортуємо функції в глобальну область видимості
                 window.rafflesModule = rafflesModule;
+                window.animationsModule = animationsModule;
 
                 console.log("✅ WINIX: Сторінку розіграшів успішно ініціалізовано");
             } catch (error) {
@@ -2056,11 +2355,15 @@
                     const user = window.Telegram.WebApp.initDataUnsafe.user;
                     if (user.first_name) {
                         avatar.textContent = user.first_name.charAt(0).toUpperCase();
+
+                        // Додаємо анімовану появу аватара
+                        avatar.classList.add('floating');
                     }
                 } else {
                     // Якщо немає даних, використовуємо перший символ ID як ініціал
                     if (userId) {
                         avatar.textContent = 'W'; // Використовуємо W як за замовчуванням
+                        avatar.classList.add('floating');
                     }
                 }
             }
