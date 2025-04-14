@@ -1,12 +1,12 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
- * @version 1.1.0
+ * @version 1.2.0 (з виправленнями)
  */
 
 (function() {
     'use strict';
-let endpoint = ""; // Оголошення глобальної змінної
+
     console.log("🔌 API: Ініціалізація єдиного API модуля");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
@@ -49,6 +49,9 @@ let endpoint = ""; // Оголошення глобальної змінної
     let _stakingCacheTime = 0;
     const STAKING_CACHE_TTL = 180000; // 3 хвилини
 
+    // Заблоковані ендпоінти (через rate limiting)
+    let _blockedEndpoints = {};
+
     // Запобігання рекурсивним викликам
     let _pendingRequests = {};
     let _activeEndpoints = new Set();
@@ -56,13 +59,13 @@ let endpoint = ""; // Оголошення глобальної змінної
     // Відстеження запитів, щоб запобігти повторним викликам
     let _lastRequestsByEndpoint = {};
 
-    // Мінімальний інтервал між однаковими запитами (збільшені інтервали)
+    // Мінімальний інтервал між однаковими запитами
     const REQUEST_THROTTLE = {
-        '/user/': 10000,    // Збільшено з 5000 до 10000
-        '/staking': 15000,  // Збільшено з 8000 до 15000
-        '/balance': 8000,   // Збільшено з 5000 до 8000
-        '/transactions': 20000, // Збільшено з 15000 до 20000
-        'default': 8000     // Збільшено з 4000 до 8000
+        '/user/': 5000,      // 5 секунд
+        '/staking': 8000,    // 8 секунд
+        '/balance': 5000,    // 5 секунд
+        '/transactions': 15000, // 15 секунд
+        'default': 4000      // 4 секунди за замовчуванням
     };
 
     // Лічильник запитів
@@ -80,6 +83,9 @@ let endpoint = ""; // Оголошення глобальної змінної
         failedAttempts: 0,
         maxRetries: 5
     };
+
+    // Індикатор прогресу затримки запитів
+    let _currentRateLimitTimer = null;
 
     // Токен автентифікації
     let _authToken = null;
@@ -273,34 +279,138 @@ let endpoint = ""; // Оголошення глобальної змінної
     }
 
     /**
-     * Перевірка валідності UUID
+     * Перевірка валідності UUID (покращений метод)
      * @param {string} id - ID для перевірки
      * @returns {boolean} Результат перевірки
      */
+    function isValidUUID(id) {
+        if (!id || typeof id !== 'string') return false;
 
-function isValidUUID(id) {
-    if (!id || typeof id !== 'string') return false;
-    // Основна перевірка на повний UUID
-    const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return fullUUIDRegex.test(id);
-}
+        // Перевірка для занадто коротких ID (запобігає помилкам з ac, 46 та іншими)
+        if (id.length < 10) return false;
 
-// У функції apiRequest додайте цей код перед основним запитом
-// для виправлення проблеми з невалідним UUID в URL
-if (endpoint.includes('raffles/')) {
-    const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-    if (raffleIdMatch && raffleIdMatch[1]) {
-        const raffleId = raffleIdMatch[1];
-        if (!isValidUUID(raffleId)) {
-            console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
-            return Promise.reject({
-                status: 'error',
-                message: 'Невалідний ідентифікатор розіграшу в URL',
-                code: 'invalid_raffle_id'
-            });
-        }
+        // Повна перевірка UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
     }
-}
+
+    /**
+     * Показує індикатор прогресу при обмеженні швидкості запитів
+     * @param {string} endpoint - URL ендпоінту
+     * @param {number} retryAfter - час очікування в секундах
+     */
+    function showRateLimitProgress(endpoint, retryAfter) {
+        // Створюємо або отримуємо елемент індикатора
+        let indicator = document.getElementById('rate-limit-indicator');
+
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'rate-limit-indicator';
+            indicator.className = 'rate-limit-indicator';
+            indicator.innerHTML = `
+                <div class="rate-limit-message">
+                    Занадто багато запитів. Зачекайте <span class="rate-limit-time"></span> секунд.
+                </div>
+                <div class="rate-limit-progress">
+                    <div class="rate-limit-progress-bar"></div>
+                </div>
+            `;
+
+            // Додаємо стилі, якщо їх немає
+            if (!document.getElementById('rate-limit-styles')) {
+                const style = document.createElement('style');
+                style.id = 'rate-limit-styles';
+                style.textContent = `
+                    .rate-limit-indicator {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        background: rgba(0, 0, 0, 0.8);
+                        color: white;
+                        padding: 15px;
+                        text-align: center;
+                        z-index: 9999;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                    }
+                    .rate-limit-progress {
+                        width: 80%;
+                        height: 8px;
+                        background: rgba(255, 255, 255, 0.2);
+                        border-radius: 4px;
+                        margin-top: 10px;
+                        overflow: hidden;
+                    }
+                    .rate-limit-progress-bar {
+                        height: 100%;
+                        background: #4CAF50;
+                        width: 100%;
+                        transition: width 1s linear;
+                    }
+                    .rate-limit-message {
+                        margin-bottom: 10px;
+                    }
+                    .rate-limit-time {
+                        font-weight: bold;
+                        color: #4CAF50;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            document.body.appendChild(indicator);
+        }
+
+        // Отримуємо потрібні елементи
+        const timeElement = indicator.querySelector('.rate-limit-time');
+        const progressBar = indicator.querySelector('.rate-limit-progress-bar');
+
+        // Встановлюємо початкові значення
+        const startTime = Date.now();
+        const endTime = startTime + (retryAfter * 1000);
+
+        // Очищаємо попередній таймер, якщо є
+        if (_currentRateLimitTimer) {
+            clearInterval(_currentRateLimitTimer);
+        }
+
+        // Функція оновлення таймера
+        const updateTimer = () => {
+            const now = Date.now();
+            const remaining = Math.max(0, endTime - now);
+            const secondsRemaining = Math.ceil(remaining / 1000);
+
+            // Оновлюємо текст і прогрес
+            timeElement.textContent = secondsRemaining;
+
+            // Розраховуємо прогрес (від 100% до 0%)
+            const progress = (remaining / (retryAfter * 1000)) * 100;
+            progressBar.style.width = `${progress}%`;
+
+            // Якщо час вичерпався, приховуємо індикатор
+            if (remaining <= 0) {
+                indicator.style.display = 'none';
+                clearInterval(_currentRateLimitTimer);
+                _currentRateLimitTimer = null;
+
+                // Показуємо повідомлення про відновлення
+                if (typeof window.showToast === 'function') {
+                    window.showToast('З\'єднання відновлено. Можете продовжувати.', 'success');
+                }
+            }
+        };
+
+        // Показуємо індикатор
+        indicator.style.display = 'flex';
+
+        // Запускаємо перше оновлення
+        updateTimer();
+
+        // Запускаємо таймер оновлення кожну секунду
+        _currentRateLimitTimer = setInterval(updateTimer, 1000);
+    }
 
     /**
      * Оновлення токену авторизації
@@ -514,6 +624,21 @@ if (endpoint.includes('raffles/')) {
                 throw new Error("Розіграш не знайдено. ID може бути застарілим.");
             }
 
+            // Обробка помилок обмеження швидкості (rate limiting)
+            if (response.status === 429) {
+                // Отримуємо заголовок Retry-After, якщо він є
+                const retryAfter = response.headers.get('Retry-After') || 30;
+
+                // Показуємо індикатор прогресу очікування
+                showRateLimitProgress(url, parseInt(retryAfter));
+
+                throw {
+                    status: 429,
+                    message: `Помилка сервера: 429 Too Many Requests`,
+                    headers: { 'Retry-After': retryAfter }
+                };
+            }
+
             // Перевіряємо статус відповіді
             if (!response.ok) {
                 throw new Error(`Помилка сервера: ${response.status}`);
@@ -577,7 +702,7 @@ if (endpoint.includes('raffles/')) {
 
             // Перевірка endpoint при запиті деталей розіграшу
             if (endpoint.includes('raffles/')) {
-                const raffleIdMatch = endpoint.match(/raffles\/([0-9a-f-]+)/i);
+                const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
                 if (raffleIdMatch && raffleIdMatch[1]) {
                     const raffleId = raffleIdMatch[1];
                     if (!isValidUUID(raffleId)) {
@@ -599,8 +724,36 @@ if (endpoint.includes('raffles/')) {
             // Формуємо ключ для відстеження запитів
             const requestKey = `${method}:${endpoint}`;
 
-            // Перевіряємо, чи не було такого ж запиту нещодавно
+            // Перевірка на блокування endpoint через rate limiting
             const now = Date.now();
+            if (_blockedEndpoints[endpoint]) {
+                const blockedUntil = _blockedEndpoints[endpoint];
+
+                if (now < blockedUntil) {
+                    const remainingTime = Math.ceil((blockedUntil - now) / 1000);
+                    console.warn(`🔵 API: Запит до ${endpoint} тимчасово заблоковано через rate limiting. Залишилось ${remainingTime}с`);
+
+                    // Для запитів профілю користувача можемо використати кеш
+                    if (isUserProfileRequest && _userCache && !options.forceRefresh) {
+                        return Promise.resolve({
+                            status: 'success',
+                            data: _userCache,
+                            source: 'cache_rate_limited'
+                        });
+                    }
+
+                    return Promise.reject({
+                        status: 'rate_limited',
+                        message: `Занадто багато запитів. Повторна спроба через ${remainingTime} секунд.`,
+                        retryAfter: blockedUntil - now
+                    });
+                }
+
+                // Якщо блокування закінчилось, видаляємо його
+                delete _blockedEndpoints[endpoint];
+            }
+
+            // Перевіряємо, чи не було такого ж запиту нещодавно
             const lastRequestTime = _lastRequestsByEndpoint[requestKey] || 0;
             const throttleTime = getThrottleTime(endpoint);
 
@@ -765,6 +918,27 @@ if (endpoint.includes('raffles/')) {
                     } catch (fetchError) {
                         lastError = fetchError;
 
+                        // Спеціальна обробка для 429 (Too Many Requests)
+                        if (fetchError.status === 429) {
+                            // Отримуємо час очікування з заголовка або за замовчуванням
+                            const retryAfter = fetchError.headers?.['Retry-After'] || 30;
+                            const waitTime = parseInt(retryAfter);
+
+                            console.log(`⏳ Отримано 429 (Too Many Requests), чекаємо ${retryAfter}с...`);
+
+                            // Блокуємо endpoint на вказаний час
+                            _blockedEndpoints[endpoint] = Date.now() + (waitTime * 1000);
+
+                            // Показуємо індикатор прогресу очікування
+                            showRateLimitProgress(endpoint, waitTime);
+
+                            throw {
+                                status: 'rate_limited',
+                                message: `Занадто багато запитів. Повторна спроба через ${retryAfter} секунд.`,
+                                retryAfter: waitTime * 1000
+                            };
+                        }
+
                         // Спеціальна обробка для 401 помилки - спроба оновити токен
                         if (fetchError.status === 401 && !options.skipTokenCheck && attempt === 0) {
                             try {
@@ -859,8 +1033,13 @@ if (endpoint.includes('raffles/')) {
                     resetPendingRequests();
                 }
 
-                // Обробка конкретних типів помилок
-                console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
+                // Обробка спеціальних помилок
+                if (error.status === 'rate_limited') {
+                    return Promise.reject(error); // Передаємо помилку обмеження швидкості далі
+                }
+
+                // Звичайна обробка інших помилок
+                console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message || error);
 
                 // Відправляємо подію про помилку
                 document.dispatchEvent(new CustomEvent('api-error', {
@@ -924,6 +1103,14 @@ if (endpoint.includes('raffles/')) {
     // Додаємо автоматичне скидання старих запитів раз на хвилину
     setInterval(() => {
         const now = Date.now();
+
+        // Очищуємо старі блокування для endpoint'ів
+        for (const [endpoint, blockTime] of Object.entries(_blockedEndpoints)) {
+            if (now > blockTime) {
+                console.log(`🔄 API: Розблоковано endpoint ${endpoint}`);
+                delete _blockedEndpoints[endpoint];
+            }
+        }
 
         // Якщо є запити, які виконуються більше 30 секунд, скидаємо їх
         let hasLongRunningRequests = false;
@@ -1351,6 +1538,7 @@ if (endpoint.includes('raffles/')) {
         _lastRequestsByEndpoint = {};
         _activeEndpoints.clear();
         _pendingRequests = {};
+        _blockedEndpoints = {};
         console.log("🔌 API: Примусово очищено відстеження запитів");
         return true;
     }
@@ -1364,6 +1552,7 @@ if (endpoint.includes('raffles/')) {
         _stakingCache = null;
         _stakingCacheTime = 0;
         _lastRequestsByEndpoint = {};
+        _blockedEndpoints = {};
         console.log("🔌 API: Кеш очищено");
     }
 
@@ -1412,7 +1601,7 @@ if (endpoint.includes('raffles/')) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.1.0',
+            version: '1.2.0',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1446,7 +1635,10 @@ if (endpoint.includes('raffles/')) {
         calculateExpectedReward,
 
         // Функції транзакцій
-        getTransactions
+        getTransactions,
+
+        // Додаткові функції
+        showRateLimitProgress
     };
 
     // Для зворотної сумісності
