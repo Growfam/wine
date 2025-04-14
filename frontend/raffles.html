@@ -2425,27 +2425,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     </script>
 <script>
-  // Додайте в кінець raffles.html
-  setTimeout(() => {
-    console.log("Тестовий виклик API");
-    fetch('/api/raffles')
-      .then(response => response.json())
-      .then(data => {
-        console.log("Дані розіграшів:", data);
-        if (data && data.data && Array.isArray(data.data)) {
-          console.log(`Отримано ${data.data.length} розіграшів`);
-          // Перевірка чи є активні розіграші
-          alert(`Знайдено ${data.data.length} активних розіграшів`);
-        } else {
-          console.error("Неправильний формат даних:", data);
-          alert("Помилка формату даних розіграшів");
-        }
-      })
-      .catch(err => {
-        console.error("Помилка запиту:", err);
-        alert("Помилка отримання розіграшів: " + err.message);
-      });
-  }, 2000);
+// Почекаємо трохи після завантаження даних і вимкнемо спінер, якщо він все ще активний
+setTimeout(() => {
+  // Знаходимо всі можливі спінери
+  const spinners = document.querySelectorAll('.spinner, .loading-indicator, .loader');
+  spinners.forEach(spinner => {
+    spinner.style.display = 'none';
+  });
+
+  // Оновлюємо елементи сторінки
+  const container = document.getElementById('raffles-container') || document.querySelector('.raffles-list');
+  if (container) {
+    container.style.opacity = '1';
+  }
+
+  console.log("Примусово вимкнено спінери завантаження");
+}, 3000);
 </script>
+<script src="/js/fix-raffles.js"></script>
 </body>
 </html>
