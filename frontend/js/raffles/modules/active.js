@@ -5,6 +5,7 @@
  */
 
 import WinixRaffles from '../globals.js';
+import { CONFIG } from '../config.js';
 
 /**
  * Клас для управління активними розіграшами
@@ -43,33 +44,38 @@ class ActiveRafflesManager {
    * @returns {Promise<void>}
    */
   async init() {
-    WinixRaffles.logger.log("Ініціалізація модуля активних розіграшів");
+  WinixRaffles.logger.log("Ініціалізація модуля активних розіграшів");
 
-    try {
-      // Знаходимо потрібні DOM елементи
-      this._findDOMElements();
+  try {
+    // Знаходимо потрібні DOM елементи
+    this._findDOMElements();
 
-      // Встановлюємо обробники подій
-      this._setupEventListeners();
+    // Встановлюємо обробники подій
+    this._setupEventListeners();
 
-      // Перевіряємо, чи пристрій онлайн
-      if (!this._isOnline()) {
-        WinixRaffles.logger.warn("Пристрій офлайн, відображаємо кешовані дані");
-        this.displayOfflineData();
-        return;
-      }
+    // Додаємо виклик нового методу
+    this._setupRefreshTimers();
 
-      // Отримуємо та відображаємо активні розіграші
-      await this.getActiveRaffles();
-      await this.displayRaffles();
-
-      WinixRaffles.logger.log("Ініціалізацію модуля активних розіграшів завершено");
-    } catch (error) {
-      WinixRaffles.logger.error("Критична помилка при ініціалізації модуля активних розіграшів:", error);
-      this.resetAllStates();
+    // Перевіряємо, чи пристрій онлайн
+    if (!WinixRaffles.network.isOnline()) {
+      WinixRaffles.logger.warn("Пристрій офлайн, відображаємо кешовані дані");
       this.displayOfflineData();
+      return this;
     }
+
+    // Отримуємо та відображаємо активні розіграші
+    await this.getActiveRaffles();
+    await this.displayRaffles();
+
+    WinixRaffles.logger.log("Ініціалізацію модуля активних розіграшів завершено");
+    return this;
+  } catch (error) {
+    WinixRaffles.logger.error("Критична помилка при ініціалізації модуля активних розіграшів:", error);
+    this.resetAllStates();
+    this.displayOfflineData();
+    throw error;
   }
+}
 
   /**
    * Знаходження необхідних DOM елементів
@@ -138,6 +144,39 @@ class ActiveRafflesManager {
       });
     }
   }
+
+  /**
+ * Налаштування таймерів оновлення
+ * @private
+ */
+_setupRefreshTimers() {
+  // Очищаємо існуючі таймери
+  this._stopRaffleTimers();
+
+  // Встановлюємо інтервал оновлення з конфігурації
+  const refreshInterval = CONFIG.REFRESH_INTERVALS.ACTIVE_RAFFLES;
+
+  // Запускаємо оновлення таймерів кожну хвилину
+  const interval = setInterval(() => this._updateRaffleTimers(), 60000);
+  this.state.timerIntervals.push(interval);
+
+  // Запускаємо оновлення даних
+  if (refreshInterval > 0) {
+    const dataInterval = setInterval(() => {
+      if (WinixRaffles.network.isOnline()) {
+        this.getActiveRaffles(true)
+          .then(data => this.displayRaffles(data))
+          .catch(error => {
+            WinixRaffles.logger.warn("Помилка автоматичного оновлення активних розіграшів:", error);
+          });
+      }
+    }, refreshInterval);
+    this.state.timerIntervals.push(dataInterval);
+  }
+
+  // Відразу запускаємо оновлення
+  this._updateRaffleTimers();
+}
 
   /**
    * Перевірка, чи пристрій онлайн
@@ -1266,6 +1305,22 @@ class ActiveRafflesManager {
   }
 
   /**
+ * Публічний метод для оновлення даних
+ * @param {boolean} [forceRefresh=false] Примусове оновлення
+ * @returns {Promise<Array>} Масив активних розіграшів
+ */
+async refresh(forceRefresh = false) {
+  try {
+    const raffles = await this.getActiveRaffles(forceRefresh);
+    await this.displayRaffles(raffles);
+    return raffles;
+  } catch (error) {
+    WinixRaffles.logger.error("Помилка оновлення активних розіграшів:", error);
+    throw error;
+  }
+}
+
+  /**
    * Знищення модуля при вивантаженні сторінки
    */
   destroy() {
@@ -1290,9 +1345,7 @@ class ActiveRafflesManager {
   }
 }
 
-/**
- * Модуль активних розіграшів
- */
+// Оновлений експортований об'єкт
 const activeRafflesModule = {
   manager: null,
 
@@ -1300,8 +1353,6 @@ const activeRafflesModule = {
    * Ініціалізація модуля
    */
   init: async function() {
-    WinixRaffles.logger.log("Ініціалізація модуля активних розіграшів");
-
     // Створюємо менеджер активних розіграшів
     this.manager = new ActiveRafflesManager();
 
@@ -1309,16 +1360,41 @@ const activeRafflesModule = {
     await this.manager.init();
 
     // Експортуємо методи для зворотної сумісності в WinixRaffles.active
-    WinixRaffles.active = WinixRaffles.active || {};
-    WinixRaffles.active.init = this.manager.init.bind(this.manager);
-    WinixRaffles.active.getActiveRaffles = this.manager.getActiveRaffles.bind(this.manager);
-    WinixRaffles.active.displayRaffles = this.manager.displayRaffles.bind(this.manager);
-    WinixRaffles.active.displayOfflineData = this.manager.displayOfflineData.bind(this.manager);
-    WinixRaffles.active.switchTab = this.manager.switchTab.bind(this.manager);
-    WinixRaffles.active.resetAllStates = this.manager.resetAllStates.bind(this.manager);
-    WinixRaffles.active.destroy = this.manager.destroy.bind(this.manager);
+    WinixRaffles.active = {
+      init: this.manager.init.bind(this.manager),
+      getActiveRaffles: this.manager.getActiveRaffles.bind(this.manager),
+      displayRaffles: this.manager.displayRaffles.bind(this.manager),
+      displayOfflineData: this.manager.displayOfflineData.bind(this.manager),
+      switchTab: this.manager.switchTab.bind(this.manager),
+      resetAllStates: this.manager.resetAllStates.bind(this.manager),
+      destroy: this.manager.destroy.bind(this.manager),
+      refresh: this.manager.refresh.bind(this.manager)
+    };
+
+    // Реєструємо модуль в глобальній системі, якщо є метод registerModule
+    if (typeof WinixRaffles.registerModule === 'function') {
+      WinixRaffles.registerModule('active', {
+        init: this.manager.init.bind(this.manager),
+        refresh: this.manager.refresh.bind(this.manager),
+        getActiveRaffles: this.manager.getActiveRaffles.bind(this.manager),
+        displayRaffles: this.manager.displayRaffles.bind(this.manager),
+        destroy: this.manager.destroy.bind(this.manager)
+      });
+    }
 
     return this;
+  },
+
+  /**
+   * Метод оновлення даних
+   * @param {boolean} [forceRefresh=false] Примусове оновлення
+   * @returns {Promise<Array>} Масив активних розіграшів
+   */
+  refresh: function(forceRefresh = false) {
+    if (this.manager) {
+      return this.manager.refresh(forceRefresh);
+    }
+    return Promise.resolve([]);
   },
 
   /**
@@ -1329,72 +1405,7 @@ const activeRafflesModule = {
       this.manager.destroy();
       this.manager = null;
     }
-
-    WinixRaffles.logger.log("Модуль активних розіграшів знищено");
   }
 };
 
-// Реєструємо модуль в системі WinixRaffles
-WinixRaffles.registerModule('active', activeRafflesModule);
-
-// Для зворотної сумісності
-const activeRaffles = {
-  init: function() {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule) {
-      return activeModule.init();
-    }
-    return null;
-  },
-
-  getActiveRaffles: function(forceRefresh = false) {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule && activeModule.manager) {
-      return activeModule.manager.getActiveRaffles(forceRefresh);
-    }
-    return [];
-  },
-
-  displayRaffles: function(forcedRaffles = null) {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule && activeModule.manager) {
-      return activeModule.manager.displayRaffles(forcedRaffles);
-    }
-    return null;
-  },
-
-  displayOfflineData: function() {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule && activeModule.manager) {
-      return activeModule.manager.displayOfflineData();
-    }
-    return null;
-  },
-
-  switchTab: function(tabName) {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule && activeModule.manager) {
-      return activeModule.manager.switchTab(tabName);
-    }
-    return null;
-  },
-
-  resetAllStates: function() {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule && activeModule.manager) {
-      return activeModule.manager.resetAllStates();
-    }
-    return null;
-  },
-
-  destroy: function() {
-    const activeModule = WinixRaffles.getModule('active');
-    if (activeModule) {
-      return activeModule.destroy();
-    }
-    return null;
-  }
-};
-
-// Експортуємо модуль для зворотної сумісності
-export default activeRaffles;
+export default activeRafflesModule;

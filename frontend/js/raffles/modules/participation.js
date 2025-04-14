@@ -8,6 +8,7 @@ import WinixRaffles from '../globals.js';
 import { showLoading, hideLoading, showToast, copyToClipboard, showConfirm } from '../utils/ui-helpers.js';
 import api from '../services/api.js';
 import { formatDate } from '../utils/formatters.js';
+import { CONFIG } from '../config.js';
 
 /**
  * Класс TransactionManager для управління транзакційністю участі в розіграшах
@@ -18,7 +19,7 @@ class TransactionManager {
     this.activeTransactions = new Map();
     this.pendingTimeouts = new Map();
     this.transactionHistory = new Map();
-    this.MAX_TRANSACTION_TIME = 30000; // 30 секунд
+    this.MAX_TRANSACTION_TIME = CONFIG.API.TIMEOUT || 30000;
   }
 
   /**
@@ -807,9 +808,14 @@ class ParticipationModule {
       // Підписуємося на події
       this._setupEventListeners();
 
+      // Встановлюємо інтервали оновлення з конфігурації, якщо потрібно
+      this._setupRefreshIntervals();
+      
       WinixRaffles.logger.log("Модуль участі в розіграшах ініціалізовано");
+      return this;
     } catch (error) {
       WinixRaffles.logger.error("Помилка ініціалізації модуля участі в розіграшах:", error);
+      throw error;
     }
   }
 
@@ -1067,7 +1073,7 @@ class ParticipationModule {
 
       // Покращені параметри запиту
       const response = await api.apiRequest(`/api/raffles/${raffleId}`, 'GET', null, {
-        timeout: 10000,
+    timeout: CONFIG.API.TIMEOUT,
         suppressErrors: true,
         forceCleanup: true
       });
@@ -1753,7 +1759,24 @@ class ParticipationModule {
       });
     }
   }
+/**
+ * Оновлення даних модуля
+ * @param {boolean} [forceRefresh=false] Примусове оновлення
+ * @returns {Promise<boolean>} Результат оновлення
+ */
+async refresh(forceRefresh = false) {
+  try {
+    WinixRaffles.logger.log("Оновлення даних модуля участі");
 
+    // Оновлюємо активні розіграші
+    const result = await this.refreshActiveRaffles(forceRefresh);
+
+    return true;
+  } catch (error) {
+    WinixRaffles.logger.error("Помилка оновлення даних модуля участі:", error);
+    return false;
+  }
+}
   /**
    * Очищення ресурсів і кешу при знищенні модуля
    */
@@ -1778,14 +1801,50 @@ class ParticipationModule {
 // Створюємо екземпляр класу
 const participationModule = new ParticipationModule();
 
-// Додаємо в глобальний об'єкт для зворотної сумісності
-WinixRaffles.participation = participationModule;
+// Оновлюємо експорт для єдиної системи
+export default {
+  /**
+   * Ініціалізація модуля участі
+   */
+  init: async function() {
+    try {
+      await participationModule.init();
 
-// Автоматична ініціалізація при завантаженні
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => participationModule.init());
-} else {
-  setTimeout(() => participationModule.init(), 100);
-}
+      // Експортуємо методи для зворотної сумісності
+      WinixRaffles.participation = participationModule;
 
-export default participationModule;
+      // Реєструємо модуль в системі WinixRaffles (для нової архітектури)
+      if (typeof WinixRaffles.registerModule === 'function') {
+        WinixRaffles.registerModule('participation', {
+          init: participationModule.init.bind(participationModule),
+          refresh: participationModule.refresh.bind(participationModule),
+          openRaffleDetails: participationModule.openRaffleDetails.bind(participationModule),
+          participateInRaffle: participationModule.participateInRaffle.bind(participationModule),
+          refreshActiveRaffles: participationModule.refreshActiveRaffles.bind(participationModule),
+          destroy: participationModule.destroy.bind(participationModule)
+        });
+      }
+
+      return participationModule;
+    } catch (error) {
+      WinixRaffles.logger.error("Помилка ініціалізації модуля участі:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Метод оновлення даних
+   * @param {boolean} [forceRefresh=false] Примусове оновлення
+   * @returns {Promise<boolean>} Результат оновлення
+   */
+  refresh: function(forceRefresh = false) {
+    return participationModule.refresh(forceRefresh);
+  },
+
+  /**
+   * Знищення модуля
+   */
+  destroy: function() {
+    participationModule.destroy();
+  }
+};

@@ -7,16 +7,17 @@
 import WinixRaffles from '../globals.js';
 import api from '../services/api.js';
 import { formatCurrency, formatNumber, formatDate } from '../utils/formatters.js';
+import { CONFIG } from '../config.js';
 
 /**
  * Клас для керування кешем статистики
  */
 class StatsCache {
   constructor() {
-    this.CACHE_KEY = 'winix_user_statistics';
-    this.CACHE_VERSION = 2; // Версія для міграцій кешу
-    this.MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 днів
-  }
+  this.CACHE_KEY = CONFIG?.OFFLINE?.STORAGE_KEYS?.STATISTICS || 'winix_user_statistics';
+  this.CACHE_VERSION = 2; // Версія для міграцій кешу
+  this.MAX_AGE = CONFIG?.API?.CACHE_TTL?.STATISTICS_MAX_AGE || 30 * 24 * 60 * 60 * 1000; // 30 днів
+}
 
   /**
    * Отримання статистики з кешу
@@ -972,9 +973,23 @@ class StatisticsModule {
     this.currentStats = null;
     this.isUpdating = false;
     this.lastUpdateTime = 0;
-    this.updateInterval = 5 * 60 * 1000; // 5 хвилин
+    this.updateInterval = CONFIG?.REFRESH_INTERVALS?.STATISTICS || 5 * 60 * 1000; // 5 хвилин за замовчуванням
     this.eventListeners = [];
   }
+
+  /**
+ * Оновлення статистики
+ * @param {boolean} [forceRefresh=false] Примусове оновлення
+ * @returns {Promise<Object>} Статистика
+ */
+async refresh(forceRefresh = false) {
+  try {
+    return await this.fetchStatistics(forceRefresh);
+  } catch (error) {
+    WinixRaffles.logger.error("Помилка оновлення статистики:", error);
+    throw error;
+  }
+}
 
   /**
    * Ініціалізація модуля
@@ -1439,14 +1454,50 @@ class StatisticsModule {
 // Створюємо екземпляр класу
 const statisticsModule = new StatisticsModule();
 
-// Додаємо в глобальний об'єкт для зворотної сумісності
-WinixRaffles.stats = statisticsModule;
+// Оновлюємо експорт для єдиної системи
+export default {
+  /**
+   * Ініціалізація модуля статистики
+   */
+  init: async function() {
+    try {
+      await statisticsModule.init();
 
-// Автоматична ініціалізація
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => statisticsModule.init());
-} else {
-  setTimeout(() => statisticsModule.init(), 100);
-}
+      // Експортуємо методи для зворотної сумісності
+      WinixRaffles.stats = statisticsModule;
 
-export default statisticsModule;
+      // Реєструємо модуль в системі WinixRaffles (для нової архітектури)
+      if (typeof WinixRaffles.registerModule === 'function') {
+        WinixRaffles.registerModule('stats', {
+          init: statisticsModule.init.bind(statisticsModule),
+          refresh: statisticsModule.refresh.bind(statisticsModule),
+          fetchStatistics: statisticsModule.fetchStatistics.bind(statisticsModule),
+          displayUserStats: statisticsModule.displayUserStats.bind(statisticsModule),
+          updateStatistics: statisticsModule.updateStatistics.bind(statisticsModule),
+          destroy: statisticsModule.destroy.bind(statisticsModule)
+        });
+      }
+
+      return statisticsModule;
+    } catch (error) {
+      WinixRaffles.logger.error("Помилка ініціалізації модуля статистики:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Метод оновлення даних
+   * @param {boolean} [forceRefresh=false] Примусове оновлення
+   * @returns {Promise<Object>} Статистика
+   */
+  refresh: function(forceRefresh = false) {
+    return statisticsModule.refresh(forceRefresh);
+  },
+
+  /**
+   * Знищення модуля
+   */
+  destroy: function() {
+    statisticsModule.destroy();
+  }
+};

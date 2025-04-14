@@ -5,24 +5,26 @@
 
 import WinixRaffles from '../globals.js';
 import api from '../services/api.js';
+import { CONFIG } from '../config.js';
 
-// Конфігурація модуля
-const CONFIG = {
+
+// Локальна конфігурація з використанням глобальної
+const HISTORY_CONFIG = {
   // Розмір однієї сторінки історії
-  PAGE_SIZE: 10,
+  PAGE_SIZE: CONFIG?.UI?.DEFAULT_PAGE_SIZE || 10,
 
   // Час зберігання даних у кеші (мс)
   CACHE_TTL: {
-    HISTORY: 5 * 60 * 1000,      // 5 хвилин для історії
-    DETAILS: 10 * 60 * 1000,     // 10 хвилин для деталей розіграшу
-    STATS: 15 * 60 * 1000        // 15 хвилин для статистики
+    HISTORY: CONFIG?.API?.CACHE_TTL?.HISTORY || 5 * 60 * 1000,      // 5 хвилин для історії
+    DETAILS: CONFIG?.API?.CACHE_TTL?.HISTORY_DETAILS || 10 * 60 * 1000,     // 10 хвилин для деталей розіграшу
+    STATS: CONFIG?.API?.CACHE_TTL?.STATISTICS || 15 * 60 * 1000       // 15 хвилин для статистики
   },
 
   // Мінімальний час між запитами (мс)
-  MIN_REQUEST_INTERVAL: 3 * 1000, // 3 секунди між запитами
+  MIN_REQUEST_INTERVAL: CONFIG?.API?.MIN_REQUEST_INTERVAL || 3 * 1000, // 3 секунди між запитами
 
   // Час охолодження після помилки 429 (мс)
-  RATE_LIMIT_COOLDOWN: 60 * 1000  // 1 хвилина після досягнення ліміту запитів
+  RATE_LIMIT_COOLDOWN: CONFIG?.API?.RATE_LIMIT_COOLDOWN || 60 * 1000  // 1 хвилина після досягнення ліміту запитів
 };
 
 // Клас для роботи з історією розіграшів
@@ -885,6 +887,36 @@ class HistoryModule {
   }
 
   /**
+ * Публічний метод для оновлення даних історії
+ * @param {boolean} [forceRefresh=false] Примусове оновлення
+ * @returns {Promise<Array>} Історія розіграшів
+ */
+async refresh(forceRefresh = false) {
+  try {
+    WinixRaffles.logger.log("Оновлення історії розіграшів");
+
+    // Очищуємо кеш якщо потрібне примусове оновлення
+    if (forceRefresh) {
+      this.clearCache();
+    }
+
+    // Отримуємо оновлену історію
+    const history = await this.getRafflesHistory({}, forceRefresh);
+
+    // Якщо відображення активне, оновлюємо його
+    const historyContainer = document.getElementById('history-container');
+    if (historyContainer && historyContainer.offsetParent !== null) {
+      await this.displayHistory('history-container', forceRefresh);
+    }
+
+    return history;
+  } catch (error) {
+    WinixRaffles.logger.error("Помилка оновлення історії розіграшів:", error);
+    throw error;
+  }
+}
+
+  /**
    * Завантаження наступної сторінки історії
    * @param {string} containerId - ID контейнера для відображення
    * @private
@@ -1364,19 +1396,50 @@ class HistoryModule {
 // Створюємо екземпляр модуля
 const historyModule = new HistoryModule();
 
-// Ініціалізуємо модуль при завантаженні
-setTimeout(() => {
-  historyModule.init();
-}, 100);
+// Оновлюємо експорт для єдиної системи
+export default {
+  /**
+   * Ініціалізація модуля історії
+   */
+  init: async function() {
+    try {
+      await historyModule.init();
 
-// Для зворотної сумісності
-WinixRaffles.history = historyModule;
+      // Експортуємо методи для зворотної сумісності
+      WinixRaffles.history = historyModule;
 
-// Реєструємо модуль в системі WinixRaffles (для нової архітектури)
-if (typeof WinixRaffles.registerModule === 'function') {
-  WinixRaffles.registerModule('history', historyModule);
-}
+      // Реєструємо модуль в системі WinixRaffles (для нової архітектури)
+      if (typeof WinixRaffles.registerModule === 'function') {
+        WinixRaffles.registerModule('history', {
+          init: historyModule.init.bind(historyModule),
+          refresh: historyModule.refresh.bind(historyModule),
+          getRafflesHistory: historyModule.getRafflesHistory.bind(historyModule),
+          displayHistory: historyModule.displayHistory.bind(historyModule),
+          getStatistics: historyModule.getStatistics.bind(historyModule),
+          destroy: historyModule.destroy.bind(historyModule)
+        });
+      }
 
-console.log("📋 WINIX Raffles: Ініціалізація модуля історії розіграшів");
+      return historyModule;
+    } catch (error) {
+      WinixRaffles.logger.error("Помилка ініціалізації модуля історії:", error);
+      throw error;
+    }
+  },
 
-export default historyModule;
+  /**
+   * Метод оновлення даних
+   * @param {boolean} [forceRefresh=false] Примусове оновлення
+   * @returns {Promise<Array>} Історія розіграшів
+   */
+  refresh: function(forceRefresh = false) {
+    return historyModule.refresh(forceRefresh);
+  },
+
+  /**
+   * Знищення модуля
+   */
+  destroy: function() {
+    historyModule.destroy();
+  }
+};
