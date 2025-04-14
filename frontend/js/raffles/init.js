@@ -15,23 +15,26 @@
     // Створення основного об'єкта WinixRaffles, якщо він ще не існує
     window.WinixRaffles = {
         // Поточний стан
-        state: {
-            isInitialized: false,
-            activeTab: 'active',
-            activeRaffles: [],
-            pastRaffles: [],
-            userRaffles: [],
-            telegramId: null,
-            isLoading: false,
-            refreshTimers: {}
-        },
+            state: {
+        isInitialized: false,
+        activeTab: 'active',
+        activeRaffles: [],
+        pastRaffles: [],
+        userRaffles: [],
+        telegramId: null,
+        isLoading: false,
+        refreshTimers: {},
+        invalidRaffleIds: new Set() // Для відстеження невалідних ID розіграшів
+    },
 
-        // Конфігурація
-        config: {
-            activeRafflesEndpoint: 'api/raffles/active',
-            pastRafflesEndpoint: 'api/raffles/past',
-            userRafflesEndpoint: 'api/user/raffles',
-            autoRefreshInterval: 120000 // 2 хвилини
+    // Конфігурація
+    config: {
+        activeRafflesEndpoint: 'api/raffles', // Виправлено з 'api/raffles/active'
+        pastRafflesEndpoint: 'api/raffles/history', // Виправлено з 'api/raffles/past'
+        userRafflesEndpoint: 'api/user/{userId}/raffles', // Додано динамічний параметр
+        userRafflesHistoryEndpoint: 'api/user/{userId}/raffles-history', // Додано ендпоінт історії
+        autoRefreshInterval: 120000 // 2 хвилини
+
         },
 
         // Ініціалізація системи розіграшів

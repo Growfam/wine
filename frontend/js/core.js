@@ -1,7 +1,7 @@
 /**
  * core.js - Базова функціональність WINIX
  * Оптимізована версія з покращеною інтеграцією з API та Auth модулями
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 (function() {
@@ -31,6 +31,11 @@
 
     // Прапорець, що вказує, чи виконується запит до API
     let _requestInProgress = false;
+
+    // Лічильник помилок - для відстеження критичних проблем
+    let _errorCounter = 0;
+    const MAX_ERRORS_BEFORE_RESET = 5;
+    let _lastErrorTime = 0;
 
     // Перевірка доступності модулів з повною перевіркою
     const hasApiModule = () => {
@@ -147,6 +152,24 @@
     }
 
     /**
+     * Перевірка валідності UUID
+     * @param {string} id - ID для перевірки
+     * @returns {boolean} Результат перевірки
+     */
+    function isValidUUID(id) {
+        try {
+            if (!id || typeof id !== 'string') return false;
+
+            // Повна перевірка на стандартний UUID формат
+            const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return fullUUIDRegex.test(id);
+        } catch (e) {
+            console.error("Помилка перевірки UUID:", e);
+            return false;
+        }
+    }
+
+    /**
      * Функція безпечного очікування завантаження API та Auth модулів
      * @param {number} maxWaitTime - Максимальний час очікування в мс
      * @returns {Promise<boolean>} Результат очікування
@@ -183,6 +206,54 @@
                 }
             }, checkInterval);
         });
+    }
+
+    /**
+     * Функція для скидання стану та перезавантаження після критичних помилок
+     */
+    function resetAndReloadApplication() {
+        console.log("🔄 Core: Скидання стану додатку через критичні помилки...");
+
+        try {
+            // Очищаємо кеш API
+            if (hasApiModule() && typeof window.WinixAPI.clearCache === 'function') {
+                window.WinixAPI.clearCache();
+            }
+
+            // Очищаємо локальне сховище
+            try {
+                // Зберігаємо лише критичні дані для автентифікації
+                const userId = getFromStorage('telegram_user_id');
+                const authToken = getFromStorage('auth_token');
+
+                // Очищаємо кеш
+                localStorage.clear();
+
+                // Відновлюємо критичні дані
+                if (userId) saveToStorage('telegram_user_id', userId);
+                if (authToken) saveToStorage('auth_token', authToken);
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка очищення localStorage:", e);
+            }
+
+            // Очищаємо кеш розіграшів
+            if (window.WinixRaffles && window.WinixRaffles.state) {
+                window.WinixRaffles.state.activeRaffles = [];
+                window.WinixRaffles.state.pastRaffles = [];
+                window.WinixRaffles.state.isLoading = false;
+            }
+
+            // Перезавантажуємо сторінку через 1 секунду
+            setTimeout(function() {
+                window.location.reload();
+            }, 1000);
+        } catch (e) {
+            console.error("❌ Core: Помилка скидання стану:", e);
+            // У випадку критичної помилки просто перезавантажуємо
+            setTimeout(function() {
+                window.location.reload();
+            }, 500);
+        }
     }
 
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
@@ -301,6 +372,9 @@
                         source: 'core.js'
                     }));
 
+                    // Скидаємо лічильник помилок при успішному запиті
+                    _errorCounter = 0;
+
                     return _userData;
                 }
             } else {
@@ -329,6 +403,25 @@
         } catch (error) {
             console.error('Помилка отримання даних користувача:', error);
             _requestInProgress = false;
+
+            // Збільшуємо лічильник помилок
+            _errorCounter++;
+            _lastErrorTime = Date.now();
+
+            // Перевірка на критичну кількість помилок
+            if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
+
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
+                }
+
+                // Скидаємо лічильник помилок
+                _errorCounter = 0;
+
+                // Запускаємо скидання стану через 1 секунду
+                setTimeout(resetAndReloadApplication, 1000);
+            }
 
             // У випадку помилки використовуємо дані з localStorage
             const storedUserData = getFromStorage('userData', null, true);
@@ -568,8 +661,8 @@
             // Оновлюємо дані користувача
             if (!_userData) _userData = {};
 
-            _userData.balance = balanceData.balance || _userData.balance || 0;
-            _userData.coins = balanceData.coins || _userData.coins || 0;
+            _userData.balance = balanceData.balance !== undefined ? balanceData.balance : _userData.balance || 0;
+            _userData.coins = balanceData.coins !== undefined ? balanceData.coins : _userData.coins || 0;
 
             // Зберігаємо в localStorage
             saveToStorage('userTokens', _userData.balance);
@@ -580,6 +673,9 @@
             // Оновлюємо відображення
             updateBalanceDisplay();
 
+            // Скидаємо лічильник помилок при успішному запиті
+            _errorCounter = 0;
+
             return {
                 success: true,
                 data: {
@@ -589,6 +685,10 @@
             };
         } catch (error) {
             console.error('Помилка оновлення балансу:', error);
+
+            // Збільшуємо лічильник помилок
+            _errorCounter++;
+            _lastErrorTime = Date.now();
 
             // У випадку помилки використовуємо кешовані дані
             updateBalanceDisplay();
@@ -696,6 +796,10 @@
             };
         } catch (error) {
             console.error('Помилка синхронізації даних користувача:', error);
+
+            // Збільшуємо лічильник помилок
+            _errorCounter++;
+            _lastErrorTime = Date.now();
 
             // У випадку помилки використовуємо кешовані дані
             updateUserDisplay();
@@ -843,12 +947,37 @@
         console.warn("⚠️ Core: Втрачено з'єднання з мережею");
     });
 
+    // Глобальна обробка помилок для виявлення проблем
+    window.addEventListener('error', function(event) {
+        console.error('Критична помилка JavaScript:', event.error);
+
+        // Збільшуємо лічильник помилок
+        _errorCounter++;
+        _lastErrorTime = Date.now();
+
+        // При критичному накопиченні помилок скидаємо стан
+        if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
+            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
+
+            // Скидаємо лічильник
+            _errorCounter = 0;
+
+            // Виводимо сповіщення користувачу
+            if (typeof window.showToast === 'function') {
+                window.showToast('Виникли проблеми з додатком. Сторінка буде перезавантажена.', 'error');
+            }
+
+            // Відкладене скидання стану для уникнення циклічних перезавантажень
+            setTimeout(resetAndReloadApplication, 2000);
+        }
+    });
+
     // ======== ПУБЛІЧНИЙ API ========
 
     // Експортуємо публічний API
     window.WinixCore = {
         // Версія модуля
-        version: '1.1.0',
+        version: '1.2.0',
 
         // Утиліти
         getElement,
@@ -856,6 +985,8 @@
         getFromStorage,
         formatCurrency,
         isOnline,
+        isValidUUID,
+        resetAndReloadApplication,
 
         // Функції користувача
         getUserData,
@@ -875,6 +1006,9 @@
         init,
         waitForModules
     };
+
+    // Додаємо функцію resetAndReloadApplication в глобальний простір імен
+    window.resetAndReloadApplication = resetAndReloadApplication;
 
     // Ініціалізуємо ядро при завантаженні сторінки
     if (document.readyState === 'loading') {

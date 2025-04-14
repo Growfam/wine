@@ -9,12 +9,13 @@ import sys
 import logging
 import json
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 import traceback
 
 # Сторонні бібліотеки
-from flask import Flask, render_template, request, jsonify, send_from_directory, session, g
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -42,6 +43,14 @@ BASE_DIR = os.path.dirname(BACKEND_DIR)
 if BACKEND_DIR not in sys.path:
     sys.path.append(BACKEND_DIR)
 
+# Перевірка валідності UUID
+def is_valid_uuid(uuid_string):
+    """Перевіряє, чи є рядок валідним UUID"""
+    try:
+        uuid_obj = uuid.UUID(uuid_string)
+        return str(uuid_obj) == uuid_string
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 def create_app(config_name=None):
     """Фабрика для створення застосунку Flask"""
@@ -95,7 +104,7 @@ def setup_cors(app):
          resources={r"/*": {"origins": "*"}},
          supports_credentials=True,
          expose_headers=["Content-Type", "X-CSRFToken"],
-         allow_headers=["Content-Type", "X-Requested-With", "Authorization"])
+         allow_headers=["Content-Type", "X-Requested-With", "Authorization", "X-Telegram-User-Id"])
     logger.info("CORS налаштовано")
 
 
@@ -196,6 +205,7 @@ def register_utility_routes(app):
         # Перевіряємо наявність ключових файлів
         index_html_exists = os.path.exists(os.path.join(template_dir, 'index.html'))
         original_index_html_exists = os.path.exists(os.path.join(template_dir, 'original-index.html'))
+        raffles_html_exists = os.path.exists(os.path.join(template_dir, 'raffles.html'))
 
         return jsonify({
             "status": "running",
@@ -211,6 +221,7 @@ def register_utility_routes(app):
                 "chenel_exists": chenel_exists,
                 "index_html_exists": index_html_exists,
                 "original_index_html_exists": original_index_html_exists,
+                "raffles_html_exists": raffles_html_exists,
                 "supabase_test": supabase_test
             }
         })
@@ -274,11 +285,20 @@ def register_page_routes(app):
 
     @app.route('/original-index')
     def original_index():
-        return render_template('original-index.html')
+        try:
+            return render_template('original-index.html')
+        except Exception as e:
+            logger.error(f"Помилка рендерингу original-index.html: {str(e)}")
+            # Повертаємо базову сторінку якщо оригінал відсутній
+            return render_template('index.html')
 
     @app.route('/original-index.html')
     def original_index_html():
-        return render_template('original-index.html')
+        try:
+            return render_template('original-index.html')
+        except Exception as e:
+            logger.error(f"Помилка рендерингу original-index.html: {str(e)}")
+            return render_template('index.html')
 
     # Явні маршрути для основних сторінок
     @app.route('/earn')
@@ -327,7 +347,30 @@ def register_page_routes(app):
 
     @app.route('/raffles')
     def raffles():
-        return render_template('html_input.txt')
+        try:
+            return render_template('raffles.html')
+        except Exception as e:
+            logger.error(f"Помилка рендерингу raffles.html: {str(e)}")
+            # Повертаємо базову HTML-сторінку якщо файл не знайдено
+            return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WINIX Розіграші</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <link rel="stylesheet" href="/css/style.css">
+            </head>
+            <body>
+                <h1>WINIX Розіграші</h1>
+                <p>Сторінка розіграшів завантажується...</p>
+                <script src="/js/api.js"></script>
+                <script src="/js/core.js"></script>
+                <script src="/js/raffles/init.js"></script>
+                <script src="/js/raffles/index.js"></script>
+            </body>
+            </html>
+            """
 
     # Маршрут для всіх інших HTML файлів
     @app.route('/<path:filename>.html')
@@ -478,12 +521,26 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def page_not_found(e):
         logger.error(f"404 error: {request.path}")
+
+        # Спеціальна обробка для шляхів API з можливою помилкою UUID
+        if '/api/raffles/' in request.path:
+            # Перевірка, чи містить шлях потенційно короткий UUID
+            parts = request.path.split('/')
+            for part in parts:
+                if part and len(part) < 36 and not part.startswith('api'):
+                    logger.error(f"Виявлено потенційно невалідний UUID: {part}")
+                    return jsonify({
+                        "error": "invalid_raffle_id",
+                        "message": "Невалідний ідентифікатор розіграшу",
+                        "details": "ID розіграшу має бути у форматі UUID"
+                    }), 400
+
         return jsonify({
             "error": "not_found",
             "message": f"Сторінка не знайдена: {request.path}",
             "available_routes": [
                 "/", "/index.html", "/original-index.html", "/earn.html", "/wallet.html",
-                "/referrals.html", "/staking.html", "/transactions.html"
+                "/referrals.html", "/staking.html", "/transactions.html", "/raffles.html"
             ]
         }), 404
 
