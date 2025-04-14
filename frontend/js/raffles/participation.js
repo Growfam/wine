@@ -1,6 +1,7 @@
 /**
  * WINIX - Система розіграшів (participation.js)
  * Модуль для обробки участі користувача в розіграшах
+ * Оновлена версія - дозволяє багаторазову участь
  */
 
 (function() {
@@ -14,8 +15,11 @@
 
     // Підмодуль для участі в розіграшах
     const participation = {
-        // Множина ID розіграшів, у яких користувач уже бере участь
+        // Множина ID розіграшів, у яких користувач уже бере участь (для відстеження)
         participatingRaffles: new Set(),
+
+        // Кількість білетів користувача для кожного розіграшу
+        userRaffleTickets: {},
 
         // Кеш недійсних розіграшів (для кращої роботи UI)
         invalidRaffleIds: new Set(),
@@ -77,10 +81,15 @@
                 if (response.status === 'success' && Array.isArray(response.data)) {
                     // Очищаємо та заповнюємо множину розіграшів, у яких бере участь користувач
                     this.participatingRaffles.clear();
+                    this.userRaffleTickets = {};
 
                     response.data.forEach(raffle => {
                         if (raffle.raffle_id) {
+                            // Додаємо до множини участі
                             this.participatingRaffles.add(raffle.raffle_id);
+
+                            // Зберігаємо кількість білетів
+                            this.userRaffleTickets[raffle.raffle_id] = raffle.entry_count || 1;
                         }
                     });
 
@@ -100,10 +109,14 @@
             document.querySelectorAll('.join-button').forEach(button => {
                 const raffleId = button.getAttribute('data-raffle-id');
 
+                // Для розіграшів, у яких користувач бере участь, змінюємо текст кнопки
                 if (raffleId && this.participatingRaffles.has(raffleId)) {
-                    button.textContent = 'Ви вже берете участь';
+                    const ticketCount = this.userRaffleTickets[raffleId] || 1;
+                    button.textContent = `Додати ще білет (у вас: ${ticketCount})`;
+
+                    // Змінюємо клас, але не додаємо disabled
                     button.classList.add('participating');
-                    button.disabled = true;
+                    button.disabled = false;
                 }
 
                 if (raffleId && this.invalidRaffleIds.has(raffleId)) {
@@ -117,10 +130,14 @@
             document.querySelectorAll('.mini-raffle-button').forEach(button => {
                 const raffleId = button.getAttribute('data-raffle-id');
 
+                // Для розіграшів, у яких користувач бере участь, змінюємо текст кнопки
                 if (raffleId && this.participatingRaffles.has(raffleId)) {
-                    button.textContent = 'Ви вже берете участь';
+                    const ticketCount = this.userRaffleTickets[raffleId] || 1;
+                    button.textContent = `Додати ще білет (${ticketCount})`;
+
+                    // Змінюємо клас, але не додаємо disabled
                     button.classList.add('participating');
-                    button.disabled = true;
+                    button.disabled = false;
                 }
 
                 if (raffleId && this.invalidRaffleIds.has(raffleId)) {
@@ -146,15 +163,13 @@
                 return false;
             }
 
-            // Перевірка чи користувач уже бере участь
-            if (this.participatingRaffles.has(raffleId)) {
-                window.showToast('Ви вже берете участь у цьому розіграші', 'info');
-                return true;
-            }
+            // Відстежуємо чи користувач уже бере участь (але не блокуємо участь)
+            const isAlreadyParticipating = this.participatingRaffles.has(raffleId);
+            const currentTickets = this.userRaffleTickets[raffleId] || 0;
 
-            // Запобігання надмірним запитам (не частіше ніж раз на 3 секунди)
+            // Запобігання надмірним запитам (не частіше ніж раз на 2 секунди)
             const now = Date.now();
-            if (now - this.lastParticipationTime < 3000) {
+            if (now - this.lastParticipationTime < 2000) {
                 window.showToast('Зачекайте перед наступною спробою', 'warning');
                 return false;
             }
@@ -190,11 +205,16 @@
                     // Додаємо розіграш до множини участі
                     this.participatingRaffles.add(raffleId);
 
+                    // Інкрементуємо кількість білетів
+                    this.userRaffleTickets[raffleId] = (this.userRaffleTickets[raffleId] || 0) + 1;
+
                     // Оновлюємо кнопки участі
                     this.updateParticipationButtons();
 
                     // Показуємо повідомлення про успіх
-                    let message = 'Ви успішно взяли участь у розіграші';
+                    let message = isAlreadyParticipating
+                        ? `Додано ще один білет! Тепер у вас ${this.userRaffleTickets[raffleId]} білетів`
+                        : 'Ви успішно взяли участь у розіграші';
 
                     // Додаємо інформацію про бонус, якщо є
                     if (response.data && response.data.bonus_amount) {
@@ -202,6 +222,15 @@
                     }
 
                     window.showToast(message, 'success');
+
+                    // Створюємо подію для сповіщення про успішну участь
+                    document.dispatchEvent(new CustomEvent('raffle-participation', {
+                        detail: {
+                            successful: true,
+                            raffleId: raffleId,
+                            ticketCount: this.userRaffleTickets[raffleId]
+                        }
+                    }));
 
                     // Оновлюємо баланс користувача
                     if (response.data && response.data.new_coins_balance !== undefined) {
