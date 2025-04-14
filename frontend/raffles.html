@@ -1945,10 +1945,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             <!-- Вкладки розіграшів -->
             <div class="raffle-tabs">
-                <button class="tab-button active" data-tab="active" onclick="switchRaffleTab('active')">Активні</button>
-                <button class="tab-button" data-tab="past" onclick="switchRaffleTab('past')">Минулі</button>
-                <button class="tab-button" data-tab="stats" onclick="switchRaffleTab('stats')">Статистика</button>
-            </div>
+  <button class="tab-button active" data-tab="active">Активні</button>
+  <button class="tab-button" data-tab="past">Минулі</button>
+  <button class="tab-button" data-tab="stats">Статистика</button>
+</div>
+
+
+
 
             <!-- Секція активних розіграшів -->
             <div class="tab-content active" id="active-raffles">
@@ -2440,6 +2443,22 @@ setTimeout(() => {
 
   console.log("Примусово вимкнено спінери завантаження");
 }, 3000);
+</script>
+    <script>
+// Глобальна змінна для виправлення помилки tabName
+window.activeTab = 'active';
+
+// Додаємо обробники подій для всіх кнопок вкладок
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', function() {
+      const tab = this.getAttribute('data-tab');
+      if (tab && typeof window.switchRaffleTab === 'function') {
+        window.switchRaffleTab(tab);
+      }
+    });
+  });
+});
 </script>
 <script src="js/raffles/fix-raffles.js"></script>
 </body>
