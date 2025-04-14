@@ -2269,23 +2269,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Глобальна функція для перемикання вкладок
         function switchRaffleTab(tabName) {
-            console.log("Перемикання на вкладку:", tabName);
+    console.log("Перемикання на вкладку:", tabName);
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
 
-            // Вимикаємо активний клас для всіх вкладок
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
+    document.querySelector(`.tab-button[data-tab="${tabName}"]`)?.classList.add('active');
+    document.getElementById(`${tabName}-raffles`)?.classList.add('active');
 
-            // Активуємо вибрану вкладку
-            const selectedTab = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
-            if (selectedTab) {
-                selectedTab.classList.add('active');
-            }
-
-            // Ховаємо всі контенти вкладок
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+    // Примусове приховування спінерів при зміні вкладки
+    document.querySelectorAll('.loading-placeholder').forEach(loader => {
+        loader.style.display = 'none';
+    });
+}
 
             // Показуємо вибраний контент
             const selectedContent = document.getElementById(`${tabName}-raffles`);
@@ -2296,7 +2295,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Спробуємо викликати функцію модуля, якщо вона вже доступна
             if (window.rafflesModule && typeof window.rafflesModule.switchTab === 'function') {
                 window.rafflesModule.switchTab(tabName);
-            }
+
         }
     </script>
 
