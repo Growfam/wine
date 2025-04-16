@@ -149,6 +149,24 @@
                 }
 
                 console.error('❌ Помилка завантаження активних розіграшів:', error);
+                   if (error.message && error.message.includes('raffle_not_found')) {
+        // Показуємо спеціальне повідомлення користувачу
+        if (typeof window.showToast === 'function') {
+            window.showToast("Один або більше розіграшів вже завершено. Оновлюємо список...", "warning");
+        }
+
+        // Очищаємо локальний кеш розіграшів
+        try {
+            localStorage.removeItem('winix_active_raffles');
+        } catch (e) {
+            console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
+        }
+
+        // Повторно завантажуємо розіграші після паузи
+        setTimeout(() => {
+            this.loadActiveRaffles(true);
+        }, 2000);
+    }
                 this.tryLoadFromLocalStorage();
             } finally {
                 WinixRaffles.state.isLoading = false;
@@ -158,24 +176,38 @@
 
         // Спроба завантажити дані з локального сховища
         tryLoadFromLocalStorage: function() {
-            try {
-                const storedRaffles = localStorage.getItem('winix_active_raffles');
-                if (storedRaffles) {
-                    const parsedRaffles = JSON.parse(storedRaffles);
-                    if (parsedRaffles && Array.isArray(parsedRaffles.data) && parsedRaffles.data.length > 0) {
-                        console.log('🎲 Використовуємо дані з локального сховища');
-                        this.raffles = parsedRaffles.data;
-                        this.renderActiveRaffles(this.raffles);
-                        return;
-                    }
+    try {
+        const storedRaffles = localStorage.getItem('winix_active_raffles');
+        if (storedRaffles) {
+            const parsedRaffles = JSON.parse(storedRaffles);
+
+            // ДОДАТИ НОВИЙ КОД ТУТ: перевірка актуальності кешу
+            if (parsedRaffles && parsedRaffles.timestamp) {
+                const now = Date.now();
+                const cacheAge = now - parsedRaffles.timestamp;
+
+                // Якщо кеш старший за 30 хвилин, не використовуємо його
+                if (cacheAge > 30 * 60 * 1000) {
+                    console.log('🎲 Кеш розіграшів застарів, не використовуємо');
+                    this.renderEmptyActiveRaffles();
+                    return;
                 }
-            } catch (e) {
-                console.warn('⚠️ Помилка завантаження даних з локального сховища:', e);
             }
 
-            // Якщо не вдалося завантажити з локального сховища
-            this.renderEmptyActiveRaffles();
-        },
+            if (parsedRaffles && Array.isArray(parsedRaffles.data) && parsedRaffles.data.length > 0) {
+                console.log('🎲 Використовуємо дані з локального сховища');
+                this.raffles = parsedRaffles.data;
+                this.renderActiveRaffles(this.raffles);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('⚠️ Помилка завантаження даних з локального сховища:', e);
+    }
+
+    // Якщо не вдалося завантажити з локального сховища
+    this.renderEmptyActiveRaffles();
+},
 
         // Відображення активних розіграшів
         renderActiveRaffles: function(raffles) {

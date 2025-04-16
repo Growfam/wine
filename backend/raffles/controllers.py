@@ -234,15 +234,19 @@ class RaffleTransaction:
 
 # Функція для перевірки валідності UUID
 def is_valid_uuid(raffle_id):
-    """Перевіряє, чи ID розіграшу є валідним UUID"""
     if not raffle_id:
         return False
 
     try:
-        # Спроба конвертації в UUID - якщо успішно, значить формат вірний
-        uuid_obj = uuid.UUID(raffle_id)
-        return str(uuid_obj) == raffle_id
-    except (ValueError, AttributeError, TypeError):
+        # Нормалізуємо UUID
+        if isinstance(raffle_id, str):
+            raffle_id = raffle_id.strip()
+
+        # Гнучкіша перевірка
+        uuid_obj = uuid.UUID(str(raffle_id))
+        return True
+    except Exception as e:
+        logger.debug(f"UUID validation failed: {raffle_id} - {str(e)}")
         return False
 
 
@@ -250,12 +254,14 @@ def is_valid_uuid(raffle_id):
 def check_raffle_exists(raffle_id):
     """Перевіряє існування розіграшу в базі даних"""
     if not is_valid_uuid(raffle_id):
+        logger.warning(f"Невалідний формат ID розіграшу: {raffle_id}")
         raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу: {raffle_id}")
 
     try:
         response = supabase.table("raffles").select("id").eq("id", raffle_id).execute()
 
         if not response.data or len(response.data) == 0:
+            logger.warning(f"Розіграш з ID {raffle_id} не знайдено в базі даних")
             raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено в базі даних")
 
         return True
@@ -671,6 +677,34 @@ def get_user_raffles(telegram_id):
 
     if not raffle_ids:
         return jsonify({"status": "success", "data": []})
+
+        # Фільтруємо тільки валідні UUID
+        valid_raffle_ids = []
+        for r_id in raffle_ids:
+            if is_valid_uuid(r_id):
+                valid_raffle_ids.append(r_id)
+            else:
+                logger.warning(f"Невалідний ID розіграшу {r_id} для користувача {telegram_id}")
+
+        # Якщо всі ID невалідні
+        if not valid_raffle_ids:
+            return jsonify({"status": "success", "data": []})
+
+        # Використовуємо тільки валідні ID для отримання розіграшів
+        try:
+            # Використовуємо запит in_ для вибірки кількох розіграшів одночасно
+            raffles_response = supabase.table("raffles").select("*").in_("id", valid_raffle_ids).execute()
+        except Exception as e:
+            # Використовуємо тільки валідні ID для отримання розіграшів
+            try:
+                # Використовуємо запит in_ для вибірки кількох розіграшів одночасно
+                raffles_response = supabase.table("raffles").select("*").in_("id", valid_raffle_ids).execute()
+            except Exception as e:
+                logger.error(f"Помилка запиту розіграшів {valid_raffle_ids}: {str(e)}")
+                return jsonify({"status": "success", "data": []})
+
+            if not raffles_response.data:
+                return jsonify({"status": "success", "data": []})
 
     # Отримуємо дані цих розіграшів
     try:
@@ -1598,3 +1632,10 @@ def check_and_finish_expired_raffles():
         "errors": errors,
         "total_expired": len(expired_raffles_response.data)
     }
+# Запуск початкового очищення orphaned записів
+try:
+    from .routes import cleanup_orphaned_participants
+    cleanup_result = cleanup_orphaned_participants()
+    logger.info(f"Результат початкового очищення orphaned participants: {cleanup_result}")
+except Exception as e:
+    logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")

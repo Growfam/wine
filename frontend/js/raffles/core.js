@@ -48,7 +48,7 @@
     }
 
     // ===== КЛЮЧОВІ ФУНКЦІЇ СИСТЕМИ РОЗІГРАШІВ =====
-    
+
 /**
  * Завантаження активних розіграшів
  * @param {boolean} forceRefresh - Примусове оновлення, ігноруючи кеш
@@ -1236,4 +1236,33 @@ WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50
     }
 
     console.log('✅ Система розіграшів WINIX успішно оновлена');
+    /**
+ * Очищення кешу невалідних розіграшів
+ */
+WinixRaffles.clearInvalidRaffleIds = function() {
+    // Очищаємо колекцію невалідних ID
+    if (this.state && this.state.invalidRaffleIds) {
+        this.state.invalidRaffleIds.clear();
+    }
+
+    if (this.participation && this.participation.invalidRaffleIds) {
+        this.participation.invalidRaffleIds.clear();
+    }
+
+    // Очищаємо кеш активних розіграшів
+    try {
+        localStorage.removeItem('winix_active_raffles');
+        console.log('🧹 Очищено кеш активних розіграшів');
+    } catch (e) {
+        console.warn('⚠️ Не вдалося очистити кеш розіграшів:', e);
+    }
+
+    console.log('🧹 Очищено колекції невалідних ID розіграшів');
+
+    // Оновлюємо список розіграшів, якщо потрібно
+    if (this.active && typeof this.active.loadActiveRaffles === 'function') {
+        console.log('🔄 Повторне завантаження розіграшів після очищення кешу');
+        this.active.loadActiveRaffles(true);
+    }
+}
 })();
