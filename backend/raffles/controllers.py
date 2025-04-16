@@ -23,8 +23,10 @@ logger = logging.getLogger(__name__)
 try:
     from ..supabase_client import (
         supabase, get_user, update_user, update_balance, update_coins,
-        check_and_update_badges, execute_transaction, cache_get, cache_set, clear_cache
+        execute_transaction, cache_get, cache_set, clear_cache
     )
+    # Імпортуємо сервіс бейджів
+    from ..badges.badge_service import award_badges
     # Імпортуємо допоміжні функції для транзакцій
     from ..utils.transaction_helpers import create_transaction_record, update_transaction_status
 except ImportError:
@@ -36,8 +38,10 @@ except ImportError:
 
     from supabase_client import (
         supabase, get_user, update_user, update_balance, update_coins,
-        check_and_update_badges, execute_transaction, cache_get, cache_set, clear_cache
+        execute_transaction, cache_get, cache_set, clear_cache
     )
+    # Імпортуємо сервіс бейджів
+    from badges.badge_service import award_badges
     from utils.transaction_helpers import create_transaction_record, update_transaction_status
 
 
@@ -656,9 +660,14 @@ def participate_in_raffle(telegram_id, data):
         clear_cache("active_raffles")
         clear_cache(f"raffle_details_{raffle_id}")
 
-        # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
+        # Перевіряємо, чи користувач досяг умов для отримання бейджів
         if participations_count >= 5:
-            check_and_update_badges(telegram_id)
+            # Використовуємо нову функцію для нагородження бейджами
+            award_badges(telegram_id, {
+                "action": "participation",
+                "raffle_id": raffle_id,
+                "participations_count": participations_count
+            })
 
         # Формуємо відповідь
         total_entries = existing_entry_count + entry_count
@@ -1565,11 +1574,16 @@ def finish_raffle(raffle_id, admin_id=None):
 
                     txn.table("transactions").insert(transaction_data).execute()
 
-                    # Перевіряємо, чи потрібно активувати бейдж переможця
-                    if wins_count == 1 and not user.get("badge_winner", False):
-                        txn.table("winix").update({"badge_winner": True}).eq("telegram_id", winner["telegram_id"]).execute()
+        # Після завершення транзакції перевіряємо бейджі для всіх переможців
+        for winner in winners:
+            # Використовуємо нову функцію для нагородження бейджами
+            award_badges(winner["telegram_id"], {
+                "action": "win",
+                "raffle_id": raffle_id,
+                "place": winner["place"]
+            })
 
-        # Очищаємо кеш
+        # Очищуємо кеш
         clear_cache(f"raffle_details_{raffle_id}")
         clear_cache("active_raffles")
 
