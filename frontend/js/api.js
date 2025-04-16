@@ -287,7 +287,7 @@ function isValidUUID(id) {
 
 // У функції apiRequest додайте цей код перед основним запитом
 // для виправлення проблеми з невалідним UUID в URL
-if (endpoint.includes('raffles/')) {
+if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
     const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
     if (raffleIdMatch && raffleIdMatch[1]) {
         const raffleId = raffleIdMatch[1];
