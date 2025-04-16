@@ -118,9 +118,9 @@
                     }
                 }
 
-                if (response.status === 'success' && Array.isArray(response.data)) {
+                if (response && response.status === 'success' && Array.isArray(response.data)) {
                     console.log('👉 Знайдено розіграшів:', response.data.length);
-            console.log('👉 Дані розіграшів:', JSON.stringify(response.data));
+                    console.log('👉 Дані розіграшів:', JSON.stringify(response.data));
                     this.raffles = response.data;
                     this.lastUpdate = now;
 
@@ -136,7 +136,9 @@
 
                     this.renderActiveRaffles(this.raffles);
                 } else {
-                    console.error('❌ Помилка завантаження активних розіграшів:', error);
+                    // ВИПРАВЛЕНО: Використовуємо response замість невизначеної змінної error
+                    console.error('❌ Помилка завантаження активних розіграшів:',
+                        response ? response.message || 'Невідома помилка' : 'Немає відповіді від сервера');
                     this.tryLoadFromLocalStorage();
                 }
             } catch (error) {
@@ -150,7 +152,7 @@
                 this.tryLoadFromLocalStorage();
             } finally {
                 WinixRaffles.state.isLoading = false;
-                console.error('❌ Детальна помилка:', error.stack || JSON.stringify(error));
+                // ВИПРАВЛЕНО: Видалено звернення до невизначеної змінної error у блоці finally
             }
         },
 
