@@ -136,7 +136,7 @@
 
                     this.renderActiveRaffles(this.raffles);
                 } else {
-                    console.error('❌ Неправильний формат відповіді:', response);
+                    console.error('❌ Помилка завантаження активних розіграшів:', error);
                     this.tryLoadFromLocalStorage();
                 }
             } catch (error) {
