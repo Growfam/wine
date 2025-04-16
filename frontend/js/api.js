@@ -61,13 +61,13 @@
 
     // Мінімальний інтервал між однаковими запитами (збільшено для запобігання rate-limiting)
     const REQUEST_THROTTLE = {
-        '/user/': 3000,      // 3 секунд (було 5)
-        '/staking': 3000,    // 3 секунд (було 8)
-        '/balance': 3000,    // 1 секунд (було 5)
-        '/transactions': 3000, // 2 секунд (було 15)
-        '/raffles': 3000,    // 1 секунд (новий)
-        '/participate-raffle': 5000, // 5 секунд (посилено для запобігання дублюванню)
-        'default': 3000       // 3 секунд (було 4)
+        '/user/': 3000,      // 3 секунд
+        '/staking': 3000,    // 3 секунд
+        '/balance': 3000,    // 3 секунд
+        '/transactions': 3000, // 3 секунд
+        '/raffles': 500,     // 0.5 секунд (виправлено - зменшено для швидшого завантаження розіграшів)
+        '/participate-raffle': 5000, // 5 секунд
+        'default': 1000      // 1 секунда (виправлено для кращої швидкодії)
     };
 
     // Лічильник запитів
@@ -740,28 +740,36 @@
             if (_globalRateLimited && !options.bypassThrottle) {
                 const remainingTime = Math.ceil((_globalRateLimitTime - Date.now()) / 1000);
                 if (remainingTime > 0) {
-                    console.warn(`🔌 API: Глобальне обмеження швидкості, залишилось ${remainingTime}с, ігноруємо запит до ${endpoint}`);
+                    console.warn(`🔌 API: Глобальне обмеження швидкості, залишилось ${remainingTime}с`);
 
-                    // Перевіряємо чи це запит до профілю користувача
-                    const isUserProfileRequest = endpoint.includes('/user/') &&
-                                      !endpoint.includes('/staking') &&
-                                      !endpoint.includes('/balance') &&
-                                      !endpoint.includes('/claim');
+                    // ВИПРАВЛЕННЯ: Дозволяємо запитам до розіграшів працювати незалежно від глобального обмеження
+                    if (endpoint.includes('/raffles') && !endpoint.includes('participate')) {
+                        console.log(`🔄 Дозволяємо запит до розіграшів, незважаючи на глобальне обмеження`);
+                        // Продовжуємо виконання для запитів розіграшів
+                    }
+                    // Для інших запитів - перевіряємо кеш або блокуємо
+                    else {
+                        // Перевіряємо чи це запит до профілю користувача
+                        const isUserProfileRequest = endpoint.includes('/user/') &&
+                                          !endpoint.includes('/staking') &&
+                                          !endpoint.includes('/balance') &&
+                                          !endpoint.includes('/claim');
 
-                    // Якщо є кеш для запитів даних користувача і запит не вимагає свіжих даних
-                    if (isUserProfileRequest && _userCache && !options.forceRefresh) {
-                        return Promise.resolve({
-                            status: 'success',
-                            data: _userCache,
-                            source: 'cache_global_limit'
+                        // Якщо є кеш для запитів даних користувача і запит не вимагає свіжих даних
+                        if (isUserProfileRequest && _userCache && !options.forceRefresh) {
+                            return Promise.resolve({
+                                status: 'success',
+                                data: _userCache,
+                                source: 'cache_global_limit'
+                            });
+                        }
+
+                        return Promise.reject({
+                            status: 'rate_limited',
+                            message: `Глобальне обмеження швидкості. Залишилось ${remainingTime}с`,
+                            retryAfter: _globalRateLimitTime - Date.now()
                         });
                     }
-
-                    return Promise.reject({
-                        status: 'rate_limited',
-                        message: `Глобальне обмеження швидкості. Залишилось ${remainingTime}с`,
-                        retryAfter: _globalRateLimitTime - Date.now()
-                    });
                 } else {
                     // Якщо час очікування минув, знімаємо обмеження
                     _globalRateLimited = false;
@@ -1097,13 +1105,18 @@
                             // Блокуємо endpoint на вказаний час
                             _blockedEndpoints[endpoint] = Date.now() + (waitTime * 1000);
 
-                            // Встановлюємо глобальне обмеження для всіх запитів
+                            // ВИПРАВЛЕННЯ: Обмежуємо лише участь в розіграшах, а не всі запити
                             if (isParticipationRequest) {
-                                _globalRateLimited = true;
-                                _globalRateLimitTime = Date.now() + (waitTime * 1000);
+                                // Замість глобального блокування, блокуємо тільки запити на участь
+                                _blockedEndpoints['/participate-raffle'] = Date.now() + (waitTime * 1000);
 
-                                // Зберігаємо в localStorage для відновлення після перезавантаження
-                                localStorage.setItem('winix_rate_limited_until', _globalRateLimitTime.toString());
+                                // КРИТИЧНЕ ВИПРАВЛЕННЯ: Не встановлюємо глобальне обмеження
+                                // Закоментовано проблемний код:
+                                // _globalRateLimited = true;
+                                // _globalRateLimitTime = Date.now() + (waitTime * 1000);
+                                // localStorage.setItem('winix_rate_limited_until', _globalRateLimitTime.toString());
+
+                                console.log(`⚠️ Блокування тільки запитів участі на ${waitTime} секунд`);
                             }
 
                             // Показуємо індикатор прогресу очікування
