@@ -48,168 +48,170 @@
     }
 
     // ===== КЛЮЧОВІ ФУНКЦІЇ СИСТЕМИ РОЗІГРАШІВ =====
-
-    /**
-     * Завантаження активних розіграшів
-     * @param {boolean} forceRefresh - Примусове оновлення, ігноруючи кеш
-     * @param {number} limit - Ліміт кількості розіграшів (за замовчуванням 50)
-     * @param {number} offset - Зміщення для пагінації
-     * @returns {Promise<Object>} Результат завантаження
-     */
-    WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50, offset = 0) {
-         console.log("👉 core.js: loadActiveRaffles викликано");
+    
+/**
+ * Завантаження активних розіграшів
+ * @param {boolean} forceRefresh - Примусове оновлення, ігноруючи кеш
+ * @param {number} limit - Ліміт кількості розіграшів (за замовчуванням 50)
+ * @param {number} offset - Зміщення для пагінації
+ * @returns {Promise<Object>} Результат завантаження
+ */
+WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50, offset = 0) {
+    console.log("👉 core.js: loadActiveRaffles викликано");
 
     // Якщо модуль active доступний, використовуємо його метод
     if (this.active && typeof this.active.loadActiveRaffles === 'function') {
         console.log("👉 Делегуємо завантаження до WinixRaffles.active.loadActiveRaffles");
         return await this.active.loadActiveRaffles(forceRefresh);
     }
-        // Швидке відображення кешованих даних перед запитом
-        if (this.state.activeRaffles.length > 0 && !forceRefresh) {
-            this.renderActiveRaffles();
-        }
 
-        // Запобігаємо паралельним запитам (мінімальна перевірка)
-        if (this.state.isLoading && !forceRefresh) {
-            console.log("⏳ Завантаження розіграшів вже виконується");
+    // Швидке відображення кешованих даних перед запитом
+    if (this.state.activeRaffles.length > 0 && !forceRefresh) {
+        this.renderActiveRaffles();
+    }
 
-            // Якщо у нас є дані, повертаємо кеш замість помилки
-            if (this.state.activeRaffles.length > 0) {
-                console.log("⚠️ Використовуємо кешовані дані розіграшів (запит вже виконується)");
-                return {
-                    success: true,
-                    source: 'cache_parallel',
-                    data: this.state.activeRaffles,
-                    message: "Використано кешовані дані (запит вже виконується)"
-                };
-            }
+    // Запобігаємо паралельним запитам (мінімальна перевірка)
+    if (this.state.isLoading && !forceRefresh) {
+        console.log("⏳ Завантаження розіграшів вже виконується");
 
-            return { success: false, message: "Завантаження вже виконується" };
-        }
-
-        // Перевірка на мінімальний інтервал між запитами
-        const now = Date.now();
-        const timeSinceLastLoad = now - _lastLoadTime;
-        if (!forceRefresh && timeSinceLastLoad < 3000 && this.state.activeRaffles.length > 0) {
-            console.log(`⏳ Занадто частий запит (минуло ${Math.floor(timeSinceLastLoad/1000)}с), використовуємо кеш`);
+        // Якщо у нас є дані, повертаємо кеш замість помилки
+        if (this.state.activeRaffles.length > 0) {
+            console.log("⚠️ Використовуємо кешовані дані розіграшів (запит вже виконується)");
             return {
                 success: true,
-                source: 'cache_throttle',
+                source: 'cache_parallel',
                 data: this.state.activeRaffles,
-                message: "Використано кешовані дані (обмеження частоти)"
+                message: "Використано кешовані дані (запит вже виконується)"
             };
         }
 
-        this.state.isLoading = true;
+        return { success: false, message: "Завантаження вже виконується" };
+    }
 
-        // Показуємо індикатор завантаження лише якщо немає даних або це примусове оновлення
-        const showLoader = !this.skipLoader &&
-            (this.state.activeRaffles.length === 0 || forceRefresh);
+    // Перевірка на мінімальний інтервал між запитами
+    const now = Date.now();
+    const timeSinceLastLoad = now - _lastLoadTime;
+    if (!forceRefresh && timeSinceLastLoad < 3000 && this.state.activeRaffles.length > 0) {
+        console.log(`⏳ Занадто частий запит (минуло ${Math.floor(timeSinceLastLoad/1000)}с), використовуємо кеш`);
+        return {
+            success: true,
+            source: 'cache_throttle',
+            data: this.state.activeRaffles,
+            message: "Використано кешовані дані (обмеження частоти)"
+        };
+    }
 
-        if (showLoader && typeof window.showLoading === 'function') {
-            window.showLoading();
+    this.state.isLoading = true;
+
+    // Показуємо індикатор завантаження лише якщо немає даних або це примусове оновлення
+    const showLoader = !this.skipLoader &&
+        (this.state.activeRaffles.length === 0 || forceRefresh);
+
+    if (showLoader && typeof window.showLoading === 'function') {
+        window.showLoading();
+    }
+
+    try {
+        console.log("🔄 Розпочато завантаження активних розіграшів");
+
+        // Формуємо URL запиту з параметрами
+        const queryParams = new URLSearchParams({
+            limit: limit,
+            offset: offset,
+            t: now // Запобігання кешуванню
+        });
+
+        // Отримуємо дані з сервера за допомогою API
+        let response;
+        const apiEndpoint = `${this.config.activeRafflesEndpoint}?${queryParams.toString()}`;
+
+        if (typeof WinixAPI !== 'undefined' && typeof WinixAPI.apiRequest === 'function') {
+            response = await WinixAPI.apiRequest(apiEndpoint, 'GET', null, {
+                timeout: 15000, // Збільшений таймаут
+                suppressErrors: true, // Обробляємо помилки тут
+                retries: 2, // Дозволяємо 2 повторні спроби
+                bypassThrottle: forceRefresh // Обхід обмежень при примусовому оновленні
+            });
+        } else {
+            // Запасний метод, якщо API недоступний
+            const fetchResponse = await fetch(`${apiEndpoint}`);
+            response = await fetchResponse.json();
         }
 
-        try {
-            console.log("🔄 Розпочато завантаження активних розіграшів");
+        // Перевіряємо успішність відповіді
+        if (response && response.status === 'success' && Array.isArray(response.data)) {
+            // Зберігаємо дані розіграшів
+            this.state.activeRaffles = response.data;
 
-            // Формуємо URL запиту з параметрами
-            const queryParams = new URLSearchParams({
-                limit: limit,
-                offset: offset,
-                t: now // Запобігання кешуванню
-            });
-
-            // Отримуємо дані з сервера за допомогою API
-            let response;
-            const apiEndpoint = `${this.config.activeRafflesEndpoint}?${queryParams.toString()}`;
-
-            if (typeof WinixAPI !== 'undefined' && typeof WinixAPI.apiRequest === 'function') {
-                response = await WinixAPI.apiRequest(apiEndpoint, 'GET', null, {
-                    timeout: 15000, // Збільшений таймаут
-                    suppressErrors: true, // Обробляємо помилки тут
-                    retries: 2, // Дозволяємо 2 повторні спроби
-                    bypassThrottle: forceRefresh // Обхід обмежень при примусовому оновленні
+            // Позначаємо розіграші, в яких користувач бере участь (асинхронно)
+            // Додаємо затримку для запобігання занадто частим запитам
+            setTimeout(() => {
+                this.loadUserParticipation().catch(err => {
+                    console.warn("⚠️ Не вдалося завантажити дані участі:", err);
                 });
-            } else {
-                // Запасний метод, якщо API недоступний
-                const fetchResponse = await fetch(`${apiEndpoint}`);
-                response = await fetchResponse.json();
+            }, 1000);
+
+            // Оновлюємо відображення
+            this.renderActiveRaffles();
+
+            console.log(`✅ Успішно завантажено ${this.state.activeRaffles.length} активних розіграшів`);
+
+            // Якщо є модуль participation, оновлюємо статус
+            if (this.participation && typeof this.participation.updateParticipationButtons === 'function') {
+                this.participation.updateParticipationButtons();
             }
 
-            // Перевіряємо успішність відповіді
-            if (response && response.status === 'success' && Array.isArray(response.data)) {
-                // Зберігаємо дані розіграшів
-                this.state.activeRaffles = response.data;
+            // Оновлюємо час останнього завантаження
+            _lastLoadTime = now;
 
-                // Позначаємо розіграші, в яких користувач бере участь (асинхронно)
-                // Додаємо затримку для запобігання занадто частим запитам
-                setTimeout(() => {
-                    this.loadUserParticipation().catch(err => {
-                        console.warn("⚠️ Не вдалося завантажити дані участі:", err);
-                    });
-                }, 1000);
-
-                // Оновлюємо відображення
-                this.renderActiveRaffles();
-
-                console.log(`✅ Успішно завантажено ${this.state.activeRaffles.length} активних розіграшів`);
-
-                // Якщо є модуль participation, оновлюємо статус
-                if (this.participation && typeof this.participation.updateParticipationButtons === 'function') {
-                    this.participation.updateParticipationButtons();
-                }
-
-                // Оновлюємо час останнього завантаження
-                _lastLoadTime = now;
-
-                // Відправляємо подію про оновлення розіграшів
-                document.dispatchEvent(new CustomEvent('raffles-loaded', {
-                    detail: { count: this.state.activeRaffles.length }
-                }));
-
-                return {
-                    success: true,
-                    data: this.state.activeRaffles,
-                    message: `Завантажено ${this.state.activeRaffles.length} розіграшів`
-                };
-            } else {
-                throw new Error(response?.message || 'Не вдалося завантажити активні розіграші');
-            }
-        } catch (error) {
-            console.error('❌ Помилка завантаження активних розіграшів:', error);
-
-            // Якщо є кешовані дані, використовуємо їх
-            if (this.state.activeRaffles.length > 0) {
-                console.log("⚠️ Використовуємо кешовані дані розіграшів");
-                return {
-                    success: true,
-                    source: 'cache',
-                    data: this.state.activeRaffles,
-                    message: "Використано кешовані дані розіграшів"
-                };
-            }
-
-            // Відображаємо повідомлення про помилку, якщо немає кешованих даних
-            this.renderError('Не вдалося завантажити розіграші', 'Спробуйте оновити сторінку');
+            // Відправляємо подію про оновлення розіграшів
+            document.dispatchEvent(new CustomEvent('raffles-loaded', {
+                detail: { count: this.state.activeRaffles.length }
+            }));
 
             return {
-                success: false,
-                message: error.message || 'Помилка завантаження розіграшів'
+                success: true,
+                data: this.state.activeRaffles,
+                message: `Завантажено ${this.state.activeRaffles.length} розіграшів`
             };
-        } finally {
-            // Завершуємо процес завантаження
-            this.state.isLoading = false;
-
-            // Приховуємо індикатор завантаження
-            if (showLoader && typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            // Скидаємо флаг пропуску індикатора
-            this.skipLoader = false;
+        } else {
+            // ВИПРАВЛЕНО: Використовуємо response замість неіснуючої змінної
+            throw new Error(response?.message || 'Не вдалося завантажити активні розіграші');
         }
-    };
+    } catch (error) {
+        console.error('❌ Помилка завантаження активних розіграшів:', error);
+
+        // Якщо є кешовані дані, використовуємо їх
+        if (this.state.activeRaffles.length > 0) {
+            console.log("⚠️ Використовуємо кешовані дані розіграшів");
+            return {
+                success: true,
+                source: 'cache',
+                data: this.state.activeRaffles,
+                message: "Використано кешовані дані розіграшів"
+            };
+        }
+
+        // Відображаємо повідомлення про помилку, якщо немає кешованих даних
+        this.renderError('Не вдалося завантажити розіграші', 'Спробуйте оновити сторінку');
+
+        return {
+            success: false,
+            message: error.message || 'Помилка завантаження розіграшів'
+        };
+    } finally {
+        // Завершуємо процес завантаження
+        this.state.isLoading = false;
+
+        // Приховуємо індикатор завантаження
+        if (showLoader && typeof window.hideLoading === 'function') {
+            window.hideLoading();
+        }
+
+        // Скидаємо флаг пропуску індикатора
+        this.skipLoader = false;
+    }
+};
 
     /**
      * Завантаження розіграшів, у яких бере участь користувач
