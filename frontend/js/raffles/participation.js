@@ -105,8 +105,9 @@
                     if (raffleId) {
                         e.preventDefault();
 
-                        // Додаємо клас для індикації процесу
+                        // Додаємо клас для індикації процесу і блокуємо кнопку
                         joinButton.classList.add('processing');
+                        joinButton.disabled = true;
 
                         // Зберігаємо посилання на кнопку для оновлення стану
                         const buttonRef = joinButton;
@@ -121,8 +122,9 @@
                                 window.showToast(error.message || 'Помилка участі в розіграші', 'error');
                             })
                             .finally(() => {
-                                // Видаляємо статус обробки з кнопки
+                                // Видаляємо статус обробки з кнопки і розблоковуємо її
                                 buttonRef.classList.remove('processing');
+                                buttonRef.disabled = false;
                             });
                     }
                 }
@@ -182,7 +184,8 @@
                 const response = await WinixAPI.apiRequest(`user/${userId}/raffles`, 'GET', null, {
                     suppressErrors: true,
                     hideLoader: true,
-                    timeout: 8000 // Збільшуємо таймаут для запобігання помилок
+                    timeout: 8000, // Збільшуємо таймаут для запобігання помилок
+                    allowParallel: true // Цей запит може виконуватись паралельно з іншими
                 });
 
                 if (response && response.status === 'success' && Array.isArray(response.data)) {

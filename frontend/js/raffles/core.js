@@ -361,6 +361,10 @@
                         // Змінюємо клас, але не додаємо disabled
                         button.classList.add('participating');
                         button.disabled = false;
+
+                        // Видаляємо статус обробки, якщо він був
+                        button.removeAttribute('data-processing');
+                        button.classList.remove('processing');
                     }
                 }
 
@@ -586,6 +590,7 @@
                 const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
                 // Оновлюємо елементи таймера, тільки якщо вони існують
                 const daysElement = document.getElementById(`days-${raffle.id}`);
@@ -596,13 +601,95 @@
                 if (daysElement) daysElement.textContent = days.toString().padStart(2, '0');
                 if (hoursElement) hoursElement.textContent = hours.toString().padStart(2, '0');
                 if (minutesElement) minutesElement.textContent = minutes.toString().padStart(2, '0');
-                if (secondsElement) secondsElement.textContent = '00'; // Фіксоване значення для секунд
+                if (secondsElement) secondsElement.textContent = seconds.toString().padStart(2, '0');
             });
 
-            console.log("⏱️ Встановлено статичні значення часу замість анімованих таймерів");
+            // Створюємо один спільний таймер для всіх елементів
+            _globalCountdownTimer = setInterval(() => {
+                rafflesWithTimers.forEach(raffle => {
+                    const timeLeft = raffle.endTime.getTime() - new Date().getTime();
+
+                    // Перевіряємо, чи розіграш завершився
+                    if (timeLeft <= 0) {
+                        // Додаємо до невалідних
+                        this.state.invalidRaffleIds.add(raffle.id);
+                        if (this.participation && this.participation.invalidRaffleIds) {
+                            this.participation.invalidRaffleIds.add(raffle.id);
+                        }
+
+                        // Оновлюємо кнопки участі
+                        if (this.participation && typeof this.participation.updateParticipationButtons === 'function') {
+                            this.participation.updateParticipationButtons();
+                        }
+
+                        // Встановлюємо нулі в таймері
+                        const daysElement = document.getElementById(`days-${raffle.id}`);
+                        const hoursElement = document.getElementById(`hours-${raffle.id}`);
+                        const minutesElement = document.getElementById(`minutes-${raffle.id}`);
+                        const secondsElement = document.getElementById(`seconds-${raffle.id}`);
+
+                        if (daysElement) daysElement.textContent = '00';
+                        if (hoursElement) hoursElement.textContent = '00';
+                        if (minutesElement) minutesElement.textContent = '00';
+                        if (secondsElement) secondsElement.textContent = '00';
+                        return;
+                    }
+
+                    // Обчислюємо значення часу
+                    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+                    // Оновлюємо тільки секунди для економії ресурсів
+                    const secondsElement = document.getElementById(`seconds-${raffle.id}`);
+                    if (secondsElement) secondsElement.textContent = seconds.toString().padStart(2, '0');
+
+                    // Оновлюємо інші елементи тільки при зміні значень
+                    if (seconds === 59) {
+                        const minutesElement = document.getElementById(`minutes-${raffle.id}`);
+                        if (minutesElement) minutesElement.textContent = minutes.toString().padStart(2, '0');
+
+                        if (minutes === 59) {
+                            const hoursElement = document.getElementById(`hours-${raffle.id}`);
+                            if (hoursElement) hoursElement.textContent = hours.toString().padStart(2, '0');
+
+                            if (hours === 23) {
+                                const daysElement = document.getElementById(`days-${raffle.id}`);
+                                if (daysElement) daysElement.textContent = days.toString().padStart(2, '0');
+                            }
+                        }
+                    }
+                });
+            }, 1000);
+
+            console.log("⏱️ Запущено оптимізований таймер зворотного відліку");
 
         } catch (error) {
             console.error("❌ Помилка ініціалізації таймерів:", error);
+        }
+    };
+
+    /**
+     * Безпечне оновлення значення елемента DOM
+     * @param {string} elementId - ID елемента
+     * @param {string|number} value - Нове значення
+     * @returns {boolean} Результат оновлення
+     */
+    WinixRaffles.safeUpdateValue = function(elementId, value) {
+        try {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // Оновлюємо значення лише якщо воно змінилося
+                if (element.textContent !== String(value)) {
+                    element.textContent = value;
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.warn(`⚠️ Помилка оновлення елемента ${elementId}:`, error);
+            return false;
         }
     };
 
@@ -828,7 +915,7 @@
                 if (!button) return;
 
                 // Запобігаємо повторним клікам
-                if (button.getAttribute('data-processing') === 'true') return;
+                if (button.getAttribute('data-processing') === 'true' || button.disabled) return;
 
                 // Отримуємо дані розіграшу
                 const raffleId = button.getAttribute('data-raffle-id');
@@ -848,9 +935,10 @@
                     return;
                 }
 
-                // Помічаємо кнопку як таку, що обробляється
+                // Помічаємо кнопку як таку, що обробляється і блокуємо її
                 button.setAttribute('data-processing', 'true');
                 button.classList.add('processing');
+                button.disabled = true;
 
                 // Беремо участь у розіграші
                 this.participation.participateInRaffle(raffleId, 1)
@@ -874,6 +962,12 @@
                         // Видаляємо статус обробки
                         button.removeAttribute('data-processing');
                         button.classList.remove('processing');
+
+                        // Розблоковуємо кнопку тільки якщо це не був успішний запит участі
+                        // Для успішної участі кнопку оновить updateParticipationButtons()
+                        if (!this.participation.participatingRaffles.has(raffleId)) {
+                            button.disabled = false;
+                        }
                     });
             });
 
@@ -912,29 +1006,6 @@
     };
 
     /**
-     * Безпечне оновлення значення елемента DOM
-     * @param {string} elementId - ID елемента
-     * @param {string|number} value - Нове значення
-     * @returns {boolean} Результат оновлення
-     */
-    WinixRaffles.safeUpdateValue = function(elementId, value) {
-        try {
-            const element = document.getElementById(elementId);
-            if (element) {
-                // Оновлюємо значення лише якщо воно змінилося
-                if (element.textContent !== String(value)) {
-                    element.textContent = value;
-                }
-                return true;
-            }
-            return false;
-        } catch (error) {
-            console.warn(`⚠️ Помилка оновлення елемента ${elementId}:`, error);
-            return false;
-        }
-    };
-
-    /**
      * Перезавантаження вкладки з розіграшами
      */
     WinixRaffles.reloadRafflesTab = function() {
@@ -962,7 +1033,6 @@
             console.error("❌ Помилка перезавантаження вкладки з розіграшами:", error);
         }
     };
-
 
     /**
      * Запуск автоматичного оновлення активних розіграшів
