@@ -25,6 +25,16 @@ try:
 except ImportError:
     from settings.config import JWT_SECRET, JWT_ALGORITHM
 
+# Імпортуємо supabase_client
+try:
+    from ..supabase_client import supabase
+except ImportError:
+    try:
+        from supabase_client import supabase
+    except ImportError:
+        logger.error("Не вдалося імпортувати supabase_client")
+        supabase = None
+
 # Часові обмеження для маршрутів
 RATE_LIMITS = {
     "get_active_raffles": 20,
@@ -231,11 +241,61 @@ def validate_raffle_id(f):
     return decorated_function
 
 
+def cleanup_orphaned_participants():
+    """Видаляє записи участі, які посилаються на неіснуючі розіграші"""
+    try:
+        # Отримуємо унікальні ID розіграшів з таблиці участі
+        participant_records = supabase.table("raffle_participants").select("raffle_id").execute()
+        if not participant_records.data:
+            return {"status": "success", "message": "Немає записів участі", "orphaned_removed": 0}
+
+        raffle_ids = list(set([p.get("raffle_id") for p in participant_records.data if p.get("raffle_id")]))
+
+        # Перевіряємо валідність UUID
+        valid_raffle_ids = [r_id for r_id in raffle_ids if is_valid_uuid(r_id)]
+
+        # Отримуємо ID існуючих розіграшів
+        existing_raffle_records = supabase.table("raffles").select("id").in_("id", valid_raffle_ids).execute()
+        if not existing_raffle_records.data:
+            # Всі розіграші відсутні - видаляємо всі записи участі
+            delete_response = supabase.table("raffle_participants").delete().in_("raffle_id",
+                                                                                 valid_raffle_ids).execute()
+            return {"status": "success", "message": "Всі розіграші відсутні", "orphaned_removed": len(valid_raffle_ids)}
+
+        existing_raffle_ids = [r.get("id") for r in existing_raffle_records.data]
+
+        # Знаходимо неіснуючі розіграші
+        orphaned_ids = [rid for rid in valid_raffle_ids if rid not in existing_raffle_ids]
+
+        # Видаляємо записи участі для неіснуючих розіграшів
+        if orphaned_ids:
+            delete_response = supabase.table("raffle_participants").delete().in_("raffle_id", orphaned_ids).execute()
+            logger.info(
+                f"Видалено {len(delete_response.data if delete_response.data else [])} записів участі для неіснуючих розіграшів")
+            return {"status": "success", "orphaned_removed": len(orphaned_ids)}
+
+        return {"status": "success", "message": "Неіснуючих розіграшів не знайдено", "orphaned_removed": 0}
+    except Exception as e:
+        logger.error(f"Помилка очищення orphaned participants: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
     logger.info("Початок реєстрації маршрутів розіграшів")
 
     # ВИПРАВЛЕННЯ: Спрощуємо критичні маршрути, видаляючи декоратори для діагностики
+
+    # Додаємо маршрут для очищення orphaned participants
+    @app.route('/api/admin/cleanup-orphaned-participants', methods=['POST'])
+    def api_cleanup_orphaned_participants():
+        """Адмін-маршрут для очищення orphaned participants"""
+        try:
+            result = cleanup_orphaned_participants()
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Помилка API очищення: {str(e)}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
     # Публічні маршрути для користувачів
     @app.route('/api/raffles', methods=['GET'])
