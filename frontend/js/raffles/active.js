@@ -35,26 +35,8 @@
                 this.loadActiveRaffles();
             }
 
-            // Налаштовуємо автоматичне оновлення
-            this.setupAutoRefresh();
-
             // Додаємо обробники подій
             this.setupEventListeners();
-        },
-
-        // Налаштування автоматичного оновлення
-        setupAutoRefresh: function() {
-            // Очищаємо попередній таймер, якщо він є
-            if (WinixRaffles.state.refreshTimers.activeRaffles) {
-                clearInterval(WinixRaffles.state.refreshTimers.activeRaffles);
-            }
-
-            // Налаштовуємо новий таймер
-            WinixRaffles.state.refreshTimers.activeRaffles = setInterval(() => {
-                if (WinixRaffles.state.activeTab === 'active') {
-                    this.loadActiveRaffles(true);
-                }
-            }, WinixRaffles.config.autoRefreshInterval);
         },
 
         // Налаштування обробників подій
