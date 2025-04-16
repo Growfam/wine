@@ -247,8 +247,8 @@ class RaffleService:
         # Перевірка прострочених розіграшів кожну годину
         schedule.every(1).hour.do(self.run_task, "check_expired_raffles", self.check_expired_raffles)
 
-        # Створення щоденного розіграшу о 12:05 щодня
-        schedule.every().day.at("12:05").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
+        # Створення щоденного розіграшу о 15:00 щодня
+        schedule.every().day.at("15:00").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
 
         # Відправка повідомлень переможцям кожні 30 хвилин
         schedule.every(30).minutes.do(self.run_task, "send_winner_notifications", self.send_notifications_to_winners)
