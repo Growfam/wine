@@ -61,13 +61,13 @@
 
     // Мінімальний інтервал між однаковими запитами (збільшено для запобігання rate-limiting)
     const REQUEST_THROTTLE = {
-        '/user/': 15000,      // 15 секунд (було 5)
-        '/staking': 15000,    // 15 секунд (було 8)
-        '/balance': 10000,    // 10 секунд (було 5)
-        '/transactions': 20000, // 20 секунд (було 15)
-        '/raffles': 10000,    // 10 секунд (новий)
-        '/participate-raffle': 8000, // 8 секунд (новий)
-        'default': 5000       // 5 секунд (було 4)
+        '/user/': 3000,      // 3 секунд (було 5)
+        '/staking': 3000,    // 3 секунд (було 8)
+        '/balance': 3000,    // 1 секунд (було 5)
+        '/transactions': 3000, // 2 секунд (було 15)
+        '/raffles': 3000,    // 1 секунд (новий)
+        '/participate-raffle': 3000, // 1 секунд (новий)
+        'default': 3000       // 3 секунд (було 4)
     };
 
     // Лічильник запитів
@@ -306,137 +306,19 @@
      * @param {number} retryAfter - час очікування в секундах
      */
     function showRateLimitProgress(endpoint, retryAfter) {
-        // Створюємо або отримуємо елемент індикатора
-        let indicator = document.getElementById('rate-limit-indicator');
-
-        // Встановлюємо глобальне обмеження швидкості на всі запити
-        _globalRateLimited = true;
-        _globalRateLimitTime = Date.now() + (retryAfter * 1000);
-
-        // Зберігаємо інформацію про обмеження в локальному сховищі
-        try {
-            localStorage.setItem('winix_rate_limited_until', _globalRateLimitTime.toString());
-        } catch(e) {
-            console.warn("Помилка збереження стану обмеження швидкості:", e);
-        }
-
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'rate-limit-indicator';
-            indicator.className = 'rate-limit-indicator';
-            indicator.innerHTML = `
-                <div class="rate-limit-message">
-                    Занадто багато запитів. Зачекайте <span class="rate-limit-time"></span> секунд.
-                </div>
-                <div class="rate-limit-progress">
-                    <div class="rate-limit-progress-bar"></div>
-                </div>
-            `;
-
-            // Додаємо стилі, якщо їх немає
-            if (!document.getElementById('rate-limit-styles')) {
-                const style = document.createElement('style');
-                style.id = 'rate-limit-styles';
-                style.textContent = `
-                    .rate-limit-indicator {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        background: rgba(0, 0, 0, 0.8);
-                        color: white;
-                        padding: 15px;
-                        text-align: center;
-                        z-index: 9999;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                    }
-                    .rate-limit-progress {
-                        width: 80%;
-                        height: 8px;
-                        background: rgba(255, 255, 255, 0.2);
-                        border-radius: 4px;
-                        margin-top: 10px;
-                        overflow: hidden;
-                    }
-                    .rate-limit-progress-bar {
-                        height: 100%;
-                        background: #4CAF50;
-                        width: 100%;
-                        transition: width 1s linear;
-                    }
-                    .rate-limit-message {
-                        margin-bottom: 10px;
-                    }
-                    .rate-limit-time {
-                        font-weight: bold;
-                        color: #4CAF50;
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            document.body.appendChild(indicator);
-        }
-
-        // Отримуємо потрібні елементи
-        const timeElement = indicator.querySelector('.rate-limit-time');
-        const progressBar = indicator.querySelector('.rate-limit-progress-bar');
-
-        // Встановлюємо початкові значення
-        const startTime = Date.now();
-        const endTime = startTime + (retryAfter * 1000);
-
-        // Очищаємо попередній таймер, якщо є
-        if (_currentRateLimitTimer) {
-            clearInterval(_currentRateLimitTimer);
-        }
-
-        // Функція оновлення таймера
-        const updateTimer = () => {
-            const now = Date.now();
-            const remaining = Math.max(0, endTime - now);
-            const secondsRemaining = Math.ceil(remaining / 1000);
-
-            // Оновлюємо текст і прогрес
-            timeElement.textContent = secondsRemaining;
-
-            // Розраховуємо прогрес (від 100% до 0%)
-            const progress = (remaining / (retryAfter * 1000)) * 100;
-            progressBar.style.width = `${progress}%`;
-
-            // Якщо час вичерпався, приховуємо індикатор
-            if (remaining <= 0) {
-                indicator.style.display = 'none';
-                clearInterval(_currentRateLimitTimer);
-                _currentRateLimitTimer = null;
-
-                // Знімаємо глобальне обмеження швидкості
-                _globalRateLimited = false;
-                _globalRateLimitTime = 0;
-
-                // Очищаємо інформацію про обмеження в localStorage
-                try {
-                    localStorage.removeItem('winix_rate_limited_until');
-                } catch(e) {}
-
-                // Показуємо повідомлення про відновлення
-                if (typeof window.showToast === 'function') {
-                    window.showToast('З\'єднання відновлено. Можете продовжувати.', 'success');
-                }
-            }
-        };
-
-        // Показуємо індикатор
-        indicator.style.display = 'flex';
-
-        // Запускаємо перше оновлення
-        updateTimer();
-
-        // Запускаємо таймер оновлення кожну секунду
-        _currentRateLimitTimer = setInterval(updateTimer, 1000);
+    // Записуємо ендпоінт в заблоковані з часом до розблокування
+    if (window._blockedEndpoints) {
+        window._blockedEndpoints[endpoint] = Date.now() + (retryAfter * 1000);
+        console.warn(`⚠️ API: Ендпоінт ${endpoint} заблоковано на ${retryAfter} секунд`);
     }
+
+    // Показуємо повідомлення у вигляді toast (спрощено без таймера)
+    if (typeof window.showToast === 'function') {
+        window.showToast(`Занадто багато запитів. Зачекайте ${retryAfter} секунд`, 'warning');
+    } else {
+        console.warn(`Занадто багато запитів. Зачекайте ${retryAfter} секунд`);
+    }
+}
 
     /**
      * Оновлення токену авторизації

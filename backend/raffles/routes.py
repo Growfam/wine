@@ -4,7 +4,7 @@ import jwt
 import os
 import sys
 import time
-import uuid  # Додано імпорт для кращої валідації UUID
+import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -25,12 +25,12 @@ try:
 except ImportError:
     from settings.config import JWT_SECRET, JWT_ALGORITHM
 
-# Часові обмеження для маршрутів (збільшені для зменшення помилок)
+# Часові обмеження для маршрутів (мінімальні, але не нульові)
 RATE_LIMITS = {
-    "get_active_raffles": 5,  # 5 секунд між запитами
-    "get_raffles_history": 60,  # 60 секунд між запитами
-    "get_user_raffles": 10,  # 10 секунд між запитами
-    "participate_in_raffle": 10,  # 10 секунд між запитами
+    "get_active_raffles": 2,    # 2 секунди між запитами
+    "get_raffles_history": 3,   # 3 секунди між запитами
+    "get_user_raffles": 2,      # 2 секунди між запитами
+    "participate_in_raffle": 2, # 2 секунди між запитами
 }
 
 # Відстеження останніх запитів користувачів
@@ -140,7 +140,7 @@ def require_admin(f):
 
 
 def rate_limit(route_name):
-    """Декоратор для обмеження частоти запитів"""
+    """Декоратор для обмеження частоти запитів (мінімальне обмеження)"""
 
     def decorator(f):
         @wraps(f)
@@ -157,7 +157,7 @@ def rate_limit(route_name):
             time_since_last = now - last_request_time
 
             # Отримуємо ліміт для маршруту
-            rate_limit_seconds = RATE_LIMITS.get(route_name, 5)  # За замовчуванням 5 секунд
+            rate_limit_seconds = RATE_LIMITS.get(route_name, 2)  # За замовчуванням 2 секунди
 
             if time_since_last < rate_limit_seconds:
                 retry_after = rate_limit_seconds - time_since_last
@@ -165,7 +165,7 @@ def rate_limit(route_name):
 
                 return jsonify({
                     "status": "error",
-                    "message": f"Занадто багато запитів. Спробуйте знову через {int(retry_after) + 1} секунд.",
+                    "message": f"Занадто багато запитів. Повторіть через {int(retry_after) + 1} секунд.",
                     "code": "throttle",
                     "retry_after": retry_after
                 }), 429
@@ -173,7 +173,7 @@ def rate_limit(route_name):
             # Оновлюємо час останнього запиту
             last_requests[key] = now
 
-            # Очищаємо старі записи (старші за 1 годину)
+            # Очищаємо старі записи (старші за 10 хвилин)
             clean_old_requests()
 
             return f(*args, **kwargs)
@@ -186,57 +186,20 @@ def rate_limit(route_name):
 def clean_old_requests():
     """Очищення застарілих записів про запити"""
     now = time.time()
-    # Видаляємо записи, старші за 1 годину
-    old_keys = [k for k, v in last_requests.items() if now - v > 3600]
+    # Видаляємо записи, старші за 10 хвилин
+    old_keys = [k for k, v in last_requests.items() if now - v > 600]
     for k in old_keys:
         last_requests.pop(k, None)
 
 
 def parallel_request_handler(f):
-    """Декоратор для обробки паралельних запитів"""
+    """Спрощений декоратор для обробки паралельних запитів"""
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Отримуємо ID користувача (або IP адресу, якщо ID недоступний)
-        user_id = getattr(g, 'user', None) or request.headers.get('X-Forwarded-For') or request.remote_addr
-
-        # Ключ для відстеження
-        key = f"{f.__name__}:{user_id}"
-
-        # Перевіряємо, чи не виконується вже такий запит
-        now = time.time()
-        last_request_time = last_requests.get(key, 0)
-        time_since_last = now - last_request_time
-
-        # Якщо запит виконується менше 1 секунди, вважаємо паралельним
-        if time_since_last < 1:
-            logger.warning(f"Виявлено паралельний запит для {key}")
-
-            # Для деяких маршрутів повертаємо порожні масиви замість помилки
-            if f.__name__ in ['api_get_user_raffles_history', 'api_get_active_raffles']:
-                return jsonify({
-                    "status": "success",
-                    "data": [],
-                    "message": "Запит вже виконується",
-                    "parallel": True
-                })
-
-            return jsonify({
-                "status": "error",
-                "message": "Запит вже виконується. Спробуйте знову через кілька секунд.",
-                "code": "parallel"
-            }), 429
-
-        # Оновлюємо час запиту
-        last_requests[key] = now
-
-        result = f(*args, **kwargs)
-
-        # Видаляємо запис після завершення (щоб уникнути блокування нових запитів)
-        time.sleep(0.5)  # Невелика затримка для запобігання миттєвим повторним запитам
-        last_requests.pop(key, None)
-
-        return result
+        # Оскільки ми прибрали детальну перевірку паралельних запитів,
+        # просто виконуємо функцію безпосередньо
+        return f(*args, **kwargs)
 
     return decorated_function
 
@@ -430,45 +393,36 @@ def register_raffles_routes(app):
             }), 500
 
     @app.route('/api/user/<telegram_id>/participate-raffle', methods=['POST'])
-    @require_authentication
     @rate_limit('participate_in_raffle')
     @validate_raffle_id
     def api_participate_in_raffle(telegram_id):
         """Участь у розіграші"""
-        # Перевіряємо, чи ID користувача в URL відповідає ID в токені
-        if g.user != telegram_id:
-            return jsonify({
-                "status": "error",
-                "message": "Доступ заборонено. Ви можете використовувати лише власний ID.",
-                "code": "forbidden"
-            }), 403
-
-        # Додаткова перевірка даних JSON
-        if not request.is_json:
-            return jsonify({
-                "status": "error",
-                "message": "Неверний формат запиту. Очікується JSON.",
-                "code": "invalid_request"
-            }), 400
-
-        data = request.json
-        if not data or not data.get('raffle_id'):
-            return jsonify({
-                "status": "error",
-                "message": "Відсутній ідентифікатор розіграшу в запиті",
-                "code": "missing_raffle_id"
-            }), 400
-
-        # Додаткова перевірка на валідність UUID
-        raffle_id = data.get('raffle_id')
-        if not is_valid_uuid(str(raffle_id)):
-            return jsonify({
-                "status": "error",
-                "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                "code": "invalid_raffle_id"
-            }), 400
-
         try:
+            # Додаткова перевірка даних JSON
+            if not request.is_json:
+                return jsonify({
+                    "status": "error",
+                    "message": "Неверний формат запиту. Очікується JSON.",
+                    "code": "invalid_request"
+                }), 400
+
+            data = request.json
+            if not data or not data.get('raffle_id'):
+                return jsonify({
+                    "status": "error",
+                    "message": "Відсутній ідентифікатор розіграшу в запиті",
+                    "code": "missing_raffle_id"
+                }), 400
+
+            # Додаткова перевірка на валідність UUID
+            raffle_id = data.get('raffle_id')
+            if not is_valid_uuid(str(raffle_id)):
+                return jsonify({
+                    "status": "error",
+                    "message": f"Невалідний формат ID розіграшу: {raffle_id}",
+                    "code": "invalid_raffle_id"
+                }), 400
+
             return controllers.participate_in_raffle(telegram_id, data)
         except controllers.InsufficientTokensError as e:
             return jsonify({
@@ -498,19 +452,10 @@ def register_raffles_routes(app):
             }), 500
 
     @app.route('/api/user/<telegram_id>/raffles', methods=['GET'])
-    @require_authentication
     @rate_limit('get_user_raffles')
     @parallel_request_handler
     def api_get_user_raffles(telegram_id):
         """Отримання розіграшів, у яких бере участь користувач"""
-        # Перевіряємо, чи ID користувача в URL відповідає ID в токені
-        if g.user != telegram_id:
-            return jsonify({
-                "status": "error",
-                "message": "Доступ заборонено. Ви можете переглядати лише власні розіграші.",
-                "code": "forbidden"
-            }), 403
-
         try:
             return controllers.get_user_raffles(telegram_id)
         except Exception as e:
@@ -523,20 +468,11 @@ def register_raffles_routes(app):
             })
 
     @app.route('/api/user/<telegram_id>/raffles-history', methods=['GET'])
-    @require_authentication
     @rate_limit('get_raffles_history')
     @parallel_request_handler
     def api_get_user_raffles_history(telegram_id):
         """Отримання історії участі користувача в розіграшах"""
         start_time = time.time()
-
-        # Перевіряємо, чи ID користувача в URL відповідає ID в токені
-        if g.user != telegram_id:
-            return jsonify({
-                "status": "error",
-                "message": "Доступ заборонено. Ви можете переглядати лише власну історію.",
-                "code": "forbidden"
-            }), 403
 
         try:
             # Встановлюємо таймаут для отримання історії
@@ -633,6 +569,8 @@ def register_raffles_routes(app):
         result = controllers.check_and_finish_expired_raffles()
         return jsonify(result)
 
+    # ВИДАЛЕНО api_claim_newbie_bonus - маршрут, який викликав конфлікти
+
     # Додатковий маршрут для моніторингу стану розіграшів
     @app.route('/api/raffles/status', methods=['GET'])
     def api_get_raffles_status():
@@ -674,44 +612,4 @@ def register_raffles_routes(app):
                 "status": "error",
                 "message": "Помилка отримання статистики розіграшів",
                 "code": "server_error"
-            }), 500
-
-    # Маршрут для відладки проблем з UUID
-    @app.route('/api/debug/uuid/<uuid_string>', methods=['GET'])
-    def api_debug_uuid(uuid_string):
-        """Ендпоінт для відладки проблем з UUID"""
-        try:
-            # Перевіряємо різними способами
-            valid_our = is_valid_uuid(uuid_string)
-            valid_controllers = controllers.is_valid_uuid(uuid_string)
-
-            # Спроба створення UUID об'єкта
-            try:
-                uuid_obj = uuid.UUID(uuid_string)
-                uuid_created = True
-                uuid_str = str(uuid_obj)
-                uuid_hex = uuid_obj.hex
-                uuid_match = uuid_str == uuid_string
-            except Exception as e:
-                uuid_created = False
-                uuid_str = None
-                uuid_hex = None
-                uuid_match = False
-
-            return jsonify({
-                "status": "success",
-                "uuid_string": uuid_string,
-                "length": len(uuid_string),
-                "valid_our_function": valid_our,
-                "valid_controllers_function": valid_controllers,
-                "uuid_object_created": uuid_created,
-                "uuid_string_from_object": uuid_str,
-                "uuid_hex": uuid_hex,
-                "string_matches": uuid_match
-            })
-        except Exception as e:
-            return jsonify({
-                "status": "error",
-                "message": f"Помилка аналізу UUID: {str(e)}",
-                "uuid_string": uuid_string
             }), 500
