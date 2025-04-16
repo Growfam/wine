@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 import uuid
-import re
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
@@ -23,10 +22,8 @@ logger = logging.getLogger(__name__)
 try:
     from ..supabase_client import (
         supabase, get_user, update_user, update_balance, update_coins,
-        execute_transaction, cache_get, cache_set, clear_cache
+        check_and_update_badges, execute_transaction, cache_get, cache_set, clear_cache
     )
-    # Імпортуємо сервіс бейджів
-    from ..badges.badge_service import award_badges
     # Імпортуємо допоміжні функції для транзакцій
     from ..utils.transaction_helpers import create_transaction_record, update_transaction_status
 except ImportError:
@@ -38,10 +35,8 @@ except ImportError:
 
     from supabase_client import (
         supabase, get_user, update_user, update_balance, update_coins,
-        execute_transaction, cache_get, cache_set, clear_cache
+        check_and_update_badges, execute_transaction, cache_get, cache_set, clear_cache
     )
-    # Імпортуємо сервіс бейджів
-    from badges.badge_service import award_badges
     from utils.transaction_helpers import create_transaction_record, update_transaction_status
 
 
@@ -237,96 +232,33 @@ class RaffleTransaction:
             raise
 
 
-# Функція для перевірки валідності UUID (покращена версія)
+# Функція для перевірки валідності UUID
 def is_valid_uuid(raffle_id):
-    """Перевіряє, чи ID розіграшу є валідним UUID або іншим прийнятним форматом ідентифікатора"""
+    """Перевіряє, чи ID розіграшу є валідним UUID"""
     if not raffle_id:
         return False
 
-    # Спочатку перевіряємо на критично короткі ID (очевидно невалідні)
-    if isinstance(raffle_id, str) and len(raffle_id) < 5:
-        logger.warning(f"UUID занадто короткий: {raffle_id}, довжина: {len(raffle_id)}")
-        return False
-
     try:
-        # Спробуємо обробити різні формати ідентифікаторів
-
-        # 1. Перевірка на стандартний UUID
-        try:
-            uuid_obj = uuid.UUID(str(raffle_id))
-            return True
-        except (ValueError, AttributeError, TypeError):
-            # Не стандартний UUID, продовжуємо перевірки
-            pass
-
-        # 2. Перевірка цифрових ID (як у прикладі 17447962...)
-        if isinstance(raffle_id, str) and raffle_id.isdigit() and len(raffle_id) > 8:
-            # Цифрові ID достатньої довжини вважаємо прийнятними
-            return True
-
-        # 3. Перевірка на складний ідентифікатор з цифр та букв (формату 17447962-43622)
-        if isinstance(raffle_id, str) and '-' in raffle_id and len(raffle_id) > 10:
-            # Перевіряємо, чи всі частини містять валідні символи
-            parts = raffle_id.split('-')
-            if all(part.isalnum() for part in parts):
-                return True
-
-        # 4. Додаткова перевірка на альфа-числовий ID
-        if isinstance(raffle_id, str) and raffle_id.isalnum() and len(raffle_id) >= 10:
-            # Довгі альфа-числові ID зазвичай валідні
-            return True
-
-        # Жоден формат не підійшов
-        logger.warning(f"Невалідний формат ID: {raffle_id}")
-        return False
-
-    except Exception as e:
-        logger.error(f"Помилка перевірки UUID {raffle_id}: {str(e)}")
-        # Якщо сталася помилка, повертаємо False для безпеки
+        # Спроба конвертації в UUID - якщо успішно, значить формат вірний
+        uuid_obj = uuid.UUID(raffle_id)
+        return str(uuid_obj) == raffle_id
+    except (ValueError, AttributeError, TypeError):
         return False
 
 
 # Функція для перевірки існування розіграшу в базі даних
 def check_raffle_exists(raffle_id):
     """Перевіряє існування розіграшу в базі даних"""
-    if not raffle_id:
-        raise InvalidRaffleIDError("ID розіграшу не вказано")
-
-    # Перевірка на дуже короткий ID (явна помилка)
-    if isinstance(raffle_id, str) and len(raffle_id) < 5:
-        logger.error(f"Критично короткий ID розіграшу: {raffle_id}")
-        raise InvalidRaffleIDError(f"Критично невалідний ID розіграшу: {raffle_id}")
-
     if not is_valid_uuid(raffle_id):
-        logger.warning(f"Невалідний формат ID розіграшу: {raffle_id}")
         raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу: {raffle_id}")
 
     try:
-        # Спочатку перевіряємо кеш
-        cache_key = f"raffle_exists_{raffle_id}"
-        exists_in_cache = cache_get(cache_key)
-
-        if exists_in_cache is not None:
-            return exists_in_cache
-
-        # Якщо немає в кеші, перевіряємо в базі даних
         response = supabase.table("raffles").select("id").eq("id", raffle_id).execute()
 
         if not response.data or len(response.data) == 0:
-            logger.warning(f"Розіграш з ID {raffle_id} не знайдено в базі даних")
-
-            # Кешуємо негативний результат на коротший час
-            cache_set(cache_key, False, 60)  # 1 хвилина для негативного результату
-
             raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено в базі даних")
 
-        # Кешуємо позитивний результат
-        cache_set(cache_key, True, 300)  # 5 хвилин для позитивного результату
-
         return True
-    except RaffleNotFoundException:
-        # Пробрасуємо цей виняток далі
-        raise
     except Exception as e:
         logger.error(f"Помилка перевірки існування розіграшу {raffle_id}: {str(e)}")
         raise
@@ -370,12 +302,6 @@ def get_active_raffles():
     # Форматуємо дані для відповіді
     raffles_data = []
     for raffle in response.data:
-        # Перевіряємо валідність UUID
-        raffle_id = raffle.get("id")
-        if not is_valid_uuid(raffle_id):
-            logger.warning(f"Пропускаємо розіграш з невалідним UUID: {raffle_id}")
-            continue
-
         # Безпечно конвертуємо час
         try:
             start_time_ms = int(
@@ -434,15 +360,10 @@ def get_raffle_details(raffle_id):
     if not raffle_id:
         raise ValueError("Не вказано ID розіграшу")
 
-    # Розширена перевірка валідності UUID
+    # Перевіряємо валідність UUID
     if not is_valid_uuid(raffle_id):
         logger.warning(f"Невалідний формат ID розіграшу: {raffle_id}")
         raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу: {raffle_id}")
-
-    # Якщо ID всього 2 символи - явно неправильний
-    if isinstance(raffle_id, str) and len(raffle_id) <= 5:
-        logger.warning(f"Критично невалідний ID розіграшу: {raffle_id}")
-        raise InvalidRaffleIDError(f"Критично невалідний ID розіграшу")
 
     # Перевіряємо кеш
     cache_key = f"raffle_details_{raffle_id}"
@@ -536,22 +457,13 @@ def participate_in_raffle(telegram_id, data):
 
     raffle_id = data["raffle_id"]
 
-    # Розширена перевірка валідності UUID
+    # Перевіряємо валідність UUID
     if not is_valid_uuid(raffle_id):
         logger.warning(f"Невалідний формат ID розіграшу: {raffle_id}")
         raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу: {raffle_id}")
 
-    # Додаткова перевірка довжини ID
-    if isinstance(raffle_id, str) and len(raffle_id) < 5:
-        logger.warning(f"ID розіграшу занадто короткий: {raffle_id}, довжина {len(raffle_id)}")
-        raise InvalidRaffleIDError(f"ID розіграшу занадто короткий: {raffle_id}")
-
     # Додаткова перевірка існування розіграшу в базі даних
-    try:
-        check_raffle_exists(raffle_id)
-    except RaffleNotFoundException:
-        logger.error(f"Розіграш {raffle_id} не знайдено при спробі участі користувача {telegram_id}")
-        raise
+    check_raffle_exists(raffle_id)
 
     entry_count = min(int(data.get("entry_count", 1)), MAX_ENTRY_COUNT)
 
@@ -676,14 +588,9 @@ def participate_in_raffle(telegram_id, data):
         clear_cache("active_raffles")
         clear_cache(f"raffle_details_{raffle_id}")
 
-        # Перевіряємо, чи користувач досяг умов для отримання бейджів
+        # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
         if participations_count >= 5:
-            # Використовуємо нову функцію для нагородження бейджами
-            award_badges(telegram_id, {
-                "action": "participation",
-                "raffle_id": raffle_id,
-                "participations_count": participations_count
-            })
+            check_and_update_badges(telegram_id)
 
         # Формуємо відповідь
         total_entries = existing_entry_count + entry_count
@@ -765,19 +672,12 @@ def get_user_raffles(telegram_id):
     if not raffle_ids:
         return jsonify({"status": "success", "data": []})
 
-    # Фільтруємо невалідні UUID перед запитом
-    valid_raffle_ids = [raffle_id for raffle_id in raffle_ids if is_valid_uuid(raffle_id)]
-
-    if not valid_raffle_ids:
-        logger.warning(f"get_user_raffles: Всі ID розіграшів для користувача {telegram_id} невалідні")
-        return jsonify({"status": "success", "data": []})
-
     # Отримуємо дані цих розіграшів
     try:
         # Використовуємо запит in_ для вибірки кількох розіграшів одночасно
-        raffles_response = supabase.table("raffles").select("*").in_("id", valid_raffle_ids).execute()
+        raffles_response = supabase.table("raffles").select("*").in_("id", raffle_ids).execute()
     except Exception as e:
-        logger.error(f"Помилка запиту розіграшів {valid_raffle_ids}: {str(e)}")
+        logger.error(f"Помилка запиту розіграшів {raffle_ids}: {str(e)}")
         return jsonify({"status": "success", "data": []})
 
     if not raffles_response.data:
@@ -872,22 +772,15 @@ def get_raffles_history(telegram_id):
         if not raffle_ids:
             return jsonify({"status": "success", "data": []})
 
-        # Фільтруємо невалідні UUID
-        valid_raffle_ids = [raffle_id for raffle_id in raffle_ids if is_valid_uuid(raffle_id)]
-
-        if not valid_raffle_ids:
-            logger.warning(f"get_raffles_history: Всі ID розіграшів для користувача {telegram_id} невалідні")
-            return jsonify({"status": "success", "data": []})
-
         # Отримуємо розіграші з обмеженням необхідних полів
         try:
             raffles_response = supabase.table("raffles") \
                 .select("id,title,prize_amount,prize_currency,end_time,status,is_daily") \
-                .in_("id", valid_raffle_ids) \
+                .in_("id", raffle_ids) \
                 .execute()
 
         except Exception as e:
-            logger.error(f"Помилка запиту розіграшів {valid_raffle_ids}: {str(e)}")
+            logger.error(f"Помилка запиту розіграшів {raffle_ids}: {str(e)}")
             return jsonify({"status": "success", "data": []})
 
         if not raffles_response.data:
@@ -903,7 +796,7 @@ def get_raffles_history(telegram_id):
                 .eq("telegram_id", telegram_id) \
                 .execute()
 
-            winners_by_raffle = {w.get("raffle_id"): w for w in winners_response.data if w.get("raffle_id") and is_valid_uuid(w.get("raffle_id"))}
+            winners_by_raffle = {w.get("raffle_id"): w for w in winners_response.data if w.get("raffle_id")}
         except Exception as e:
             logger.error(f"Помилка запиту переможців для користувача {telegram_id}: {str(e)}")
             winners_by_raffle = {}
@@ -913,7 +806,7 @@ def get_raffles_history(telegram_id):
 
         for participation in participants_response.data:
             raffle_id = participation.get("raffle_id")
-            if not raffle_id or raffle_id not in raffles_by_id or not is_valid_uuid(raffle_id):
+            if not raffle_id or raffle_id not in raffles_by_id:
                 continue
 
             raffle = raffles_by_id[raffle_id]
@@ -1195,7 +1088,7 @@ def create_raffle(data, admin_id=None):
         logger.error(f"Помилка створення розіграшу: {str(e)}")
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
 
-    # Очищуємо кеш активних розіграшів
+    # Очищаємо кеш активних розіграшів
     clear_cache("active_raffles")
 
     # Повертаємо результат
@@ -1590,16 +1483,11 @@ def finish_raffle(raffle_id, admin_id=None):
 
                     txn.table("transactions").insert(transaction_data).execute()
 
-        # Після завершення транзакції перевіряємо бейджі для всіх переможців
-        for winner in winners:
-            # Використовуємо нову функцію для нагородження бейджами
-            award_badges(winner["telegram_id"], {
-                "action": "win",
-                "raffle_id": raffle_id,
-                "place": winner["place"]
-            })
+                    # Перевіряємо, чи потрібно активувати бейдж переможця
+                    if wins_count == 1 and not user.get("badge_winner", False):
+                        txn.table("winix").update({"badge_winner": True}).eq("telegram_id", winner["telegram_id"]).execute()
 
-        # Очищуємо кеш
+        # Очищаємо кеш
         clear_cache(f"raffle_details_{raffle_id}")
         clear_cache("active_raffles")
 
@@ -1657,15 +1545,6 @@ def check_and_finish_expired_raffles():
 
     for raffle in expired_raffles_response.data:
         raffle_id = raffle.get("id")
-
-        # Перевіряємо валідність UUID перед спробою завершення
-        if not is_valid_uuid(raffle_id):
-            logger.error(f"Пропускаємо розіграш з невалідним UUID: {raffle_id}")
-            errors.append({
-                "raffle_id": raffle_id,
-                "error": "Невалідний UUID"
-            })
-            continue
 
         try:
             logger.info(f"Автоматичне завершення простроченого розіграшу {raffle_id}")
