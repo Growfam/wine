@@ -110,6 +110,7 @@
                 console.log('🎲 Завантаження активних розіграшів...');
 
                 const response = await WinixAPI.apiRequest(WinixRaffles.config.activeRafflesEndpoint);
+                console.log('👉 Отримана відповідь:', response);
 
                 if (!quiet) {
                     if (typeof window.hideLoading === 'function') {
@@ -118,6 +119,8 @@
                 }
 
                 if (response.status === 'success' && Array.isArray(response.data)) {
+                    console.log('👉 Знайдено розіграшів:', response.data.length);
+            console.log('👉 Дані розіграшів:', JSON.stringify(response.data));
                     this.raffles = response.data;
                     this.lastUpdate = now;
 
@@ -147,6 +150,7 @@
                 this.tryLoadFromLocalStorage();
             } finally {
                 WinixRaffles.state.isLoading = false;
+                console.error('❌ Детальна помилка:', error.stack || JSON.stringify(error));
             }
         },
 
@@ -173,11 +177,13 @@
 
         // Відображення активних розіграшів
         renderActiveRaffles: function(raffles) {
+            console.log('👉 renderActiveRaffles викликано з:', raffles);
             // Очищаємо всі таймери зворотного відліку
             this.clearAllCountdowns();
 
             // Якщо немає розіграшів
             if (!Array.isArray(raffles) || raffles.length === 0) {
+                 console.log('👉 Немає розіграшів для відображення');
                 this.renderEmptyActiveRaffles();
                 return;
             }

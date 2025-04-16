@@ -57,6 +57,13 @@
      * @returns {Promise<Object>} Результат завантаження
      */
     WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50, offset = 0) {
+         console.log("👉 core.js: loadActiveRaffles викликано");
+
+    // Якщо модуль active доступний, використовуємо його метод
+    if (this.active && typeof this.active.loadActiveRaffles === 'function') {
+        console.log("👉 Делегуємо завантаження до WinixRaffles.active.loadActiveRaffles");
+        return await this.active.loadActiveRaffles(forceRefresh);
+    }
         // Швидке відображення кешованих даних перед запитом
         if (this.state.activeRaffles.length > 0 && !forceRefresh) {
             this.renderActiveRaffles();
