@@ -1,7 +1,7 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
- * @version 1.3.0 (з оптимізованим початковим завантаженням даних)
+ * @version 1.3.1 (з покращеною обробкою race condition)
  */
 
 (function() {
@@ -66,7 +66,7 @@
         '/balance': 3000,    // 1 секунд (було 5)
         '/transactions': 3000, // 2 секунд (було 15)
         '/raffles': 3000,    // 1 секунд (новий)
-        '/participate-raffle': 3000, // 1 секунд (новий)
+        '/participate-raffle': 5000, // 5 секунд (посилено для запобігання дублюванню)
         'default': 3000       // 3 секунд (було 4)
     };
 
@@ -440,6 +440,29 @@
 
     // Регулярна перевірка та очищення зависаючих запитів
     setInterval(resetPendingRequests, 20000); // Кожні 20 секунд
+
+    /**
+     * Безпечне оновлення значення елемента DOM
+     * @param {string} elementId - ID елемента
+     * @param {string|number} value - Нове значення
+     * @returns {boolean} Результат оновлення
+     */
+    function safeUpdateValue(elementId, value) {
+        try {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // Оновлюємо значення лише якщо воно змінилося
+                if (element.textContent !== String(value)) {
+                    element.textContent = value;
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.warn(`⚠️ Помилка оновлення елемента ${elementId}:`, error);
+            return false;
+        }
+    }
 
     /**
      * Безпосереднє виконання запиту без додаткової логіки
@@ -1942,7 +1965,7 @@
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.3.0',
+            version: '1.3.1',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1961,6 +1984,7 @@
         forceCleanupRequests,
         reconnect,
         isValidUUID,
+        safeUpdateValue,
 
         // Функції користувача
         getUserData,
