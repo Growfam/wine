@@ -563,28 +563,6 @@ def register_raffles_routes(app):
                 "error_details": str(e)
             })
 
-    @app.route('/api/user/<telegram_id>/claim-newbie-bonus', methods=['POST'])
-    @require_authentication
-    def api_claim_newbie_bonus(telegram_id):
-        """Отримання бонусу новачка"""
-        # Перевіряємо, чи ID користувача в URL відповідає ID в токені
-        if g.user != telegram_id:
-            return jsonify({
-                "status": "error",
-                "message": "Доступ заборонено. Ви можете отримати бонус лише для себе.",
-                "code": "forbidden"
-            }), 403
-
-        try:
-            return controllers.claim_newbie_bonus(telegram_id)
-        except Exception as e:
-            logger.error(f"Помилка отримання бонусу новачка для {telegram_id}: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": f"Помилка отримання бонусу: {str(e)}",
-                "code": "server_error"
-            }), 500
-
     # Утиліта для перевірки всіх активних розіграшів
     @app.route('/api/tools/validate-raffle-ids', methods=['GET'])
     def api_validate_raffle_ids():

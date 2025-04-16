@@ -1,7 +1,7 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
- * @version 1.2.0 (з виправленнями)
+ * @version 1.2.1 (з покращеним захистом від rate-limiting)
  */
 
 (function() {
@@ -59,13 +59,15 @@
     // Відстеження запитів, щоб запобігти повторним викликам
     let _lastRequestsByEndpoint = {};
 
-    // Мінімальний інтервал між однаковими запитами
+    // Мінімальний інтервал між однаковими запитами (збільшено для запобігання rate-limiting)
     const REQUEST_THROTTLE = {
-        '/user/': 5000,      // 5 секунд
-        '/staking': 8000,    // 8 секунд
-        '/balance': 5000,    // 5 секунд
-        '/transactions': 15000, // 15 секунд
-        'default': 4000      // 4 секунди за замовчуванням
+        '/user/': 15000,      // 15 секунд (було 5)
+        '/staking': 15000,    // 15 секунд (було 8)
+        '/balance': 10000,    // 10 секунд (було 5)
+        '/transactions': 20000, // 20 секунд (було 15)
+        '/raffles': 10000,    // 10 секунд (новий)
+        '/participate-raffle': 8000, // 8 секунд (новий)
+        'default': 5000       // 5 секунд (було 4)
     };
 
     // Лічильник запитів
@@ -86,6 +88,10 @@
 
     // Індикатор прогресу затримки запитів
     let _currentRateLimitTimer = null;
+
+    // Глобальна змінна для обмеження всіх запитів при rate limiting
+    let _globalRateLimited = false;
+    let _globalRateLimitTime = 0;
 
     // Токен автентифікації
     let _authToken = null;
@@ -303,6 +309,17 @@
         // Створюємо або отримуємо елемент індикатора
         let indicator = document.getElementById('rate-limit-indicator');
 
+        // Встановлюємо глобальне обмеження швидкості на всі запити
+        _globalRateLimited = true;
+        _globalRateLimitTime = Date.now() + (retryAfter * 1000);
+
+        // Зберігаємо інформацію про обмеження в локальному сховищі
+        try {
+            localStorage.setItem('winix_rate_limited_until', _globalRateLimitTime.toString());
+        } catch(e) {
+            console.warn("Помилка збереження стану обмеження швидкості:", e);
+        }
+
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.id = 'rate-limit-indicator';
@@ -394,6 +411,15 @@
                 indicator.style.display = 'none';
                 clearInterval(_currentRateLimitTimer);
                 _currentRateLimitTimer = null;
+
+                // Знімаємо глобальне обмеження швидкості
+                _globalRateLimited = false;
+                _globalRateLimitTime = 0;
+
+                // Очищаємо інформацію про обмеження в localStorage
+                try {
+                    localStorage.removeItem('winix_rate_limited_until');
+                } catch(e) {}
 
                 // Показуємо повідомлення про відновлення
                 if (typeof window.showToast === 'function') {
@@ -550,6 +576,24 @@ async function rawApiRequest(url, method, data, options = {}) {
     let timeoutId = null;
 
     try {
+        // Перевірка глобального обмеження швидкості
+        if (_globalRateLimited && !options.bypassThrottle) {
+            const remainingTime = Math.ceil((_globalRateLimitTime - Date.now()) / 1000);
+            if (remainingTime > 0) {
+                console.warn(`🔌 API: Глобальне обмеження швидкості, залишилось ${remainingTime}с`);
+                throw {
+                    status: 429,
+                    message: `Занадто багато запитів. Зачекайте ${remainingTime} секунд.`,
+                    globalRateLimit: true,
+                    retryAfter: remainingTime
+                };
+            } else {
+                // Якщо час очікування минув, знімаємо обмеження
+                _globalRateLimited = false;
+                _globalRateLimitTime = 0;
+            }
+        }
+
         // Показуємо індикатор завантаження
         if (!options.hideLoader) {
             if (typeof window.showLoading === 'function') {
@@ -632,6 +676,14 @@ async function rawApiRequest(url, method, data, options = {}) {
 
         // Виконуємо запит
         console.log(`🔄 API: Відправка ${method} запиту ${requestId} на ${url}`);
+
+        // Перевіряємо, чи URL містить /raffles/ і додаємо додаткову затримку
+        if (url.includes('/raffles/') || url.includes('participate-raffle')) {
+            // Додаємо випадкову затримку перед запитом для запобігання rate limiting
+            const delay = Math.floor(Math.random() * 1000) + 500; // 500-1500 мс
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
         const response = await fetch(url, requestOptions);
 
         // Записуємо час завершення запиту
@@ -681,10 +733,8 @@ async function rawApiRequest(url, method, data, options = {}) {
             const endpointBase = url.split('?')[0];
 
             // Записуємо ендпоінт в заблоковані з часом до розблокування
-            if (window._blockedEndpoints) {
-                window._blockedEndpoints[endpointBase] = Date.now() + (retryAfter * 1000);
-                console.warn(`⚠️ API: Ендпоінт ${endpointBase} заблоковано на ${retryAfter} секунд`);
-            }
+            _blockedEndpoints[endpointBase] = Date.now() + (retryAfter * 1000);
+            console.warn(`⚠️ API: Ендпоінт ${endpointBase} заблоковано на ${retryAfter} секунд`);
 
             // Показуємо індикатор прогресу очікування
             if (typeof showRateLimitProgress === 'function') {
@@ -782,6 +832,38 @@ async function rawApiRequest(url, method, data, options = {}) {
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
         try {
+            // Перевірка глобального обмеження швидкості
+            if (_globalRateLimited && !options.bypassThrottle) {
+                const remainingTime = Math.ceil((_globalRateLimitTime - Date.now()) / 1000);
+                if (remainingTime > 0) {
+                    console.warn(`🔌 API: Глобальне обмеження швидкості, залишилось ${remainingTime}с, ігноруємо запит до ${endpoint}`);
+
+                    // Перевіряємо чи це запит до профілю користувача
+                    const isUserProfileRequest = endpoint.includes('/user/') &&
+                                       !endpoint.includes('/staking') &&
+                                       !endpoint.includes('/balance') &&
+                                       !endpoint.includes('/claim');
+
+                    // Якщо є кеш для запитів даних користувача і запит не вимагає свіжих даних
+                    if (isUserProfileRequest && _userCache && !options.forceRefresh) {
+                        return Promise.resolve({
+                            status: 'success',
+                            data: _userCache,
+                            source: 'cache_global_limit'
+                        });
+                    }
+
+                    return Promise.reject({
+                        message: `Глобальне обмеження швидкості. Залишилось ${remainingTime}с`,
+                        retryAfter: _globalRateLimitTime - Date.now()
+                    });
+                } else {
+                    // Якщо час очікування минув, знімаємо обмеження
+                    _globalRateLimited = false;
+                    _globalRateLimitTime = 0;
+                }
+            }
+
             // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
             if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
                 // Перевіряємо формат UUID
@@ -825,7 +907,7 @@ async function rawApiRequest(url, method, data, options = {}) {
 
             // Перевірка на блокування endpoint через rate limiting
             const now = Date.now();
-            if (_blockedEndpoints[endpoint]) {
+            if (_blockedEndpoints[endpoint] && !options.bypassThrottle) {
                 const blockedUntil = _blockedEndpoints[endpoint];
 
                 if (now < blockedUntil) {
@@ -999,7 +1081,8 @@ async function rawApiRequest(url, method, data, options = {}) {
                         // Виконуємо запит через rawApiRequest
                         response = await rawApiRequest(url, method, data, {
                             ...options,
-                            timeout: options.timeout || 10000
+                            timeout: options.timeout || 15000,  // Збільшуємо таймаут
+                            bypassThrottle: options.bypassThrottle || (attempt > 0)  // Пропускаємо обмеження при повторних спробах
                         });
 
                         // Якщо запит успішний, виходимо з циклу
@@ -1223,6 +1306,13 @@ async function rawApiRequest(url, method, data, options = {}) {
 
         if (hasLongRunningRequests) {
             resetPendingRequests();
+        }
+
+        // Перевірка глобального обмеження швидкості
+        if (_globalRateLimited && now > _globalRateLimitTime) {
+            console.log('🔄 API: Знято глобальне обмеження швидкості');
+            _globalRateLimited = false;
+            _globalRateLimitTime = 0;
         }
     }, 60000);
 
@@ -1652,6 +1742,8 @@ async function rawApiRequest(url, method, data, options = {}) {
         _stakingCacheTime = 0;
         _lastRequestsByEndpoint = {};
         _blockedEndpoints = {};
+        _globalRateLimited = false;
+        _globalRateLimitTime = 0;
         console.log("🔌 API: Кеш очищено");
     }
 
@@ -1693,6 +1785,29 @@ async function rawApiRequest(url, method, data, options = {}) {
         }
     }
 
+    // Перевірка наявності збереженого глобального обмеження
+    try {
+        const savedLimitTime = localStorage.getItem('winix_rate_limited_until');
+        if (savedLimitTime) {
+            const limitTime = parseInt(savedLimitTime);
+            if (limitTime > Date.now()) {
+                _globalRateLimited = true;
+                _globalRateLimitTime = limitTime;
+                console.warn(`🔌 API: Знайдено збережене глобальне обмеження швидкості до ${new Date(limitTime).toLocaleTimeString()}`);
+
+                // Показуємо індикатор прогресу очікування
+                const remainingSeconds = Math.ceil((limitTime - Date.now()) / 1000);
+                if (remainingSeconds > 1) {
+                    showRateLimitProgress('global', remainingSeconds);
+                }
+            } else {
+                localStorage.removeItem('winix_rate_limited_until');
+            }
+        }
+    } catch(e) {
+        console.warn("Помилка відновлення стану обмеження швидкості:", e);
+    }
+
     // ======== ЕКСПОРТ API ========
 
     // Створюємо публічний API
@@ -1700,7 +1815,7 @@ async function rawApiRequest(url, method, data, options = {}) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.0',
+            version: '1.2.1',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 

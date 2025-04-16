@@ -25,13 +25,6 @@ def register_user_routes(app):
         """Отримання нагороди за бейдж"""
         return controllers.claim_badge_reward(telegram_id, request.json)
 
-
-    @app.route('/api/user/<telegram_id>/claim-newbie-bonus', methods=['POST'])
-    def api_claim_newbie_bonus(telegram_id):
-        """Отримання бонусу новачка"""
-        return controllers.claim_newbie_bonus(telegram_id)
-
-
     @app.route('/api/user/<telegram_id>/settings', methods=['GET'])
     def api_get_user_settings(telegram_id):
         """Отримання налаштувань користувача"""
