@@ -1,7 +1,7 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
- * @version 1.3.1 (з покращеною обробкою race condition)
+ * @version 1.3.2 (з виправленою обробкою UUID)
  */
 
 (function() {
@@ -285,17 +285,31 @@
     }
 
     /**
-     * Перевірка валідності UUID (покращений метод)
+     * Перевірка валідності UUID (вдосконалена версія з підтримкою різних форматів)
      * @param {string} id - ID для перевірки
      * @returns {boolean} Результат перевірки
      */
     function isValidUUID(id) {
         if (!id || typeof id !== 'string') return false;
 
-        // Перевірка для занадто коротких ID (запобігає помилкам з ac, 46 та іншими)
-        if (id.length < 10) return false;
+        // Перевірка для занадто коротких ID (відхиляємо критично невалідні)
+        if (id.length < 5) {
+            console.warn(`🔌 API: Критично короткий ID: ${id}`);
+            return false;
+        }
 
-        // Повна перевірка UUID
+        // 1. Цифровий ID достатньої довжини (як у розіграшах)
+        if (id.match(/^\d{8,}$/)) {
+            console.log(`🔌 API: Прийнято числовий ID: ${id}`);
+            return true;
+        }
+
+        // 2. Довгий ID з цифр і букв (без шаблону UUID)
+        if (id.length >= 10 && id.match(/^[0-9a-zA-Z-]+$/)) {
+            return true;
+        }
+
+        // 3. Стандартний UUID формат
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
         return uuidRegex.test(id);
     }
@@ -561,10 +575,12 @@
                             console.log("🛠️ API: raffle_id конвертовано в рядок:", processedData.raffle_id);
                         }
 
-                        // Перевірка формату UUID
+                        // Перевірка формату ID - ОНОВЛЕНО: тепер більш універсальна перевірка
                         if (!isValidUUID(processedData.raffle_id)) {
-                            console.error(`❌ API: Невалідний UUID для розіграшу: ${processedData.raffle_id}`);
+                            console.error(`❌ API: Невалідний ID для розіграшу: ${processedData.raffle_id}`);
                             throw new Error(`Невалідний ідентифікатор розіграшу: ${processedData.raffle_id}`);
+                        } else {
+                            console.log(`✅ API: Валідний ID розіграшу: ${processedData.raffle_id}`);
                         }
                     } else {
                         console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
@@ -801,7 +817,8 @@
 
                 // Перевірка параметрів запиту на участь
                 if (data) {
-                    if (!data.raffle_id || typeof data.raffle_id !== 'string' || data.raffle_id.length < 10) {
+                    // Переконатися, що raffle_id має коректний формат
+                    if (!data.raffle_id || typeof data.raffle_id !== 'string' || data.raffle_id.length < 5) {
                         console.error('❌ API: Невалідний ID розіграшу:', data.raffle_id);
                         return Promise.reject({
                             status: 'error',
@@ -826,9 +843,9 @@
                     data.raffle_id = String(data.raffle_id);
                 }
 
-                // Ретельна перевірка формату UUID
+                // Ретельна перевірка формату ID - ОНОВЛЕНО для підтримки різних форматів
                 if (!isValidUUID(data.raffle_id)) {
-                    console.error(`❌ API: Невалідний UUID: ${data.raffle_id}`);
+                    console.error(`❌ API: Невалідний ID розіграшу: ${data.raffle_id}`);
                     return Promise.reject({
                         status: 'error',
                         message: 'Невалідний ідентифікатор розіграшу'
@@ -841,8 +858,9 @@
                 const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
                 if (raffleIdMatch && raffleIdMatch[1]) {
                     const raffleId = raffleIdMatch[1];
+                    // ОНОВЛЕНО для підтримки різних форматів ID
                     if (!isValidUUID(raffleId)) {
-                        console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+                        console.error(`❌ API: Невалідний ID в URL: ${raffleId}`);
                         return Promise.reject({
                             status: 'error',
                             message: 'Невалідний ідентифікатор розіграшу в URL'
@@ -1978,7 +1996,7 @@
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.3.1',
+            version: '1.3.2',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 

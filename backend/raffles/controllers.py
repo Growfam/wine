@@ -239,34 +239,50 @@ class RaffleTransaction:
 
 # Функція для перевірки валідності UUID (покращена версія)
 def is_valid_uuid(raffle_id):
-    """Перевіряє, чи ID розіграшу є валідним UUID"""
+    """Перевіряє, чи ID розіграшу є валідним UUID або іншим прийнятним форматом ідентифікатора"""
     if not raffle_id:
         return False
 
-    # Якщо довжина ID менше 36 символів (стандартна довжина UUID), одразу повертаємо False
-    if isinstance(raffle_id, str) and len(raffle_id) < 36:
+    # Спочатку перевіряємо на критично короткі ID (очевидно невалідні)
+    if isinstance(raffle_id, str) and len(raffle_id) < 5:
         logger.warning(f"UUID занадто короткий: {raffle_id}, довжина: {len(raffle_id)}")
         return False
 
-    # Якщо ID короткий (менше 10 символів), це явно не UUID
-    if isinstance(raffle_id, str) and len(raffle_id) < 10:
-        logger.error(f"Критична помилка: Некоректний UUID (занадто короткий): {raffle_id}")
+    try:
+        # Спробуємо обробити різні формати ідентифікаторів
+
+        # 1. Перевірка на стандартний UUID
+        try:
+            uuid_obj = uuid.UUID(str(raffle_id))
+            return True
+        except (ValueError, AttributeError, TypeError):
+            # Не стандартний UUID, продовжуємо перевірки
+            pass
+
+        # 2. Перевірка цифрових ID (як у прикладі 17447962...)
+        if isinstance(raffle_id, str) and raffle_id.isdigit() and len(raffle_id) > 8:
+            # Цифрові ID достатньої довжини вважаємо прийнятними
+            return True
+
+        # 3. Перевірка на складний ідентифікатор з цифр та букв (формату 17447962-43622)
+        if isinstance(raffle_id, str) and '-' in raffle_id and len(raffle_id) > 10:
+            # Перевіряємо, чи всі частини містять валідні символи
+            parts = raffle_id.split('-')
+            if all(part.isalnum() for part in parts):
+                return True
+
+        # 4. Додаткова перевірка на альфа-числовий ID
+        if isinstance(raffle_id, str) and raffle_id.isalnum() and len(raffle_id) >= 10:
+            # Довгі альфа-числові ID зазвичай валідні
+            return True
+
+        # Жоден формат не підійшов
+        logger.warning(f"Невалідний формат ID: {raffle_id}")
         return False
 
-    try:
-        # Спроба конвертації в UUID - якщо успішно, значить формат вірний
-        uuid_obj = uuid.UUID(str(raffle_id))
-
-        # Додаткова перевірка: переконуємося, що строкове представлення співпадає з вхідним ID
-        # Це допоможе відсіяти випадки, коли UUID був пошкоджений, але залишився валідним
-        generated_uuid_str = str(uuid_obj)
-        if raffle_id != generated_uuid_str:
-            logger.warning(f"UUID не співпадає з оригіналом: {raffle_id} != {generated_uuid_str}")
-            return False
-
-        return True
-    except (ValueError, AttributeError, TypeError) as e:
+    except Exception as e:
         logger.error(f"Помилка перевірки UUID {raffle_id}: {str(e)}")
+        # Якщо сталася помилка, повертаємо False для безпеки
         return False
 
 
@@ -277,7 +293,7 @@ def check_raffle_exists(raffle_id):
         raise InvalidRaffleIDError("ID розіграшу не вказано")
 
     # Перевірка на дуже короткий ID (явна помилка)
-    if isinstance(raffle_id, str) and len(raffle_id) < 10:
+    if isinstance(raffle_id, str) and len(raffle_id) < 5:
         logger.error(f"Критично короткий ID розіграшу: {raffle_id}")
         raise InvalidRaffleIDError(f"Критично невалідний ID розіграшу: {raffle_id}")
 
@@ -526,7 +542,7 @@ def participate_in_raffle(telegram_id, data):
         raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу: {raffle_id}")
 
     # Додаткова перевірка довжини ID
-    if isinstance(raffle_id, str) and len(raffle_id) < 36:
+    if isinstance(raffle_id, str) and len(raffle_id) < 5:
         logger.warning(f"ID розіграшу занадто короткий: {raffle_id}, довжина {len(raffle_id)}")
         raise InvalidRaffleIDError(f"ID розіграшу занадто короткий: {raffle_id}")
 

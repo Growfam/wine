@@ -27,10 +27,10 @@ except ImportError:
 
 # Часові обмеження для маршрутів (мінімальні, але не нульові)
 RATE_LIMITS = {
-    "get_active_raffles": 2,    # 2 секунди між запитами
-    "get_raffles_history": 3,   # 3 секунди між запитами
-    "get_user_raffles": 2,      # 2 секунди між запитами
-    "participate_in_raffle": 2, # 2 секунди між запитами
+    "get_active_raffles": 2,  # 2 секунди між запитами
+    "get_raffles_history": 3,  # 3 секунди між запитами
+    "get_user_raffles": 2,  # 2 секунди між запитами
+    "participate_in_raffle": 2,  # 2 секунди між запитами
 }
 
 # Відстеження останніх запитів користувачів
@@ -53,18 +53,44 @@ def is_valid_uuid(uuid_string):
         logger.warning(f"UUID пустий або None")
         return False
 
-    # Перевірка на мінімальну довжину (повний UUID має 36 символів)
-    if len(uuid_string) < 32:  # Навіть без дефісів UUID повинен мати 32 символи
+    # Перевірка на мінімальну довжину
+    if isinstance(uuid_string, str) and len(uuid_string) < 5:
         logger.warning(f"UUID занадто короткий ({len(uuid_string)} символів): {uuid_string}")
         return False
 
     try:
-        # Спроба перетворити рядок в UUID об'єкт
-        uuid_obj = uuid.UUID(uuid_string)
-        # Перевіряємо рядкове представлення - повинно співпадати з оригіналом
-        return str(uuid_obj) == uuid_string
-    except (ValueError, AttributeError, TypeError) as e:
-        logger.warning(f"Некоректний UUID {uuid_string}: {str(e)}")
+        # 1. Спроба перетворити рядок в UUID об'єкт
+        try:
+            uuid_obj = uuid.UUID(str(uuid_string))
+            return True
+        except (ValueError, AttributeError, TypeError):
+            # Не стандартний UUID, продовжуємо перевірки
+            pass
+
+        # 2. Перевірка цифрових ID (як у прикладі 17447962...)
+        if isinstance(uuid_string, str) and uuid_string.isdigit() and len(uuid_string) > 8:
+            # Цифрові ID достатньої довжини вважаємо прийнятними
+            return True
+
+        # 3. Перевірка на складний ідентифікатор з цифр та букв (формату 17447962-43622)
+        if isinstance(uuid_string, str) and '-' in uuid_string and len(uuid_string) > 10:
+            # Перевіряємо, чи всі частини містять валідні символи
+            parts = uuid_string.split('-')
+            if all(part.isalnum() for part in parts):
+                return True
+
+        # 4. Додаткова перевірка на альфа-числовий ID
+        if isinstance(uuid_string, str) and uuid_string.isalnum() and len(uuid_string) >= 10:
+            # Довгі альфа-числові ID зазвичай валідні
+            return True
+
+        # Жоден формат не підійшов
+        logger.warning(f"Невалідний формат ID: {uuid_string}")
+        return False
+
+    except Exception as e:
+        logger.error(f"Помилка перевірки UUID {uuid_string}: {str(e)}")
+        # Якщо сталася помилка, повертаємо False для безпеки
         return False
 
 
@@ -213,8 +239,8 @@ def validate_raffle_id(f):
         if 'raffle_id' in kwargs:
             raffle_id = kwargs['raffle_id']
 
-            # Перевірка на занадто короткі ID, які точно не є валідними UUID
-            if len(raffle_id) <= 5:
+            # Перевірка на занадто короткі ID, які точно не є валідними
+            if isinstance(raffle_id, str) and len(raffle_id) <= 4:
                 logger.warning(f"Критично невалідний ID розіграшу в URL (занадто короткий): {raffle_id}")
                 return jsonify({
                     "status": "error",
@@ -222,7 +248,7 @@ def validate_raffle_id(f):
                     "code": "invalid_raffle_id"
                 }), 400
 
-            # Перевіряємо валідність UUID спочатку нашої вдосконаленої функцією
+            # Перевіряємо валідність ID спочатку нашою вдосконаленою функцією
             if not is_valid_uuid(raffle_id):
                 # Потім перевіряємо з функцією контролера для сумісності
                 if not controllers.is_valid_uuid(raffle_id):
@@ -239,8 +265,8 @@ def validate_raffle_id(f):
             if data and 'raffle_id' in data:
                 raffle_id = data['raffle_id']
 
-                # Перевірка на занадто короткі ID, які точно не є валідними UUID
-                if len(str(raffle_id)) <= 5:
+                # Перевірка на занадто короткі ID, які точно не є валідними
+                if isinstance(raffle_id, str) and len(raffle_id) <= 4:
                     logger.warning(f"Критично невалідний ID розіграшу в JSON (занадто короткий): {raffle_id}")
                     return jsonify({
                         "status": "error",
@@ -248,7 +274,7 @@ def validate_raffle_id(f):
                         "code": "invalid_raffle_id"
                     }), 400
 
-                # Перевіряємо валідність UUID спочатку нашою функцією
+                # Перевіряємо валідність ID спочатку нашою функцією
                 if not is_valid_uuid(str(raffle_id)):
                     # Потім перевіряємо з функцією контролера для сумісності
                     if not controllers.is_valid_uuid(str(raffle_id)):
