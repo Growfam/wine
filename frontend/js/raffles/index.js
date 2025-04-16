@@ -661,4 +661,28 @@
             console.error('❌ Критична помилка під час ініціалізації:', e);
         }
     });
+    // Додатковий глобальний обробник помилок для діагностики
+window.addEventListener('error', function(event) {
+    console.error('🚨 ГЛОБАЛЬНА ПОМИЛКА:', event.error);
+    console.error('📄 Файл:', event.filename);
+    console.error('📍 Рядок:', event.lineno);
+    console.error('📍 Колонка:', event.colno);
+    console.error('📝 Стек:', event.error?.stack);
+
+    // Спроба відобразити повідомлення для користувача
+    if (typeof window.showToast === 'function') {
+        window.showToast('Сталася помилка: ' + event.error?.message, 'error');
+    }
+});
+
+// Додатковий обробник для відлову помилок Promise
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('🚨 НЕОБРОБЛЕНА ПОМИЛКА PROMISE:', event.reason);
+    console.error('📝 Стек:', event.reason?.stack);
+
+    // Спроба відобразити повідомлення для користувача
+    if (typeof window.showToast === 'function') {
+        window.showToast('Сталася помилка обробки даних', 'error');
+    }
+});
 })();

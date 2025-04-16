@@ -575,20 +575,23 @@ if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.
                 }
             }
 
-            // Перевірка endpoint при запиті деталей розіграшу
-            if (endpoint.includes('raffles/')) {
-                const raffleIdMatch = endpoint.match(/raffles\/([0-9a-f-]+)/i);
-                if (raffleIdMatch && raffleIdMatch[1]) {
-                    const raffleId = raffleIdMatch[1];
-                    if (!isValidUUID(raffleId)) {
-                        console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
-                        return Promise.reject({
-                            status: 'error',
-                            message: 'Невалідний ідентифікатор розіграшу в URL'
-                        });
-                    }
-                }
-            }
+            // Перевіряємо тільки якщо це запит одного розіграшу, а не списку
+if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+    console.log("Перевірка UUID для:", endpoint);
+    const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+    if (raffleIdMatch && raffleIdMatch[1]) {
+        const raffleId = raffleIdMatch[1];
+        if (!isValidUUID(raffleId)) {
+            console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+            return Promise.reject({
+                status: 'error',
+                message: 'Невалідний ідентифікатор розіграшу в URL',
+                code: 'invalid_raffle_id'
+            });
+        }
+    }
+}
+
 
             // Перевіряємо, чи це запит до профілю користувача
             const isUserProfileRequest = endpoint.includes('/user/') &&
