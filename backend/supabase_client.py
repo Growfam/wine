@@ -1744,7 +1744,21 @@ def test_supabase_connection() -> Dict[str, Any]:
             "message": f"Неочікувана помилка при тестуванні з'єднання: {str(e)}",
             "details": None
         }
-
+def check_and_update_badges(user_id, context=None):
+    """
+    Функція для перевірки та оновлення бейджів користувача.
+    Для зворотної сумісності перенаправляє на award_badges
+    """
+    try:
+        from badges.badge_service import award_badges
+        return award_badges(user_id, context)
+    except ImportError:
+        try:
+            from backend.badges.badge_service import award_badges
+            return award_badges(user_id, context)
+        except ImportError:
+            logger.error("Помилка імпорту badge_service.py. Неможливо виконати перевірку бейджів.")
+            return None
 
 # Очищення кешу від застарілих записів при завантаженні модуля
 cleanup_cache()

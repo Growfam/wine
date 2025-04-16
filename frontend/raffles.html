@@ -890,59 +890,6 @@
             color: var(--text-secondary);
         }
 
-        /* Стилі для медалей (бейджів) */
-        .achievements-container {
-            width: 100%;
-            margin-top: 1.5rem;
-            animation: fadeIn 0.9s ease-out;
-            animation-delay: 0.8s;
-            animation-fill-mode: both;
-        }
-
-        .achievements-title {
-            font-size: 1.25rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-
-        .medals-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-        }
-
-        .medal-card {
-            background: var(--bg-item);
-            border-radius: var(--item-border-radius);
-            padding: 0.75rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .medal-icon {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 0.5rem;
-            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5));
-        }
-
-        .medal-name {
-            font-size: 0.75rem;
-            font-weight: bold;
-            color: var(--premium-color);
-            margin-bottom: 0.25rem;
-        }
-
-        .medal-description {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-        }
-
         /* Нижня навігація */
         .nav-bar {
             background: var(--primary-gradient);
@@ -1098,10 +1045,6 @@
 
             .stat-value {
                 font-size: 1.25rem;
-            }
-
-            .medals-grid {
-                grid-template-columns: repeat(2, 1fr);
             }
 
             .header .profile-avatar {
@@ -1345,40 +1288,6 @@
                     <div class="stat-card">
                         <div class="stat-value" id="total-tokens-spent">0</div>
                         <div class="stat-label">Витрачено жетонів</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Досягнення -->
-            <div class="achievements-container">
-                <div class="achievements-title">Ваші досягнення</div>
-                <div class="medals-grid">
-                    <div class="medal-card" id="badge-first" data-badge-id="beginner">
-                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="25" cy="25" r="20" fill="#FFD700" opacity="0.7" />
-                            <circle cx="25" cy="25" r="17" fill="#FFD700" />
-                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">1</text>
-                        </svg>
-                        <div class="medal-name">Перший розіграш</div>
-                        <div class="medal-description">Взяли участь у першому розіграші</div>
-                    </div>
-                    <div class="medal-card" id="badge-beginner" data-badge-id="beginner">
-                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="25" cy="25" r="20" fill="#4eb5f7" opacity="0.7" />
-                            <circle cx="25" cy="25" r="17" fill="#4eb5f7" />
-                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">5</text>
-                        </svg>
-                        <div class="medal-name">Постійний учасник</div>
-                        <div class="medal-description">Взяли участь у 5+ розіграшах</div>
-                    </div>
-                    <div class="medal-card" id="badge-winner" data-badge-id="winner">
-                        <svg class="medal-icon" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="25" cy="25" r="20" fill="#00dfd1" opacity="0.7" />
-                            <circle cx="25" cy="25" r="17" fill="#00dfd1" />
-                            <text x="25" y="30" text-anchor="middle" font-size="14" fill="#1A1A2E" font-weight="bold">W</text>
-                        </svg>
-                        <div class="medal-name">Перший виграш</div>
-                        <div class="medal-description">Виграли свій перший приз</div>
                     </div>
                 </div>
             </div>
