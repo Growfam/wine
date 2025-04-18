@@ -535,6 +535,13 @@ def participate_in_raffle(telegram_id, data):
     if not participation_response.data:
         updated_participants_count += 1
 
+    # Перевіряємо баланс користувача перед транзакцією
+    user_coins = int(user.get("coins", 0))
+    if user_coins < required_coins:
+        raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
+
+    transaction_id = None  # Ініціалізуємо змінну за межами блоку try
+
     try:
         # Виконуємо атомарну транзакцію
         with execute_transaction() as txn:
@@ -554,10 +561,6 @@ def participate_in_raffle(telegram_id, data):
             transaction_id = transaction_res.data[0]["id"] if transaction_res.data else None
 
             # 2. Оновлюємо баланс користувача
-            user_coins = int(user.get("coins", 0))
-            if user_coins < required_coins:
-                raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
-
             new_coins_balance = user_coins - required_coins
             txn.table("winix").update({"coins": new_coins_balance}).eq("telegram_id", telegram_id).execute()
 
@@ -583,7 +586,8 @@ def participate_in_raffle(telegram_id, data):
                                                                                                raffle_id).execute()
 
             # 5. Оновлюємо статус транзакції на "completed"
-            txn.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
+            if transaction_id:  # Додаємо перевірку, щоб уникнути помилок
+                txn.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
 
             # 6. Оновлюємо лічильник участей користувача
             participations_count = user.get("participations_count", 0) + 1
@@ -596,7 +600,11 @@ def participate_in_raffle(telegram_id, data):
 
         # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
         if participations_count >= 5:
-            check_and_update_badges(telegram_id)
+            try:
+                check_and_update_badges(telegram_id)
+            except Exception as badge_error:
+                logger.warning(f"Помилка оновлення бейджів: {str(badge_error)}")
+                # Продовжуємо виконання - помилка бейджів не повинна зупиняти основний процес
 
         # Формуємо відповідь
         total_entries = existing_entry_count + entry_count
@@ -635,10 +643,28 @@ def participate_in_raffle(telegram_id, data):
         return jsonify({"status": "success", "data": response_data})
 
     except (ValueError, InsufficientTokensError, RaffleAlreadyEndedError) as e:
+        # Якщо виникла помилка і була створена транзакція, але не завершена,
+        # оновлюємо її статус на "failed"
+        if transaction_id:
+            try:
+                supabase.table("transactions").update({"status": "failed", "description": str(e)}).eq("id",
+                                                                                                      transaction_id).execute()
+            except Exception as update_error:
+                logger.error(f"Не вдалося оновити статус транзакції {transaction_id}: {str(update_error)}")
+
         # Перехоплюємо спеціальні типи винятків для надання користувацького повідомлення
         raise
 
     except Exception as e:
+        # Якщо виникла помилка і була створена транзакція, але не завершена,
+        # оновлюємо її статус на "failed"
+        if transaction_id:
+            try:
+                supabase.table("transactions").update({"status": "failed", "description": "Неочікувана помилка"}).eq(
+                    "id", transaction_id).execute()
+            except Exception as update_error:
+                logger.error(f"Не вдалося оновити статус транзакції {transaction_id}: {str(update_error)}")
+
         # Логуємо інші помилки і повертаємо загальне повідомлення
         logger.error(f"Помилка участі в розіграші для {telegram_id}: {str(e)}", exc_info=True)
         raise ValueError("Сталася помилка при обробці запиту. Спробуйте пізніше.")
@@ -1632,10 +1658,17 @@ def check_and_finish_expired_raffles():
         "errors": errors,
         "total_expired": len(expired_raffles_response.data)
     }
-# Запуск початкового очищення orphaned записів
-try:
-    from .routes import cleanup_orphaned_participants
-    cleanup_result = cleanup_orphaned_participants()
-    logger.info(f"Результат початкового очищення orphaned participants: {cleanup_result}")
-except Exception as e:
-    logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")
+
+# Запуск початкового очищення orphaned записів не відразу, а через функцію
+def run_initial_cleanup():
+    """Функція для запуску початкового очищення orphaned записів"""
+    try:
+        # Імпортуємо тут, щоб уникнути циклічної залежності
+        from .routes import cleanup_orphaned_participants
+        cleanup_result = cleanup_orphaned_participants()
+        logger.info(f"Результат початкового очищення orphaned participants: {cleanup_result}")
+        return cleanup_result
+    except Exception as e:
+        logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")
+        return {"status": "error", "message": str(e)}
+

@@ -1744,21 +1744,79 @@ def test_supabase_connection() -> Dict[str, Any]:
             "message": f"Неочікувана помилка при тестуванні з'єднання: {str(e)}",
             "details": None
         }
+
+
+# Змініть функцію check_and_update_badges в supabase_client.py:
+
 def check_and_update_badges(user_id, context=None):
     """
     Функція для перевірки та оновлення бейджів користувача.
     Для зворотної сумісності перенаправляє на award_badges
     """
+    # Якщо "оригінальна" функція вже була викликана в цьому модулі, використовуємо її
+    if hasattr(check_and_update_badges, "_original_called") and check_and_update_badges._original_called:
+        # Використовуємо власну реалізацію, яка вже є в цьому модулі
+        return _check_and_update_badges_internal(user_id, context)
+
+    # Намагаємося використати функцію з badge_service
     try:
         from badges.badge_service import award_badges
-        return award_badges(user_id, context)
+        result = award_badges(user_id, context)
+        return result
     except ImportError:
         try:
             from backend.badges.badge_service import award_badges
-            return award_badges(user_id, context)
+            result = award_badges(user_id, context)
+            return result
         except ImportError:
-            logger.error("Помилка імпорту badge_service.py. Неможливо виконати перевірку бейджів.")
+            logger.warning("Модуль badge_service.py недоступний. Використовуємо внутрішню реалізацію.")
+            # Якщо не вдалося імпортувати badge_service, використовуємо власну реалізацію
+            check_and_update_badges._original_called = True
+            return _check_and_update_badges_internal(user_id, context)
+
+
+def _check_and_update_badges_internal(user_id, context=None):
+    """Внутрішня реалізація функції перевірки та оновлення бейджів"""
+    try:
+        # Перетворюємо ID в рядок
+        user_id = str(user_id)
+
+        user = get_user(user_id)
+        if not user:
+            logger.warning(f"_check_and_update_badges_internal: Користувача {user_id} не знайдено")
             return None
+
+        updates = {}
+
+        # Бейдж початківця - за 5 участей в розіграшах
+        if not user.get("badge_beginner", False) and user.get("participations_count", 0) >= 5:
+            updates["badge_beginner"] = True
+            logger.info(f"🏆 Користувач {user_id} отримує бейдж початківця")
+
+        # Бейдж багатія - за 50,000 WINIX
+        if not user.get("badge_rich", False) and float(user.get("balance", 0)) >= 50000:
+            updates["badge_rich"] = True
+            logger.info(f"🏆 Користувач {user_id} отримує бейдж багатія")
+
+        # Бейдж переможця - якщо є виграші
+        if not user.get("badge_winner", False) and user.get("wins_count", 0) > 0:
+            updates["badge_winner"] = True
+            logger.info(f"🏆 Користувач {user_id} отримує бейдж переможця")
+
+        # Якщо є оновлення, зберігаємо їх
+        if updates:
+            updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+            logger.info(f"_check_and_update_badges_internal: Оновлення бейджів користувача {user_id}: {updates}")
+            return update_user(user_id, updates)
+
+        return user
+    except Exception as e:
+        logger.error(f"❌ Помилка перевірки бейджів {user_id}: {str(e)}", exc_info=True)
+        return None
+
+
+# Початкове значення для відстеження, чи була викликана оригінальна функція
+check_and_update_badges._original_called = False
 
 # Очищення кешу від застарілих записів при завантаженні модуля
 cleanup_cache()

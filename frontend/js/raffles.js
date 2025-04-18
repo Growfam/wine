@@ -7,7 +7,27 @@ let rafflesToShow = [];
 let rafflePrizeMultipliers = {'WINIX': 1, 'USD': 28, 'EUR': 30};
 let activeTimers = {};
 let currentTab = 'active';
-const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+const API_BASE_URL = (() => {
+    // Перевіряємо глобальний конфіг, якщо він існує
+    if (window.WinixConfig && window.WinixConfig.apiBaseUrl) {
+        return window.WinixConfig.apiBaseUrl;
+    }
+
+    // Визначаємо URL на основі поточного середовища
+    const hostname = window.location.hostname;
+
+    // Конкретні умови для локального середовища
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Локальне середовище - використовуємо порт 8080
+        return `http://${hostname}:8080`;
+    } else if (hostname.includes('testenv') || hostname.includes('staging')) {
+        // Тестові середовища
+        return `https://${hostname}`;
+    } else {
+        // Продакшн середовище
+        return 'https://winixbot.com';
+    }
+})();
 const REFRESH_INTERVAL = 60000; // 60 секунд для оновлення даних
 
 // ===== TELEGRAM WEBAPP ІНТЕГРАЦІЯ =====
@@ -1014,6 +1034,30 @@ function hideLoadingIndicator() {
 
 // ===== УТІЛІТИ ДЛЯ РОБОТИ З API =====
 function fetchWithAuth(url, options = {}) {
+    // Використовуємо WinixAPI, якщо доступний
+    if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+        // Конвертуємо body з JSON string в об'єкт, якщо потрібно
+        let requestData = null;
+        if (options.body && typeof options.body === 'string') {
+            try {
+                requestData = JSON.parse(options.body);
+            } catch (e) {
+                console.warn("⚠️ Помилка парсингу JSON в fetchWithAuth:", e);
+                requestData = options.body;
+            }
+        } else if (options.body) {
+            requestData = options.body;
+        }
+
+        // Виконуємо запит через WinixAPI
+        return window.WinixAPI.apiRequest(url, options.method || 'GET', requestData, {
+            headers: options.headers,
+            suppressErrors: true,
+            timeout: options.timeout || 15000
+        });
+    }
+
+    // Запасний варіант, якщо WinixAPI недоступний
     // Додаємо заголовки авторизації, якщо є
     const headers = options.headers || {};
 
