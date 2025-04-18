@@ -47,8 +47,8 @@ if BACKEND_DIR not in sys.path:
 def is_valid_uuid(uuid_string):
     """Перевіряє, чи є рядок валідним UUID"""
     try:
-        uuid_obj = uuid.UUID(uuid_string)
-        return str(uuid_obj) == uuid_string
+        uuid_obj = uuid.UUID(str(uuid_string).strip())
+        return True
     except (ValueError, AttributeError, TypeError):
         return False
 
@@ -138,13 +138,24 @@ def setup_request_handlers(app):
 
 def register_api_routes(app):
     """Реєстрація всіх API маршрутів"""
+    # Реєстрація маршрутів для розіграшів окремо для кращого контролю помилок
+    try:
+        from raffles.routes import register_raffles_routes
+        success = register_raffles_routes(app)
+        if success:
+            logger.info("✅ Маршрути розіграшів успішно зареєстровано")
+        else:
+            logger.error("❌ Помилка реєстрації маршрутів розіграшів")
+    except Exception as e:
+        logger.error(f"❌ Критична помилка реєстрації маршрутів розіграшів: {str(e)}")
+        logger.error(traceback.format_exc())
+
     try:
         # Імпорт функцій реєстрації маршрутів
         from auth.routes import register_auth_routes
         from users.routes import register_user_routes
         from wallet.routes import register_wallet_routes
         from transactions.routes import register_transactions_routes
-        from raffles.routes import register_raffles_routes
         from quests.routes import register_quests_routes
         from referrals.routes import register_referrals_routes
         from badges.routes import register_badges_routes
@@ -156,7 +167,6 @@ def register_api_routes(app):
         register_user_routes(app)
         register_wallet_routes(app)
         register_transactions_routes(app)
-        register_raffles_routes(app)
         register_quests_routes(app)
         register_referrals_routes(app)
         register_badges_routes(app)
@@ -183,6 +193,15 @@ def register_utility_routes(app):
         """Найпростіший маршрут для перевірки стану додатка"""
         return "pong"
 
+    # Додаємо тестовий шлях для перевірки маршрутів розіграшів
+    @app.route('/api/raffles-test')
+    def api_raffles_test():
+        """Тестовий шлях для перевірки маршрутів розіграшів"""
+        return jsonify({
+            "status": "success",
+            "message": "Тестовий маршрут розіграшів працює"
+        })
+
     @app.route('/debug')
     def debug():
         """Діагностичний маршрут для перевірки конфігурації"""
@@ -207,6 +226,15 @@ def register_utility_routes(app):
         original_index_html_exists = os.path.exists(os.path.join(template_dir, 'original-index.html'))
         raffles_html_exists = os.path.exists(os.path.join(template_dir, 'raffles.html'))
 
+        # Отримуємо список зареєстрованих маршрутів
+        routes = []
+        for rule in app.url_map.iter_rules():
+            routes.append({
+                "endpoint": rule.endpoint,
+                "methods": list(rule.methods),
+                "path": str(rule)
+            })
+
         return jsonify({
             "status": "running",
             "environment": {
@@ -223,7 +251,8 @@ def register_utility_routes(app):
                 "original_index_html_exists": original_index_html_exists,
                 "raffles_html_exists": raffles_html_exists,
                 "supabase_test": supabase_test
-            }
+            },
+            "routes": routes[:20]  # Обмежуємо до 20 маршрутів для читабельності
         })
 
     @app.route('/api/debug', methods=['POST'])
@@ -522,6 +551,28 @@ def register_error_handlers(app):
     def page_not_found(e):
         logger.error(f"404 error: {request.path}")
 
+        # Перевірка чи це API запит
+        is_api_request = request.path.startswith('/api/')
+
+        # Спеціальна обробка для API маршрутів розіграшів
+        if is_api_request and ('/raffles' in request.path or '/raffle' in request.path):
+            logger.error(f"API 404 для розіграшу: {request.path}")
+
+            # Повертаємо порожній масив для запитів на отримання розіграшів
+            if request.path == '/api/raffles' or request.path.endswith('/raffles'):
+                return jsonify({
+                    "status": "success",
+                    "data": [],
+                    "message": "Дані не знайдено (404 помилка)"
+                })
+
+            # Для інших API розіграшів
+            return jsonify({
+                "status": "error",
+                "message": f"Ресурс не знайдено: {request.path}",
+                "code": "not_found"
+            }), 404
+
         # Спеціальна обробка для шляхів API з можливою помилкою UUID
         if '/api/raffles/' in request.path:
             # Перевірка, чи містить шлях потенційно короткий UUID
@@ -535,6 +586,14 @@ def register_error_handlers(app):
                         "details": "ID розіграшу має бути у форматі UUID"
                     }), 400
 
+        # Для звичайних API запитів
+        if is_api_request:
+            return jsonify({
+                "status": "error",
+                "message": f"Ресурс не знайдено: {request.path}"
+            }), 404
+
+        # Для HTML сторінок
         return jsonify({
             "error": "not_found",
             "message": f"Сторінка не знайдена: {request.path}",
