@@ -144,12 +144,7 @@ def register_api_routes(app):
         from users.routes import register_user_routes
         from wallet.routes import register_wallet_routes
         from transactions.routes import register_transactions_routes
-
-        # ПОЧИНАЮТЬСЯ ЗМІНИ: Використовуємо прямі маршрути розіграшів
-        # Імпортуємо прямі маршрути розіграшів замість стандартних
-        from raffles.direct_routes import register_direct_raffles_routes
-        # ЗАКІНЧУЮТЬСЯ ЗМІНИ
-
+        from raffles.routes import register_raffles_routes
         from quests.routes import register_quests_routes
         from referrals.routes import register_referrals_routes
         from badges.routes import register_badges_routes
@@ -161,12 +156,7 @@ def register_api_routes(app):
         register_user_routes(app)
         register_wallet_routes(app)
         register_transactions_routes(app)
-
-        # ПОЧИНАЮТЬСЯ ЗМІНИ: Використовуємо прямі маршрути
-        # Використовуємо прямі маршрути замість стандартних
-        register_direct_raffles_routes(app)
-        # ЗАКІНЧУЮТЬСЯ ЗМІНИ
-
+        register_raffles_routes(app)
         register_quests_routes(app)
         register_referrals_routes(app)
         register_badges_routes(app)

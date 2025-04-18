@@ -26,14 +26,14 @@ logger = logging.getLogger(__name__)
 
 # Імпортуємо необхідні модулі
 try:
-    from ..supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache, check_and_update_badges
+    from ..supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
     from ..raffles.controllers import finish_raffle, check_and_finish_expired_raffles
     # Імпортуємо сервіс бейджів
     from ..badges.badge_service import award_badges
 except ImportError:
     # Альтернативний імпорт для прямого запуску
     try:
-        from supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache, check_and_update_badges
+        from supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
         from raffles.controllers import finish_raffle, check_and_finish_expired_raffles
         # Імпортуємо сервіс бейджів
         from badges.badge_service import award_badges
@@ -359,8 +359,6 @@ class RaffleService:
 
     def send_notifications_to_winners(self) -> Dict[str, Any]:
         """Відправка повідомлень переможцям через Telegram API"""
-        # Імпортуємо функцію check_and_update_badges для вирішення "Unresolved reference"
-
         if not TELEGRAM_BOT_TOKEN:
             logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")
             return {"status": "error", "message": "TELEGRAM_BOT_TOKEN не налаштовано"}
@@ -406,33 +404,12 @@ class RaffleService:
                 raffle = raffles_by_id.get(raffle_id, {})
                 raffle_title = raffle.get("title", "Розіграш")
 
-                # Перевіряємо і оновлюємо бейджі користувача при перемозі - покращена обробка
-                try:
-                    # Спроба імпорту та виклику badge_service.award_badges
-                    try:
-                        from badges.badge_service import award_badges
-                        award_badges(telegram_id, {
-                            "action": "win",
-                            "raffle_id": raffle_id,
-                            "place": place
-                        })
-                    except ImportError:
-                        try:
-                            # Альтернативний шлях імпорту
-                            from backend.badges.badge_service import award_badges
-                            award_badges(telegram_id, {
-                                "action": "win",
-                                "raffle_id": raffle_id,
-                                "place": place
-                            })
-                        except ImportError:
-                            # Якщо модуль недоступний, використовуємо check_and_update_badges
-                            logger.info(
-                                f"Модуль badge_service недоступний, використовуємо check_and_update_badges для {telegram_id}")
-                            check_and_update_badges(telegram_id)
-                except Exception as e:
-                    logger.warning(f"Помилка оновлення бейджів для переможця {telegram_id}: {str(e)}")
-                    # Продовжуємо виконання, не зупиняючи процес при помилці з бейджами
+                # Перевіряємо і оновлюємо бейджі користувача при перемозі
+                award_badges(telegram_id, {
+                    "action": "win",
+                    "raffle_id": raffle_id,
+                    "place": place
+                })
 
                 # Формуємо повідомлення
                 message = MESSAGE_TEMPLATES[NotificationType.WINNER].format(
