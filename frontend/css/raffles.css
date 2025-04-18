@@ -1020,45 +1020,45 @@
 
     /* Стилі для сповіщень в стилі general.html */
     .toast-message {
-        position: fixed;
-        top: 1.25rem; /* 20px */
-        left: 50%;
-        transform: translateX(-50%);
-        background: linear-gradient(135deg, #1A1A2E, #0F3460);
-        color: #ffffff;
-        padding: 0.75rem 1.5rem; /* 12px 24px */
-        border-radius: 12px;
-        z-index: 1000;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        border: 1px solid rgba(78, 181, 247, 0.2);
-        opacity: 0;
-        transition: all 0.3s ease;
-        font-size: 0.9375rem; /* 15px */
-        display: flex;
-        align-items: center;
-        max-width: 350px;
-        width: 90%;
-    }
+    position: fixed;
+    top: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    opacity: 0;
+    transition: all 0.3s ease;
+    font-size: 0.9375rem;
+    display: flex;
+    align-items: center;
+    max-width: 350px;
+    width: 90%;
+}
 
-    .toast-message.success {
-        background: linear-gradient(135deg, #0F3460, #006064);
-        border: 1px solid rgba(0, 201, 167, 0.5);
-    }
+.toast-message.success {
+    background: linear-gradient(135deg, #0F3460, #006064);
+    border: 1px solid rgba(0, 201, 167, 0.5);
+}
 
-    .toast-message.error {
-        background: linear-gradient(135deg, #2E0B0B, #860000);
-        border: 1px solid rgba(255, 82, 82, 0.5);
-    }
+.toast-message.error {
+    background: linear-gradient(135deg, #2E0B0B, #860000);
+    border: 1px solid rgba(255, 82, 82, 0.5);
+}
 
-    .toast-message::after {
-        content: '×';
-        color: #4eb5f7;
-        margin-left: 10px;
-        cursor: pointer;
-        font-size: 20px;
-    }
+.toast-message::after {
+    content: '×';
+    color: #4eb5f7;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 20px;
+}
 
-    .toast-message.show {
-        opacity: 1;
-        transform: translate(-50%, 0.625rem); /* -50%, 10px */
-    }
+.toast-message.show {
+    opacity: 1;
+    transform: translate(-50%, 0.625rem);
+}
