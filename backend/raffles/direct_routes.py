@@ -230,6 +230,16 @@ def register_direct_raffles_routes(app):
                 "code": "server_error"
             }), 500
 
+    @app.route('/api/raffles/test', methods=['GET'])
+    def test_raffles_api():
+        """Тестовий маршрут для перевірки доступності API розіграшів"""
+        return jsonify({
+            "status": "success",
+            "message": "API розіграшів доступне",
+            "version": "1.0",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
     @app.route('/api/user/<telegram_id>/raffles', methods=['GET'])
     def api_get_user_raffles(telegram_id):
         """Отримання розіграшів, у яких бере участь користувач"""
@@ -644,3 +654,4 @@ def register_direct_raffles_routes(app):
 
     logger.info("Прямі маршрути розіграшів успішно зареєстровано")
     return True
+
