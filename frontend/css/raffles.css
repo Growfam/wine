@@ -915,8 +915,7 @@
             transform: scale(1.1);
         }
 
-      /* Стилі для спінера - повністю замініть поточні */
-.spinner {
+      .spinner {
     position: fixed;
     z-index: 2000;
     top: 0;
@@ -1018,7 +1017,7 @@
             }
         }
 
-    /* Стилі для повідомлень в стилі general.html */
+    /* Стилі для повідомлень в стилі general.html - оптимізовані */
 .toast-message {
     position: fixed;
     top: 1.25rem; /* 20px */
