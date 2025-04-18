@@ -360,7 +360,6 @@ class RaffleService:
     def send_notifications_to_winners(self) -> Dict[str, Any]:
         """Відправка повідомлень переможцям через Telegram API"""
         # Імпортуємо функцію check_and_update_badges для вирішення "Unresolved reference"
-        from ..supabase_client import check_and_update_badges
 
         if not TELEGRAM_BOT_TOKEN:
             logger.warning("TELEGRAM_BOT_TOKEN не налаштовано. Пропускаємо відправку повідомлень.")

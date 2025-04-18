@@ -28,12 +28,43 @@ except Exception as e:
     supabase_available = False
     supabase = None
 
+# ПОЧИНАЮТЬСЯ ЗМІНИ: додаємо імпорт функції транзакції
+try:
+    from supabase_client import execute_transaction
+except ImportError:
+    logger.error("Не вдалося імпортувати execute_transaction з supabase_client")
+
+    # Створюємо заглушку, якщо імпорт не вдався
+    def execute_transaction():
+        class DummyTransaction:
+            def __enter__(self):
+                return supabase
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+        return DummyTransaction()
+# ЗАКІНЧУЮТЬСЯ ЗМІНИ
+
 
 def register_direct_raffles_routes(app):
     """
     Реєстрація прямих маршрутів розіграшів без залежності від controllers.py
     """
     logger.info("Реєстрація прямих маршрутів розіграшів...")
+
+    # ПОЧИНАЮТЬСЯ ЗМІНИ: додаємо перевірку доступності Supabase
+    if not supabase_available or not supabase:
+        logger.error("Не вдалося підключитися до Supabase. Реєстрація маршрутів розіграшів неможлива.")
+        return False
+    # ЗАКІНЧУЮТЬСЯ ЗМІНИ
+
+    @app.route('/api/raffles/check', methods=['GET'])
+    def api_raffles_check():
+        """Перевірка доступності API розіграшів"""
+        return jsonify({
+            "status": "success",
+            "message": "API розіграшів працює",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
 
     @app.route('/api/raffles', methods=['GET'])
     def api_get_active_raffles():
@@ -110,6 +141,15 @@ def register_direct_raffles_routes(app):
         try:
             logger.info(f"api_get_raffle_details: Запит отримано для {raffle_id}")
 
+            # ПОЧИНАЮТЬСЯ ЗМІНИ: додаємо перевірку на пустий ID
+            if not raffle_id:
+                return jsonify({
+                    "status": "error",
+                    "message": "ID розіграшу відсутній в запиті",
+                    "code": "missing_raffle_id"
+                }), 400
+            # ЗАКІНЧУЮТЬСЯ ЗМІНИ
+
             # Перевірка валідності UUID
             try:
                 uuid_obj = uuid.UUID(raffle_id)
@@ -126,12 +166,14 @@ def register_direct_raffles_routes(app):
                     "code": "invalid_raffle_id"
                 }), 400
 
+            # ПОЧИНАЮТЬСЯ ЗМІНИ: додаємо перевірку доступності supabase
             if not supabase_available:
                 return jsonify({
                     "status": "error",
-                    "message": "Supabase недоступний",
+                    "message": "База даних тимчасово недоступна",
                     "code": "database_unavailable"
-                }), 500
+                }), 503
+            # ЗАКІНЧУЮТЬСЯ ЗМІНИ
 
             # Отримуємо розіграш з бази даних
             response = supabase.table("raffles").select("*").eq("id", raffle_id).execute()
@@ -425,12 +467,23 @@ def register_direct_raffles_routes(app):
             # Отримуємо дані користувача
             user_response = supabase.table("winix").select("*").eq("telegram_id", telegram_id).execute()
 
+            # ПОЧИНАЮТЬСЯ ЗМІНИ: покращена перевірка користувача
             if not user_response.data:
+                logger.warning(f"Користувача з ID {telegram_id} не знайдено при спробі участі в розіграші")
                 return jsonify({
                     "status": "error",
-                    "message": "Користувача не знайдено",
+                    "message": "Користувача не знайдено. Будь ласка, оновіть сторінку і спробуйте знову.",
                     "code": "user_not_found"
                 }), 404
+
+            if not user_response.data[0]:
+                logger.warning(f"Пусті дані користувача з ID {telegram_id}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Помилка отримання даних користувача. Будь ласка, спробуйте знову.",
+                    "code": "user_data_error"
+                }), 500
+            # ЗАКІНЧУЮТЬСЯ ЗМІНИ
 
             user = user_response.data[0]
 
@@ -504,12 +557,12 @@ def register_direct_raffles_routes(app):
             if not participation_response.data:
                 updated_participants_count += 1
 
-            # Виконуємо транзакцію
+            # Для створення зручного рядку з часом
             now_str = now.isoformat()
-            transaction_id = str(uuid.uuid4())
 
+            # Дані для транзакції
             transaction_data = {
-                "id": transaction_id,
+                "id": str(uuid.uuid4()),
                 "telegram_id": telegram_id,
                 "type": "fee",
                 "amount": -required_coins,
@@ -520,37 +573,53 @@ def register_direct_raffles_routes(app):
                 "previous_balance": user_coins
             }
 
-            # Створюємо транзакцію
-            supabase.table("transactions").insert(transaction_data).execute()
+            # ПОЧИНАЮТЬСЯ ЗМІНИ: атомарна транзакція
+            try:
+                # Виконуємо транзакцію атомарно
+                with execute_transaction() as txn:
+                    # 1. Створюємо запис транзакції
+                    txn.table("transactions").insert(transaction_data).execute()
 
-            # Оновлюємо баланс користувача
-            new_coins_balance = user_coins - required_coins
-            supabase.table("winix").update({"coins": new_coins_balance}).eq("telegram_id", telegram_id).execute()
+                    # 2. Оновлюємо баланс користувача
+                    new_coins_balance = user_coins - required_coins
+                    txn.table("winix").update({"coins": new_coins_balance}).eq("telegram_id", telegram_id).execute()
 
-            # Оновлюємо або створюємо запис участі
-            if participation_response.data:
-                new_entry_count = existing_entry_count + entry_count
-                supabase.table("raffle_participants").update({"entry_count": new_entry_count}).eq("id",
-                                                                                                  participation_id).execute()
-            else:
-                participation_data = {
-                    "id": str(uuid.uuid4()),
-                    "raffle_id": raffle_id,
-                    "telegram_id": telegram_id,
-                    "entry_time": now_str,
-                    "entry_count": entry_count,
-                    "status": "active"
-                }
-                supabase.table("raffle_participants").insert(participation_data).execute()
+                    # 3. Оновлюємо або створюємо запис участі
+                    if participation_response.data:
+                        # Оновлюємо існуючу участь
+                        new_entry_count = existing_entry_count + entry_count
+                        txn.table("raffle_participants").update({"entry_count": new_entry_count}).eq("id", participation_id).execute()
+                    else:
+                        # Створюємо нову участь
+                        participation_data = {
+                            "id": str(uuid.uuid4()),
+                            "raffle_id": raffle_id,
+                            "telegram_id": telegram_id,
+                            "entry_time": now_str,
+                            "entry_count": entry_count,
+                            "status": "active"
+                        }
+                        txn.table("raffle_participants").insert(participation_data).execute()
 
-            # Оновлюємо кількість учасників у розіграші
-            supabase.table("raffles").update({"participants_count": updated_participants_count}).eq("id",
-                                                                                                    raffle_id).execute()
+                    # 4. Оновлюємо кількість учасників у розіграші
+                    txn.table("raffles").update({
+                        "participants_count": updated_participants_count
+                    }).eq("id", raffle_id).execute()
 
-            # Оновлюємо лічильник участей
-            participations_count = user.get("participations_count", 0) + 1
-            supabase.table("winix").update({"participations_count": participations_count}).eq("telegram_id",
-                                                                                              telegram_id).execute()
+                    # 5. Оновлюємо лічильник участей
+                    participations_count = user.get("participations_count", 0) + 1
+                    txn.table("winix").update({
+                        "participations_count": participations_count
+                    }).eq("telegram_id", telegram_id).execute()
+
+            except Exception as transaction_error:
+                logger.error(f"Помилка транзакції: {str(transaction_error)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Помилка сервера при обробці участі",
+                    "code": "transaction_error"
+                }), 500
+            # ЗАКІНЧУЮТЬСЯ ЗМІНИ
 
             # Формуємо відповідь
             total_entries = existing_entry_count + entry_count
