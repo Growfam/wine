@@ -1672,3 +1672,48 @@ def run_initial_cleanup():
         logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+    # Функція для перевірки відповіді на правильність структури JSON
+    def verify_response(response):
+        """Перевіряє відповідь на правильність структури JSON"""
+        try:
+            import json
+            # Перевіряємо, чи це об'єкт Response з Flask
+            if hasattr(response, 'get_json'):
+                data = response.get_json()
+                if data is None:
+                    logger.error("Відповідь не містить валідного JSON")
+                    return False
+                return True
+            # Перевіряємо, чи це словник
+            elif isinstance(response, dict):
+                json.dumps(response)  # Пробуємо серіалізувати
+                return True
+            # Перевіряємо, чи це JSON-строка
+            elif isinstance(response, str):
+                json.loads(response)
+                return True
+            else:
+                logger.error(f"Невідомий тип відповіді: {type(response)}")
+                return False
+        except Exception as e:
+            logger.error(f"Помилка перевірки JSON: {str(e)}")
+            return False
+
+    # Декоратор для логування відповідей
+    def log_response(func):
+        """Декоратор для логування відповідей контролерів"""
+
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                if verify_response(result):
+                    logger.info(f"Успішний виклик {func.__name__}")
+                else:
+                    logger.warning(f"Виклик {func.__name__} повернув невалідну відповідь")
+                return result
+            except Exception as e:
+                logger.error(f"Помилка у {func.__name__}: {str(e)}")
+                raise
+
+        return wrapper
+
