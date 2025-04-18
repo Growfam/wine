@@ -506,47 +506,64 @@
             });
         }
 
-        // Показ повідомлень
-        window.showToast = function(message, type = 'info') {
-            const toast = document.getElementById('toast-message');
-            if (!toast) return;
+        // Показ повідомлень у стилі general.html
+window.showToast = function(message, type = 'info') {
+    const toast = document.getElementById('toast-message');
+    if (!toast) return;
 
-            toast.textContent = message;
-            toast.className = 'toast-message';
+    toast.textContent = message;
+    toast.className = 'toast-message';
 
-            if (type === 'success') {
-                toast.classList.add('success');
-            } else if (type === 'error') {
-                toast.classList.add('error');
-            }
+    if (type === 'success') {
+        toast.classList.add('success');
+    } else if (type === 'error') {
+        toast.classList.add('error');
+    }
 
-            toast.classList.add('show');
+    toast.classList.add('show');
 
-            // Автоматично приховуємо повідомлення через 5 секунд
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 5000);
+    // Автоматично приховуємо повідомлення через 5 секунд
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 5000);
 
-            // Додаємо обробник кліку для закриття
-            toast.addEventListener('click', () => {
-                toast.classList.remove('show');
-            });
-        }
+    // Додаємо обробник кліку для закриття
+    toast.addEventListener('click', () => {
+        toast.classList.remove('show');
+    });
+}
 
         // Функції для індикатора завантаження
-        window.showLoading = function() {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'flex';
-            }
-        }
+let activeRequestsCount = 0;
 
-        window.hideLoading = function() {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'none';
-            }
+window.showLoading = function() {
+    activeRequestsCount++;
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = 'flex';
+    }
+}
+
+window.hideLoading = function() {
+    activeRequestsCount = Math.max(0, activeRequestsCount - 1);
+
+    // Приховуємо спінер тільки якщо немає активних запитів
+    if (activeRequestsCount === 0) {
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'none';
         }
+    }
+}
+
+// Додайте функцію для аварійного скидання спінера
+window.resetLoadingState = function() {
+    activeRequestsCount = 0;
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+}
 
         // Код ініціалізації, який запускається після завантаження всіх скриптів
         document.addEventListener('DOMContentLoaded', function() {
@@ -571,6 +588,23 @@
                 console.error('❌ WinixRaffles не знайдено! Переконайтеся, що всі скрипти правильно підключені.');
             }
         });
+// Обробник необроблених Promise помилок
+window.addEventListener('unhandledrejection', function(event) {
+    if (event.reason && event.reason.message) {
+        console.error('Помилка Promise:', event.reason.message);
+
+        // Скидаємо стан спінера у випадку помилок
+        window.resetLoadingState();
+
+        // Показуємо помилку користувачу
+        window.showToast('Помилка: ' + event.reason.message, 'error');
+
+        // Скидаємо стан запиту участі, якщо він завис
+        if (window.WinixRaffles && window.WinixRaffles.participation) {
+            window.WinixRaffles.participation.requestInProgress = false;
+        }
+    }
+});
     </script>
 </body>
 </html>

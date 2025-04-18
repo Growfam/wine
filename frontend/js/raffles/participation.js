@@ -41,6 +41,9 @@
         init: function() {
             console.log('🎯 Ініціалізація модуля участі в розіграшах...');
 
+            // Перевіряємо збережений стан участі в localStorage
+            this._restoreParticipationFromStorage();
+
             // Створюємо додаткові ресурси для синхронізації станів
             this.setupSyncMechanisms();
 
@@ -51,24 +54,8 @@
             this.setupEventListeners();
         },
 
-        // Налаштування механізмів синхронізації
-        setupSyncMechanisms: function() {
-            // Обробник для збереження даних перед закриттям сторінки
-            window.addEventListener('beforeunload', () => {
-                // Зберігаємо стан участі в розіграшах
-                try {
-                    const participationState = {
-                        raffles: Array.from(this.participatingRaffles),
-                        tickets: this.userRaffleTickets,
-                        lastUpdate: Date.now()
-                    };
-                    localStorage.setItem('winix_participation_state', JSON.stringify(participationState));
-                } catch (e) {
-                    console.warn('⚠️ Не вдалося зберегти стан участі:', e);
-                }
-            });
-
-            // Спроба відновлення даних з localStorage
+        // Відновлення стану участі з localStorage
+        _restoreParticipationFromStorage: function() {
             try {
                 const savedState = localStorage.getItem('winix_participation_state');
                 if (savedState) {
@@ -94,28 +81,48 @@
             } catch (e) {
                 console.warn('⚠️ Помилка відновлення стану участі:', e);
             }
+        },
 
-            // Додаємо обробник вікна помилки для уникнення проблем із зависанням
-            window.addEventListener('error', (event) => {
-                // Якщо виникла помилка, скидаємо стан запиту
-                if (this.requestInProgress) {
-                    console.warn('⚠️ Скидання стану запиту через помилку:', event.message);
-                    this.requestInProgress = false;
+        // Налаштування механізмів синхронізації
+        setupSyncMechanisms: function() {
+            // Обробник для збереження даних перед закриттям сторінки
+            window.addEventListener('beforeunload', () => {
+                // Зберігаємо стан участі в розіграшах
+                this.saveSyncState();
+            });
+
+            // Додаємо обробник для скидання зависаючих запитів
+            window.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.requestInProgress) {
+                    // Якщо сторінка стала видимою, а запит все ще в процесі,
+                    // це може свідчити про зависання - скидаємо стан
+                    console.warn('⚠️ Виявлено активний запит після зміни вкладки, скидаємо стан...');
+                    setTimeout(() => this.resetState(), 1000);
                 }
             });
 
-            // Додаємо перевірку стану мережі
-            window.addEventListener('offline', () => {
-                console.log('🔌 З`єднання втрачено. Деякі функції можуть не працювати.');
-                // Скидаємо стан запиту для запобігання зависанню
-                this.requestInProgress = false;
-            });
+            // Перевіряємо наявність зависаючих запитів кожні 30 секунд
+            setInterval(() => {
+                if (this.requestInProgress && document.visibilityState === 'visible') {
+                    // Якщо запит зависає більше 30 секунд, скидаємо його
+                    console.warn('⚠️ Запит участі висить більше 30 секунд, скидаємо стан...');
+                    this.resetState();
+                }
+            }, 30000);
+        },
 
-            window.addEventListener('online', () => {
-                console.log('🔌 З`єднання відновлено. Оновлюємо дані...');
-                // Відновлюємо дані при відновленні з'єднання
-                setTimeout(() => this.loadUserRaffles(), 2000);
-            });
+        // Збереження стану синхронізації в localStorage
+        saveSyncState: function() {
+            try {
+                const participationState = {
+                    raffles: Array.from(this.participatingRaffles),
+                    tickets: this.userRaffleTickets,
+                    lastUpdate: Date.now()
+                };
+                localStorage.setItem('winix_participation_state', JSON.stringify(participationState));
+            } catch (e) {
+                console.warn('⚠️ Не вдалося зберегти стан участі:', e);
+            }
         },
 
         // Налаштування обробників подій
@@ -272,23 +279,33 @@
             }
         },
 
-        // Збереження стану синхронізації
-        saveSyncState: function() {
-            try {
-                const participationState = {
-                    raffles: Array.from(this.participatingRaffles),
-                    tickets: this.userRaffleTickets,
-                    lastUpdate: Date.now()
-                };
-                localStorage.setItem('winix_participation_state', JSON.stringify(participationState));
-            } catch (e) {
-                console.warn('⚠️ Не вдалося зберегти стан участі:', e);
-            }
-        },
-
         // Оновлення кнопок участі в розіграшах
         updateParticipationButtons: function() {
             try {
+                // Спочатку перевіряємо дані локального сховища
+                try {
+                    const savedState = localStorage.getItem('winix_participation_state');
+                    if (savedState) {
+                        const parsedState = JSON.parse(savedState);
+
+                        // Відновлюємо множину розіграшів, якщо вона порожня
+                        if (parsedState && Array.isArray(parsedState.raffles) &&
+                            (!this.participatingRaffles || this.participatingRaffles.size === 0)) {
+
+                            this.participatingRaffles = new Set(parsedState.raffles);
+
+                            // Відновлюємо кількість білетів
+                            if (parsedState.tickets) {
+                                this.userRaffleTickets = parsedState.tickets;
+                            }
+
+                            console.log(`✅ Відновлено дані участі для ${this.participatingRaffles.size} розіграшів`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка відновлення стану участі:', e);
+                }
+
                 // Використовуємо селектори для кращої продуктивності
                 const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
                 if (!buttons.length) return;
@@ -662,12 +679,22 @@
                     button.removeAttribute('data-processing');
                     button.classList.remove('processing');
                     button.disabled = false;
+
+                    // Відновлюємо оригінальний текст
+                    const originalText = button.getAttribute('data-original-text');
+                    if (originalText && !button.classList.contains('participating')) {
+                        button.textContent = originalText;
+                    }
                 });
             } catch (e) {
                 console.warn('Не вдалося скинути стан кнопок:', e);
             }
 
             console.log('🔄 Стан модуля участі скинуто');
+
+            // Оновлюємо кнопки на основі збереженого стану
+            this.updateParticipationButtons();
+
             return true;
         }
     };
@@ -696,6 +723,40 @@
                 console.warn('⚠️ Виявлено блокування запиту після завантаження сторінки. Скидаємо стан...');
                 participation.resetState();
             }
+
+            // Додаємо стилі для кнопок участі
+            const style = document.createElement('style');
+            style.textContent = `
+                .join-button.processing, .mini-raffle-button.processing {
+                    background: #4c4c6e !important;
+                    opacity: 0.8;
+                    cursor: wait !important;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .join-button.processing::after, .mini-raffle-button.processing::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 200%;
+                    height: 100%;
+                    background: linear-gradient(90deg, 
+                        rgba(255, 255, 255, 0),
+                        rgba(255, 255, 255, 0.1),
+                        rgba(255, 255, 255, 0));
+                    animation: loading-shine 1.5s infinite;
+                }
+                
+                @keyframes loading-shine {
+                    to {
+                        left: 100%;
+                    }
+                }
+            `;
+
+            document.head.appendChild(style);
         }, 5000); // Перевіряємо через 5 секунд після завантаження
     });
 })();
