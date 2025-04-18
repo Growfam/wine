@@ -27,10 +27,28 @@
         init: function() {
             console.log('📊 Ініціалізація модуля статистики розіграшів...');
 
+            // Додаємо обробники подій
+            this.setupEventListeners();
+
             // Перевіряємо, чи потрібно відразу завантажити статистику
             if (WinixRaffles.state.activeTab === 'stats') {
                 this.loadStatistics();
             }
+        },
+
+        // Налаштування обробників подій
+        setupEventListeners: function() {
+            // Обробник для бейджів (медалей)
+            document.addEventListener('click', (e) => {
+                const medalCard = e.target.closest('.medal-card.earned:not(.claimed)');
+                if (medalCard) {
+                    const badgeId = medalCard.getAttribute('data-badge-id');
+                    if (badgeId) {
+                        e.preventDefault();
+                        this.claimBadgeReward(badgeId);
+                    }
+                }
+            });
         },
 
         // Завантаження статистики розіграшів
@@ -144,6 +162,9 @@
             }
             this.updateStatValue('total-tokens-spent', tokensSpent);
 
+            // Перевіряємо і оновлюємо медалі (бейджі)
+            this.updateBadges(userData.badges || {});
+
             // Створюємо графік активності, якщо є контейнер
             this.createActivityChart();
         },
@@ -155,6 +176,50 @@
                 // Форматуємо число з розділювачами
                 element.textContent = typeof value === 'number' ?
                     value.toLocaleString('uk-UA') : value;
+            }
+        },
+
+        // Оновлення бейджів (медалей)
+        updateBadges: function(badges) {
+            // Бейдж переможця
+            this.updateBadge('winner', badges.winner_completed, badges.winner_reward_claimed);
+
+            // Бейдж початківця
+            this.updateBadge('beginner', badges.beginner_completed, badges.beginner_reward_claimed);
+
+            // Бейдж багатія
+            this.updateBadge('rich', badges.rich_completed, badges.rich_reward_claimed);
+        },
+
+        // Оновлення конкретного бейджа
+        updateBadge: function(badgeId, completed, claimed) {
+            const medalCard = document.querySelector(`.medal-card[data-badge-id="${badgeId}"]`);
+            if (!medalCard) return;
+
+            if (completed) {
+                medalCard.classList.add('earned');
+                if (claimed) {
+                    medalCard.classList.add('claimed');
+
+                    // Якщо нагорода вже отримана, показуємо відповідний текст
+                    const description = medalCard.querySelector('.medal-description');
+                    if (description) {
+                        description.textContent = 'Нагороду отримано';
+                    }
+                } else {
+                    medalCard.classList.remove('claimed');
+                    medalCard.title = 'Натисніть, щоб отримати нагороду';
+
+                    // Додаємо елемент для повідомлення про можливість отримати нагороду
+                    if (!medalCard.querySelector('.claim-hint')) {
+                        const hintElement = document.createElement('div');
+                        hintElement.className = 'claim-hint';
+                        hintElement.textContent = 'Натисніть для отримання нагороди';
+                        medalCard.appendChild(hintElement);
+                    }
+                }
+            } else {
+                medalCard.classList.remove('earned', 'claimed');
             }
         },
 
@@ -245,10 +310,70 @@
             this.updateStatValue('total-winix-won', 0);
             this.updateStatValue('total-tokens-spent', 0);
 
+            // Скидаємо стан всіх бейджів
+            document.querySelectorAll('.medal-card').forEach(medalCard => {
+                medalCard.classList.remove('earned', 'claimed');
+            });
+
             // Оновлюємо графік
             const chartContainer = document.querySelector('.chart-placeholder');
             if (chartContainer) {
                 chartContainer.innerHTML = '<span>Недостатньо даних для відображення графіку активності</span>';
+            }
+        },
+
+        // Отримання нагороди за бейдж
+        claimBadgeReward: async function(badgeId) {
+            const userId = WinixRaffles.state.telegramId || WinixAPI.getUserId();
+
+            if (!userId) {
+                window.showToast('Не вдалося визначити ваш ID', 'error');
+                return;
+            }
+
+            // Відображення процесу завантаження
+            window.showLoading();
+
+            try {
+                // Відправляємо запит на отримання нагороди
+                const response = await WinixAPI.apiRequest(`user/${userId}/claim-badge-reward`, 'POST', {
+                    badge_id: badgeId
+                });
+
+                window.hideLoading();
+
+                if (response.status === 'success') {
+                    // Успішно отримано нагороду
+                    const rewardAmount = response.data?.reward_amount ||
+                        (badgeId === 'winner' ? 2500 : (badgeId === 'beginner' ? 1000 : 5000));
+
+                    // Показуємо повідомлення про успіх
+                    window.showToast(`Ви успішно отримали нагороду за бейдж: ${rewardAmount} WINIX`, 'success');
+
+                    // Оновлюємо стан бейджа
+                    this.updateBadge(badgeId, true, true);
+
+                    // Оновлюємо дані користувача
+                    this.loadStatistics(true);
+
+                    // Оновлюємо баланс користувача
+                    if (response.data && response.data.new_balance !== undefined) {
+                        document.dispatchEvent(new CustomEvent('user-data-updated', {
+                            detail: { balance: response.data.new_balance }
+                        }));
+                    }
+                } else if (response.status === 'already_claimed') {
+                    // Нагорода вже була отримана
+                    window.showToast('Ви вже отримали цю нагороду', 'info');
+                    this.updateBadge(badgeId, true, true);
+                } else {
+                    // Помилка отримання нагороди
+                    window.showToast(response.message || 'Помилка отримання нагороди', 'error');
+                }
+            } catch (error) {
+                window.hideLoading();
+                console.error('❌ Помилка отримання нагороди за бейдж:', error);
+                window.showToast('Помилка при спробі отримання нагороди', 'error');
             }
         },
 

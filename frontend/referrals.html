@@ -1150,13 +1150,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error(`Глобальна помилка JavaScript: ${message} у ${source}:${lineno}:${colno}`);
         return true;
     };
-    // Очищаємо кеш розіграшів перед ініціалізацією
-try {
-    localStorage.removeItem('winix_active_raffles');
-    console.log("✅ Кеш розіграшів очищено");
-} catch (e) {
-    console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
-}
 </script>
 </body>
 </html>

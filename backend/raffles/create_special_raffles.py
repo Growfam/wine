@@ -104,9 +104,8 @@ def create_jackpot_raffle(admin_id: str, duration_days: int = 7) -> Dict:
         "participants_count": 0,
         "prize_distribution": prize_distribution,
         "jackpot_mode": True,
-        "participation_reward": 550,  # Винагорода за участь
+        "participation_reward": 550,
         "participation_reward_currency": "$Winix",
-        "rewards_processed": False,  # Винагороди ще не оброблені
         "total_winix_pool": total_winix,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
@@ -197,9 +196,8 @@ def create_daily_raffle(admin_id: str) -> Dict:
         "participants_count": 0,
         "prize_distribution": prize_distribution,
         "jackpot_mode": False,
-        "participation_reward": 200,  # Винагорода за участь
+        "participation_reward": 200,
         "participation_reward_currency": "$Winix",
-        "rewards_processed": False,  # Винагороди ще не оброблені
         "created_at": now.isoformat(),
         "updated_at": now.isoformat(),
         "created_by": admin_id,
