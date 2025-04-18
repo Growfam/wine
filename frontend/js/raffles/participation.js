@@ -376,14 +376,6 @@
          * @returns {Promise<object>} Результат участі
          */
         participateInRaffle: async function(raffleId, raffleType) {
-            if (this.requestInProgress) {
-    window.showToast("Зачекайте завершення попереднього запиту", "warning");
-    console.log("Запит участі вже виконується, очікування...");
-    return Promise.resolve({
-        success: false,
-        message: "Зачекайте завершення попереднього запиту"
-    });
-}
             const userId = WinixRaffles.state.telegramId ||
                            (window.WinixAPI ? window.WinixAPI.getUserId() : null);
 
@@ -391,7 +383,7 @@
                 return Promise.reject(new Error('Не вдалося визначити ваш ID'));
             }
 
-            // 1. ВАЖЛИВО: Перевірка валідності raffleId перед продовженням
+            // Перевірка валідності raffleId
             if (!WinixAPI.isValidUUID || typeof WinixAPI.isValidUUID !== 'function') {
                 // Запасна перевірка, якщо основна функція недоступна
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -402,22 +394,22 @@
                 return Promise.reject(new Error('Невалідний ідентифікатор розіграшу'));
             }
 
-            // 2. ВИПРАВЛЕННЯ: Перевірка наявності активних запитів
+            // ВИПРАВЛЕННЯ: Перевірка наявності активних запитів
             if (this.requestInProgress) {
-                console.warn(`❌ Участь вже обробляється, пропускаємо запит на ${raffleId}`);
+                console.warn(`⚠️ Участь вже обробляється, пропускаємо запит на ${raffleId}`);
                 return Promise.reject(new Error('Зачекайте завершення попереднього запиту'));
             }
 
-            // 3. ВИПРАВЛЕННЯ: Удосконалене обмеження частоти запитів
+            // ВИПРАВЛЕННЯ: Перевірка часу між запитами
             const now = Date.now();
             const timeSinceLastRequest = now - this.lastParticipationTime;
-            if (timeSinceLastRequest < 5000) {
-                const secondsToWait = Math.ceil((5000 - timeSinceLastRequest) / 1000);
+            if (timeSinceLastRequest < 3000) {
+                const secondsToWait = Math.ceil((3000 - timeSinceLastRequest) / 1000);
                 console.warn(`⏳ Надто частий запит, потрібно чекати ${secondsToWait}с`);
                 return Promise.reject(new Error(`Зачекайте ${secondsToWait} секунд перед наступною спробою`));
             }
 
-            // 4. НОВЕ: Обробка невалідних розіграшів
+            // Перевірка невалідних розіграшів
             if (this.invalidRaffleIds && this.invalidRaffleIds.has(raffleId)) {
                 console.warn(`⚠️ Спроба участі в невалідному розіграші: ${raffleId}`);
                 return Promise.reject(new Error('Розіграш вже завершено або недоступний'));
@@ -439,20 +431,19 @@
                 // Визначення кількості жетонів для участі
                 let entryCount = 1;
 
-                // 5. НОВЕ: Додаємо проміжне оновлення UI для кращого UX
+                // Оновлення стану кнопок перед запитом
                 this._updateButtonsForPendingParticipation(raffleId);
 
-                // 6. ВИПРАВЛЕННЯ: Покращений запит з більшою кількістю опцій
+                // ВИПРАВЛЕННЯ: Покращений запит з більшою кількістю опцій
                 const response = await WinixAPI.apiRequest(`user/${userId}/participate-raffle`, 'POST', {
                     raffle_id: raffleId,
                     entry_count: entryCount,
                     _timestamp: Date.now() // Запобігає кешуванню
                 }, {
-                    timeout: 15000,           // Збільшений таймаут
-                    retries: 1,               // Дозволяємо одну повторну спробу
+                    timeout: 10000,           // Таймаут 10 секунд
+                    retries: 1,               // Одна повторна спроба
                     bypassThrottle: true,     // Обходимо загальне обмеження швидкості
-                    allowParallel: false,     // Важливо! Заборона паралельних запитів
-                    suppressErrors: false     // Хочемо, щоб помилки пробивалися
+                    allowParallel: false      // Заборона паралельних запитів
                 });
 
                 if (typeof window.hideLoading === 'function') {
@@ -460,7 +451,7 @@
                 }
 
                 if (response.status === 'success') {
-                    // 7. ВИПРАВЛЕННЯ: Безпечне оновлення кількості жетонів
+                    // Безпечне оновлення кількості жетонів
                     const newCoinsBalance = response.data?.new_coins_balance !== undefined
                         ? response.data.new_coins_balance
                         : (initialCoins - entryCount);
@@ -480,7 +471,7 @@
                     const previousTickets = this.userRaffleTickets[raffleId] || 0;
                     this.userRaffleTickets[raffleId] = previousTickets + 1;
 
-                    // Зберігаємо оновлений стан
+                    // Зберігаємо оновлений стан у localStorage
                     this.saveSyncState();
 
                     // Оновлюємо кнопки участі відразу
@@ -492,11 +483,7 @@
                         ? `Додано ще один білет! Тепер у вас ${ticketCount} білетів`
                         : 'Ви успішно взяли участь у розіграші';
 
-                    // Показуємо повідомлення про бонус, якщо є
-                    if (response.data && response.data.bonus_amount) {
-                        message += `. Бонус: ${response.data.bonus_amount} ${response.data.bonus_currency || 'WINIX'}`;
-                    }
-
+                    // Показуємо повідомлення
                     if (typeof window.showToast === 'function') {
                         window.showToast(message, 'success');
                     } else {
@@ -516,11 +503,6 @@
 
                     // Оновлюємо кількість учасників у DOM
                     this.updateParticipantsCount(raffleId);
-
-                    // Завантажуємо оновлені дані користувача (після затримки)
-                    setTimeout(() => {
-                        this.loadUserRaffles();
-                    }, 3000);
 
                     return { success: true, data: response.data, message };
                 } else {
@@ -542,63 +524,20 @@
 
                 console.error(`❌ Помилка участі в розіграші ${raffleId}:`, error);
 
-                // 8. ВИПРАВЛЕННЯ: Покращена обробка специфічних помилок
-                let errorMessage = error.message || "Помилка при спробі участі в розіграші";
-
-                // Обробка специфічних помилок
-                if (error.message) {
-                    if (error.message.includes('занадто багато запитів') ||
-                        error.message.includes('Зачекайте') ||
-                        error.message.includes('429')) {
-
-                        this.lastParticipationTime = Date.now(); // Оновлюємо час для запобігання повторним спробам
-                        errorMessage = "Занадто частий запит. Спробуйте через 5-10 секунд";
-                    }
-                    else if (error.message.includes('недостатньо') ||
-                            error.message.includes('insufficient') ||
-                            error.message.includes('жетон')) {
-                        errorMessage = "Недостатньо жетонів для участі в розіграші";
-                    }
-                    else if (error.message.includes('raffle_not_found') ||
-                            error.message.includes('не знайдено')) {
-                        this.addInvalidRaffleId(raffleId);
-                        errorMessage = "Розіграш не знайдено або вже завершено";
-                    }
-                }
-
+                // Показуємо повідомлення про помилку
                 if (typeof window.showToast === 'function') {
-                    window.showToast(errorMessage, 'error');
+                    window.showToast(error.message || "Помилка при спробі участі в розіграші", 'error');
                 }
 
-                throw new Error(errorMessage);
+                throw error;
             } finally {
-                // 9. ВАЖЛИВО: Завжди знімаємо блокування запиту!
+                // ВАЖЛИВО: Завжди знімаємо блокування запиту!
                 this.requestInProgress = false;
 
-                // 10. НОВЕ: Видаляємо статус очікування з кнопок
+                // Видаляємо статус очікування з кнопок
                 setTimeout(() => {
                     this._clearPendingParticipationState(raffleId);
                 }, 300);
-            }
-        },
-
-        // Функція для оновлення кількості учасників розіграшу в DOM
-        updateParticipantsCount: function(raffleId) {
-            try {
-                // Знайти елемент для оновлення кількості учасників
-                const participantsCountElement = document.querySelector(
-                    `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
-                    `.main-raffle .participants-info .participants-count`
-                );
-
-                if (participantsCountElement) {
-                    // Отримати поточне значення і збільшити його
-                    const currentCount = parseInt(participantsCountElement.textContent.replace(/\s+/g, '')) || 0;
-                    participantsCountElement.textContent = (currentCount + 1).toString()
-                        .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Форматування з пробілами між розрядами
-                }
-            } catch (e) {
-                console.warn("⚠️ Не вдалося оновити лічильник учасників:", e);
             }
         },
 
@@ -637,7 +576,10 @@
             this.updateParticipationButtons();
         },
 
-        // 11. НОВИЙ МЕТОД: Оновлення стану кнопок під час очікування
+        /**
+         * Оновлення стану кнопок під час очікування
+         * @param {string} raffleId - ID розіграшу
+         */
         _updateButtonsForPendingParticipation: function(raffleId) {
             try {
                 const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
@@ -647,13 +589,52 @@
                     const originalText = button.textContent;
                     button.setAttribute('data-original-text', originalText);
                     button.textContent = 'Обробка...';
+
+                    // Додаємо анімацію очікування
+                    if (!document.getElementById('processing-animation-styles')) {
+                        const style = document.createElement('style');
+                        style.id = 'processing-animation-styles';
+                        style.textContent = `
+                            .join-button.processing, .mini-raffle-button.processing {
+                                background: #4c4c6e !important;
+                                opacity: 0.8;
+                                cursor: wait !important;
+                                position: relative;
+                                overflow: hidden;
+                            }
+                            
+                            .join-button.processing::after, .mini-raffle-button.processing::after {
+                                content: '';
+                                position: absolute;
+                                top: 0;
+                                left: -100%;
+                                width: 200%;
+                                height: 100%;
+                                background: linear-gradient(90deg, 
+                                    rgba(255, 255, 255, 0),
+                                    rgba(255, 255, 255, 0.1),
+                                    rgba(255, 255, 255, 0));
+                                animation: loading-shine 1.5s infinite;
+                            }
+                            
+                            @keyframes loading-shine {
+                                to {
+                                    left: 100%;
+                                }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
                 });
             } catch (e) {
                 console.warn('Не вдалося оновити стан кнопок:', e);
             }
         },
 
-        // 12. НОВИЙ МЕТОД: Очищення стану очікування
+        /**
+         * Очищення стану очікування
+         * @param {string} raffleId - ID розіграшу
+         */
         _clearPendingParticipationState: function(raffleId) {
             try {
                 const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
@@ -675,7 +656,32 @@
             }
         },
 
-        // Аварійне скидання стану при помилках
+        /**
+         * Функція для оновлення кількості учасників розіграшу в DOM
+         * @param {string} raffleId - ID розіграшу
+         */
+        updateParticipantsCount: function(raffleId) {
+            try {
+                // Знаходимо елемент для оновлення кількості учасників
+                const participantsCountElement = document.querySelector(
+                    `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
+                    `.main-raffle .participants-info .participants-count`
+                );
+
+                if (participantsCountElement) {
+                    // Отримуємо поточне значення і збільшуємо його
+                    const currentCount = parseInt(participantsCountElement.textContent.replace(/\s+/g, '')) || 0;
+                    participantsCountElement.textContent = (currentCount + 1).toString()
+                        .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Форматування з пробілами між розрядами
+                }
+            } catch (e) {
+                console.warn("⚠️ Не вдалося оновити лічильник учасників:", e);
+            }
+        },
+
+        /**
+         * Аварійне скидання стану
+         */
         resetState: function() {
             this.requestInProgress = false;
             this.lastParticipationTime = 0;
@@ -699,10 +705,6 @@
             }
 
             console.log('🔄 Стан модуля участі скинуто');
-
-            // Оновлюємо кнопки на основі збереженого стану
-            this.updateParticipationButtons();
-
             return true;
         }
     };
@@ -766,5 +768,21 @@
 
             document.head.appendChild(style);
         }, 5000); // Перевіряємо через 5 секунд після завантаження
+    });
+
+    // Додаємо глобальний обробник Promise помилок для уникнення зависань
+    window.addEventListener('unhandledrejection', function(event) {
+        // Якщо помилка пов'язана з участю в розіграші, обробляємо її
+        if (participation.requestInProgress) {
+            console.warn('⚠️ Виявлено необроблену Promise помилку при участі, скидаємо стан...');
+            participation.resetState();
+
+            // Якщо помилка містить повідомлення, показуємо його
+            if (event.reason && event.reason.message) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(event.reason.message, 'error');
+                }
+            }
+        }
     });
 })();

@@ -1164,55 +1164,145 @@ WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50
 
     // Забезпечення наявності функцій відображення повідомлень і індикатора завантаження
     if (typeof window.showToast !== 'function') {
-        window.showToast = function(message, type = 'info') {
-            const toast = document.getElementById('toast-message');
-            if (!toast) {
-                console.log(`[${type}] ${message}`);
-                return;
-            }
+    window.showToast = function(message, type = 'info') {
+        // Знаходимо існуючий елемент або створюємо новий
+        let toast = document.getElementById('toast-message');
 
-            toast.textContent = message;
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast-message';
             toast.className = 'toast-message';
+            document.body.appendChild(toast);
 
-            if (type === 'success') {
-                toast.classList.add('success');
-            } else if (type === 'error') {
-                toast.classList.add('error');
-            } else if (type === 'warning') {
-                toast.classList.add('warning');
+            // Додаємо необхідні стилі, якщо вони відсутні
+            if (!document.getElementById('toast-styles')) {
+                const style = document.createElement('style');
+                style.id = 'toast-styles';
+                style.textContent = `
+                    .toast-message {
+                        position: fixed;
+                        top: 1.25rem;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: linear-gradient(135deg, #1A1A2E, #0F3460);
+                        color: #ffffff;
+                        padding: 0.75rem 1.5rem;
+                        border-radius: 12px;
+                        z-index: 2000;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+                        border: 1px solid rgba(78, 181, 247, 0.2);
+                        opacity: 0;
+                        transition: all 0.3s ease;
+                        font-size: 0.9375rem;
+                        display: flex;
+                        align-items: center;
+                        max-width: 350px;
+                        width: 90%;
+                    }
+                    
+                    .toast-message.success {
+                        background: linear-gradient(135deg, #0F3460, #006064);
+                        border: 1px solid rgba(0, 201, 167, 0.5);
+                    }
+                    
+                    .toast-message.error {
+                        background: linear-gradient(135deg, #2E0B0B, #860000);
+                        border: 1px solid rgba(255, 82, 82, 0.5);
+                    }
+                    
+                    .toast-message.warning {
+                        background: linear-gradient(135deg, #3A2F0B, #856A00);
+                        border: 1px solid rgba(255, 193, 7, 0.5);
+                    }
+                    
+                    .toast-message::after {
+                        content: '×';
+                        color: #4eb5f7;
+                        margin-left: 10px;
+                        cursor: pointer;
+                        font-size: 20px;
+                    }
+                    
+                    .toast-message.show {
+                        opacity: 1;
+                        transform: translate(-50%, 0.625rem);
+                    }
+                `;
+                document.head.appendChild(style);
             }
+        }
 
-            toast.classList.add('show');
+        // Очищаємо попередні класи
+        toast.className = 'toast-message';
 
-            // Автоматично приховуємо повідомлення через 5 секунд
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 5000);
+        // Встановлюємо текст повідомлення
+        toast.textContent = message;
 
-            // Додаємо обробник кліку для закриття
-            toast.addEventListener('click', () => {
-                toast.classList.remove('show');
-            });
+        // Додаємо клас відповідно до типу
+        if (type === 'success') {
+            toast.classList.add('success');
+        } else if (type === 'error') {
+            toast.classList.add('error');
+        } else if (type === 'warning') {
+            toast.classList.add('warning');
+        }
+
+        // Показуємо сповіщення
+        toast.classList.add('show');
+
+        // Автоматично приховуємо через 5 секунд
+        const hideTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 5000);
+
+        // Додаємо обробник для закриття при кліку
+        toast.onclick = function() {
+            clearTimeout(hideTimeout);
+            toast.classList.remove('show');
         };
-    }
+    };
+}
 
     if (typeof window.showLoading !== 'function') {
-        window.showLoading = function() {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.style.display = 'flex';
-            }
-        };
-    }
+    // Змінна для підрахунку активних запитів
+    let _loadingRequests = 0;
 
-    if (typeof window.hideLoading !== 'function') {
-        window.hideLoading = function() {
+    window.showLoading = function() {
+        _loadingRequests++;
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'flex';
+        }
+
+        // Аварійний таймер на випадок, якщо hideLoading не буде викликано
+        setTimeout(function() {
+            if (_loadingRequests > 0) {
+                console.warn("⚠️ Виявлено активний спінер більше 20 секунд, скидаємо...");
+                window.resetLoading();
+            }
+        }, 20000);
+    };
+
+    window.hideLoading = function() {
+        _loadingRequests = Math.max(0, _loadingRequests - 1);
+
+        if (_loadingRequests === 0) {
             const spinner = document.getElementById('loading-spinner');
             if (spinner) {
                 spinner.style.display = 'none';
             }
-        };
-    }
+        }
+    };
+
+    // Додаємо функцію для примусового скидання стану спінера
+    window.resetLoading = function() {
+        _loadingRequests = 0;
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.style.display = 'none';
+        }
+    };
+}
 
     // Ініціалізуємо систему автоматичного оновлення при завантаженні сторінки
     document.addEventListener('DOMContentLoaded', () => {
@@ -1265,4 +1355,57 @@ WinixRaffles.clearInvalidRaffleIds = function() {
         this.active.loadActiveRaffles(true);
     }
 }
+// Глобальний обробник необроблених Promise-помилок
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('❌ Необроблена Promise-помилка:', event.reason);
+
+    // Скидаємо стан спінера
+    if (typeof window.resetLoading === 'function') {
+        window.resetLoading();
+    }
+
+    // Скидаємо стан запиту участі, якщо він активний
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        if (window.WinixRaffles.participation.requestInProgress) {
+            window.WinixRaffles.participation.requestInProgress = false;
+
+            // Очищаємо статус обробки всіх кнопок
+            const buttons = document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing');
+            buttons.forEach(button => {
+                button.classList.remove('processing');
+                button.disabled = false;
+
+                // Відновлюємо оригінальний текст
+                const originalText = button.getAttribute('data-original-text');
+                if (originalText) {
+                    button.textContent = originalText;
+                } else {
+                    // Якщо немає оригінального тексту, повертаємо стандартний
+                    const isMini = button.classList.contains('mini-raffle-button');
+                    const entryFee = button.getAttribute('data-entry-fee') || '1';
+                    button.textContent = isMini
+                        ? 'Взяти участь'
+                        : `Взяти участь за ${entryFee} жетони`;
+                }
+            });
+        }
+    }
+
+    // Показуємо повідомлення про помилку
+    if (typeof window.showToast === 'function') {
+        let errorMessage = 'Сталася помилка';
+
+        // Визначаємо текст помилки
+        if (event.reason) {
+            if (typeof event.reason === 'string') {
+                errorMessage = event.reason;
+            } else if (event.reason.message) {
+                errorMessage = event.reason.message;
+            }
+        }
+
+        // Показуємо повідомлення
+        window.showToast(errorMessage, 'error');
+    }
+});
 })();
