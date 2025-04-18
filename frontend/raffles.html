@@ -8,6 +8,7 @@
     <!-- Додаємо скрипт Telegram WebApp -->
     <script src="js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="css/raffles.css">
+    <link rel="stylesheet" href="css/components-raffles.css">
     <script>
     // Ініціалізація та перевірка Telegram WebApp
     (function() {
@@ -379,13 +380,11 @@
         </div>
     </div>
 
-    <!-- Індикатор завантаження -->
+    <!-- Компоненти інтерфейсу -->
+    <div id="toast-container" class="toast-container"></div>
     <div class="spinner" id="loading-spinner">
         <div class="spinner-inner"></div>
     </div>
-
-    <!-- Повідомлення -->
-    <div id="toast-message" class="toast-message"></div>
 
     <!-- Підключення JavaScript файлів у правильному порядку -->
     <script src="js/raffles/utils/uuid-validator.js"></script>
@@ -406,22 +405,85 @@
         // Глобальний лічильник для коректного відстеження активних запитів
         let loadingCounter = 0;
 
-        // ВИПРАВЛЕННЯ: Уніфікована функція для показу спінера (основна версія)
+        // Оптимізована функція для показу сповіщень
+        window.showToast = function(message, type = 'info') {
+            // Перевіряємо контейнер
+            let toastContainer = document.getElementById('toast-container');
+
+            // Якщо контейнера немає, створюємо його
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container';
+                document.body.appendChild(toastContainer);
+            }
+
+            // Обмежуємо кількість активних повідомлень до 3
+            const existingToasts = toastContainer.querySelectorAll('.toast-message');
+            if (existingToasts.length >= 3) {
+                // Видаляємо найстаріше повідомлення
+                toastContainer.removeChild(existingToasts[0]);
+            }
+
+            // Створюємо нове сповіщення
+            const toast = document.createElement('div');
+            toast.className = `toast-message ${type}`;
+            toast.innerHTML = `
+                <div class="toast-content">${message}</div>
+                <button class="toast-close">×</button>
+            `;
+
+            // Додаємо сповіщення до контейнера
+            toastContainer.appendChild(toast);
+
+            // Затримка для анімації
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            // Автоматичне приховування через 5 секунд
+            const hideTimeout = setTimeout(() => {
+                hideToast(toast);
+            }, 5000);
+
+            // Додаємо обробник закриття
+            toast.querySelector('.toast-close').addEventListener('click', () => {
+                clearTimeout(hideTimeout);
+                hideToast(toast);
+            });
+
+            // Функція приховування
+            function hideToast(toastElement) {
+                toastElement.classList.remove('show');
+                // Видалення елементу після завершення анімації
+                setTimeout(() => {
+                    if (toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                }, 300);
+            }
+        };
+
+        // Оптимізована функція для показу спінера
         window.showLoading = function() {
             loadingCounter++;
             const spinner = document.getElementById('loading-spinner');
             if (spinner) {
-                spinner.style.display = 'flex'; // Правильне значення для центрування
+                // Додаємо клас 'active' та встановлюємо стилі напряму для надійності
+                spinner.classList.add('active');
+                spinner.style.display = 'flex';
+                spinner.style.justifyContent = 'center';
+                spinner.style.alignItems = 'center';
             }
 
-            // Автоматичне скидання через 20 секунд для запобігання "застряглому" спінеру
+            // Автоматичне скидання через 15 секунд для запобігання "застряглому" спінеру
             setTimeout(function() {
                 if (loadingCounter > 0) {
-                    console.warn("⚠️ Виявлено активний спінер більше 20 секунд, скидаємо...");
+                    console.warn("⚠️ Виявлено активний спінер більше 15 секунд, скидаємо...");
                     window.resetLoadingState();
                 }
-            }, 20000);
-        }
+            }, 15000);
+        };
 
         // Функція для приховування спінера
         window.hideLoading = function() {
@@ -429,16 +491,18 @@
             if (loadingCounter === 0) {
                 const spinner = document.getElementById('loading-spinner');
                 if (spinner) {
+                    spinner.classList.remove('active');
                     spinner.style.display = 'none';
                 }
             }
-        }
+        };
 
         // Функція для примусового скидання стану спінера
         window.resetLoadingState = function() {
             loadingCounter = 0;
             const spinner = document.getElementById('loading-spinner');
             if (spinner) {
+                spinner.classList.remove('active');
                 spinner.style.display = 'none';
             }
 
@@ -446,42 +510,28 @@
             if (window.WinixRaffles && window.WinixRaffles.participation) {
                 window.WinixRaffles.participation.requestInProgress = false;
             }
-        }
+        };
 
-        // ВИПРАВЛЕННЯ: Уніфікована функція для показу повідомлень у стилі general.html
-        window.showToast = function(message, type = 'info') {
-            const toast = document.getElementById('toast-message');
-            if (!toast) return;
+        // Функція для скидання стану та перезавантаження після критичних помилок
+        window.resetAndReloadApplication = function() {
+            console.log("🔄 Скидання стану додатку через критичні помилки...");
 
-            // Очищаємо попередні класи
-            toast.className = 'toast-message';
-
-            // Встановлюємо текст повідомлення
-            toast.textContent = message;
-
-            // Додаємо клас для типу
-            if (type === 'success') {
-                toast.classList.add('success');
-            } else if (type === 'error') {
-                toast.classList.add('error');
-            } else if (type === 'warning') {
-                toast.classList.add('warning');
+            // Очищаємо кеш API
+            if (window.WinixAPI && typeof window.WinixAPI.clearCache === 'function') {
+                window.WinixAPI.clearCache();
             }
 
-            // Показуємо повідомлення
-            toast.classList.add('show');
+            // Очищаємо локальні дані розіграшів
+            if (window.WinixRaffles && window.WinixRaffles.state) {
+                window.WinixRaffles.state.activeRaffles = [];
+                window.WinixRaffles.state.pastRaffles = [];
+            }
 
-            // Автоматично приховуємо через 5 секунд
-            const hideTimeout = setTimeout(() => {
-                toast.classList.remove('show');
-            }, 5000);
-
-            // Додаємо обробник для закриття при кліку
-            toast.onclick = function() {
-                clearTimeout(hideTimeout);
-                toast.classList.remove('show');
-            };
-        }
+            // Перезавантажуємо сторінку через 500мс
+            setTimeout(function() {
+                window.location.reload();
+            }, 500);
+        };
 
         // Оптимізована ініціалізація верхнього блоку з балансом
         async function initializeHeader() {
@@ -586,6 +636,165 @@
             });
         }
 
+        // Система відкладеної синхронізації даних
+        const DataSyncManager = {
+            // Інтервал перевірки (у мілісекундах)
+            checkInterval: 10000,
+
+            // Ознака запущеної синхронізації
+            isSyncRunning: false,
+
+            // Ініціалізація системи синхронізації
+            init: function() {
+                console.log("🔄 Ініціалізація системи синхронізації даних...");
+
+                // Запускаємо першу перевірку через 3 секунди після завантаження
+                setTimeout(() => {
+                    this.checkSyncState();
+
+                    // Запускаємо періодичну перевірку
+                    setInterval(() => this.checkSyncState(), this.checkInterval);
+                }, 3000);
+
+                // Додаємо обробник для виявлення проблем з мережею
+                window.addEventListener('online', () => {
+                    console.log("🌐 З'єднання з мережею відновлено, запускаємо синхронізацію...");
+                    this.forceSyncData();
+                });
+
+                // Запускаємо синхронізацію при кожному оновленні видимості сторінки
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') {
+                        console.log("👁️ Сторінка стала видимою, перевіряємо синхронізацію...");
+                        this.checkSyncState();
+                    }
+                });
+            },
+
+            // Перевірка необхідності синхронізації
+            checkSyncState: function() {
+                // Запобігаємо паралельним запускам синхронізації
+                if (this.isSyncRunning) return;
+
+                try {
+                    // Перевіряємо наявність незавершених транзакцій
+                    const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
+                    const pendingTransactions = transactions.filter(t => t.status === 'pending');
+
+                    if (pendingTransactions.length > 0) {
+                        console.log(`⚠️ Виявлено ${pendingTransactions.length} незавершених транзакцій`);
+                        this.forceSyncData();
+                        return;
+                    }
+
+                    // Перевіряємо час останнього оновлення даних
+                    const lastBalanceUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+                    const lastParticipationUpdate = JSON.parse(localStorage.getItem('winix_participation_state') || '{"lastUpdate":0}').lastUpdate || 0;
+
+                    const now = Date.now();
+                    const balanceAgeMinutes = (now - lastBalanceUpdate) / 60000;
+                    const participationAgeMinutes = (now - lastParticipationUpdate) / 60000;
+
+                    // Якщо дані старіші за 5 хвилин, оновлюємо їх
+                    if (balanceAgeMinutes > 5 || participationAgeMinutes > 5) {
+                        console.log("⏱️ Дані застаріли, запускаємо синхронізацію...");
+                        this.forceSyncData();
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Помилка перевірки стану синхронізації:", e);
+                }
+            },
+
+            // Примусова синхронізація даних
+            forceSyncData: async function() {
+                if (this.isSyncRunning) return;
+
+                this.isSyncRunning = true;
+                console.log("🔄 Запуск синхронізації даних...");
+
+                try {
+                    // Синхронізуємо баланс
+                    await this.syncUserBalance();
+
+                    // Синхронізуємо участь у розіграшах
+                    await this.syncParticipationData();
+
+                    console.log("✅ Синхронізація даних успішно завершена");
+                } catch (e) {
+                    console.error("❌ Помилка синхронізації даних:", e);
+                } finally {
+                    this.isSyncRunning = false;
+                }
+            },
+
+            // Синхронізація балансу користувача
+            syncUserBalance: async function() {
+                return new Promise((resolve, reject) => {
+                    // Перевіряємо наявність API
+                    if (!window.WinixAPI || typeof window.WinixAPI.getBalance !== 'function') {
+                        console.warn("⚠️ API для отримання балансу недоступний");
+                        return resolve(false);
+                    }
+
+                    window.WinixAPI.getBalance()
+                        .then(response => {
+                            if (response.status === 'success' && response.data) {
+                                // Оновлюємо відображення балансу
+                                const userCoins = document.getElementById('user-coins');
+                                const userTokens = document.getElementById('user-tokens');
+
+                                if (userCoins && response.data.coins !== undefined) {
+                                    userCoins.textContent = response.data.coins;
+                                    localStorage.setItem('userCoins', response.data.coins.toString());
+                                    localStorage.setItem('winix_coins', response.data.coins.toString());
+                                }
+
+                                if (userTokens && response.data.balance !== undefined) {
+                                    userTokens.textContent = response.data.balance;
+                                    localStorage.setItem('userTokens', response.data.balance.toString());
+                                    localStorage.setItem('winix_balance', response.data.balance.toString());
+                                }
+
+                                // Оновлюємо час оновлення балансу
+                                localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+                                console.log("💰 Баланс користувача успішно синхронізовано");
+                                resolve(true);
+                            } else {
+                                console.warn("⚠️ Помилка оновлення балансу:", response.message);
+                                resolve(false);
+                            }
+                        })
+                        .catch(error => {
+                            console.error("❌ Помилка при синхронізації балансу:", error);
+                            reject(error);
+                        });
+                });
+            },
+
+            // Синхронізація даних про участь у розіграшах
+            syncParticipationData: async function() {
+                return new Promise((resolve, reject) => {
+                    // Перевіряємо наявність модуля участі
+                    if (!window.WinixRaffles || !window.WinixRaffles.participation) {
+                        console.warn("⚠️ Модуль участі недоступний");
+                        return resolve(false);
+                    }
+
+                    // Запускаємо оновлення даних про участь
+                    window.WinixRaffles.participation.loadUserRaffles(true)
+                        .then(() => {
+                            console.log("🎟️ Дані про участь успішно синхронізовано");
+                            resolve(true);
+                        })
+                        .catch(error => {
+                            console.error("❌ Помилка при синхронізації участі:", error);
+                            reject(error);
+                        });
+                });
+            }
+        };
+
         // ВИПРАВЛЕННЯ: Обробник необроблених Promise помилок
         window.addEventListener('unhandledrejection', function(event) {
             // Приховуємо спінер у будь-якому випадку
@@ -635,6 +844,11 @@
             } else if (!window.WinixRaffles) {
                 console.error('❌ WinixRaffles не знайдено! Переконайтеся, що всі скрипти правильно підключені.');
             }
+
+            // Ініціалізуємо систему синхронізації даних
+            setTimeout(() => {
+                DataSyncManager.init();
+            }, 1500);
         });
     </script>
 </body>
