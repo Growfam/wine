@@ -12,7 +12,6 @@ import sys
 import uuid
 from datetime import datetime, timezone, timedelta
 from functools import wraps
-from typing import Dict, Any, Optional, List, Tuple, Union
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -536,13 +535,6 @@ def participate_in_raffle(telegram_id, data):
     if not participation_response.data:
         updated_participants_count += 1
 
-    # Перевіряємо баланс користувача перед транзакцією
-    user_coins = int(user.get("coins", 0))
-    if user_coins < required_coins:
-        raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
-
-    transaction_id = None  # Ініціалізуємо змінну за межами блоку try
-
     try:
         # Виконуємо атомарну транзакцію
         with execute_transaction() as txn:
@@ -562,6 +554,10 @@ def participate_in_raffle(telegram_id, data):
             transaction_id = transaction_res.data[0]["id"] if transaction_res.data else None
 
             # 2. Оновлюємо баланс користувача
+            user_coins = int(user.get("coins", 0))
+            if user_coins < required_coins:
+                raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
+
             new_coins_balance = user_coins - required_coins
             txn.table("winix").update({"coins": new_coins_balance}).eq("telegram_id", telegram_id).execute()
 
@@ -587,8 +583,7 @@ def participate_in_raffle(telegram_id, data):
                                                                                                raffle_id).execute()
 
             # 5. Оновлюємо статус транзакції на "completed"
-            if transaction_id:  # Додаємо перевірку, щоб уникнути помилок
-                txn.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
+            txn.table("transactions").update({"status": "completed"}).eq("id", transaction_id).execute()
 
             # 6. Оновлюємо лічильник участей користувача
             participations_count = user.get("participations_count", 0) + 1
@@ -601,11 +596,7 @@ def participate_in_raffle(telegram_id, data):
 
         # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
         if participations_count >= 5:
-            try:
-                check_and_update_badges(telegram_id)
-            except Exception as badge_error:
-                logger.warning(f"Помилка оновлення бейджів: {str(badge_error)}")
-                # Продовжуємо виконання - помилка бейджів не повинна зупиняти основний процес
+            check_and_update_badges(telegram_id)
 
         # Формуємо відповідь
         total_entries = existing_entry_count + entry_count
@@ -644,28 +635,10 @@ def participate_in_raffle(telegram_id, data):
         return jsonify({"status": "success", "data": response_data})
 
     except (ValueError, InsufficientTokensError, RaffleAlreadyEndedError) as e:
-        # Якщо виникла помилка і була створена транзакція, але не завершена,
-        # оновлюємо її статус на "failed"
-        if transaction_id:
-            try:
-                supabase.table("transactions").update({"status": "failed", "description": str(e)}).eq("id",
-                                                                                                      transaction_id).execute()
-            except Exception as update_error:
-                logger.error(f"Не вдалося оновити статус транзакції {transaction_id}: {str(update_error)}")
-
         # Перехоплюємо спеціальні типи винятків для надання користувацького повідомлення
         raise
 
     except Exception as e:
-        # Якщо виникла помилка і була створена транзакція, але не завершена,
-        # оновлюємо її статус на "failed"
-        if transaction_id:
-            try:
-                supabase.table("transactions").update({"status": "failed", "description": "Неочікувана помилка"}).eq(
-                    "id", transaction_id).execute()
-            except Exception as update_error:
-                logger.error(f"Не вдалося оновити статус транзакції {transaction_id}: {str(update_error)}")
-
         # Логуємо інші помилки і повертаємо загальне повідомлення
         logger.error(f"Помилка участі в розіграші для {telegram_id}: {str(e)}", exc_info=True)
         raise ValueError("Сталася помилка при обробці запиту. Спробуйте пізніше.")
@@ -1150,10 +1123,7 @@ def create_raffle(data, admin_id=None):
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
 
     # Очищаємо кеш активних розіграшів
-    try:
-        clear_cache("active_raffles")
-    except Exception as cache_error:
-        logger.warning(f"Помилка очищення кешу активних розіграшів: {str(cache_error)}")
+    clear_cache("active_raffles")
 
     # Повертаємо результат
     return jsonify({
@@ -1161,7 +1131,6 @@ def create_raffle(data, admin_id=None):
         "message": "Розіграш успішно створено",
         "data": response.data[0] if response.data else raffle_data
     })
-
 
 
 @handle_exceptions
@@ -1355,7 +1324,7 @@ def get_raffle_participants(raffle_id, admin_id=None):
 
 
 @handle_exceptions
-def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, Any]:
+def finish_raffle(raffle_id, admin_id=None):
     """Завершення розіграшу та визначення переможців"""
     # Перевірка, чи admin_id є адміністратором (якщо вказано)
     if admin_id is not None and not _is_admin(admin_id):
@@ -1372,8 +1341,7 @@ def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, A
         logger.error(f"Помилка запиту розіграшу {raffle_id}: {str(e)}")
         return jsonify({"status": "error", "message": f"Помилка запиту: {str(e)}"}), 500
 
-    if not hasattr(raffle_response, 'data') or not raffle_response.data:
-        logger.warning(f"Розіграш з ID {raffle_id} не знайдено в базі даних")
+    if not raffle_response.data:
         raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = raffle_response.data[0]
@@ -1496,22 +1464,9 @@ def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, A
                 "prize_currency": prize_info.get("currency", prize_currency)
             })
 
-    # ПОЧИНАЮТЬСЯ ЗМІНИ: Оптимізація запитів get_user у транзакції
+    # Проводимо транзакцію для збереження результатів
     try:
         now = datetime.now(timezone.utc)
-
-        # Отримуємо інформацію про всіх переможців ДО початку транзакції
-        user_data = {}
-        for winner in winners:
-            telegram_id = winner["telegram_id"]
-            if telegram_id not in user_data:
-                user = get_user(telegram_id)
-                if user:
-                    user_data[telegram_id] = {
-                        "balance": float(user.get("balance", 0)),
-                        "wins_count": int(user.get("wins_count", 0)),
-                        "badge_winner": user.get("badge_winner", False)
-                    }
 
         with execute_transaction() as txn:
             # 1. Оновлюємо статус розіграшу на "completed"
@@ -1521,13 +1476,12 @@ def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, A
                 "completed_at": now.isoformat()
             }).eq("id", raffle_id).execute()
 
-            # 2. Зберігаємо переможців і нараховуємо призи
+            # 2. Зберігаємо переможців
             for winner in winners:
-                telegram_id = winner["telegram_id"]
                 winner_data = {
                     "id": str(uuid.uuid4()),
                     "raffle_id": raffle_id,
-                    "telegram_id": telegram_id,
+                    "telegram_id": winner["telegram_id"],
                     "place": winner["place"],
                     "prize_amount": winner["prize_amount"],
                     "prize_currency": winner["prize_currency"],
@@ -1538,20 +1492,21 @@ def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, A
                 txn.table("raffle_winners").insert(winner_data).execute()
 
                 # 3. Нараховуємо виграш на баланс переможця
-                if telegram_id in user_data:
+                user = get_user(winner["telegram_id"])
+                if user:
                     # Збільшуємо лічильник перемог
-                    new_wins_count = user_data[telegram_id]["wins_count"] + 1
-                    txn.table("winix").update({"wins_count": new_wins_count}).eq("telegram_id", telegram_id).execute()
+                    wins_count = int(user.get("wins_count", 0)) + 1
+                    txn.table("winix").update({"wins_count": wins_count}).eq("telegram_id", winner["telegram_id"]).execute()
 
                     # Нараховуємо приз
-                    current_balance = user_data[telegram_id]["balance"]
-                    new_balance = current_balance + float(winner["prize_amount"])
-                    txn.table("winix").update({"balance": new_balance}).eq("telegram_id", telegram_id).execute()
+                    balance = float(user.get("balance", 0))
+                    new_balance = balance + float(winner["prize_amount"])
+                    txn.table("winix").update({"balance": new_balance}).eq("telegram_id", winner["telegram_id"]).execute()
 
                     # Створюємо транзакцію для призу
                     transaction_data = {
                         "id": str(uuid.uuid4()),
-                        "telegram_id": telegram_id,
+                        "telegram_id": winner["telegram_id"],
                         "type": "prize",
                         "amount": float(winner["prize_amount"]),
                         "description": f"Виграш у розіграші '{raffle.get('title')}' - {winner['place']} місце",
@@ -1559,12 +1514,12 @@ def finish_raffle(raffle_id: str, admin_id: Optional[str] = None) -> Dict[str, A
                         "created_at": now.isoformat(),
                         "raffle_id": raffle_id
                     }
+
                     txn.table("transactions").insert(transaction_data).execute()
 
                     # Перевіряємо, чи потрібно активувати бейдж переможця
-                    if new_wins_count == 1 and not user_data[telegram_id]["badge_winner"]:
-                        txn.table("winix").update({"badge_winner": True}).eq("telegram_id", telegram_id).execute()
-        # ЗАКІНЧУЮТЬСЯ ЗМІНИ
+                    if wins_count == 1 and not user.get("badge_winner", False):
+                        txn.table("winix").update({"badge_winner": True}).eq("telegram_id", winner["telegram_id"]).execute()
 
         # Очищаємо кеш
         clear_cache(f"raffle_details_{raffle_id}")
@@ -1677,62 +1632,10 @@ def check_and_finish_expired_raffles():
         "errors": errors,
         "total_expired": len(expired_raffles_response.data)
     }
-
-# Запуск початкового очищення orphaned записів не відразу, а через функцію
-def run_initial_cleanup():
-    """Функція для запуску початкового очищення orphaned записів"""
-    try:
-        # Імпортуємо тут, щоб уникнути циклічної залежності
-        from .routes import cleanup_orphaned_participants
-        cleanup_result = cleanup_orphaned_participants()
-        logger.info(f"Результат початкового очищення orphaned participants: {cleanup_result}")
-        return cleanup_result
-    except Exception as e:
-        logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-    # Функція для перевірки відповіді на правильність структури JSON
-    def verify_response(response):
-        """Перевіряє відповідь на правильність структури JSON"""
-        try:
-            import json
-            # Перевіряємо, чи це об'єкт Response з Flask
-            if hasattr(response, 'get_json'):
-                data = response.get_json()
-                if data is None:
-                    logger.error("Відповідь не містить валідного JSON")
-                    return False
-                return True
-            # Перевіряємо, чи це словник
-            elif isinstance(response, dict):
-                json.dumps(response)  # Пробуємо серіалізувати
-                return True
-            # Перевіряємо, чи це JSON-строка
-            elif isinstance(response, str):
-                json.loads(response)
-                return True
-            else:
-                logger.error(f"Невідомий тип відповіді: {type(response)}")
-                return False
-        except Exception as e:
-            logger.error(f"Помилка перевірки JSON: {str(e)}")
-            return False
-
-    # Декоратор для логування відповідей
-    def log_response(func):
-        """Декоратор для логування відповідей контролерів"""
-
-        def wrapper(*args, **kwargs):
-            try:
-                result = func(*args, **kwargs)
-                if verify_response(result):
-                    logger.info(f"Успішний виклик {func.__name__}")
-                else:
-                    logger.warning(f"Виклик {func.__name__} повернув невалідну відповідь")
-                return result
-            except Exception as e:
-                logger.error(f"Помилка у {func.__name__}: {str(e)}")
-                raise
-
-        return wrapper
-
+# Запуск початкового очищення orphaned записів
+try:
+    from .routes import cleanup_orphaned_participants
+    cleanup_result = cleanup_orphaned_participants()
+    logger.info(f"Результат початкового очищення orphaned participants: {cleanup_result}")
+except Exception as e:
+    logger.error(f"Помилка початкового очищення orphaned participants: {str(e)}")
