@@ -28,11 +28,15 @@ logger = logging.getLogger(__name__)
 try:
     from ..supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
     from ..raffles.controllers import finish_raffle, check_and_finish_expired_raffles
+    # Імпортуємо сервіс бейджів
+    from ..badges.badge_service import award_badges
 except ImportError:
     # Альтернативний імпорт для прямого запуску
     try:
         from supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
         from raffles.controllers import finish_raffle, check_and_finish_expired_raffles
+        # Імпортуємо сервіс бейджів
+        from badges.badge_service import award_badges
     except ImportError:
         logger.critical("Помилка імпорту критичних модулів. Сервіс не може бути запущено.")
         sys.exit(1)
@@ -243,8 +247,8 @@ class RaffleService:
         # Перевірка прострочених розіграшів кожну годину
         schedule.every(1).hour.do(self.run_task, "check_expired_raffles", self.check_expired_raffles)
 
-        # Створення щоденного розіграшу о 12:05 щодня
-        schedule.every().day.at("12:05").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
+        # Створення щоденного розіграшу о 15:00 щодня
+        schedule.every().day.at("15:00").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
 
         # Відправка повідомлень переможцям кожні 30 хвилин
         schedule.every(30).minutes.do(self.run_task, "send_winner_notifications", self.send_notifications_to_winners)
@@ -399,6 +403,13 @@ class RaffleService:
                 # Отримуємо назву розіграшу з кешу
                 raffle = raffles_by_id.get(raffle_id, {})
                 raffle_title = raffle.get("title", "Розіграш")
+
+                # Перевіряємо і оновлюємо бейджі користувача при перемозі
+                award_badges(telegram_id, {
+                    "action": "win",
+                    "raffle_id": raffle_id,
+                    "place": place
+                })
 
                 # Формуємо повідомлення
                 message = MESSAGE_TEMPLATES[NotificationType.WINNER].format(
