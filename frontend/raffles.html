@@ -403,6 +403,86 @@
     <script src="js/raffles/index.js"></script>
 
     <script>
+        // Глобальний лічильник для коректного відстеження активних запитів
+        let loadingCounter = 0;
+
+        // ВИПРАВЛЕННЯ: Уніфікована функція для показу спінера (основна версія)
+        window.showLoading = function() {
+            loadingCounter++;
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'flex'; // Правильне значення для центрування
+            }
+
+            // Автоматичне скидання через 20 секунд для запобігання "застряглому" спінеру
+            setTimeout(function() {
+                if (loadingCounter > 0) {
+                    console.warn("⚠️ Виявлено активний спінер більше 20 секунд, скидаємо...");
+                    window.resetLoadingState();
+                }
+            }, 20000);
+        }
+
+        // Функція для приховування спінера
+        window.hideLoading = function() {
+            loadingCounter = Math.max(0, loadingCounter - 1);
+            if (loadingCounter === 0) {
+                const spinner = document.getElementById('loading-spinner');
+                if (spinner) {
+                    spinner.style.display = 'none';
+                }
+            }
+        }
+
+        // Функція для примусового скидання стану спінера
+        window.resetLoadingState = function() {
+            loadingCounter = 0;
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+
+            // Скидаємо також стан participation, якщо він є
+            if (window.WinixRaffles && window.WinixRaffles.participation) {
+                window.WinixRaffles.participation.requestInProgress = false;
+            }
+        }
+
+        // ВИПРАВЛЕННЯ: Уніфікована функція для показу повідомлень у стилі general.html
+        window.showToast = function(message, type = 'info') {
+            const toast = document.getElementById('toast-message');
+            if (!toast) return;
+
+            // Очищаємо попередні класи
+            toast.className = 'toast-message';
+
+            // Встановлюємо текст повідомлення
+            toast.textContent = message;
+
+            // Додаємо клас для типу
+            if (type === 'success') {
+                toast.classList.add('success');
+            } else if (type === 'error') {
+                toast.classList.add('error');
+            } else if (type === 'warning') {
+                toast.classList.add('warning');
+            }
+
+            // Показуємо повідомлення
+            toast.classList.add('show');
+
+            // Автоматично приховуємо через 5 секунд
+            const hideTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+
+            // Додаємо обробник для закриття при кліку
+            toast.onclick = function() {
+                clearTimeout(hideTimeout);
+                toast.classList.remove('show');
+            };
+        }
+
         // Оптимізована ініціалізація верхнього блоку з балансом
         async function initializeHeader() {
             // Отримуємо userId з елемента для зворотної сумісності
@@ -506,65 +586,35 @@
             });
         }
 
-        // Показ повідомлень у стилі general.html
-window.showToast = function(message, type = 'info') {
-    const toast = document.getElementById('toast-message');
-    if (!toast) return;
+        // ВИПРАВЛЕННЯ: Обробник необроблених Promise помилок
+        window.addEventListener('unhandledrejection', function(event) {
+            // Приховуємо спінер у будь-якому випадку
+            window.resetLoadingState();
 
-    toast.textContent = message;
-    toast.className = 'toast-message';
+            // Скидаємо стан запиту участі
+            if (window.WinixRaffles && window.WinixRaffles.participation) {
+                window.WinixRaffles.participation.requestInProgress = false;
+            }
 
-    if (type === 'success') {
-        toast.classList.add('success');
-    } else if (type === 'error') {
-        toast.classList.add('error');
-    }
+            // Показуємо повідомлення про помилку
+            if (event.reason && event.reason.message) {
+                console.log("Оброблено помилку promise:", event.reason.message);
+                window.showToast(event.reason.message, "error");
+            }
 
-    toast.classList.add('show');
+            // Запобігаємо стандартному повідомленню про помилку
+            event.preventDefault();
+        });
 
-    // Автоматично приховуємо повідомлення через 5 секунд
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 5000);
-
-    // Додаємо обробник кліку для закриття
-    toast.addEventListener('click', () => {
-        toast.classList.remove('show');
-    });
-}
-
-        // Глобальний лічильник запитів
-let loadingCounter = 0;
-
-window.showLoading = function() {
-    loadingCounter++;
-    const spinner = document.getElementById('loading-spinner');
-    if (spinner) {
-        spinner.style.display = 'flex';
-    }
-}
-
-window.hideLoading = function() {
-    loadingCounter = Math.max(0, loadingCounter - 1);
-    if (loadingCounter === 0) {
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.style.display = 'none';
-        }
-    }
-}
-
-// Додайте функцію для аварійного скидання спінера
-window.resetLoadingState = function() {
-    activeRequestsCount = 0;
-    const spinner = document.getElementById('loading-spinner');
-    if (spinner) {
-        spinner.style.display = 'none';
-    }
-}
-
-        // Код ініціалізації, який запускається після завантаження всіх скриптів
+        // ВИПРАВЛЕННЯ: Додаємо обробник для скидання стану participation при завантаженні сторінки
         document.addEventListener('DOMContentLoaded', function() {
+            // Скидаємо стан participation при завантаженні сторінки
+            if (window.WinixRaffles && window.WinixRaffles.participation) {
+                console.log("🔄 Скидання стану participation при завантаженні сторінки");
+                window.WinixRaffles.participation.requestInProgress = false;
+                window.WinixRaffles.participation.lastParticipationTime = 0;
+            }
+
             console.log('📱 Сторінка розіграшів повністю завантажена');
 
             // Ініціалізація верхнього блоку з балансом
@@ -574,7 +624,7 @@ window.resetLoadingState = function() {
             setupNavigation();
 
             // Перевірка наявності WinixRaffles та ініціалізація, якщо вона ще не відбулася
-            if (window.WinixRaffles && !WinixRaffles.state.isInitialized) {
+            if (window.WinixRaffles && !window.WinixRaffles.state.isInitialized) {
                 // Ініціалізація модуля розіграшів
                 WinixRaffles.init();
 
@@ -586,46 +636,6 @@ window.resetLoadingState = function() {
                 console.error('❌ WinixRaffles не знайдено! Переконайтеся, що всі скрипти правильно підключені.');
             }
         });
-// Обробник необроблених Promise помилок
-window.addEventListener('unhandledrejection', function(event) {
-    if (event.reason && event.reason.message) {
-        console.error('Помилка Promise:', event.reason.message);
-
-        // Скидаємо стан спінера у випадку помилок
-        window.resetLoadingState();
-
-        // Показуємо помилку користувачу
-        window.showToast('Помилка: ' + event.reason.message, 'error');
-
-        // Скидаємо стан запиту участі, якщо він завис
-        if (window.WinixRaffles && window.WinixRaffles.participation) {
-            window.WinixRaffles.participation.requestInProgress = false;
-        }
-    }
-});
-// Додайте в кінці файлу
-window.addEventListener('unhandledrejection', function(event) {
-    // Приховуємо спінер у будь-якому випадку
-    loadingCounter = 0;
-    const spinner = document.getElementById('loading-spinner');
-    if (spinner) {
-        spinner.style.display = 'none';
-    }
-
-    // Скидаємо стан запиту участі
-    if (window.WinixRaffles && window.WinixRaffles.participation) {
-        window.WinixRaffles.participation.requestInProgress = false;
-    }
-
-    // Показуємо повідомлення про помилку
-    if (event.reason && event.reason.message) {
-        console.log("Оброблено помилку promise:", event.reason.message);
-        window.showToast(event.reason.message, "error");
-    }
-
-    // Запобігаємо стандартному повідомленню про помилку
-    event.preventDefault();
-});
     </script>
 </body>
 </html>
