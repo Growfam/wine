@@ -259,9 +259,10 @@ let endpoint = ""; // Оголошення глобальної змінної
     function normalizeEndpoint(endpoint) {
     if (!endpoint) return 'api';
 
-    // ВИПРАВЛЕННЯ: Покращена нормалізація URL для запобігання помилкам
-    // Видаляємо початковий та кінцевий слеш, якщо вони є
-    let cleanEndpoint = endpoint;
+    // Очищаємо вхідний шлях
+    let cleanEndpoint = endpoint.trim();
+
+    // Видаляємо початковий та кінцевий слеш
     if (cleanEndpoint.startsWith('/')) {
         cleanEndpoint = cleanEndpoint.substring(1);
     }
@@ -269,16 +270,21 @@ let endpoint = ""; // Оголошення глобальної змінної
         cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
     }
 
-    // Перевіряємо, чи вже містить endpoint 'api'
+    // ВИПРАВЛЕНО: Перевірка, чи endpoint вже має api на початку
     if (cleanEndpoint.startsWith('api/')) {
+        // Вже має правильний формат
+        return cleanEndpoint;
+    } else if (cleanEndpoint === 'api') {
+        // Сам префікс без шляху
         return cleanEndpoint;
     } else if (cleanEndpoint.startsWith('api')) {
+        // Префікс без слешу
         return `api/${cleanEndpoint.substring(3)}`;
     } else {
+        // Звичайний шлях без префіксу
         return `api/${cleanEndpoint}`;
     }
 }
-
     /**
      * Перевірка валідності UUID
      * @param {string} id - ID для перевірки
@@ -288,20 +294,18 @@ let endpoint = ""; // Оголошення глобальної змінної
 function isValidUUID(id) {
     if (!id || typeof id !== 'string') return false;
 
-    // Нормалізуємо ID
+    // Нормалізуємо рядок перед перевіркою
     const normalized = id.trim().toLowerCase();
 
-    // Підтримка різних форматів UUID
-    const patterns = {
-        standard: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-        noHyphens: /^[0-9a-f]{32}$/i,
-        braced: /^\{[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\}$/i
-    };
+    // Простіша перевірка на UUID - стандартний формат з дефісами
+    const standardPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-    return patterns.standard.test(normalized) ||
-           patterns.noHyphens.test(normalized) ||
-           patterns.braced.test(normalized);
+    // Перевірка на UUID без дефісів
+    const noHyphensPattern = /^[0-9a-f]{32}$/i;
+
+    return standardPattern.test(normalized) || noHyphensPattern.test(normalized);
 }
+
 
 // У функції apiRequest додайте цей код перед основним запитом
 // для виправлення проблеми з невалідним UUID в URL
