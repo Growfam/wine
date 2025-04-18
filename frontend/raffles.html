@@ -533,11 +533,11 @@ window.showToast = function(message, type = 'info') {
     });
 }
 
-        // Функції для індикатора завантаження
-let activeRequestsCount = 0;
+        // Глобальний лічильник запитів
+let loadingCounter = 0;
 
 window.showLoading = function() {
-    activeRequestsCount++;
+    loadingCounter++;
     const spinner = document.getElementById('loading-spinner');
     if (spinner) {
         spinner.style.display = 'flex';
@@ -545,10 +545,8 @@ window.showLoading = function() {
 }
 
 window.hideLoading = function() {
-    activeRequestsCount = Math.max(0, activeRequestsCount - 1);
-
-    // Приховуємо спінер тільки якщо немає активних запитів
-    if (activeRequestsCount === 0) {
+    loadingCounter = Math.max(0, loadingCounter - 1);
+    if (loadingCounter === 0) {
         const spinner = document.getElementById('loading-spinner');
         if (spinner) {
             spinner.style.display = 'none';
@@ -604,6 +602,29 @@ window.addEventListener('unhandledrejection', function(event) {
             window.WinixRaffles.participation.requestInProgress = false;
         }
     }
+});
+// Додайте в кінці файлу
+window.addEventListener('unhandledrejection', function(event) {
+    // Приховуємо спінер у будь-якому випадку
+    loadingCounter = 0;
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = 'none';
+    }
+
+    // Скидаємо стан запиту участі
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        window.WinixRaffles.participation.requestInProgress = false;
+    }
+
+    // Показуємо повідомлення про помилку
+    if (event.reason && event.reason.message) {
+        console.log("Оброблено помилку promise:", event.reason.message);
+        window.showToast(event.reason.message, "error");
+    }
+
+    // Запобігаємо стандартному повідомленню про помилку
+    event.preventDefault();
 });
     </script>
 </body>

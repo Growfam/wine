@@ -376,6 +376,14 @@
          * @returns {Promise<object>} Результат участі
          */
         participateInRaffle: async function(raffleId, raffleType) {
+            if (this.requestInProgress) {
+    window.showToast("Зачекайте завершення попереднього запиту", "warning");
+    console.log("Запит участі вже виконується, очікування...");
+    return Promise.resolve({
+        success: false,
+        message: "Зачекайте завершення попереднього запиту"
+    });
+}
             const userId = WinixRaffles.state.telegramId ||
                            (window.WinixAPI ? window.WinixAPI.getUserId() : null);
 
