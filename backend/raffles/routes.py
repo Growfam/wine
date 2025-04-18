@@ -23,7 +23,13 @@ except ImportError:
 try:
     from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
 except ImportError:
-    from settings.config import JWT_SECRET, JWT_ALGORITHM
+    try:
+        from settings.config import JWT_SECRET, JWT_ALGORITHM
+    except ImportError:
+        # Якщо не вдалося імпортувати, створюємо значення за замовчуванням для розробки
+        logger.warning("⚠️ Не вдалося імпортувати JWT_SECRET та JWT_ALGORITHM. Використовуємо значення за замовчуванням.")
+        JWT_SECRET = os.getenv("JWT_SECRET", "development_secret_key_change_in_production")
+        JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 # Імпортуємо supabase_client
 try:
@@ -623,4 +629,10 @@ def register_raffles_routes(app):
             }), 500
 
     logger.info("Маршрути для розіграшів успішно зареєстровано")
+    # Запускаємо початкове очищення orphaned записів після реєстрації всіх маршрутів
+    try:
+        from .controllers import run_initial_cleanup
+        run_initial_cleanup()
+    except Exception as e:
+        logger.error(f"Помилка запуску початкового очищення: {str(e)}")
     return True

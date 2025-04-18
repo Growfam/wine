@@ -580,21 +580,22 @@ if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
     try {
-       // Перевірка невалідних ID розіграшів у URL
-if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
-    const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-    if (raffleIdMatch && raffleIdMatch[1]) {
-        const raffleId = raffleIdMatch[1];
-        if (!isValidUUID(raffleId)) {
-            console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
-            return Promise.reject({
-                status: 'error',
-                message: 'Невалідний ідентифікатор розіграшу в URL',
-                code: 'invalid_raffle_id'
-            });
+        // Перевірка невалідних ID розіграшів у URL
+        if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+            const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+            if (raffleIdMatch && raffleIdMatch[1]) {
+                const raffleId = raffleIdMatch[1];
+                if (!isValidUUID(raffleId)) {
+                    console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+                    return Promise.reject({
+                        status: 'error',
+                        message: 'Невалідний ідентифікатор розіграшу в URL',
+                        code: 'invalid_raffle_id'
+                    });
+                }
+            }
         }
-    }
-}
+
         // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
         if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
             // Перевіряємо формат UUID
@@ -610,23 +611,6 @@ if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.
                     status: 'error',
                     message: 'Невалідний ідентифікатор розіграшу'
                 });
-            }
-        }
-
-        // ВИПРАВЛЕННЯ: Покращена перевірка UUID у URL
-        // Перевіряємо тільки якщо це запит одного розіграшу, а не списку
-        if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
-            const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-            if (raffleIdMatch && raffleIdMatch[1]) {
-                const raffleId = raffleIdMatch[1];
-                if (!isValidUUID(raffleId)) {
-                    console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
-                    return Promise.reject({
-                        status: 'error',
-                        message: 'Невалідний ідентифікатор розіграшу в URL',
-                        code: 'invalid_raffle_id'
-                    });
-                }
             }
         }
 
@@ -748,8 +732,6 @@ if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.
 
                 // Якщо запит успішний, виходимо з циклу
                 break;
-
-
             } catch (error) {
                 lastError = error;
 
@@ -779,30 +761,30 @@ if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.
         }
 
         // НОВИЙ КОД: Аналізуємо помилку на "raffle_not_found"
-    if (error.message && error.message.includes('raffle_not_found') ||
-        (error.response && error.response.code === 'raffle_not_found')) {
+        if (error.message && error.message.includes('raffle_not_found') ||
+            (error.response && error.response.code === 'raffle_not_found')) {
 
-        console.error(`❌ API: Помилка розіграшу не знайдено:`, error.message);
+            console.error(`❌ API: Помилка розіграшу не знайдено:`, error.message);
 
-        // Зберігаємо ID невалідного розіграшу, якщо можемо його витягти з URL
-        const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-        if (raffleIdMatch && raffleIdMatch[0]) {
-            const raffleId = raffleIdMatch[1];
-            console.error(`❌ API: Додаємо невалідний ID розіграшу: ${raffleId}`);
+            // Зберігаємо ID невалідного розіграшу, якщо можемо його витягти з URL
+            const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+            if (raffleIdMatch && raffleIdMatch[1]) {
+                const raffleId = raffleIdMatch[1];
+                console.error(`❌ API: Додаємо невалідний ID розіграшу: ${raffleId}`);
 
-            // Додаємо до глобального списку невалідних ID
-            if (window.WinixRaffles && window.WinixRaffles.state && window.WinixRaffles.state.invalidRaffleIds) {
-                window.WinixRaffles.state.invalidRaffleIds.add(raffleId);
-            }
+                // Додаємо до глобального списку невалідних ID
+                if (window.WinixRaffles && window.WinixRaffles.state && window.WinixRaffles.state.invalidRaffleIds) {
+                    window.WinixRaffles.state.invalidRaffleIds.add(raffleId);
+                }
 
-            // Також очищаємо кеш розіграшів
-            try {
-                localStorage.removeItem('winix_active_raffles');
-            } catch (e) {
-                console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
+                // Також очищаємо кеш розіграшів
+                try {
+                    localStorage.removeItem('winix_active_raffles');
+                } catch (e) {
+                    console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
+                }
             }
         }
-    }
 
         console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
 
