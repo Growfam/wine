@@ -13,37 +13,59 @@ import secrets
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
                     handlers=[
                         logging.StreamHandler(),
-                        logging.FileHandler("raffle_service.log")
+                        logging.FileHandler("raffle_service.log", mode='a')
                     ])
 logger = logging.getLogger(__name__)
+
+# Шлях до директорій для імпортів
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 # Імпортуємо необхідні модулі
 try:
     from ..supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
     from ..raffles.controllers import finish_raffle, check_and_finish_expired_raffles
     # Імпортуємо сервіс бейджів
-    from ..badges.badge_service import award_badges
+    try:
+        from ..badges.badge_service import award_badges
+    except ImportError:
+        def award_badges(user_id, context=None):
+            logger.warning(f"badge_service.py не знайдено, бейджі не будуть нараховані для {user_id}")
+            return None
 except ImportError:
     # Альтернативний імпорт для прямого запуску
     try:
         from supabase_client import supabase, get_user, execute_transaction, cache_get, cache_set, clear_cache
         from raffles.controllers import finish_raffle, check_and_finish_expired_raffles
-        # Імпортуємо сервіс бейджів
-        from badges.badge_service import award_badges
-    except ImportError:
-        logger.critical("Помилка імпорту критичних модулів. Сервіс не може бути запущено.")
-        sys.exit(1)
+        try:
+            from badges.badge_service import award_badges
+        except ImportError:
+            def award_badges(user_id, context=None):
+                logger.warning(f"badge_service.py не знайдено, бейджі не будуть нараховані для {user_id}")
+                return None
+    except ImportError as e:
+        logger.critical(f"❌ Помилка імпорту критичних модулів: {str(e)}")
+        supabase = None
+        get_user = None
+        execute_transaction = None
+        cache_get = None
+        cache_set = None
+        clear_cache = None
+        finish_raffle = None
+        check_and_finish_expired_raffles = None
 
 # Отримання конфігурації з середовища
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}" if TELEGRAM_BOT_TOKEN else ""
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "")
 MAX_RETRY_ATTEMPTS = 3
 
@@ -90,6 +112,7 @@ class WebhookException(Exception):
     """Виняток для помилок webhooks"""
     pass
 
+
 class TelegramApiException(Exception):
     """Виняток для помилок Telegram API"""
     pass
@@ -110,7 +133,7 @@ def send_telegram_message(chat_id: str, message: str, retry_count: int = 0) -> b
             "parse_mode": "HTML"
         }
 
-        response = requests.post(url, json=payload, )
+        response = requests.post(url, json=payload, timeout=10)
 
         if response.status_code == 200:
             return True
@@ -193,7 +216,7 @@ class RaffleService:
         try:
             self.state.active = False
             if self.state.thread:
-                self.state.thread.join()
+                self.state.thread.join(timeout=5.0)
 
             logger.info("✅ Сервіс розіграшів зупинено")
 
@@ -211,6 +234,10 @@ class RaffleService:
 
     def _run_service(self) -> None:
         """Основний цикл сервісу"""
+        if not supabase:
+            logger.critical("❌ Supabase не ініціалізовано, сервіс не може працювати")
+            return
+
         logger.info("Запуск основного циклу сервісу розіграшів")
 
         # Налаштування планувальника
@@ -244,23 +271,26 @@ class RaffleService:
 
     def _setup_scheduler(self) -> None:
         """Налаштування планувальника завдань"""
-        # Перевірка прострочених розіграшів кожну годину
-        schedule.every(1).hour.do(self.run_task, "check_expired_raffles", self.check_expired_raffles)
+        try:
+            # Перевірка прострочених розіграшів кожну годину
+            schedule.every(1).hour.do(self.run_task, "check_expired_raffles", self.check_expired_raffles)
 
-        # Створення щоденного розіграшу о 15:00 щодня
-        schedule.every().day.at("15:00").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
+            # Створення щоденного розіграшу о 15:00 щодня
+            schedule.every().day.at("15:00").do(self.run_task, "create_daily_raffle", self.check_and_create_daily_raffle)
 
-        # Відправка повідомлень переможцям кожні 30 хвилин
-        schedule.every(30).minutes.do(self.run_task, "send_winner_notifications", self.send_notifications_to_winners)
+            # Відправка повідомлень переможцям кожні 30 хвилин
+            schedule.every(30).minutes.do(self.run_task, "send_winner_notifications", self.send_notifications_to_winners)
 
-        # Нагадування про розіграш о 9:00 та 18:00
-        schedule.every().day.at("09:00").do(self.run_task, "morning_reminder", self.send_daily_raffle_reminder)
-        schedule.every().day.at("18:00").do(self.run_task, "evening_reminder", self.send_daily_raffle_reminder)
+            # Нагадування про розіграш о 9:00 та 18:00
+            schedule.every().day.at("09:00").do(self.run_task, "morning_reminder", self.send_daily_raffle_reminder)
+            schedule.every().day.at("18:00").do(self.run_task, "evening_reminder", self.send_daily_raffle_reminder)
 
-        # Резервне копіювання даних розіграшів щодня о 3:00
-        schedule.every().day.at("03:00").do(self.run_task, "backup_data", self.backup_raffle_data)
+            # Резервне копіювання даних розіграшів щодня о 3:00
+            schedule.every().day.at("03:00").do(self.run_task, "backup_data", self.backup_raffle_data)
 
-        logger.info("Планувальник успішно налаштовано")
+            logger.info("Планувальник успішно налаштовано")
+        except Exception as e:
+            logger.error(f"Помилка налаштування планувальника: {str(e)}")
 
     def run_task(self, task_name: str, task_func) -> Dict[str, Any]:
         """Запуск задачі з логуванням статусу та обробкою помилок"""
@@ -326,8 +356,11 @@ class RaffleService:
 
     def check_expired_raffles(self) -> Dict[str, Any]:
         """Перевірка та завершення прострочених розіграшів"""
-        logger.info("Запуск перевірки прострочених розіграшів")
+        if not check_and_finish_expired_raffles:
+            logger.error("❌ Функція check_and_finish_expired_raffles не доступна")
+            return {"status": "error", "message": "Функція недоступна"}
 
+        logger.info("Запуск перевірки прострочених розіграшів")
         try:
             result = check_and_finish_expired_raffles()
 
@@ -405,11 +438,12 @@ class RaffleService:
                 raffle_title = raffle.get("title", "Розіграш")
 
                 # Перевіряємо і оновлюємо бейджі користувача при перемозі
-                award_badges(telegram_id, {
-                    "action": "win",
-                    "raffle_id": raffle_id,
-                    "place": place
-                })
+                if award_badges:
+                    award_badges(telegram_id, {
+                        "action": "win",
+                        "raffle_id": raffle_id,
+                        "place": place
+                    })
 
                 # Формуємо повідомлення
                 message = MESSAGE_TEMPLATES[NotificationType.WINNER].format(
@@ -567,6 +601,10 @@ class RaffleService:
                 self._send_admin_notification(
                     f"🎮 Створено новий щоденний розіграш на {daily_raffle_data['prize_amount']} {daily_raffle_data['prize_currency']} (ID: {raffle_id})"
                 )
+
+                # Інвалідуємо кеш активних розіграшів
+                if clear_cache:
+                    clear_cache("active_raffles")
 
                 return {
                     "status": "success",
@@ -1077,6 +1115,10 @@ def process_webhook(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
 # Запуск сервісу, якщо скрипт запущено напряму
 if __name__ == "__main__":
     logger.info("Запуск сервісу розіграшів як окремого процесу")
+    if not supabase:
+        logger.critical("❌ Supabase не ініціалізовано, сервіс не може працювати")
+        sys.exit(1)
+
     start_raffle_service()
 
     try:

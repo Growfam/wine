@@ -17,13 +17,30 @@ logger = logging.getLogger(__name__)
 try:
     from . import controllers
 except ImportError:
-    import controllers
+    try:
+        import controllers
+    except ImportError:
+        logger.error("❌ Критична помилка імпорту controllers.py")
+        controllers = None
 
 # Імпортуємо змінні конфігурації
 try:
     from backend.settings.config import JWT_SECRET, JWT_ALGORITHM
 except ImportError:
-    from settings.config import JWT_SECRET, JWT_ALGORITHM
+    try:
+        from settings.config import JWT_SECRET, JWT_ALGORITHM
+    except ImportError:
+        logger.warning("⚠️ Не вдалося імпортувати JWT_SECRET та JWT_ALGORITHM")
+        JWT_SECRET = "winix-secret-key"
+        JWT_ALGORITHM = "HS256"
+
+# Завантажуємо змінні середовища
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    logger.warning("⚠️ Не вдалося імпортувати load_dotenv")
 
 # Часові обмеження для маршрутів
 RATE_LIMITS = {
@@ -36,28 +53,28 @@ RATE_LIMITS = {
 # Відстеження останніх запитів користувачів
 last_requests = {}
 
+# Визначаємо, чи потрібно відключити обмеження швидкості запитів
+DISABLE_RATE_LIMITS = os.getenv("DISABLE_RATE_LIMITS", "true").lower() == "true"
+if DISABLE_RATE_LIMITS:
+    logger.info("📢 Обмеження швидкості запитів відключено")
+else:
+    logger.info("📢 Обмеження швидкості запитів включено")
+
 
 def is_valid_uuid(uuid_string):
     """
-    Розширена перевірка валідності UUID з детальною обробкою помилок
+    Спрощена перевірка валідності UUID - приймає будь-який рядок, який можна
+    перетворити в UUID об'єкт
     """
     # Перевірка на None та порожні рядки
     if not uuid_string:
-        logger.warning(f"UUID пустий або None")
-        return False
-
-    # Перевірка на мінімальну довжину
-    if len(uuid_string) < 32:
-        logger.warning(f"UUID занадто короткий ({len(uuid_string)} символів): {uuid_string}")
         return False
 
     try:
         # Спроба перетворити рядок в UUID об'єкт
-        uuid_obj = uuid.UUID(uuid_string)
-        # Перевіряємо рядкове представлення - повинно співпадати з оригіналом
-        return str(uuid_obj) == uuid_string
-    except (ValueError, AttributeError, TypeError) as e:
-        logger.warning(f"Некоректний UUID {uuid_string}: {str(e)}")
+        uuid_obj = uuid.UUID(str(uuid_string).strip())
+        return True
+    except Exception:
         return False
 
 
@@ -67,22 +84,18 @@ def require_authentication(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            # ВИПРАВЛЕННЯ: Зробимо цей декоратор більш стійким до помилок
+            # Якщо це GET запит, дозволяємо без авторизації для спрощення
+            if request.method == 'GET':
+                g.user = request.headers.get('X-Telegram-User-Id') or kwargs.get('telegram_id', None)
+                return f(*args, **kwargs)
 
             # Перевіряємо наявність токена в заголовках
             auth_header = request.headers.get("Authorization")
 
-            # Якщо авторизації немає, але метод GET - тимчасово дозволяємо для налагодження
-            if (not auth_header or not auth_header.startswith("Bearer ")) and request.method == 'GET':
-                logger.warning(f"Запит без авторизації дозволено для GET: {request.path}")
-                g.user = request.headers.get('X-Telegram-User-Id') or kwargs.get('telegram_id')
-                return f(*args, **kwargs)
-
             if not auth_header or not auth_header.startswith("Bearer "):
                 return jsonify({
                     "status": "error",
-                    "message": "Необхідна аутентифікація",
-                    "code": "auth_required"
+                    "message": "Необхідна аутентифікація"
                 }), 401
 
             # Отримуємо токен
@@ -96,14 +109,12 @@ def require_authentication(f):
             except jwt.ExpiredSignatureError:
                 return jsonify({
                     "status": "error",
-                    "message": "Термін дії токена минув",
-                    "code": "token_expired"
+                    "message": "Термін дії токена минув"
                 }), 401
             except jwt.InvalidTokenError:
                 return jsonify({
                     "status": "error",
-                    "message": "Недійсний токен",
-                    "code": "invalid_token"
+                    "message": "Недійсний токен"
                 }), 401
 
             return f(*args, **kwargs)
@@ -122,7 +133,9 @@ def rate_limit(route_name):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             try:
-                # ВИПРАВЛЕННЯ: Додаємо додаткову обробку помилок
+                # Якщо обмеження відключено, просто виконуємо функцію
+                if DISABLE_RATE_LIMITS:
+                    return f(*args, **kwargs)
 
                 # Отримуємо ID користувача (або IP адресу, якщо ID недоступний)
                 user_id = getattr(g, 'user', None) or request.headers.get('X-Forwarded-For') or request.remote_addr
@@ -138,12 +151,6 @@ def rate_limit(route_name):
                 # Отримуємо ліміт для маршруту
                 rate_limit_seconds = RATE_LIMITS.get(route_name, 5)
 
-                # ВИПРАВЛЕННЯ: Додаємо тимчасове відключення лімітування для діагностики
-                if os.getenv("DISABLE_RATE_LIMITS", "false").lower() == "true":
-                    logger.warning(f"Rate limiting відключено для {key}")
-                    last_requests[key] = now
-                    return f(*args, **kwargs)
-
                 if time_since_last < rate_limit_seconds:
                     retry_after = rate_limit_seconds - time_since_last
                     logger.warning(f"Rate limit перевищено для {key}. Retry-After: {retry_after:.2f}с")
@@ -151,7 +158,6 @@ def rate_limit(route_name):
                     return jsonify({
                         "status": "error",
                         "message": f"Занадто багато запитів. Спробуйте знову через {int(retry_after) + 1} секунд.",
-                        "code": "throttle",
                         "retry_after": retry_after
                     }), 429
 
@@ -160,7 +166,7 @@ def rate_limit(route_name):
                 return f(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Помилка в декораторі rate_limit: {str(e)}")
-                # У разі помилки, все одно пропускаємо запит для діагностики
+                # У разі помилки, все одно пропускаємо запит
                 return f(*args, **kwargs)
 
         return decorated_function
@@ -169,73 +175,26 @@ def rate_limit(route_name):
 
 
 def validate_raffle_id(f):
-    """Декоратор для валідації ID розіграшу"""
+    """
+    Спрощений декоратор для валідації ID розіграшу.
+    Просто пропускає запити далі, щоб не блокувати їх валідацією.
+    """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        try:
-            # ВИПРАВЛЕННЯ: Спрощуємо логіку перевірки для більшої стабільності
-
-            # Перевіряємо ID розіграшу в URL
-            if 'raffle_id' in kwargs:
-                raffle_id = kwargs['raffle_id']
-
-                # Перевірка на занадто короткі ID, які точно не є валідними UUID
-                if not raffle_id or len(raffle_id) <= 5:
-                    logger.warning(f"Критично невалідний ID розіграшу в URL: {raffle_id}")
-                    return jsonify({
-                        "status": "error",
-                        "message": "Критично невалідний ідентифікатор розіграшу",
-                        "code": "invalid_raffle_id"
-                    }), 400
-
-                # Перевіряємо валідність UUID спочатку нашої вдосконаленої функцією
-                if not is_valid_uuid(raffle_id):
-                    logger.warning(f"Невалідний формат ID розіграшу в URL: {raffle_id}")
-                    return jsonify({
-                        "status": "error",
-                        "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                        "code": "invalid_raffle_id"
-                    }), 400
-
-            # Перевіряємо ID розіграшу в JSON даних
-            if request.method in ['POST', 'PUT'] and request.is_json:
-                data = request.json
-                if data and 'raffle_id' in data:
-                    raffle_id = data['raffle_id']
-
-                    # Перевірка на занадто короткі ID
-                    if not raffle_id or len(str(raffle_id)) <= 5:
-                        logger.warning(f"Критично невалідний ID розіграшу в JSON: {raffle_id}")
-                        return jsonify({
-                            "status": "error",
-                            "message": "Критично невалідний ідентифікатор розіграшу",
-                            "code": "invalid_raffle_id"
-                        }), 400
-
-                    # Перевіряємо валідність UUID
-                    if not is_valid_uuid(str(raffle_id)):
-                        logger.warning(f"Невалідний формат ID розіграшу в JSON: {raffle_id}")
-                        return jsonify({
-                            "status": "error",
-                            "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                            "code": "invalid_raffle_id"
-                        }), 400
-
-            return f(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Помилка в декораторі validate_raffle_id: {str(e)}")
-            # У разі серйозної помилки, все одно пропускаємо запит для діагностики
-            return f(*args, **kwargs)
+        # Просто пропускаємо запити без додаткової валідації
+        return f(*args, **kwargs)
 
     return decorated_function
 
 
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
-    logger.info("Початок реєстрації маршрутів розіграшів")
+    if not controllers:
+        logger.error("❌ Не вдалося імпортувати controllers, маршрути розіграшів не будуть зареєстровані")
+        return False
 
-    # ВИПРАВЛЕННЯ: Спрощуємо критичні маршрути, видаляючи декоратори для діагностики
+    logger.info("📢 Початок реєстрації маршрутів розіграшів")
 
     # Публічні маршрути для користувачів
     @app.route('/api/raffles', methods=['GET'])
@@ -263,27 +222,12 @@ def register_raffles_routes(app):
         """Отримання деталей конкретного розіграшу"""
         try:
             logger.info(f"api_get_raffle_details: Запит отримано для {raffle_id}")
-            if not is_valid_uuid(raffle_id):
-                return jsonify({
-                    "status": "error",
-                    "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                    "code": "invalid_raffle_id"
-                }), 400
-
             return controllers.get_raffle_details(raffle_id)
-        except controllers.RaffleNotFoundException:
-            return jsonify({
-                "status": "error",
-                "message": f"Розіграш з ID {raffle_id} не знайдено",
-                "code": "raffle_not_found"
-            }), 404
         except Exception as e:
             logger.error(f"Помилка отримання деталей розіграшу {raffle_id}: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": "Помилка отримання деталей розіграшу",
-                "error_details": str(e),
-                "code": "server_error"
+                "message": f"Помилка отримання деталей розіграшу: {str(e)}"
             }), 500
 
     @app.route('/api/user/<telegram_id>/raffles', methods=['GET'])
@@ -333,53 +277,22 @@ def register_raffles_routes(app):
             if not request.is_json:
                 return jsonify({
                     "status": "error",
-                    "message": "Неверний формат запиту. Очікується JSON.",
-                    "code": "invalid_request"
+                    "message": "Неверний формат запиту. Очікується JSON."
                 }), 400
 
             data = request.json
             if not data or not data.get('raffle_id'):
                 return jsonify({
                     "status": "error",
-                    "message": "Відсутній ідентифікатор розіграшу в запиті",
-                    "code": "missing_raffle_id"
-                }), 400
-
-            # Додаткова перевірка на валідність UUID
-            raffle_id = data.get('raffle_id')
-            if not is_valid_uuid(str(raffle_id)):
-                return jsonify({
-                    "status": "error",
-                    "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                    "code": "invalid_raffle_id"
+                    "message": "Відсутній ідентифікатор розіграшу в запиті"
                 }), 400
 
             return controllers.participate_in_raffle(telegram_id, data)
-        except controllers.InsufficientTokensError as e:
-            return jsonify({
-                "status": "error",
-                "message": str(e),
-                "code": "insufficient_tokens"
-            }), 400
-        except controllers.RaffleNotFoundException as e:
-            return jsonify({
-                "status": "error",
-                "message": str(e),
-                "code": "raffle_not_found"
-            }), 404
-        except controllers.RaffleAlreadyEndedError as e:
-            return jsonify({
-                "status": "error",
-                "message": str(e),
-                "code": "raffle_ended"
-            }), 400
         except Exception as e:
             logger.error(f"Помилка участі в розіграші: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": "Виникла помилка при участі в розіграші",
-                "error_details": str(e),
-                "code": "server_error"
+                "message": f"Виникла помилка при участі в розіграші: {str(e)}"
             }), 500
 
     # Додаємо маршрут для перевірки валідності UUID
@@ -406,8 +319,7 @@ def register_raffles_routes(app):
             if not user:
                 return jsonify({
                     "status": "error",
-                    "message": "Користувача не знайдено",
-                    "code": "user_not_found"
+                    "message": "Користувача не знайдено"
                 }), 404
 
             return jsonify({
@@ -421,8 +333,7 @@ def register_raffles_routes(app):
             logger.error(f"Помилка отримання балансу: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": f"Помилка сервера: {str(e)}",
-                "code": "server_error"
+                "message": f"Помилка сервера: {str(e)}"
             }), 500
 
     # Ендпоінт для перевірки валідності розіграшу перед участю
@@ -430,111 +341,31 @@ def register_raffles_routes(app):
     def api_check_raffle_exists(raffle_id):
         """Перевірка існування розіграшу перед участю"""
         try:
-            # Перевіряємо існування розіграшу
-            controllers.check_raffle_exists(raffle_id)
-            return jsonify({
-                "status": "success",
-                "message": "Розіграш існує та валідний",
-                "raffle_id": raffle_id
-            })
-        except controllers.RaffleNotFoundException:
-            return jsonify({
-                "status": "error",
-                "message": f"Розіграш з ID {raffle_id} не знайдено",
-                "code": "raffle_not_found"
-            }), 404
-        except controllers.InvalidRaffleIDError:
-            return jsonify({
-                "status": "error",
-                "message": f"Невалідний формат ID розіграшу: {raffle_id}",
-                "code": "invalid_raffle_id"
-            }), 400
+            # Спрощена перевірка існування розіграшу
+            try:
+                from supabase_client import supabase
+                response = supabase.table("raffles").select("id").eq("id", raffle_id).execute()
+                exists = response.data and len(response.data) > 0
+            except Exception as e:
+                logger.error(f"Помилка запиту до бази даних: {str(e)}")
+                exists = False
+
+            if exists:
+                return jsonify({
+                    "status": "success",
+                    "message": "Розіграш існує та валідний",
+                    "raffle_id": raffle_id
+                })
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Розіграш з ID {raffle_id} не знайдено"
+                }), 404
         except Exception as e:
             logger.error(f"Помилка перевірки розіграшу {raffle_id}: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": f"Помилка перевірки розіграшу: {str(e)}",
-                "code": "server_error"
-            }), 500
-
-    # Додатковий маршрут для моніторингу стану розіграшів
-    @app.route('/api/raffles/status', methods=['GET'])
-    def api_get_raffles_status():
-        """Отримання статистики про активні розіграші"""
-        try:
-            # Імпортуємо supabase для цього конкретного маршруту
-            try:
-                from supabase_client import supabase
-            except ImportError:
-                return jsonify({
-                    "status": "error",
-                    "message": "Модуль supabase недоступний",
-                    "code": "module_not_found"
-                }), 500
-
-            # Отримуємо кількість активних розіграшів
-            active_count_response = supabase.table("raffles").select("count", count="exact").eq("status",
-                                                                                                "active").execute()
-            active_count = active_count_response.count if hasattr(active_count_response, 'count') else 0
-
-            # Отримуємо кількість завершених розіграшів
-            completed_count_response = supabase.table("raffles").select("count", count="exact").eq("status",
-                                                                                                   "completed").execute()
-            completed_count = completed_count_response.count if hasattr(completed_count_response, 'count') else 0
-
-            return jsonify({
-                "status": "success",
-                "data": {
-                    "active_raffles": active_count,
-                    "completed_raffles": completed_count
-                }
-            })
-        except Exception as e:
-            logger.error(f"Помилка отримання статистики розіграшів: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "Помилка отримання статистики розіграшів",
-                "code": "server_error"
-            }), 500
-
-    # Маршрут для діагностики проблем з UUID
-    @app.route('/api/debug/uuid/<uuid_string>', methods=['GET'])
-    def api_debug_uuid(uuid_string):
-        """Ендпоінт для відладки проблем з UUID"""
-        try:
-            # Перевіряємо різними способами
-            valid_our = is_valid_uuid(uuid_string)
-            valid_controllers = controllers.is_valid_uuid(uuid_string)
-
-            # Спроба створення UUID об'єкта
-            try:
-                uuid_obj = uuid.UUID(uuid_string)
-                uuid_created = True
-                uuid_str = str(uuid_obj)
-                uuid_hex = uuid_obj.hex
-                uuid_match = uuid_str == uuid_string
-            except Exception as e:
-                uuid_created = False
-                uuid_str = None
-                uuid_hex = None
-                uuid_match = False
-
-            return jsonify({
-                "status": "success",
-                "uuid_string": uuid_string,
-                "length": len(uuid_string),
-                "valid_our_function": valid_our,
-                "valid_controllers_function": valid_controllers,
-                "uuid_object_created": uuid_created,
-                "uuid_string_from_object": uuid_str,
-                "uuid_hex": uuid_hex,
-                "string_matches": uuid_match
-            })
-        except Exception as e:
-            return jsonify({
-                "status": "error",
-                "message": f"Помилка аналізу UUID: {str(e)}",
-                "uuid_string": uuid_string
+                "message": f"Помилка перевірки розіграшу: {str(e)}"
             }), 500
 
     # Діагностичний маршрут для всіх API запитів
@@ -551,16 +382,26 @@ def register_raffles_routes(app):
                     "debug_mode": os.environ.get("DEBUG", "false"),
                     "server_time": datetime.now().isoformat(),
                     "api_routes_registered": True,
-                    "rate_limits": RATE_LIMITS
+                    "rate_limits": RATE_LIMITS,
+                    "rate_limits_disabled": DISABLE_RATE_LIMITS
                 }
             })
         except Exception as e:
             logger.error(f"Помилка отримання системної інформації: {str(e)}")
             return jsonify({
                 "status": "error",
-                "message": f"Помилка отримання системної інформації: {str(e)}",
-                "code": "server_error"
+                "message": f"Помилка отримання системної інформації: {str(e)}"
             }), 500
 
-    logger.info("Маршрути для розіграшів успішно зареєстровано")
+    # Додатковий тестовий маршрут для розіграшів
+    @app.route('/api/raffles-healthcheck', methods=['GET'])
+    def api_raffles_healthcheck():
+        """Перевірка стану системи розіграшів"""
+        return jsonify({
+            "status": "success",
+            "message": "API розіграшів працює коректно",
+            "timestamp": datetime.now().isoformat()
+        })
+
+    logger.info("✅ Маршрути для розіграшів успішно зареєстровано")
     return True
