@@ -9,6 +9,9 @@
     <script src="js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="css/raffles.css">
     <link rel="stylesheet" href="css/components-raffles.css">
+    <!-- Додаємо нові преміальні стилі -->
+    <link rel="stylesheet" href="css/premium-raffles.css">
+
     <script>
     // Ініціалізація та перевірка Telegram WebApp
     (function() {
@@ -325,19 +328,19 @@
             <div class="statistics-container">
                 <div class="statistics-title">Ваша статистика участі</div>
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card fade-in-up stagger-item">
                         <div class="stat-value" id="total-participated">0</div>
                         <div class="stat-label">Участь у розіграшах</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card fade-in-up stagger-item">
                         <div class="stat-value" id="total-wins">0</div>
                         <div class="stat-label">Виграші</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card fade-in-up stagger-item">
                         <div class="stat-value" id="total-winix-won">0</div>
                         <div class="stat-label">WINIX виграно</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card fade-in-up stagger-item">
                         <div class="stat-value" id="total-tokens-spent">0</div>
                         <div class="stat-label">Витрачено жетонів</div>
                     </div>
@@ -400,6 +403,7 @@
     <script src="js/raffles/statistics.js"></script>
     <script src="js/raffles/templates.js"></script>
     <script src="js/raffles/index.js"></script>
+    <script src="js/raffles/utils/animations.js"></script>
 
     <script>
         // Глобальний лічильник для коректного відстеження активних запитів
@@ -418,9 +422,9 @@
                 document.body.appendChild(toastContainer);
             }
 
-            // Обмежуємо кількість активних повідомлень до 3
+            // Обмежуємо кількість активних повідомлень до 2
             const existingToasts = toastContainer.querySelectorAll('.toast-message');
-            if (existingToasts.length >= 3) {
+            if (existingToasts.length >= 2) {
                 // Видаляємо найстаріше повідомлення
                 toastContainer.removeChild(existingToasts[0]);
             }
