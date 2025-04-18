@@ -1,6 +1,7 @@
 /**
  * WINIX - Система розіграшів (validators.js)
  * Модуль з функціями валідації для системи розіграшів
+ * @version 1.2.0
  */
 
 (function() {
@@ -22,9 +23,25 @@
         isValidUUID: function(id) {
             if (!id || typeof id !== 'string') return false;
 
-            // Регулярний вираз для перевірки формату UUID
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(id);
+            // Нормалізуємо ID - приберемо зайві пробіли і переведемо в нижній регістр
+            const normalizedId = id.trim().toLowerCase();
+
+            // Перевірка різних форматів UUID
+            const patterns = {
+                // Стандартний формат UUID з дефісами (8-4-4-4-12)
+                standard: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+
+                // UUID без дефісів (просто 32 символи hex)
+                noHyphens: /^[0-9a-f]{32}$/i,
+
+                // UUID з фігурними дужками
+                braced: /^\{[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\}$/i
+            };
+
+            // Перевіряємо за всіма шаблонами
+            return patterns.standard.test(normalizedId) ||
+                   patterns.noHyphens.test(normalizedId) ||
+                   patterns.braced.test(normalizedId);
         },
 
         /**
@@ -79,7 +96,7 @@
             let userTokens = 0;
 
             // Спроба отримати з DOM
-            const userCoinsElement = document.querySelector('.user-coins');
+            const userCoinsElement = document.getElementById('user-coins');
             if (userCoinsElement) {
                 userTokens = parseInt(userCoinsElement.textContent) || 0;
             } else {
@@ -97,23 +114,28 @@
          * @returns {boolean} - Результат перевірки
          */
         isRaffleTimeValid: function(startTime, endTime) {
-            // Конвертуємо в об'єкти Date
-            const start = new Date(startTime);
-            const end = new Date(endTime);
-            const now = new Date();
+            try {
+                // Конвертуємо в об'єкти Date
+                const start = new Date(startTime);
+                const end = new Date(endTime);
+                const now = new Date();
 
-            // Перевіряємо валідність дат
-            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                // Перевіряємо валідність дат
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    return false;
+                }
+
+                // Перевіряємо, що кінцева дата пізніше початкової
+                if (end <= start) {
+                    return false;
+                }
+
+                // Перевіряємо, що розіграш ще не завершився
+                return end > now;
+            } catch (e) {
+                console.error("Помилка валідації часу розіграшу:", e);
                 return false;
             }
-
-            // Перевіряємо, що кінцева дата пізніше початкової
-            if (end <= start) {
-                return false;
-            }
-
-            // Перевіряємо, що розіграш ще не завершився
-            return end > now;
         },
 
         /**
@@ -122,41 +144,46 @@
          * @returns {Object|null} - Об'єкт з форматованим часом або null якщо час вийшов
          */
         calculateTimeLeft: function(endTime) {
-            const end = new Date(endTime);
-            const now = new Date();
+            try {
+                const end = new Date(endTime);
+                const now = new Date();
 
-            // Перевіряємо валідність дати
-            if (isNaN(end.getTime())) {
-                return null;
-            }
-
-            // Обчислюємо різницю в мілісекундах
-            const diffMs = end - now;
-
-            // Перевіряємо, чи час не вийшов
-            if (diffMs <= 0) {
-                return null;
-            }
-
-            // Розраховуємо дні, години, хвилини, секунди
-            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-
-            return {
-                days,
-                hours,
-                minutes,
-                seconds,
-                total: diffMs,
-                formatted: {
-                    days: days.toString().padStart(2, '0'),
-                    hours: hours.toString().padStart(2, '0'),
-                    minutes: minutes.toString().padStart(2, '0'),
-                    seconds: seconds.toString().padStart(2, '0')
+                // Перевіряємо валідність дати
+                if (isNaN(end.getTime())) {
+                    return null;
                 }
-            };
+
+                // Обчислюємо різницю в мілісекундах
+                const diffMs = end - now;
+
+                // Перевіряємо, чи час не вийшов
+                if (diffMs <= 0) {
+                    return null;
+                }
+
+                // Розраховуємо дні, години, хвилини, секунди
+                const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+                return {
+                    days,
+                    hours,
+                    minutes,
+                    seconds,
+                    total: diffMs,
+                    formatted: {
+                        days: days.toString().padStart(2, '0'),
+                        hours: hours.toString().padStart(2, '0'),
+                        minutes: minutes.toString().padStart(2, '0'),
+                        seconds: seconds.toString().padStart(2, '0')
+                    }
+                };
+            } catch (e) {
+                console.error("Помилка обчислення залишку часу:", e);
+                return null;
+            }
         },
 
         /**
@@ -197,6 +224,31 @@
         },
 
         /**
+         * Перевірка чи розіграш включений в список невалідних
+         * @param {string} raffleId - ID розіграшу для перевірки
+         * @returns {boolean} - Результат перевірки
+         */
+        isRaffleInvalid: function(raffleId) {
+            if (!this.isValidUUID(raffleId)) return true;
+
+            // Перевіряємо в модулі participation
+            if (WinixRaffles.participation && WinixRaffles.participation.invalidRaffleIds) {
+                if (WinixRaffles.participation.invalidRaffleIds.has(raffleId)) {
+                    return true;
+                }
+            }
+
+            // Перевіряємо в глобальному стані
+            if (WinixRaffles.state && WinixRaffles.state.invalidRaffleIds) {
+                if (WinixRaffles.state.invalidRaffleIds.has(raffleId)) {
+                    return true;
+                }
+            }
+
+            return false;
+        },
+
+        /**
          * Валідація вхідних даних для участі в розіграші
          * @param {string} raffleId - ID розіграшу
          * @param {number} entryCount - Кількість жетонів для участі
@@ -215,9 +267,9 @@
                 errors.push('Невалідна кількість жетонів для участі');
             }
 
-            // Перевірка участі
-            if (this.isUserParticipating(raffleId)) {
-                errors.push('Ви вже берете участь у цьому розіграші');
+            // Перевірка невалідних розіграшів
+            if (this.isRaffleInvalid(raffleId)) {
+                errors.push('Розіграш вже завершено або недоступний');
             }
 
             // Перевірка достатньої кількості жетонів
@@ -229,11 +281,61 @@
                 isValid: errors.length === 0,
                 errors: errors
             };
+        },
+
+        /**
+         * Перевірка чи відбувається запит участі
+         * @returns {boolean} - Чи відбувається запит участі
+         */
+        isParticipationInProgress: function() {
+            return (WinixRaffles.participation &&
+                    WinixRaffles.participation.requestInProgress) === true;
+        },
+
+        /**
+         * Нормалізація UUID (видалення пробілів, переведення в нижній регістр)
+         * @param {string} uuid - UUID для нормалізації
+         * @returns {string} - Нормалізований UUID
+         */
+        normalizeUUID: function(uuid) {
+            if (!uuid || typeof uuid !== 'string') return '';
+
+            // Видаляємо всі пробіли і переводимо в нижній регістр
+            return uuid.trim().toLowerCase();
+        },
+
+        /**
+         * Конвертація UUID в стандартний формат з дефісами
+         * @param {string} uuid - UUID для конвертації
+         * @returns {string} - Сконвертований UUID або порожній рядок при помилці
+         */
+        formatUUID: function(uuid) {
+            if (!uuid || typeof uuid !== 'string') return '';
+
+            try {
+                // Видаляємо всі нецифрові і не-букви
+                const cleanUuid = uuid.replace(/[^a-fA-F0-9]/g, '');
+
+                // Перевіряємо, чи вийшло 32 символи
+                if (cleanUuid.length !== 32) return '';
+
+                // Форматуємо у вигляді 8-4-4-4-12
+                return `${cleanUuid.substr(0,8)}-${cleanUuid.substr(8,4)}-${cleanUuid.substr(12,4)}-${cleanUuid.substr(16,4)}-${cleanUuid.substr(20,12)}`;
+            } catch (e) {
+                console.error("Помилка форматування UUID:", e);
+                return '';
+            }
         }
     };
 
     // Додаємо валідатори до WinixRaffles
     WinixRaffles.validators = validators;
+
+    // Експортуємо валідатори в глобальний API для зручності використання
+    if (window.WinixAPI) {
+        window.WinixAPI.isValidUUID = validators.isValidUUID;
+        window.WinixAPI.formatUUID = validators.formatUUID;
+    }
 
     console.log('✅ Модуль валідації успішно ініціалізовано');
 })();
