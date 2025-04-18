@@ -475,7 +475,7 @@
 
         // З DOM
         try {
-            const userIdElement = getElement('#user-id');
+            const userIdElement = getElement('#header-user-id');
             if (userIdElement && userIdElement.textContent) {
                 const id = userIdElement.textContent.trim();
                 if (id && id !== 'undefined' && id !== 'null') {
@@ -513,7 +513,7 @@
             const username = userData.username || getFromStorage('username', 'User');
 
             // Оновлюємо ID користувача
-            const userIdElement = getElement('#user-id');
+            const userIdElement = getElement('#header-user-id');
             if (userIdElement) {
                 userIdElement.textContent = userId;
             }

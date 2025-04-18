@@ -35,26 +35,8 @@
                 this.loadActiveRaffles();
             }
 
-            // Налаштовуємо автоматичне оновлення
-            this.setupAutoRefresh();
-
             // Додаємо обробники подій
             this.setupEventListeners();
-        },
-
-        // Налаштування автоматичного оновлення
-        setupAutoRefresh: function() {
-            // Очищаємо попередній таймер, якщо він є
-            if (WinixRaffles.state.refreshTimers.activeRaffles) {
-                clearInterval(WinixRaffles.state.refreshTimers.activeRaffles);
-            }
-
-            // Налаштовуємо новий таймер
-            WinixRaffles.state.refreshTimers.activeRaffles = setInterval(() => {
-                if (WinixRaffles.state.activeTab === 'active') {
-                    this.loadActiveRaffles(true);
-                }
-            }, WinixRaffles.config.autoRefreshInterval);
         },
 
         // Налаштування обробників подій
@@ -128,6 +110,7 @@
                 console.log('🎲 Завантаження активних розіграшів...');
 
                 const response = await WinixAPI.apiRequest(WinixRaffles.config.activeRafflesEndpoint);
+                console.log('👉 Отримана відповідь:', response);
 
                 if (!quiet) {
                     if (typeof window.hideLoading === 'function') {
@@ -135,7 +118,9 @@
                     }
                 }
 
-                if (response.status === 'success' && Array.isArray(response.data)) {
+                if (response && response.status === 'success' && Array.isArray(response.data)) {
+                    console.log('👉 Знайдено розіграшів:', response.data.length);
+                    console.log('👉 Дані розіграшів:', JSON.stringify(response.data));
                     this.raffles = response.data;
                     this.lastUpdate = now;
 
@@ -151,7 +136,9 @@
 
                     this.renderActiveRaffles(this.raffles);
                 } else {
-                    console.error('❌ Неправильний формат відповіді:', response);
+                    // ВИПРАВЛЕНО: Використовуємо response замість невизначеної змінної error
+                    console.error('❌ Помилка завантаження активних розіграшів:',
+                        response ? response.message || 'Невідома помилка' : 'Немає відповіді від сервера');
                     this.tryLoadFromLocalStorage();
                 }
             } catch (error) {
@@ -162,40 +149,75 @@
                 }
 
                 console.error('❌ Помилка завантаження активних розіграшів:', error);
+                   if (error.message && error.message.includes('raffle_not_found')) {
+        // Показуємо спеціальне повідомлення користувачу
+        if (typeof window.showToast === 'function') {
+            window.showToast("Один або більше розіграшів вже завершено. Оновлюємо список...", "warning");
+        }
+
+        // Очищаємо локальний кеш розіграшів
+        try {
+            localStorage.removeItem('winix_active_raffles');
+        } catch (e) {
+            console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
+        }
+
+        // Повторно завантажуємо розіграші після паузи
+        setTimeout(() => {
+            this.loadActiveRaffles(true);
+        }, 2000);
+    }
                 this.tryLoadFromLocalStorage();
             } finally {
                 WinixRaffles.state.isLoading = false;
+                // ВИПРАВЛЕНО: Видалено звернення до невизначеної змінної error у блоці finally
             }
         },
 
         // Спроба завантажити дані з локального сховища
         tryLoadFromLocalStorage: function() {
-            try {
-                const storedRaffles = localStorage.getItem('winix_active_raffles');
-                if (storedRaffles) {
-                    const parsedRaffles = JSON.parse(storedRaffles);
-                    if (parsedRaffles && Array.isArray(parsedRaffles.data) && parsedRaffles.data.length > 0) {
-                        console.log('🎲 Використовуємо дані з локального сховища');
-                        this.raffles = parsedRaffles.data;
-                        this.renderActiveRaffles(this.raffles);
-                        return;
-                    }
+    try {
+        const storedRaffles = localStorage.getItem('winix_active_raffles');
+        if (storedRaffles) {
+            const parsedRaffles = JSON.parse(storedRaffles);
+
+            // ДОДАТИ НОВИЙ КОД ТУТ: перевірка актуальності кешу
+            if (parsedRaffles && parsedRaffles.timestamp) {
+                const now = Date.now();
+                const cacheAge = now - parsedRaffles.timestamp;
+
+                // Якщо кеш старший за 30 хвилин, не використовуємо його
+                if (cacheAge > 30 * 60 * 1000) {
+                    console.log('🎲 Кеш розіграшів застарів, не використовуємо');
+                    this.renderEmptyActiveRaffles();
+                    return;
                 }
-            } catch (e) {
-                console.warn('⚠️ Помилка завантаження даних з локального сховища:', e);
             }
 
-            // Якщо не вдалося завантажити з локального сховища
-            this.renderEmptyActiveRaffles();
-        },
+            if (parsedRaffles && Array.isArray(parsedRaffles.data) && parsedRaffles.data.length > 0) {
+                console.log('🎲 Використовуємо дані з локального сховища');
+                this.raffles = parsedRaffles.data;
+                this.renderActiveRaffles(this.raffles);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('⚠️ Помилка завантаження даних з локального сховища:', e);
+    }
+
+    // Якщо не вдалося завантажити з локального сховища
+    this.renderEmptyActiveRaffles();
+},
 
         // Відображення активних розіграшів
         renderActiveRaffles: function(raffles) {
+            console.log('👉 renderActiveRaffles викликано з:', raffles);
             // Очищаємо всі таймери зворотного відліку
             this.clearAllCountdowns();
 
             // Якщо немає розіграшів
             if (!Array.isArray(raffles) || raffles.length === 0) {
+                 console.log('👉 Немає розіграшів для відображення');
                 this.renderEmptyActiveRaffles();
                 return;
             }

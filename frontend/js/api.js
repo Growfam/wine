@@ -1,12 +1,12 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
- * @version 1.2.0 (з виправленнями)
+ * @version 1.1.0
  */
 
 (function() {
     'use strict';
-
+let endpoint = ""; // Оголошення глобальної змінної
     console.log("🔌 API: Ініціалізація єдиного API модуля");
 
     // ======== ПРИВАТНІ ЗМІННІ ========
@@ -49,9 +49,6 @@
     let _stakingCacheTime = 0;
     const STAKING_CACHE_TTL = 180000; // 3 хвилини
 
-    // Заблоковані ендпоінти (через rate limiting)
-    let _blockedEndpoints = {};
-
     // Запобігання рекурсивним викликам
     let _pendingRequests = {};
     let _activeEndpoints = new Set();
@@ -59,13 +56,13 @@
     // Відстеження запитів, щоб запобігти повторним викликам
     let _lastRequestsByEndpoint = {};
 
-    // Мінімальний інтервал між однаковими запитами
+    // Мінімальний інтервал між однаковими запитами (збільшені інтервали)
     const REQUEST_THROTTLE = {
-        '/user/': 5000,      // 5 секунд
-        '/staking': 8000,    // 8 секунд
-        '/balance': 5000,    // 5 секунд
-        '/transactions': 15000, // 15 секунд
-        'default': 4000      // 4 секунди за замовчуванням
+        '/user/': 10000,    // Збільшено з 5000 до 10000
+        '/staking': 15000,  // Збільшено з 8000 до 15000
+        '/balance': 8000,   // Збільшено з 5000 до 8000
+        '/transactions': 20000, // Збільшено з 15000 до 20000
+        'default': 8000     // Збільшено з 4000 до 8000
     };
 
     // Лічильник запитів
@@ -83,9 +80,6 @@
         failedAttempts: 0,
         maxRetries: 5
     };
-
-    // Індикатор прогресу затримки запитів
-    let _currentRateLimitTimer = null;
 
     // Токен автентифікації
     let _authToken = null;
@@ -263,154 +257,72 @@
      * @returns {string} нормалізований endpoint
      */
     function normalizeEndpoint(endpoint) {
-        if (!endpoint) return 'api';
+    if (!endpoint) return 'api';
 
-        // Видаляємо початковий слеш, якщо він є
-        let cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+    // Очищаємо вхідний шлях
+    let cleanEndpoint = endpoint.trim();
 
-        // Перевіряємо, чи вже містить endpoint 'api'
-        if (cleanEndpoint.startsWith('api/')) {
-            return cleanEndpoint;
-        } else if (cleanEndpoint.startsWith('api')) {
-            return `api/${cleanEndpoint.substring(3)}`;
-        } else {
-            return `api/${cleanEndpoint}`;
-        }
+    // Видаляємо початковий та кінцевий слеш
+    if (cleanEndpoint.startsWith('/')) {
+        cleanEndpoint = cleanEndpoint.substring(1);
+    }
+    if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
+        cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
     }
 
+    // ВИПРАВЛЕНО: Перевірка, чи endpoint вже має api на початку
+    if (cleanEndpoint.startsWith('api/')) {
+        // Вже має правильний формат
+        return cleanEndpoint;
+    } else if (cleanEndpoint === 'api') {
+        // Сам префікс без шляху
+        return cleanEndpoint;
+    } else if (cleanEndpoint.startsWith('api')) {
+        // Префікс без слешу
+        return `api/${cleanEndpoint.substring(3)}`;
+    } else {
+        // Звичайний шлях без префіксу
+        return `api/${cleanEndpoint}`;
+    }
+}
     /**
-     * Перевірка валідності UUID (покращений метод)
+     * Перевірка валідності UUID
      * @param {string} id - ID для перевірки
      * @returns {boolean} Результат перевірки
      */
-    function isValidUUID(id) {
-        if (!id || typeof id !== 'string') return false;
 
-        // Перевірка для занадто коротких ID (запобігає помилкам з ac, 46 та іншими)
-        if (id.length < 10) return false;
+function isValidUUID(id) {
+    if (!id || typeof id !== 'string') return false;
 
-        // Повна перевірка UUID
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        return uuidRegex.test(id);
-    }
+    // Нормалізуємо рядок перед перевіркою
+    const normalized = id.trim().toLowerCase();
 
-    /**
-     * Показує індикатор прогресу при обмеженні швидкості запитів
-     * @param {string} endpoint - URL ендпоінту
-     * @param {number} retryAfter - час очікування в секундах
-     */
-    function showRateLimitProgress(endpoint, retryAfter) {
-        // Створюємо або отримуємо елемент індикатора
-        let indicator = document.getElementById('rate-limit-indicator');
+    // Простіша перевірка на UUID - стандартний формат з дефісами
+    const standardPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'rate-limit-indicator';
-            indicator.className = 'rate-limit-indicator';
-            indicator.innerHTML = `
-                <div class="rate-limit-message">
-                    Занадто багато запитів. Зачекайте <span class="rate-limit-time"></span> секунд.
-                </div>
-                <div class="rate-limit-progress">
-                    <div class="rate-limit-progress-bar"></div>
-                </div>
-            `;
+    // Перевірка на UUID без дефісів
+    const noHyphensPattern = /^[0-9a-f]{32}$/i;
 
-            // Додаємо стилі, якщо їх немає
-            if (!document.getElementById('rate-limit-styles')) {
-                const style = document.createElement('style');
-                style.id = 'rate-limit-styles';
-                style.textContent = `
-                    .rate-limit-indicator {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        right: 0;
-                        background: rgba(0, 0, 0, 0.8);
-                        color: white;
-                        padding: 15px;
-                        text-align: center;
-                        z-index: 9999;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                    }
-                    .rate-limit-progress {
-                        width: 80%;
-                        height: 8px;
-                        background: rgba(255, 255, 255, 0.2);
-                        border-radius: 4px;
-                        margin-top: 10px;
-                        overflow: hidden;
-                    }
-                    .rate-limit-progress-bar {
-                        height: 100%;
-                        background: #4CAF50;
-                        width: 100%;
-                        transition: width 1s linear;
-                    }
-                    .rate-limit-message {
-                        margin-bottom: 10px;
-                    }
-                    .rate-limit-time {
-                        font-weight: bold;
-                        color: #4CAF50;
-                    }
-                `;
-                document.head.appendChild(style);
-            }
+    return standardPattern.test(normalized) || noHyphensPattern.test(normalized);
+}
 
-            document.body.appendChild(indicator);
+
+// У функції apiRequest додайте цей код перед основним запитом
+// для виправлення проблеми з невалідним UUID в URL
+if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+    const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+    if (raffleIdMatch && raffleIdMatch[1]) {
+        const raffleId = raffleIdMatch[1];
+        if (!isValidUUID(raffleId)) {
+            console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+            return Promise.reject({
+                status: 'error',
+                message: 'Невалідний ідентифікатор розіграшу в URL',
+                code: 'invalid_raffle_id'
+            });
         }
-
-        // Отримуємо потрібні елементи
-        const timeElement = indicator.querySelector('.rate-limit-time');
-        const progressBar = indicator.querySelector('.rate-limit-progress-bar');
-
-        // Встановлюємо початкові значення
-        const startTime = Date.now();
-        const endTime = startTime + (retryAfter * 1000);
-
-        // Очищаємо попередній таймер, якщо є
-        if (_currentRateLimitTimer) {
-            clearInterval(_currentRateLimitTimer);
-        }
-
-        // Функція оновлення таймера
-        const updateTimer = () => {
-            const now = Date.now();
-            const remaining = Math.max(0, endTime - now);
-            const secondsRemaining = Math.ceil(remaining / 1000);
-
-            // Оновлюємо текст і прогрес
-            timeElement.textContent = secondsRemaining;
-
-            // Розраховуємо прогрес (від 100% до 0%)
-            const progress = (remaining / (retryAfter * 1000)) * 100;
-            progressBar.style.width = `${progress}%`;
-
-            // Якщо час вичерпався, приховуємо індикатор
-            if (remaining <= 0) {
-                indicator.style.display = 'none';
-                clearInterval(_currentRateLimitTimer);
-                _currentRateLimitTimer = null;
-
-                // Показуємо повідомлення про відновлення
-                if (typeof window.showToast === 'function') {
-                    window.showToast('З\'єднання відновлено. Можете продовжувати.', 'success');
-                }
-            }
-        };
-
-        // Показуємо індикатор
-        indicator.style.display = 'flex';
-
-        // Запускаємо перше оновлення
-        updateTimer();
-
-        // Запускаємо таймер оновлення кожну секунду
-        _currentRateLimitTimer = setInterval(updateTimer, 1000);
     }
+}
 
     /**
      * Оновлення токену авторизації
@@ -506,256 +418,142 @@
      * Функція для примусового скидання зависаючих запитів
      * @returns {boolean} Чи було виконано скидання
      */
-  // Додаємо до існуючої функції resetPendingRequests
-function resetPendingRequests() {
-    const now = Date.now();
-
-    // Очищаємо запити старші за 15 секунд
-    for (const endpoint of _activeEndpoints) {
-        const lastTime = _lastRequestsByEndpoint[`GET:${endpoint}`] ||
-                         _lastRequestsByEndpoint[`POST:${endpoint}`] || 0;
-
-        if (now - lastTime > 15000) { // 15 секунд
-            console.warn(`🔌 API: Скидання зависаючого запиту до ${endpoint}`);
-            _activeEndpoints.delete(endpoint);
+    function resetPendingRequests() {
+        // Якщо є більше 3 активних запитів, потенційно маємо проблему
+        if (_activeEndpoints.size > 3) {
+            console.warn(`🔌 API: Виявлено ${_activeEndpoints.size} активних запитів, скидаємо стан`);
+            _activeEndpoints.clear();
+            _pendingRequests = {};
+            return true;
         }
+        return false;
     }
-
-    // Перевірка загальної кількості активних запитів
-    if (_activeEndpoints.size > 3) {
-        console.warn(`🔌 API: Виявлено ${_activeEndpoints.size} активних запитів, скидаємо стан`);
-        _activeEndpoints.clear();
-        _pendingRequests = {};
-        return true;
-    }
-    return false;
-}
-
-// Регулярна перевірка та очищення зависаючих запитів
-setInterval(resetPendingRequests, 20000); // Кожні 20 секунд
 
     /**
- * Безпосереднє виконання запиту без додаткової логіки
- * Використовується для уникнення рекурсії в деяких випадках
- * @param {string} url - URL запиту
- * @param {string} method - HTTP метод
- * @param {Object} data - Дані для відправки
- * @param {Object} options - Додаткові параметри
- * @returns {Promise<Object>} Результат запиту
- */
-async function rawApiRequest(url, method, data, options = {}) {
-    // Ідентифікатор для відстеження даного запиту
-    const requestId = `${method}-${url}-${Date.now()}`;
-    const controller = new AbortController();
-    let timeoutId = null;
-
-    try {
-        // Показуємо індикатор завантаження
-        if (!options.hideLoader) {
-            if (typeof window.showLoading === 'function') {
-                window.showLoading();
-            }
-        }
-
-        // Запит з таймаутом
-        timeoutId = setTimeout(() => {
-            console.warn(`🔄 API: Таймаут запиту ${requestId}`);
-            controller.abort();
-        }, options.timeout || 10000);
-
-        // Заголовки
-        const headers = {
-            'Content-Type': 'application/json',
-            'X-Request-ID': requestId,
-            ...(options.headers || {})
-        };
-
-        // Додаємо токен авторизації, якщо потрібно
-        if (!options.skipTokenCheck) {
-            const token = getAuthToken();
-            if (token) {
-                headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-            }
-        }
-
-        // Додаємо ID користувача, якщо він є
-        const userId = getUserId();
-        if (userId && !options.skipUserIdCheck) {
-            headers['X-Telegram-User-Id'] = userId;
-        }
-
-        // Перевірка чи пристрій онлайн
-        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
-            throw new Error("Пристрій офлайн");
-        }
-
-        // Параметри запиту
-        const requestOptions = {
-            method: method,
-            headers: headers,
-            signal: controller.signal,
-            // Додаємо cache: 'no-store' для запобігання кешування
-            cache: 'no-store'
-        };
-
-        // Додаємо тіло запиту для POST/PUT/PATCH
-        if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-            // Створюємо копію даних для безпечної модифікації
-            const processedData = { ...data };
-
-            // Перевірка та коригування raffle_id для запитів участі в розіграші
-            if (url.includes('participate-raffle') && processedData) {
-                // Переконатися, що raffle_id - валідний рядок
-                if (processedData.raffle_id) {
-                    // Перевірка формату UUID та конвертація
-                    if (typeof processedData.raffle_id !== 'string') {
-                        processedData.raffle_id = String(processedData.raffle_id);
-                        console.log("🛠️ API: raffle_id конвертовано в рядок:", processedData.raffle_id);
-                    }
-
-                    // Перевірка формату UUID
-                    if (!isValidUUID(processedData.raffle_id)) {
-                        console.error(`❌ API: Невалідний UUID для розіграшу: ${processedData.raffle_id}`);
-                        throw new Error(`Невалідний ідентифікатор розіграшу: ${processedData.raffle_id}`);
-                    }
-                } else {
-                    console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
-                    throw new Error("Відсутній ідентифікатор розіграшу");
-                }
-            }
-
-            requestOptions.body = JSON.stringify(processedData);
-        }
-
-        // Записуємо час початку запиту для моніторингу тривалості
-        const startTime = Date.now();
-
-        // Виконуємо запит
-        console.log(`🔄 API: Відправка ${method} запиту ${requestId} на ${url}`);
-        const response = await fetch(url, requestOptions);
-
-        // Записуємо час завершення запиту
-        const requestDuration = Date.now() - startTime;
-        console.log(`✅ API: Отримано відповідь за ${requestDuration}мс для запиту ${requestId}`);
-
-        // Очищаємо таймаут при отриманні відповіді
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-        }
-
-        // Приховуємо індикатор завантаження
-        if (!options.hideLoader) {
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-        }
-
-        // Спеціальна обробка для 404 помилок в розіграшах
-        if (response.status === 404 && url.includes('raffles')) {
-            // Очищуємо кеш розіграшів, якщо такий є
-            if (window.WinixRaffles && window.WinixRaffles.participation) {
-                window.WinixRaffles.participation.clearInvalidRaffleIds();
-            }
-
-            // Додаємо цей ID в список невалідних
-            const raffleIdMatch = url.match(/raffles\/([^/?]+)/i);
-            if (raffleIdMatch && raffleIdMatch[1] && window.WinixRaffles && window.WinixRaffles.participation) {
-                window.WinixRaffles.participation.addInvalidRaffleId(raffleIdMatch[1]);
-            }
-
-            // Показуємо користувачу більш інформативне повідомлення
-            if (typeof window.showToast === 'function') {
-                window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
-            }
-
-            throw new Error("Розіграш не знайдено. ID може бути застарілим.");
-        }
-
-        // Покращена обробка помилок обмеження швидкості (rate limiting)
-        if (response.status === 429) {
-            // Отримуємо заголовок Retry-After, якщо він є
-            const retryAfter = parseInt(response.headers.get('Retry-After') || '30');
-
-            // Зберігаємо URL ендпоінта без параметрів запиту для блокування
-            const endpointBase = url.split('?')[0];
-
-            // Записуємо ендпоінт в заблоковані з часом до розблокування
-            if (window._blockedEndpoints) {
-                window._blockedEndpoints[endpointBase] = Date.now() + (retryAfter * 1000);
-                console.warn(`⚠️ API: Ендпоінт ${endpointBase} заблоковано на ${retryAfter} секунд`);
-            }
-
-            // Показуємо індикатор прогресу очікування
-            if (typeof showRateLimitProgress === 'function') {
-                showRateLimitProgress(url, retryAfter);
-            }
-
-            // Повертаємо структуровану помилку з усіма необхідними деталями
-            throw {
-                status: 429,
-                message: `Занадто багато запитів. Повторіть через ${retryAfter} секунд.`,
-                endpoint: endpointBase,
-                retryAfter: retryAfter,
-                retryTime: Date.now() + (retryAfter * 1000),
-                headers: { 'Retry-After': retryAfter }
-            };
-        }
-
-        // Перевіряємо статус відповіді
-        if (!response.ok) {
-            const errorBody = await response.text().catch(() => '');
-            let errorMessage = `Помилка сервера: ${response.status}`;
-
-            try {
-                // Спроба отримати структуроване повідомлення про помилку
-                const errorJson = JSON.parse(errorBody);
-                if (errorJson.message) {
-                    errorMessage = errorJson.message;
-                } else if (errorJson.error) {
-                    errorMessage = errorJson.error;
-                }
-            } catch (e) {
-                // Ігноруємо помилки парсингу і використовуємо текст як є
-            }
-
-            throw new Error(errorMessage);
-        }
-
-        // Парсимо відповідь як JSON з обробкою помилок
+     * Безпосереднє виконання запиту без додаткової логіки
+     * Використовується для уникнення рекурсії в деяких випадках
+     * @param {string} url - URL запиту
+     * @param {string} method - HTTP метод
+     * @param {Object} data - Дані для відправки
+     * @param {Object} options - Додаткові параметри
+     * @returns {Promise<Object>} Результат запиту
+     */
+    async function rawApiRequest(url, method, data, options = {}) {
         try {
-            const jsonResponse = await response.json();
-            return jsonResponse;
-        } catch (jsonError) {
-            console.error(`❌ API: Помилка парсингу JSON відповіді: ${jsonError.message}`);
-            throw new Error('Отримано некоректну відповідь від сервера');
-        }
-    } catch (error) {
-        // Обов'язково очищаємо таймаут при помилці
-        if (timeoutId) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-        }
-
-        // Приховуємо індикатор завантаження
-        if (!options.hideLoader) {
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
+            // Показуємо індикатор завантаження
+            if (!options.hideLoader) {
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
             }
+
+            // Запит з таймаутом
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), options.timeout || 10000);
+
+            // Заголовки
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            };
+
+            // Додаємо токен авторизації, якщо потрібно
+            if (!options.skipTokenCheck) {
+                const token = getAuthToken();
+                if (token) {
+                    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+                }
+            }
+
+            // Додаємо ID користувача, якщо він є
+            const userId = getUserId();
+            if (userId && !options.skipUserIdCheck) {
+                headers['X-Telegram-User-Id'] = userId;
+            }
+
+            // Перевірка чи пристрій онлайн
+            if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+                throw new Error("Пристрій офлайн");
+            }
+
+            // Параметри запиту
+            const requestOptions = {
+                method: method,
+                headers: headers,
+                signal: controller.signal
+            };
+
+            // Додаємо тіло запиту для POST/PUT/PATCH
+            if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+                // Перевірка та коригування raffle_id для запитів участі в розіграші
+                if (url.includes('participate-raffle') && data) {
+                    // Переконатися, що raffle_id - валідний рядок
+                    if (data.raffle_id) {
+                        // Перевірка формату UUID та конвертація
+                        if (typeof data.raffle_id !== 'string') {
+                            data.raffle_id = String(data.raffle_id);
+                            console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
+                        }
+
+                        // Перевірка формату UUID
+                        if (!isValidUUID(data.raffle_id)) {
+                            console.error(`❌ API: Невалідний UUID для розіграшу: ${data.raffle_id}`);
+                            throw new Error(`Невалідний ідентифікатор розіграшу: ${data.raffle_id}`);
+                        }
+                    } else {
+                        console.error("❌ API: Відсутній raffle_id в запиті участі в розіграші");
+                        throw new Error("Відсутній ідентифікатор розіграшу");
+                    }
+                }
+                requestOptions.body = JSON.stringify(data);
+            }
+
+            // Виконуємо запит
+            const response = await fetch(url, requestOptions);
+
+            // Очищаємо таймаут
+            clearTimeout(timeoutId);
+
+            // Приховуємо індикатор завантаження
+            if (!options.hideLoader) {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            // Спеціальна обробка для 404 помилок в розіграшах
+            if (response.status === 404 && url.includes('raffles')) {
+                // Очищуємо кеш розіграшів, якщо такий є
+                if (window.WinixRaffles && window.WinixRaffles.participation) {
+                    window.WinixRaffles.participation.clearInvalidRaffleIds();
+                }
+
+                // Показуємо користувачу більш інформативне повідомлення
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
+                }
+
+                throw new Error("Розіграш не знайдено. ID може бути застарілим.");
+            }
+
+            // Перевіряємо статус відповіді
+            if (!response.ok) {
+                throw new Error(`Помилка сервера: ${response.status}`);
+            }
+
+            // Парсимо відповідь як JSON
+            return await response.json();
+        } catch (error) {
+            // Приховуємо індикатор завантаження
+            if (!options.hideLoader) {
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+            }
+
+            throw error;
         }
-
-        // Логуємо помилку з додатковою інформацією
-        console.error(`❌ API: Помилка запиту ${requestId}: ${error.message || error}`);
-
-        // Перехоплюємо помилки AbortError (таймаут) для кращого повідомлення
-        if (error.name === 'AbortError') {
-            throw new Error('Запит було перервано через таймаут');
-        }
-
-        // Повертаємо оригінальну помилку
-        throw error;
     }
-}
 
     /**
      * Допоміжна функція для визначення мінімального інтервалу між запитами
@@ -781,435 +579,258 @@ async function rawApiRequest(url, method, data, options = {}) {
      * @returns {Promise<Object>} Результат запиту
      */
     async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
-        try {
-            // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
-            if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
-                // Перевіряємо формат UUID
-                if (typeof data.raffle_id !== 'string') {
-                    data.raffle_id = String(data.raffle_id);
-                }
-
-                // Ретельна перевірка формату UUID
-                if (!isValidUUID(data.raffle_id)) {
-                    console.error(`❌ API: Невалідний UUID: ${data.raffle_id}`);
-                    return Promise.reject({
-                        status: 'error',
-                        message: 'Невалідний ідентифікатор розіграшу'
-                    });
-                }
-            }
-
-            // Перевірка endpoint при запиті деталей розіграшу
-            if (endpoint.includes('raffles/')) {
-                const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
-                if (raffleIdMatch && raffleIdMatch[1]) {
-                    const raffleId = raffleIdMatch[1];
-                    if (!isValidUUID(raffleId)) {
-                        console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
-                        return Promise.reject({
-                            status: 'error',
-                            message: 'Невалідний ідентифікатор розіграшу в URL'
-                        });
-                    }
-                }
-            }
-
-            // Перевіряємо, чи це запит до профілю користувача
-            const isUserProfileRequest = endpoint.includes('/user/') &&
-                                        !endpoint.includes('/staking') &&
-                                        !endpoint.includes('/balance') &&
-                                        !endpoint.includes('/claim');
-
-            // Формуємо ключ для відстеження запитів
-            const requestKey = `${method}:${endpoint}`;
-
-            // Перевірка на блокування endpoint через rate limiting
-            const now = Date.now();
-            if (_blockedEndpoints[endpoint]) {
-                const blockedUntil = _blockedEndpoints[endpoint];
-
-                if (now < blockedUntil) {
-                    const remainingTime = Math.ceil((blockedUntil - now) / 1000);
-                    console.warn(`🔵 API: Запит до ${endpoint} тимчасово заблоковано через rate limiting. Залишилось ${remainingTime}с`);
-
-                    // Для запитів профілю користувача можемо використати кеш
-                    if (isUserProfileRequest && _userCache && !options.forceRefresh) {
-                        return Promise.resolve({
-                            status: 'success',
-                            data: _userCache,
-                            source: 'cache_rate_limited'
-                        });
-                    }
-
-                    return Promise.reject({
-                        status: 'rate_limited',
-                        message: `Занадто багато запитів. Повторна спроба через ${remainingTime} секунд.`,
-                        retryAfter: blockedUntil - now
-                    });
-                }
-
-                // Якщо блокування закінчилось, видаляємо його
-                delete _blockedEndpoints[endpoint];
-            }
-
-            // Перевіряємо, чи не було такого ж запиту нещодавно
-            const lastRequestTime = _lastRequestsByEndpoint[requestKey] || 0;
-            const throttleTime = getThrottleTime(endpoint);
-
-            // Перевіряємо частоту запитів
-            if (now - lastRequestTime < throttleTime && !options.bypassThrottle) {
-                console.warn(`🔌 API: Занадто частий запит до ${endpoint}, ігноруємо`);
-
-                // Якщо є кеш для запитів даних користувача і запит не вимагає свіжих даних
-                if (isUserProfileRequest && _userCache && !options.forceRefresh) {
-                    return Promise.resolve({
-                        status: 'success',
-                        data: _userCache,
-                        source: 'cache'
-                    });
-                }
-
-                return Promise.reject({
-                    message: "Занадто частий запит",
-                    retryAfter: throttleTime - (now - lastRequestTime)
-                });
-            }
-
-            // Оновлюємо відстеження запитів
-            _lastRequestsByEndpoint[requestKey] = now;
-
-            // Перевіряємо, чи цей запит вже виконується
-            if (_activeEndpoints.has(endpoint) && !options.allowParallel) {
-                console.warn(`🔌 API: Запит до ${endpoint} вже виконується`);
-
-                // Якщо є кеш і запит не вимагає свіжих даних
-                if (isUserProfileRequest && _userCache && !options.forceRefresh) {
-                    return {
-                        status: 'success',
-                        data: _userCache,
-                        source: 'cache_parallel'
-                    };
-                }
-
-                // Створюємо новий запит тільки якщо це критично важливо
-                if (!options.forceContinue) {
-                    return Promise.reject({
-                        message: "Запит вже виконується",
-                        source: 'parallel'
-                    });
-                }
-            }
-
-            // Перевірка чи пристрій онлайн
-            if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
-                console.warn("🔌 API: Пристрій офлайн, використовуємо кеш");
-
-                // Якщо є кеш для запитів даних користувача
-                if (isUserProfileRequest && _userCache) {
-                    return {
-                        status: 'success',
-                        data: _userCache,
-                        source: 'cache_offline'
-                    };
-                }
-
-                return Promise.reject({
-                    message: "Пристрій офлайн",
-                    source: 'offline'
-                });
-            }
-
-            // Додаємо запит до активних
-            _activeEndpoints.add(endpoint);
-
-            // Оновлюємо лічильник запитів
-            _requestCounter.total++;
-            _requestCounter.current++;
-
-            // Скидаємо лічильник поточних запитів кожні 10 секунд
-            if (now - _requestCounter.lastReset > 10000) {
-                _requestCounter.current = 1;
-                _requestCounter.lastReset = now;
-            }
-
-            // Якщо забагато запитів - уповільнюємося
-            if (_requestCounter.current > 10 && !options.bypassThrottle) {
-                console.warn(`🔌 API: Забагато запитів (${_requestCounter.current}), уповільнюємося`);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-            try {
-                // Перевіряємо необхідність оновлення токену
-                if (!options.skipTokenCheck && _authToken && _authTokenExpiry) {
-                    // Оновлюємо токен, якщо він скоро закінчиться (менше 10 хвилин)
-                    if (_authTokenExpiry < Date.now() + 600000 && !_pendingRequests['refresh-token']) {
-                        try {
-                            await refreshToken();
-                        } catch (tokenError) {
-                            console.warn("🔌 API: Помилка оновлення токену:", tokenError);
-                        }
-                    }
-                }
-
-                // Отримуємо ID користувача, якщо потрібно
-                const userId = options.skipUserIdCheck ? null : getUserId();
-
-                // Перевіряємо наявність ID (якщо потрібно)
-                if (!userId && !options.skipUserIdCheck) {
-                    throw new Error("ID користувача не знайдено");
-                }
-
-                // Додаємо мітку часу для запобігання кешуванню
-                const timestamp = Date.now();
-
-                // Формуємо URL запиту
-                let url;
-
-                // Перевіряємо, чи endpoint вже є повним URL
-                if (endpoint.startsWith('http')) {
-                    // Endpoint вже є повним URL - використовуємо як є
-                    url = endpoint;
-                } else {
-                    // Нормалізуємо endpoint для правильного формату
-                    const normalizedEndpoint = normalizeEndpoint(endpoint);
-
-                    // Перевіряємо, чи є параметри запиту
-                    const hasQuery = normalizedEndpoint.includes('?');
-
-                    // Формуємо повний URL
-                    url = `${API_BASE_URL}/${normalizedEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
-                }
-
-                // Логування запиту
-                if (_debugMode) {
-                    console.log(`🔄 Відправка ${method} запиту на ${url}`);
-                    if (data) {
-                        console.log(`📦 Дані запиту:`, data);
-                    }
-                }
-
-                // Виконуємо запит з повторними спробами
-                let response;
-                let errorResponse;
-                let lastError;
-
-                // Спроби запиту з exponential backoff
-                for (let attempt = 0; attempt < retries; attempt++) {
-                    try {
-                        // Виконуємо запит через rawApiRequest
-                        response = await rawApiRequest(url, method, data, {
-                            ...options,
-                            timeout: options.timeout || 10000
-                        });
-
-                        // Якщо запит успішний, виходимо з циклу
-                        if (response && response.status !== 'error') break;
-
-                        // Зберігаємо останню помилку
-                        errorResponse = response;
-                        lastError = new Error(response.message || 'Помилка виконання запиту');
-
-                        // Пауза перед наступною спробою
-                        if (attempt < retries - 1) {
-                            const delay = Math.pow(2, attempt) * 500; // Експоненційна затримка
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                        }
-                    } catch (fetchError) {
-                        lastError = fetchError;
-
-                        // Спеціальна обробка для 429 (Too Many Requests)
-                        if (fetchError.status === 429) {
-                            // Отримуємо час очікування з заголовка або за замовчуванням
-                            const retryAfter = fetchError.headers?.['Retry-After'] || 30;
-                            const waitTime = parseInt(retryAfter);
-
-                            console.log(`⏳ Отримано 429 (Too Many Requests), чекаємо ${retryAfter}с...`);
-
-                            // Блокуємо endpoint на вказаний час
-                            _blockedEndpoints[endpoint] = Date.now() + (waitTime * 1000);
-
-                            // Показуємо індикатор прогресу очікування
-                            showRateLimitProgress(endpoint, waitTime);
-
-                            throw {
-                                status: 'rate_limited',
-                                message: `Занадто багато запитів. Повторна спроба через ${retryAfter} секунд.`,
-                                retryAfter: waitTime * 1000
-                            };
-                        }
-
-                        // Спеціальна обробка для 401 помилки - спроба оновити токен
-                        if (fetchError.status === 401 && !options.skipTokenCheck && attempt === 0) {
-                            try {
-                                await refreshToken();
-                                // Після оновлення токену продовжуємо
-                                continue;
-                            } catch (tokenError) {
-                                console.warn("🔌 API: Помилка оновлення токену при 401:", tokenError);
-                            }
-                        }
-
-                        // Останній шанс, повертаємо помилку
-                        if (attempt === retries - 1) {
-                            throw fetchError;
-                        }
-
-                        // Затримка перед наступною спробою
-                        const delay = Math.pow(2, attempt) * 500;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-
-                // Обробка помилок після всіх спроб
-                if (!response || response.status === 'error') {
-                    throw lastError || new Error(errorResponse?.message || 'Помилка виконання запиту');
-                }
-
-                // Оновлюємо стан підключення при успішному запиті
-                _connectionState.isConnected = true;
-                _connectionState.lastSuccessTime = Date.now();
-                _connectionState.failedAttempts = 0;
-
-                // Якщо це запит даних користувача, оновлюємо кеш
-                if (isUserProfileRequest && response.status === 'success' && response.data) {
-                    _userCache = response.data;
-                    _userCacheTime = now;
-
-                    // Зберігаємо дані в localStorage
-                    try {
-                        if (_userCache.balance !== undefined) {
-                            localStorage.setItem('userTokens', _userCache.balance.toString());
-                            localStorage.setItem('winix_balance', _userCache.balance.toString());
-                        }
-
-                        if (_userCache.coins !== undefined) {
-                            localStorage.setItem('userCoins', _userCache.coins.toString());
-                            localStorage.setItem('winix_coins', _userCache.coins.toString());
-                        }
-
-                        // Зберігаємо налаштування повідомлень
-                        if (_userCache.notifications_enabled !== undefined) {
-                            localStorage.setItem('notifications_enabled', _userCache.notifications_enabled.toString());
-                        }
-
-                        // Відправляємо подію оновлення даних користувача
-                        document.dispatchEvent(new CustomEvent('user-data-updated', {
-                            detail: _userCache,
-                            source: 'api.js'
-                        }));
-                    } catch (e) {
-                        console.warn("🔌 API: Помилка збереження даних в localStorage:", e);
-                    }
-                }
-
-                // Якщо це запит стейкінгу, оновлюємо кеш
-                if (endpoint.includes('/staking') && response.status === 'success' && response.data) {
-                    _stakingCache = response.data;
-                    _stakingCacheTime = now;
-
-                    // Зберігаємо дані в localStorage
-                    try {
-                        localStorage.setItem('stakingData', JSON.stringify(_stakingCache));
-                        localStorage.setItem('winix_staking', JSON.stringify(_stakingCache));
-                    } catch (e) {
-                        console.warn("🔌 API: Помилка збереження даних стейкінгу в localStorage:", e);
-                    }
-                }
-
-                return response;
-            } catch (error) {
-                // Збільшуємо лічильник помилок
-                _requestCounter.errors++;
-
-                // Оновлюємо стан підключення при помилці
-                _connectionState.failedAttempts++;
-
-                // Скидаємо стан запиту
-                _activeEndpoints.delete(endpoint);
-
-                // Якщо запит тривав занадто довго, очищаємо інші потенційно зависаючі запити
-                if (now - lastRequestTime > 15000) {
-                    resetPendingRequests();
-                }
-
-                // Обробка спеціальних помилок
-                if (error.status === 'rate_limited') {
-                    return Promise.reject(error); // Передаємо помилку обмеження швидкості далі
-                }
-
-                // Звичайна обробка інших помилок
-                console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message || error);
-
-                // Відправляємо подію про помилку
-                document.dispatchEvent(new CustomEvent('api-error', {
-                    detail: {
-                        error,
-                        endpoint,
-                        method
-                    }
-                }));
-
-                // Якщо це сторінка налаштувань і помилка з запитом профілю, повертаємо симульовані дані
-                const isSettingsPage = window.location.pathname.includes('general.html');
-                if (isUserProfileRequest && isSettingsPage) {
-                    console.warn("🔌 API: Повертаємо симульовані дані для сторінки налаштувань");
-
-                    // Використовуємо існуючий кеш або симулюємо відповідь
-                    if (_userCache) {
-                        return {
-                            status: 'success',
-                            data: _userCache,
-                            source: 'cache_after_error'
-                        };
-                    }
-
-                    return {
-                        status: 'success',
-                        data: DUMMY_USER_DATA,
-                        source: 'simulated'
-                    };
-                }
-
-                // Повертаємо об'єкт з помилкою, якщо вказано suppressErrors
-                if (options.suppressErrors) {
-                    return {
-                        status: 'error',
-                        message: error.message || 'Сталася помилка при виконанні запиту',
-                        source: 'api_error'
-                    };
-                }
-
-                throw error;
-            } finally {
-                // Видаляємо запит зі списку активних
-                _activeEndpoints.delete(endpoint);
-            }
-        } catch (error) {
-            console.error(`❌ API: Глобальна помилка запиту ${endpoint}:`, error);
-
-            if (options.suppressErrors) {
-                return {
-                    status: 'error',
-                    message: error.message || 'Сталася критична помилка при виконанні запиту',
-                    source: 'global_error'
-                };
-            }
-
-            throw error;
+    try {
+       // Перевірка невалідних ID розіграшів у URL
+if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+    const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+    if (raffleIdMatch && raffleIdMatch[1]) {
+        const raffleId = raffleIdMatch[1];
+        if (!isValidUUID(raffleId)) {
+            console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+            return Promise.reject({
+                status: 'error',
+                message: 'Невалідний ідентифікатор розіграшу в URL',
+                code: 'invalid_raffle_id'
+            });
         }
     }
+}
+        // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
+        if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
+            // Перевіряємо формат UUID
+            if (typeof data.raffle_id !== 'string') {
+                data.raffle_id = String(data.raffle_id);
+                console.log("🛠️ API: raffle_id конвертовано в рядок:", data.raffle_id);
+            }
+
+            // Ретельна перевірка формату UUID
+            if (!isValidUUID(data.raffle_id)) {
+                console.error(`❌ API: Невалідний UUID: ${data.raffle_id}`);
+                return Promise.reject({
+                    status: 'error',
+                    message: 'Невалідний ідентифікатор розіграшу'
+                });
+            }
+        }
+
+        // ВИПРАВЛЕННЯ: Покращена перевірка UUID у URL
+        // Перевіряємо тільки якщо це запит одного розіграшу, а не списку
+        if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+            const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+            if (raffleIdMatch && raffleIdMatch[1]) {
+                const raffleId = raffleIdMatch[1];
+                if (!isValidUUID(raffleId)) {
+                    console.error(`❌ API: Невалідний UUID в URL: ${raffleId}`);
+                    return Promise.reject({
+                        status: 'error',
+                        message: 'Невалідний ідентифікатор розіграшу в URL',
+                        code: 'invalid_raffle_id'
+                    });
+                }
+            }
+        }
+
+        // Формуємо URL запиту
+        let url;
+
+        // ВИПРАВЛЕННЯ: Переконуємося, що URL формується коректно
+        if (endpoint.startsWith('http')) {
+            // Endpoint вже є повним URL - використовуємо як є
+            url = endpoint;
+        } else {
+            // Нормалізуємо endpoint для правильного формату
+            const normalizedEndpoint = normalizeEndpoint(endpoint);
+
+            // ВИПРАВЛЕННЯ: Забезпечуємо, що до URL не додаються неправильні параметри
+            const hasQuery = normalizedEndpoint.includes('?');
+
+            // Формуємо повний URL
+            const timestamp = Date.now();
+            url = `${API_BASE_URL}/${normalizedEndpoint}${hasQuery ? '&' : '?'}t=${timestamp}`;
+        }
+
+        // Перевірка на пристрій офлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+            return Promise.reject({
+                message: "Пристрій офлайн",
+                source: 'offline'
+            });
+        }
+
+        // Заголовки запиту
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        };
+
+        // ВИПРАВЛЕННЯ: Переконуємося, що токен авторизації додається коректно
+        if (!options.skipTokenCheck) {
+            const token = getAuthToken();
+            if (token) {
+                headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+            }
+        }
+
+        // Додаємо ID користувача, якщо він є
+        const userId = options.skipUserIdCheck ? null : getUserId();
+        if (userId && !options.skipUserIdCheck) {
+            headers['X-Telegram-User-Id'] = userId;
+        }
+
+        // Параметри запиту
+        const requestOptions = {
+            method: method,
+            headers: headers,
+            // ВИПРАВЛЕННЯ: Збільшуємо таймаут запитів, щоб уникнути помилок
+            timeout: options.timeout || 15000
+        };
+
+        // Додаємо тіло запиту для POST/PUT/PATCH
+        if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            requestOptions.body = JSON.stringify(data);
+        }
+
+        // Спроби виконати запит
+        let response;
+        let lastError;
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                // Відображаємо індикатор завантаження
+                if (!options.hideLoader && typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
+
+                const fetchResponse = await fetch(url, requestOptions);
+
+                // Приховуємо індикатор завантаження
+                if (!options.hideLoader && typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
+                // ВИПРАВЛЕННЯ: Спеціальна обробка для 404 помилок в розіграшах
+                if (fetchResponse.status === 404 && url.includes('raffles')) {
+                    // Очищуємо кеш розіграшів, якщо такий є
+                    if (window.WinixRaffles && window.WinixRaffles.participation) {
+                        window.WinixRaffles.participation.clearInvalidRaffleIds();
+                    }
+
+                    // Показуємо користувачу більш інформативне повідомлення
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Розіграш не знайдено або вже завершено. Оновіть список розіграшів.', 'warning');
+                    }
+
+                    return Promise.reject({
+                        status: 'error',
+                        message: "Розіграш не знайдено. ID може бути застарілим.",
+                        code: 'raffle_not_found',
+                        httpStatus: 404
+                    });
+                }
+
+                // Перевірка HTTP статусу
+                if (!fetchResponse.ok) {
+                    // ВИПРАВЛЕННЯ: Додаємо більше інформації про помилку
+                    const errorResponse = await fetchResponse.text();
+                    let errorMessage;
+                    try {
+                        const errorJson = JSON.parse(errorResponse);
+                        errorMessage = errorJson.message || `Помилка серверу: ${fetchResponse.status}`;
+                    } catch (e) {
+                        errorMessage = `Помилка серверу: ${fetchResponse.status}`;
+                    }
+
+                    throw new Error(errorMessage);
+                }
+
+                // Парсимо відповідь
+                response = await fetchResponse.json();
+
+                // Якщо запит успішний, виходимо з циклу
+                break;
+
+
+            } catch (error) {
+                lastError = error;
+
+                // Приховуємо індикатор завантаження
+                if (!options.hideLoader && typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
+                // Якщо це остання спроба, викидаємо помилку
+                if (attempt === retries) {
+                    throw error;
+                }
+
+                // Затримка перед наступною спробою
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+            }
+        }
+
+        return response;
+    } catch (error) {
+        // Збільшуємо лічильник помилок
+        _requestCounter.errors++;
+
+        // Приховуємо індикатор завантаження
+        if (!options.hideLoader && typeof window.hideLoading === 'function') {
+            window.hideLoading();
+        }
+
+        // НОВИЙ КОД: Аналізуємо помилку на "raffle_not_found"
+    if (error.message && error.message.includes('raffle_not_found') ||
+        (error.response && error.response.code === 'raffle_not_found')) {
+
+        console.error(`❌ API: Помилка розіграшу не знайдено:`, error.message);
+
+        // Зберігаємо ID невалідного розіграшу, якщо можемо його витягти з URL
+        const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
+        if (raffleIdMatch && raffleIdMatch[0]) {
+            const raffleId = raffleIdMatch[1];
+            console.error(`❌ API: Додаємо невалідний ID розіграшу: ${raffleId}`);
+
+            // Додаємо до глобального списку невалідних ID
+            if (window.WinixRaffles && window.WinixRaffles.state && window.WinixRaffles.state.invalidRaffleIds) {
+                window.WinixRaffles.state.invalidRaffleIds.add(raffleId);
+            }
+
+            // Також очищаємо кеш розіграшів
+            try {
+                localStorage.removeItem('winix_active_raffles');
+            } catch (e) {
+                console.warn("⚠️ Не вдалося очистити кеш розіграшів:", e);
+            }
+        }
+    }
+
+        console.error(`❌ API: Помилка запиту ${endpoint}:`, error.message);
+
+        // Відправляємо подію про помилку
+        document.dispatchEvent(new CustomEvent('api-error', {
+            detail: {
+                error,
+                endpoint,
+                method
+            }
+        }));
+
+        // Повертаємо об'єкт з помилкою, якщо вказано suppressErrors
+        if (options.suppressErrors) {
+            return {
+                status: 'error',
+                message: error.message || 'Сталася помилка при виконанні запиту',
+                source: 'api_error'
+            };
+        }
+
+        throw error;
+    }
+}
 
     // Додаємо автоматичне скидання старих запитів раз на хвилину
     setInterval(() => {
         const now = Date.now();
-
-        // Очищуємо старі блокування для endpoint'ів
-        for (const [endpoint, blockTime] of Object.entries(_blockedEndpoints)) {
-            if (now > blockTime) {
-                console.log(`🔄 API: Розблоковано endpoint ${endpoint}`);
-                delete _blockedEndpoints[endpoint];
-            }
-        }
 
         // Якщо є запити, які виконуються більше 30 секунд, скидаємо їх
         let hasLongRunningRequests = false;
@@ -1225,6 +846,28 @@ async function rawApiRequest(url, method, data, options = {}) {
             resetPendingRequests();
         }
     }, 60000);
+
+    function handleRateLimiting(endpoint, retryAfter) {
+    console.log(`⏳ Rate limiting: Очікування ${retryAfter}с для ${endpoint}`);
+
+    // Заплануйте повторний запит через вказаний час
+    const retryTimeoutId = setTimeout(() => {
+        console.log(`✅ Термін очікування для ${endpoint} закінчився, дозволяємо запити`);
+        // Очистіть блокування для цього ендпоінту
+        delete _blockedEndpoints[endpoint];
+
+        // Відправте повідомлення, що інтерфейс готовий продовжити роботу
+        if (typeof showToast === 'function') {
+            showToast('З\'єднання відновлено. Ви можете продовжити користування застосунком.', 'success');
+        }
+    }, retryAfter * 1000);
+
+    // Зберегіть інформацію про блокування
+    _blockedEndpoints[endpoint] = {
+        until: Date.now() + (retryAfter * 1000),
+        timeoutId: retryTimeoutId
+    };
+}
 
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
@@ -1637,7 +1280,6 @@ async function rawApiRequest(url, method, data, options = {}) {
         _lastRequestsByEndpoint = {};
         _activeEndpoints.clear();
         _pendingRequests = {};
-        _blockedEndpoints = {};
         console.log("🔌 API: Примусово очищено відстеження запитів");
         return true;
     }
@@ -1651,7 +1293,6 @@ async function rawApiRequest(url, method, data, options = {}) {
         _stakingCache = null;
         _stakingCacheTime = 0;
         _lastRequestsByEndpoint = {};
-        _blockedEndpoints = {};
         console.log("🔌 API: Кеш очищено");
     }
 
@@ -1700,7 +1341,7 @@ async function rawApiRequest(url, method, data, options = {}) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.0',
+            version: '1.1.0',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1734,10 +1375,7 @@ async function rawApiRequest(url, method, data, options = {}) {
         calculateExpectedReward,
 
         // Функції транзакцій
-        getTransactions,
-
-        // Додаткові функції
-        showRateLimitProgress
+        getTransactions
     };
 
     // Для зворотної сумісності
