@@ -1,0 +1,253 @@
+/**
+ * WINIX - Стилі компонентів інтерфейсу (components.css)
+ * CSS-файл для основних компонентів інтерфейсу: сповіщення, спінер
+ */
+
+/* ===== СТИЛІ ДЛЯ СПОВІЩЕНЬ ===== */
+.toast-container {
+    position: fixed;
+    z-index: 2100;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(90%, 350px);
+    pointer-events: none;
+}
+
+.toast-message {
+    background: linear-gradient(135deg, #1A1A2E, #0F3460);
+    color: #ffffff;
+    padding: 12px 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    margin-bottom: 10px;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    font-size: 0.9375rem;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.toast-message.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-message.success {
+    background: linear-gradient(135deg, #0F3460, #006064);
+    border: 1px solid rgba(0, 201, 167, 0.5);
+}
+
+.toast-message.error {
+    background: linear-gradient(135deg, #2E0B0B, #860000);
+    border: 1px solid rgba(255, 82, 82, 0.5);
+}
+
+.toast-message.warning {
+    background: linear-gradient(135deg, #3A2F0B, #856A00);
+    border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+.toast-content {
+    flex-grow: 1;
+    padding-right: 10px;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #4eb5f7;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== СТИЛІ ДЛЯ ІНДИКАТОРА ЗАВАНТАЖЕННЯ ===== */
+.spinner {
+    position: fixed;
+    z-index: 2000;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(3px);
+
+    /* Правильні властивості для центрального позиціонування */
+    display: none; /* Змінюється на flex при активації */
+    justify-content: center;
+    align-items: center;
+}
+
+.spinner.active {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
+.spinner-inner {
+    width: 3.125rem; /* 50px */
+    height: 3.125rem;
+    border: 0.3125rem solid rgba(0, 201, 167, 0.3); /* 5px */
+    border-radius: 50%;
+    border-top: 0.3125rem solid #00C9A7; /* 5px */
+    animation: spin 0.8s linear infinite;
+
+    /* Додаткове центрування через absolute для кращої сумісності */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Версія анімації для центрованого елемента з абсолютним позиціонуванням */
+@keyframes spin-centered {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ===== СТИЛІ ДЛЯ КНОПОК ОБРОБКИ ===== */
+.join-button.processing,
+.mini-raffle-button.processing {
+    background: #4c4c6e !important;
+    opacity: 0.8;
+    cursor: wait !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.join-button.processing::after,
+.mini-raffle-button.processing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0.1),
+        rgba(255, 255, 255, 0));
+    animation: loading-shine 1.5s infinite;
+}
+
+@keyframes loading-shine {
+    to {
+        left: 100%;
+    }
+}
+
+/* ===== СТИЛІ ДЛЯ МОДАЛЬНИХ ВІКОН ===== */
+.modal-wrapper {
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-wrapper.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 500px;
+    background: var(--bg-card);
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 1.2rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.modal-content {
+    padding: 15px;
+    color: var(--text-color);
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* ===== СТИЛІ ДЛЯ МЕДІА-ЗАПИТІВ ===== */
+@media (max-width: 450px) {
+    .toast-container {
+        width: calc(100% - 30px);
+    }
+
+    .toast-message {
+        font-size: 0.875rem;
+        padding: 10px 12px;
+    }
+
+    .spinner-inner {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .toast-container {
+        width: 400px;
+    }
+
+    .toast-message {
+        padding: 14px 18px;
+    }
+}
