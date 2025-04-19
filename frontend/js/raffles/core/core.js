@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (core.js)
- * Оптимізована версія з покращеною обробкою помилок, захистом від зависання та оптимізацією продуктивності
- * @version 1.4.3
+ * Оптимізована версія з виправленою проблемою списання жетонів
+ * @version 1.5.0
  */
 
 (function() {
@@ -763,25 +763,26 @@ WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50
                     /**
                      * Участь в розіграші
                      * @param {string} raffleId - ID розіграшу
-                     * @param {number} entryCount - Кількість жетонів для участі
+                     * @param {string} raffleType - Тип розіграшу (daily/main)
+                     * @param {number} entryCount - Кількість білетів для участі
                      * @returns {Promise<Object>} Результат участі
                      */
-
-participateInRaffle: async function(raffleId, entryCount = 1) {
-    if (!this.isValidUUID(raffleId)) {
+participateInRaffle: async function(raffleId, raffleType, entryCount = 1) {
+    // ВИПРАВЛЕНО: Перевірка валідності UUID
+    if (!this.isValidUUID || !this.isValidUUID(raffleId)) {
         return {
             success: false,
             message: "Невалідний ID розіграшу"
         };
     }
 
-    // НОВЕ: Перевірка на вже запущений запит
-    if (this.participation.requestInProgress) {
+    // Перевірка на вже запущений запит
+    if (this.requestInProgress) {
         const now = Date.now();
-        const timeSinceLastRequest = now - this.participation.lastParticipationTime;
+        const timeSinceLastRequest = now - this.lastParticipationTime;
         if (timeSinceLastRequest > 10000) { // Якщо запит висить більше 10 секунд, скидаємо блокування
             console.warn("⚠️ Виявлено застряглий запит, скидаємо блокування");
-            this.participation.requestInProgress = false;
+            this.requestInProgress = false;
         } else {
             return {
                 success: false,
@@ -791,29 +792,42 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
     }
 
     // Отримуємо ID користувача
-    if (!this.state.telegramId) {
-        this.state.telegramId = WinixAPI.getUserId();
-        if (!this.state.telegramId) {
-            return {
-                success: false,
-                message: "ID користувача відсутній"
-            };
-        }
+    const telegramId = WinixRaffles.state.telegramId || (WinixAPI ? WinixAPI.getUserId() : null);
+    if (!telegramId) {
+        return {
+            success: false,
+            message: "ID користувача відсутній"
+        };
     }
 
-    // НОВЕ: Перевірка стану участі у розіграші
-    const alreadyParticipating = this.participation.participatingRaffles.has(raffleId);
+    // ВИПРАВЛЕНО: Перевірка стану участі у розіграші
+    const alreadyParticipating = this.participatingRaffles && this.participatingRaffles.has(raffleId);
 
-    // НОВЕ: Отримуємо поточну кількість білетів
-    const currentTickets = this.participation.userRaffleTickets[raffleId] || 0;
+    // ВИПРАВЛЕНО: Отримуємо поточну кількість білетів
+    const currentTickets = (this.userRaffleTickets && this.userRaffleTickets[raffleId]) || 0;
 
     // Встановлюємо блокування запиту
-    this.participation.requestInProgress = true;
-    this.participation.lastParticipationTime = Date.now();
+    this.requestInProgress = true;
+    this.lastParticipationTime = Date.now();
 
     try {
         if (typeof window.showLoading === 'function') {
             window.showLoading();
+        }
+
+        // ВИПРАВЛЕНО: Отримуємо доступний баланс перед запитом
+        let coinsBalance = 0;
+        try {
+            // Спочатку спробуємо отримати баланс з елемента
+            const userCoinsElement = document.getElementById('user-coins');
+            if (userCoinsElement) {
+                coinsBalance = parseInt(userCoinsElement.textContent) || 0;
+            } else {
+                // Якщо елемент відсутній, спробуємо отримати з localStorage
+                coinsBalance = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
+            }
+        } catch (e) {
+            console.warn('⚠️ Не вдалося отримати поточний баланс:', e);
         }
 
         // Підготовка даних запиту з додатковими полями
@@ -821,22 +835,17 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
             raffle_id: raffleId,
             entry_count: entryCount,
             _client_time: Date.now(),
-            _transaction_id: Date.now() + '_' + Math.random().toString(36).substring(2, 15),
-            _current_tickets: currentTickets, // НОВЕ: Передаємо поточну кількість білетів
-            _already_participating: alreadyParticipating // НОВЕ: Передаємо інформацію про участь
+            _transaction_id: 'client_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15),
+            _current_tickets: currentTickets, // Передаємо поточну кількість білетів
+            _already_participating: alreadyParticipating // Передаємо інформацію про участь
         };
 
         // Запит до API
-        const telegramId = this.state.telegramId;
         const endpoint = `api/user/${telegramId}/participate-raffle`;
 
         let response;
         if (typeof WinixAPI !== 'undefined' && typeof WinixAPI.apiRequest === 'function') {
-            response = await WinixAPI.apiRequest(endpoint, 'POST', requestData, {
-                timeout: 15000,
-                bypassThrottle: true, // Важливо обійти обмеження для участі
-                retries: 2 // НОВЕ: Додано повторні спроби для надійності
-            });
+            response = await WinixAPI.apiRequest(endpoint, 'POST', requestData);
         } else {
             const fetchResponse = await fetch(`/${endpoint}`, {
                 method: 'POST',
@@ -849,63 +858,92 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
         }
 
         if (response && response.status === 'success') {
-            // НОВЕ: Оновлюємо список розіграшів з участю
-            this.participation.participatingRaffles.add(raffleId);
+            // ВИПРАВЛЕНО: Додаємо розіграш до множини з участю
+            this.participatingRaffles.add(raffleId);
 
-            // НОВЕ: Використовуємо значення від сервера, якщо доступне
+            // ВИПРАВЛЕНО: Використовуємо значення від сервера, якщо доступне
             let totalEntries;
             if (response.data && response.data.total_entries) {
                 totalEntries = response.data.total_entries;
+            } else if (response.data && response.data.entry_count) {
+                totalEntries = response.data.entry_count;
             } else {
-                totalEntries = (currentTickets || 0) + entryCount;
+                totalEntries = currentTickets + entryCount;
             }
 
             // Оновлюємо кількість білетів
-            this.participation.userRaffleTickets[raffleId] = totalEntries;
+            this.userRaffleTickets[raffleId] = totalEntries;
 
-            // НОВЕ: Зберігаємо стан участі
-            if (typeof this.participation._saveParticipationToStorage === 'function') {
-                this.participation._saveParticipationToStorage();
-            }
-
-            // Оновлюємо баланс жетонів
-            const newCoinsBalance = response.data.new_coins_balance || 0;
-            if (typeof window.updateCoinsDisplay === 'function') {
-                window.updateCoinsDisplay(newCoinsBalance);
-            } else {
-                // Альтернативний спосіб оновлення жетонів
+            // ВИПРАВЛЕНО: Оновлюємо баланс жетонів
+            const newCoinsBalance = response.data && response.data.new_coins_balance;
+            if (typeof newCoinsBalance === 'number') {
+                // Оновлюємо відображення балансу
                 const userCoinsElement = document.getElementById('user-coins');
                 if (userCoinsElement) {
+                    // Додаємо анімацію зменшення
+                    userCoinsElement.classList.add('decreasing');
+                    setTimeout(() => {
+                        userCoinsElement.classList.remove('decreasing');
+                    }, 1000);
+
                     userCoinsElement.textContent = newCoinsBalance;
                 }
-            }
 
-            // Оновлюємо локальне сховище
-            localStorage.setItem('userCoins', newCoinsBalance.toString());
-            localStorage.setItem('winix_coins', newCoinsBalance.toString());
+                // Оновлюємо localStorage
+                localStorage.setItem('userCoins', newCoinsBalance.toString());
+                localStorage.setItem('winix_coins', newCoinsBalance.toString());
+
+                // Відправляємо подію про оновлення даних користувача
+                document.dispatchEvent(new CustomEvent('user-data-updated', {
+                    detail: {
+                        userData: {
+                            coins: newCoinsBalance,
+                            server_synchronized: true,
+                            timestamp: Date.now()
+                        },
+                        source: 'core.js'
+                    }
+                }));
+            } else {
+                console.warn("⚠️ Сервер не повернув оновлений баланс жетонів");
+
+                // Примусово оновлюємо баланс через API
+                setTimeout(() => {
+                    if (typeof WinixAPI !== 'undefined' && typeof WinixAPI.getBalance === 'function') {
+                        WinixAPI.getBalance().then(response => {
+                            if (response && response.status === 'success' && response.data) {
+                                const newCoins = response.data.coins;
+
+                                // Оновлюємо відображення балансу
+                                const userCoinsElement = document.getElementById('user-coins');
+                                if (userCoinsElement) {
+                                    userCoinsElement.textContent = newCoins;
+                                }
+
+                                // Оновлюємо localStorage
+                                localStorage.setItem('userCoins', newCoins.toString());
+                                localStorage.setItem('winix_coins', newCoins.toString());
+                            }
+                        }).catch(e => {
+                            console.warn('⚠️ Помилка оновлення балансу:', e);
+                        });
+                    }
+                }, 1000);
+            }
 
             // Оновлюємо відображення кнопок
-            this.participation.updateParticipationButtons();
-
-            // Повідомлення про успішну участь
-            if (typeof window.showToast === 'function') {
-                window.showToast(`Ви успішно взяли участь у розіграші! Використано ${entryCount} жетон${entryCount > 1 ? 'и' : ''}.`, 'success');
+            if (typeof this.updateParticipationButtons === 'function') {
+                this.updateParticipationButtons();
             }
 
-            // Оновлюємо дані про кількість учасників на карточці розіграшу
-            const participantsCountElement = document.querySelector(`.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count`);
-            if (participantsCountElement) {
-                const currentCount = parseInt(participantsCountElement.textContent) || 0;
-                participantsCountElement.textContent = currentCount + 1;
-            }
-
-            // НОВЕ: Додаткова перевірка через 3 секунди
-            setTimeout(() => {
-                this.loadUserParticipation()
-                    .catch(err => {
-                        console.warn('⚠️ Помилка підтвердження участі:', err);
-                    });
-            }, 3000);
+            // Відправляємо подію про успішну участь
+            document.dispatchEvent(new CustomEvent('raffle-participation', {
+                detail: {
+                    successful: true,
+                    raffleId: raffleId,
+                    ticketCount: totalEntries
+                }
+            }));
 
             return {
                 success: true,
@@ -913,7 +951,7 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
                     ...response.data,
                     total_entries: totalEntries
                 },
-                message: "Ви успішно взяли участь у розіграші"
+                message: response.data?.message || "Ви успішно взяли участь у розіграші"
             };
         } else {
             throw new Error(response?.message || "Помилка участі в розіграші");
@@ -921,26 +959,18 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
     } catch (error) {
         console.error(`❌ Помилка участі в розіграші ${raffleId}:`, error);
 
-        // Перевіряємо, чи помилка пов'язана з недостатньою кількістю жетонів
-        const errorMessage = error.message || "";
-        if (errorMessage.toLowerCase().includes('недостатньо') ||
-            errorMessage.toLowerCase().includes('жетон')) {
-            if (typeof window.showToast === 'function') {
-                window.showToast("Недостатньо жетонів для участі в розіграші", 'error');
-            }
-        } else {
-            if (typeof window.showToast === 'function') {
-                window.showToast(errorMessage || "Помилка участі в розіграші", 'error');
-            }
+        // Показуємо користувачу повідомлення про помилку
+        if (typeof window.showToast === 'function') {
+            window.showToast(error.message || "Помилка участі в розіграші", 'error');
         }
 
         return {
             success: false,
-            message: errorMessage || "Помилка участі в розіграші"
+            message: error.message || "Помилка участі в розіграші"
         };
     } finally {
-        // НОВЕ: Завжди знімаємо блокування запиту
-        this.participation.requestInProgress = false;
+        // ВИПРАВЛЕНО: Завжди знімаємо блокування запиту
+        this.requestInProgress = false;
 
         if (typeof window.hideLoading === 'function') {
             window.hideLoading();
@@ -951,7 +981,16 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
                     /**
                      * Оновлення статусу кнопок участі
                      */
-                    updateParticipationButtons: WinixRaffles.updateParticipationButtons
+                    updateParticipationButtons: WinixRaffles.updateParticipationButtons,
+
+                    /**
+                     * Перевірка валідності UUID
+                     */
+                    isValidUUID: function(id) {
+                        if (!id || typeof id !== 'string') return false;
+                        const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                        return fullUUIDRegex.test(id);
+                    }
                 };
             }
 
@@ -993,13 +1032,38 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
                     return;
                 }
 
+                // Отримуємо вартість участі
+                const entryFee = parseInt(button.getAttribute('data-entry-fee')) || 1;
+
+                // ВИПРАВЛЕНО: Перевірка на достатність жетонів перед списанням
+                let currentCoins = 0;
+                const userCoinsElement = document.getElementById('user-coins');
+                if (userCoinsElement) {
+                    currentCoins = parseInt(userCoinsElement.textContent) || 0;
+                } else {
+                    currentCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
+                }
+
+                if (currentCoins < entryFee) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${currentCoins}`, 'warning');
+                    }
+                    return;
+                }
+
                 // Помічаємо кнопку як таку, що обробляється і блокуємо її
                 button.setAttribute('data-processing', 'true');
                 button.classList.add('processing');
                 button.disabled = true;
 
+                // Зберігаємо оригінальний текст кнопки
+                if (!button.getAttribute('data-original-text')) {
+                    button.setAttribute('data-original-text', button.textContent);
+                }
+                button.textContent = 'Обробка...';
+
                 // Беремо участь у розіграші
-                this.participation.participateInRaffle(raffleId, 1)
+                this.participation.participateInRaffle(raffleId, button.classList.contains('mini-raffle-button') ? 'daily' : 'main', 1)
                     .then(result => {
                         if (result.success) {
                             // Асинхронне оновлення списку розіграшів, в яких бере участь користувач
@@ -1025,6 +1089,12 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
                         // Для успішної участі кнопку оновить updateParticipationButtons()
                         if (!this.participation.participatingRaffles.has(raffleId)) {
                             button.disabled = false;
+
+                            // Відновлюємо оригінальний текст кнопки
+                            const originalText = button.getAttribute('data-original-text');
+                            if (originalText) {
+                                button.textContent = originalText;
+                            }
                         }
                     });
             });
@@ -1223,18 +1293,6 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
         }
     });
 
-    // ВИПРАВЛЕНО: Видалено дублювання функцій showToast і showLoading, замість цього переконуємось в їх наявності
-
-    // Перевірка наявності функції showToast
-    if (typeof window.showToast !== 'function') {
-        console.warn("⚠️ Функція showToast не знайдена в глобальному об'єкті, відображення повідомлень може не працювати");
-    }
-
-    // Перевірка наявності функції showLoading
-    if (typeof window.showLoading !== 'function') {
-        console.warn("⚠️ Функція showLoading не знайдена в глобальному об'єкті, індикатор завантаження може не працювати");
-    }
-
     // ВИПРАВЛЕНО: Додаємо обробник, який перевіряє стан participation при візуалізації сторінки
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
@@ -1280,7 +1338,52 @@ participateInRaffle: async function(raffleId, entryCount = 1) {
             console.log('🔄 Повторне завантаження розіграшів після очищення кешу');
             this.active.loadActiveRaffles(true);
         }
-    }
+    };
+
+    /**
+     * Отримання балансу користувача з API
+     * @returns {Promise<Object>} Відповідь від API
+     */
+    WinixRaffles.refreshUserBalance = async function() {
+        try {
+            if (typeof WinixAPI !== 'undefined' && typeof WinixAPI.getBalance === 'function') {
+                console.log('🔄 Запит на оновлення балансу користувача');
+
+                const response = await WinixAPI.getBalance();
+
+                if (response && response.status === 'success' && response.data) {
+                    const newCoins = response.data.coins;
+
+                    // Оновлюємо відображення балансу
+                    const userCoinsElement = document.getElementById('user-coins');
+                    if (userCoinsElement) {
+                        userCoinsElement.textContent = newCoins;
+                    }
+
+                    // Оновлюємо localStorage
+                    localStorage.setItem('userCoins', newCoins.toString());
+                    localStorage.setItem('winix_coins', newCoins.toString());
+
+                    console.log('✅ Баланс користувача оновлено:', newCoins);
+
+                    return {
+                        success: true,
+                        coins: newCoins
+                    };
+                } else {
+                    throw new Error('Не вдалося отримати баланс');
+                }
+            } else {
+                throw new Error('API для отримання балансу недоступне');
+            }
+        } catch (error) {
+            console.error('❌ Помилка оновлення балансу:', error);
+            return {
+                success: false,
+                message: error.message || 'Не вдалося оновити баланс'
+            };
+        }
+    };
 
     // Глобальний обробник необроблених Promise-помилок
     window.addEventListener('unhandledrejection', function(event) {

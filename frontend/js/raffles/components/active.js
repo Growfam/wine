@@ -1,9 +1,8 @@
 /**
  * WINIX - Система розіграшів (active.js)
  * Оновлений модуль для роботи з активними розіграшами
- * Додано функціонал деталей розіграшів
- * Виправлено обробку участі та помилок
- * @version 1.4.0
+ * Виправлено проблеми зі списанням жетонів та обробкою участі
+ * @version 1.5.0
  */
 
 (function() {
@@ -74,6 +73,14 @@
                         e.target.classList.add('processing');
                         e.target.disabled = true;
 
+                        // Зберігаємо оригінальний текст кнопки, якщо він ще не збережений
+                        if (!e.target.getAttribute('data-original-text')) {
+                            e.target.setAttribute('data-original-text', e.target.textContent);
+                        }
+
+                        // Змінюємо текст на "Обробка..."
+                        e.target.textContent = 'Обробка...';
+
                         // Перевіряємо чи модуль участі ініціалізовано
                         if (WinixRaffles.participation) {
                             // Використовуємо правильну обробку промісів
@@ -82,7 +89,24 @@
                                     // Обробка успішної відповіді
                                     if (result.success) {
                                         console.log('✅ Успішна участь в розіграші:', result.message);
-                                        // Оновлення кнопки вже відбувається в модулі participation
+
+                                        // Перевіряємо, чи було списано жетони
+                                        if (result.data && typeof result.data.new_coins_balance !== 'undefined') {
+                                            // Оновлюємо відображення балансу
+                                            const userCoinsElement = document.getElementById('user-coins');
+                                            if (userCoinsElement) {
+                                                userCoinsElement.textContent = result.data.new_coins_balance;
+                                            }
+
+                                            // Оновлюємо локальне сховище
+                                            localStorage.setItem('userCoins', result.data.new_coins_balance.toString());
+                                            localStorage.setItem('winix_coins', result.data.new_coins_balance.toString());
+                                        } else {
+                                            console.warn('⚠️ Сервер не повернув оновлений баланс жетонів');
+
+                                            // Примусово оновлюємо баланс
+                                            this.refreshUserBalance();
+                                        }
                                     } else {
                                         // Якщо відповідь отримана, але участь не вдалася
                                         console.warn('⚠️ Помилка участі в розіграші:', result.message);
@@ -90,16 +114,18 @@
                                             window.showToast(result.message, 'warning');
                                         }
                                         // Відновлюємо стан кнопки
-                                        e.target.classList.remove('processing');
-                                        e.target.disabled = false;
+                                        this._resetButtonState(e.target, raffleId);
                                     }
                                 })
                                 .catch(error => {
                                     // Обробка помилок
                                     console.error('❌ Помилка участі в розіграші:', error);
                                     // Відновлюємо стан кнопки
-                                    e.target.classList.remove('processing');
-                                    e.target.disabled = false;
+                                    this._resetButtonState(e.target, raffleId);
+
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast(error.message || 'Помилка участі в розіграші', 'error');
+                                    }
                                 })
                                 .finally(() => {
                                     // Видаляємо запит зі списку активних
@@ -110,8 +136,7 @@
                             this.fallbackParticipate(raffleId, 'main')
                                 .finally(() => {
                                     delete this.participationRequests[raffleId];
-                                    e.target.classList.remove('processing');
-                                    e.target.disabled = false;
+                                    this._resetButtonState(e.target, raffleId);
                                 });
                         }
                     }
@@ -158,7 +183,24 @@
                                     // Обробка успішної відповіді
                                     if (result.success) {
                                         console.log('✅ Успішна участь в міні-розіграші:', result.message);
-                                        // Оновлення кнопки вже відбувається в модулі participation
+
+                                        // Перевіряємо, чи було списано жетони
+                                        if (result.data && typeof result.data.new_coins_balance !== 'undefined') {
+                                            // Оновлюємо відображення балансу
+                                            const userCoinsElement = document.getElementById('user-coins');
+                                            if (userCoinsElement) {
+                                                userCoinsElement.textContent = result.data.new_coins_balance;
+                                            }
+
+                                            // Оновлюємо локальне сховище
+                                            localStorage.setItem('userCoins', result.data.new_coins_balance.toString());
+                                            localStorage.setItem('winix_coins', result.data.new_coins_balance.toString());
+                                        } else {
+                                            console.warn('⚠️ Сервер не повернув оновлений баланс жетонів');
+
+                                            // Примусово оновлюємо баланс
+                                            this.refreshUserBalance();
+                                        }
                                     } else {
                                         // Якщо відповідь отримана, але участь не вдалася
                                         console.warn('⚠️ Помилка участі в міні-розіграші:', result.message);
@@ -225,6 +267,35 @@
                     this.updateButtonsAfterParticipation(event.detail.raffleId, event.detail.ticketCount || 1);
                 }
             });
+        },
+
+        /**
+         * Примусове оновлення балансу жетонів користувача
+         */
+        refreshUserBalance: async function() {
+            try {
+                if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+                    const response = await window.WinixAPI.getBalance();
+
+                    if (response && response.status === 'success' && response.data) {
+                        const newCoinsBalance = response.data.coins;
+
+                        // Оновлюємо відображення балансу
+                        const userCoinsElement = document.getElementById('user-coins');
+                        if (userCoinsElement) {
+                            userCoinsElement.textContent = newCoinsBalance;
+                        }
+
+                        // Оновлюємо локальне сховище
+                        localStorage.setItem('userCoins', newCoinsBalance.toString());
+                        localStorage.setItem('winix_coins', newCoinsBalance.toString());
+
+                        console.log('✅ Баланс жетонів оновлено:', newCoinsBalance);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Помилка оновлення балансу:', error);
+            }
         },
 
         /**
@@ -966,8 +1037,27 @@
                     // Оновлюємо баланс користувача
                     if (response.data && response.data.new_coins_balance !== undefined) {
                         document.dispatchEvent(new CustomEvent('user-data-updated', {
-                            detail: { coins: response.data.new_coins_balance }
+                            detail: {
+                                userData: {
+                                    coins: response.data.new_coins_balance,
+                                    server_synchronized: true
+                                },
+                                source: 'active.js'
+                            }
                         }));
+
+                        // Оновлюємо відображення жетонів
+                        const userCoinsElement = document.getElementById('user-coins');
+                        if (userCoinsElement) {
+                            userCoinsElement.textContent = response.data.new_coins_balance;
+                        }
+
+                        // Оновлюємо локальне сховище
+                        localStorage.setItem('userCoins', response.data.new_coins_balance.toString());
+                        localStorage.setItem('winix_coins', response.data.new_coins_balance.toString());
+                    } else {
+                        // Якщо сервер не повернув баланс, примусово оновлюємо
+                        this.refreshUserBalance();
                     }
 
                     return {

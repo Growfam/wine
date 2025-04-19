@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
  * Виправлено проблеми з умовами гонки, списанням жетонів та обробкою помилок
- * @version 3.2.0
+ * @version 3.3.0
  */
 
 (function() {
@@ -158,7 +158,7 @@
                 localStorage.removeItem('winix_pending_transactions');
             }
 
-            // ВИПРАВЛЕНО: Покращуємо очищення кнопок, які могли залишитися в стані "processing"
+            // Покращуємо очищення кнопок, які могли залишитися в стані "processing"
             document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
                 button.classList.remove('processing');
                 button.disabled = false;
@@ -320,13 +320,13 @@
                     }
 
                     // Перевіряємо, коли останній раз оновлювались дані
-                    if (now - this.lastSyncTime > 30000) { // Зменшено до 30 секунд
+                    if (now - this.lastSyncTime > 30000) { // 30 секунд
                         // Якщо давно не оновлювали, завантажуємо свіжі дані
                         setTimeout(() => {
                             this.loadUserRaffles(true);
                             this.lastSyncTime = now;
 
-                            // ВИПРАВЛЕНО: Також оновлюємо баланс при поверненні на сторінку
+                            // Також оновлюємо баланс при поверненні на сторінку
                             this._getServerBalance();
                         }, 1000);
                     }
@@ -344,7 +344,7 @@
                     setTimeout(() => {
                         this.loadUserRaffles(true);
 
-                        // ВИПРАВЛЕНО: Також оновлюємо баланс при відновленні сторінки
+                        // Також оновлюємо баланс при відновленні сторінки
                         this._getServerBalance();
                     }, 500);
                 }
@@ -359,13 +359,13 @@
                         console.log('🔄 Періодичне оновлення даних участі');
                         this.loadUserRaffles(true);
 
-                        // ВИПРАВЛЕНО: Також оновлюємо баланс при періодичному оновленні
+                        // Також оновлюємо баланс при періодичному оновленні
                         this._getServerBalance();
                     }
                 }
             }, 5 * 60 * 1000); // Перевірка кожні 5 хвилин
 
-            // ВИПРАВЛЕНО: Додаємо обробник події оновлення балансу
+            // Додаємо обробник події оновлення балансу
             document.addEventListener('balance-updated', (event) => {
                 if (event.detail && typeof event.detail.newBalance === 'number' && event.detail.source !== 'participation.js') {
                     // Запам'ятовуємо новий баланс
@@ -378,7 +378,7 @@
         },
 
         /**
-         * ВИПРАВЛЕНО: Отримання поточного балансу з сервера
+         * Отримання поточного балансу з сервера
          * @private
          */
         _getServerBalance: async function() {
@@ -672,7 +672,7 @@
                     localStorage.setItem('userCoins', event.detail.userData.coins);
                     localStorage.setItem('winix_coins', event.detail.userData.coins);
 
-                    // ВИПРАВЛЕНО: Запам'ятовуємо останнє відоме значення балансу
+                    // Запам'ятовуємо останнє відоме значення балансу
                     this.lastKnownBalance = event.detail.userData.coins;
                     this.lastBalanceUpdateTime = Date.now();
                 }
@@ -1047,6 +1047,28 @@
         },
 
         /**
+         * Перевірка валідності UUID
+         * @param {string} id - UUID для перевірки
+         * @returns {boolean} Результат перевірки
+         */
+        isValidUUID: function(id) {
+            // Спочатку перевіряємо наявність UUID валідатора у WinixRaffles
+            if (WinixRaffles.validators && typeof WinixRaffles.validators.isValidUUID === 'function') {
+                return WinixRaffles.validators.isValidUUID(id);
+            }
+
+            // Потім перевіряємо валідатор у WinixAPI
+            if (window.WinixAPI && typeof window.WinixAPI.isValidUUID === 'function') {
+                return window.WinixAPI.isValidUUID(id);
+            }
+
+            // Запасний валідатор, якщо інші недоступні
+            if (!id || typeof id !== 'string') return false;
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(id);
+        },
+
+        /**
          * Участь у розіграші
          * @param {string} raffleId - ID розіграшу
          * @param {string} raffleType - Тип розіграшу (daily/main)
@@ -1248,7 +1270,7 @@
                     if (response.data && typeof response.data.total_entries === 'number') {
                         newTicketCount = response.data.total_entries;
                     } else {
-                        // ВИПРАВЛЕНО: Якщо сервер не повернув дані, робимо додатковий запит
+                        // Якщо сервер не повернув дані, робимо додатковий запит
                         console.warn("⚠️ Сервер не повернув дані про кількість білетів, запускаємо синхронізацію");
 
                         // Оцінюємо кількість білетів локально на основі поточного стану
@@ -1266,14 +1288,14 @@
 
                     // 18.5 ОНОВЛЮЄМО БАЛАНС ЖЕТОНІВ - ВИКОРИСТОВУЄМО ТІЛЬКИ ДАНІ СЕРВЕРА
                     if (response.data && typeof response.data.new_coins_balance === 'number') {
-                        // ВИПРАВЛЕНО: Запам'ятовуємо баланс до оновлення для виявлення змін
+                        // Запам'ятовуємо баланс до оновлення для виявлення змін
                         const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
                         const newBalance = response.data.new_coins_balance;
 
                         // Оновлюємо відображення балансу
                         const userCoinsElement = document.getElementById('user-coins');
                         if (userCoinsElement) {
-                            // ВИПРАВЛЕНО: Додаємо анімацію, якщо баланс зменшився
+                            // Додаємо анімацію, якщо баланс зменшився
                             if (newBalance < oldBalance) {
                                 userCoinsElement.classList.add('decreasing');
                                 setTimeout(() => {
@@ -1289,7 +1311,7 @@
                         localStorage.setItem('winix_coins', newBalance.toString());
                         localStorage.setItem('winix_balance_update_time', Date.now().toString());
 
-                        // ВИПРАВЛЕНО: Додаємо подію для точної синхронізації з іншими модулями
+                        // Додаємо подію для точної синхронізації з іншими модулями
                         document.dispatchEvent(new CustomEvent('balance-updated', {
                             detail: {
                                 oldBalance: oldBalance,
@@ -1300,7 +1322,7 @@
                     } else {
                         // Якщо сервер не повернув баланс, робимо додатковий запит
                         console.warn("⚠️ Сервер не повернув дані про новий баланс, отримуємо баланс");
-                        this._refreshBalance();
+                        this._getServerBalance();
                     }
 
                     // 18.6 ЗБЕРІГАЄМО ОНОВЛЕНИЙ СТАН
@@ -1407,10 +1429,6 @@
                     this.addInvalidRaffleId(raffleId);
                 }
 
-                // ВИПРАВЛЕНО: Не змінюємо баланс локально при помилці
-                // Запускаємо оновлення з сервера
-                this._refreshBalance();
-
                 return Promise.reject(error);
             } finally {
                 // 21. ЗАВЕРШАЛЬНІ ДІЇ (ВИКОНУЮТЬСЯ ЗАВЖДИ)
@@ -1426,45 +1444,68 @@
         },
 
         /**
-         * ВИПРАВЛЕНО: Оновлення балансу з сервера
+         * Оновлення статусу транзакції в localStorage
+         * @param {string} raffleId - ID розіграшу
+         * @param {string} transactionId - ID транзакції
+         * @param {string} status - Новий статус
+         * @param {string} [message] - Повідомлення (опціонально)
          * @private
          */
-        _refreshBalance: async function() {
+        _updateTransactionStatus: function(raffleId, transactionId, status, message) {
             try {
-                if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-                    const balanceResponse = await window.WinixAPI.getBalance();
-
-                    if (balanceResponse.status === 'success' &&
-                        balanceResponse.data &&
-                        typeof balanceResponse.data.coins === 'number') {
-
-                        // Оновлюємо відображення балансу
-                        const userCoinsElement = document.getElementById('user-coins');
-                        if (userCoinsElement) {
-                            userCoinsElement.textContent = balanceResponse.data.coins;
-                        }
-
-                        // Оновлюємо локальне сховище
-                        localStorage.setItem('userCoins', balanceResponse.data.coins.toString());
-                        localStorage.setItem('winix_coins', balanceResponse.data.coins.toString());
-                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
-
-                        // Відправляємо подію про оновлення балансу
-                        document.dispatchEvent(new CustomEvent('balance-updated', {
-                            detail: {
-                                newBalance: balanceResponse.data.coins,
-                                source: 'participation.js'
-                            }
-                        }));
+                const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
+                const updatedTransactions = transactions.map(t => {
+                    if (t.raffleId === raffleId && t.transactionId === transactionId) {
+                        return {
+                            ...t,
+                            status: status,
+                            message: message,
+                            completedAt: Date.now()
+                        };
                     }
-                }
-            } catch (err) {
-                console.warn("⚠️ Не вдалося отримати баланс після транзакції:", err);
+                    return t;
+                });
+
+                localStorage.setItem('winix_pending_transactions', JSON.stringify(updatedTransactions));
+            } catch (e) {
+                console.warn('⚠️ Помилка оновлення статусу транзакції:', e);
             }
         },
 
         /**
-         * НОВИЙ МЕТОД: Підтвердження участі в розіграші
+         * Оновлення кількості учасників розіграшу
+         * @param {string} raffleId - ID розіграшу
+         */
+        updateParticipantsCount: function(raffleId) {
+            try {
+                // Знаходимо елементи з кількістю учасників
+                const participantsElements = document.querySelectorAll(
+                    `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
+                    `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
+                    `.main-raffle .participants-info .participants-count`
+                );
+
+                participantsElements.forEach(element => {
+                    // Отримуємо поточне значення і збільшуємо його
+                    const currentCount = parseInt(element.textContent.replace(/\s+/g, '')) || 0;
+                    element.textContent = (currentCount + 1).toString()
+                        .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Форматування з пробілами
+
+                    // Додаємо клас для анімації оновлення
+                    element.classList.add('updated');
+
+                    // Видаляємо клас через секунду
+                    setTimeout(() => {
+                        element.classList.remove('updated');
+                    }, 1000);
+                });
+            } catch (e) {
+                console.warn("⚠️ Не вдалося оновити лічильник учасників:", e);
+            }
+        },
+
+        /**
+         * Підтвердження участі в розіграші
          * Використовується для додаткової перевірки після успішної участі
          */
         confirmParticipation: async function(raffleId) {
@@ -1527,7 +1568,7 @@
         },
 
         /**
-         * НОВИЙ МЕТОД: Перевірка та виправлення стану участі
+         * Перевірка та виправлення стану участі
          * Викликайте періодично, щоб переконатися, що дані відповідають реальності
          */
         verifyAndFixParticipationState: async function() {
@@ -1636,89 +1677,6 @@
                 console.error('❌ Помилка перевірки та виправлення стану:', error);
                 return false;
             }
-        },
-
-        /**
-         * Оновлення статусу транзакції в localStorage
-         * @param {string} raffleId - ID розіграшу
-         * @param {string} transactionId - ID транзакції
-         * @param {string} status - Новий статус
-         * @param {string} [message] - Повідомлення (опціонально)
-         * @private
-         */
-        _updateTransactionStatus: function(raffleId, transactionId, status, message) {
-            try {
-                const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
-                const updatedTransactions = transactions.map(t => {
-                    if (t.raffleId === raffleId && t.transactionId === transactionId) {
-                        return {
-                            ...t,
-                            status: status,
-                            message: message,
-                            completedAt: Date.now()
-                        };
-                    }
-                    return t;
-                });
-
-                localStorage.setItem('winix_pending_transactions', JSON.stringify(updatedTransactions));
-            } catch (e) {
-                console.warn('⚠️ Помилка оновлення статусу транзакції:', e);
-            }
-        },
-
-        /**
-         * Оновлення кількості учасників розіграшу
-         * @param {string} raffleId - ID розіграшу
-         */
-        updateParticipantsCount: function(raffleId) {
-            try {
-                // Знаходимо елементи з кількістю учасників
-                const participantsElements = document.querySelectorAll(
-                    `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
-                    `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
-                    `.main-raffle .participants-info .participants-count`
-                );
-
-                participantsElements.forEach(element => {
-                    // Отримуємо поточне значення і збільшуємо його
-                    const currentCount = parseInt(element.textContent.replace(/\s+/g, '')) || 0;
-                    element.textContent = (currentCount + 1).toString()
-                        .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Форматування з пробілами
-
-                    // Додаємо клас для анімації оновлення
-                    element.classList.add('updated');
-
-                    // Видаляємо клас через секунду
-                    setTimeout(() => {
-                        element.classList.remove('updated');
-                    }, 1000);
-                });
-            } catch (e) {
-                console.warn("⚠️ Не вдалося оновити лічильник учасників:", e);
-            }
-        },
-
-        /**
-         * Перевірка валідності UUID
-         * @param {string} id - UUID для перевірки
-         * @returns {boolean} - Результат перевірки
-         */
-        isValidUUID: function(id) {
-            // Спочатку перевіряємо наявність UUID валідатора у WinixRaffles
-            if (WinixRaffles.validators && typeof WinixRaffles.validators.isValidUUID === 'function') {
-                return WinixRaffles.validators.isValidUUID(id);
-            }
-
-            // Потім перевіряємо валідатор у WinixAPI
-            if (window.WinixAPI && typeof window.WinixAPI.isValidUUID === 'function') {
-                return window.WinixAPI.isValidUUID(id);
-            }
-
-            // Запасний валідатор, якщо інші недоступні
-            if (!id || typeof id !== 'string') return false;
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(id);
         },
 
         /**
@@ -1855,7 +1813,7 @@
                 // Завантажуємо актуальні дані про участь користувача
                 await this.loadUserRaffles(true);
 
-                // ВИПРАВЛЕНО: Також оновлюємо баланс
+                // Також оновлюємо баланс
                 await this._getServerBalance();
 
                 // Оновлюємо відображення кнопок участі
