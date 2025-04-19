@@ -57,7 +57,8 @@
                 display: flex !important;
                 flex-direction: column !important;
                 color: #ffffff !important;
-                margin: 0 auto !important;
+                margin: auto !important;
+                position: relative !important;
             }
 
             .modal-overlay.show .modal-container {
@@ -67,12 +68,13 @@
 
             .modal-header {
                 display: flex !important;
-                justify-content: center !important;
+                justify-content: space-between !important; /* Змінено з center на space-between */
                 align-items: center !important;
                 padding: 1rem 1.5rem !important;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
                 position: relative !important;
                 background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9)) !important;
+                box-sizing: border-box !important; /* Гарантує, що padding не впливає на ширину */
             }
 
             .modal-title {
@@ -82,11 +84,14 @@
                 text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
                 margin: 0 !important;
                 text-align: center !important;
+                flex-grow: 1 !important; /* Додано для центрування заголовка */
             }
 
             .modal-close {
                 position: absolute !important;
-                right: 15px !important;
+                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
+                top: 50% !important; /* Додано для вертикального центрування */
+                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 color: rgba(255, 255, 255, 0.7) !important;
                 font-size: 1.5rem !important;
                 cursor: pointer !important;
@@ -100,6 +105,8 @@
                 justify-content: center !important;
                 border-radius: 50% !important;
                 background: rgba(255, 255, 255, 0.1) !important;
+                z-index: 10 !important; /* Додано для уникнення перекриття */
+                margin-right: 5px !important; /* Додано додатковий відступ справа */
             }
 
             .modal-close:hover {
@@ -131,7 +138,7 @@
                 transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
                             opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
                 animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1) !important;
-                margin: 0 auto !important;
+                margin: auto !important;
             }
             
             .premium-modal .modal-container::before {
@@ -166,6 +173,7 @@
                 padding: 20px !important;
                 position: relative !important;
                 border-bottom: 1px solid rgba(78, 181, 247, 0.2) !important;
+                justify-content: space-between !important; /* Змінено з center на space-between */
             }
             
             .premium-modal .modal-title {
@@ -175,12 +183,14 @@
                 margin: 0 !important;
                 text-align: center !important;
                 text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+                flex-grow: 1 !important; /* Додано для центрування заголовка */
             }
             
             .premium-modal .modal-close {
                 position: absolute !important;
-                top: 15px !important;
-                right: 15px !important;
+                top: 50% !important; /* Змінено для вертикального центрування */
+                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
+                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 background: rgba(255, 255, 255, 0.1) !important;
                 border: none !important;
                 color: white !important;
@@ -193,12 +203,13 @@
                 font-size: 22px !important;
                 cursor: pointer !important;
                 transition: all 0.3s !important;
-                z-index: 15 !important;
+                z-index: 15 !important; /* Додано для уникнення перекриття */
+                margin-right: 5px !important; /* Додано додатковий відступ справа */
             }
             
             .premium-modal .modal-close:hover {
                 background: rgba(255, 255, 255, 0.2) !important;
-                transform: rotate(90deg) !important;
+                transform: translateY(-50%) rotate(90deg) !important; /* Оновлено для збереження вертикального центрування */
             }
             
             .premium-modal .modal-body {
@@ -472,13 +483,16 @@
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
 
-        // Створюємо HTML модального вікна
+        // Створюємо HTML модального вікна з порожнім елементом перед кнопкою закриття для кращого вирівнювання
         modalOverlay.innerHTML = `
             <div class="modal-container">
                 ${title ? `
                     <div class="modal-header">
+                        <div style="width: 40px;"></div> <!-- Збільшено ширину порожнього елемента для кращого балансу -->
                         <h2 class="modal-title">${title}</h2>
-                        <button class="modal-close">&times;</button>
+                        <div style="width: 40px; position: relative;">
+                            <button class="modal-close">&times;</button>
+                        </div>
                     </div>
                 ` : ''}
                 <div class="modal-body">
@@ -672,33 +686,51 @@
         // Використовуємо саме ті дані, що є у розіграші для розподілу призів
         let prizeDistributionHtml = '';
 
-        // Головний приз
+        // Головний приз - детальний розподіл по місцях
         if (raffle.prize_amount && raffle.prize_currency) {
+            // Симуляція розподілу призів по місцях (в реальному додатку дані мають приходити з API)
+            const prizeDistribution = [
+                {place: 1, prize: "$80 USD + 100,000 $Winix"},
+                {place: 2, prize: "$50 USD + 80,000 $Winix"},
+                {place: 3, prize: "$40 USD + 60,000 $Winix"},
+                {place: 4, prize: "$30 USD + 40,000 $Winix"},
+                {place: 5, prize: "$20 USD + 30,000 $Winix"},
+                {place: 6, prize: "20,000 $Winix"},
+                {place: 7, prize: "15,000 $Winix"},
+                {place: 8, prize: "10,000 $Winix"},
+                {place: 9, prize: "8,000 $Winix"},
+                {place: 10, prize: "5,000 $Winix"}
+            ];
+
+            let prizesListHtml = '';
+            prizeDistribution.forEach(item => {
+                prizesListHtml += `
+                    <li class="prize-item">
+                        <div class="prize-place">
+                            <div class="prize-icon">${item.place}</div>
+                            <span>${item.place} місце</span>
+                        </div>
+                        <div class="prize-amount">${item.prize}</div>
+                    </li>
+                `;
+            });
+
+            // Додаємо гарантований бонус для всіх учасників
+            prizesListHtml += `
+                <li class="prize-item" style="margin-top: 15px; border-top: 1px solid rgba(78, 181, 247, 0.2); padding-top: 15px;">
+                    <div class="prize-place">
+                        <div class="prize-icon">🎁</div>
+                        <span>Всі учасники</span>
+                    </div>
+                    <div class="prize-amount">550 $Winix токенів гарантовано</div>
+                </li>
+            `;
+
             prizeDistributionHtml = `
                 <div class="raffle-section">
                     <h3 class="section-title">Розподіл призів</h3>
                     <ul class="prizes-list">
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">1</div>
-                                <span>1-5 місце</span>
-                            </div>
-                            <div class="prize-amount">Грошові винагороди (частина від $250)</div>
-                        </li>
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">2</div>
-                                <span>6-10 місце</span>
-                            </div>
-                            <div class="prize-amount">$Winix токени</div>
-                        </li>
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">3</div>
-                                <span>Кожен учасник</span>
-                            </div>
-                            <div class="prize-amount">550 $Winix токенів</div>
-                        </li>
+                        ${prizesListHtml}
                     </ul>
                 </div>
             `;
