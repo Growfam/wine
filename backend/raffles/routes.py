@@ -60,11 +60,6 @@ if DISABLE_RATE_LIMITS:
 else:
     logger.info("📢 Обмеження швидкості запитів включено")
 
-# Створюємо блокування для уникнення гонки даних при одночасних запитах
-from threading import RLock
-
-request_locks = {}
-
 
 def is_valid_uuid(uuid_string):
     """
@@ -193,60 +188,6 @@ def validate_raffle_id(f):
     return decorated_function
 
 
-def prevent_duplicate_requests(f):
-    """
-    Декоратор для запобігання дублюванню запитів участі від одного користувача
-    Використовує блокування потоків для забезпечення атомарності
-    """
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Отримуємо telegram_id з параметрів URL
-        telegram_id = kwargs.get('telegram_id')
-        if not telegram_id:
-            return jsonify({
-                "status": "error",
-                "message": "Відсутній ID користувача"
-            }), 400
-
-        # Отримуємо дані з JSON
-        data = request.json
-        if not data or not data.get('raffle_id'):
-            return jsonify({
-                "status": "error",
-                "message": "Відсутній ID розіграшу"
-            }), 400
-
-        raffle_id = data.get('raffle_id')
-
-        # Унікальний ключ для цього користувача і розіграшу
-        lock_key = f"{telegram_id}:{raffle_id}"
-
-        # Створюємо блокування, якщо його ще немає
-        if lock_key not in request_locks:
-            request_locks[lock_key] = RLock()
-
-        # Спробуємо отримати блокування
-        lock = request_locks[lock_key]
-        if not lock.acquire(blocking=False):
-            # Якщо не вдається отримати блокування, значить запит вже обробляється
-            logger.warning(f"Виявлено повторний запит для {lock_key}")
-            return jsonify({
-                "status": "error",
-                "message": "Будь ласка, зачекайте секунду перед наступною спробою",
-                "code": "rate_limit"
-            }), 429
-
-        try:
-            # Викликаємо оригінальну функцію
-            return f(*args, **kwargs)
-        finally:
-            # Гарантовано звільняємо блокування
-            lock.release()
-
-    return decorated_function
-
-
 def register_raffles_routes(app):
     """Реєстрація маршрутів для системи розіграшів"""
     if not controllers:
@@ -327,7 +268,6 @@ def register_raffles_routes(app):
             })
 
     @app.route('/api/user/<telegram_id>/participate-raffle', methods=['POST'])
-    @prevent_duplicate_requests
     def api_participate_in_raffle(telegram_id):
         """Участь у розіграші"""
         try:
@@ -345,15 +285,6 @@ def register_raffles_routes(app):
                 return jsonify({
                     "status": "error",
                     "message": "Відсутній ідентифікатор розіграшу в запиті"
-                }), 400
-
-            # Перевірка валідності UUID
-            raffle_id = data.get('raffle_id')
-            if not is_valid_uuid(raffle_id):
-                return jsonify({
-                    "status": "error",
-                    "message": "Невалідний формат ID розіграшу",
-                    "code": "invalid_raffle_id"
                 }), 400
 
             return controllers.participate_in_raffle(telegram_id, data)
