@@ -57,7 +57,8 @@
                 display: flex !important;
                 flex-direction: column !important;
                 color: #ffffff !important;
-                margin: 0 auto !important;
+                margin: auto !important;
+                position: relative !important;
             }
 
             .modal-overlay.show .modal-container {
@@ -67,7 +68,7 @@
 
             .modal-header {
                 display: flex !important;
-                justify-content: center !important;
+                justify-content: space-between !important; /* Змінено з center на space-between */
                 align-items: center !important;
                 padding: 1rem 1.5rem !important;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -82,11 +83,14 @@
                 text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
                 margin: 0 !important;
                 text-align: center !important;
+                flex-grow: 1 !important; /* Додано для центрування заголовка */
             }
 
             .modal-close {
                 position: absolute !important;
                 right: 15px !important;
+                top: 50% !important; /* Додано для вертикального центрування */
+                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 color: rgba(255, 255, 255, 0.7) !important;
                 font-size: 1.5rem !important;
                 cursor: pointer !important;
@@ -100,6 +104,7 @@
                 justify-content: center !important;
                 border-radius: 50% !important;
                 background: rgba(255, 255, 255, 0.1) !important;
+                z-index: 10 !important; /* Додано для уникнення перекриття */
             }
 
             .modal-close:hover {
@@ -131,7 +136,7 @@
                 transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
                             opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
                 animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1) !important;
-                margin: 0 auto !important;
+                margin: auto !important;
             }
             
             .premium-modal .modal-container::before {
@@ -166,6 +171,7 @@
                 padding: 20px !important;
                 position: relative !important;
                 border-bottom: 1px solid rgba(78, 181, 247, 0.2) !important;
+                justify-content: space-between !important; /* Змінено з center на space-between */
             }
             
             .premium-modal .modal-title {
@@ -175,12 +181,14 @@
                 margin: 0 !important;
                 text-align: center !important;
                 text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+                flex-grow: 1 !important; /* Додано для центрування заголовка */
             }
             
             .premium-modal .modal-close {
                 position: absolute !important;
-                top: 15px !important;
+                top: 50% !important; /* Змінено для вертикального центрування */
                 right: 15px !important;
+                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 background: rgba(255, 255, 255, 0.1) !important;
                 border: none !important;
                 color: white !important;
@@ -193,12 +201,12 @@
                 font-size: 22px !important;
                 cursor: pointer !important;
                 transition: all 0.3s !important;
-                z-index: 15 !important;
+                z-index: 15 !important; /* Додано для уникнення перекриття */
             }
             
             .premium-modal .modal-close:hover {
                 background: rgba(255, 255, 255, 0.2) !important;
-                transform: rotate(90deg) !important;
+                transform: translateY(-50%) rotate(90deg) !important; /* Оновлено для збереження вертикального центрування */
             }
             
             .premium-modal .modal-body {
@@ -472,11 +480,12 @@
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
 
-        // Створюємо HTML модального вікна
+        // Створюємо HTML модального вікна з порожнім елементом перед кнопкою закриття для кращого вирівнювання
         modalOverlay.innerHTML = `
             <div class="modal-container">
                 ${title ? `
                     <div class="modal-header">
+                        <div style="width: 30px;"></div> <!-- Порожній елемент для балансу з кнопкою закриття -->
                         <h2 class="modal-title">${title}</h2>
                         <button class="modal-close">&times;</button>
                     </div>
