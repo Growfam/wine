@@ -754,491 +754,53 @@
         },
 
         /**
-         * Відображення деталей розіграшу
+         * Функція для відображення деталей розіграшу
+         * Використовує глобальну функцію показу модального вікна
          * @param {string} raffleId - ID розіграшу
          */
-        showRaffleDetails: async function(raffleId) {
+        showRaffleDetails: function(raffleId) {
             try {
-                // Перевірка валідності ID
-                if (!this.isValidUUID(raffleId)) {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Невалідний ідентифікатор розіграшу', 'error');
+                // Пошук розіграшу в наших даних
+                const raffle = this.raffles ? this.raffles.find(r => r.id === raffleId) : null;
+
+                // Якщо розіграш не знайдено
+                if (!raffle) {
+                    // Спробуємо знайти в активних розіграшах
+                    if (WinixRaffles.active && WinixRaffles.active.raffles) {
+                        const activeRaffle = WinixRaffles.active.raffles.find(r => r.id === raffleId);
+                        if (activeRaffle) {
+                            // Визначаємо чи користувач бере участь у розіграші
+                            const isParticipating = this.participatingRaffles &&
+                                this.participatingRaffles.has(raffleId);
+
+                            // Отримання кількості білетів користувача
+                            const ticketCount = isParticipating && this.userRaffleTickets ?
+                                (this.userRaffleTickets[raffleId] || 1) : 0;
+
+                            // Викликаємо глобальну функцію
+                            window.showRaffleDetailsModal(activeRaffle, isParticipating, ticketCount);
+                            return;
+                        }
                     }
+
+                    window.showToast('Не вдалося знайти деталі розіграшу', 'error');
                     return;
                 }
 
-                // Спочатку шукаємо розіграш в активних
-                let raffle = null;
-                if (WinixRaffles.state.activeRaffles && Array.isArray(WinixRaffles.state.activeRaffles)) {
-                    raffle = WinixRaffles.state.activeRaffles.find(r => r.id === raffleId);
-                }
+                // Визначаємо чи користувач бере участь у розіграші
+                const isParticipating = this.participatingRaffles &&
+                    this.participatingRaffles.has(raffleId);
 
-                // Якщо не знайдено в активних, шукаємо в минулих
-                if (!raffle && WinixRaffles.state.pastRaffles && Array.isArray(WinixRaffles.state.pastRaffles)) {
-                    raffle = WinixRaffles.state.pastRaffles.find(r => r.id === raffleId);
-                }
+                // Отримання кількості білетів користувача
+                const ticketCount = isParticipating && this.userRaffleTickets ?
+                    (this.userRaffleTickets[raffleId] || 1) : 0;
 
-                // Якщо розіграш не знайдено локально, робимо запит до сервера
-                if (!raffle) {
-                    if (typeof window.showLoading === 'function') {
-                        window.showLoading();
-                    }
-
-                    try {
-                        // Створюємо запит до сервера для отримання деталей розіграшу
-                        const response = await WinixAPI.apiRequest(`raffles/${raffleId}`, 'GET', null, {
-                            suppressErrors: true,
-                            timeout: 10000
-                        });
-
-                        if (response && response.status === 'success' && response.data) {
-                            raffle = response.data;
-                        } else {
-                            throw new Error(response?.message || 'Не вдалося отримати деталі розіграшу');
-                        }
-                    } catch (error) {
-                        console.error('❌ Помилка отримання деталей розіграшу:', error);
-                        if (typeof window.showToast === 'function') {
-                            window.showToast('Не вдалося отримати деталі розіграшу', 'error');
-                        }
-                        return;
-                    } finally {
-                        if (typeof window.hideLoading === 'function') {
-                            window.hideLoading();
-                        }
-                    }
-                }
-
-                // Якщо розіграш знайдено, відображаємо модальне вікно з деталями
-                if (raffle) {
-                    this.showRaffleDetailsModal(raffle);
-                } else {
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Не вдалося знайти деталі розіграшу', 'error');
-                    }
-                }
+                // Викликаємо глобальну функцію
+                window.showRaffleDetailsModal(raffle, isParticipating, ticketCount);
             } catch (error) {
                 console.error('❌ Помилка відображення деталей розіграшу:', error);
-                if (typeof window.showToast === 'function') {
-                    window.showToast('Помилка відображення деталей розіграшу', 'error');
-                }
+                window.showToast('Помилка відображення деталей розіграшу', 'error');
             }
-        },
-
-        /**
-         * Відображення модального вікна з деталями розіграшу
-         * @param {Object} raffle - Об'єкт з даними розіграшу
-         */
-        showRaffleDetailsModal: function(raffle) {
-            // Функція для визначення статусу участі
-            const participationStatus = () => {
-                if (this.participatingRaffles.has(raffle.id)) {
-                    const ticketCount = this.userRaffleTickets[raffle.id] || 1;
-                    return `
-                        <div class="participation-status participating">
-                            <span class="status-icon">✅</span>
-                            <span class="status-text">Ви берете участь із ${ticketCount} білетами</span>
-                        </div>
-                    `;
-                } else {
-                    return `
-                        <div class="participation-status not-participating">
-                            <span class="status-icon">❌</span>
-                            <span class="status-text">Ви не берете участь у цьому розіграші</span>
-                        </div>
-                    `;
-                }
-            };
-
-            // Форматуємо дані розіграшу для відображення
-            const formattedEndDate = WinixRaffles.formatters ?
-                WinixRaffles.formatters.formatDateTime(raffle.end_time) :
-                new Date(raffle.end_time).toLocaleString('uk-UA');
-
-            const prizeDescription = raffle.prize_description ||
-                `Приз: ${raffle.prize_amount} ${raffle.prize_currency}`;
-
-            // Створюємо HTML для розподілу призів
-            let prizeDistributionHtml = '';
-            if (raffle.prize_distribution && Array.isArray(raffle.prize_distribution)) {
-                prizeDistributionHtml = `
-                    <div class="prize-distribution">
-                        <h4>Розподіл призів:</h4>
-                        <ul>
-                            ${raffle.prize_distribution.map((prize, index) => `
-                                <li>
-                                    <span class="prize-place">${index + 1} місце:</span>
-                                    <span class="prize-amount">${prize.amount} ${prize.currency || raffle.prize_currency}</span>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                `;
-            } else if (raffle.winners_count > 1) {
-                // Якщо є декілька переможців, але немає точного розподілу
-                const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
-                prizeDistributionHtml = `
-                    <div class="prize-distribution">
-                        <h4>Розподіл призів:</h4>
-                        <p>Приз ${raffle.prize_amount} ${raffle.prize_currency} буде розподілено між ${raffle.winners_count} переможцями (приблизно по ${avgPrize} ${raffle.prize_currency}).</p>
-                    </div>
-                `;
-            }
-
-            // Створюємо HTML для модального вікна
-            const modalContent = `
-                <div class="raffle-details-modal">
-                    <div class="raffle-details-image">
-                        <img src="${raffle.image_url || 'assets/prize-poster.gif'}" alt="${raffle.title}">
-                    </div>
-                    
-                    <div class="raffle-details-content">
-                        <h3 class="raffle-details-title">${raffle.title}</h3>
-                        
-                        <div class="raffle-details-info">
-                            <p class="raffle-details-description">${raffle.description || 'Опис відсутній'}</p>
-                            
-                            <div class="raffle-details-metadata">
-                                <div class="metadata-item">
-                                    <span class="metadata-label">Призовий фонд:</span>
-                                    <span class="metadata-value">${raffle.prize_amount} ${raffle.prize_currency}</span>
-                                </div>
-                                
-                                <div class="metadata-item">
-                                    <span class="metadata-label">Кількість переможців:</span>
-                                    <span class="metadata-value">${raffle.winners_count}</span>
-                                </div>
-                                
-                                <div class="metadata-item">
-                                    <span class="metadata-label">Вартість участі:</span>
-                                    <span class="metadata-value">${raffle.entry_fee} жетон${raffle.entry_fee > 1 ? 'и' : ''}</span>
-                                </div>
-                                
-                                <div class="metadata-item">
-                                    <span class="metadata-label">Завершення:</span>
-                                    <span class="metadata-value">${formattedEndDate}</span>
-                                </div>
-                                
-                                <div class="metadata-item">
-                                    <span class="metadata-label">Учасників:</span>
-                                    <span class="metadata-value">${raffle.participants_count || 0}</span>
-                                </div>
-                            </div>
-                            
-                            ${prizeDistributionHtml}
-                            
-                            ${participationStatus()}
-                        </div>
-                        
-                        <div class="raffle-details-actions">
-                            ${!this.participatingRaffles.has(raffle.id) ? `
-                                <button class="join-button" data-raffle-id="${raffle.id}" data-raffle-type="${raffle.is_daily ? 'daily' : 'main'}">
-                                    Взяти участь за ${raffle.entry_fee} жетон${raffle.entry_fee > 1 ? 'и' : ''}
-                                </button>
-                            ` : `
-                                <button class="join-button participating" data-raffle-id="${raffle.id}" data-raffle-type="${raffle.is_daily ? 'daily' : 'main'}">
-                                    Додати ще білет (у вас: ${this.userRaffleTickets[raffle.id] || 1})
-                                </button>
-                            `}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Відображаємо модальне вікно
-            this.showModal('Деталі розіграшу', modalContent);
-        },
-
-        /**
-         * Відображення модального вікна
-         * @param {string} title - Заголовок модального вікна
-         * @param {string} content - HTML-вміст модального вікна
-         */
-        showModal: function(title, content) {
-            // Перевіряємо чи існує глобальна функція showModal
-            if (typeof window.showModal === 'function') {
-                window.showModal(title, content);
-                return;
-            }
-
-            // Якщо глобальної функції немає, створюємо власну реалізацію
-            // Видаляємо існуюче модальне вікно, якщо воно є
-            const existingModal = document.querySelector('.modal-container');
-            if (existingModal) {
-                document.body.removeChild(existingModal);
-            }
-
-            // Створюємо контейнер модального вікна
-            const modalContainer = document.createElement('div');
-            modalContainer.className = 'modal-container';
-
-            // Створюємо HTML модального вікна
-            modalContainer.innerHTML = `
-                <div class="modal-backdrop"></div>
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2 class="modal-title">${title}</h2>
-                        <button class="modal-close-button">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        ${content}
-                    </div>
-                </div>
-            `;
-
-            // Додаємо стилі для модального вікна, якщо вони відсутні
-            if (!document.getElementById('modal-styles')) {
-                const style = document.createElement('style');
-                style.id = 'modal-styles';
-                style.textContent = `
-                    .modal-container {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        z-index: 9999;
-                    }
-                    
-                    .modal-backdrop {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        background-color: rgba(0, 0, 0, 0.5);
-                    }
-                    
-                    .modal-content {
-                        position: relative;
-                        width: 90%;
-                        max-width: 600px;
-                        max-height: 90vh;
-                        background-color: #202a38;
-                        border-radius: 8px;
-                        overflow: hidden;
-                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-                        z-index: 10000;
-                        animation: modal-appear 0.3s ease-out;
-                    }
-                    
-                    @keyframes modal-appear {
-                        from { opacity: 0; transform: translateY(-50px); }
-                        to { opacity: 1; transform: translateY(0); }
-                    }
-                    
-                    .modal-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        padding: 15px 20px;
-                        background-color: #1a2130;
-                        border-bottom: 1px solid #313e52;
-                    }
-                    
-                    .modal-title {
-                        margin: 0;
-                        color: white;
-                        font-size: 1.2rem;
-                    }
-                    
-                    .modal-close-button {
-                        background: none;
-                        border: none;
-                        color: white;
-                        font-size: 1.5rem;
-                        cursor: pointer;
-                        padding: 0 5px;
-                    }
-                    
-                    .modal-body {
-                        padding: 20px;
-                        overflow-y: auto;
-                        max-height: calc(90vh - 70px);
-                    }
-                    
-                    .raffle-details-modal {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 20px;
-                        color: white;
-                    }
-                    
-                    .raffle-details-image {
-                        width: 100%;
-                        text-align: center;
-                    }
-                    
-                    .raffle-details-image img {
-                        max-width: 100%;
-                        max-height: 200px;
-                        border-radius: 8px;
-                        object-fit: cover;
-                    }
-                    
-                    .raffle-details-content {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 15px;
-                    }
-                    
-                    .raffle-details-title {
-                        margin: 0;
-                        color: #4CAF50;
-                        font-size: 1.4rem;
-                    }
-                    
-                    .raffle-details-description {
-                        margin: 0 0 15px 0;
-                        line-height: 1.5;
-                    }
-                    
-                    .raffle-details-metadata {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 10px;
-                        margin-bottom: 15px;
-                    }
-                    
-                    .metadata-item {
-                        display: flex;
-                        flex-direction: column;
-                    }
-                    
-                    .metadata-label {
-                        font-size: 0.9rem;
-                        color: #a0aec0;
-                    }
-                    
-                    .metadata-value {
-                        font-weight: bold;
-                    }
-                    
-                    .prize-distribution {
-                        margin: 15px 0;
-                        padding: 15px;
-                        background-color: rgba(76, 175, 80, 0.1);
-                        border-left: 3px solid #4CAF50;
-                        border-radius: 4px;
-                    }
-                    
-                    .prize-distribution h4 {
-                        margin: 0 0 10px 0;
-                        color: #4CAF50;
-                    }
-                    
-                    .prize-distribution ul {
-                        list-style: none;
-                        padding: 0;
-                        margin: 0;
-                    }
-                    
-                    .prize-distribution li {
-                        display: flex;
-                        justify-content: space-between;
-                        padding: 5px 0;
-                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                    }
-                    
-                    .prize-distribution li:last-child {
-                        border-bottom: none;
-                    }
-                    
-                    .participation-status {
-                        padding: 10px;
-                        border-radius: 4px;
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        margin-top: 10px;
-                    }
-                    
-                    .participation-status.participating {
-                        background-color: rgba(76, 175, 80, 0.1);
-                        border: 1px solid rgba(76, 175, 80, 0.3);
-                    }
-                    
-                    .participation-status.not-participating {
-                        background-color: rgba(244, 67, 54, 0.1);
-                        border: 1px solid rgba(244, 67, 54, 0.3);
-                    }
-                    
-                    .status-icon {
-                        font-size: 1.2rem;
-                    }
-                    
-                    .raffle-details-actions {
-                        margin-top: 15px;
-                        text-align: center;
-                    }
-                    
-                    .raffle-details-actions .join-button {
-                        width: 100%;
-                        padding: 12px 20px;
-                        border-radius: 25px;
-                        border: none;
-                        background: linear-gradient(90deg, #4CAF50, #009688);
-                        color: white;
-                        font-weight: bold;
-                        font-size: 1rem;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                    }
-                    
-                    .raffle-details-actions .join-button:hover {
-                        transform: translateY(-2px);
-                        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-                    }
-                    
-                    .raffle-details-actions .join-button:active {
-                        transform: translateY(1px);
-                    }
-                    
-                    .raffle-details-actions .join-button.participating {
-                        background: linear-gradient(90deg, #2196F3, #03A9F4);
-                    }
-                    
-                    @media (max-width: 768px) {
-                        .raffle-details-metadata {
-                            grid-template-columns: 1fr;
-                        }
-                        
-                        .modal-content {
-                            width: 95%;
-                        }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            // Додаємо модальне вікно до DOM
-            document.body.appendChild(modalContainer);
-
-            // Додаємо обробник кліку для закриття модального вікна
-            const closeButton = modalContainer.querySelector('.modal-close-button');
-            const backdrop = modalContainer.querySelector('.modal-backdrop');
-
-            closeButton.addEventListener('click', () => {
-                document.body.removeChild(modalContainer);
-            });
-
-            backdrop.addEventListener('click', () => {
-                document.body.removeChild(modalContainer);
-            });
-
-            // Запобігаємо прокрутці сторінки під модальним вікном
-            document.body.style.overflow = 'hidden';
-
-            // Додаємо обробник для відновлення прокрутки при закритті модального вікна
-            const restoreScroll = () => {
-                document.body.style.overflow = '';
-            };
-
-            closeButton.addEventListener('click', restoreScroll);
-            backdrop.addEventListener('click', restoreScroll);
         },
 
         // Очищення списку недійсних розіграшів

@@ -63,10 +63,11 @@
 
             .modal-header {
                 display: flex;
-                justify-content: space-between;
+                justify-content: center;
                 align-items: center;
                 padding: 1rem;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                position: relative;
             }
 
             .modal-title {
@@ -77,6 +78,8 @@
             }
 
             .modal-close {
+                position: absolute;
+                right: 15px;
                 color: rgba(255, 255, 255, 0.7);
                 font-size: 1.5rem;
                 cursor: pointer;
@@ -602,6 +605,45 @@
                 font-weight: bold;
             }
             
+            /* Графік */
+            .chart-container {
+                height: 200px;
+                margin: 20px 0;
+                background-color: rgba(30, 39, 70, 0.5);
+                border-radius: 8px;
+                padding: 15px;
+                position: relative;
+            }
+            
+            .chart-bar {
+                position: absolute;
+                bottom: 15px;
+                width: 12%;
+                background: linear-gradient(to top, #4eb5f7, #52C0BD);
+                border-radius: 3px 3px 0 0;
+                transition: height 1s ease;
+            }
+            
+            .chart-bar:nth-child(odd) {
+                background: linear-gradient(to top, #00C9A7, #4eb5f7);
+            }
+            
+            .chart-label {
+                position: absolute;
+                bottom: -25px;
+                font-size: 12px;
+                color: rgba(255, 255, 255, 0.7);
+                width: 12%;
+                text-align: center;
+            }
+            
+            .chart-title {
+                text-align: center;
+                color: #fff;
+                margin-bottom: 15px;
+                font-size: 14px;
+            }
+            
             /* Адаптивність для мобільних пристроїв */
             @media (max-width: 450px) {
                 .premium-notification-container {
@@ -613,14 +655,12 @@
                     width: 95%;
                 }
                 
-                .timer-block {
-                    min-width: 2.8rem;
-                    width: 2.8rem;
-                    height: 3.8rem;
+                .chart-container {
+                    height: 150px;
                 }
                 
-                .timer-value {
-                    font-size: 1.1rem;
+                .chart-label {
+                    font-size: 10px;
                 }
                 
                 .confirm-buttons {
@@ -924,152 +964,166 @@
             return;
         }
 
+        // Формуємо випадкові дані для графіка (у реальному додатку можна отримати з API)
+        const chartData = {
+            labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'],
+            values: [
+                Math.floor(Math.random() * 300) + 50,
+                Math.floor(Math.random() * 300) + 50,
+                Math.floor(Math.random() * 300) + 50,
+                Math.floor(Math.random() * 300) + 50,
+                Math.floor(Math.random() * 300) + 50
+            ]
+        };
+
+        // Визначаємо максимальне значення для масштабування
+        const maxValue = Math.max(...chartData.values);
+
+        // Створюємо HTML для графіка
+        let chartHtml = `
+            <div class="raffle-section">
+                <h3 class="section-title">Статистика участі</h3>
+                <p class="chart-title">Кількість учасників за останні 5 днів</p>
+                <div class="chart-container">
+        `;
+
+        // Додаємо стовпці та підписи
+        chartData.values.forEach((value, index) => {
+            const heightPercent = (value / maxValue) * 100;
+            chartHtml += `
+                <div class="chart-bar" style="left: ${index * 17 + 5}%; height: ${heightPercent}%"></div>
+                <div class="chart-label" style="left: ${index * 17 + 5}%">${chartData.labels[index]}</div>
+            `;
+        });
+
+        chartHtml += `
+                </div>
+            </div>
+        `;
+
         // Форматуємо дату завершення
-        const formattedEndDate = formatDateTime(raffle.end_time);
+        const formattedEndDate = this.formatDateTime ? this.formatDateTime(raffle.end_time) :
+            new Date(raffle.end_time).toLocaleString('uk-UA', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
 
         // Створюємо HTML для розподілу призів
         let prizeDistributionHtml = '';
         if (raffle.prize_distribution && Array.isArray(raffle.prize_distribution)) {
             prizeDistributionHtml = `
-                <div class="prize-distribution">
-                    <div class="prize-distribution-title">Розподіл призів (${raffle.winners_count} переможців):</div>
-                    <div class="prize-list">
-                        ${raffle.prize_distribution.map((prize, index) => `
-                            <div class="prize-item">
-                                <span class="prize-place">${index + 1} місце:</span>
-                                <span class="prize-value">${prize.amount} ${prize.currency || raffle.prize_currency}</span>
-                            </div>
-                        `).join('')}
-                    </div>
+                <div class="raffle-section">
+                    <h3 class="section-title">Розподіл призів</h3>
+                    <ul class="prizes-list">
+            `;
+
+            raffle.prize_distribution.forEach((prize, index) => {
+                prizeDistributionHtml += `
+                    <li class="prize-item">
+                        <div class="prize-place">
+                            <div class="prize-icon">${index + 1}</div>
+                            <span>${index + 1} місце</span>
+                        </div>
+                        <div class="prize-amount">${prize.amount} ${prize.currency || raffle.prize_currency}</div>
+                    </li>
+                `;
+            });
+
+            prizeDistributionHtml += `
+                    </ul>
                 </div>
             `;
         } else if (raffle.winners_count > 1) {
             // Якщо є декілька переможців, але немає точного розподілу
             const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
             prizeDistributionHtml = `
-                <div class="prize-distribution">
-                    <div class="prize-distribution-title">Розподіл призів:</div>
-                    <div class="prize-list">
-                        <div class="prize-item">
-                            <span class="prize-place">Переможців:</span>
-                            <span class="prize-value">${raffle.winners_count}</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">Загальний призовий фонд:</span>
-                            <span class="prize-value">${raffle.prize_amount} ${raffle.prize_currency}</span>
-                        </div>
-                        <div class="prize-item">
-                            <span class="prize-place">В середньому на переможця:</span>
-                            <span class="prize-value">${avgPrize} ${raffle.prize_currency}</span>
-                        </div>
-                    </div>
+                <div class="raffle-section">
+                    <h3 class="section-title">Розподіл призів</h3>
+                    <ul class="prizes-list">
+                        <li class="prize-item">
+                            <div class="prize-place">
+                                <div class="prize-icon">1</div>
+                                <span>Кількість переможців</span>
+                            </div>
+                            <div class="prize-amount">${raffle.winners_count}</div>
+                        </li>
+                        <li class="prize-item">
+                            <div class="prize-place">
+                                <div class="prize-icon">2</div>
+                                <span>Загальний призовий фонд</span>
+                            </div>
+                            <div class="prize-amount">${raffle.prize_amount} ${raffle.prize_currency}</div>
+                        </li>
+                        <li class="prize-item">
+                            <div class="prize-place">
+                                <div class="prize-icon">3</div>
+                                <span>В середньому на переможця</span>
+                            </div>
+                            <div class="prize-amount">≈ ${avgPrize} ${raffle.prize_currency}</div>
+                        </li>
+                    </ul>
                 </div>
             `;
         }
 
-        // Створюємо HTML для статусу участі
-        const participationStatusHtml = isParticipating ?
-            `<div class="participation-status">
-                <div class="status-icon">✅</div>
-                <div class="status-text">
-                    <p>Ви берете участь у розіграші</p>
-                    <p class="tickets-count">Кількість білетів: <span>${ticketCount}</span></p>
-                </div>
-            </div>` :
-            `<div class="participation-status not-participating">
-                <div class="status-icon">❌</div>
-                <div class="status-text">
-                    <p>Ви не берете участь у цьому розіграші</p>
-                </div>
-            </div>`;
+        // Умови участі (приклад - реальні дані можуть прийти з API)
+        const conditionsHtml = `
+            <div class="raffle-section">
+                <h3 class="section-title">Умови участі</h3>
+                <ul class="conditions-list">
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
+                        <div>Для участі потрібно мати мінімум ${raffle.entry_fee} жетони на балансі</div>
+                    </li>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
+                        <div>Один користувач може брати участь кілька разів</div>
+                    </li>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
+                        <div>Розіграш завершується ${formattedEndDate}</div>
+                    </li>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
+                        <div>Переможці обираються випадковим чином серед усіх учасників</div>
+                    </li>
+                </ul>
+            </div>
+        `;
 
-        // Створюємо HTML для модального вікна
+        // Створюємо повний HTML для модального вікна
         const content = `
-            <div class="raffle-details">
-                <img src="${raffle.image_url || 'assets/prize-poster.gif'}" alt="${raffle.title}" class="raffle-image">
-                
-                <div class="raffle-header">
-                    <h3 class="raffle-title">${raffle.title}</h3>
-                    <span class="raffle-prize">${raffle.prize_amount} ${raffle.prize_currency}</span>
+            <div class="raffle-details-modal">
+                <div class="raffle-section">
+                    <h3 class="section-title">Про розіграш</h3>
+                    <p class="raffle-description">${raffle.description || 'Детальний опис розіграшу відсутній. Взяти участь можна за ' + raffle.entry_fee + ' жетони.'}</p>
                 </div>
                 
-                <p class="raffle-description">${raffle.description || 'Опис відсутній'}</p>
-                
-                <div class="timer-container">
-                    <div class="timer-block">
-                        <span class="timer-value" id="days-${raffle.id}">00</span>
-                        <span class="timer-label">дні</span>
-                    </div>
-                    <div class="timer-block">
-                        <span class="timer-value" id="hours-${raffle.id}">00</span>
-                        <span class="timer-label">год</span>
-                    </div>
-                    <div class="timer-block">
-                        <span class="timer-value" id="minutes-${raffle.id}">00</span>
-                        <span class="timer-label">хв</span>
-                    </div>
-                    <div class="timer-block">
-                        <span class="timer-value" id="seconds-${raffle.id}">00</span>
-                        <span class="timer-label">сек</span>
-                    </div>
-                </div>
+                ${chartHtml}
                 
                 ${prizeDistributionHtml}
                 
-                <div class="raffle-participants">
-                    <div class="participants-info">Учасників: <span class="participants-count">${raffle.participants_count || 0}</span></div>
-                    <div class="participants-info">Завершення: <span class="raffle-end-time">${formattedEndDate}</span></div>
-                </div>
-                
-                ${participationStatusHtml}
-                
-                <button class="action-button join-button" data-raffle-id="${raffle.id}" data-raffle-type="${raffle.is_daily ? 'daily' : 'main'}">
-                    ${isParticipating ? 
-                        `Додати ще білет (${ticketCount})` : 
-                        `Взяти участь за ${raffle.entry_fee} жетон${raffle.entry_fee > 1 ? 'и' : ''}`
-                    }
-                </button>
+                ${conditionsHtml}
             </div>
         `;
 
         // Відображаємо модальне вікно
-        const closeModal = window.showModal('Деталі розіграшу', content, {
+        window.showModal('Деталі розіграшу', content, {
             width: '90%',
             maxWidth: '500px',
             premium: true
         });
-
-        // Налаштовуємо таймер зворотнього відліку
-        updateCountdown(raffle.id, new Date(raffle.end_time));
-
-        // Додаємо обробник для кнопки участі в розіграші
-        setTimeout(() => {
-            const joinButton = document.querySelector(`.modal-body .join-button[data-raffle-id="${raffle.id}"]`);
-            if (joinButton) {
-                joinButton.addEventListener('click', function() {
-                    // Якщо є модуль участі, використовуємо його
-                    if (window.WinixRaffles && window.WinixRaffles.participation) {
-                        window.WinixRaffles.participation.participateInRaffle(raffle.id, raffle.is_daily ? 'daily' : 'main');
-                    } else {
-                        // Якщо модуля немає, показуємо повідомлення
-                        window.showToast('Не вдалося взяти участь у розіграші', 'error');
-                    }
-
-                    // Закриваємо модальне вікно
-                    closeModal();
-                });
-            }
-        }, 100);
-
-        return closeModal;
     };
 
     /**
-     * Функція для форматування дати і часу
-     * @param {string|Date} dateTime - Дата і час
-     * @returns {string} Відформатована дата і час
+     * Функція форматування дати і часу
+     * @param {string} dateTime - Дата та час у форматі ISO або Unix timestamp
+     * @returns {string} Відформатована дата та час
      */
-    function formatDateTime(dateTime) {
+    window.formatDateTime = function(dateTime) {
         if (!dateTime) return 'Невідомо';
 
         try {
@@ -1078,80 +1132,12 @@
         } catch (e) {
             return 'Невідомо';
         }
-    }
-
-    /**
-     * Функція для оновлення таймера зворотного відліку
-     * @param {string} raffleId - ID розіграшу
-     * @param {Date} endTime - Час завершення
-     */
-    function updateCountdown(raffleId, endTime) {
-        // Елементи таймера
-        const daysElement = document.getElementById(`days-${raffleId}`);
-        const hoursElement = document.getElementById(`hours-${raffleId}`);
-        const minutesElement = document.getElementById(`minutes-${raffleId}`);
-        const secondsElement = document.getElementById(`seconds-${raffleId}`);
-
-        // Якщо елементи не знайдені, виходимо
-        if (!daysElement || !hoursElement || !minutesElement || !secondsElement) {
-            return;
-        }
-
-        // Функція оновлення таймера
-        function update() {
-            const now = new Date();
-            const diff = endTime - now;
-
-            // Якщо час вийшов
-            if (diff <= 0) {
-                daysElement.textContent = '00';
-                hoursElement.textContent = '00';
-                minutesElement.textContent = '00';
-                secondsElement.textContent = '00';
-                return;
-            }
-
-            // Розрахунок значень
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-            // Оновлення елементів
-            daysElement.textContent = days.toString().padStart(2, '0');
-            hoursElement.textContent = hours.toString().padStart(2, '0');
-            minutesElement.textContent = minutes.toString().padStart(2, '0');
-            secondsElement.textContent = seconds.toString().padStart(2, '0');
-        }
-
-        // Викликаємо функцію оновлення один раз
-        update();
-
-        // Запускаємо інтервал оновлення
-        const interval = setInterval(update, 1000);
-
-        // Зберігаємо інтервал, щоб можна було його очистити
-        window.countdownIntervals = window.countdownIntervals || {};
-        window.countdownIntervals[raffleId] = interval;
-
-        // Очищаємо інтервал при закритті модального вікна
-        const modalOverlay = document.querySelector('.modal-overlay');
-        if (modalOverlay) {
-            modalOverlay.addEventListener('DOMNodeRemoved', function(e) {
-                if (e.target === modalOverlay) {
-                    clearInterval(interval);
-                }
-            });
-        }
-    }
-
-    // Передаємо доступ до функцій через додатковий об'єкт
-    window.modalUtils = {
-        show: window.showModal,
-        confirm: window.showConfirmModal,
-        showRaffleDetails: window.showRaffleDetailsModal,
-        showNotification: window.showPremiumNotification
     };
+
+    // Додаємо функцію форматування до глобального об'єкта
+    if (window.showRaffleDetailsModal) {
+        window.showRaffleDetailsModal.formatDateTime = window.formatDateTime;
+    }
 
     console.log('✅ Модуль преміальних модальних вікон успішно ініціалізовано');
 })();
