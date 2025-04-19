@@ -1,7 +1,7 @@
 /**
  * WINIX - Преміальні модальні вікна (modal.js)
  * Універсальний компонент модального вікна з сучасним дизайном
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 (function() {
@@ -15,7 +15,7 @@
 
     console.log('🔄 Ініціалізація модуля преміальних модальних вікон...');
 
-    // Додаємо базові стилі для модальних вікон в стилі original-index.html
+    // Додаємо базові стилі для модальних вікон
     if (!document.getElementById('premium-modal-styles')) {
         const style = document.createElement('style');
         style.id = 'premium-modal-styles';
@@ -29,7 +29,7 @@
                 bottom: 0;
                 background: rgba(0, 0, 0, 0.8);
                 backdrop-filter: blur(3px);
-                z-index: 100;
+                z-index: 9999;
                 display: flex;
                 justify-content: center;
                 align-items: center;
@@ -54,6 +54,9 @@
                 transform: scale(0.9);
                 opacity: 0;
                 transition: transform 0.3s, opacity 0.3s;
+                display: flex;
+                flex-direction: column;
+                color: #ffffff;
             }
 
             .modal-overlay.show .modal-container {
@@ -65,9 +68,10 @@
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                padding: 1rem;
+                padding: 1rem 1.5rem;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);
                 position: relative;
+                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9));
             }
 
             .modal-title {
@@ -75,6 +79,8 @@
                 font-weight: bold;
                 color: white;
                 text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                margin: 0;
+                text-align: center;
             }
 
             .modal-close {
@@ -92,16 +98,19 @@
                 align-items: center;
                 justify-content: center;
                 border-radius: 50%;
+                background: rgba(255, 255, 255, 0.1);
             }
 
             .modal-close:hover {
                 color: white;
-                background: rgba(255, 255, 255, 0.1);
+                background: rgba(255, 255, 255, 0.2);
             }
 
             .modal-body {
-                padding: 1rem;
+                padding: 1rem 1.5rem;
                 color: #ffffff;
+                flex-grow: 1;
+                overflow-y: auto;
             }
 
             .modal-footer {
@@ -134,6 +143,7 @@
                     rgba(0, 201, 167, 0.8),
                     rgba(0, 201, 167, 0));
                 animation: glow-line 2s infinite;
+                z-index: 10;
             }
             
             @keyframes glow-line {
@@ -149,7 +159,7 @@
             }
             
             .premium-modal .modal-header {
-                background: linear-gradient(90deg, rgba(30, 39, 70, 0.8), rgba(30, 39, 70, 0.9));
+                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9));
                 padding: 20px;
                 position: relative;
                 border-bottom: 1px solid rgba(78, 181, 247, 0.2);
@@ -180,6 +190,7 @@
                 font-size: 22px;
                 cursor: pointer;
                 transition: all 0.3s;
+                z-index: 15;
             }
             
             .premium-modal .modal-close:hover {
@@ -187,9 +198,34 @@
                 transform: rotate(90deg);
             }
             
+            .premium-modal .modal-body {
+                padding: 20px;
+                color: #fff;
+                font-size: 16px;
+                line-height: 1.5;
+                background: transparent;
+            }
+            
             /* Стилі для розіграшів */
             .raffle-details-modal {
                 padding: 0;
+            }
+            
+            .raffle-section {
+                margin-bottom: 20px;
+                background: rgba(26, 32, 44, 0.3);
+                border-radius: 12px;
+                padding: 16px;
+                border: 1px solid rgba(78, 181, 247, 0.1);
+            }
+            
+            .section-title {
+                color: #4eb5f7;
+                font-size: 18px;
+                font-weight: bold;
+                margin: 0 0 12px 0;
+                border-bottom: 1px solid rgba(78, 181, 247, 0.2);
+                padding-bottom: 8px;
             }
             
             .raffle-image {
@@ -199,10 +235,6 @@
                 border-radius: 12px;
                 margin-bottom: 20px;
                 box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            }
-            
-            .raffle-details {
-                padding: 20px;
             }
             
             .raffle-header {
@@ -270,7 +302,7 @@
             }
             
             .prize-distribution {
-                background: rgba(0, 0, 0, 0.2);
+                background: rgba(26, 32, 44, 0.5);
                 border-radius: 0.75rem;
                 padding: 0.75rem;
                 margin: 0.75rem 0;
@@ -292,12 +324,30 @@
             .prize-item {
                 display: flex;
                 justify-content: space-between;
-                font-size: 0.875rem;
-                color: rgba(255, 255, 255, 0.9);
+                align-items: center;
+                padding: 12px 15px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(26, 32, 44, 0.3);
+                border-radius: 8px;
             }
             
             .prize-place {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .prize-icon {
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                background: linear-gradient(to right, #4eb5f7, #00C9A7);
+                color: #1A1A2E;
                 font-weight: bold;
+                font-size: 12px;
             }
             
             .prize-value {
@@ -368,150 +418,6 @@
             .action-button:active, .premium-close-button:active {
                 transform: translateY(0);
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            }
-            
-            /* Преміальні сповіщення */
-            .premium-notification-container {
-                position: fixed;
-                top: 1.25rem;
-                right: 1.25rem;
-                z-index: 9999;
-                width: 90%;
-                max-width: 380px;
-                display: flex;
-                flex-direction: column;
-                gap: 0.625rem;
-                pointer-events: none;
-            }
-            
-            .premium-notification {
-                background: rgba(30, 39, 70, 0.85);
-                backdrop-filter: blur(10px);
-                border-radius: 16px;
-                padding: 16px;
-                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
-                display: flex;
-                align-items: center;
-                color: white;
-                transform: translateX(50px) scale(0.95);
-                opacity: 0;
-                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-                margin-bottom: 0.5rem;
-                overflow: hidden;
-                pointer-events: auto;
-                position: relative;
-            }
-            
-            .premium-notification.show {
-                transform: translateX(0) scale(1);
-                opacity: 1;
-            }
-            
-            .premium-notification.hide {
-                transform: translateX(50px) scale(0.95);
-                opacity: 0;
-            }
-            
-            .premium-notification::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 4px;
-                height: 100%;
-                background: linear-gradient(to bottom, #4DB6AC, #00C9A7);
-            }
-            
-            .premium-notification.error::before {
-                background: linear-gradient(to bottom, #FF5252, #B71C1C);
-            }
-            
-            .premium-notification.success::before {
-                background: linear-gradient(to bottom, #4CAF50, #2E7D32);
-            }
-            
-            .premium-notification-icon {
-                width: 32px;
-                height: 32px;
-                min-width: 32px;
-                border-radius: 50%;
-                background: rgba(0, 201, 167, 0.15);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                margin-right: 12px;
-                font-size: 18px;
-            }
-            
-            .premium-notification.error .premium-notification-icon {
-                background: rgba(244, 67, 54, 0.15);
-            }
-            
-            .premium-notification.success .premium-notification-icon {
-                background: rgba(76, 175, 80, 0.15);
-            }
-            
-            .premium-notification-content {
-                flex-grow: 1;
-                padding-right: 8px;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-            
-            .premium-notification-close {
-                width: 24px;
-                height: 24px;
-                background: rgba(255, 255, 255, 0.1);
-                border: none;
-                border-radius: 50%;
-                color: rgba(255, 255, 255, 0.7);
-                font-size: 14px;
-                cursor: pointer;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                transition: all 0.2s ease;
-                padding: 0;
-                margin-left: 8px;
-            }
-            
-            .premium-notification-close:hover {
-                background: rgba(255, 255, 255, 0.2);
-                color: white;
-            }
-            
-            .premium-notification-progress {
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                height: 3px;
-                background: linear-gradient(to right, rgba(78, 181, 247, 0.5), rgba(0, 201, 167, 0.8));
-                width: 100%;
-                transform-origin: left;
-                animation: progress-shrink 3s linear forwards;
-            }
-            
-            .premium-notification.error .premium-notification-progress {
-                background: linear-gradient(to right, rgba(244, 67, 54, 0.5), rgba(183, 28, 28, 0.8));
-            }
-            
-            .premium-notification.success .premium-notification-progress {
-                background: linear-gradient(to right, rgba(76, 175, 80, 0.5), rgba(46, 125, 50, 0.8));
-            }
-            
-            @keyframes progress-shrink {
-                from { transform: scaleX(1); }
-                to { transform: scaleX(0); }
-            }
-            
-            .premium-notification-title {
-                font-weight: 600;
-                margin-bottom: 4px;
-                font-size: 15px;
-            }
-            
-            .premium-notification-message {
-                opacity: 0.9;
             }
             
             /* Стиль для модального вікна підтвердження */
@@ -644,9 +550,16 @@
                 font-size: 14px;
             }
             
+            /* Список призів */
+            .prizes-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
             /* Адаптивність для мобільних пристроїв */
             @media (max-width: 450px) {
-                .premium-notification-container {
+                .premium-modal-container {
                     right: 1rem;
                     width: calc(100% - 2rem);
                 }
@@ -697,7 +610,7 @@
         const settings = { ...defaultOptions, ...options };
 
         // Видаляємо існуюче модальне вікно, якщо воно є
-        const existingModal = document.querySelector('.modal-container');
+        const existingModal = document.querySelector('.modal-overlay');
         if (existingModal && existingModal.parentNode) {
             existingModal.parentNode.removeChild(existingModal);
         }
@@ -791,117 +704,6 @@
 
         // Повертаємо функцію закриття модального вікна
         return closeModal;
-    };
-
-    /**
-     * Преміальні сповіщення в стилі WINIX
-     * @param {string} message - Текст повідомлення
-     * @param {boolean} isError - Чи є це повідомлення про помилку
-     * @param {Function} callback - Функція зворотного виклику
-     */
-    window.showPremiumNotification = function(message, isError = false, callback = null) {
-        // Запобігаємо показу порожніх повідомлень
-        if (!message || message.trim() === '') {
-            if (callback) setTimeout(callback, 100);
-            return;
-        }
-
-        try {
-            // Перевіряємо, чи контейнер для повідомлень вже існує
-            let container = document.getElementById('premium-notification-container');
-
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'premium-notification-container';
-                container.className = 'premium-notification-container';
-                document.body.appendChild(container);
-            }
-
-            // Створюємо повідомлення
-            const notification = document.createElement('div');
-            notification.className = `premium-notification ${isError ? 'error' : 'success'}`;
-
-            // Додаємо іконку
-            const icon = document.createElement('div');
-            icon.className = 'premium-notification-icon';
-            icon.innerHTML = isError ? '&#10060;' : '&#10004;';
-
-            // Контент повідомлення
-            const content = document.createElement('div');
-            content.className = 'premium-notification-content';
-
-            // Додаємо заголовок та текст
-            const title = document.createElement('div');
-            title.className = 'premium-notification-title';
-            title.textContent = isError ? 'Помилка' : 'Успішно';
-
-            const messageEl = document.createElement('div');
-            messageEl.className = 'premium-notification-message';
-            messageEl.textContent = message;
-
-            content.appendChild(title);
-            content.appendChild(messageEl);
-
-            // Кнопка закриття
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'premium-notification-close';
-            closeBtn.innerHTML = '&times;';
-
-            // Індикатор прогресу
-            const progress = document.createElement('div');
-            progress.className = 'premium-notification-progress';
-
-            // Збираємо елементи
-            notification.appendChild(icon);
-            notification.appendChild(content);
-            notification.appendChild(closeBtn);
-            notification.appendChild(progress);
-
-            // Додаємо повідомлення до контейнера
-            container.appendChild(notification);
-
-            // Показуємо повідомлення після короткої затримки
-            setTimeout(() => {
-                notification.classList.add('show');
-            }, 10);
-
-            // Закриття при кліку на кнопку
-            closeBtn.addEventListener('click', () => {
-                notification.classList.remove('show');
-                notification.classList.add('hide');
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                    if (callback) callback();
-                }, 300);
-            });
-
-            // Автоматичне закриття
-            setTimeout(() => {
-                if (!notification.classList.contains('hide')) {
-                    notification.classList.remove('show');
-                    notification.classList.add('hide');
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            notification.parentNode.removeChild(notification);
-                        }
-                        if (callback) callback();
-                    }, 300);
-                }
-            }, 5000);
-        } catch (e) {
-            console.error('Помилка показу повідомлення:', e);
-            // Якщо не вдалося створити повідомлення, використовуємо alert
-            alert(message);
-            if (callback) callback();
-        }
-    };
-
-    // Перевизначаємо стандартний showToast, щоб використовував преміальний стиль
-    window.showToast = function(message, type = 'info') {
-        const isError = type === 'error';
-        window.showPremiumNotification(message, isError);
     };
 
     /**
@@ -1002,14 +804,17 @@
         `;
 
         // Форматуємо дату завершення
-        const formattedEndDate = this.formatDateTime ? this.formatDateTime(raffle.end_time) :
-            new Date(raffle.end_time).toLocaleString('uk-UA', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+        const formatDateTime = (dateTime) => {
+            if (!dateTime) return 'Невідомо';
+            try {
+                const date = new Date(dateTime);
+                return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            } catch (e) {
+                return 'Невідомо';
+            }
+        };
+
+        const formattedEndDate = formatDateTime(raffle.end_time);
 
         // Створюємо HTML для розподілу призів
         let prizeDistributionHtml = '';
@@ -1036,7 +841,7 @@
                     </ul>
                 </div>
             `;
-        } else if (raffle.winners_count > 1) {
+        } else if (raffle.winners_count > 0) {
             // Якщо є декілька переможців, але немає точного розподілу
             const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
             prizeDistributionHtml = `
@@ -1073,24 +878,45 @@
         const conditionsHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Умови участі</h3>
-                <ul class="conditions-list">
-                    <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                <ul class="conditions-list" style="list-style: none; padding: 0; margin: 0;">
+                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
                         <div>Для участі потрібно мати мінімум ${raffle.entry_fee} жетони на балансі</div>
                     </li>
-                    <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
                         <div>Один користувач може брати участь кілька разів</div>
                     </li>
-                    <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
                         <div>Розіграш завершується ${formattedEndDate}</div>
                     </li>
-                    <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 0; align-items: center;">
+                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
                         <div>Переможці обираються випадковим чином серед усіх учасників</div>
                     </li>
                 </ul>
+            </div>
+        `;
+
+        // Відображення статусу участі
+        const participationStatusHtml = `
+            <div class="raffle-section">
+                <h3 class="section-title">Ваша участь</h3>
+                <div class="participation-status ${isParticipating ? 'participating' : 'not-participating'}">
+                    <div class="status-icon">
+                        ${isParticipating ? '✓' : '×'}
+                    </div>
+                    <div class="status-text">
+                        <p>${isParticipating ? 'Ви берете участь у цьому розіграші' : 'Ви не берете участь у цьому розіграші'}</p>
+                        ${isParticipating ? `<p class="tickets-count">У вас <span>${ticketCount}</span> білет${ticketCount > 1 ? 'ів' : ''}</p>` : ''}
+                    </div>
+                </div>
+                ${isParticipating ? `
+                <button class="action-button">Додати ще один білет</button>
+                ` : `
+                <button class="action-button">Взяти участь за ${raffle.entry_fee} жетони</button>
+                `}
             </div>
         `;
 
@@ -1107,37 +933,44 @@
                 ${prizeDistributionHtml}
                 
                 ${conditionsHtml}
+                
+                ${participationStatusHtml}
             </div>
         `;
 
         // Відображаємо модальне вікно
-        window.showModal('Деталі розіграшу', content, {
+        const closeModal = window.showModal('Деталі розіграшу', content, {
             width: '90%',
             maxWidth: '500px',
             premium: true
         });
+
+        // Додаємо обробник для кнопки участі
+        setTimeout(() => {
+            const actionButton = document.querySelector('.action-button');
+            if (actionButton) {
+                actionButton.addEventListener('click', () => {
+                    closeModal();
+
+                    // Знаходимо відповідну кнопку участі на сторінці
+                    const participationButton = document.querySelector(`.join-button[data-raffle-id="${raffle.id}"], .mini-raffle-button[data-raffle-id="${raffle.id}"]`);
+
+                    if (participationButton) {
+                        // Симулюємо клік на кнопку участі
+                        participationButton.click();
+                    } else {
+                        // Або відображаємо повідомлення
+                        window.showToast(`Беремо участь у розіграші за ${raffle.entry_fee} жетонів`, 'info');
+
+                        // Якщо є модуль участі, викликаємо його функцію
+                        if (window.WinixRaffles && window.WinixRaffles.participation) {
+                            window.WinixRaffles.participation.participateInRaffle(raffle.id, 1);
+                        }
+                    }
+                });
+            }
+        }, 100);
     };
-
-    /**
-     * Функція форматування дати і часу
-     * @param {string} dateTime - Дата та час у форматі ISO або Unix timestamp
-     * @returns {string} Відформатована дата та час
-     */
-    window.formatDateTime = function(dateTime) {
-        if (!dateTime) return 'Невідомо';
-
-        try {
-            const date = new Date(dateTime);
-            return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-        } catch (e) {
-            return 'Невідомо';
-        }
-    };
-
-    // Додаємо функцію форматування до глобального об'єкта
-    if (window.showRaffleDetailsModal) {
-        window.showRaffleDetailsModal.formatDateTime = window.formatDateTime;
-    }
 
     console.log('✅ Модуль преміальних модальних вікон успішно ініціалізовано');
 })();
