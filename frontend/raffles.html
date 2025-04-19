@@ -948,5 +948,447 @@ window.resetLoadingState = function() {
     });
 };
 </script>
+<!-- Додайте цей скрипт перед закриваючим тегом </body> у файлі raffles.html -->
+<script>
+    // Глобальні змінні для керування чергою сповіщень
+    window._notificationShowing = false;
+    window._notificationsQueue = [];
+
+    // Додаємо стилі для преміальних сповіщень
+    (function() {
+        if (document.getElementById('premium-notification-styles')) return;
+
+        const style = document.createElement('style');
+        style.id = 'premium-notification-styles';
+        style.textContent = `
+            .premium-notification-container {
+                position: fixed;
+                top: 1.25rem;
+                right: 1.25rem;
+                z-index: 9999;
+                width: 90%;
+                max-width: 380px;
+                display: flex;
+                flex-direction: column;
+                gap: 0.625rem;
+                pointer-events: none;
+            }
+
+            .premium-notification {
+                background: rgba(30, 39, 70, 0.85);
+                backdrop-filter: blur(10px);
+                border-radius: 16px;
+                padding: 16px;
+                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+                display: flex;
+                align-items: center;
+                color: white;
+                transform: translateX(50px) scale(0.95);
+                opacity: 0;
+                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                margin-bottom: 0.5rem;
+                overflow: hidden;
+                pointer-events: auto;
+                position: relative;
+            }
+
+            .premium-notification.show {
+                transform: translateX(0) scale(1);
+                opacity: 1;
+            }
+
+            .premium-notification.hide {
+                transform: translateX(50px) scale(0.95);
+                opacity: 0;
+            }
+
+            .premium-notification::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 4px;
+                height: 100%;
+                background: linear-gradient(to bottom, #4DB6AC, #00C9A7);
+            }
+
+            .premium-notification.error::before {
+                background: linear-gradient(to bottom, #FF5252, #B71C1C);
+            }
+
+            .premium-notification.success::before {
+                background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            }
+
+            .premium-notification.warning::before {
+                background: linear-gradient(to bottom, #FFD740, #FFA000);
+            }
+
+            .premium-notification-icon {
+                width: 32px;
+                height: 32px;
+                min-width: 32px;
+                border-radius: 50%;
+                background: rgba(0, 201, 167, 0.15);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin-right: 12px;
+                font-size: 18px;
+            }
+
+            .premium-notification.error .premium-notification-icon {
+                background: rgba(244, 67, 54, 0.15);
+            }
+
+            .premium-notification.success .premium-notification-icon {
+                background: rgba(76, 175, 80, 0.15);
+            }
+
+            .premium-notification.warning .premium-notification-icon {
+                background: rgba(255, 193, 7, 0.15);
+            }
+
+            .premium-notification-content {
+                flex-grow: 1;
+                padding-right: 8px;
+                font-size: 14px;
+                line-height: 1.5;
+            }
+
+            .premium-notification-close {
+                width: 24px;
+                height: 24px;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                border-radius: 50%;
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 14px;
+                cursor: pointer;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: all 0.2s ease;
+                padding: 0;
+                margin-left: 8px;
+            }
+
+            .premium-notification-close:hover {
+                background: rgba(255, 255, 255, 0.2);
+                color: white;
+            }
+
+            .premium-notification-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 3px;
+                background: linear-gradient(to right, rgba(78, 181, 247, 0.5), rgba(0, 201, 167, 0.8));
+                width: 100%;
+                transform-origin: left;
+                animation: progress-shrink 3s linear forwards;
+            }
+
+            .premium-notification.error .premium-notification-progress {
+                background: linear-gradient(to right, rgba(244, 67, 54, 0.5), rgba(183, 28, 28, 0.8));
+            }
+
+            .premium-notification.success .premium-notification-progress {
+                background: linear-gradient(to right, rgba(76, 175, 80, 0.5), rgba(46, 125, 50, 0.8));
+            }
+
+            .premium-notification.warning .premium-notification-progress {
+                background: linear-gradient(to right, rgba(255, 193, 7, 0.5), rgba(255, 160, 0, 0.8));
+            }
+
+            @keyframes progress-shrink {
+                from { transform: scaleX(1); }
+                to { transform: scaleX(0); }
+            }
+
+            .premium-notification-title {
+                font-weight: 600;
+                margin-bottom: 4px;
+                font-size: 15px;
+            }
+
+            .premium-notification-message {
+                opacity: 0.9;
+            }
+
+            @media (max-width: 450px) {
+                .premium-notification-container {
+                    width: calc(100% - 30px);
+                    right: 15px;
+                }
+
+                .premium-notification {
+                    padding: 12px;
+                }
+
+                .premium-notification-icon {
+                    width: 28px;
+                    height: 28px;
+                    min-width: 28px;
+                    font-size: 16px;
+                }
+
+                .premium-notification-content {
+                    font-size: 13px;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    })();
+
+    // Преміальна функція для показу сповіщень
+    window.showPremiumNotification = function(message, isError = false, callback = null) {
+        // Запобігаємо показу порожніх повідомлень
+        if (!message || message.trim() === '') {
+            if (callback) setTimeout(callback, 100);
+            return;
+        }
+
+        // Якщо уже показується сповіщення, додаємо в чергу
+        if (window._notificationShowing) {
+            if (window._notificationsQueue.length < 2) {
+                window._notificationsQueue.push({ message, isError, callback });
+            } else {
+                // Якщо черга переповнена, і це повідомлення про помилку, показуємо його через alert
+                if (isError) alert(message);
+                if (callback) setTimeout(callback, 100);
+            }
+            return;
+        }
+
+        window._notificationShowing = true;
+
+        try {
+            // Перевіряємо, чи контейнер для повідомлень вже існує
+            let container = document.getElementById('premium-notification-container');
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'premium-notification-container';
+                container.className = 'premium-notification-container';
+                document.body.appendChild(container);
+            }
+
+            // Створюємо повідомлення
+            const notification = document.createElement('div');
+            notification.className = `premium-notification ${isError ? 'error' : 'success'}`;
+
+            // Додаємо іконку
+            const icon = document.createElement('div');
+            icon.className = 'premium-notification-icon';
+            icon.innerHTML = isError ? '&#10060;' : '&#10004;';
+
+            // Контент повідомлення
+            const content = document.createElement('div');
+            content.className = 'premium-notification-content';
+
+            // Додаємо заголовок та текст
+            const title = document.createElement('div');
+            title.className = 'premium-notification-title';
+            title.textContent = isError ? 'Помилка' : 'Успішно';
+
+            const messageEl = document.createElement('div');
+            messageEl.className = 'premium-notification-message';
+            messageEl.textContent = message;
+
+            content.appendChild(title);
+            content.appendChild(messageEl);
+
+            // Кнопка закриття
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'premium-notification-close';
+            closeBtn.innerHTML = '&times;';
+
+            // Індикатор прогресу
+            const progress = document.createElement('div');
+            progress.className = 'premium-notification-progress';
+
+            // Збираємо елементи
+            notification.appendChild(icon);
+            notification.appendChild(content);
+            notification.appendChild(closeBtn);
+            notification.appendChild(progress);
+
+            // Додаємо повідомлення до контейнера
+            container.appendChild(notification);
+
+            // Показуємо повідомлення після короткої затримки
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+
+            // Функція для видалення повідомлення
+            const removeNotification = () => {
+                notification.classList.remove('show');
+                notification.classList.add('hide');
+
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+
+                    window._notificationShowing = false;
+
+                    // Показуємо наступне повідомлення з черги
+                    if (window._notificationsQueue.length > 0) {
+                        const nextNotification = window._notificationsQueue.shift();
+                        window.showPremiumNotification(nextNotification.message, nextNotification.isError, nextNotification.callback);
+                    } else if (callback) {
+                        callback();
+                    }
+                }, 300);
+            };
+
+            // Закриття при кліку на кнопку
+            closeBtn.addEventListener('click', () => {
+                removeNotification();
+            });
+
+            // Автоматичне закриття
+            setTimeout(() => {
+                if (notification.classList.contains('show')) {
+                    removeNotification();
+                }
+            }, 5000);
+        } catch (e) {
+            console.error('Помилка показу повідомлення:', e);
+            // Якщо не вдалося створити повідомлення, використовуємо alert
+            alert(message);
+
+            window._notificationShowing = false;
+
+            // Показуємо наступне повідомлення з черги
+            if (window._notificationsQueue.length > 0) {
+                const nextNotification = window._notificationsQueue.shift();
+                setTimeout(() => {
+                    window.showPremiumNotification(nextNotification.message, nextNotification.isError, nextNotification.callback);
+                }, 100);
+            } else if (callback) {
+                callback();
+            }
+        }
+    };
+
+    // Заміна оригінальної функції showToast на преміальну версію
+    window.showToast = function(message, type = 'info') {
+        const isError = type === 'error' || type === 'error';
+        const isWarning = type === 'warning';
+
+        try {
+            // Перевіряємо, чи контейнер для повідомлень вже існує
+            let container = document.getElementById('premium-notification-container');
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'premium-notification-container';
+                container.className = 'premium-notification-container';
+                document.body.appendChild(container);
+            }
+
+            // Обмежуємо кількість активних повідомлень до 2
+            const existingToasts = container.querySelectorAll('.premium-notification');
+            if (existingToasts.length >= 2) {
+                // Видаляємо найстаріше повідомлення
+                container.removeChild(existingToasts[0]);
+            }
+
+            // Визначаємо клас сповіщення на основі типу
+            const notificationClass = isError ? 'error' : (isWarning ? 'warning' : 'success');
+
+            // Визначаємо заголовок сповіщення
+            let title = 'Повідомлення';
+            if (isError) title = 'Помилка';
+            else if (isWarning) title = 'Увага';
+            else if (type === 'success') title = 'Успішно';
+
+            // Визначаємо іконку
+            let iconContent = '&#8505;'; // інформація
+            if (isError) iconContent = '&#10060;'; // хрестик
+            else if (type === 'success') iconContent = '&#10004;'; // галочка
+            else if (isWarning) iconContent = '&#9888;'; // трикутник з оклицем
+
+            // Створюємо повідомлення
+            const notification = document.createElement('div');
+            notification.className = `premium-notification ${notificationClass}`;
+
+            // Додаємо іконку
+            const icon = document.createElement('div');
+            icon.className = 'premium-notification-icon';
+            icon.innerHTML = iconContent;
+
+            // Контент повідомлення
+            const content = document.createElement('div');
+            content.className = 'premium-notification-content';
+
+            // Додаємо заголовок та текст
+            const titleEl = document.createElement('div');
+            titleEl.className = 'premium-notification-title';
+            titleEl.textContent = title;
+
+            const messageEl = document.createElement('div');
+            messageEl.className = 'premium-notification-message';
+            messageEl.textContent = message;
+
+            content.appendChild(titleEl);
+            content.appendChild(messageEl);
+
+            // Кнопка закриття
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'premium-notification-close';
+            closeBtn.innerHTML = '&times;';
+
+            // Індикатор прогресу
+            const progress = document.createElement('div');
+            progress.className = 'premium-notification-progress';
+
+            // Збираємо елементи
+            notification.appendChild(icon);
+            notification.appendChild(content);
+            notification.appendChild(closeBtn);
+            notification.appendChild(progress);
+
+            // Додаємо повідомлення до контейнера
+            container.appendChild(notification);
+
+            // Показуємо повідомлення після короткої затримки
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+
+            // Функція для приховування тосту
+            function hideToast() {
+                notification.classList.remove('show');
+                notification.classList.add('hide');
+
+                // Видалення елементу після завершення анімації
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }
+
+            // Додаємо обробник закриття
+            closeBtn.addEventListener('click', hideToast);
+
+            // Автоматичне приховування через 5 секунд
+            const hideTimeout = setTimeout(hideToast, 5000);
+        } catch (e) {
+            console.error('Помилка показу сповіщення:', e);
+            // Якщо не вдалося створити повідомлення, використовуємо стандартну функцію
+            alert(message);
+        }
+    };
+
+    // Запуск оновлення сповіщень зразу після завантаження
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('✅ Систему преміальних сповіщень успішно ініціалізовано');
+    });
+</script>
 </body>
 </html>
