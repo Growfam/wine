@@ -1,7 +1,7 @@
 /**
  * WINIX - Преміальні модальні вікна (modal.js)
  * Універсальний компонент модального вікна з сучасним дизайном
- * @version 2.5.0
+ * @version 3.0.0
  */
 
 (function() {
@@ -22,103 +22,104 @@
         style.textContent = `
             /* Базові стилі модальних вікон */
             .modal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.8);
-                backdrop-filter: blur(3px);
-                z-index: 9999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                opacity: 0;
-                visibility: hidden;
-                transition: opacity 0.3s, visibility 0.3s;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                background: rgba(0, 0, 0, 0.8) !important;
+                backdrop-filter: blur(3px) !important;
+                z-index: 9999 !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+                transition: opacity 0.3s, visibility 0.3s !important;
             }
 
             .modal-overlay.show {
-                opacity: 1;
-                visibility: visible;
+                opacity: 1 !important;
+                visibility: visible !important;
             }
 
             .modal-container {
-                width: 90%;
-                max-width: 500px;
-                max-height: 90vh;
-                background: linear-gradient(145deg, #1A1A2E, #0F3460);
-                border-radius: 1.25rem;
-                overflow-y: auto;
-                box-shadow: 0 0.625rem 1.25rem rgba(0, 0, 0, 0.5);
-                transform: scale(0.9);
-                opacity: 0;
-                transition: transform 0.3s, opacity 0.3s;
-                display: flex;
-                flex-direction: column;
-                color: #ffffff;
+                width: 90% !important;
+                max-width: 500px !important;
+                max-height: 90vh !important;
+                background: linear-gradient(145deg, #1A1A2E, #0F3460) !important;
+                border-radius: 1.25rem !important;
+                overflow-y: auto !important;
+                box-shadow: 0 0.625rem 1.25rem rgba(0, 0, 0, 0.5) !important;
+                transform: scale(0.9) !important;
+                opacity: 0 !important;
+                transition: transform 0.3s, opacity 0.3s !important;
+                display: flex !important;
+                flex-direction: column !important;
+                color: #ffffff !important;
+                margin: 0 auto !important;
             }
 
             .modal-overlay.show .modal-container {
-                transform: scale(1);
-                opacity: 1;
+                transform: scale(1) !important;
+                opacity: 1 !important;
             }
 
             .modal-header {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 1rem 1.5rem;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                position: relative;
-                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9));
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                padding: 1rem 1.5rem !important;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+                position: relative !important;
+                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9)) !important;
             }
 
             .modal-title {
-                font-size: 1.25rem;
-                font-weight: bold;
-                color: white;
-                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-                margin: 0;
-                text-align: center;
+                font-size: 1.25rem !important;
+                font-weight: bold !important;
+                color: white !important;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+                margin: 0 !important;
+                text-align: center !important;
             }
 
             .modal-close {
-                position: absolute;
-                right: 15px;
-                color: rgba(255, 255, 255, 0.7);
-                font-size: 1.5rem;
-                cursor: pointer;
-                transition: color 0.2s;
-                background: none;
-                border: none;
-                width: 32px;
-                height: 32px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.1);
+                position: absolute !important;
+                right: 15px !important;
+                color: rgba(255, 255, 255, 0.7) !important;
+                font-size: 1.5rem !important;
+                cursor: pointer !important;
+                transition: color 0.2s !important;
+                background: none !important;
+                border: none !important;
+                width: 32px !important;
+                height: 32px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                border-radius: 50% !important;
+                background: rgba(255, 255, 255, 0.1) !important;
             }
 
             .modal-close:hover {
-                color: white;
-                background: rgba(255, 255, 255, 0.2);
+                color: white !important;
+                background: rgba(255, 255, 255, 0.2) !important;
             }
 
             .modal-body {
-                padding: 1rem 1.5rem;
-                color: #ffffff;
-                flex-grow: 1;
-                overflow-y: auto;
+                padding: 1rem 1.5rem !important;
+                color: #ffffff !important;
+                flex-grow: 1 !important;
+                overflow-y: auto !important;
                 background-color: transparent !important;
             }
 
             .modal-footer {
-                padding: 1rem;
-                display: flex;
-                justify-content: flex-end;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding: 1rem !important;
+                display: flex !important;
+                justify-content: flex-end !important;
+                border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
             }
             
             /* Преміальні стилі для модальних вікон */
@@ -130,21 +131,22 @@
                 transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
                             opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
                 animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1) !important;
+                margin: 0 auto !important;
             }
             
             .premium-modal .modal-container::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 2px;
+                content: '' !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                height: 2px !important;
                 background: linear-gradient(90deg,
                     rgba(0, 201, 167, 0),
                     rgba(0, 201, 167, 0.8),
-                    rgba(0, 201, 167, 0));
-                animation: glow-line 2s infinite;
-                z-index: 10;
+                    rgba(0, 201, 167, 0)) !important;
+                animation: glow-line 2s infinite !important;
+                z-index: 10 !important;
             }
             
             @keyframes glow-line {
@@ -612,7 +614,7 @@
     window.showRaffleDetailsModal = function(raffle, isParticipating = false, ticketCount = 0) {
         // Перевірка наявності об'єкта розіграшу
         if (!raffle || !raffle.id) {
-            console.error('❌ Помилка: невалідний об\'єкт розіграшу');
+            console.error('Помилка: невалідний об\'єкт розіграшу');
             window.showToast('Неможливо відобразити деталі розіграшу', 'error');
             return;
         }
@@ -708,31 +710,31 @@
                 <h3 class="section-title">Умови участі</h3>
                 <ul class="conditions-list">
                     <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                        <div class="condition-icon">-</div>
                         <div>Для участі потрібно мати мінімум ${raffle.entry_fee} жетони на балансі</div>
                     </li>
                     <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                        <div class="condition-icon">-</div>
                         <div>Один користувач може брати участь кілька разів</div>
                     </li>
                     <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                        <div class="condition-icon">-</div>
                         <div>Розіграш завершується ${formattedEndDate}</div>
                     </li>
                     <li class="condition-item">
-                        <div class="condition-icon">•</div>
+                        <div class="condition-icon">-</div>
                         <div>Переможці обираються випадковим чином серед усіх учасників</div>
                     </li>
                 </ul>
             </div>
         `;
 
-        // Створюємо HTML для секції "Про розіграш"
+        // Створюємо HTML для секції "Про розіграш" (ТЕПЕР БЕЗ EMOJI)
         const aboutHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Про розіграш</h3>
-                <p class="raffle-description">${raffle.description || 'ВЕЛИКИЙ ДЖЕКПОТ РОЗІГРАШ - Головний приз: $250 USD + 550,000 $Winix токенів!'}</p>
-                <p class="raffle-description">10 ПЕРЕМОЖЦІВ - 1-5 місце: Грошові винагороди (частина від $250) • 6-10 місце: $Winix токени</p>
+                <p class="raffle-description">ВЕЛИКИЙ ДЖЕКПОТ РОЗІГРАШ - Головний приз: $250 USD + 550,000 $Winix токенів!</p>
+                <p class="raffle-description">10 ПЕРЕМОЖЦІВ - 1-5 місце: Грошові винагороди (частина від $250) - 6-10 місце: $Winix токени</p>
                 <p class="raffle-description">БОНУС ДЛЯ ВСІХ УЧАСНИКІВ - Кожен учасник гарантовано отримає 550 $Winix токенів після завершення розіграшу!</p>
                 <p class="raffle-description">Вартість участі: 3 жетони. Тривалість: 7 днів</p>
             </div>
@@ -756,5 +758,5 @@
         });
     };
 
-    console.log('✅ Модуль преміальних модальних вікон успішно ініціалізовано');
+    console.log('Модуль преміальних модальних вікон успішно ініціалізовано');
 })();
