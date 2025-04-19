@@ -74,6 +74,7 @@
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
                 position: relative !important;
                 background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9)) !important;
+                box-sizing: border-box !important; /* Гарантує, що padding не впливає на ширину */
             }
 
             .modal-title {
@@ -88,7 +89,7 @@
 
             .modal-close {
                 position: absolute !important;
-                right: 15px !important;
+                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
                 top: 50% !important; /* Додано для вертикального центрування */
                 transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 color: rgba(255, 255, 255, 0.7) !important;
@@ -105,6 +106,7 @@
                 border-radius: 50% !important;
                 background: rgba(255, 255, 255, 0.1) !important;
                 z-index: 10 !important; /* Додано для уникнення перекриття */
+                margin-right: 5px !important; /* Додано додатковий відступ справа */
             }
 
             .modal-close:hover {
@@ -187,7 +189,7 @@
             .premium-modal .modal-close {
                 position: absolute !important;
                 top: 50% !important; /* Змінено для вертикального центрування */
-                right: 15px !important;
+                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
                 transform: translateY(-50%) !important; /* Додано для вертикального центрування */
                 background: rgba(255, 255, 255, 0.1) !important;
                 border: none !important;
@@ -202,6 +204,7 @@
                 cursor: pointer !important;
                 transition: all 0.3s !important;
                 z-index: 15 !important; /* Додано для уникнення перекриття */
+                margin-right: 5px !important; /* Додано додатковий відступ справа */
             }
             
             .premium-modal .modal-close:hover {
@@ -485,9 +488,11 @@
             <div class="modal-container">
                 ${title ? `
                     <div class="modal-header">
-                        <div style="width: 30px;"></div> <!-- Порожній елемент для балансу з кнопкою закриття -->
+                        <div style="width: 40px;"></div> <!-- Збільшено ширину порожнього елемента для кращого балансу -->
                         <h2 class="modal-title">${title}</h2>
-                        <button class="modal-close">&times;</button>
+                        <div style="width: 40px; position: relative;">
+                            <button class="modal-close">&times;</button>
+                        </div>
                     </div>
                 ` : ''}
                 <div class="modal-body">
@@ -681,33 +686,51 @@
         // Використовуємо саме ті дані, що є у розіграші для розподілу призів
         let prizeDistributionHtml = '';
 
-        // Головний приз
+        // Головний приз - детальний розподіл по місцях
         if (raffle.prize_amount && raffle.prize_currency) {
+            // Симуляція розподілу призів по місцях (в реальному додатку дані мають приходити з API)
+            const prizeDistribution = [
+                {place: 1, prize: "$80 USD + 100,000 $Winix"},
+                {place: 2, prize: "$50 USD + 80,000 $Winix"},
+                {place: 3, prize: "$40 USD + 60,000 $Winix"},
+                {place: 4, prize: "$30 USD + 40,000 $Winix"},
+                {place: 5, prize: "$20 USD + 30,000 $Winix"},
+                {place: 6, prize: "20,000 $Winix"},
+                {place: 7, prize: "15,000 $Winix"},
+                {place: 8, prize: "10,000 $Winix"},
+                {place: 9, prize: "8,000 $Winix"},
+                {place: 10, prize: "5,000 $Winix"}
+            ];
+
+            let prizesListHtml = '';
+            prizeDistribution.forEach(item => {
+                prizesListHtml += `
+                    <li class="prize-item">
+                        <div class="prize-place">
+                            <div class="prize-icon">${item.place}</div>
+                            <span>${item.place} місце</span>
+                        </div>
+                        <div class="prize-amount">${item.prize}</div>
+                    </li>
+                `;
+            });
+
+            // Додаємо гарантований бонус для всіх учасників
+            prizesListHtml += `
+                <li class="prize-item" style="margin-top: 15px; border-top: 1px solid rgba(78, 181, 247, 0.2); padding-top: 15px;">
+                    <div class="prize-place">
+                        <div class="prize-icon">🎁</div>
+                        <span>Всі учасники</span>
+                    </div>
+                    <div class="prize-amount">550 $Winix токенів гарантовано</div>
+                </li>
+            `;
+
             prizeDistributionHtml = `
                 <div class="raffle-section">
                     <h3 class="section-title">Розподіл призів</h3>
                     <ul class="prizes-list">
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">1</div>
-                                <span>1-5 місце</span>
-                            </div>
-                            <div class="prize-amount">Грошові винагороди (частина від $250)</div>
-                        </li>
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">2</div>
-                                <span>6-10 місце</span>
-                            </div>
-                            <div class="prize-amount">$Winix токени</div>
-                        </li>
-                        <li class="prize-item">
-                            <div class="prize-place">
-                                <div class="prize-icon">3</div>
-                                <span>Кожен учасник</span>
-                            </div>
-                            <div class="prize-amount">550 $Winix токенів</div>
-                        </li>
+                        ${prizesListHtml}
                     </ul>
                 </div>
             `;
