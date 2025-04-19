@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований модуль для обробки участі користувача в розіграшах
  * Виправлена версія з покращеною обробкою помилок та стабільністю
- * @version 1.5.0
+ * @version 1.5.1
  */
 
 (function() {
@@ -34,6 +34,9 @@
         // ID поточного запиту для ідентифікації
         currentRequestId: null,
 
+        // Карта активних запитів для кожного розіграшу
+        activeRequests: new Map(),
+
         // Черга запитів для запобігання втраті даних
         pendingRequests: [],
 
@@ -42,6 +45,9 @@
 
         // Додаємо змінну для відстеження часу останнього скидання стану
         lastStateReset: 0,
+
+        // Таймер для індикації обробки (для кращого UX)
+        processingTimers: {},
 
         // Ініціалізація модуля
         init: function() {
@@ -52,6 +58,7 @@
             this.lastParticipationTime = 0;
             this.lastStateReset = Date.now();
             this.currentRequestId = null;
+            this.activeRequests.clear();
 
             // Перевіряємо збережений стан участі в localStorage
             this._restoreParticipationFromStorage();
@@ -76,12 +83,23 @@
         _startLockingMonitor: function() {
             setInterval(() => {
                 const now = Date.now();
-                // Якщо запит "завис" більше ніж на 10 секунд, автоматично скидаємо стан
+
+                // Перевіряємо глобальний стан
                 if (this.requestInProgress && (now - this.lastParticipationTime > 10000)) {
-                    console.warn("⚠️ Виявлено застряглий запит, автоматичне скидання стану");
+                    console.warn("⚠️ Виявлено застряглий глобальний запит, автоматичне скидання стану");
                     this.requestInProgress = false;
                     this.currentRequestId = null;
                     this.lastStateReset = now;
+                }
+
+                // Перевіряємо індивідуальні запити для кожного розіграшу
+                for (const [raffleId, requestInfo] of this.activeRequests.entries()) {
+                    if (now - requestInfo.timestamp > 15000) {
+                        console.warn(`⚠️ Виявлено застряглий запит для розіграшу ${raffleId}, автоматичне скидання`);
+                        this.activeRequests.delete(raffleId);
+                        // Скидаємо стан кнопок для цього розіграшу
+                        this._clearPendingParticipationState(raffleId);
+                    }
                 }
             }, 3000); // Перевіряємо кожні 3 секунди
         },
@@ -139,6 +157,7 @@
 
                 // Примусове скидання стану запиту при закритті сторінки
                 this.requestInProgress = false;
+                this.activeRequests.clear();
             });
 
             // Додаємо обробник для скидання зависаючих запитів
@@ -163,6 +182,7 @@
                 if (event.persisted) {
                     console.log("📝 Сторінка відновлена з кешу, оновлюємо стан");
                     this.requestInProgress = false;
+                    this.activeRequests.clear();
                     this.lastParticipationTime = 0;
                     this.loadUserRaffles();
                 }
@@ -494,15 +514,36 @@
                 return Promise.reject(new Error('Невалідний ідентифікатор розіграшу'));
             }
 
-            // Зменшено обмеження часу між запитами до 500 мс
+            // Перевірка чи вже є активний запит для цього розіграшу
+            if (this.activeRequests.has(raffleId)) {
+                const requestInfo = this.activeRequests.get(raffleId);
+                const now = Date.now();
+
+                // Якщо минуло менше 2 секунд, не дозволяємо новий запит
+                if (now - requestInfo.timestamp < 2000) {
+                    console.warn(`⚠️ Занадто частий запит для розіграшу ${raffleId}`);
+                    return Promise.reject(new Error('Будь ласка, зачекайте секунду перед наступною спробою'));
+                }
+
+                // Якщо запит "завис" (більше 10 секунд), скидаємо його
+                if (now - requestInfo.timestamp > 10000) {
+                    console.warn(`⚠️ Скидання завислого запиту для розіграшу ${raffleId}`);
+                    this.activeRequests.delete(raffleId);
+                } else {
+                    // Інакше просимо зачекати
+                    return Promise.reject(new Error('Ваш запит вже обробляється. Зачекайте завершення.'));
+                }
+            }
+
+            // Зменшено обмеження часу між запитами до 1 секунди для всіх розіграшів
             const now = Date.now();
             const timeSinceLastRequest = now - this.lastParticipationTime;
-            if (timeSinceLastRequest < 500) {
+            if (timeSinceLastRequest < 1000) {
                 console.warn("⚠️ Занадто частий запит, потрібно зачекати");
                 return Promise.reject(new Error('Будь ласка, зачекайте секунду перед наступною спробою'));
             }
 
-            // Вдосконалено перевірку на зависання запиту
+            // Вдосконалено перевірку на зависання глобального запиту
             if (this.requestInProgress) {
                 const timeSinceLastRequest = now - this.lastParticipationTime;
                 if (timeSinceLastRequest > 8000) { // Якщо пройшло більше 8 секунд
@@ -524,6 +565,13 @@
             this.requestInProgress = true;
             this.lastParticipationTime = now;
 
+            // Додаємо інформацію про цей конкретний запит
+            this.activeRequests.set(raffleId, {
+                timestamp: now,
+                type: raffleType,
+                entryCount: entryCount
+            });
+
             // Запам'ятовуємо ID поточного запиту для ідентифікації
             this.currentRequestId = raffleId + '_' + now;
             const currentRequestId = this.currentRequestId;
@@ -534,8 +582,21 @@
                     console.warn("⚠️ Виявлено довготривалий запит, автоматично скидаємо стан");
                     this.requestInProgress = false;
                     this.currentRequestId = null;
+                    this.activeRequests.delete(raffleId);
                 }
             }, 10000);
+
+            // Додаємо індикатор процесу для UI (через 500мс)
+            this.processingTimers[raffleId] = setTimeout(() => {
+                const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                buttons.forEach(button => {
+                    if (!button.classList.contains('processing')) {
+                        button.classList.add('processing');
+                        button.setAttribute('data-original-text', button.textContent);
+                        button.textContent = 'Обробка...';
+                    }
+                });
+            }, 500);
 
             // Отримання початкових даних для аналізу змін
             const initialCoins = parseInt(document.getElementById('user-coins')?.textContent ||
@@ -699,7 +760,8 @@
                     // Обробка спеціальних помилок
                     if (response.message && response.message.includes('занадто багато запитів')) {
                         throw new Error('Забагато запитів. Спробуйте через 15 секунд');
-                    } else if (response.message && response.message.includes('raffle_not_found')) {
+                    } else if (response.message && (response.message.includes('raffle_not_found') ||
+                               response.message.includes('завершено'))) {
                         // Додаємо до невалідних
                         this.addInvalidRaffleId(raffleId);
                         throw new Error('Розіграш не знайдено або вже завершено');
@@ -733,13 +795,27 @@
                     window.showToast(error.message || "Помилка при спробі участі в розіграші", 'error');
                 }
 
+                // Перевіряємо чи помилка стосується завершеного розіграшу
+                if (error.message && (error.message.includes('завершено') ||
+                                     error.message.includes('not found') ||
+                                     error.message.includes('не знайдено'))) {
+                    this.addInvalidRaffleId(raffleId);
+                }
+
                 throw error;
             } finally {
+                // Видаляємо таймер індикації
+                if (this.processingTimers[raffleId]) {
+                    clearTimeout(this.processingTimers[raffleId]);
+                    delete this.processingTimers[raffleId];
+                }
+
                 // Очищаємо таймаут в будь-якому випадку
                 clearTimeout(safetyTimeout);
 
                 // ВАЖЛИВО: Завжди знімаємо блокування запиту!
                 this.requestInProgress = false;
+                this.activeRequests.delete(raffleId);
 
                 // Очищаємо ID поточного запиту
                 if (this.currentRequestId === currentRequestId) {
@@ -938,9 +1014,16 @@
             this.lastParticipationTime = 0;
             this.lastStateReset = Date.now();
             this.currentRequestId = null;
+            this.activeRequests.clear();
 
             // Очищаємо чергу запитів
             this.pendingRequests = [];
+
+            // Видаляємо таймери індикації
+            for (const raffleId in this.processingTimers) {
+                clearTimeout(this.processingTimers[raffleId]);
+            }
+            this.processingTimers = {};
 
             // Видаляємо статус обробки з усіх кнопок
             try {
@@ -974,6 +1057,7 @@
         if (window.WinixRaffles && window.WinixRaffles.participation) {
             window.WinixRaffles.participation.requestInProgress = false;
             window.WinixRaffles.participation.lastParticipationTime = 0;
+            window.WinixRaffles.participation.activeRequests.clear();
         }
 
         if (WinixRaffles.state.isInitialized) {
