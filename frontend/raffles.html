@@ -11,30 +11,6 @@
     <link rel="stylesheet" href="css/components-raffles.css">
     <!-- Додаємо нові преміальні стилі -->
     <link rel="stylesheet" href="css/premium-raffles.css">
-
-<style id="override-modal-styles">
-  .modal-close,
-  .modal-close-button,
-  .premium-modal .modal-close,
-  .premium-modal .modal-close-button {
-    position: fixed !important;
-    right: 20px !important;
-    margin-right: 30px !important;
-    margin-left: auto !important;
-    z-index: 10000 !important;
-  }
-
-  .modal-header {
-    padding-right: 60px !important;
-    position: relative !important;
-  }
-
-  .modal-title {
-    width: 100% !important;
-    text-align: center !important;
-  }
-</style>
-
     <script>
     // Ініціалізація та перевірка Telegram WebApp
     (function() {
@@ -1413,5 +1389,28 @@ window.resetLoadingState = function() {
         console.log('✅ Систему преміальних сповіщень успішно ініціалізовано');
     });
 </script>
+
+<style id="override-modal-styles">
+  .modal-close,
+  .modal-close-button,
+  .premium-modal .modal-close,
+  .premium-modal .modal-close-button {
+    position: fixed !important;
+    right: 10px !important;
+    margin-right: 30px !important;
+    margin-left: auto !important;
+    z-index: 10000 !important;
+  }
+
+  .modal-header {
+    padding-right: 60px !important;
+    position: relative !important;
+  }
+
+  .modal-title {
+    width: 100% !important;
+    text-align: center !important;
+  }
+</style>
 </body>
 </html>
