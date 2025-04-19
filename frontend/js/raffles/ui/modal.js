@@ -1,7 +1,7 @@
 /**
- * WINIX - Модальне вікно для деталей розіграшів (modal.js)
- * Універсальний компонент модального вікна для відображення деталей розіграшів
- * @version 1.0.0
+ * WINIX - Преміальні модальні вікна (modal.js)
+ * Універсальний компонент модального вікна з сучасним дизайном
+ * @version 2.0.0
  */
 
 (function() {
@@ -13,13 +13,361 @@
         return;
     }
 
-    console.log('🔄 Ініціалізація модуля модального вікна...');
+    console.log('🔄 Ініціалізація модуля преміальних модальних вікон...');
 
-    // Додаємо преміальні стилі для сповіщень
-    if (!document.getElementById('premium-notification-styles')) {
+    // Додаємо базові стилі для модальних вікон в стилі original-index.html
+    if (!document.getElementById('premium-modal-styles')) {
         const style = document.createElement('style');
-        style.id = 'premium-notification-styles';
+        style.id = 'premium-modal-styles';
         style.textContent = `
+            /* Базові стилі модальних вікон */
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.8);
+                backdrop-filter: blur(3px);
+                z-index: 100;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s, visibility 0.3s;
+            }
+
+            .modal-overlay.show {
+                opacity: 1;
+                visibility: visible;
+            }
+
+            .modal-container {
+                width: 90%;
+                max-width: 500px;
+                max-height: 90vh;
+                background: linear-gradient(145deg, #1A1A2E, #0F3460);
+                border-radius: 1.25rem;
+                overflow-y: auto;
+                box-shadow: 0 0.625rem 1.25rem rgba(0, 0, 0, 0.5);
+                transform: scale(0.9);
+                opacity: 0;
+                transition: transform 0.3s, opacity 0.3s;
+            }
+
+            .modal-overlay.show .modal-container {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .modal-title {
+                font-size: 1.25rem;
+                font-weight: bold;
+                color: white;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            }
+
+            .modal-close {
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 1.5rem;
+                cursor: pointer;
+                transition: color 0.2s;
+                background: none;
+                border: none;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+            }
+
+            .modal-close:hover {
+                color: white;
+                background: rgba(255, 255, 255, 0.1);
+            }
+
+            .modal-body {
+                padding: 1rem;
+                color: #ffffff;
+            }
+
+            .modal-footer {
+                padding: 1rem;
+                display: flex;
+                justify-content: flex-end;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            /* Преміальні стилі для модальних вікон */
+            .premium-modal .modal-container {
+                background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95));
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset;
+                border-radius: 20px;
+                overflow: hidden;
+                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+                            opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
+                animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            }
+            
+            .premium-modal .modal-container::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: linear-gradient(90deg,
+                    rgba(0, 201, 167, 0),
+                    rgba(0, 201, 167, 0.8),
+                    rgba(0, 201, 167, 0));
+                animation: glow-line 2s infinite;
+            }
+            
+            @keyframes glow-line {
+                0% { opacity: 0.3; transform: translateX(-100%); }
+                50% { opacity: 1; }
+                100% { opacity: 0.3; transform: translateX(100%); }
+            }
+            
+            @keyframes modal-appear {
+                0% { transform: scale(0.8); opacity: 0; }
+                70% { transform: scale(1.05); }
+                100% { transform: scale(1); opacity: 1; }
+            }
+            
+            .premium-modal .modal-header {
+                background: linear-gradient(90deg, rgba(30, 39, 70, 0.8), rgba(30, 39, 70, 0.9));
+                padding: 20px;
+                position: relative;
+                border-bottom: 1px solid rgba(78, 181, 247, 0.2);
+            }
+            
+            .premium-modal .modal-title {
+                font-size: 22px;
+                font-weight: bold;
+                color: white;
+                margin: 0;
+                text-align: center;
+                text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            }
+            
+            .premium-modal .modal-close {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                color: white;
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                cursor: pointer;
+                transition: all 0.3s;
+            }
+            
+            .premium-modal .modal-close:hover {
+                background: rgba(255, 255, 255, 0.2);
+                transform: rotate(90deg);
+            }
+            
+            /* Стилі для розіграшів */
+            .raffle-details-modal {
+                padding: 0;
+            }
+            
+            .raffle-image {
+                width: 100%;
+                height: 180px;
+                object-fit: cover;
+                border-radius: 12px;
+                margin-bottom: 20px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            }
+            
+            .raffle-details {
+                padding: 20px;
+            }
+            
+            .raffle-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+            }
+            
+            .raffle-title {
+                font-size: 20px;
+                font-weight: bold;
+                color: white;
+                text-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.5);
+                margin: 0;
+            }
+            
+            .raffle-prize {
+                display: inline-block;
+                padding: 0.25rem 0.625rem;
+                background: linear-gradient(90deg, #FFD700, #00dfd1);
+                border-radius: 1rem;
+                font-size: 1rem;
+                color: #1A1A2E;
+                font-weight: bold;
+            }
+            
+            .timer-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0.625rem 0;
+                gap: 0.5rem;
+            }
+            
+            .timer-block {
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 0.5rem;
+                padding: 0.5rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                min-width: 3.5rem;
+                width: 3.5rem;
+                height: 4.5rem;
+                justify-content: center;
+            }
+            
+            .timer-value {
+                font-size: 1.25rem;
+                font-weight: bold;
+                color: white;
+                font-family: 'Arial', sans-serif;
+                width: 2.5rem;
+                text-align: center;
+                height: 1.5rem;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            
+            .timer-label {
+                font-size: 0.75rem;
+                color: rgba(255, 255, 255, 0.7);
+            }
+            
+            .prize-distribution {
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 0.75rem;
+                padding: 0.75rem;
+                margin: 0.75rem 0;
+            }
+            
+            .prize-distribution-title {
+                font-size: 1rem;
+                font-weight: bold;
+                margin-bottom: 0.5rem;
+                color: white;
+            }
+            
+            .prize-list {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .prize-item {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.875rem;
+                color: rgba(255, 255, 255, 0.9);
+            }
+            
+            .prize-place {
+                font-weight: bold;
+            }
+            
+            .prize-value {
+                color: var(--premium-color, #ffc107);
+            }
+            
+            .raffle-participants {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin: 0.625rem 0;
+            }
+            
+            .participants-info {
+                font-size: 0.875rem;
+                color: white;
+            }
+            
+            .participants-count {
+                font-weight: bold;
+                margin-left: 0.25rem;
+            }
+            
+            /* Кнопка для дій */
+            .action-button, .premium-close-button {
+                width: 100%;
+                padding: 14px;
+                background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
+                border: none;
+                border-radius: 12px;
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s;
+                margin-top: 15px;
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            }
+            
+            .action-button::before, .premium-close-button::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg,
+                    rgba(255, 255, 255, 0),
+                    rgba(255, 255, 255, 0.2),
+                    rgba(255, 255, 255, 0));
+                transition: all 0.6s;
+            }
+            
+            .action-button:hover, .premium-close-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+            }
+            
+            .action-button:hover::before, .premium-close-button:hover::before {
+                left: 100%;
+            }
+            
+            .action-button:active, .premium-close-button:active {
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            }
+            
+            /* Преміальні сповіщення */
             .premium-notification-container {
                 position: fixed;
                 top: 1.25rem;
@@ -162,6 +510,127 @@
             .premium-notification-message {
                 opacity: 0.9;
             }
+            
+            /* Стиль для модального вікна підтвердження */
+            .confirm-modal {
+                text-align: center;
+                padding: 10px;
+            }
+            
+            .confirm-message {
+                font-size: 1.1rem;
+                margin-bottom: 20px;
+            }
+            
+            .confirm-buttons {
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+            }
+            
+            .confirm-button-yes, .confirm-button-no {
+                padding: 10px 25px;
+                border-radius: 25px;
+                border: none;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            .confirm-button-yes {
+                background: linear-gradient(90deg, #4CAF50, #009688);
+                color: white;
+            }
+            
+            .confirm-button-no {
+                background: linear-gradient(90deg, #f44336, #e53935);
+                color: white;
+            }
+            
+            .confirm-button-yes:hover, .confirm-button-no:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            }
+            
+            /* Додаткові стилі для відображення інформації про участь */
+            .participation-status {
+                display: flex;
+                gap: 12px;
+                padding: 15px;
+                border-radius: 10px;
+                background: rgba(26, 32, 56, 0.5);
+                margin-top: 15px;
+                border: 1px solid rgba(76, 175, 80, 0.2);
+            }
+            
+            .participation-status.not-participating {
+                border-color: rgba(244, 67, 54, 0.2);
+            }
+            
+            .status-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: rgba(76, 175, 80, 0.1);
+                flex-shrink: 0;
+            }
+            
+            .participation-status.not-participating .status-icon {
+                background: rgba(244, 67, 54, 0.1);
+            }
+            
+            .status-text {
+                flex-grow: 1;
+            }
+            
+            .status-text p {
+                margin: 0;
+                line-height: 1.4;
+            }
+            
+            .tickets-count {
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.7);
+                margin-top: 5px !important;
+            }
+            
+            .tickets-count span {
+                color: #4CAF50;
+                font-weight: bold;
+            }
+            
+            /* Адаптивність для мобільних пристроїв */
+            @media (max-width: 450px) {
+                .premium-notification-container {
+                    right: 1rem;
+                    width: calc(100% - 2rem);
+                }
+                
+                .modal-container {
+                    width: 95%;
+                }
+                
+                .timer-block {
+                    min-width: 2.8rem;
+                    width: 2.8rem;
+                    height: 3.8rem;
+                }
+                
+                .timer-value {
+                    font-size: 1.1rem;
+                }
+                
+                .confirm-buttons {
+                    flex-direction: column;
+                }
+                
+                .confirm-button-yes, .confirm-button-no {
+                    width: 100%;
+                }
+            }
         `;
         document.head.appendChild(style);
     }
@@ -179,7 +648,9 @@
             maxWidth: '600px',  // Максимальна ширина
             closeOnBackdrop: true, // Закривати при кліку на фон
             closeAfter: 0,      // Автоматичне закриття через N мс (0 - не закривати)
-            onClose: null       // Callback при закритті
+            onClose: null,      // Callback при закритті
+            premium: true,      // Використовувати преміальний стиль
+            animation: true     // Використовувати анімацію
         };
 
         // Об'єднуємо опції за замовчуванням з переданими опціями
@@ -187,22 +658,21 @@
 
         // Видаляємо існуюче модальне вікно, якщо воно є
         const existingModal = document.querySelector('.modal-container');
-        if (existingModal) {
-            document.body.removeChild(existingModal);
+        if (existingModal && existingModal.parentNode) {
+            existingModal.parentNode.removeChild(existingModal);
         }
 
         // Створюємо контейнер модального вікна
-        const modalContainer = document.createElement('div');
-        modalContainer.className = 'modal-container';
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
 
         // Створюємо HTML модального вікна
-        modalContainer.innerHTML = `
-            <div class="modal-backdrop"></div>
-            <div class="modal-content">
+        modalOverlay.innerHTML = `
+            <div class="modal-container">
                 ${title ? `
                     <div class="modal-header">
                         <h2 class="modal-title">${title}</h2>
-                        <button class="modal-close-button">&times;</button>
+                        <button class="modal-close">&times;</button>
                     </div>
                 ` : ''}
                 <div class="modal-body">
@@ -211,27 +681,32 @@
             </div>
         `;
 
+        // Додаємо модальне вікно до DOM
+        document.body.appendChild(modalOverlay);
+
         // Застосовуємо користувацькі стилі
-        const modalContent = modalContainer.querySelector('.modal-content');
+        const modalContent = modalOverlay.querySelector('.modal-container');
         modalContent.style.width = settings.width;
         modalContent.style.maxWidth = settings.maxWidth;
 
-        // Додаємо модальне вікно до DOM
-        document.body.appendChild(modalContainer);
+        // Додаємо клас show з невеликою затримкою для анімації
+        setTimeout(() => {
+            modalOverlay.classList.add('show');
+        }, 10);
 
         // Запобігаємо прокрутці сторінки під модальним вікном
         document.body.style.overflow = 'hidden';
 
         // Функція для закриття модального вікна з анімацією
         const closeModal = () => {
-            // Додаємо клас для анімації закриття
-            modalContainer.classList.add('closing');
+            // Видаляємо клас show для анімації закриття
+            modalOverlay.classList.remove('show');
 
             // Чекаємо завершення анімації і видаляємо модальне вікно
             setTimeout(() => {
                 // Перевіряємо чи модальне вікно все ще існує в DOM
-                if (document.body.contains(modalContainer)) {
-                    document.body.removeChild(modalContainer);
+                if (document.body.contains(modalOverlay)) {
+                    document.body.removeChild(modalOverlay);
                 }
 
                 // Відновлюємо прокрутку
@@ -241,19 +716,22 @@
                 if (typeof settings.onClose === 'function') {
                     settings.onClose();
                 }
-            }, 300); // Час анімації
+            }, settings.animation ? 300 : 0); // Час анімації або 0, якщо анімація вимкнена
         };
 
         // Додаємо обробник кліку для закриття модального вікна
-        const closeButton = modalContainer.querySelector('.modal-close-button');
+        const closeButton = modalOverlay.querySelector('.modal-close');
         if (closeButton) {
             closeButton.addEventListener('click', closeModal);
         }
 
         // Якщо увімкнено закриття при кліку на фон
         if (settings.closeOnBackdrop) {
-            const backdrop = modalContainer.querySelector('.modal-backdrop');
-            backdrop.addEventListener('click', closeModal);
+            modalOverlay.addEventListener('click', function(e) {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            });
         }
 
         // Додаємо обробник для кнопки Escape
@@ -276,7 +754,7 @@
     };
 
     /**
-     * Преміальні сповіщення в стилі стейкінгу
+     * Преміальні сповіщення в стилі WINIX
      * @param {string} message - Текст повідомлення
      * @param {boolean} isError - Чи є це повідомлення про помилку
      * @param {Function} callback - Функція зворотного виклику
@@ -387,7 +865,7 @@
     };
 
     /**
-     * Додаткова функція для показу повідомлень або підтверджень
+     * Функція для показу діалогового вікна підтвердження
      * @param {string} title - Заголовок діалогу
      * @param {string} message - Текст повідомлення
      * @param {Function} onConfirm - Функція при підтвердженні
@@ -403,54 +881,6 @@
                 </div>
             </div>
         `;
-
-        // Додаємо стилі для модального вікна підтвердження
-        if (!document.getElementById('confirm-modal-styles')) {
-            const style = document.createElement('style');
-            style.id = 'confirm-modal-styles';
-            style.textContent = `
-                .confirm-modal {
-                    text-align: center;
-                    padding: 10px;
-                }
-                
-                .confirm-message {
-                    font-size: 1.1rem;
-                    margin-bottom: 20px;
-                }
-                
-                .confirm-buttons {
-                    display: flex;
-                    justify-content: center;
-                    gap: 15px;
-                }
-                
-                .confirm-button-yes, .confirm-button-no {
-                    padding: 10px 25px;
-                    border-radius: 25px;
-                    border: none;
-                    font-weight: bold;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                }
-                
-                .confirm-button-yes {
-                    background: linear-gradient(90deg, #4CAF50, #009688);
-                    color: white;
-                }
-                
-                .confirm-button-no {
-                    background: linear-gradient(90deg, #f44336, #e53935);
-                    color: white;
-                }
-                
-                .confirm-button-yes:hover, .confirm-button-no:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-                }
-            `;
-            document.head.appendChild(style);
-        }
 
         // Відображаємо модальне вікно
         const closeModal = window.showModal(title, content, {
@@ -480,576 +910,242 @@
     };
 
     /**
- * Функція для показу модального вікна з відображенням деталей розіграшу
- * Оновлений преміальний дизайн, що відповідає стилю сторінки wallet
- */
-window.showRaffleDetailsModal = function(raffle, isParticipating = false, ticketCount = 0) {
-    // Перевірка наявності об'єкта розіграшу
-    if (!raffle || !raffle.id) {
-        console.error('❌ Помилка: невалідний об\'єкт розіграшу');
-        window.showToast('Неможливо відобразити деталі розіграшу', 'error');
-        return;
-    }
+     * Функція для показу модального вікна з відображенням деталей розіграшу
+     * Оновлений преміальний дизайн, що відповідає стилю сторінки
+     * @param {Object} raffle - Об'єкт з даними розіграшу
+     * @param {boolean} isParticipating - Чи бере участь користувач
+     * @param {number} ticketCount - Кількість білетів користувача
+     */
+    window.showRaffleDetailsModal = function(raffle, isParticipating = false, ticketCount = 0) {
+        // Перевірка наявності об'єкта розіграшу
+        if (!raffle || !raffle.id) {
+            console.error('❌ Помилка: невалідний об\'єкт розіграшу');
+            window.showToast('Неможливо відобразити деталі розіграшу', 'error');
+            return;
+        }
 
-    // Форматуємо дані розіграшу для відображення
-    const formattedEndDate = window.WinixRaffles && window.WinixRaffles.formatters ?
-        window.WinixRaffles.formatters.formatDateTime(raffle.end_time) :
-        new Date(raffle.end_time).toLocaleString('uk-UA');
+        // Форматуємо дату завершення
+        const formattedEndDate = formatDateTime(raffle.end_time);
 
-    // Створюємо HTML для розподілу призів у преміальному стилі
-    let prizeDistributionHtml = '';
-    if (raffle.prize_distribution && Array.isArray(raffle.prize_distribution)) {
-        prizeDistributionHtml = `
-            <div class="premium-prize-distribution">
-                <div class="premium-prize-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#prizeGradient)" stroke-width="2">
-                        <defs>
-                            <linearGradient id="prizeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#4eb5f7" />
-                                <stop offset="100%" stop-color="#00C9A7" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M12 15V18M7 11V8a5 5 0 0 1 10 0v3" stroke="url(#prizeGradient)" />
-                        <rect x="4" y="11" width="16" height="4" rx="1" stroke="url(#prizeGradient)" />
-                        <path d="M8 15h8v4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4z" stroke="url(#prizeGradient)" />
-                    </svg>
-                    <h4>Розподіл призів</h4>
-                </div>
-                <div class="premium-prize-list">
-                    ${raffle.prize_distribution.map((prize, index) => `
-                        <div class="premium-prize-item">
-                            <div class="premium-prize-place">
-                                <span class="premium-prize-number">${index + 1}</span>
-                                <span>місце</span>
+        // Створюємо HTML для розподілу призів
+        let prizeDistributionHtml = '';
+        if (raffle.prize_distribution && Array.isArray(raffle.prize_distribution)) {
+            prizeDistributionHtml = `
+                <div class="prize-distribution">
+                    <div class="prize-distribution-title">Розподіл призів (${raffle.winners_count} переможців):</div>
+                    <div class="prize-list">
+                        ${raffle.prize_distribution.map((prize, index) => `
+                            <div class="prize-item">
+                                <span class="prize-place">${index + 1} місце:</span>
+                                <span class="prize-value">${prize.amount} ${prize.currency || raffle.prize_currency}</span>
                             </div>
-                            <div class="premium-prize-amount">${prize.amount} ${prize.currency || raffle.prize_currency}</div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (raffle.winners_count > 1) {
+            // Якщо є декілька переможців, але немає точного розподілу
+            const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
+            prizeDistributionHtml = `
+                <div class="prize-distribution">
+                    <div class="prize-distribution-title">Розподіл призів:</div>
+                    <div class="prize-list">
+                        <div class="prize-item">
+                            <span class="prize-place">Переможців:</span>
+                            <span class="prize-value">${raffle.winners_count}</span>
                         </div>
-                    `).join('')}
+                        <div class="prize-item">
+                            <span class="prize-place">Загальний призовий фонд:</span>
+                            <span class="prize-value">${raffle.prize_amount} ${raffle.prize_currency}</span>
+                        </div>
+                        <div class="prize-item">
+                            <span class="prize-place">В середньому на переможця:</span>
+                            <span class="prize-value">${avgPrize} ${raffle.prize_currency}</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        `;
-    } else if (raffle.winners_count > 1) {
-        // Якщо є декілька переможців, але немає точного розподілу
-        const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
-        prizeDistributionHtml = `
-            <div class="premium-prize-distribution">
-                <div class="premium-prize-title">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#prizeGradient)" stroke-width="2">
-                        <defs>
-                            <linearGradient id="prizeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#4eb5f7" />
-                                <stop offset="100%" stop-color="#00C9A7" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M12 15V18M7 11V8a5 5 0 0 1 10 0v3" stroke="url(#prizeGradient)" />
-                        <rect x="4" y="11" width="16" height="4" rx="1" stroke="url(#prizeGradient)" />
-                        <path d="M8 15h8v4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-4z" stroke="url(#prizeGradient)" />
-                    </svg>
-                    <h4>Розподіл призів</h4>
+            `;
+        }
+
+        // Створюємо HTML для статусу участі
+        const participationStatusHtml = isParticipating ?
+            `<div class="participation-status">
+                <div class="status-icon">✅</div>
+                <div class="status-text">
+                    <p>Ви берете участь у розіграші</p>
+                    <p class="tickets-count">Кількість білетів: <span>${ticketCount}</span></p>
                 </div>
-                <div class="premium-prize-info">
-                    <p>Призовий фонд <span class="premium-value">${raffle.prize_amount} ${raffle.prize_currency}</span> буде розподілено між <span class="premium-value">${raffle.winners_count}</span> переможцями</p>
-                    <p class="premium-prize-average">В середньому по <span class="premium-value">${avgPrize} ${raffle.prize_currency}</span> кожному переможцю</p>
+            </div>` :
+            `<div class="participation-status not-participating">
+                <div class="status-icon">❌</div>
+                <div class="status-text">
+                    <p>Ви не берете участь у цьому розіграші</p>
                 </div>
-            </div>
-        `;
-    }
+            </div>`;
 
-    // Визначення HTML для статусу участі у преміальному стилі
-    const participationStatusHtml = isParticipating ?
-        `<div class="premium-participation-status">
-            <div class="premium-status-icon participating">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="9" stroke="url(#statusGradient)" stroke-width="2"/>
-                    <path d="M6 10.5L8.5 13L14 7" stroke="url(#statusGradient)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <defs>
-                        <linearGradient id="statusGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#4CAF50" />
-                            <stop offset="100%" stop-color="#009688" />
-                        </linearGradient>
-                    </defs>
-                </svg>
-            </div>
-            <div class="premium-status-text">
-                <p>Ви берете участь у розіграші</p>
-                <p class="premium-tickets-count">Кількість білетів: <span>${ticketCount}</span></p>
-            </div>
-        </div>` :
-        `<div class="premium-participation-status not-participating">
-            <div class="premium-status-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="9" stroke="rgba(244, 67, 54, 0.7)" stroke-width="2"/>
-                    <path d="M7 7L13 13M7 13L13 7" stroke="rgba(244, 67, 54, 0.7)" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </div>
-            <div class="premium-status-text">
-                <p>Ви не берете участь у цьому розіграші</p>
-            </div>
-        </div>`;
-
-    // Стилі для преміального модального вікна у стилі wallet.html
-    const modalStyles = `
-        <style id="premium-modal-styles">
-            .modal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-                opacity: 1;
-                visibility: visible;
-                transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-                backdrop-filter: blur(8px) !important;
-            }
-            
-            .modal-container {
-                background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95));
-                border-radius: 20px;
-                overflow: hidden;
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset;
-                position: relative;
-                padding: 0;
-                max-width: 500px;
-                width: 95%;
-                margin: 0 auto;
-                transform: scale(1);
-                opacity: 1;
-                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-                            opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-                animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-            }
-            
-            .modal-container::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background: linear-gradient(90deg,
-                    rgba(0, 201, 167, 0),
-                    rgba(0, 201, 167, 0.8),
-                    rgba(0, 201, 167, 0));
-                animation: glow-line 2s infinite;
-            }
-            
-            @keyframes glow-line {
-                0% { opacity: 0.3; transform: translateX(-100%); }
-                50% { opacity: 1; }
-                100% { opacity: 0.3; transform: translateX(100%); }
-            }
-            
-            @keyframes modal-appear {
-                0% { transform: scale(0.8); opacity: 0; }
-                70% { transform: scale(1.05); }
-                100% { transform: scale(1); opacity: 1; }
-            }
-            
-            .premium-modal-header {
-                background: linear-gradient(90deg, rgba(30, 39, 70, 0.8), rgba(30, 39, 70, 0.9));
-                padding: 20px;
-                position: relative;
-                border-bottom: 1px solid rgba(78, 181, 247, 0.2);
-            }
-            
-            .premium-modal-title {
-                font-size: 22px;
-                font-weight: bold;
-                color: white;
-                margin: 0;
-                text-align: center;
-                text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            }
-            
-            .premium-modal-close {
-                position: absolute;
-                top: 15px;
-                right: 15px;
-                background: rgba(255, 255, 255, 0.1);
-                border: none;
-                color: white;
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-                cursor: pointer;
-                transition: all 0.3s;
-            }
-            
-            .premium-modal-close:hover {
-                background: rgba(255, 255, 255, 0.2);
-                transform: rotate(90deg);
-            }
-            
-            .premium-raffle-details {
-                padding: 20px;
-            }
-            
-            .premium-raffle-image {
-                width: 100%;
-                height: 180px;
-                object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 20px;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            }
-            
-            .premium-raffle-title {
-                font-size: 20px;
-                font-weight: bold;
-                color: #4CAF50;
-                margin: 0 0 15px 0;
-                padding-bottom: 10px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .premium-raffle-description {
-                color: rgba(255, 255, 255, 0.9);
-                margin-bottom: 20px;
-                line-height: 1.5;
-            }
-            
-            .premium-raffle-metadata {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 15px;
-                background: rgba(26, 32, 56, 0.5);
-                padding: 15px;
-                border-radius: 12px;
-                margin-bottom: 20px;
-            }
-            
-            .premium-metadata-item {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .premium-metadata-label {
-                font-size: 13px;
-                color: rgba(255, 255, 255, 0.7);
-                margin-bottom: 5px;
-            }
-            
-            .premium-metadata-value {
-                font-size: 15px;
-                font-weight: bold;
-                color: white;
-            }
-            
-            .premium-prize-distribution {
-                background: rgba(10, 15, 30, 0.5);
-                border-radius: 12px;
-                padding: 15px;
-                margin-bottom: 20px;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-                border: 1px solid rgba(78, 181, 247, 0.1);
-            }
-            
-            .premium-prize-title {
-                display: flex;
-                align-items: center;
-                margin-bottom: 15px;
-                gap: 10px;
-            }
-            
-            .premium-prize-title h4 {
-                margin: 0;
-                font-size: 17px;
-                color: #4eb5f7;
-                font-weight: bold;
-            }
-            
-            .premium-prize-list {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-            }
-            
-            .premium-prize-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px 12px;
-                background: rgba(30, 39, 70, 0.5);
-                border-radius: 8px;
-                position: relative;
-                overflow: hidden;
-            }
-            
-            .premium-prize-item::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                height: 100%;
-                width: 3px;
-                background: linear-gradient(to bottom, #4eb5f7, #00C9A7);
-            }
-            
-            .premium-prize-place {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            
-            .premium-prize-number {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(135deg, #4eb5f7, #00C9A7);
-                color: white;
-                font-weight: bold;
-                font-size: 13px;
-            }
-            
-            .premium-prize-amount {
-                font-weight: bold;
-                color: #4CAF50;
-            }
-            
-            .premium-prize-info {
-                color: rgba(255, 255, 255, 0.9);
-                line-height: 1.5;
-            }
-            
-            .premium-prize-average {
-                margin-top: 10px;
-                padding-top: 10px;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .premium-value {
-                color: #4CAF50;
-                font-weight: bold;
-            }
-            
-            .premium-participation-status {
-                display: flex;
-                gap: 12px;
-                padding: 15px;
-                border-radius: 10px;
-                background: rgba(26, 32, 56, 0.5);
-                margin-top: 5px;
-                border: 1px solid rgba(76, 175, 80, 0.2);
-            }
-            
-            .premium-participation-status.not-participating {
-                border-color: rgba(244, 67, 54, 0.2);
-            }
-            
-            .premium-status-icon {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                background: rgba(76, 175, 80, 0.1);
-                flex-shrink: 0;
-            }
-            
-            .premium-participation-status.not-participating .premium-status-icon {
-                background: rgba(244, 67, 54, 0.1);
-            }
-            
-            .premium-status-text {
-                flex-grow: 1;
-            }
-            
-            .premium-status-text p {
-                margin: 0;
-                line-height: 1.4;
-            }
-            
-            .premium-tickets-count {
-                font-size: 14px;
-                color: rgba(255, 255, 255, 0.7);
-                margin-top: 5px !important;
-            }
-            
-            .premium-tickets-count span {
-                color: #4CAF50;
-                font-weight: bold;
-            }
-            
-            /* Кнопка закриття в стилі wallet.html */
-            .premium-close-button {
-                width: 100%;
-                padding: 14px;
-                background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-                border: none;
-                border-radius: 12px;
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s;
-                margin-top: 15px;
-                position: relative;
-                overflow: hidden;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            }
-            
-            .premium-close-button::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg,
-                    rgba(255, 255, 255, 0),
-                    rgba(255, 255, 255, 0.2),
-                    rgba(255, 255, 255, 0));
-                transition: all 0.6s;
-            }
-            
-            .premium-close-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
-            }
-            
-            .premium-close-button:hover::before {
-                left: 100%;
-            }
-            
-            .premium-close-button:active {
-                transform: translateY(0);
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            }
-            
-            @media (max-width: 450px) {
-                .premium-raffle-metadata {
-                    grid-template-columns: 1fr;
-                    gap: 10px;
-                }
+        // Створюємо HTML для модального вікна
+        const content = `
+            <div class="raffle-details">
+                <img src="${raffle.image_url || 'assets/prize-poster.gif'}" alt="${raffle.title}" class="raffle-image">
                 
-                .premium-metadata-item {
-                    flex-direction: row;
-                    justify-content: space-between;
-                    align-items: center;
-                }
+                <div class="raffle-header">
+                    <h3 class="raffle-title">${raffle.title}</h3>
+                    <span class="raffle-prize">${raffle.prize_amount} ${raffle.prize_currency}</span>
+                </div>
                 
-                .premium-metadata-label {
-                    margin-bottom: 0;
-                }
-            }
-        </style>
-    `;
-
-    // Створюємо HTML для модального вікна в преміальному стилі
-    const modalContent = `
-        ${modalStyles}
-        <div class="modal-container">
-            <div class="premium-modal-header">
-                <h3 class="premium-modal-title">Деталі розіграшу</h3>
-                <button class="premium-modal-close">&times;</button>
-            </div>
-            
-            <div class="premium-raffle-details">
-                <img src="${raffle.image_url || 'assets/prize-poster.gif'}" alt="${raffle.title}" class="premium-raffle-image">
+                <p class="raffle-description">${raffle.description || 'Опис відсутній'}</p>
                 
-                <h3 class="premium-raffle-title">${raffle.title}</h3>
-                
-                <p class="premium-raffle-description">${raffle.description || 'Опис відсутній'}</p>
-                
-                <div class="premium-raffle-metadata">
-                    <div class="premium-metadata-item">
-                        <span class="premium-metadata-label">Призовий фонд:</span>
-                        <span class="premium-metadata-value">${raffle.prize_amount} ${raffle.prize_currency}</span>
+                <div class="timer-container">
+                    <div class="timer-block">
+                        <span class="timer-value" id="days-${raffle.id}">00</span>
+                        <span class="timer-label">дні</span>
                     </div>
-                    
-                    <div class="premium-metadata-item">
-                        <span class="premium-metadata-label">Переможців:</span>
-                        <span class="premium-metadata-value">${raffle.winners_count}</span>
+                    <div class="timer-block">
+                        <span class="timer-value" id="hours-${raffle.id}">00</span>
+                        <span class="timer-label">год</span>
                     </div>
-                    
-                    <div class="premium-metadata-item">
-                        <span class="premium-metadata-label">Вартість участі:</span>
-                        <span class="premium-metadata-value">${raffle.entry_fee} жетон${raffle.entry_fee > 1 ? 'и' : ''}</span>
+                    <div class="timer-block">
+                        <span class="timer-value" id="minutes-${raffle.id}">00</span>
+                        <span class="timer-label">хв</span>
                     </div>
-                    
-                    <div class="premium-metadata-item">
-                        <span class="premium-metadata-label">Завершення:</span>
-                        <span class="premium-metadata-value">${formattedEndDate}</span>
-                    </div>
-                    
-                    <div class="premium-metadata-item">
-                        <span class="premium-metadata-label">Учасників:</span>
-                        <span class="premium-metadata-value">${raffle.participants_count || 0}</span>
+                    <div class="timer-block">
+                        <span class="timer-value" id="seconds-${raffle.id}">00</span>
+                        <span class="timer-label">сек</span>
                     </div>
                 </div>
                 
                 ${prizeDistributionHtml}
                 
+                <div class="raffle-participants">
+                    <div class="participants-info">Учасників: <span class="participants-count">${raffle.participants_count || 0}</span></div>
+                    <div class="participants-info">Завершення: <span class="raffle-end-time">${formattedEndDate}</span></div>
+                </div>
+                
                 ${participationStatusHtml}
                 
-                <button class="premium-close-button">Закрити</button>
+                <button class="action-button join-button" data-raffle-id="${raffle.id}" data-raffle-type="${raffle.is_daily ? 'daily' : 'main'}">
+                    ${isParticipating ? 
+                        `Додати ще білет (${ticketCount})` : 
+                        `Взяти участь за ${raffle.entry_fee} жетон${raffle.entry_fee > 1 ? 'и' : ''}`
+                    }
+                </button>
             </div>
-        </div>
-    `;
+        `;
 
-    // Відображаємо модальне вікно
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay premium-modal';
-    modal.innerHTML = modalContent;
-    document.body.appendChild(modal);
+        // Відображаємо модальне вікно
+        const closeModal = window.showModal('Деталі розіграшу', content, {
+            width: '90%',
+            maxWidth: '500px',
+            premium: true
+        });
 
-    // Додаємо обробник для кнопки закриття модального вікна
-    const closeButton = modal.querySelector('.premium-modal-close');
-    const closeButtonBottom = modal.querySelector('.premium-close-button');
+        // Налаштовуємо таймер зворотнього відліку
+        updateCountdown(raffle.id, new Date(raffle.end_time));
 
-    const closeModal = () => {
-        modal.classList.add('closing');
+        // Додаємо обробник для кнопки участі в розіграші
         setTimeout(() => {
-            if (modal.parentNode) {
-                modal.parentNode.removeChild(modal);
+            const joinButton = document.querySelector(`.modal-body .join-button[data-raffle-id="${raffle.id}"]`);
+            if (joinButton) {
+                joinButton.addEventListener('click', function() {
+                    // Якщо є модуль участі, використовуємо його
+                    if (window.WinixRaffles && window.WinixRaffles.participation) {
+                        window.WinixRaffles.participation.participateInRaffle(raffle.id, raffle.is_daily ? 'daily' : 'main');
+                    } else {
+                        // Якщо модуля немає, показуємо повідомлення
+                        window.showToast('Не вдалося взяти участь у розіграші', 'error');
+                    }
+
+                    // Закриваємо модальне вікно
+                    closeModal();
+                });
             }
-        }, 400);
+        }, 100);
+
+        return closeModal;
     };
 
-    if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
+    /**
+     * Функція для форматування дати і часу
+     * @param {string|Date} dateTime - Дата і час
+     * @returns {string} Відформатована дата і час
+     */
+    function formatDateTime(dateTime) {
+        if (!dateTime) return 'Невідомо';
+
+        try {
+            const date = new Date(dateTime);
+            return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        } catch (e) {
+            return 'Невідомо';
+        }
     }
 
-    if (closeButtonBottom) {
-        closeButtonBottom.addEventListener('click', closeModal);
+    /**
+     * Функція для оновлення таймера зворотного відліку
+     * @param {string} raffleId - ID розіграшу
+     * @param {Date} endTime - Час завершення
+     */
+    function updateCountdown(raffleId, endTime) {
+        // Елементи таймера
+        const daysElement = document.getElementById(`days-${raffleId}`);
+        const hoursElement = document.getElementById(`hours-${raffleId}`);
+        const minutesElement = document.getElementById(`minutes-${raffleId}`);
+        const secondsElement = document.getElementById(`seconds-${raffleId}`);
+
+        // Якщо елементи не знайдені, виходимо
+        if (!daysElement || !hoursElement || !minutesElement || !secondsElement) {
+            return;
+        }
+
+        // Функція оновлення таймера
+        function update() {
+            const now = new Date();
+            const diff = endTime - now;
+
+            // Якщо час вийшов
+            if (diff <= 0) {
+                daysElement.textContent = '00';
+                hoursElement.textContent = '00';
+                minutesElement.textContent = '00';
+                secondsElement.textContent = '00';
+                return;
+            }
+
+            // Розрахунок значень
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            // Оновлення елементів
+            daysElement.textContent = days.toString().padStart(2, '0');
+            hoursElement.textContent = hours.toString().padStart(2, '0');
+            minutesElement.textContent = minutes.toString().padStart(2, '0');
+            secondsElement.textContent = seconds.toString().padStart(2, '0');
+        }
+
+        // Викликаємо функцію оновлення один раз
+        update();
+
+        // Запускаємо інтервал оновлення
+        const interval = setInterval(update, 1000);
+
+        // Зберігаємо інтервал, щоб можна було його очистити
+        window.countdownIntervals = window.countdownIntervals || {};
+        window.countdownIntervals[raffleId] = interval;
+
+        // Очищаємо інтервал при закритті модального вікна
+        const modalOverlay = document.querySelector('.modal-overlay');
+        if (modalOverlay) {
+            modalOverlay.addEventListener('DOMNodeRemoved', function(e) {
+                if (e.target === modalOverlay) {
+                    clearInterval(interval);
+                }
+            });
+        }
     }
 
-    // Додаємо обробник для закриття модального вікна при кліку на фон
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeModal();
-        }
-    });
-
-    // Додаємо обробник для кнопки Escape
-    const handleEscape = (event) => {
-        if (event.key === 'Escape') {
-            closeModal();
-            document.removeEventListener('keydown', handleEscape);
-        }
-    };
-    document.addEventListener('keydown', handleEscape);
-
-    return closeModal;
-};
-
-    // Передаємо показ модального вікна у глобальне меню
+    // Передаємо доступ до функцій через додатковий об'єкт
     window.modalUtils = {
         show: window.showModal,
         confirm: window.showConfirmModal,
@@ -1057,5 +1153,5 @@ window.showRaffleDetailsModal = function(raffle, isParticipating = false, ticket
         showNotification: window.showPremiumNotification
     };
 
-    console.log('✅ Модуль модального вікна успішно ініціалізовано');
+    console.log('✅ Модуль преміальних модальних вікон успішно ініціалізовано');
 })();
