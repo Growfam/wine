@@ -1425,5 +1425,156 @@ window.resetLoadingState = function() {
     display: none !important;
   }
 </style>
+<!-- Виправлення для скидання застряглих станів кнопок та запитів -->
+<script>
+// Скидання станів при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔄 Виконується скидання застряглих станів...');
+
+    // Скидаємо всі кнопки, які могли залишитися в стані обробки
+    document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+        button.classList.remove('processing');
+        button.removeAttribute('data-processing');
+        button.disabled = false;
+
+        // Відновлюємо текст кнопки
+        const entryFee = button.getAttribute('data-entry-fee') || '1';
+        const isMini = button.classList.contains('mini-raffle-button');
+
+        if (isMini) {
+            button.textContent = 'Взяти участь';
+        } else {
+            button.textContent = `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+        }
+    });
+
+    // Якщо є WinixRaffles.participation, скидаємо його стан
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        // Скидаємо прапорці обробки
+        window.WinixRaffles.participation.requestInProgress = false;
+        window.WinixRaffles.participation.requestLock = false;
+
+        // Очищаємо активні транзакції
+        if (window.WinixRaffles.participation.activeTransactions) {
+            window.WinixRaffles.participation.activeTransactions.clear();
+        }
+
+        // Очищаємо запити в очікуванні
+        window.WinixRaffles.participation.pendingRequests = {};
+
+        console.log('✅ Стан WinixRaffles.participation успішно скинуто');
+    }
+
+    // Скидаємо індикатор завантаження
+    if (typeof window.hideLoading === 'function') {
+        window.hideLoading();
+    }
+
+    // Примусова синхронізація стану через 2 секунди після завантаження
+    setTimeout(function() {
+        if (window.WinixRaffles &&
+            window.WinixRaffles.participation &&
+            typeof window.WinixRaffles.participation.syncWithServer === 'function') {
+            console.log('🔄 Запуск примусової синхронізації після завантаження...');
+            window.WinixRaffles.participation.syncWithServer()
+                .then(() => console.log('✅ Примусова синхронізація успішно завершена'))
+                .catch(e => console.error('❌ Помилка примусової синхронізації:', e));
+        }
+    }, 2000);
+});
+
+// Розширений обробник для необроблених Promise помилок
+window.addEventListener('unhandledrejection', function(event) {
+    console.warn('⚠️ Виявлено необроблену Promise помилку:', event.reason);
+
+    // Примусово ховаємо індикатор завантаження
+    if (typeof window.hideLoading === 'function') {
+        window.hideLoading();
+    }
+
+    // Скидаємо всі кнопки в стані обробки
+    document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+        button.classList.remove('processing');
+        button.removeAttribute('data-processing');
+        button.disabled = false;
+
+        // Відновлюємо текст кнопки
+        const raffleId = button.getAttribute('data-raffle-id');
+        const isParticipating = window.WinixRaffles &&
+                                window.WinixRaffles.participation &&
+                                window.WinixRaffles.participation.participatingRaffles &&
+                                window.WinixRaffles.participation.participatingRaffles.has(raffleId);
+
+        if (isParticipating) {
+            const ticketCount = window.WinixRaffles.participation.userRaffleTickets[raffleId] || 1;
+            const isMini = button.classList.contains('mini-raffle-button');
+
+            button.textContent = isMini ?
+                `Додати ще білет (${ticketCount})` :
+                `Додати ще білет (у вас: ${ticketCount})`;
+
+            button.classList.add('participating');
+        } else {
+            const entryFee = button.getAttribute('data-entry-fee') || '1';
+            const isMini = button.classList.contains('mini-raffle-button');
+
+            if (isMini) {
+                button.textContent = 'Взяти участь';
+            } else {
+                button.textContent = `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+            }
+
+            button.classList.remove('participating');
+        }
+    });
+
+    // Скидаємо стан WinixRaffles.participation
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        window.WinixRaffles.participation.requestInProgress = false;
+        window.WinixRaffles.participation.requestLock = false;
+    }
+
+    // Показуємо повідомлення про помилку
+    if (event.reason && typeof window.showToast === 'function') {
+        let message = 'Виникла помилка під час обробки запиту';
+
+        if (event.reason.message) {
+            if (event.reason.message.includes('жетон') ||
+                event.reason.message.includes('недостатньо')) {
+                message = 'Недостатньо жетонів для участі в розіграші';
+            } else if (event.reason.message.includes('зачекайте') ||
+                       event.reason.message.includes('спроб')) {
+                message = 'Зачекайте перед наступною спробою';
+            } else if (event.reason.message.includes('завершено') ||
+                       event.reason.message.includes('не знайдено')) {
+                message = 'Цей розіграш завершено або не знайдено';
+            } else {
+                message = event.reason.message;
+            }
+        }
+
+        window.showToast(message, 'error');
+    }
+});
+
+// Примусове скидання стану
+window.resetLoadingState = function() {
+    // Скидаємо лічильник запитів
+    window.loadingCounter = 0;
+
+    // Приховуємо індикатор завантаження
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.classList.remove('active');
+        spinner.style.display = 'none';
+    }
+
+    // Скидаємо стан обробки запиту
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        window.WinixRaffles.participation.requestInProgress = false;
+        window.WinixRaffles.participation.requestLock = false;
+    }
+};
+</script>
 </body>
 </html>

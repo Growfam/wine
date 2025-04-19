@@ -74,6 +74,12 @@
         // Прапорець для запобігання повторним синхронізаціям
         isSyncInProgress: false,
 
+        // ДОДАНО: Прапорець для контролю стану обробки запиту
+        requestInProgress: false,
+
+        // ДОДАНО: Час останнього запиту участі
+        lastParticipationTime: 0,
+
         // Ініціалізація модуля
         init: function() {
             console.log('🎯 Ініціалізація модуля участі в розіграшах...');
@@ -141,6 +147,9 @@
             // Скидання глобального блокування
             this.requestLock = false;
 
+            // ДОДАНО: Скидання статусу обробки запиту
+            this.requestInProgress = false;
+
             // Очищення старих записів незавершених транзакцій у localStorage
             try {
                 const pendingTransactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
@@ -168,8 +177,9 @@
                 if (originalText) {
                     button.textContent = originalText;
                 } else {
-                    const entryFee = button.getAttribute('data-entry-fee') || '1';
+                    // Якщо немає оригінального тексту, повертаємо стандартний
                     const isMini = button.classList.contains('mini-raffle-button');
+                    const entryFee = button.getAttribute('data-entry-fee') || '1';
                     button.textContent = isMini ?
                         'Взяти участь' :
                         `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
@@ -224,6 +234,28 @@
                     if (Object.keys(this.pendingRequests).length === 0 && this.activeTransactions.size === 0) {
                         console.log('🔓 Знімаємо глобальне блокування, активних запитів немає');
                         this.requestLock = false;
+                    }
+                }
+
+                // ДОДАНО: Перевірка зависаючого стану requestInProgress
+                if (this.requestInProgress) {
+                    const timeSinceLastRequest = now - this.lastParticipationTime;
+                    if (timeSinceLastRequest > 15000) { // 15 секунд
+                        console.warn('⚠️ Виявлено активний стан requestInProgress більше 15 секунд. Скидаємо стан.');
+                        this.requestInProgress = false;
+
+                        // Відновлюємо всі кнопки в стані обробки
+                        document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+                            const raffleId = button.getAttribute('data-raffle-id');
+                            if (raffleId) {
+                                this._resetButtonState(raffleId);
+                            }
+                        });
+
+                        // Ховаємо індикатор завантаження
+                        if (typeof window.hideLoading === 'function') {
+                            window.hideLoading();
+                        }
                     }
                 }
             };
@@ -312,6 +344,13 @@
                         }
                     }
 
+                    // ДОДАНО: Перевірка зависаючого стану requestInProgress
+                    if (this.requestInProgress && (now - this.lastParticipationTime > 10000)) {
+                        console.warn('⚠️ Виявлено активний стан requestInProgress після повернення на сторінку. Скидаємо стан.');
+                        this.requestInProgress = false;
+                        hasStaleRequests = true;
+                    }
+
                     if (hasStaleRequests) {
                         console.warn('⚠️ Виявлено зависаючі запити після повернення на сторінку');
 
@@ -339,6 +378,9 @@
                     console.log("📝 Сторінка відновлена з кешу, оновлюємо стан");
                     this.activeTransactions.clear();
                     this.requestLock = false;
+
+                    // ДОДАНО: Скидаємо статус обробки запиту
+                    this.requestInProgress = false;
 
                     // Примусова синхронізація при відновленні з кешу
                     setTimeout(() => {
@@ -604,6 +646,14 @@
                     if (this.requestLock) {
                         if (typeof window.showToast === 'function') {
                             window.showToast('Система тимчасово недоступна, спробуйте за кілька секунд', 'warning');
+                        }
+                        return;
+                    }
+
+                    // ДОДАНО: Перевірка стану обробки запиту
+                    if (this.requestInProgress) {
+                        if (typeof window.showToast === 'function') {
+                            window.showToast('Зачекайте завершення попереднього запиту', 'warning');
                         }
                         return;
                     }
@@ -1076,6 +1126,10 @@
          * @returns {Promise<Object>} - Результат участі
          */
         participateInRaffle: async function(raffleId, raffleType, entryCount = 1) {
+            // ВИПРАВЛЕНО: Завжди встановлюємо час запиту на початку
+            const requestStartTime = Date.now();
+            this.lastParticipationTime = requestStartTime;
+
             console.log(`🎯 Спроба участі у розіграші ${raffleId}, кількість: ${entryCount}`);
 
             // 1. ВАЛІДАЦІЯ ПАРАМЕТРІВ
@@ -1096,6 +1150,21 @@
                     success: false,
                     message: 'Система тимчасово недоступна, спробуйте за кілька секунд'
                 };
+            }
+
+            // ВИПРАВЛЕНО: Перевірка на активний запит
+            if (this.requestInProgress) {
+                // Якщо запит висить більше 15 секунд, скидаємо блокування
+                if (requestStartTime - this.lastParticipationTime > 15000) {
+                    console.warn("⚠️ Виявлено застряглий запит, скидаємо блокування");
+                    this.requestInProgress = false;
+                } else {
+                    console.warn("⚠️ Запит уже в процесі, зачекайте його завершення");
+                    return {
+                        success: false,
+                        message: 'Зачекайте завершення попереднього запиту'
+                    };
+                }
             }
 
             // 3. ПЕРЕВІРКА ОБМЕЖЕНЬ КОНКРЕТНОГО РОЗІГРАШУ
@@ -1141,6 +1210,9 @@
                 raffleType: raffleType,
                 status: 'pending'
             };
+
+            // ВИПРАВЛЕНО: Встановлюємо глобальний прапорець обробки запиту
+            this.requestInProgress = true;
 
             // 8. ОНОВЛЕННЯ ЛІЧИЛЬНИКА ТА ЧАСОВИХ МІТОК
             this.totalRequestCount++;
@@ -1225,6 +1297,9 @@
                     console.warn(`⚠️ Таймаут запиту для розіграшу ${raffleId}`);
                     delete this.pendingRequests[raffleId];
                     this._resetButtonState(raffleId);
+
+                    // ВИПРАВЛЕНО: Скидаємо прапорець обробки запиту при таймауті
+                    this.requestInProgress = false;
                 }, 15000);
 
                 const response = await WinixAPI.apiRequest(endpoint, 'POST', requestData, {
@@ -1322,7 +1397,7 @@
                     } else {
                         // Якщо сервер не повернув баланс, робимо додатковий запит
                         console.warn("⚠️ Сервер не повернув дані про новий баланс, отримуємо баланс");
-                        this._getServerBalance();
+                        setTimeout(() => this._getServerBalance(), 1000);
                     }
 
                     // 18.6 ЗБЕРІГАЄМО ОНОВЛЕНИЙ СТАН
@@ -1435,6 +1510,9 @@
 
                 // 21.1 ВИДАЛЯЄМО БЛОКУВАННЯ ДЛЯ ЦЬОГО РОЗІГРАШУ
                 delete this.pendingRequests[raffleId];
+
+                // ВИПРАВЛЕНО: Завжди скидаємо прапорець обробки запиту
+                this.requestInProgress = false;
 
                 // 21.2 ПРИХОВУЄМО ІНДИКАТОР ЗАВАНТАЖЕННЯ
                 if (typeof window.hideLoading === 'function') {
@@ -1739,6 +1817,9 @@
             // Скидаємо глобальне блокування
             this.requestLock = false;
 
+            // ВИПРАВЛЕНО: Скидаємо прапорець обробки запиту
+            this.requestInProgress = false;
+
             // Очищення обмежень розіграшів
             this.pendingRequests = {};
 
@@ -1807,6 +1888,9 @@
                 // Скидаємо глобальне блокування
                 this.requestLock = false;
 
+                // ВИПРАВЛЕНО: Скидаємо прапорець обробки запиту
+                this.requestInProgress = false;
+
                 // Очищення обмежень розіграшів
                 this.pendingRequests = {};
 
@@ -1849,6 +1933,9 @@
                 syncCounter: this.syncCounter,
                 isSyncInProgress: this.isSyncInProgress,
                 requestLock: this.requestLock,
+                // ДОДАНО: Стан обробки запиту
+                requestInProgress: this.requestInProgress,
+                lastParticipationTime: this.lastParticipationTime,
                 totalRequestCount: this.totalRequestCount,
                 localOperations: this.localOperations.slice(0, 10), // Останні 10 операцій
                 lastBalanceUpdateTime: this.lastBalanceUpdateTime,
@@ -1918,6 +2005,11 @@
             participation.resetState();
         }
 
+        // ДОДАНО: Скидаємо стан обробки запиту
+        if (participation) {
+            participation.requestInProgress = false;
+        }
+
         // Приховуємо індикатор завантаження
         if (typeof window.hideLoading === 'function') {
             window.hideLoading();
@@ -1929,6 +2021,11 @@
         if (participation && (participation.activeTransactions.size > 0 || Object.keys(participation.pendingRequests).length > 0)) {
             console.warn('⚠️ Виявлено необроблену Promise помилку. Скидаємо стан...');
             participation.resetState();
+        }
+
+        // ДОДАНО: Скидаємо стан обробки запиту
+        if (participation) {
+            participation.requestInProgress = false;
         }
     });
 
