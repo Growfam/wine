@@ -3,7 +3,7 @@
  * Оновлений модуль для роботи з активними розіграшами
  * Додано функціонал деталей розіграшів
  * Виправлено обробку участі та помилок
- * @version 1.3.1
+ * @version 1.4.0
  */
 
 (function() {
@@ -142,6 +142,14 @@
                         e.target.classList.add('processing');
                         e.target.disabled = true;
 
+                        // Зберігаємо оригінальний текст кнопки, якщо він ще не збережений
+                        if (!e.target.getAttribute('data-original-text')) {
+                            e.target.setAttribute('data-original-text', e.target.textContent);
+                        }
+
+                        // Змінюємо текст на "Обробка..."
+                        e.target.textContent = 'Обробка...';
+
                         // Перевіряємо чи модуль участі ініціалізовано
                         if (WinixRaffles.participation) {
                             // Використовуємо правильну обробку промісів
@@ -157,17 +165,22 @@
                                         if (typeof window.showToast === 'function') {
                                             window.showToast(result.message, 'warning');
                                         }
-                                        // Відновлюємо стан кнопки
-                                        e.target.classList.remove('processing');
-                                        e.target.disabled = false;
+
+                                        // Відновлюємо стан кнопки та її оригінальний текст
+                                        this._resetButtonState(e.target, raffleId);
                                     }
                                 })
                                 .catch(error => {
                                     // Обробка помилок
                                     console.error('❌ Помилка участі в міні-розіграші:', error);
-                                    // Відновлюємо стан кнопки
-                                    e.target.classList.remove('processing');
-                                    e.target.disabled = false;
+
+                                    // Відновлюємо стан кнопки та її оригінальний текст
+                                    this._resetButtonState(e.target, raffleId);
+
+                                    // Показуємо повідомлення про помилку
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast(error.message || 'Помилка участі в розіграші', 'error');
+                                    }
                                 })
                                 .finally(() => {
                                     // Видаляємо запит зі списку активних
@@ -178,8 +191,7 @@
                             this.fallbackParticipate(raffleId, 'daily')
                                 .finally(() => {
                                     delete this.participationRequests[raffleId];
-                                    e.target.classList.remove('processing');
-                                    e.target.disabled = false;
+                                    this._resetButtonState(e.target, raffleId);
                                 });
                         }
                     }
@@ -205,6 +217,85 @@
                     }
                 });
             });
+
+            // Додаємо обробник події для оновлення стану кнопок після участі
+            document.addEventListener('raffle-participation', (event) => {
+                if (event.detail && event.detail.successful && event.detail.raffleId) {
+                    // Оновлюємо стан кнопок для цього розіграшу
+                    this.updateButtonsAfterParticipation(event.detail.raffleId, event.detail.ticketCount || 1);
+                }
+            });
+        },
+
+        /**
+         * Оновити стан кнопок після успішної участі
+         * @param {string} raffleId - ID розіграшу
+         * @param {number} ticketCount - Кількість білетів
+         */
+        updateButtonsAfterParticipation: function(raffleId, ticketCount) {
+            const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+
+            buttons.forEach(button => {
+                // Видаляємо клас обробки
+                button.classList.remove('processing');
+
+                // Розблоковуємо кнопку
+                button.disabled = false;
+
+                // Додаємо клас участі
+                button.classList.add('participating');
+
+                // Оновлюємо текст кнопки
+                const isMini = button.classList.contains('mini-raffle-button');
+                button.textContent = isMini ?
+                    `Додати ще білет (${ticketCount})` :
+                    `Додати ще білет (у вас: ${ticketCount})`;
+            });
+        },
+
+        /**
+         * Скидання стану кнопки
+         * @param {HTMLElement} button - Елемент кнопки
+         * @param {string} raffleId - ID розіграшу
+         * @private
+         */
+        _resetButtonState: function(button, raffleId) {
+            // Видаляємо клас обробки
+            button.classList.remove('processing');
+            button.disabled = false;
+
+            // Перевіряємо участь у розіграші через модуль participation
+            const isParticipating = WinixRaffles.participation &&
+                                    WinixRaffles.participation.participatingRaffles &&
+                                    WinixRaffles.participation.participatingRaffles.has(raffleId);
+
+            if (isParticipating) {
+                // Якщо користувач уже бере участь, відображаємо відповідний стан
+                const ticketCount = WinixRaffles.participation.userRaffleTickets ?
+                                   (WinixRaffles.participation.userRaffleTickets[raffleId] || 1) : 1;
+                const isMini = button.classList.contains('mini-raffle-button');
+
+                button.textContent = isMini ?
+                    `Додати ще білет (${ticketCount})` :
+                    `Додати ще білет (у вас: ${ticketCount})`;
+
+                button.classList.add('participating');
+            } else {
+                // Відновлюємо оригінальний текст кнопки
+                const originalText = button.getAttribute('data-original-text');
+
+                if (originalText) {
+                    button.textContent = originalText;
+                } else {
+                    // Встановлюємо стандартний текст, якщо оригінальний не знайдено
+                    const entryFee = button.getAttribute('data-entry-fee') || '1';
+                    button.textContent = button.classList.contains('mini-raffle-button') ?
+                        'Взяти участь' :
+                        `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+                }
+
+                button.classList.remove('participating');
+            }
         },
 
         // Завантаження активних розіграшів
@@ -441,8 +532,8 @@
                     </div>
 
                     <div class="raffle-actions">
-                        <button class="join-button" data-raffle-id="${raffle.id}" data-raffle-type="main">
-                            Взяти участь за ${raffle.entry_fee} жетони
+                        <button class="join-button" data-raffle-id="${raffle.id}" data-raffle-type="main" data-entry-fee="${raffle.entry_fee}">
+                            Взяти участь за ${raffle.entry_fee} жетон${parseInt(raffle.entry_fee) > 1 ? 'и' : ''}
                         </button>
                         <button class="raffle-details-button" data-raffle-id="${raffle.id}">
                             Деталі
@@ -524,7 +615,7 @@
                     <div class="mini-raffle-time">Завершення: ${endTimeText}</div>
                 </div>
                 <div class="mini-raffle-actions">
-                    <button class="mini-raffle-button" data-raffle-id="${raffle.id}" data-raffle-type="daily">Взяти участь</button>
+                    <button class="mini-raffle-button" data-raffle-id="${raffle.id}" data-raffle-type="daily" data-entry-fee="${raffle.entry_fee}">Взяти участь</button>
                     <button class="raffle-details-button mini" data-raffle-id="${raffle.id}">Деталі</button>
                 </div>
             `;
@@ -532,189 +623,189 @@
             return miniRaffle;
         },
 
-/**
- * Додавання стилів для кнопки деталей
- */
-addDetailButtonStyles: function() {
-    // Перевіряємо чи стилі вже додані
-    if (document.getElementById('raffle-details-button-styles')) {
-        return;
-    }
+        /**
+         * Додавання стилів для кнопки деталей
+         */
+        addDetailButtonStyles: function() {
+            // Перевіряємо чи стилі вже додані
+            if (document.getElementById('raffle-details-button-styles')) {
+                return;
+            }
 
-    // Створюємо стилі
-    const style = document.createElement('style');
-    style.id = 'raffle-details-button-styles';
-    style.textContent = `
-        .raffle-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .join-button {
-            flex: 3;
-            background: linear-gradient(90deg, #4CAF50, #009688);
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            border-radius: 25px;
-            padding: 12px 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        
-        .join-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-        }
-        
-        .join-button:active {
-            transform: translateY(1px);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        .raffle-details-button {
-            flex: 1;
-            background: linear-gradient(90deg, #4eb5f7, #3967c0);
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            border-radius: 25px;
-            padding: 10px 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            min-width: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            box-shadow: 0 4px 8px rgba(57, 103, 192, 0.3);
-        }
-        
-        .raffle-details-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(57, 103, 192, 0.4);
-            background: linear-gradient(90deg, #5990f5, #4272d4);
-        }
-        
-        .raffle-details-button:active {
-            transform: translateY(1px);
-            box-shadow: 0 2px 5px rgba(57, 103, 192, 0.3);
-        }
-        
-        .raffle-details-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, 
-                rgba(255,255,255,0), 
-                rgba(255,255,255,0.3), 
-                rgba(255,255,255,0));
-            transition: all 0.6s ease;
-        }
-        
-        .raffle-details-button:hover::before {
-            left: 100%;
-        }
-        
-        .raffle-details-button svg,
-        .raffle-details-button img {
-            width: 16px;
-            height: 16px;
-            opacity: 0.9;
-        }
-        
-        .mini-raffle-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-left: 10px;
-        }
-        
-        .mini-raffle-button {
-            background: linear-gradient(90deg, #4CAF50, #009688);
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-            border-radius: 20px;
-            padding: 8px 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .mini-raffle-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
-        }
-        
-        .mini-raffle-button:active {
-            transform: translateY(1px);
-            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
-        }
-        
-        .raffle-details-button.mini {
-            font-size: 13px;
-            padding: 8px 12px;
-            background: linear-gradient(90deg, #4eb5f7, #3967c0);
-        }
-        
-        /* Стан кнопки під час обробки запиту */
-        .join-button.processing,
-        .mini-raffle-button.processing {
-            opacity: 0.7;
-            pointer-events: none;
-            background: linear-gradient(90deg, #9e9e9e, #616161);
-        }
-        
-        /* Стан кнопки для учасників */
-        .join-button.participating,
-        .mini-raffle-button.participating {
-            background: linear-gradient(90deg, #2196F3, #0D47A1);
-        }
-        
-        /* Стан для вимкненої кнопки */
-        .join-button:disabled,
-        .mini-raffle-button:disabled,
-        .raffle-details-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-        
-        @media (max-width: 480px) {
-            .raffle-actions {
-                flex-direction: column;
-            }
-            
-            .mini-raffle-actions {
-                flex-direction: column;
-            }
-            
-            .raffle-details-button,
-            .join-button {
-                width: 100%;
-                padding: 10px;
-            }
-        }
-    `;
+            // Створюємо стилі
+            const style = document.createElement('style');
+            style.id = 'raffle-details-button-styles';
+            style.textContent = `
+                .raffle-actions {
+                    display: flex;
+                    gap: 10px;
+                    margin-top: 15px;
+                }
+                
+                .join-button {
+                    flex: 3;
+                    background: linear-gradient(90deg, #4CAF50, #009688);
+                    border: none;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border-radius: 25px;
+                    padding: 12px 15px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                }
+                
+                .join-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+                }
+                
+                .join-button:active {
+                    transform: translateY(1px);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+                }
+                
+                .raffle-details-button {
+                    flex: 1;
+                    background: linear-gradient(90deg, #4eb5f7, #3967c0);
+                    border: none;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border-radius: 25px;
+                    padding: 10px 15px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                    min-width: 80px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    box-shadow: 0 4px 8px rgba(57, 103, 192, 0.3);
+                }
+                
+                .raffle-details-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 15px rgba(57, 103, 192, 0.4);
+                    background: linear-gradient(90deg, #5990f5, #4272d4);
+                }
+                
+                .raffle-details-button:active {
+                    transform: translateY(1px);
+                    box-shadow: 0 2px 5px rgba(57, 103, 192, 0.3);
+                }
+                
+                .raffle-details-button::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(90deg, 
+                        rgba(255,255,255,0), 
+                        rgba(255,255,255,0.3), 
+                        rgba(255,255,255,0));
+                    transition: all 0.6s ease;
+                }
+                
+                .raffle-details-button:hover::before {
+                    left: 100%;
+                }
+                
+                .raffle-details-button svg,
+                .raffle-details-button img {
+                    width: 16px;
+                    height: 16px;
+                    opacity: 0.9;
+                }
+                
+                .mini-raffle-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    margin-left: 10px;
+                }
+                
+                .mini-raffle-button {
+                    background: linear-gradient(90deg, #4CAF50, #009688);
+                    border: none;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border-radius: 20px;
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .mini-raffle-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+                }
+                
+                .mini-raffle-button:active {
+                    transform: translateY(1px);
+                    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
+                }
+                
+                .raffle-details-button.mini {
+                    font-size: 13px;
+                    padding: 8px 12px;
+                    background: linear-gradient(90deg, #4eb5f7, #3967c0);
+                }
+                
+                /* Стан кнопки під час обробки запиту */
+                .join-button.processing,
+                .mini-raffle-button.processing {
+                    opacity: 0.7;
+                    pointer-events: none;
+                    background: linear-gradient(90deg, #9e9e9e, #616161);
+                }
+                
+                /* Стан кнопки для учасників */
+                .join-button.participating,
+                .mini-raffle-button.participating {
+                    background: linear-gradient(90deg, #2196F3, #0D47A1);
+                }
+                
+                /* Стан для вимкненої кнопки */
+                .join-button:disabled,
+                .mini-raffle-button:disabled,
+                .raffle-details-button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
+                
+                @media (max-width: 480px) {
+                    .raffle-actions {
+                        flex-direction: column;
+                    }
+                    
+                    .mini-raffle-actions {
+                        flex-direction: column;
+                    }
+                    
+                    .raffle-details-button,
+                    .join-button {
+                        width: 100%;
+                        padding: 10px;
+                    }
+                }
+            `;
 
-    // Додаємо стилі на сторінку
-    document.head.appendChild(style);
-},
+            // Додаємо стилі на сторінку
+            document.head.appendChild(style);
+        },
 
         // Відображення порожнього стану активних розіграшів
         renderEmptyActiveRaffles: function() {

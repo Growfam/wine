@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
  * Виправлено проблеми з умовами гонки, скиданням стану та обробкою помилок
- * @version 3.0.0
+ * @version 3.1.0
  */
 
 (function() {
@@ -931,6 +931,10 @@
 
         /**
          * Участь у розіграші
+         * @param {string} raffleId - ID розіграшу
+         * @param {string} raffleType - Тип розіграшу (daily/main)
+         * @param {number} entryCount - Кількість білетів
+         * @returns {Promise<Object>} - Результат участі
          */
         participateInRaffle: async function(raffleId, raffleType, entryCount = 1) {
             console.log(`🎯 Спроба участі у розіграші ${raffleId}, кількість: ${entryCount}`);
@@ -987,17 +991,10 @@
                 };
             }
 
-            // 6. ЗБЕРЕЖЕННЯ СТАНУ ДО ЗАПИТУ
-            const preRequestState = {
-                participatingRaffles: new Set(this.participatingRaffles),
-                userRaffleTickets: {...this.userRaffleTickets},
-                timestamp: now
-            };
-
-            // 7. ГЕНЕРАЦІЯ УНІКАЛЬНОГО ID ТРАНЗАКЦІЇ
+            // 6. ГЕНЕРАЦІЯ УНІКАЛЬНОГО ID ТРАНЗАКЦІЇ
             const transactionId = this._generateTransactionId();
 
-            // 8. БЛОКУВАННЯ ЗАПИТІВ ДЛЯ ЦЬОГО РОЗІГРАШУ
+            // 7. БЛОКУВАННЯ ЗАПИТІВ ДЛЯ ЦЬОГО РОЗІГРАШУ
             this.pendingRequests[raffleId] = {
                 id: transactionId,
                 timestamp: now,
@@ -1006,21 +1003,20 @@
                 status: 'pending'
             };
 
-            // 9. ОНОВЛЕННЯ ЛІЧИЛЬНИКА ТА ЧАСОВИХ МІТОК
+            // 8. ОНОВЛЕННЯ ЛІЧИЛЬНИКА ТА ЧАСОВИХ МІТОК
             this.totalRequestCount++;
             this.lastRequestTimes[raffleId] = now;
 
-            // 10. ЛОГУВАННЯ ПОЧАТКУ ТРАНЗАКЦІЇ
+            // 9. ЛОГУВАННЯ ПОЧАТКУ ТРАНЗАКЦІЇ
             this._logTransaction({
                 type: 'start',
                 raffleId: raffleId,
                 transactionId: transactionId,
                 timestamp: now,
-                entryCount: entryCount,
-                currentTickets: this.userRaffleTickets[raffleId] || 0
+                entryCount: entryCount
             });
 
-            // 11. ЗБЕРЕЖЕННЯ ДАНИХ ПРО ТРАНЗАКЦІЮ ДЛЯ ВІДНОВЛЕННЯ
+            // 10. ЗБЕРЕЖЕННЯ ДАНИХ ПРО ТРАНЗАКЦІЮ ДЛЯ ВІДНОВЛЕННЯ
             try {
                 const pendingTransaction = {
                     raffleId: raffleId,
@@ -1051,26 +1047,13 @@
                 console.warn('⚠️ Помилка збереження даних транзакції:', e);
             }
 
-            // 12. СТВОРЕННЯ КОПІЇ ЛОКАЛЬНОГО СТАНУ
-            const currentTickets = this.userRaffleTickets[raffleId] || 0;
-            const localOperation = {
-                raffleId: raffleId,
-                transactionId: transactionId,
-                timestamp: now,
-                entryCount: entryCount,
-                prevTickets: currentTickets,
-                newTickets: currentTickets + entryCount,
-                status: 'pending'
-            };
-            this.localOperations.push(localOperation);
-
             try {
-                // 13. ПОКАЗУЄМО ІНДИКАТОР ЗАВАНТАЖЕННЯ
+                // 11. ПОКАЗУЄМО ІНДИКАТОР ЗАВАНТАЖЕННЯ
                 if (typeof window.showLoading === 'function') {
                     window.showLoading();
                 }
 
-                // 14. ОТРИМАННЯ ID КОРИСТУВАЧА
+                // 12. ОТРИМАННЯ ID КОРИСТУВАЧА
                 const userId = WinixRaffles.state.telegramId ||
                               (window.WinixAPI ? window.WinixAPI.getUserId() : null);
 
@@ -1078,40 +1061,28 @@
                     throw new Error('Не вдалося визначити ваш ID');
                 }
 
-                // 15. ПЕРЕВІРКА НАЯВНОСТІ API
+                // 13. ПЕРЕВІРКА НАЯВНОСТІ API
                 if (!window.WinixAPI || typeof window.WinixAPI.apiRequest !== 'function') {
                     throw new Error('API недоступний. Оновіть сторінку і спробуйте знову.');
                 }
 
-                // 16. БУДУЄМО ЗАПИТ З МАКСИМАЛЬНОЮ ІНФОРМАЦІЄЮ
+                // 14. БУДУЄМО ЗАПИТ
                 const requestData = {
                     raffle_id: raffleId,
                     entry_count: entryCount,
                     _transaction_id: transactionId,
                     _timestamp: now,
-                    _client_id: `${userId}_${now}_${Math.random().toString(36).substring(2, 7)}`,
-                    _current_tickets: currentTickets,
-                    _prev_tickets: currentTickets,
-                    _client_time: now,
-                    _request_count: this.totalRequestCount,
-                    _is_participating: this.participatingRaffles.has(raffleId) ? 1 : 0
+                    _client_id: `${userId}_${now}_${Math.random().toString(36).substring(2, 7)}`
                 };
 
-                // 17. ВИКОНУЄМО ЗАПИТ ДО СЕРВЕРА З ПОВНИМ КОНТРОЛЕМ
+                // 15. ВИКОНУЄМО ЗАПИТ ДО СЕРВЕРА
                 const endpoint = `user/${userId}/participate-raffle`;
-
                 console.log(`📡 Відправка запиту на участь (T:${transactionId.split('_')[1]})`);
 
                 // ВСТАНОВЛЮЄМО ТАЙМАУТ ДЛЯ АВТОМАТИЧНОГО СКИДАННЯ БЛОКУВАННЯ
                 const timeoutId = setTimeout(() => {
                     console.warn(`⚠️ Таймаут запиту для розіграшу ${raffleId}`);
                     delete this.pendingRequests[raffleId];
-
-                    // Оновлюємо статус операції
-                    this.localOperations = this.localOperations.map(op =>
-                        op.transactionId === transactionId ? {...op, status: 'timeout'} : op
-                    );
-
                     this._resetButtonState(raffleId);
                 }, 15000);
 
@@ -1125,11 +1096,11 @@
                 // СКАСОВУЄМО ТАЙМАУТ ПРИ ОТРИМАННІ ВІДПОВІДІ
                 clearTimeout(timeoutId);
 
-                // 18. ЛОГУЄМО ВІДПОВІДЬ
+                // 16. ЛОГУЄМО ВІДПОВІДЬ
                 console.log(`📩 Отримано відповідь на запит участі (T:${transactionId.split('_')[1]}):`,
                     response.status === 'success' ? 'Успіх' : `Помилка: ${response.message}`);
 
-                // 19. ЛОГУЄМО ЗАВЕРШЕННЯ ТРАНЗАКЦІЇ
+                // 17. ЛОГУЄМО ЗАВЕРШЕННЯ ТРАНЗАКЦІЇ
                 this._logTransaction({
                     type: 'complete',
                     raffleId: raffleId,
@@ -1145,146 +1116,124 @@
                 });
 
                 if (response.status === 'success') {
-                    // 20. УСПІШНО ОБРОБЛЕНА ВІДПОВІДЬ
+                    // 18. УСПІШНО ОБРОБЛЕНА ВІДПОВІДЬ
 
-                    // 20.1 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
+                    // 18.1 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
                     this._updateTransactionStatus(raffleId, transactionId, 'completed');
 
-                    // 20.2 ОНОВЛЮЄМО СТАТУС ЛОКАЛЬНОЇ ОПЕРАЦІЇ
-                    this.localOperations = this.localOperations.map(op =>
-                        op.transactionId === transactionId ?
-                        {...op, status: 'completed', serverResponse: response.data} : op
-                    );
-
-                    // 20.3 ОНОВЛЮЄМО ДАНІ ПРО УЧАСТЬ
+                    // 18.2 ОНОВЛЮЄМО ДАНІ ПРО УЧАСТЬ - ВИКОРИСТОВУЄМО ТІЛЬКИ ДАНІ СЕРВЕРА
                     this.participatingRaffles.add(raffleId);
 
-                    // 20.4 ВИЗНАЧАЄМО НОВУ КІЛЬКІСТЬ БІЛЕТІВ
+                    // 18.3 ВИЗНАЧАЄМО КІЛЬКІСТЬ БІЛЕТІВ З ДАНИХ СЕРВЕРА
                     let newTicketCount;
-
-                    // Якщо сервер повернув загальну кількість білетів, використовуємо її
                     if (response.data && typeof response.data.total_entries === 'number') {
                         newTicketCount = response.data.total_entries;
-                        console.log(`ℹ️ Сервер повернув кількість білетів: ${newTicketCount}`);
                     } else {
-                        // Інакше додаємо кількість нових білетів до поточних
-                        newTicketCount = currentTickets + entryCount;
-                        console.log(`ℹ️ Розраховано локально кількість білетів: ${newTicketCount}`);
+                        // Якщо сервер не повернув дані, робимо додатковий запит
+                        console.warn("⚠️ Сервер не повернув дані про кількість білетів, запускаємо синхронізацію");
+                        setTimeout(() => this.loadUserRaffles(true), 500);
+                        newTicketCount = 1; // Тимчасове значення
                     }
 
-                    // 20.5 ВАЛІДАЦІЯ БІЛЕТІВ
-                    const isRationalTicketCount = newTicketCount >= currentTickets;
-
-                    if (!isRationalTicketCount) {
-                        console.warn(`⚠️ Нелогічна кількість білетів від сервера: ${newTicketCount} (було ${currentTickets})`);
-
-                        // Виправляємо нелогічне значення
-                        newTicketCount = currentTickets + entryCount;
-                        console.log(`🔧 Виправлено на: ${newTicketCount}`);
-                    }
-
-                    // 20.6 ОНОВЛЮЄМО ЛОКАЛЬНИЙ СТАН БІЛЕТІВ
+                    // 18.4 ОНОВЛЮЄМО ЛОКАЛЬНИЙ СТАН БІЛЕТІВ
                     this.userRaffleTickets[raffleId] = newTicketCount;
 
-                    // 20.7 ОНОВЛЮЄМО БАЛАНС ЖЕТОНІВ
-                    const userCoinsElement = document.getElementById('user-coins');
-                    const initialCoins = userCoinsElement ?
-                        parseInt(userCoinsElement.textContent) || 0 :
-                        parseInt(localStorage.getItem('userCoins') || '0');
-
-                    // Отримання оновленого балансу
-                    let newCoinsBalance;
-
+                    // 18.5 ОНОВЛЮЄМО БАЛАНС ЖЕТОНІВ - ВИКОРИСТОВУЄМО ТІЛЬКИ ДАНІ СЕРВЕРА
                     if (response.data && typeof response.data.new_coins_balance === 'number') {
-                        newCoinsBalance = response.data.new_coins_balance;
-                        console.log(`ℹ️ Сервер повернув новий баланс: ${newCoinsBalance}`);
+                        // Оновлюємо відображення балансу
+                        const userCoinsElement = document.getElementById('user-coins');
+                        if (userCoinsElement) {
+                            userCoinsElement.textContent = response.data.new_coins_balance;
+                        }
+
+                        // Оновлюємо локальне сховище
+                        localStorage.setItem('userCoins', response.data.new_coins_balance.toString());
+                        localStorage.setItem('winix_coins', response.data.new_coins_balance.toString());
+                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
                     } else {
-                        // Обчислюємо баланс локально
-                        newCoinsBalance = Math.max(0, initialCoins - entryCount);
-                        console.log(`ℹ️ Розраховано локально новий баланс: ${newCoinsBalance}`);
+                        // Якщо сервер не повернув баланс, робимо додатковий запит
+                        console.warn("⚠️ Сервер не повернув дані про новий баланс, отримуємо баланс");
+                        if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+                            window.WinixAPI.getBalance()
+                                .then(balanceResponse => {
+                                    if (balanceResponse.status === 'success' &&
+                                        balanceResponse.data &&
+                                        typeof balanceResponse.data.coins === 'number') {
+
+                                        // Оновлюємо відображення балансу
+                                        const userCoinsElement = document.getElementById('user-coins');
+                                        if (userCoinsElement) {
+                                            userCoinsElement.textContent = balanceResponse.data.coins;
+                                        }
+
+                                        // Оновлюємо локальне сховище
+                                        localStorage.setItem('userCoins', balanceResponse.data.coins.toString());
+                                        localStorage.setItem('winix_coins', balanceResponse.data.coins.toString());
+                                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                                    }
+                                })
+                                .catch(err => {
+                                    console.warn("⚠️ Не вдалося отримати баланс після транзакції:", err);
+                                });
+                        }
                     }
 
-                    // 20.8 ВАЛІДАЦІЯ БАЛАНСУ
-                    const isRationalBalance = newCoinsBalance <= initialCoins;
-
-                    if (!isRationalBalance) {
-                        console.warn(`⚠️ Нелогічний баланс від сервера: ${newCoinsBalance} (було ${initialCoins})`);
-
-                        // Виправляємо нелогічне значення
-                        newCoinsBalance = Math.max(0, initialCoins - entryCount);
-                        console.log(`🔧 Виправлено на: ${newCoinsBalance}`);
-                    }
-
-                    // 20.9 ОНОВЛЮЄМО ВІДОБРАЖЕННЯ ТА КЕШ БАЛАНСУ
-                    if (userCoinsElement) {
-                        userCoinsElement.textContent = newCoinsBalance;
-                    }
-
-                    localStorage.setItem('userCoins', newCoinsBalance.toString());
-                    localStorage.setItem('winix_coins', newCoinsBalance.toString());
-                    localStorage.setItem('winix_balance_update_time', Date.now().toString());
-
-                    // 20.10 ЗБЕРІГАЄМО ОНОВЛЕНИЙ СТАН
+                    // 18.6 ЗБЕРІГАЄМО ОНОВЛЕНИЙ СТАН
                     this._saveParticipationToStorage();
 
-                    // 20.11 ОНОВЛЮЄМО КНОПКИ УЧАСТІ
+                    // 18.7 ОНОВЛЮЄМО КНОПКИ УЧАСТІ
                     this.updateParticipationButtons();
 
-                    // 20.12 ГЕНЕРУЄМО ПОВІДОМЛЕННЯ ПРО УСПІХ
-                    const message = currentTickets > 0 ?
-                        `Додано ще ${entryCount} білет! Тепер у вас ${newTicketCount} білетів` :
-                        'Ви успішно взяли участь у розіграші';
+                    // 18.8 ГЕНЕРУЄМО ПОВІДОМЛЕННЯ ПРО УСПІХ
+                    let message;
+                    if (response.data && response.data.message) {
+                        message = response.data.message;
+                    } else {
+                        // Формуємо стандартне повідомлення
+                        message = newTicketCount > 1 ?
+                            `Додано ще білет! Тепер у вас ${newTicketCount} білетів` :
+                            'Ви успішно взяли участь у розіграші';
+                    }
 
-                    // 20.13 ПОКАЗУЄМО ПОВІДОМЛЕННЯ
+                    // 18.9 ПОКАЗУЄМО ПОВІДОМЛЕННЯ
                     if (typeof window.showToast === 'function') {
                         window.showToast(message, 'success');
                     }
 
-                    // 20.14 ВІДПРАВЛЯЄМО ПОДІЮ ПРО ОНОВЛЕННЯ ДАНИХ КОРИСТУВАЧА
+                    // 18.10 ВІДПРАВЛЯЄМО ПОДІЮ ПРО ОНОВЛЕННЯ ДАНИХ КОРИСТУВАЧА
                     document.dispatchEvent(new CustomEvent('user-data-updated', {
                         detail: {
                             userData: {
-                                coins: newCoinsBalance,
-                                participations_count: this.participatingRaffles.size,
+                                coins: response.data.new_coins_balance,
                                 last_update: Date.now()
-                            }
-                        },
-                        source: 'participation.js'
+                            },
+                            source: 'participation.js'
+                        }
                     }));
 
-                    // 20.15 ОНОВЛЮЄМО КІЛЬКІСТЬ УЧАСНИКІВ
+                    // 18.11 ОНОВЛЮЄМО КІЛЬКІСТЬ УЧАСНИКІВ
                     this.updateParticipantsCount(raffleId);
 
-                    // 20.16 ПЛАНУВАННЯ ПІДТВЕРДЖУЮЧОЇ СИНХРОНІЗАЦІЇ
+                    // 18.12 ПЛАНУВАННЯ ПІДТВЕРДЖУЮЧОЇ СИНХРОНІЗАЦІЇ
                     setTimeout(() => {
                         this.confirmParticipation(raffleId).catch(e =>
                             console.warn('⚠️ Помилка підтвердження участі:', e)
                         );
                     }, 3000);
 
-                    // 20.17 ПОВЕРНЕННЯ РЕЗУЛЬТАТУ
+                    // 18.13 ПОВЕРНЕННЯ РЕЗУЛЬТАТУ
                     return {
                         success: true,
-                        data: {
-                            ...response.data,
-                            total_entries: newTicketCount,
-                            coins_spent: entryCount
-                        },
+                        data: response.data,
                         message: message
                     };
                 } else {
-                    // 21. ОБРОБКА ПОМИЛКИ
+                    // 19. ОБРОБКА ПОМИЛКИ
 
-                    // 21.1 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
+                    // 19.1 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
                     this._updateTransactionStatus(raffleId, transactionId, 'failed', response.message);
 
-                    // 21.2 ОНОВЛЮЄМО СТАТУС ЛОКАЛЬНОЇ ОПЕРАЦІЇ
-                    this.localOperations = this.localOperations.map(op =>
-                        op.transactionId === transactionId ?
-                        {...op, status: 'failed', error: response.message} : op
-                    );
-
-                    // 21.3 ОБРОБКА СПЕЦИФІЧНИХ ПОМИЛОК
+                    // 19.2 ОБРОБКА СПЕЦИФІЧНИХ ПОМИЛОК
                     if (response.message && response.message.includes('занадто багато запитів')) {
                         return {
                             success: false,
@@ -1308,16 +1257,10 @@
                     }
                 }
             } catch (error) {
-                // 22. ОБРОБКА КРИТИЧНИХ ПОМИЛОК
+                // 20. ОБРОБКА КРИТИЧНИХ ПОМИЛОК
                 console.error(`❌ Помилка участі в розіграші ${raffleId}:`, error);
 
-                // 22.1 ОНОВЛЮЄМО СТАТУС ЛОКАЛЬНОЇ ОПЕРАЦІЇ
-                this.localOperations = this.localOperations.map(op =>
-                    op.transactionId === transactionId ?
-                    {...op, status: 'error', error: error.message} : op
-                );
-
-                // 22.2 ЛОГУЄМО ПОМИЛКУ ТРАНЗАКЦІЇ
+                // 20.1 ЛОГУЄМО ПОМИЛКУ ТРАНЗАКЦІЇ
                 this._logTransaction({
                     type: 'error',
                     raffleId: raffleId,
@@ -1327,10 +1270,10 @@
                     duration: Date.now() - now
                 });
 
-                // 22.3 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
+                // 20.2 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
                 this._updateTransactionStatus(raffleId, transactionId, 'failed', error.message);
 
-                // 22.4 ПЕРЕВІРКА НА ЗАВЕРШЕННЯ РОЗІГРАШУ
+                // 20.3 ПЕРЕВІРКА НА ЗАВЕРШЕННЯ РОЗІГРАШУ
                 if (error.message &&
                    (error.message.includes('завершено') ||
                     error.message.includes('not found') ||
@@ -1339,21 +1282,14 @@
                     this.addInvalidRaffleId(raffleId);
                 }
 
-                // 22.5 ВІДНОВЛЕННЯ СТАНУ ДО ЗАПИТУ
-                console.log('🔄 Відновлення стану до запиту через помилку');
-                this.participatingRaffles = new Set(preRequestState.participatingRaffles);
-                this.userRaffleTickets = {...preRequestState.userRaffleTickets};
-                this._saveParticipationToStorage();
-                this.updateParticipationButtons();
-
                 return Promise.reject(error);
             } finally {
-                // 23. ЗАВЕРШАЛЬНІ ДІЇ (ВИКОНУЮТЬСЯ ЗАВЖДИ)
+                // 21. ЗАВЕРШАЛЬНІ ДІЇ (ВИКОНУЮТЬСЯ ЗАВЖДИ)
 
-                // 23.1 ВИДАЛЯЄМО БЛОКУВАННЯ ДЛЯ ЦЬОГО РОЗІГРАШУ
+                // 21.1 ВИДАЛЯЄМО БЛОКУВАННЯ ДЛЯ ЦЬОГО РОЗІГРАШУ
                 delete this.pendingRequests[raffleId];
 
-                // 23.2 ПРИХОВУЄМО ІНДИКАТОР ЗАВАНТАЖЕННЯ
+                // 21.2 ПРИХОВУЄМО ІНДИКАТОР ЗАВАНТАЖЕННЯ
                 if (typeof window.hideLoading === 'function') {
                     window.hideLoading();
                 }
@@ -1766,6 +1702,7 @@
                                 // Оновлюємо кеш
                                 localStorage.setItem('userCoins', balanceResponse.data.coins.toString());
                                 localStorage.setItem('winix_coins', balanceResponse.data.coins.toString());
+                                localStorage.setItem('winix_balance_update_time', Date.now().toString());
                             }
                         }
                     } catch (error) {
