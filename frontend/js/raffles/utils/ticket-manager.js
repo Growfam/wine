@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (ticket-manager.js)
  * Повністю виправлений модуль для коректного управління білетами та жетонами
  * Усунено проблеми зі списанням жетонів та дублюванням участі
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 (function() {
@@ -22,7 +22,7 @@
         // Дані про вартість участі для кожного розіграшу
         entryFees: {},
 
-        // Поточна кількість жетонів користувача
+        // Поточна кількість жетонів користувача (оновлюється ТІЛЬКИ з сервера)
         currentCoins: 0,
 
         // Лічильник транзакцій для відстеження
@@ -35,7 +35,7 @@
         lastTransactionTime: 0,
 
         // Мінімальний інтервал між транзакціями (мс)
-        minTransactionInterval: 2000, // Збільшено для запобігання частим запитам
+        minTransactionInterval: 2000, // 2 секунди між запитами
 
         // Історія транзакцій
         transactionHistory: [],
@@ -76,7 +76,7 @@
                 this.loadUserTickets(true);
             }, 2000);
 
-            // ВИПРАВЛЕНО: Додано регулярну синхронізацію балансу
+            // Додаємо регулярну синхронізацію балансу
             setInterval(() => {
                 this.syncServerBalance();
             }, 60000); // Кожну хвилину
@@ -104,7 +104,7 @@
                 this.syncTimer = null;
             }
 
-            // ВИПРАВЛЕНО: Очищення стану блокування кнопок
+            // Очищення стану блокування кнопок
             document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
                 button.classList.remove('processing');
                 button.disabled = false;
@@ -122,7 +122,7 @@
                 }
             });
 
-            // ВИПРАВЛЕНО: Покращений обробник події оновлення балансу користувача
+            // Покращений обробник події оновлення балансу користувача
             document.addEventListener('user-data-updated', (event) => {
                 if (event.detail && event.detail.userData) {
                     // Оновлюємо тільки якщо прийшов новий баланс і він відрізняється від поточного
@@ -156,7 +156,7 @@
                 }
             });
 
-            // ВИПРАВЛЕНО: Покращений обробник натискання на кнопки участі
+            // Покращений обробник натискання на кнопки участі
             document.addEventListener('click', (event) => {
                 const participateButton = event.target.closest('.join-button, .mini-raffle-button');
                 if (!participateButton) return;
@@ -171,7 +171,7 @@
                 const raffleId = participateButton.getAttribute('data-raffle-id');
                 if (!raffleId) return;
 
-                // ВИПРАВЛЕНО: Перевірка на таймер зворотного відліку
+                // Перевірка на таймер зворотного відліку
                 if (this.cooldownTimers[raffleId]) {
                     event.preventDefault();
                     event.stopPropagation();
@@ -195,11 +195,11 @@
                     return;
                 }
 
-                // ВИПРАВЛЕНО: Додаємо клас та відключаємо кнопку перед запитом
+                // Додаємо клас та відключаємо кнопку перед запитом
                 participateButton.classList.add('processing');
                 participateButton.disabled = true;
 
-                // ВИПРАВЛЕНО: Зберігаємо оригінальний текст кнопки
+                // Зберігаємо оригінальний текст кнопки
                 if (!participateButton.getAttribute('data-original-text')) {
                     participateButton.setAttribute('data-original-text', participateButton.textContent);
                 }
@@ -223,7 +223,7 @@
         },
 
         /**
-         * НОВЕ: Синхронізація балансу з сервером
+         * Синхронізація балансу з сервером
          */
         syncServerBalance: async function() {
             try {
@@ -305,7 +305,7 @@
         },
 
         /**
-         * ВИПРАВЛЕНО: Оновлення поточної кількості жетонів
+         * Оновлення поточної кількості жетонів
          * @param {number} coins - Кількість жетонів
          */
         updateCurrentCoins: function(coins) {
@@ -332,7 +332,7 @@
         },
 
         /**
-         * НОВЕ: Оновлення відображення жетонів
+         * Оновлення відображення жетонів
          */
         updateCoinsDisplay: function() {
             // Оновлюємо елемент в DOM
@@ -448,7 +448,7 @@
         },
 
         /**
-         * ВИПРАВЛЕНО: Обробка успішної участі в розіграші
+         * Обробка успішної участі в розіграші
          * @param {Object} data - Дані про участь
          */
         handleSuccessfulParticipation: function(data) {
@@ -469,10 +469,6 @@
 
             // Оновлюємо відображення білетів
             this.updateTicketDisplay(raffleId, ticketCount);
-
-            // ВИПРАВЛЕНО: НЕ зменшуємо кількість жетонів локально,
-            // використовуємо лише дані з сервера
-            // this.decreaseCoins(raffleId); - Видалено
 
             // Додаємо транзакцію в історію
             this.addTransaction({
@@ -500,12 +496,7 @@
         },
 
         /**
-         * ВИДАЛЕНО: Функцію decreaseCoins замінено на serverUpdateCoins
-         * та використовуємо тільки дані з сервера
-         */
-
-        /**
-         * НОВЕ: Оновлення балансу на основі даних з сервера
+         * Оновлення балансу на основі даних з сервера
          * @param {number} newBalance - Новий баланс з сервера
          */
         serverUpdateCoins: function(newBalance) {
@@ -555,7 +546,7 @@
             const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
 
             buttons.forEach(button => {
-                // ВИПРАВЛЕНО: Видаляємо клас processing
+                // Видаляємо клас processing
                 button.classList.remove('processing');
 
                 // Переконуємося, що кнопка має правильний стан
@@ -600,7 +591,7 @@
         },
 
         /**
-         * ВИПРАВЛЕНО: Участь у розіграші - тепер без локального списання
+         * Участь у розіграші - тепер без локального списання
          * @param {string} raffleId - ID розіграшу
          * @param {number} entryCount - Кількість білетів для додавання
          * @returns {Promise<Object>} Результат участі
@@ -669,8 +660,7 @@
                 // Запам'ятовуємо поточну кількість білетів
                 const currentTicketCount = this.ticketCounts[raffleId] || 0;
 
-                // ВИПРАВЛЕНО: Використовуємо тільки серверний запит
-                // для обробки участі в розіграші
+                // Використовуємо тільки серверний запит для обробки участі в розіграші
                 if (window.WinixRaffles &&
                     window.WinixRaffles.participation &&
                     typeof window.WinixRaffles.participation.participateInRaffle === 'function') {
@@ -689,7 +679,7 @@
 
                         this.ticketCounts[raffleId] = newTicketCount;
 
-                        // ВИПРАВЛЕНО: Оновлюємо баланс лише за даними з сервера
+                        // Оновлюємо баланс лише за даними з сервера
                         if (result.data && typeof result.data.new_coins_balance === 'number') {
                             // Використовуємо нову функцію для оновлення серверного балансу
                             this.serverUpdateCoins(result.data.new_coins_balance);
@@ -720,7 +710,7 @@
 
                     return result;
                 } else {
-                    // ВИПРАВЛЕНО: Помилка, якщо модуль participation недоступний
+                    // Помилка, якщо модуль participation недоступний
                     throw new Error('Модуль обробки участі недоступний. Спробуйте оновити сторінку.');
                 }
             } catch (error) {
@@ -739,7 +729,7 @@
                     window.hideLoading();
                 }
 
-                // ВИПРАВЛЕНО: Повертаємо нормальний стан кнопок, якщо була помилка
+                // Повертаємо нормальний стан кнопок, якщо була помилка
                 const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"].processing, .mini-raffle-button[data-raffle-id="${raffleId}"].processing`);
                 buttons.forEach(button => {
                     // Якщо у нас немає білетів для цього розіграшу, відновлюємо кнопку
