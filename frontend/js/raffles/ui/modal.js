@@ -89,9 +89,9 @@
 
             .modal-close {
                 position: absolute !important;
-                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
-                top: 50% !important; /* Додано для вертикального центрування */
-                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
+                right: 35px !important; /* Збільшено відступ справа з 20px до 35px */
+                top: 50% !important;
+                transform: translateY(-50%) !important;
                 color: rgba(255, 255, 255, 0.7) !important;
                 font-size: 1.5rem !important;
                 cursor: pointer !important;
@@ -105,8 +105,8 @@
                 justify-content: center !important;
                 border-radius: 50% !important;
                 background: rgba(255, 255, 255, 0.1) !important;
-                z-index: 10 !important; /* Додано для уникнення перекриття */
-                margin-right: 5px !important; /* Додано додатковий відступ справа */
+                z-index: 10 !important;
+                margin-right: 10px !important; /* Збільшено відступ справа з 5px до 10px */
             }
 
             .modal-close:hover {
@@ -188,9 +188,9 @@
             
             .premium-modal .modal-close {
                 position: absolute !important;
-                top: 50% !important; /* Змінено для вертикального центрування */
-                right: 20px !important; /* Збільшено відступ справа з 15px до 20px */
-                transform: translateY(-50%) !important; /* Додано для вертикального центрування */
+                top: 50% !important;
+                right: 35px !important; /* Збільшено відступ справа з 20px до 35px */
+                transform: translateY(-50%) !important;
                 background: rgba(255, 255, 255, 0.1) !important;
                 border: none !important;
                 color: white !important;
@@ -203,8 +203,8 @@
                 font-size: 22px !important;
                 cursor: pointer !important;
                 transition: all 0.3s !important;
-                z-index: 15 !important; /* Додано для уникнення перекриття */
-                margin-right: 5px !important; /* Додано додатковий відступ справа */
+                z-index: 15 !important;
+                margin-right: 10px !important; /* Збільшено відступ справа з 5px до 10px */
             }
             
             .premium-modal .modal-close:hover {
@@ -488,9 +488,9 @@
             <div class="modal-container">
                 ${title ? `
                     <div class="modal-header">
-                        <div style="width: 40px;"></div> <!-- Збільшено ширину порожнього елемента для кращого балансу -->
+                        <div style="width: 30px;"></div> <!-- Порожній елемент для балансу з кнопкою закриття -->
                         <h2 class="modal-title">${title}</h2>
-                        <div style="width: 40px; position: relative;">
+                        <div style="width: 60px; position: relative;">
                             <button class="modal-close">&times;</button>
                         </div>
                     </div>
