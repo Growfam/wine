@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
  * Виправлено проблеми з умовами гонки, списанням жетонів та обробкою помилок
- * @version 3.3.0
+ * @version 3.4.0
  */
 
 (function() {
@@ -54,7 +54,7 @@
         MAX_ENTRY_COUNT: 100,
 
         // Мінімальний інтервал між запитами (мс)
-        MIN_REQUEST_INTERVAL: 2000,
+        MIN_REQUEST_INTERVAL: 2000, // 2 секунди між запитами
 
         // Таймаут для виявлення "зависаючих" запитів (мс)
         REQUEST_TIMEOUT: 15000,
@@ -74,10 +74,10 @@
         // Прапорець для запобігання повторним синхронізаціям
         isSyncInProgress: false,
 
-        // ДОДАНО: Прапорець для контролю стану обробки запиту
+        // Прапорець для контролю стану обробки запиту
         requestInProgress: false,
 
-        // ДОДАНО: Час останнього запиту участі
+        // Час останнього запиту участі
         lastParticipationTime: 0,
 
         // Ініціалізація модуля
@@ -147,7 +147,7 @@
             // Скидання глобального блокування
             this.requestLock = false;
 
-            // ДОДАНО: Скидання статусу обробки запиту
+            // Скидання статусу обробки запиту
             this.requestInProgress = false;
 
             // Очищення старих записів незавершених транзакцій у localStorage
@@ -237,7 +237,7 @@
                     }
                 }
 
-                // ДОДАНО: Перевірка зависаючого стану requestInProgress
+                // Перевірка зависаючого стану requestInProgress
                 if (this.requestInProgress) {
                     const timeSinceLastRequest = now - this.lastParticipationTime;
                     if (timeSinceLastRequest > 15000) { // 15 секунд
@@ -344,7 +344,7 @@
                         }
                     }
 
-                    // ДОДАНО: Перевірка зависаючого стану requestInProgress
+                    // Перевірка зависаючого стану requestInProgress
                     if (this.requestInProgress && (now - this.lastParticipationTime > 10000)) {
                         console.warn('⚠️ Виявлено активний стан requestInProgress після повернення на сторінку. Скидаємо стан.');
                         this.requestInProgress = false;
@@ -379,7 +379,7 @@
                     this.activeTransactions.clear();
                     this.requestLock = false;
 
-                    // ДОДАНО: Скидаємо статус обробки запиту
+                    // Скидаємо статус обробки запиту
                     this.requestInProgress = false;
 
                     // Примусова синхронізація при відновленні з кешу
@@ -650,7 +650,7 @@
                         return;
                     }
 
-                    // ДОДАНО: Перевірка стану обробки запиту
+                    // Перевірка стану обробки запиту
                     if (this.requestInProgress) {
                         if (typeof window.showToast === 'function') {
                             window.showToast('Зачекайте завершення попереднього запиту', 'warning');
@@ -1199,6 +1199,41 @@
                 };
             }
 
+            // ВИПРАВЛЕНО: Отримуємо доступний баланс перед запитом
+            let coinsBalance = 0;
+            try {
+                // Спочатку спробуємо отримати баланс з елемента
+                const userCoinsElement = document.getElementById('user-coins');
+                if (userCoinsElement) {
+                    coinsBalance = parseInt(userCoinsElement.textContent) || 0;
+                } else {
+                    // Якщо елемент відсутній, спробуємо отримати з localStorage
+                    coinsBalance = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
+                }
+            } catch (e) {
+                console.warn('⚠️ Не вдалося отримати поточний баланс:', e);
+            }
+
+            // ВИПРАВЛЕНО: Отримуємо вартість участі
+            let entryFee = 1;
+            try {
+                // Спробуємо отримати з кнопки
+                const button = document.querySelector(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                if (button) {
+                    entryFee = parseInt(button.getAttribute('data-entry-fee') || '1');
+                }
+            } catch (e) {
+                console.warn('⚠️ Не вдалося отримати вартість участі:', e);
+            }
+
+            // ВИПРАВЛЕНО: Перевірка на достатність жетонів перед списанням
+            if (coinsBalance < entryFee) {
+                return {
+                    success: false,
+                    message: `Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${coinsBalance}`
+                };
+            }
+
             // 6. ГЕНЕРАЦІЯ УНІКАЛЬНОГО ID ТРАНЗАКЦІЇ
             const transactionId = this._generateTransactionId();
 
@@ -1279,13 +1314,21 @@
                     throw new Error('API недоступний. Оновіть сторінку і спробуйте знову.');
                 }
 
+                // ВИПРАВЛЕНО: Перевірка на участь у розіграші
+                const alreadyParticipating = this.participatingRaffles && this.participatingRaffles.has(raffleId);
+
+                // ВИПРАВЛЕНО: Отримуємо поточну кількість білетів
+                const currentTickets = (this.userRaffleTickets && this.userRaffleTickets[raffleId]) || 0;
+
                 // 14. БУДУЄМО ЗАПИТ
                 const requestData = {
                     raffle_id: raffleId,
                     entry_count: entryCount,
                     _transaction_id: transactionId,
                     _timestamp: now,
-                    _client_id: `${userId}_${now}_${Math.random().toString(36).substring(2, 7)}`
+                    _client_id: `${userId}_${now}_${Math.random().toString(36).substring(2, 7)}`,
+                    _current_tickets: currentTickets, // Передаємо поточну кількість білетів
+                    _already_participating: alreadyParticipating // Передаємо інформацію про участь
                 };
 
                 // 15. ВИКОНУЄМО ЗАПИТ ДО СЕРВЕРА
