@@ -483,12 +483,14 @@ def participate_in_raffle(telegram_id, data):
     Участь у розіграші з повністю атомарною транзакцією
 
     Виправлено:
-    - Додано атомарність транзакції, щоб жетони і білети оновлювались одночасно
-    - Покращено оновлення статистики після участі
-    - Додано блокування від race conditions
+    - Додано кращу перевірку параметрів
+    - Використання функції RPC для атомарних транзакцій
+    - Покращена обробка помилок
+    - Додано більше логування
     """
     # Перевірка необхідних даних
     if not data or "raffle_id" not in data:
+        logger.warning("Не вказано ID розіграшу в запиті")
         raise ValueError("Не вказано ID розіграшу")
 
     raffle_id = data["raffle_id"]
@@ -500,15 +502,30 @@ def participate_in_raffle(telegram_id, data):
         logger.warning(f"Невалідний формат ID розіграшу: {raffle_id}")
         raise ValueError("Невалідний формат ID розіграшу")
 
-    entry_count = min(int(data.get("entry_count", 1)), MAX_ENTRY_COUNT)
+    # Додаткова перевірка UUID
+    if not is_valid_uuid(raffle_id):
+        logger.warning(f"Невалідний UUID для розіграшу: {raffle_id}")
+        raise InvalidRaffleIDError(f"Невалідний формат ID розіграшу")
+
+    # Нормалізуємо кількість жетонів
+    try:
+        entry_count = min(int(data.get("entry_count", 1)), MAX_ENTRY_COUNT)
+    except (ValueError, TypeError):
+        logger.warning(f"Невалідна кількість жетонів: {data.get('entry_count')}")
+        entry_count = 1
 
     # Перевіряємо кількість жетонів
     if entry_count <= 0:
         raise ValueError("Кількість жетонів має бути більше нуля")
 
+    # Починаємо відстеження транзакції для логування
+    transaction_id = str(uuid.uuid4())
+    logger.info(f"participate_in_raffle: Починаємо транзакцію {transaction_id} для користувача {telegram_id}, розіграш {raffle_id}")
+
     # Отримуємо користувача
     user = get_user(telegram_id)
     if not user:
+        logger.warning(f"Користувача {telegram_id} не знайдено")
         raise ValueError("Користувача не знайдено")
 
     # Отримуємо розіграш
@@ -519,12 +536,14 @@ def participate_in_raffle(telegram_id, data):
         raise ValueError(f"Помилка запиту розіграшу: {str(e)}")
 
     if not raffle_response.data:
-        raise ValueError(f"Розіграш з ID {raffle_id} не знайдено")
+        logger.warning(f"Розіграш з ID {raffle_id} не знайдено")
+        raise RaffleNotFoundException(f"Розіграш з ID {raffle_id} не знайдено")
 
     raffle = raffle_response.data[0]
 
     # Перевіряємо статус розіграшу
     if raffle.get("status") != "active":
+        logger.warning(f"Розіграш {raffle_id} не є активним, статус: {raffle.get('status')}")
         raise ValueError("Розіграш не є активним")
 
     # Перевіряємо час розіграшу
@@ -532,8 +551,10 @@ def participate_in_raffle(telegram_id, data):
     try:
         end_time = datetime.fromisoformat(raffle.get("end_time", "").replace('Z', '+00:00'))
         if now >= end_time:
+            logger.warning(f"Розіграш {raffle_id} вже завершено. Поточний час: {now}, час завершення: {end_time}")
             raise RaffleAlreadyEndedError("Розіграш вже завершено")
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError) as e:
+        logger.error(f"Помилка конвертації часу для розіграшу {raffle_id}: {str(e)}")
         raise ValueError("Некоректний формат часу завершення розіграшу")
 
     # Розраховуємо необхідну кількість жетонів
@@ -558,10 +579,12 @@ def participate_in_raffle(telegram_id, data):
         existing_entry = participation_response.data[0]
         existing_entry_count = existing_entry.get("entry_count", 0)
         participation_id = existing_entry.get("id")
+        logger.info(f"Користувач {telegram_id} вже бере участь у розіграші {raffle_id}, поточна кількість білетів: {existing_entry_count}")
 
     # Перевірка балансу
     user_coins = int(user.get("coins", 0))
     if user_coins < required_coins:
+        logger.warning(f"Недостатньо жетонів для користувача {telegram_id}. Потрібно: {required_coins}, наявно: {user_coins}")
         raise InsufficientTokensError(f"Недостатньо жетонів. Потрібно: {required_coins}, наявно: {user_coins}")
 
     # Оновлюємо кількість учасників у розіграші
@@ -569,27 +592,69 @@ def participate_in_raffle(telegram_id, data):
     if not participation_response.data:
         updated_participants_count += 1
 
-    # Генеруємо унікальний ID транзакції для відстеження
-    transaction_id = f"raffle_participation_{int(now.timestamp() * 1000)}"
+    logger.info(f"Спроба участі користувача {telegram_id} в розіграші {raffle_id}, жетонів: {entry_count}, вартість: {required_coins}")
 
+    # Перевіряємо наявність і використовуємо RPC метод для атомарної участі
     try:
-        # Виконуємо атомарну транзакцію з використанням execute_transaction
-        with execute_transaction() as txn:
-            # Важливо: всі операції виконуються в рамках однієї транзакції
+        # Спочатку перевіряємо, чи існує RPC функція для участі
+        rpc_result = supabase.rpc(
+            'participate_in_raffle',
+            {
+                'p_user_id': telegram_id,
+                'p_raffle_id': raffle_id,
+                'p_tickets_count': entry_count,
+                'p_token_cost': required_coins,
+                'p_transaction_id': transaction_id
+            }
+        ).execute()
 
-            # 1. Створюємо запис транзакції
-            transaction_data = {
-                "id": str(uuid.uuid4()),  # унікальний ID транзакції
-                "telegram_id": telegram_id,
-                "type": "fee",
-                "amount": -required_coins,
-                "description": f"Участь у розіграші '{raffle.get('title')}'",
-                "status": "pending",
-                "raffle_id": raffle_id,
-                "created_at": now.isoformat(),
-                "transaction_ref": transaction_id  # додаємо зв'язок з участю
+        # Перевіряємо, чи успішно виконалась RPC функція
+        if not rpc_result.error:
+            # Успішне виконання через RPC
+            logger.info(f"RPC participate_in_raffle успішно виконана для користувача {telegram_id}, розіграш {raffle_id}")
+
+            # Отримуємо результат
+            participation_data = rpc_result.data
+
+            # Інвалідуємо кеш активних розіграшів
+            clear_cache("active_raffles")
+            clear_cache(f"raffle_details_{raffle_id}")
+
+            # Формуємо відповідь
+            total_entries = existing_entry_count + entry_count
+            response_data = {
+                "message": "Ви успішно взяли участь у розіграші",
+                "entry_count": entry_count,
+                "total_entries": total_entries,
+                "new_coins_balance": user_coins - required_coins,
+                "participations_count": user.get("participations_count", 0) + 1,
+                "raffle_type": "daily" if raffle.get("is_daily", False) else "main"
             }
 
+            return jsonify({"status": "success", "data": response_data})
+        else:
+            # Якщо RPC функція не існує або виникла помилка, використовуємо традиційний підхід
+            logger.warning(f"RPC participate_in_raffle недоступна або виникла помилка: {rpc_result.error}")
+    except Exception as e:
+        logger.warning(f"Помилка виклику RPC participate_in_raffle: {str(e)}. Використовуємо стандартний підхід.")
+
+    # Традиційний підхід з транзакцією
+    try:
+        # Створюємо контекст транзакції для розіграшу
+        transaction_data = {
+            "id": transaction_id,
+            "telegram_id": telegram_id,
+            "type": "fee",
+            "amount": -required_coins,
+            "description": f"Участь у розіграші '{raffle.get('title')}'",
+            "status": "pending",
+            "raffle_id": raffle_id,
+            "created_at": now.isoformat()
+        }
+
+        # Виконуємо атомарну транзакцію
+        with execute_transaction() as txn:
+            # 1. Створюємо запис транзакції
             txn.table("transactions").insert(transaction_data).execute()
 
             # 2. Оновлюємо баланс користувача
@@ -610,13 +675,13 @@ def participate_in_raffle(telegram_id, data):
             else:
                 # Створюємо нову участь
                 participation_data = {
-                    "id": str(uuid.uuid4()),  # унікальний ID участі
+                    "id": str(uuid.uuid4()),
                     "raffle_id": raffle_id,
                     "telegram_id": telegram_id,
                     "entry_time": now.isoformat(),
                     "entry_count": entry_count,
                     "status": "active",
-                    "transaction_ref": transaction_id  # додаємо той самий зв'язок
+                    "transaction_ref": transaction_id
                 }
                 txn.table("raffle_participants").insert(participation_data).execute()
 
@@ -630,7 +695,7 @@ def participate_in_raffle(telegram_id, data):
             txn.table("transactions").update({
                 "status": "completed",
                 "updated_at": now.isoformat()
-            }).eq("transaction_ref", transaction_id).execute()
+            }).eq("id", transaction_id).execute()
 
             # 6. Оновлюємо лічильник участей користувача
             participations_count = user.get("participations_count", 0) + 1
@@ -639,6 +704,7 @@ def participate_in_raffle(telegram_id, data):
             }).eq("telegram_id", telegram_id).execute()
 
         # Після успішного виконання транзакції:
+        logger.info(f"Успішна участь користувача {telegram_id} в розіграші {raffle_id}")
 
         # Інвалідуємо кеш активних розіграшів
         clear_cache("active_raffles")
@@ -686,6 +752,7 @@ def participate_in_raffle(telegram_id, data):
 
     except (ValueError, InsufficientTokensError, RaffleAlreadyEndedError) as e:
         # Перехоплюємо спеціальні типи винятків для надання користувацького повідомлення
+        logger.warning(f"Помилка участі в розіграші для {telegram_id}: {str(e)}")
         raise
 
     except Exception as e:

@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований модуль для обробки участі користувача в розіграшах
  * Виправлена версія з покращеною обробкою помилок та стабільністю
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 (function() {
@@ -366,8 +366,12 @@
                                         }
 
                                         // Зберігаємо баланс в localStorage
-                                        localStorage.setItem('userCoins', result.data.new_coins_balance);
-                                        localStorage.setItem('winix_coins', result.data.new_coins_balance);
+                                        try {
+                                            localStorage.setItem('userCoins', result.data.new_coins_balance);
+                                            localStorage.setItem('winix_coins', result.data.new_coins_balance);
+                                        } catch (e) {
+                                            console.warn('⚠️ Помилка збереження балансу в localStorage:', e);
+                                        }
                                     }
 
                                     // Зберігаємо оновлений стан
@@ -434,8 +438,12 @@
                     }
 
                     // Зберігаємо значення в localStorage для запобігання втраті
-                    localStorage.setItem('userCoins', event.detail.userData.coins);
-                    localStorage.setItem('winix_coins', event.detail.userData.coins);
+                    try {
+                        localStorage.setItem('userCoins', event.detail.userData.coins);
+                        localStorage.setItem('winix_coins', event.detail.userData.coins);
+                    } catch (e) {
+                        console.warn('⚠️ Помилка збереження балансу в localStorage:', e);
+                    }
 
                     console.log('🔄 Оновлено баланс жетонів:', event.detail.userData.coins);
                 }
@@ -880,9 +888,13 @@
                     const balanceUpdateTime = Date.now();
 
                     // Зберігаємо в localStorage з часом оновлення
-                    localStorage.setItem('userCoins', newCoinsBalance.toString());
-                    localStorage.setItem('winix_coins', newCoinsBalance.toString());
-                    localStorage.setItem('winix_balance_update_time', balanceUpdateTime.toString());
+                    try {
+                        localStorage.setItem('userCoins', newCoinsBalance.toString());
+                        localStorage.setItem('winix_coins', newCoinsBalance.toString());
+                        localStorage.setItem('winix_balance_update_time', balanceUpdateTime.toString());
+                    } catch (e) {
+                        console.warn('⚠️ Помилка збереження балансу в localStorage:', e);
+                    }
 
                     // Оновлюємо кількість білетів і стан
                     this.participatingRaffles.add(raffleId);
@@ -1125,20 +1137,18 @@
          * @returns {boolean} Чи валідний UUID
          */
         isValidUUID: function(id) {
-            // Спочатку перевіряємо наявність UUID валідатора у WinixRaffles
-            if (WinixRaffles.validators && typeof WinixRaffles.validators.isValidUUID === 'function') {
-                return WinixRaffles.validators.isValidUUID(id);
-            }
-
-            // Потім перевіряємо валідатор у WinixAPI
-            if (window.WinixAPI && typeof window.WinixAPI.isValidUUID === 'function') {
-                return window.WinixAPI.isValidUUID(id);
-            }
-
-            // Запасний валідатор, якщо інші недоступні
             if (!id || typeof id !== 'string') return false;
+
+            // Нормалізація UUID (видалення пробілів і перетворення на нижній регістр)
+            const normalizedId = id.trim().toLowerCase();
+
+            // Перевірка на повний формат UUID
             const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return fullUUIDRegex.test(id);
+
+            // Перевірка на скорочений формат (без дефісів)
+            const shortUUIDRegex = /^[0-9a-f]{32}$/i;
+
+            return fullUUIDRegex.test(normalizedId) || shortUUIDRegex.test(normalizedId);
         },
 
         /**

@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import uuid
+import re
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -63,16 +64,25 @@ else:
 
 def is_valid_uuid(uuid_string):
     """
-    Спрощена перевірка валідності UUID - приймає будь-який рядок, який можна
-    перетворити в UUID об'єкт
+    Покращена перевірка валідності UUID - приймає будь-який рядок, який можна
+    перетворити в UUID об'єкт, включаючи рядки без дефісів
     """
     # Перевірка на None та порожні рядки
     if not uuid_string:
         return False
 
+    # Спочатку нормалізуємо рядок
+    normalized_uuid = uuid_string.strip().lower()
+
+    # Перевірка на UUID без дефісів (32 символи)
+    if re.match(r'^[0-9a-f]{32}$', normalized_uuid):
+        # Конвертуємо у формат з дефісами
+        formatted_uuid = f"{normalized_uuid[0:8]}-{normalized_uuid[8:12]}-{normalized_uuid[12:16]}-{normalized_uuid[16:20]}-{normalized_uuid[20:]}"
+        normalized_uuid = formatted_uuid
+
     try:
         # Спроба перетворити рядок в UUID об'єкт
-        uuid_obj = uuid.UUID(str(uuid_string).strip())
+        uuid_obj = uuid.UUID(normalized_uuid)
         return True
     except Exception:
         return False
@@ -176,13 +186,36 @@ def rate_limit(route_name):
 
 def validate_raffle_id(f):
     """
-    Спрощений декоратор для валідації ID розіграшу.
-    Просто пропускає запити далі, щоб не блокувати їх валідацією.
+    Декоратор для валідації ID розіграшу.
+    Перевіряє формат UUID та нормалізує його при необхідності.
     """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Просто пропускаємо запити без додаткової валідації
+        # Отримуємо значення raffle_id
+        raffle_id = kwargs.get('raffle_id')
+
+        if raffle_id:
+            # Нормалізуємо ID
+            raffle_id = str(raffle_id).strip()
+
+            # Перевіряємо формат
+            if not is_valid_uuid(raffle_id):
+                logger.warning(f"Невалідний UUID в запиті: {raffle_id}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Невалідний формат ID розіграшу",
+                    "code": "invalid_uuid"
+                }), 400
+
+            # Перетворюємо UUID до стандартного формату, якщо потрібно
+            if re.match(r'^[0-9a-f]{32}$', raffle_id.lower()):
+                normalized = raffle_id.lower()
+                formatted = f"{normalized[0:8]}-{normalized[8:12]}-{normalized[12:16]}-{normalized[16:20]}-{normalized[20:]}"
+                kwargs['raffle_id'] = formatted
+                logger.info(f"UUID нормалізовано з {raffle_id} до {formatted}")
+
+        # Продовжуємо виконання оригінальної функції
         return f(*args, **kwargs)
 
     return decorated_function
@@ -218,6 +251,7 @@ def register_raffles_routes(app):
             })
 
     @app.route('/api/raffles/<raffle_id>', methods=['GET'])
+    @validate_raffle_id
     def api_get_raffle_details(raffle_id):
         """Отримання деталей конкретного розіграшу"""
         try:
@@ -270,6 +304,8 @@ def register_raffles_routes(app):
     @app.route('/api/user/<telegram_id>/participate-raffle', methods=['POST'])
     def api_participate_in_raffle(telegram_id):
         """Участь у розіграші"""
+        start_time = time.time()
+
         try:
             logger.info(f"api_participate_in_raffle: Запит отримано для {telegram_id}")
 
@@ -287,12 +323,81 @@ def register_raffles_routes(app):
                     "message": "Відсутній ідентифікатор розіграшу в запиті"
                 }), 400
 
-            return controllers.participate_in_raffle(telegram_id, data)
+            # Перевірка і нормалізація UUID
+            raffle_id = data.get('raffle_id')
+            if not is_valid_uuid(raffle_id):
+                logger.warning(f"Невалідний UUID в запиті участі: {raffle_id}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Невалідний формат ID розіграшу",
+                    "code": "invalid_uuid"
+                }), 400
+
+            # Нормалізація UUID (для UUID без дефісів)
+            if re.match(r'^[0-9a-f]{32}$', str(raffle_id).lower()):
+                normalized = str(raffle_id).lower()
+                formatted = f"{normalized[0:8]}-{normalized[8:12]}-{normalized[12:16]}-{normalized[16:20]}-{normalized[20:]}"
+                data['raffle_id'] = formatted
+                logger.info(f"UUID нормалізовано з {raffle_id} до {formatted}")
+                raffle_id = formatted
+
+            # Додаємо час запиту для діагностики
+            data['_timestamp'] = int(time.time() * 1000)
+            data['_client_timestamp'] = request.args.get('t', 0)
+
+            # Спробуємо використати більш надійний метод через сервіс розіграшів
+            try:
+                logger.info(f"Спроба використати RPC метод для участі {telegram_id} в розіграші {raffle_id}")
+                from raffles.raffle_service import get_raffle_service
+
+                raffle_service = get_raffle_service()
+                entry_count = data.get('entry_count', 1)
+
+                # Перевіряємо валідність entry_count
+                try:
+                    entry_count = int(entry_count)
+                    if entry_count <= 0:
+                        entry_count = 1
+                except (ValueError, TypeError):
+                    entry_count = 1
+
+                result = raffle_service.participate_in_raffle(telegram_id, raffle_id, entry_count)
+
+                execution_time = time.time() - start_time
+                logger.info(f"api_participate_in_raffle: RPC метод виконано за {execution_time:.4f}с")
+
+                if result.get('success'):
+                    return jsonify({
+                        "status": "success",
+                        "data": result.get('data', {}),
+                        "execution_time": execution_time
+                    })
+                else:
+                    return jsonify({
+                        "status": "error",
+                        "message": result.get('error', 'Помилка участі в розіграші'),
+                        "execution_time": execution_time
+                    }), 400
+
+            except ImportError:
+                # Якщо сервіс недоступний, використовуємо стандартний контролер
+                logger.info(
+                    f"RPC метод недоступний, використовуємо контролер для участі {telegram_id} в розіграші {raffle_id}")
+                result = controllers.participate_in_raffle(telegram_id, data)
+
+                execution_time = time.time() - start_time
+                logger.info(f"api_participate_in_raffle: стандартний метод виконано за {execution_time:.4f}с")
+
+                return result
+
         except Exception as e:
-            logger.error(f"Помилка участі в розіграші: {str(e)}")
+            execution_time = time.time() - start_time
+            logger.error(f"api_participate_in_raffle: помилка за {execution_time:.4f}с - {str(e)}", exc_info=True)
+
             return jsonify({
                 "status": "error",
-                "message": f"Виникла помилка при участі в розіграші: {str(e)}"
+                "message": f"Виникла помилка при участі в розіграші: {str(e)}",
+                "execution_time": execution_time
             }), 500
 
     # Додаємо маршрут для перевірки валідності UUID
@@ -300,10 +405,18 @@ def register_raffles_routes(app):
     def validate_uuid_endpoint(uuid_string):
         """Ендпоінт для перевірки валідності UUID"""
         valid = is_valid_uuid(uuid_string)
+
+        # Нормалізуємо UUID, якщо він валідний але в неканонічному форматі
+        normalized_uuid = uuid_string
+        if valid and re.match(r'^[0-9a-f]{32}$', uuid_string.lower()):
+            normalized = uuid_string.lower()
+            normalized_uuid = f"{normalized[0:8]}-{normalized[8:12]}-{normalized[12:16]}-{normalized[16:20]}-{normalized[20:]}"
+
         return jsonify({
             "status": "success",
             "valid": valid,
             "uuid": uuid_string,
+            "normalized_uuid": normalized_uuid if valid else None,
             "message": "UUID валідний" if valid else "UUID невалідний"
         })
 
@@ -338,29 +451,62 @@ def register_raffles_routes(app):
 
     # Ендпоінт для перевірки валідності розіграшу перед участю
     @app.route('/api/raffles/<raffle_id>/check', methods=['GET'])
+    @validate_raffle_id
     def api_check_raffle_exists(raffle_id):
         """Перевірка існування розіграшу перед участю"""
         try:
             # Спрощена перевірка існування розіграшу
             try:
                 from supabase_client import supabase
-                response = supabase.table("raffles").select("id").eq("id", raffle_id).execute()
-                exists = response.data and len(response.data) > 0
-            except Exception as e:
-                logger.error(f"Помилка запиту до бази даних: {str(e)}")
-                exists = False
+                response = supabase.table("raffles").select("id, status, end_time").eq("id", raffle_id).execute()
 
-            if exists:
+                if not response.data or len(response.data) == 0:
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Розіграш з ID {raffle_id} не знайдено",
+                        "code": "raffle_not_found"
+                    }), 404
+
+                # Перевіряємо статус розіграшу
+                raffle = response.data[0]
+                if raffle.get("status") != "active":
+                    logger.warning(f"Розіграш {raffle_id} не активний: {raffle.get('status')}")
+                    return jsonify({
+                        "status": "error",
+                        "message": "Розіграш вже завершено або неактивний",
+                        "code": "raffle_not_active"
+                    }), 400
+
+                # Перевіряємо час завершення
+                try:
+                    end_time = datetime.fromisoformat(raffle.get("end_time", "").replace('Z', '+00:00'))
+                    now = datetime.now().astimezone()
+
+                    if now >= end_time:
+                        logger.warning(f"Розіграш {raffle_id} вже завершився: {end_time}")
+                        return jsonify({
+                            "status": "error",
+                            "message": "Розіграш вже завершився за часом",
+                            "code": "raffle_ended"
+                        }), 400
+                except (ValueError, AttributeError) as e:
+                    logger.error(f"Помилка перевірки часу завершення для {raffle_id}: {str(e)}")
+
+                # Якщо все добре
                 return jsonify({
                     "status": "success",
                     "message": "Розіграш існує та валідний",
-                    "raffle_id": raffle_id
+                    "raffle_id": raffle_id,
+                    "data": {
+                        "status": raffle.get("status"),
+                        "end_time": raffle.get("end_time")
+                    }
                 })
-            else:
-                return jsonify({
-                    "status": "error",
-                    "message": f"Розіграш з ID {raffle_id} не знайдено"
-                }), 404
+
+            except Exception as e:
+                logger.error(f"Помилка запиту до бази даних: {str(e)}")
+                raise e
+
         except Exception as e:
             logger.error(f"Помилка перевірки розіграшу {raffle_id}: {str(e)}")
             return jsonify({
@@ -402,6 +548,50 @@ def register_raffles_routes(app):
             "message": "API розіграшів працює коректно",
             "timestamp": datetime.now().isoformat()
         })
+
+    # Додаємо ендпоінт для перевірки транзакцій
+    @app.route('/api/user/<telegram_id>/transaction/<transaction_id>', methods=['GET'])
+    def api_check_transaction(telegram_id, transaction_id):
+        """Перевірка стану транзакції"""
+        try:
+            # Спрощена перевірка транзакції
+            try:
+                from supabase_client import supabase
+                response = supabase.table("transactions").select("*").eq("id", transaction_id).execute()
+
+                if not response.data or len(response.data) == 0:
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Транзакцію з ID {transaction_id} не знайдено",
+                        "code": "transaction_not_found"
+                    }), 404
+
+                transaction = response.data[0]
+
+                # Перевіряємо, чи транзакція належить цьому користувачу
+                if str(transaction.get("telegram_id")) != str(telegram_id):
+                    return jsonify({
+                        "status": "error",
+                        "message": "Ви не маєте доступу до цієї транзакції",
+                        "code": "unauthorized"
+                    }), 403
+
+                # Повертаємо дані транзакції
+                return jsonify({
+                    "status": "success",
+                    "data": transaction
+                })
+
+            except Exception as e:
+                logger.error(f"Помилка запиту до бази даних: {str(e)}")
+                raise e
+
+        except Exception as e:
+            logger.error(f"Помилка перевірки транзакції {transaction_id}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка перевірки транзакції: {str(e)}"
+            }), 500
 
     logger.info("✅ Маршрути для розіграшів успішно зареєстровано")
     return True
