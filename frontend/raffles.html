@@ -1390,26 +1390,38 @@ window.resetLoadingState = function() {
     });
 </script>
 
-<style id="override-modal-styles">
-  .modal-close,
-  .modal-close-button,
-  .premium-modal .modal-close,
-  .premium-modal .modal-close-button {
-    position: fixed !important;
+<style id="fix-close-button">
+  /* Цільовий хрестик у модальному вікні - найбільш специфічний селектор */
+  .modal-overlay .modal-container button.modal-close,
+  .modal-overlay .modal-container button.modal-close-button {
+    position: absolute !important;
+    top: 20px !important;
     right: 10px !important;
-    margin-right: 30px !important;
-    margin-left: auto !important;
+    left: auto !important;
+    transform: none !important;
+    margin: 0 !important;
     z-index: 10000 !important;
   }
 
-  .modal-header {
-    padding-right: 60px !important;
+  /* Відцентровуємо заголовок */
+  .modal-overlay .modal-container .modal-header {
     position: relative !important;
+    justify-content: center !important;
+    padding-left: 40px !important;
+    padding-right: 40px !important;
   }
 
-  .modal-title {
+  /* Гарантуємо, що заголовок відображається по центру */
+  .modal-overlay .modal-container .modal-title {
     width: 100% !important;
     text-align: center !important;
+    position: relative !important;
+    margin: 0 auto !important;
+  }
+
+  /* Видаляємо будь-які контейнери, які могли зсунути хрестик по центру */
+  .modal-overlay .modal-container .modal-header > div {
+    display: none !important;
   }
 </style>
 </body>
