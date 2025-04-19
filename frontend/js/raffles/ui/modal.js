@@ -109,6 +109,34 @@
                 margin-right: 10px !important; /* Збільшено відступ справа з 5px до 10px */
             }
 
+            /* Додано стилі для .modal-close-button (з файлу components-raffles.css) */
+            .modal-close-button {
+                position: absolute !important;
+                right: 35px !important; /* Збільшено відступ справа з 15px до 35px */
+                top: 50% !important;
+                transform: translateY(-50%) !important;
+                background: none !important;
+                border: none !important;
+                color: #aaa !important;
+                font-size: 1.75rem !important;
+                font-weight: bold !important;
+                cursor: pointer !important;
+                transition: color 0.2s ease !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 50% !important;
+                z-index: 50 !important; /* Високий z-index для уникнення перекриття */
+                margin-right: 10px !important;
+                background: rgba(255, 255, 255, 0.1) !important;
+            }
+
+            .modal-close-button:hover {
+                color: #00C9A7 !important;
+            }
+
             .modal-close:hover {
                 color: white !important;
                 background: rgba(255, 255, 255, 0.2) !important;
@@ -207,10 +235,38 @@
                 margin-right: 10px !important; /* Збільшено відступ справа з 5px до 10px */
             }
             
+            /* Додано стилі для преміальної версії .modal-close-button */
+            .premium-modal .modal-close-button {
+                position: absolute !important;
+                right: 35px !important; /* Збільшено відступ справа з 15px до 35px */
+                top: 50% !important;
+                transform: translateY(-50%) !important;
+                background: rgba(255, 255, 255, 0.1) !important;
+                border: none !important;
+                color: white !important;
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 22px !important;
+                cursor: pointer !important;
+                transition: all 0.3s !important;
+                z-index: 50 !important; /* Високий z-index для уникнення перекриття */
+                margin-right: 10px !important;
+            }
+            
+            .premium-modal .modal-close-button:hover {
+                background: rgba(255, 255, 255, 0.2) !important;
+                transform: translateY(-50%) rotate(90deg) !important; /* Оновлено для збереження вертикального центрування */
+            }
+            
             .premium-modal .modal-close:hover {
                 background: rgba(255, 255, 255, 0.2) !important;
                 transform: translateY(-50%) rotate(90deg) !important; /* Оновлено для збереження вертикального центрування */
             }
+
             
             .premium-modal .modal-body {
                 padding: 20px !important;
@@ -483,7 +539,7 @@
         const modalOverlay = document.createElement('div');
         modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
 
-        // Створюємо HTML модального вікна з порожнім елементом перед кнопкою закриття для кращого вирівнювання
+        // Створюємо HTML модального вікна з обома класами кнопок закриття для сумісності
         modalOverlay.innerHTML = `
             <div class="modal-container">
                 ${title ? `
@@ -491,7 +547,8 @@
                         <div style="width: 30px;"></div> <!-- Порожній елемент для балансу з кнопкою закриття -->
                         <h2 class="modal-title">${title}</h2>
                         <div style="width: 60px; position: relative;">
-                            <button class="modal-close">&times;</button>
+                            <!-- Додаємо обидва класи кнопок закриття для сумісності з різними CSS файлами -->
+                            <button class="modal-close modal-close-button">&times;</button>
                         </div>
                     </div>
                 ` : ''}
