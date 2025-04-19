@@ -103,27 +103,81 @@
                     animation: update-pulse 0.5s ease-in-out, update-glow 1s ease-in-out;
                 }
                 
-                /* Стилі для кнопки деталей */
-                .details-button {
-                    background: linear-gradient(to right, rgba(78, 181, 247, 0.9), rgba(0, 201, 167, 0.9));
-                    color: white;
+                /* Преміальні стилі для кнопки деталей */
+                .premium-details-button {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    background: linear-gradient(135deg, rgba(78, 181, 247, 0.8), rgba(0, 201, 167, 0.8));
                     border: none;
-                    border-radius: 15px;
-                    padding: 5px 15px;
-                    font-size: 0.9em;
+                    border-radius: 12px;
+                    color: white;
+                    font-weight: 500;
+                    font-size: 14px;
+                    padding: 8px 12px;
                     cursor: pointer;
-                    margin-top: 10px;
                     transition: all 0.3s ease;
+                    margin-top: 10px;
+                    width: auto;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .premium-details-button::before {
+                    content: '';
+                    position: absolute;
+                    top: -50%;
+                    left: -50%;
+                    width: 200%;
+                    height: 200%;
+                    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+                    transform: scale(0);
+                    transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+                    border-radius: 50%;
+                }
+                
+                .premium-details-button::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(to bottom, transparent 70%, rgba(0, 0, 0, 0.2));
+                    z-index: -1;
+                }
+                
+                .premium-details-button:hover::before {
+                    transform: scale(1);
+                }
+                
+                .premium-details-button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+                }
+                
+                .premium-details-button:active {
+                    transform: translateY(0);
                     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
                 }
                 
-                .details-button:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                .premium-button-icon {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 
-                .details-button:active {
-                    transform: translateY(0);
+                /* Анімація пульсації для привернення уваги */
+                @keyframes pulse-glow {
+                    0% { box-shadow: 0 0 5px rgba(78, 181, 247, 0.5); }
+                    50% { box-shadow: 0 0 15px rgba(0, 201, 167, 0.8); }
+                    100% { box-shadow: 0 0 5px rgba(78, 181, 247, 0.5); }
+                }
+                
+                .pulse-animation {
+                    animation: pulse-glow 2s infinite;
                 }
                 
                 /* Стиль для кнопки участі, якщо вже беремо участь */
@@ -310,6 +364,7 @@
 
         /**
          * Додавання кнопки деталей до конкретного розіграшу
+         * Оновлена версія з преміальним стилем
          * @param {string} raffleId - ID розіграшу
          * @param {string} type - Тип розіграшу (main/mini)
          */
@@ -331,20 +386,55 @@
 
             if (!buttonContainer) return;
 
-            // Створюємо кнопку деталей
+            // Створюємо кнопку деталей у преміальному стилі
             const detailsButton = document.createElement('button');
-            detailsButton.className = 'details-button';
+            detailsButton.className = 'details-button premium-details-button';
             detailsButton.setAttribute('data-raffle-id', raffleId);
-            detailsButton.textContent = 'Деталі розіграшу';
+
+            // Оновлений HTML для кнопки з іконкою та текстом
+            detailsButton.innerHTML = `
+                <span class="premium-button-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="1.5">
+                        <circle cx="8" cy="8" r="7" />
+                        <line x1="8" y1="4" x2="8" y2="8" />
+                        <line x1="8" y1="11" x2="8" y2="12" />
+                    </svg>
+                </span>
+                <span class="premium-button-text">Деталі розіграшу</span>
+            `;
 
             // Додаємо обробник події
             detailsButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
+                // Додаємо ефект пульсації при натисканні
+                detailsButton.classList.add('pulse-animation');
+                setTimeout(() => {
+                    detailsButton.classList.remove('pulse-animation');
+                }, 2000);
+
                 // Відкриваємо модальне вікно з деталями розіграшу
                 if (window.WinixRaffles.modal && typeof window.WinixRaffles.modal.showRaffleDetails === 'function') {
                     window.WinixRaffles.modal.showRaffleDetails(raffleId);
+                } else if (window.showRaffleDetailsModal) {
+                    // Запасний варіант - використовуємо глобальну функцію
+                    const raffle = window.WinixRaffles.state.activeRaffles.find(r => r.id === raffleId);
+                    if (raffle) {
+                        // Перевіряємо, чи користувач бере участь
+                        const isParticipating = window.WinixRaffles.participation &&
+                                             window.WinixRaffles.participation.isUserParticipating &&
+                                             window.WinixRaffles.participation.isUserParticipating(raffleId);
+
+                        const ticketCount = window.WinixRaffles.participation &&
+                                           window.WinixRaffles.participation.getUserTicketsCount &&
+                                           window.WinixRaffles.participation.getUserTicketsCount(raffleId) || 0;
+
+                        window.showRaffleDetailsModal(raffle, isParticipating, ticketCount);
+                    } else {
+                        // Запасний варіант, якщо модуль modal не доступний
+                        this.showFallbackRaffleDetails(raffleId);
+                    }
                 } else {
                     // Запасний варіант, якщо модуль modal не доступний
                     this.showFallbackRaffleDetails(raffleId);
