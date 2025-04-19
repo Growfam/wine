@@ -15,278 +15,6 @@
 
     console.log('🔄 Ініціалізація модуля модального вікна...');
 
-    // Додаємо стилі для модального вікна
-    function injectModalStyles() {
-        // Перевіряємо, чи стилі вже були додані
-        if (document.getElementById('modal-styles')) {
-            return;
-        }
-
-        // Створюємо стильовий елемент
-        const style = document.createElement('style');
-        style.id = 'modal-styles';
-        style.textContent = `
-            .modal-container {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 9999;
-            }
-            
-            .modal-backdrop {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0, 0, 0, 0.6);
-                animation: backdrop-fade-in 0.3s ease;
-            }
-            
-            @keyframes backdrop-fade-in {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            
-            .modal-content {
-                position: relative;
-                width: 90%;
-                max-width: 600px;
-                max-height: 90vh;
-                background-color: #202a38;
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 4px 25px rgba(0, 0, 0, 0.5);
-                z-index: 10000;
-                animation: modal-appear 0.3s ease-out;
-            }
-            
-            @keyframes modal-appear {
-                from { opacity: 0; transform: scale(0.95) translateY(-20px); }
-                to { opacity: 1; transform: scale(1) translateY(0); }
-            }
-            
-            .modal-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 15px 20px;
-                background-color: #1a2130;
-                border-bottom: 1px solid #313e52;
-            }
-            
-            .modal-title {
-                margin: 0;
-                color: white;
-                font-size: 1.3rem;
-                font-weight: bold;
-            }
-            
-            .modal-close-button {
-                background: none;
-                border: none;
-                color: #a0aec0;
-                font-size: 1.5rem;
-                cursor: pointer;
-                padding: 0 5px;
-                transition: color 0.2s ease;
-            }
-            
-            .modal-close-button:hover {
-                color: white;
-            }
-            
-            .modal-body {
-                padding: 20px;
-                overflow-y: auto;
-                max-height: calc(90vh - 70px);
-                color: white;
-            }
-            
-            /* Стилі для деталей розіграшу */
-            .raffle-details-modal {
-                display: flex;
-                flex-direction: column;
-                gap: 20px;
-                color: white;
-            }
-            
-            .raffle-details-image {
-                width: 100%;
-                text-align: center;
-            }
-            
-            .raffle-details-image img {
-                max-width: 100%;
-                max-height: 200px;
-                border-radius: 8px;
-                object-fit: cover;
-            }
-            
-            .raffle-details-content {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .raffle-details-title {
-                margin: 0;
-                color: #4CAF50;
-                font-size: 1.4rem;
-            }
-            
-            .raffle-details-description {
-                margin: 0 0 15px 0;
-                line-height: 1.5;
-            }
-            
-            .raffle-details-metadata {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                margin-bottom: 15px;
-            }
-            
-            .metadata-item {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .metadata-label {
-                font-size: 0.9rem;
-                color: #a0aec0;
-            }
-            
-            .metadata-value {
-                font-weight: bold;
-            }
-            
-            .prize-distribution {
-                margin: 15px 0;
-                padding: 15px;
-                background-color: rgba(76, 175, 80, 0.1);
-                border-left: 3px solid #4CAF50;
-                border-radius: 4px;
-            }
-            
-            .prize-distribution h4 {
-                margin: 0 0 10px 0;
-                color: #4CAF50;
-            }
-            
-            .prize-distribution ul {
-                list-style: none;
-                padding: 0;
-                margin: 0;
-            }
-            
-            .prize-distribution li {
-                display: flex;
-                justify-content: space-between;
-                padding: 5px 0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .prize-distribution li:last-child {
-                border-bottom: none;
-            }
-            
-            .participation-status {
-                padding: 10px;
-                border-radius: 4px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-top: 10px;
-            }
-            
-            .participation-status.participating {
-                background-color: rgba(76, 175, 80, 0.1);
-                border: 1px solid rgba(76, 175, 80, 0.3);
-            }
-            
-            .participation-status.not-participating {
-                background-color: rgba(244, 67, 54, 0.1);
-                border: 1px solid rgba(244, 67, 54, 0.3);
-            }
-            
-            .status-icon {
-                font-size: 1.2rem;
-            }
-            
-            .raffle-details-actions {
-                margin-top: 15px;
-                text-align: center;
-            }
-            
-            .raffle-details-actions .join-button {
-                width: 100%;
-                padding: 12px 20px;
-                border-radius: 25px;
-                border: none;
-                background: linear-gradient(90deg, #4CAF50, #009688);
-                color: white;
-                font-weight: bold;
-                font-size: 1rem;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
-            
-            .raffle-details-actions .join-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-            }
-            
-            .raffle-details-actions .join-button:active {
-                transform: translateY(1px);
-            }
-            
-            .raffle-details-actions .join-button.participating {
-                background: linear-gradient(90deg, #2196F3, #03A9F4);
-            }
-            
-            /* Стилі для анімації модальних вікон */
-            .modal-container.closing .modal-backdrop {
-                animation: backdrop-fade-out 0.3s ease forwards;
-            }
-            
-            .modal-container.closing .modal-content {
-                animation: modal-disappear 0.3s ease-in forwards;
-            }
-            
-            @keyframes backdrop-fade-out {
-                from { opacity: 1; }
-                to { opacity: 0; }
-            }
-            
-            @keyframes modal-disappear {
-                from { opacity: 1; transform: scale(1) translateY(0); }
-                to { opacity: 0; transform: scale(0.95) translateY(-20px); }
-            }
-            
-            @media (max-width: 768px) {
-                .raffle-details-metadata {
-                    grid-template-columns: 1fr;
-                }
-                
-                .modal-content {
-                    width: 95%;
-                }
-            }
-        `;
-
-        // Додаємо стилі до head
-        document.head.appendChild(style);
-    }
-
-    // Ініціалізуємо стилі
-    injectModalStyles();
-
     /**
      * Функція відображення модального вікна
      * @param {string} title - Заголовок модального вікна
@@ -405,49 +133,52 @@
         `;
 
         // Додаємо стилі для модального вікна підтвердження
-        const style = document.createElement('style');
-        style.textContent = `
-            .confirm-modal {
-                text-align: center;
-                padding: 10px;
-            }
-            
-            .confirm-message {
-                font-size: 1.1rem;
-                margin-bottom: 20px;
-            }
-            
-            .confirm-buttons {
-                display: flex;
-                justify-content: center;
-                gap: 15px;
-            }
-            
-            .confirm-button-yes, .confirm-button-no {
-                padding: 10px 25px;
-                border-radius: 25px;
-                border: none;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
-            
-            .confirm-button-yes {
-                background: linear-gradient(90deg, #4CAF50, #009688);
-                color: white;
-            }
-            
-            .confirm-button-no {
-                background: linear-gradient(90deg, #f44336, #e53935);
-                color: white;
-            }
-            
-            .confirm-button-yes:hover, .confirm-button-no:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            }
-        `;
-        document.head.appendChild(style);
+        if (!document.getElementById('confirm-modal-styles')) {
+            const style = document.createElement('style');
+            style.id = 'confirm-modal-styles';
+            style.textContent = `
+                .confirm-modal {
+                    text-align: center;
+                    padding: 10px;
+                }
+                
+                .confirm-message {
+                    font-size: 1.1rem;
+                    margin-bottom: 20px;
+                }
+                
+                .confirm-buttons {
+                    display: flex;
+                    justify-content: center;
+                    gap: 15px;
+                }
+                
+                .confirm-button-yes, .confirm-button-no {
+                    padding: 10px 25px;
+                    border-radius: 25px;
+                    border: none;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+                
+                .confirm-button-yes {
+                    background: linear-gradient(90deg, #4CAF50, #009688);
+                    color: white;
+                }
+                
+                .confirm-button-no {
+                    background: linear-gradient(90deg, #f44336, #e53935);
+                    color: white;
+                }
+                
+                .confirm-button-yes:hover, .confirm-button-no:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+                }
+            `;
+            document.head.appendChild(style);
+        }
 
         // Відображаємо модальне вікно
         const closeModal = window.showModal(title, content, {

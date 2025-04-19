@@ -869,5 +869,84 @@
             }, 1500);
         });
     </script>
+<script>
+// Глобальний обробник необроблених Promise помилок
+window.addEventListener('unhandledrejection', function(event) {
+    // Ховаємо індикатор завантаження щоб уникнути зависання спінера
+    window.resetLoadingState();
+
+    // Скидаємо стан запиту участі
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        window.WinixRaffles.participation.requestInProgress = false;
+    }
+
+    // Очистимо всі кнопки в стані обробки
+    const processingButtons = document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing');
+    processingButtons.forEach(button => {
+        button.classList.remove('processing');
+        button.disabled = false;
+        button.removeAttribute('data-processing');
+    });
+
+    // Отримуємо читабельне повідомлення про помилку
+    const errorMessage = event.reason && event.reason.message
+        ? event.reason.message
+        : 'Виникла помилка при виконанні операції';
+
+    // Адаптуємо повідомлення для користувача
+    let userMessage = 'Виникла помилка. Спробуйте ще раз через кілька секунд';
+    let messageType = 'error';
+
+    if (errorMessage.includes('жетон') || errorMessage.includes('недостатньо')) {
+        userMessage = 'Недостатньо жетонів для участі в розіграші';
+    } else if (errorMessage.includes('зачекайте') || errorMessage.includes('спроб')) {
+        userMessage = 'Зачекайте секунду перед наступною спробою';
+        messageType = 'warning';
+    } else if (errorMessage.includes('розіграш') && (errorMessage.includes('завершено') || errorMessage.includes('існує'))) {
+        userMessage = 'Цей розіграш вже завершено або не існує';
+        messageType = 'warning';
+    }
+
+    // Показуємо користувацьке повідомлення
+    window.showToast(userMessage, messageType);
+
+    // Запобігаємо стандартному відображенню помилки в консолі
+    event.preventDefault();
+});
+
+// Розширена функція скидання стану завантаження
+window.resetLoadingState = function() {
+    loadingCounter = 0;
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.classList.remove('active');
+        spinner.style.display = 'none';
+    }
+
+    // Скидаємо стан participation
+    if (window.WinixRaffles && window.WinixRaffles.participation) {
+        window.WinixRaffles.participation.requestInProgress = false;
+    }
+
+    // Очищаємо кнопки в стані обробки
+    const processingButtons = document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing');
+    processingButtons.forEach(button => {
+        button.classList.remove('processing');
+        button.disabled = false;
+        button.removeAttribute('data-processing');
+
+        // Відновлюємо оригінальний текст для кнопок не в стані участі
+        if (!button.classList.contains('participating')) {
+            const raffleId = button.getAttribute('data-raffle-id');
+            const entryFee = button.getAttribute('data-entry-fee') || '1';
+            if (button.classList.contains('mini-raffle-button')) {
+                button.textContent = 'Взяти участь';
+            } else {
+                button.textContent = `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+            }
+        }
+    });
+};
+</script>
 </body>
 </html>
