@@ -1390,5 +1390,27 @@ window.resetLoadingState = function() {
         console.log('✅ Систему преміальних сповіщень успішно ініціалізовано');
     });
 </script>
+<style id="override-modal-styles">
+  .modal-close,
+  .modal-close-button,
+  .premium-modal .modal-close,
+  .premium-modal .modal-close-button {
+    position: fixed !important;
+    right: 60px !important;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+    z-index: 10000 !important;
+  }
+
+  .modal-header {
+    padding-right: 60px !important;
+    position: relative !important;
+  }
+
+  .modal-title {
+    width: 100% !important;
+    text-align: center !important;
+  }
+</style>
 </body>
 </html>
