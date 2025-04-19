@@ -1,7 +1,7 @@
 /**
  * WINIX - Преміальні модальні вікна (modal.js)
  * Універсальний компонент модального вікна з сучасним дизайном
- * @version 2.1.0
+ * @version 2.5.0
  */
 
 (function() {
@@ -111,6 +111,7 @@
                 color: #ffffff;
                 flex-grow: 1;
                 overflow-y: auto;
+                background-color: transparent !important;
             }
 
             .modal-footer {
@@ -122,13 +123,13 @@
             
             /* Преміальні стилі для модальних вікон */
             .premium-modal .modal-container {
-                background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 52, 96, 0.95));
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset;
-                border-radius: 20px;
-                overflow: hidden;
+                background: linear-gradient(135deg, rgba(26, 26, 46, 0.98), rgba(15, 52, 96, 0.98)) !important;
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset !important;
+                border-radius: 20px !important;
+                overflow: hidden !important;
                 transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
                             opacity 0.4s cubic-bezier(0.165, 0.84, 0.44, 1) !important;
-                animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+                animation: modal-appear 0.4s cubic-bezier(0.19, 1, 0.22, 1) !important;
             }
             
             .premium-modal .modal-container::before {
@@ -159,429 +160,279 @@
             }
             
             .premium-modal .modal-header {
-                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9));
-                padding: 20px;
-                position: relative;
-                border-bottom: 1px solid rgba(78, 181, 247, 0.2);
+                background: linear-gradient(90deg, rgba(30, 39, 70, 0.9), rgba(15, 52, 96, 0.9)) !important;
+                padding: 20px !important;
+                position: relative !important;
+                border-bottom: 1px solid rgba(78, 181, 247, 0.2) !important;
             }
             
             .premium-modal .modal-title {
-                font-size: 22px;
-                font-weight: bold;
-                color: white;
-                margin: 0;
-                text-align: center;
-                text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+                font-size: 22px !important;
+                font-weight: bold !important;
+                color: white !important;
+                margin: 0 !important;
+                text-align: center !important;
+                text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
             }
             
             .premium-modal .modal-close {
-                position: absolute;
-                top: 15px;
-                right: 15px;
-                background: rgba(255, 255, 255, 0.1);
-                border: none;
-                color: white;
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-                cursor: pointer;
-                transition: all 0.3s;
-                z-index: 15;
+                position: absolute !important;
+                top: 15px !important;
+                right: 15px !important;
+                background: rgba(255, 255, 255, 0.1) !important;
+                border: none !important;
+                color: white !important;
+                width: 30px !important;
+                height: 30px !important;
+                border-radius: 50% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 22px !important;
+                cursor: pointer !important;
+                transition: all 0.3s !important;
+                z-index: 15 !important;
             }
             
             .premium-modal .modal-close:hover {
-                background: rgba(255, 255, 255, 0.2);
-                transform: rotate(90deg);
+                background: rgba(255, 255, 255, 0.2) !important;
+                transform: rotate(90deg) !important;
             }
             
             .premium-modal .modal-body {
-                padding: 20px;
-                color: #fff;
-                font-size: 16px;
-                line-height: 1.5;
-                background: transparent;
+                padding: 20px !important;
+                color: #fff !important;
+                font-size: 16px !important;
+                line-height: 1.5 !important;
+                background: transparent !important;
             }
             
             /* Стилі для розіграшів */
             .raffle-details-modal {
-                padding: 0;
+                padding: 0 !important;
+                width: 100% !important;
+                background: transparent !important;
+                color: #fff !important;
             }
             
             .raffle-section {
-                margin-bottom: 20px;
-                background: rgba(26, 32, 44, 0.3);
-                border-radius: 12px;
-                padding: 16px;
-                border: 1px solid rgba(78, 181, 247, 0.1);
+                margin-bottom: 20px !important;
+                background: rgba(26, 32, 44, 0.3) !important;
+                border-radius: 12px !important;
+                padding: 16px !important;
+                border: 1px solid rgba(78, 181, 247, 0.1) !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
             }
             
             .section-title {
-                color: #4eb5f7;
-                font-size: 18px;
-                font-weight: bold;
-                margin: 0 0 12px 0;
-                border-bottom: 1px solid rgba(78, 181, 247, 0.2);
-                padding-bottom: 8px;
+                color: #4eb5f7 !important;
+                font-size: 18px !important;
+                font-weight: bold !important;
+                margin: 0 0 12px 0 !important;
+                border-bottom: 1px solid rgba(78, 181, 247, 0.2) !important;
+                padding-bottom: 8px !important;
+                background: transparent !important;
             }
             
             .raffle-image {
-                width: 100%;
-                height: 180px;
-                object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 20px;
-                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+                width: 100% !important;
+                height: 180px !important;
+                object-fit: cover !important;
+                border-radius: 12px !important;
+                margin-bottom: 20px !important;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
             }
             
             .raffle-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 15px;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                margin-bottom: 15px !important;
+                background: transparent !important;
             }
             
             .raffle-title {
-                font-size: 20px;
-                font-weight: bold;
-                color: white;
-                text-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.5);
-                margin: 0;
+                font-size: 20px !important;
+                font-weight: bold !important;
+                color: white !important;
+                text-shadow: 0 0 0.3125rem rgba(0, 0, 0, 0.5) !important;
+                margin: 0 !important;
             }
             
             .raffle-prize {
-                display: inline-block;
-                padding: 0.25rem 0.625rem;
-                background: linear-gradient(90deg, #FFD700, #00dfd1);
-                border-radius: 1rem;
-                font-size: 1rem;
-                color: #1A1A2E;
-                font-weight: bold;
+                display: inline-block !important;
+                padding: 0.25rem 0.625rem !important;
+                background: linear-gradient(90deg, #FFD700, #00dfd1) !important;
+                border-radius: 1rem !important;
+                font-size: 1rem !important;
+                color: #1A1A2E !important;
+                font-weight: bold !important;
             }
             
-            .timer-container {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                margin: 0.625rem 0;
-                gap: 0.5rem;
-            }
-            
-            .timer-block {
-                background: rgba(0, 0, 0, 0.3);
-                border-radius: 0.5rem;
-                padding: 0.5rem;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                min-width: 3.5rem;
-                width: 3.5rem;
-                height: 4.5rem;
-                justify-content: center;
-            }
-            
-            .timer-value {
-                font-size: 1.25rem;
-                font-weight: bold;
-                color: white;
-                font-family: 'Arial', sans-serif;
-                width: 2.5rem;
-                text-align: center;
-                height: 1.5rem;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-            
-            .timer-label {
-                font-size: 0.75rem;
-                color: rgba(255, 255, 255, 0.7);
-            }
-            
-            .prize-distribution {
-                background: rgba(26, 32, 44, 0.5);
-                border-radius: 0.75rem;
-                padding: 0.75rem;
-                margin: 0.75rem 0;
-            }
-            
-            .prize-distribution-title {
-                font-size: 1rem;
-                font-weight: bold;
-                margin-bottom: 0.5rem;
-                color: white;
-            }
-            
-            .prize-list {
-                display: flex;
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-            
-            .prize-item {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 12px 15px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                background: rgba(26, 32, 44, 0.3);
-                border-radius: 8px;
-            }
-            
-            .prize-place {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            
-            .prize-icon {
-                width: 24px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 50%;
-                background: linear-gradient(to right, #4eb5f7, #00C9A7);
-                color: #1A1A2E;
-                font-weight: bold;
-                font-size: 12px;
-            }
-            
-            .prize-value {
-                color: var(--premium-color, #ffc107);
-            }
-            
-            .raffle-participants {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin: 0.625rem 0;
-            }
-            
-            .participants-info {
-                font-size: 0.875rem;
-                color: white;
-            }
-            
-            .participants-count {
-                font-weight: bold;
-                margin-left: 0.25rem;
-            }
-            
-            /* Кнопка для дій */
-            .action-button, .premium-close-button {
-                width: 100%;
-                padding: 14px;
-                background: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-                border: none;
-                border-radius: 12px;
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s;
-                margin-top: 15px;
-                position: relative;
-                overflow: hidden;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            }
-            
-            .action-button::before, .premium-close-button::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg,
-                    rgba(255, 255, 255, 0),
-                    rgba(255, 255, 255, 0.2),
-                    rgba(255, 255, 255, 0));
-                transition: all 0.6s;
-            }
-            
-            .action-button:hover, .premium-close-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
-            }
-            
-            .action-button:hover::before, .premium-close-button:hover::before {
-                left: 100%;
-            }
-            
-            .action-button:active, .premium-close-button:active {
-                transform: translateY(0);
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            }
-            
-            /* Стиль для модального вікна підтвердження */
-            .confirm-modal {
-                text-align: center;
-                padding: 10px;
-            }
-            
-            .confirm-message {
-                font-size: 1.1rem;
-                margin-bottom: 20px;
-            }
-            
-            .confirm-buttons {
-                display: flex;
-                justify-content: center;
-                gap: 15px;
-            }
-            
-            .confirm-button-yes, .confirm-button-no {
-                padding: 10px 25px;
-                border-radius: 25px;
-                border: none;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
-            
-            .confirm-button-yes {
-                background: linear-gradient(90deg, #4CAF50, #009688);
-                color: white;
-            }
-            
-            .confirm-button-no {
-                background: linear-gradient(90deg, #f44336, #e53935);
-                color: white;
-            }
-            
-            .confirm-button-yes:hover, .confirm-button-no:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            }
-            
-            /* Додаткові стилі для відображення інформації про участь */
-            .participation-status {
-                display: flex;
-                gap: 12px;
-                padding: 15px;
-                border-radius: 10px;
-                background: rgba(26, 32, 56, 0.5);
-                margin-top: 15px;
-                border: 1px solid rgba(76, 175, 80, 0.2);
-            }
-            
-            .participation-status.not-participating {
-                border-color: rgba(244, 67, 54, 0.2);
-            }
-            
-            .status-icon {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                background: rgba(76, 175, 80, 0.1);
-                flex-shrink: 0;
-            }
-            
-            .participation-status.not-participating .status-icon {
-                background: rgba(244, 67, 54, 0.1);
-            }
-            
-            .status-text {
-                flex-grow: 1;
-            }
-            
-            .status-text p {
-                margin: 0;
-                line-height: 1.4;
-            }
-            
-            .tickets-count {
-                font-size: 14px;
-                color: rgba(255, 255, 255, 0.7);
-                margin-top: 5px !important;
-            }
-            
-            .tickets-count span {
-                color: #4CAF50;
-                font-weight: bold;
+            .raffle-description {
+                margin: 0 0 10px 0 !important;
+                line-height: 1.5 !important;
+                color: #fff !important;
             }
             
             /* Графік */
             .chart-container {
-                height: 200px;
-                margin: 20px 0;
-                background-color: rgba(30, 39, 70, 0.5);
-                border-radius: 8px;
-                padding: 15px;
-                position: relative;
+                height: 200px !important;
+                margin: 20px 0 !important;
+                background-color: rgba(30, 39, 70, 0.5) !important;
+                border-radius: 8px !important;
+                padding: 15px !important;
+                position: relative !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
             }
             
             .chart-bar {
-                position: absolute;
-                bottom: 15px;
-                width: 12%;
-                background: linear-gradient(to top, #4eb5f7, #52C0BD);
-                border-radius: 3px 3px 0 0;
-                transition: height 1s ease;
+                position: absolute !important;
+                bottom: 15px !important;
+                width: 12% !important;
+                background: linear-gradient(to top, #4eb5f7, #52C0BD) !important;
+                border-radius: 3px 3px 0 0 !important;
+                transition: height 1s ease !important;
             }
             
             .chart-bar:nth-child(odd) {
-                background: linear-gradient(to top, #00C9A7, #4eb5f7);
+                background: linear-gradient(to top, #00C9A7, #4eb5f7) !important;
             }
             
             .chart-label {
-                position: absolute;
-                bottom: -25px;
-                font-size: 12px;
-                color: rgba(255, 255, 255, 0.7);
-                width: 12%;
-                text-align: center;
+                position: absolute !important;
+                bottom: -25px !important;
+                font-size: 12px !important;
+                color: rgba(255, 255, 255, 0.7) !important;
+                width: 12% !important;
+                text-align: center !important;
             }
             
             .chart-title {
-                text-align: center;
-                color: #fff;
-                margin-bottom: 15px;
-                font-size: 14px;
+                text-align: center !important;
+                color: #fff !important;
+                margin-bottom: 15px !important;
+                font-size: 14px !important;
             }
             
             /* Список призів */
             .prizes-list {
-                list-style: none;
-                padding: 0;
-                margin: 0;
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            
+            .prize-item {
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 10px 15px !important;
+                margin-bottom: 8px !important;
+                border-radius: 8px !important;
+                background: rgba(26, 32, 44, 0.3) !important;
+                border: 1px solid rgba(78, 181, 247, 0.1) !important;
+            }
+            
+            .prize-place {
+                display: flex !important;
+                align-items: center !important;
+                gap: 10px !important;
+                font-size: 14px !important;
+                color: #fff !important;
+            }
+            
+            .prize-icon {
+                width: 24px !important;
+                height: 24px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                border-radius: 50% !important;
+                background: linear-gradient(to right, #4eb5f7, #00C9A7) !important;
+                color: #1A1A2E !important;
+                font-weight: bold !important;
+                font-size: 12px !important;
+                min-width: 24px !important;
+            }
+            
+            .prize-amount {
+                font-weight: bold !important;
+                font-size: 14px !important;
+                color: #00C9A7 !important;
+            }
+            
+            /* Умови участі */
+            .conditions-list {
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            
+            .condition-item {
+                display: flex !important;
+                gap: 10px !important;
+                margin-bottom: 8px !important;
+                align-items: flex-start !important;
+                color: #fff !important;
+            }
+            
+            .condition-item:last-child {
+                margin-bottom: 0 !important;
+            }
+            
+            .condition-icon {
+                color: #4eb5f7 !important;
+                font-size: 18px !important;
+                min-width: 18px !important;
             }
             
             /* Адаптивність для мобільних пристроїв */
             @media (max-width: 450px) {
-                .premium-modal-container {
-                    right: 1rem;
-                    width: calc(100% - 2rem);
+                .modal-container {
+                    width: 95% !important;
+                    max-height: 85vh !important;
                 }
                 
-                .modal-container {
-                    width: 95%;
+                .modal-header {
+                    padding: 15px !important;
+                }
+                
+                .modal-title {
+                    font-size: 18px !important;
+                }
+                
+                .modal-body {
+                    padding: 15px !important;
+                }
+                
+                .section-title {
+                    font-size: 16px !important;
+                }
+                
+                .raffle-section {
+                    padding: 12px !important;
+                    margin-bottom: 15px !important;
                 }
                 
                 .chart-container {
-                    height: 150px;
+                    height: 150px !important;
+                    margin: 15px 0 !important;
                 }
                 
                 .chart-label {
-                    font-size: 10px;
+                    font-size: 10px !important;
                 }
                 
-                .confirm-buttons {
-                    flex-direction: column;
+                .prize-item {
+                    padding: 8px 12px !important;
                 }
                 
-                .confirm-button-yes, .confirm-button-no {
-                    width: 100%;
+                .raffle-description {
+                    font-size: 14px !important;
                 }
             }
         `;
@@ -816,34 +667,11 @@
 
         const formattedEndDate = formatDateTime(raffle.end_time);
 
-        // Створюємо HTML для розподілу призів
+        // Використовуємо саме ті дані, що є у розіграші для розподілу призів
         let prizeDistributionHtml = '';
-        if (raffle.prize_distribution && Array.isArray(raffle.prize_distribution)) {
-            prizeDistributionHtml = `
-                <div class="raffle-section">
-                    <h3 class="section-title">Розподіл призів</h3>
-                    <ul class="prizes-list">
-            `;
 
-            raffle.prize_distribution.forEach((prize, index) => {
-                prizeDistributionHtml += `
-                    <li class="prize-item">
-                        <div class="prize-place">
-                            <div class="prize-icon">${index + 1}</div>
-                            <span>${index + 1} місце</span>
-                        </div>
-                        <div class="prize-amount">${prize.amount} ${prize.currency || raffle.prize_currency}</div>
-                    </li>
-                `;
-            });
-
-            prizeDistributionHtml += `
-                    </ul>
-                </div>
-            `;
-        } else if (raffle.winners_count > 0) {
-            // Якщо є декілька переможців, але немає точного розподілу
-            const avgPrize = Math.floor(raffle.prize_amount / raffle.winners_count);
+        // Головний приз
+        if (raffle.prize_amount && raffle.prize_currency) {
             prizeDistributionHtml = `
                 <div class="raffle-section">
                     <h3 class="section-title">Розподіл призів</h3>
@@ -851,125 +679,81 @@
                         <li class="prize-item">
                             <div class="prize-place">
                                 <div class="prize-icon">1</div>
-                                <span>Кількість переможців</span>
+                                <span>1-5 місце</span>
                             </div>
-                            <div class="prize-amount">${raffle.winners_count}</div>
+                            <div class="prize-amount">Грошові винагороди (частина від $250)</div>
                         </li>
                         <li class="prize-item">
                             <div class="prize-place">
                                 <div class="prize-icon">2</div>
-                                <span>Загальний призовий фонд</span>
+                                <span>6-10 місце</span>
                             </div>
-                            <div class="prize-amount">${raffle.prize_amount} ${raffle.prize_currency}</div>
+                            <div class="prize-amount">$Winix токени</div>
                         </li>
                         <li class="prize-item">
                             <div class="prize-place">
                                 <div class="prize-icon">3</div>
-                                <span>В середньому на переможця</span>
+                                <span>Кожен учасник</span>
                             </div>
-                            <div class="prize-amount">≈ ${avgPrize} ${raffle.prize_currency}</div>
+                            <div class="prize-amount">550 $Winix токенів</div>
                         </li>
                     </ul>
                 </div>
             `;
         }
 
-        // Умови участі (приклад - реальні дані можуть прийти з API)
+        // Умови участі (без emoji)
         const conditionsHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Умови участі</h3>
-                <ul class="conditions-list" style="list-style: none; padding: 0; margin: 0;">
-                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
-                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
+                <ul class="conditions-list">
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
                         <div>Для участі потрібно мати мінімум ${raffle.entry_fee} жетони на балансі</div>
                     </li>
-                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
-                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
                         <div>Один користувач може брати участь кілька разів</div>
                     </li>
-                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
-                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
                         <div>Розіграш завершується ${formattedEndDate}</div>
                     </li>
-                    <li class="condition-item" style="display: flex; gap: 10px; margin-bottom: 0; align-items: center;">
-                        <div class="condition-icon" style="color: #4eb5f7; font-size: 18px;">•</div>
+                    <li class="condition-item">
+                        <div class="condition-icon">•</div>
                         <div>Переможці обираються випадковим чином серед усіх учасників</div>
                     </li>
                 </ul>
             </div>
         `;
 
-        // Відображення статусу участі
-        const participationStatusHtml = `
+        // Створюємо HTML для секції "Про розіграш"
+        const aboutHtml = `
             <div class="raffle-section">
-                <h3 class="section-title">Ваша участь</h3>
-                <div class="participation-status ${isParticipating ? 'participating' : 'not-participating'}">
-                    <div class="status-icon">
-                        ${isParticipating ? '✓' : '×'}
-                    </div>
-                    <div class="status-text">
-                        <p>${isParticipating ? 'Ви берете участь у цьому розіграші' : 'Ви не берете участь у цьому розіграші'}</p>
-                        ${isParticipating ? `<p class="tickets-count">У вас <span>${ticketCount}</span> білет${ticketCount > 1 ? 'ів' : ''}</p>` : ''}
-                    </div>
-                </div>
-                ${isParticipating ? `
-                <button class="action-button">Додати ще один білет</button>
-                ` : `
-                <button class="action-button">Взяти участь за ${raffle.entry_fee} жетони</button>
-                `}
+                <h3 class="section-title">Про розіграш</h3>
+                <p class="raffle-description">${raffle.description || 'ВЕЛИКИЙ ДЖЕКПОТ РОЗІГРАШ - Головний приз: $250 USD + 550,000 $Winix токенів!'}</p>
+                <p class="raffle-description">10 ПЕРЕМОЖЦІВ - 1-5 місце: Грошові винагороди (частина від $250) • 6-10 місце: $Winix токени</p>
+                <p class="raffle-description">БОНУС ДЛЯ ВСІХ УЧАСНИКІВ - Кожен учасник гарантовано отримає 550 $Winix токенів після завершення розіграшу!</p>
+                <p class="raffle-description">Вартість участі: 3 жетони. Тривалість: 7 днів</p>
             </div>
         `;
 
         // Створюємо повний HTML для модального вікна
         const content = `
             <div class="raffle-details-modal">
-                <div class="raffle-section">
-                    <h3 class="section-title">Про розіграш</h3>
-                    <p class="raffle-description">${raffle.description || 'Детальний опис розіграшу відсутній. Взяти участь можна за ' + raffle.entry_fee + ' жетони.'}</p>
-                </div>
-                
+                ${aboutHtml}
                 ${chartHtml}
-                
                 ${prizeDistributionHtml}
-                
                 ${conditionsHtml}
-                
-                ${participationStatusHtml}
             </div>
         `;
 
         // Відображаємо модальне вікно
-        const closeModal = window.showModal('Деталі розіграшу', content, {
+        window.showModal('Деталі розіграшу', content, {
             width: '90%',
             maxWidth: '500px',
             premium: true
         });
-
-        // Додаємо обробник для кнопки участі
-        setTimeout(() => {
-            const actionButton = document.querySelector('.action-button');
-            if (actionButton) {
-                actionButton.addEventListener('click', () => {
-                    closeModal();
-
-                    // Знаходимо відповідну кнопку участі на сторінці
-                    const participationButton = document.querySelector(`.join-button[data-raffle-id="${raffle.id}"], .mini-raffle-button[data-raffle-id="${raffle.id}"]`);
-
-                    if (participationButton) {
-                        // Симулюємо клік на кнопку участі
-                        participationButton.click();
-                    } else {
-                        // Або відображаємо повідомлення
-                        window.showToast(`Беремо участь у розіграші за ${raffle.entry_fee} жетонів`, 'info');
-
-                        // Якщо є модуль участі, викликаємо його функцію
-                        if (window.WinixRaffles && window.WinixRaffles.participation) {
-                            window.WinixRaffles.participation.participateInRaffle(raffle.id, 1);
-                        }
-                    }
-                });
-            }
-        }, 100);
     };
 
     console.log('✅ Модуль преміальних модальних вікон успішно ініціалізовано');
