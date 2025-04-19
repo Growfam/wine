@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (error-handler.js)
  * Модуль для коректної обробки помилок та покращення UX
- * @version 1.1.0
+ * @version 1.2.0
  */
 
 (function() {
@@ -375,6 +375,14 @@
                 return;
             }
 
+            // Перевірка на недостатність жетонів
+            if (message && (message.toLowerCase().includes('недостатньо') ||
+                          message.toLowerCase().includes('жетон'))) {
+                this.showUserFriendlyError('Недостатньо жетонів для участі. Отримайте більше жетонів.', 'warning');
+                event.preventDefault();
+                return;
+            }
+
             // Обробляємо помилку, якщо вона пов'язана з розіграшами
             if (this.isRaffleRelatedError(event)) {
                 this.handleRaffleError(error);
@@ -422,12 +430,11 @@
             }
 
             // Якщо є активний модуль розіграшів, спробуємо перевірити поточний запит
-            if (window.WinixRaffles && window.WinixRaffles.participation && window.WinixRaffles.participation.currentRequestId) {
-                const currentId = window.WinixRaffles.participation.currentRequestId;
-                // ID запиту зазвичай має формат "raffleId_timestamp"
-                const idParts = currentId.split('_');
-                if (idParts.length > 0 && this.isValidUUID(idParts[0])) {
-                    return idParts[0];
+            if (window.WinixRaffles && window.WinixRaffles.participation && window.WinixRaffles.participation.pendingRequests) {
+                // Шукаємо перший активний запит
+                const pendingRaffleId = Object.keys(window.WinixRaffles.participation.pendingRequests)[0];
+                if (pendingRaffleId && this.isValidUUID(pendingRaffleId)) {
+                    return pendingRaffleId;
                 }
             }
 
@@ -883,14 +890,10 @@
                     window.WinixRaffles.participation.requestInProgress = false;
                 }
 
-                if (window.WinixRaffles.participation.currentRequestId) {
-                    window.WinixRaffles.participation.currentRequestId = null;
-                }
-
                 // Скидаємо карту активних запитів
-                if (window.WinixRaffles.participation.activeRequests &&
-                    typeof window.WinixRaffles.participation.activeRequests.clear === 'function') {
-                    window.WinixRaffles.participation.activeRequests.clear();
+                if (window.WinixRaffles.participation.activeTransactions &&
+                    typeof window.WinixRaffles.participation.activeTransactions.clear === 'function') {
+                    window.WinixRaffles.participation.activeTransactions.clear();
                 }
 
                 // Якщо є спеціальна функція скидання, використовуємо її
@@ -917,7 +920,7 @@
                         button.textContent = 'Взяти участь';
                     } else {
                         const entryFee = button.getAttribute('data-entry-fee') || '1';
-                        button.textContent = `Взяти участь за ${entryFee} жетони`;
+                        button.textContent = `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
                     }
                 }
             });
