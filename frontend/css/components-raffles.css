@@ -587,3 +587,109 @@
         font-size: 10px;
     }
 }
+/**
+ * Стилі для анімації зміни балансу жетонів
+ * Додайте ці стилі на сторінку для покращення відображення змін балансу
+ */
+
+/* Анімація зменшення кількості жетонів */
+@keyframes decrease-coins {
+    0% {
+        color: #FF5722;
+        transform: scale(1.1);
+        text-shadow: 0 0 5px rgba(255, 87, 34, 0.7);
+    }
+    50% {
+        color: #FF5722;
+        transform: scale(1.15);
+        text-shadow: 0 0 10px rgba(255, 87, 34, 0.5);
+    }
+    100% {
+        color: inherit;
+        transform: scale(1);
+        text-shadow: none;
+    }
+}
+
+/* Анімація збільшення кількості жетонів */
+@keyframes increase-coins {
+    0% {
+        color: #4CAF50;
+        transform: scale(1.1);
+        text-shadow: 0 0 5px rgba(76, 175, 80, 0.7);
+    }
+    50% {
+        color: #4CAF50;
+        transform: scale(1.15);
+        text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    100% {
+        color: inherit;
+        transform: scale(1);
+        text-shadow: none;
+    }
+}
+
+/* Клас для зменшення жетонів */
+#user-coins.decreasing {
+    animation: decrease-coins 0.8s ease-out;
+}
+
+/* Клас для збільшення жетонів */
+#user-coins.increasing {
+    animation: increase-coins 0.8s ease-out;
+}
+
+/* Стилі для відображення анімації змін у панелі учасника розіграшу */
+.participant-balance-change {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Анімація зміни значення розіграшу */
+.participant-balance-change::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(76, 175, 80, 0),
+        rgba(76, 175, 80, 0.3),
+        rgba(76, 175, 80, 0));
+    transform: translateX(-100%);
+    animation: balance-change-wave 1.5s ease-in-out;
+}
+
+@keyframes balance-change-wave {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Додаткові стилі для анімації кнопок участі */
+.join-button.processing,
+.mini-raffle-button.processing {
+    position: relative;
+    overflow: hidden;
+}
+
+.join-button.processing::after,
+.mini-raffle-button.processing::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0.2),
+        rgba(255, 255, 255, 0));
+    animation: button-processing 1.5s infinite linear;
+}
+
+@keyframes button-processing {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
