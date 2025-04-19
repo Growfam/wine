@@ -1,7 +1,6 @@
 """
 Сервіс для управління розіграшами, що включає автоматичне створення щоденних розіграшів,
 завершення прострочених та відправку повідомлень переможцям.
-З виправленнями для стабільної участі в розіграшах.
 """
 
 import os
@@ -14,7 +13,7 @@ import secrets
 import json
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Union, Tuple
+from typing import Dict, Any, List, Optional, Union
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -119,16 +118,6 @@ class TelegramApiException(Exception):
     pass
 
 
-class RaffleTransactionError(Exception):
-    """Виняток для помилок транзакцій розіграшу"""
-    pass
-
-
-class RaffleParticipationError(Exception):
-    """Виняток для помилок участі в розіграші"""
-    pass
-
-
 def send_telegram_message(chat_id: str, message: str, retry_count: int = 0) -> bool:
     """Надійна відправка повідомлення через Telegram Bot API з повторними спробами"""
     if not TELEGRAM_BOT_TOKEN:
@@ -190,10 +179,6 @@ class RaffleService:
     def __init__(self):
         self.state = RaffleServiceState()
         self.check_interval = 60  # Перевірка кожну хвилину
-        self._active_participation_locks = {}  # Зберігає інформацію про активні запити на участь
-        self._lock_cleanup_interval = 300  # Частота очищення застарілих блокувань (5 хвилин)
-        self._last_lock_cleanup = time.time()
-        self._max_lock_age = 600  # Максимальний вік блокування (10 хвилин)
 
     def start(self) -> bool:
         """Запуск сервісу в окремому потоці"""
@@ -266,10 +251,6 @@ class RaffleService:
         while self.state.active:
             try:
                 schedule.run_pending()
-
-                # Регулярно очищаємо застарілі блокування
-                self._cleanup_expired_locks()
-
                 time.sleep(self.check_interval)
                 retry_count = 0  # Скидаємо лічильник помилок при успішному циклі
             except Exception as e:
@@ -287,32 +268,6 @@ class RaffleService:
 
                 # Чекаємо перед повторною спробою
                 time.sleep(wait_time)
-
-    def _cleanup_expired_locks(self) -> None:
-        """Очищення застарілих блокувань участі в розіграшах"""
-        current_time = time.time()
-
-        # Виконуємо очищення тільки з певною періодичністю
-        if current_time - self._last_lock_cleanup < self._lock_cleanup_interval:
-            return
-
-        self._last_lock_cleanup = current_time
-        removed_locks = 0
-
-        # Створюємо копію ключів, щоб уникнути зміни словника під час ітерації
-        lock_keys = list(self._active_participation_locks.keys())
-
-        for lock_key in lock_keys:
-            lock_info = self._active_participation_locks[lock_key]
-            lock_age = current_time - lock_info['timestamp']
-
-            # Видаляємо блокування, якщо воно старше максимального часу життя
-            if lock_age > self._max_lock_age:
-                del self._active_participation_locks[lock_key]
-                removed_locks += 1
-
-        if removed_locks > 0:
-            logger.info(f"Очищено {removed_locks} застарілих блокувань участі")
 
     def _setup_scheduler(self) -> None:
         """Налаштування планувальника завдань"""
@@ -337,7 +292,7 @@ class RaffleService:
         except Exception as e:
             logger.error(f"Помилка налаштування планувальника: {str(e)}")
 
-    def run_task(self, task_name: str, task_func):
+    def run_task(self, task_name: str, task_func) -> Dict[str, Any]:
         """Запуск задачі з логуванням статусу та обробкою помилок"""
         # Запобігаємо одночасному виконанню однієї і тієї ж задачі
         with self.state.task_lock:
@@ -1076,250 +1031,6 @@ class RaffleService:
                 "status": "error",
                 "message": f"Помилка отримання статусу: {str(e)}"
             }
-
-    # ============= ФУНКЦІЇ ДЛЯ УЧАСТІ В РОЗІГРАШАХ =============
-
-    def participate_in_raffle(self, user_id: str, raffle_id: str, tickets_count: int = 1) -> Dict[str, Any]:
-        """
-        Бере участь у розіграші з атомарною транзакцією
-
-        Args:
-            user_id: ID користувача
-            raffle_id: ID розіграшу
-            tickets_count: Кількість білетів для придбання
-
-        Returns:
-            dict: Результат операції
-        """
-        # Перевірка на дублювання запитів - запобігає race conditions
-        lock_key = f"{user_id}_{raffle_id}"
-        if lock_key in self._active_participation_locks:
-            lock_info = self._active_participation_locks[lock_key]
-            now = time.time()
-
-            # Якщо запит активний менше 10 секунд, блокуємо повторну спробу
-            if now - lock_info['timestamp'] < 10:
-                logger.info(f"Блокування дублюючого запиту для {user_id} в розіграші {raffle_id}")
-                return {'success': False, 'error': 'Запит вже обробляється. Зачекайте завершення.'}
-            else:
-                # Якщо минуло більше 10 секунд, вважаємо, що попередній запит завис
-                logger.warning(f"Виявлено застряглий запит для {user_id} в розіграші {raffle_id}, скидаємо стан")
-
-        try:
-            # Встановлюємо блокування
-            self._active_participation_locks[lock_key] = {
-                'timestamp': time.time(),
-                'tickets_count': tickets_count
-            }
-
-            # Генеруємо унікальний ID транзакції для відстеження
-            transaction_id = f"raffle_participation_{int(time.time() * 1000)}"
-
-            logger.info(f"Starting participation transaction {transaction_id} for user {user_id} in raffle {raffle_id}")
-
-            # Отримуємо дані про розіграш
-            raffle_data = supabase.table('raffles').select('*').eq('id', raffle_id).execute()
-
-            if not raffle_data.data:
-                return {'success': False, 'error': 'Розіграш не знайдено'}
-
-            raffle = raffle_data.data[0]
-
-            # Перевіряємо чи розіграш активний
-            if raffle.get('status') != 'active':
-                return {'success': False, 'error': 'Розіграш не активний'}
-
-            # Перевіряємо час розіграшу
-            now = datetime.now(timezone.utc)
-            end_time = datetime.fromisoformat(raffle.get('end_time', '').replace('Z', '+00:00'))
-            if now >= end_time:
-                return {'success': False, 'error': 'Розіграш вже завершено'}
-
-            token_cost = raffle.get('entry_fee', 0) * tickets_count
-
-            # Отримуємо поточний баланс користувача
-            user_data = supabase.table('winix').select('coins').eq('telegram_id', user_id).execute()
-
-            if not user_data.data:
-                return {'success': False, 'error': 'Користувача не знайдено'}
-
-            current_balance = user_data.data[0].get('coins', 0)
-
-            if current_balance < token_cost:
-                return {'success': False, 'error': 'Недостатньо жетонів'}
-
-            # Виконуємо атомарну транзакцію через RPC (stored procedure у Supabase)
-            # 🔴 ГОЛОВНА ЗМІНА: використання зовнішньої функції для атомарності транзакції
-            result = supabase.rpc(
-                'participate_in_raffle',
-                {
-                    'p_user_id': user_id,
-                    'p_raffle_id': raffle_id,
-                    'p_tickets_count': tickets_count,
-                    'p_token_cost': token_cost,
-                    'p_transaction_id': transaction_id
-                }
-            ).execute()
-
-            if result.error:
-                logger.error(f"Participation error: {result.error}")
-                return {'success': False, 'error': str(result.error)}
-
-            # Перевіряємо результат виконання функції
-            if not result.data or not result.data.get('success', False):
-                error_message = result.data.get('error', 'Помилка під час участі в розіграші')
-                logger.error(f"Participation failed: {error_message}")
-                return {'success': False, 'error': error_message}
-
-            # Успішне виконання
-            participation_data = result.data
-
-            # Оновлюємо статистику розіграшу
-            self._update_raffle_statistics(raffle_id)
-
-            logger.info(f"Participation successful: {transaction_id}")
-            return {
-                'success': True,
-                'data': {
-                    'transaction_id': transaction_id,
-                    'tickets_added': tickets_count,
-                    'tokens_spent': token_cost,
-                    'new_coins_balance': participation_data.get('new_coins_balance'),
-                    'total_entries': participation_data.get('total_entries', tickets_count)
-                }
-            }
-
-        except Exception as e:
-            logger.exception(f"Error in participate_in_raffle: {str(e)}")
-            return {'success': False, 'error': str(e)}
-        finally:
-            # Знімаємо блокування
-            if lock_key in self._active_participation_locks:
-                del self._active_participation_locks[lock_key]
-
-    def _update_raffle_statistics(self, raffle_id: str) -> bool:
-        """
-        Оновлює статистику розіграшу
-        """
-        try:
-            # Використовуємо функцію в базі даних
-            stats = supabase.rpc(
-                'get_raffle_statistics',
-                {'p_raffle_id': raffle_id}
-            ).execute()
-
-            if stats.error:
-                logger.error(f"Error updating statistics: {stats.error}")
-                return False
-
-            return True
-        except Exception as e:
-            logger.exception(f"Error in _update_raffle_statistics: {str(e)}")
-            return False
-
-    def get_raffle_statistics(self, raffle_id: str) -> Dict[str, Any]:
-        """
-        Отримує статистику розіграшу
-        """
-        try:
-            # Отримуємо дані розіграшу
-            raffle_data = supabase.table('raffles').select('*').eq('id', raffle_id).execute()
-
-            if not raffle_data.data:
-                return {'success': False, 'error': 'Розіграш не знайдено'}
-
-            raffle = raffle_data.data[0]
-
-            # Отримуємо статистику учасників
-            participants_count = raffle.get('participants_count', 0)
-            tickets_count = raffle.get('tickets_count', 0)
-
-            # Якщо статистика неповна, оновлюємо її
-            if participants_count == 0 and tickets_count == 0:
-                stats = supabase.rpc(
-                    'get_raffle_statistics',
-                    {'p_raffle_id': raffle_id}
-                ).execute()
-
-                if not stats.error and stats.data:
-                    participants_count = stats.data.get('participants_count', 0)
-                    tickets_count = stats.data.get('tickets_count', 0)
-
-            return {
-                'success': True,
-                'data': {
-                    'participants_count': participants_count,
-                    'tickets_count': tickets_count,
-                    'entry_fee': raffle.get('entry_fee', 1),
-                    'prize_amount': raffle.get('prize_amount', 0),
-                    'prize_currency': raffle.get('prize_currency', 'WINIX'),
-                    'status': raffle.get('status', 'active'),
-                    'title': raffle.get('title', 'Розіграш')
-                }
-            }
-        except Exception as e:
-            logger.exception(f"Error in get_raffle_statistics: {str(e)}")
-            return {'success': False, 'error': str(e)}
-
-    def get_user_raffles(self, user_id: str) -> Dict[str, Any]:
-        """
-        Отримує список розіграшів, у яких бере участь користувач
-        """
-        try:
-            # Отримуємо всі участі користувача
-            participants_response = supabase.table('raffle_participants') \
-                .select('*') \
-                .eq('telegram_id', user_id) \
-                .execute()
-
-            if not participants_response.data:
-                return {'success': True, 'data': []}
-
-            # Отримуємо ID розіграшів, у яких бере участь користувач
-            raffle_ids = [p.get('raffle_id') for p in participants_response.data if p.get('raffle_id')]
-
-            if not raffle_ids:
-                return {'success': True, 'data': []}
-
-            # Отримуємо дані цих розіграшів
-            raffles_response = supabase.table('raffles') \
-                .select('*') \
-                .in_('id', raffle_ids) \
-                .execute()
-
-            if not raffles_response.data:
-                return {'success': True, 'data': []}
-
-            # Створюємо словник участей за raffle_id для швидкого доступу
-            participations_by_raffle = {p.get('raffle_id'): p for p in participants_response.data if p.get('raffle_id')}
-
-            # Формуємо дані для відповіді
-            user_raffles = []
-
-            for raffle in raffles_response.data:
-                raffle_id = raffle.get('id')
-                participation = participations_by_raffle.get(raffle_id)
-
-                if not participation:
-                    continue
-
-                user_raffle = {
-                    'raffle_id': raffle_id,
-                    'title': raffle.get('title', ''),
-                    'entry_fee': raffle.get('entry_fee', 1),
-                    'prize_amount': raffle.get('prize_amount', 0),
-                    'prize_currency': raffle.get('prize_currency', 'WINIX'),
-                    'entry_count': participation.get('entry_count', 1),
-                    'status': raffle.get('status', 'active'),
-                    'is_daily': raffle.get('is_daily', False)
-                }
-
-                user_raffles.append(user_raffle)
-
-            return {'success': True, 'data': user_raffles}
-        except Exception as e:
-            logger.exception(f"Error in get_user_raffles: {str(e)}")
-            return {'success': False, 'error': str(e)}
 
 
 # Створення єдиного екземпляру сервісу (Singleton)
