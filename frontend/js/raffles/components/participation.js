@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований модуль для обробки участі користувача в розіграшах
  * Виправлена версія з покращеною обробкою помилок та стабільністю
- * @version 1.6.0
+ * @version 2.0.0
  */
 
 (function() {
@@ -22,32 +22,32 @@
         // Кількість білетів користувача для кожного розіграшу
         userRaffleTickets: {},
 
-        // Кеш недійсних розіграшів (для кращої роботи UI)
+        // Кеш невалідних розіграшів (для кращої роботи UI)
         invalidRaffleIds: new Set(),
+
+        // ВАЖЛИВО: Замість глобального флагу requestInProgress тепер ведемо облік запитів по кожному розіграшу окремо
+        activeRequests: new Map(), // Map<raffleId, {timestamp, status}>
 
         // Час останньої участі (для запобігання надмірній кількості запитів)
         lastParticipationTime: 0,
 
-        // *** ВАЖЛИВО: Видалено глобальний прапорець requestInProgress,
-        // тепер використовуємо тільки карту activeRequests ***
-
-        // ID поточного запиту для ідентифікації
+        // Ідентифікатор для відстеження поточного запиту
         currentRequestId: null,
-
-        // Карта активних запитів для кожного розіграшу
-        activeRequests: new Map(),
 
         // Черга запитів для запобігання втраті даних
         pendingRequests: [],
 
-        // Максимальна кількість жетонів для участі
-        MAX_ENTRY_COUNT: 100,
-
-        // Додаємо змінну для відстеження часу останнього скидання стану
-        lastStateReset: 0,
+        // Дані транзакцій для відстеження стану
+        transactions: new Map(), // Map<transactionId, {raffleId, status, timestamp}>
 
         // Таймер для індикації обробки (для кращого UX)
         processingTimers: {},
+
+        // Останнє скидання стану
+        lastStateReset: Date.now(),
+
+        // Максимальна кількість жетонів для участі
+        MAX_ENTRY_COUNT: 100,
 
         // Ініціалізація модуля
         init: function() {
@@ -58,6 +58,7 @@
             this.lastStateReset = Date.now();
             this.currentRequestId = null;
             this.activeRequests.clear();
+            this.transactions.clear();
 
             // Перевіряємо збережений стан участі в localStorage
             this._restoreParticipationFromStorage();
@@ -92,7 +93,70 @@
                         this._clearPendingParticipationState(raffleId);
                     }
                 }
+
+                // Перевіряємо транзакції, які могли застрягти
+                for (const [transactionId, transactionInfo] of this.transactions.entries()) {
+                    if (transactionInfo.status === 'pending' && now - transactionInfo.timestamp > 30000) {
+                        console.warn(`⚠️ Виявлено застряглу транзакцію ${transactionId}, перевіряємо статус`);
+                        // Перевіряємо статус транзакції через API
+                        this._checkTransactionStatus(transactionId, transactionInfo.raffleId);
+                    }
+                }
             }, 3000); // Перевіряємо кожні 3 секунди
+        },
+
+        // Перевірка статусу транзакції
+        _checkTransactionStatus: function(transactionId, raffleId) {
+            // Якщо є API для перевірки транзакцій - використовуємо його
+            if (window.WinixAPI && typeof window.WinixAPI.apiRequest === 'function') {
+                const userId = WinixRaffles.state.telegramId ||
+                              (window.WinixAPI.getUserId ? window.WinixAPI.getUserId() : null);
+
+                if (!userId) return;
+
+                // Запит до API для перевірки статусу транзакції
+                window.WinixAPI.apiRequest(`user/${userId}/transaction/${transactionId}`, 'GET', null, {
+                    suppressErrors: true,
+                    hideLoader: true,
+                    timeout: 5000
+                }).then(response => {
+                    if (response && response.status === 'success' && response.data) {
+                        const transaction = response.data;
+
+                        // Якщо транзакція успішна - оновлюємо стан
+                        if (transaction.status === 'completed') {
+                            console.log(`✅ Транзакція ${transactionId} успішно завершена`);
+                            // Додаємо до множини розіграшів, у яких бере участь користувач
+                            if (raffleId) {
+                                this.participatingRaffles.add(raffleId);
+
+                                // Оновлюємо кількість білетів, якщо вона є в даних
+                                if (transaction.entry_count) {
+                                    this.userRaffleTickets[raffleId] = transaction.entry_count;
+                                } else {
+                                    // Інакше інкрементуємо поточне значення
+                                    this.userRaffleTickets[raffleId] = (this.userRaffleTickets[raffleId] || 0) + 1;
+                                }
+
+                                // Оновлюємо кнопки участі
+                                this.updateParticipationButtons();
+
+                                // Оновлюємо дані в localStorage
+                                this.saveSyncState();
+                            }
+
+                            // Видаляємо транзакцію з відстеження
+                            this.transactions.delete(transactionId);
+                        } else if (transaction.status === 'failed') {
+                            console.warn(`⚠️ Транзакція ${transactionId} не вдалася`);
+                            // Видаляємо транзакцію з відстеження
+                            this.transactions.delete(transactionId);
+                        }
+                    }
+                }).catch(err => {
+                    console.error(`❌ Помилка перевірки транзакції ${transactionId}:`, err);
+                });
+            }
         },
 
         // Відновлення стану участі з localStorage
@@ -117,6 +181,11 @@
                                 this.userRaffleTickets = parsedState.tickets;
                             }
 
+                            // Відновлюємо транзакції, якщо вони є
+                            if (parsedState.transactions) {
+                                this.transactions = new Map(parsedState.transactions);
+                            }
+
                             console.log('✅ Успішно відновлено локальний стан участі');
                         } else {
                             console.log('ℹ️ Кеш участі застарів, очищаємо');
@@ -132,6 +201,35 @@
                         this.invalidRaffleIds = new Set(JSON.parse(invalidRaffles));
                     } catch (e) {
                         console.warn('⚠️ Помилка відновлення невалідних розіграшів:', e);
+                    }
+                }
+
+                // Відновлюємо незавершені транзакції
+                const pendingTransactions = localStorage.getItem('winix_pending_transactions');
+                if (pendingTransactions) {
+                    try {
+                        const transactions = JSON.parse(pendingTransactions);
+                        // Фільтруємо транзакції, які не старіші 30 хвилин
+                        const now = Date.now();
+                        const validTransactions = transactions.filter(t => now - t.timestamp < 1800000);
+
+                        // Додаємо транзакції до відстеження
+                        validTransactions.forEach(t => {
+                            if (t.raffleId && t.transactionId) {
+                                this.transactions.set(t.transactionId, {
+                                    raffleId: t.raffleId,
+                                    status: 'pending',
+                                    timestamp: t.timestamp
+                                });
+                            }
+                        });
+
+                        // Зберігаємо оновлений список
+                        if (validTransactions.length !== transactions.length) {
+                            localStorage.setItem('winix_pending_transactions', JSON.stringify(validTransactions));
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Помилка відновлення незавершених транзакцій:', e);
                     }
                 }
             } catch (e) {
@@ -186,14 +284,29 @@
                     this.loadUserRaffles();
                 }
             });
+
+            // Додаємо обробник для оновлення стану при зміні балансу
+            document.addEventListener('balance-updated', (event) => {
+                if (event.detail && event.detail.coins !== undefined) {
+                    // Оновлюємо відображення жетонів
+                    const coinsElement = document.getElementById('user-coins');
+                    if (coinsElement) {
+                        coinsElement.textContent = event.detail.coins;
+                    }
+                }
+            });
         },
 
         // Збереження стану синхронізації в localStorage
         saveSyncState: function() {
             try {
+                // Перетворюємо Map в масив для збереження
+                const transactionsArray = Array.from(this.transactions.entries());
+
                 const participationState = {
                     raffles: Array.from(this.participatingRaffles),
                     tickets: this.userRaffleTickets,
+                    transactions: transactionsArray,
                     lastUpdate: Date.now()
                 };
                 localStorage.setItem('winix_participation_state', JSON.stringify(participationState));
@@ -245,8 +358,34 @@
 
                                     buttonRef.classList.add('participating');
 
+                                    // Оновлюємо баланс жетонів
+                                    if (result.data && result.data.new_coins_balance !== undefined) {
+                                        const coinsElement = document.getElementById('user-coins');
+                                        if (coinsElement) {
+                                            coinsElement.textContent = result.data.new_coins_balance;
+                                        }
+
+                                        // Зберігаємо баланс в localStorage
+                                        localStorage.setItem('userCoins', result.data.new_coins_balance);
+                                        localStorage.setItem('winix_coins', result.data.new_coins_balance);
+                                    }
+
                                     // Зберігаємо оновлений стан
                                     this.saveSyncState();
+
+                                    // Відправляємо подію про оновлення даних користувача
+                                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                                        detail: {
+                                            userData: {
+                                                coins: result.data?.new_coins_balance,
+                                                participations_count: this.participatingRaffles.size
+                                            }
+                                        },
+                                        source: 'participation.js'
+                                    }));
+
+                                    // Оновлюємо відображену кількість учасників розіграшу
+                                    this._updateParticipantsCount(raffleId);
                                 }
                             })
                             .catch(error => {
@@ -500,6 +639,13 @@
                     if (typeof window.showToast === 'function') {
                         window.showToast("Перевірка стану незавершених транзакцій...", 'info');
                     }
+
+                    // Перевіряємо кожну транзакцію
+                    pendingTransactions.forEach(transaction => {
+                        if (transaction.transactionId) {
+                            this._checkTransactionStatus(transaction.transactionId, transaction.raffleId);
+                        }
+                    });
                 }
 
                 // Очищаємо старі записи в будь-якому випадку
@@ -619,6 +765,9 @@
                 });
             }, 500);
 
+            // Генеруємо унікальний ID транзакції
+            const transactionId = `${raffleId}_${now}_${Math.floor(Math.random() * 1000000)}`;
+
             // Отримання початкових даних для аналізу змін
             const initialCoins = parseInt(document.getElementById('user-coins')?.textContent ||
                                       localStorage.getItem('userCoins') || '0');
@@ -631,8 +780,16 @@
                     timestamp: now,
                     entryCount: entryCount,
                     initialCoins: initialCoins,
-                    status: 'pending'
+                    status: 'pending',
+                    transactionId: transactionId
                 };
+
+                // Додаємо до відстеження транзакцій
+                this.transactions.set(transactionId, {
+                    raffleId: raffleId,
+                    status: 'pending',
+                    timestamp: now
+                });
 
                 // Отримуємо існуючі транзакції або створюємо новий масив
                 const existingTransactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
@@ -671,6 +828,7 @@
                 const response = await WinixAPI.apiRequest(`user/${userId}/participate-raffle`, 'POST', {
                     raffle_id: raffleId,
                     entry_count: entryCount,
+                    transaction_ref: transactionId, // Додаємо ID транзакції для відстеження
                     _timestamp: now, // Запобігає кешуванню
                     _request_id: currentRequestId // Унікальний ідентифікатор запиту
                 }, {
@@ -689,12 +847,20 @@
                     try {
                         const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
                         const updatedTransactions = transactions.map(t => {
-                            if (t.raffleId === raffleId && t.timestamp === now) {
+                            if (t.transactionId === transactionId) {
                                 return {...t, status: 'completed'};
                             }
                             return t;
                         });
                         localStorage.setItem('winix_pending_transactions', JSON.stringify(updatedTransactions));
+
+                        // Оновлюємо статус транзакції у відстеженні
+                        if (this.transactions.has(transactionId)) {
+                            this.transactions.set(transactionId, {
+                                ...this.transactions.get(transactionId),
+                                status: 'completed'
+                            });
+                        }
                     } catch (e) {
                         console.warn('⚠️ Помилка оновлення статусу транзакції:', e);
                     }
@@ -721,15 +887,11 @@
                     // Оновлюємо кількість білетів і стан
                     this.participatingRaffles.add(raffleId);
                     const previousTickets = this.userRaffleTickets[raffleId] || 0;
-                    this.userRaffleTickets[raffleId] = previousTickets + 1;
+                    const newTickets = response.data?.total_entries || (previousTickets + 1);
+                    this.userRaffleTickets[raffleId] = newTickets;
 
                     // Зберігаємо оновлений стан у localStorage з часом оновлення
-                    const syncData = {
-                        raffles: Array.from(this.participatingRaffles),
-                        tickets: this.userRaffleTickets,
-                        lastUpdate: Date.now()
-                    };
-                    localStorage.setItem('winix_participation_state', JSON.stringify(syncData));
+                    this.saveSyncState();
 
                     // Оновлюємо кнопки участі відразу
                     this.updateParticipationButtons();
@@ -760,7 +922,7 @@
                     }));
 
                     // Оновлюємо кількість учасників у DOM
-                    this.updateParticipantsCount(raffleId);
+                    this._updateParticipantsCount(raffleId);
 
                     return { success: true, data: response.data, message };
                 } else {
@@ -768,12 +930,21 @@
                     try {
                         const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
                         const updatedTransactions = transactions.map(t => {
-                            if (t.raffleId === raffleId && t.timestamp === now) {
+                            if (t.transactionId === transactionId) {
                                 return {...t, status: 'failed', error: response.message};
                             }
                             return t;
                         });
                         localStorage.setItem('winix_pending_transactions', JSON.stringify(updatedTransactions));
+
+                        // Оновлюємо статус транзакції у відстеженні
+                        if (this.transactions.has(transactionId)) {
+                            this.transactions.set(transactionId, {
+                                ...this.transactions.get(transactionId),
+                                status: 'failed',
+                                error: response.message
+                            });
+                        }
                     } catch (e) {
                         console.warn('⚠️ Помилка оновлення статусу транзакції:', e);
                     }
@@ -810,12 +981,17 @@
                 try {
                     const transactions = JSON.parse(localStorage.getItem('winix_pending_transactions') || '[]');
                     const updatedTransactions = transactions.map(t => {
-                        if (t.raffleId === raffleId && t.timestamp === now) {
+                        if (t.transactionId === transactionId) {
                             return {...t, status: 'failed', error: error.message || 'Невідома помилка'};
                         }
                         return t;
                     });
                     localStorage.setItem('winix_pending_transactions', JSON.stringify(updatedTransactions));
+
+                    // Оновлюємо статус транзакції у відстеженні
+                    if (this.transactions.has(transactionId)) {
+                        this.transactions.delete(transactionId);
+                    }
                 } catch (e) {
                     console.warn('⚠️ Помилка оновлення статусу транзакції:', e);
                 }
@@ -1010,10 +1186,10 @@
         },
 
         /**
-         * Функція для оновлення кількості учасників розіграшу в DOM
+         * Оновлення кількості учасників розіграшу в DOM
          * @param {string} raffleId - ID розіграшу
          */
-        updateParticipantsCount: function(raffleId) {
+        _updateParticipantsCount: function(raffleId) {
             try {
                 // Знаходимо елемент для оновлення кількості учасників
                 const participantsCountElement = document.querySelector(
@@ -1072,6 +1248,9 @@
             } catch (e) {
                 console.warn('Не вдалося скинути стан кнопок:', e);
             }
+
+            // Перевіряємо всі незавершені транзакції
+            this.checkPendingTransactions();
 
             console.log('✅ Стан модуля участі успішно скинуто');
             return true;
