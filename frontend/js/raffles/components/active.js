@@ -2,7 +2,8 @@
  * WINIX - Система розіграшів (active.js)
  * Оновлений модуль для роботи з активними розіграшами
  * Додано функціонал деталей розіграшів
- * @version 1.3.0
+ * Виправлено обробку участі та помилок
+ * @version 1.3.1
  */
 
 (function() {
@@ -28,6 +29,9 @@
         // Таймери зворотнього відліку
         countdownTimers: {},
 
+        // Відстеження запитів участі
+        participationRequests: {},
+
         // Ініціалізація модуля
         init: function() {
             console.log('🎲 Ініціалізація модуля активних розіграшів...');
@@ -48,14 +52,67 @@
                 // Обробка кнопок участі в головному розіграші
                 if (e.target.classList.contains('join-button')) {
                     const raffleId = e.target.getAttribute('data-raffle-id');
-                    if (raffleId) {
+                    if (raffleId && !e.target.disabled && !e.target.classList.contains('processing')) {
                         e.preventDefault();
+
+                        // Оптимізована перевірка наявності модуля
+                        if (this.participationRequests[raffleId]) {
+                            // Запобігаємо подвійним кліками
+                            const now = Date.now();
+                            if (now - this.participationRequests[raffleId] < 2000) {
+                                if (typeof window.showToast === 'function') {
+                                    window.showToast('Будь ласка, зачекайте завершення попереднього запиту', 'info');
+                                }
+                                return;
+                            }
+                        }
+
+                        // Запам'ятовуємо час запиту
+                        this.participationRequests[raffleId] = Date.now();
+
+                        // Додаємо клас для індикації
+                        e.target.classList.add('processing');
+                        e.target.disabled = true;
+
                         // Перевіряємо чи модуль участі ініціалізовано
                         if (WinixRaffles.participation) {
-                            WinixRaffles.participation.participateInRaffle(raffleId, 'main');
+                            // Використовуємо правильну обробку промісів
+                            WinixRaffles.participation.participateInRaffle(raffleId, 'main')
+                                .then(result => {
+                                    // Обробка успішної відповіді
+                                    if (result.success) {
+                                        console.log('✅ Успішна участь в розіграші:', result.message);
+                                        // Оновлення кнопки вже відбувається в модулі participation
+                                    } else {
+                                        // Якщо відповідь отримана, але участь не вдалася
+                                        console.warn('⚠️ Помилка участі в розіграші:', result.message);
+                                        if (typeof window.showToast === 'function') {
+                                            window.showToast(result.message, 'warning');
+                                        }
+                                        // Відновлюємо стан кнопки
+                                        e.target.classList.remove('processing');
+                                        e.target.disabled = false;
+                                    }
+                                })
+                                .catch(error => {
+                                    // Обробка помилок
+                                    console.error('❌ Помилка участі в розіграші:', error);
+                                    // Відновлюємо стан кнопки
+                                    e.target.classList.remove('processing');
+                                    e.target.disabled = false;
+                                })
+                                .finally(() => {
+                                    // Видаляємо запит зі списку активних
+                                    delete this.participationRequests[raffleId];
+                                });
                         } else {
                             // Запасний варіант, якщо модуль участі не доступний
-                            this.fallbackParticipate(raffleId, 'main');
+                            this.fallbackParticipate(raffleId, 'main')
+                                .finally(() => {
+                                    delete this.participationRequests[raffleId];
+                                    e.target.classList.remove('processing');
+                                    e.target.disabled = false;
+                                });
                         }
                     }
                 }
@@ -63,14 +120,67 @@
                 // Обробка кнопок участі у міні-розіграші
                 if (e.target.classList.contains('mini-raffle-button')) {
                     const raffleId = e.target.getAttribute('data-raffle-id');
-                    if (raffleId) {
+                    if (raffleId && !e.target.disabled && !e.target.classList.contains('processing')) {
                         e.preventDefault();
+
+                        // Оптимізована перевірка наявності модуля
+                        if (this.participationRequests[raffleId]) {
+                            // Запобігаємо подвійним кліками
+                            const now = Date.now();
+                            if (now - this.participationRequests[raffleId] < 2000) {
+                                if (typeof window.showToast === 'function') {
+                                    window.showToast('Будь ласка, зачекайте завершення попереднього запиту', 'info');
+                                }
+                                return;
+                            }
+                        }
+
+                        // Запам'ятовуємо час запиту
+                        this.participationRequests[raffleId] = Date.now();
+
+                        // Додаємо клас для індикації
+                        e.target.classList.add('processing');
+                        e.target.disabled = true;
+
                         // Перевіряємо чи модуль участі ініціалізовано
                         if (WinixRaffles.participation) {
-                            WinixRaffles.participation.participateInRaffle(raffleId, 'daily');
+                            // Використовуємо правильну обробку промісів
+                            WinixRaffles.participation.participateInRaffle(raffleId, 'daily')
+                                .then(result => {
+                                    // Обробка успішної відповіді
+                                    if (result.success) {
+                                        console.log('✅ Успішна участь в міні-розіграші:', result.message);
+                                        // Оновлення кнопки вже відбувається в модулі participation
+                                    } else {
+                                        // Якщо відповідь отримана, але участь не вдалася
+                                        console.warn('⚠️ Помилка участі в міні-розіграші:', result.message);
+                                        if (typeof window.showToast === 'function') {
+                                            window.showToast(result.message, 'warning');
+                                        }
+                                        // Відновлюємо стан кнопки
+                                        e.target.classList.remove('processing');
+                                        e.target.disabled = false;
+                                    }
+                                })
+                                .catch(error => {
+                                    // Обробка помилок
+                                    console.error('❌ Помилка участі в міні-розіграші:', error);
+                                    // Відновлюємо стан кнопки
+                                    e.target.classList.remove('processing');
+                                    e.target.disabled = false;
+                                })
+                                .finally(() => {
+                                    // Видаляємо запит зі списку активних
+                                    delete this.participationRequests[raffleId];
+                                });
                         } else {
                             // Запасний варіант, якщо модуль участі не доступний
-                            this.fallbackParticipate(raffleId, 'daily');
+                            this.fallbackParticipate(raffleId, 'daily')
+                                .finally(() => {
+                                    delete this.participationRequests[raffleId];
+                                    e.target.classList.remove('processing');
+                                    e.target.disabled = false;
+                                });
                         }
                     }
                 }
@@ -265,6 +375,11 @@
                 return;
             }
 
+            // Встановлюємо атрибут ID для подальшого використання
+            if (raffle.id) {
+                mainRaffleContainer.setAttribute('data-raffle-id', raffle.id);
+            }
+
             // Розрахунок прогресу заповнення (максимум 100%)
             const progress = Math.min(Math.round((raffle.participants_count / 1000) * 100), 100);
 
@@ -378,6 +493,7 @@
         createMiniRaffleElement: function(raffle) {
             const miniRaffle = document.createElement('div');
             miniRaffle.className = 'mini-raffle';
+            miniRaffle.setAttribute('data-raffle-id', raffle.id);
 
             // Форматуємо дані за допомогою форматерів (якщо вони є)
             let endTimeText = '';
@@ -416,7 +532,7 @@
             return miniRaffle;
         },
 
-        /**
+/**
  * Додавання стилів для кнопки деталей
  */
 addDetailButtonStyles: function() {
@@ -652,6 +768,16 @@ addDetailButtonStyles: function() {
                     if (minutes) minutes.textContent = '00';
                     if (seconds) seconds.textContent = '00';
 
+                    // Додаємо розіграш до невалідних
+                    if (WinixRaffles.participation && typeof WinixRaffles.participation.addInvalidRaffleId === 'function') {
+                        WinixRaffles.participation.addInvalidRaffleId(raffleId);
+                    }
+
+                    // Оновлюємо кнопки участі
+                    if (WinixRaffles.participation && typeof WinixRaffles.participation.updateParticipationButtons === 'function') {
+                        WinixRaffles.participation.updateParticipationButtons();
+                    }
+
                     // Оновлюємо список розіграшів через 2 секунди
                     setTimeout(() => this.loadActiveRaffles(), 2000);
                     return;
@@ -709,19 +835,28 @@ addDetailButtonStyles: function() {
             const userId = WinixRaffles.state.telegramId || WinixAPI.getUserId();
 
             if (!userId) {
-                window.showToast('Не вдалося визначити ваш ID', 'error');
-                return;
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Не вдалося визначити ваш ID', 'error');
+                }
+                return {
+                    success: false,
+                    message: 'Не вдалося визначити ваш ID'
+                };
             }
 
             try {
-                window.showLoading();
+                if (typeof window.showLoading === 'function') {
+                    window.showLoading();
+                }
 
                 const response = await WinixAPI.apiRequest(`user/${userId}/participate-raffle`, 'POST', {
                     raffle_id: raffleId,
                     entry_count: 1
                 });
 
-                window.hideLoading();
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
 
                 if (response.status === 'success') {
                     // Оновлюємо кнопку
@@ -729,11 +864,13 @@ addDetailButtonStyles: function() {
                     if (button) {
                         button.textContent = 'Ви вже берете участь';
                         button.classList.add('participating');
-                        button.disabled = true;
+                        button.disabled = false;
                     }
 
                     // Показуємо повідомлення про успіх
-                    window.showToast('Ви успішно взяли участь у розіграші', 'success');
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Ви успішно взяли участь у розіграші', 'success');
+                    }
 
                     // Оновлюємо баланс користувача
                     if (response.data && response.data.new_coins_balance !== undefined) {
@@ -741,13 +878,37 @@ addDetailButtonStyles: function() {
                             detail: { coins: response.data.new_coins_balance }
                         }));
                     }
+
+                    return {
+                        success: true,
+                        data: response.data,
+                        message: 'Ви успішно взяли участь у розіграші'
+                    };
                 } else {
-                    window.showToast(response.message || 'Помилка участі в розіграші', 'error');
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(response.message || 'Помилка участі в розіграші', 'error');
+                    }
+
+                    return {
+                        success: false,
+                        message: response.message || 'Помилка участі в розіграші'
+                    };
                 }
             } catch (error) {
-                window.hideLoading();
+                if (typeof window.hideLoading === 'function') {
+                    window.hideLoading();
+                }
+
                 console.error('❌ Помилка участі в розіграші:', error);
-                window.showToast('Помилка при спробі участі в розіграші', 'error');
+
+                if (typeof window.showToast === 'function') {
+                    window.showToast(error.message || 'Помилка при спробі участі в розіграші', 'error');
+                }
+
+                return {
+                    success: false,
+                    message: error.message || 'Помилка при спробі участі в розіграші'
+                };
             }
         },
 
@@ -757,22 +918,53 @@ addDetailButtonStyles: function() {
             const raffle = this.raffles.find(r => r.id === raffleId);
 
             if (!raffle) {
-                window.showToast('Не вдалося знайти деталі розіграшу', 'error');
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Не вдалося знайти деталі розіграшу', 'error');
+                }
                 return;
             }
 
             // Визначення статусу участі (якщо доступно)
-            const isParticipating = WinixRaffles.participation &&
-                WinixRaffles.participation.participatingRaffles &&
-                WinixRaffles.participation.participatingRaffles.has(raffleId);
+            let isParticipating = false;
+            let ticketCount = 0;
 
-            // Кількість білетів (якщо доступно)
-            const ticketCount = WinixRaffles.participation &&
-                WinixRaffles.participation.userRaffleTickets ?
-                (WinixRaffles.participation.userRaffleTickets[raffleId] || 0) : 0;
+            if (WinixRaffles.participation) {
+                // Перевіряємо участь
+                if (WinixRaffles.participation.participatingRaffles) {
+                    isParticipating = WinixRaffles.participation.participatingRaffles.has(raffleId);
+                }
+
+                // Отримуємо кількість білетів
+                if (WinixRaffles.participation.userRaffleTickets) {
+                    ticketCount = WinixRaffles.participation.userRaffleTickets[raffleId] || 0;
+                }
+            }
 
             // Використовуємо глобальну функцію
-            window.showRaffleDetailsModal(raffle, isParticipating, ticketCount);
+            if (typeof window.showRaffleDetailsModal === 'function') {
+                window.showRaffleDetailsModal(raffle, isParticipating, ticketCount);
+            } else {
+                // Якщо глобальної функції немає, показуємо просте модальне вікно
+                this.showBasicRaffleDetails(raffle, isParticipating, ticketCount);
+            }
+        },
+
+        // Просте модальне вікно з деталями розіграшу (запасний варіант)
+        showBasicRaffleDetails: function(raffle, isParticipating, ticketCount) {
+            // Якщо модального вікна немає, показуємо звичайне повідомлення
+            const messageText = `
+                Розіграш: ${raffle.title}
+                Призовий фонд: ${raffle.prize_amount} ${raffle.prize_currency}
+                Переможців: ${raffle.winners_count}
+                Учасників: ${raffle.participants_count}
+                ${isParticipating ? `Ваша участь: ${ticketCount} білет(ів)` : 'Ви ще не берете участь'}
+            `;
+
+            if (typeof window.alert === 'function') {
+                window.alert(messageText);
+            } else {
+                console.log('Деталі розіграшу:', messageText);
+            }
         },
 
         // Функція для визначення валідності UUID
