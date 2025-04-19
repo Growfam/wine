@@ -180,7 +180,7 @@
 .modal-content {
     background: linear-gradient(135deg, #1A1A2E, #0F3460);
     margin: 5% auto;
-    padding: 1.25rem;
+    padding: 0;
     border-radius: 1.25rem;
     width: 90%;
     max-width: 34.375rem;
@@ -223,21 +223,26 @@
 
 .modal-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    margin-bottom: 0.9375rem;
-    padding-bottom: 0.625rem;
+    margin-bottom: 0;
+    padding: 0.9375rem 1.25rem;
     border-bottom: 0.0625rem solid rgba(255, 255, 255, 0.1);
+    position: relative;
 }
 
 .modal-title {
     font-size: 1.25rem;
     font-weight: bold;
-    color: var(--text-color);
+    color: var(--text-color, #fff);
     text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
+    margin: 0;
+    text-align: center;
 }
 
 .modal-close-button {
+    position: absolute;
+    right: 15px;
     background: none;
     border: none;
     color: #aaa;
@@ -245,6 +250,12 @@
     font-weight: bold;
     cursor: pointer;
     transition: color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
 }
 
 .modal-close-button:hover {
@@ -252,10 +263,10 @@
 }
 
 .modal-body {
+    padding: 1.25rem;
+    color: #ddd;
     font-size: 0.875rem;
     line-height: 1.6;
-    color: #ddd;
-    padding-right: 0.3125rem;
 }
 
 /* Стилі для деталей розіграшу */
@@ -317,6 +328,91 @@
 
 .metadata-value {
     font-weight: bold;
+}
+
+/* Графік */
+.chart-container {
+    height: 200px;
+    background-color: rgba(30, 39, 70, 0.5);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    position: relative;
+}
+
+.chart-bar {
+    position: absolute;
+    bottom: 15px;
+    width: 12%;
+    background: linear-gradient(to top, #4eb5f7, #52C0BD);
+    border-radius: 4px 4px 0 0;
+    transition: height 1s ease;
+}
+
+.chart-bar:nth-child(odd) {
+    background: linear-gradient(to top, #00C9A7, #4eb5f7);
+}
+
+.chart-label {
+    position: absolute;
+    bottom: -25px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    width: 12%;
+    text-align: center;
+}
+
+.chart-title {
+    text-align: center;
+    color: #fff;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+/* Список нагород */
+.prizes-list {
+    list-style: none;
+    background-color: rgba(30, 39, 70, 0.5);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    padding: 0;
+}
+
+.prize-item {
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.prize-item:last-child {
+    border-bottom: none;
+}
+
+.prize-place {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.prize-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: linear-gradient(to right, #4eb5f7, #00C9A7);
+    color: #1A1A2E;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.prize-amount {
+    font-weight: 500;
+    color: #00C9A7;
 }
 
 .prize-distribution {
@@ -403,6 +499,28 @@
     background: linear-gradient(90deg, #2196F3, #03A9F4);
 }
 
+/* Умови участі */
+.conditions-list {
+    list-style: none;
+    margin: 0 0 0 5px;
+    padding: 0;
+}
+
+.condition-item {
+    padding: 8px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.condition-icon {
+    color: #00C9A7;
+    font-size: 18px;
+    line-height: 1;
+}
+
+/* Анімації закриття */
 .modal-container.closing .modal-backdrop {
     animation: backdrop-fade-out 0.3s ease forwards;
 }
@@ -419,6 +537,20 @@
 @keyframes modal-disappear {
     from { opacity: 1; transform: scale(1) translateY(0); }
     to { opacity: 0; transform: scale(0.95) translateY(-20px); }
+}
+
+/* Стилі для розділів */
+.raffle-section {
+    margin-bottom: 20px;
+}
+
+.section-title {
+    color: #00C9A7;
+    font-size: 1.1rem;
+    margin: 0 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-weight: bold;
 }
 
 /* ===== СТИЛІ ДЛЯ МЕДІА-ЗАПИТІВ ===== */
@@ -446,14 +578,12 @@
         width: 2.75rem;
         height: 2.75rem;
     }
-}
 
-@media (min-width: 768px) {
-    .toast-container {
-        width: 400px;
+    .chart-container {
+        height: 150px;
     }
 
-    .toast-message {
-        padding: 14px 18px;
+    .chart-label {
+        font-size: 10px;
     }
 }

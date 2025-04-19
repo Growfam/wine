@@ -1,4 +1,3 @@
-
 /**
  * WINIX - Система розіграшів (history.js)
  * Модуль для роботи з історією розіграшів
@@ -203,7 +202,7 @@
             `;
         },
 
-        // Показ деталей розіграшу
+        // Показ деталей розіграшу - оновлена версія для використання централізованого модального вікна
         showRaffleDetails: function(raffleId) {
             // Пошук розіграшу в історії
             const raffle = this.historyData.find(r => r.raffle_id === raffleId);
@@ -214,42 +213,45 @@
             }
 
             // Формування HTML для модального вікна
-            let winnersHtml = '';
-            if (raffle.winners && raffle.winners.length > 0) {
-                winnersHtml = `
-                    <div class="winners-list">
-                        <h4>Переможці розіграшу:</h4>
-                        <ul>
-                            ${raffle.winners.map(winner => `
-                                <li class="${winner.isCurrentUser ? 'current-user' : ''}">
-                                    ${winner.place}. ${winner.username} - ${winner.prize}
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-
             const modalContent = `
                 <div class="raffle-details-modal">
-                    <h3>${raffle.title || 'Розіграш'}</h3>
-                    <div class="raffle-info">
-                        <p><strong>Дата:</strong> ${raffle.date}</p>
-                        <p><strong>Призовий фонд:</strong> ${raffle.prize}</p>
-                        <p><strong>Ваша участь:</strong> ${raffle.entry_count || 1} жетонів</p>
-                        <p><strong>Результат:</strong> ${raffle.result || 'Розіграш завершено'}</p>
+                    <div class="raffle-section">
+                        <h3 class="section-title">Деталі розіграшу</h3>
+                        <div class="raffle-info">
+                            <p><strong>Дата:</strong> ${raffle.date}</p>
+                            <p><strong>Призовий фонд:</strong> ${raffle.prize}</p>
+                            <p><strong>Ваша участь:</strong> ${raffle.entry_count || 1} жетонів</p>
+                            <p><strong>Результат:</strong> ${raffle.result || 'Розіграш завершено'}</p>
+                        </div>
                     </div>
-                    ${winnersHtml}
+                    ${this.getWinnersHtml(raffle)}
                 </div>
             `;
 
-            // Показуємо модальне вікно
-            if (typeof window.showModal === 'function') {
-                window.showModal('Деталі розіграшу', modalContent);
-            } else {
-                // Альтернативний варіант, якщо немає функції showModal
-                alert(`${raffle.title || 'Розіграш'}\n\nДата: ${raffle.date}\nПризовий фонд: ${raffle.prize}\nРезультат: ${raffle.result || 'Розіграш завершено'}`);
-            }
+            // Показуємо модальне вікно через централізовану функцію
+            window.showModal('Деталі розіграшу', modalContent);
+        },
+
+        // Допоміжна функція для форматування переможців
+        getWinnersHtml: function(raffle) {
+            if (!raffle.winners || !raffle.winners.length) return '';
+
+            return `
+                <div class="raffle-section">
+                    <h3 class="section-title">Переможці розіграшу</h3>
+                    <ul class="prizes-list">
+                        ${raffle.winners.map(winner => `
+                            <li class="prize-item ${winner.isCurrentUser ? 'current-user' : ''}">
+                                <div class="prize-place">
+                                    <div class="prize-icon">${winner.place}</div>
+                                    <span>${winner.username}</span>
+                                </div>
+                                <div class="prize-amount">${winner.prize}</div>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
         },
 
         // Оновлення даних історії
