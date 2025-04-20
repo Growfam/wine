@@ -526,88 +526,99 @@ def participate_in_raffle(telegram_id, data):
     required_coins = entry_count * entry_fee
 
     try:
-        # Виконуємо атомарну транзакцію через SQL функцію
-        # Максимум 3 спроби з паузами - для повної надійності
-        for attempt in range(3):
+        # Викликаємо SQL-функцію з обробкою потенційних помилок
+        for attempt in range(3):  # Максимум 3 спроби для надійності
             try:
-                result = supabase.rpc(
-                    'participate_in_raffle',
-                    {
-                        'p_user_id': telegram_id,
-                        'p_raffle_id': raffle_id,
-                        'p_tokens_needed': required_coins
-                    }
-                ).execute()
+                # Виклик SQL-функції
+                response = supabase.rpc('participate_in_raffle', {
+                    'p_user_id': telegram_id,
+                    'p_raffle_id': raffle_id,
+                    'p_tokens_needed': required_coins
+                }).execute()
 
-                # Перевірка відповіді на помилки
-                if not result.data:
-                    raise Exception("Порожня відповідь від серверу")
+                # Перевірка наявності відповіді
+                if not response or not hasattr(response, 'data') or response.data is None:
+                    logger.error(f"Null response from participate_in_raffle RPC: {response}")
+                    raise Exception("Сервер не повернув відповідь")
 
-                if result.data.get("status") == "error":
-                    error_message = result.data.get("message", "Невідома помилка")
+                # Отримання даних (враховуємо, що дані можуть бути різних форматів)
+                result_data = {}
+                if isinstance(response.data, dict):
+                    result_data = response.data
+                elif isinstance(response.data, list) and len(response.data) > 0:
+                    result_data = response.data[0]
+                else:
+                    logger.error(f"Unexpected response format: {response.data}")
+                    raise Exception("Неочікуваний формат відповіді від сервера")
+
+                # Перевірка на помилку у відповіді SQL-функції
+                if result_data.get("status") == "error":
+                    error_message = result_data.get("message", "Невідома помилка")
                     if "Недостатньо жетонів" in error_message:
                         raise InsufficientTokensError(error_message)
                     else:
                         raise ValueError(error_message)
 
-                break  # Успішне виконання - виходимо з циклу
+                # Отримуємо значення з результату
+                participations_count = result_data.get("participations_count", 0)
+                new_coins_balance = result_data.get("new_coins_balance", 0)
+                total_entries = result_data.get("total_entries", entry_count)
+
+                # Інвалідуємо кеш активних розіграшів
+                clear_cache("active_raffles")
+                clear_cache(f"raffle_details_{raffle_id}")
+
+                # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
+                if participations_count >= 5:
+                    check_and_update_badges(telegram_id)
+
+                # Формуємо відповідь на базі наших даних
+                response_data = {
+                    "message": "Ви успішно взяли участь у розіграші",
+                    "entry_count": entry_count,
+                    "total_entries": total_entries,
+                    "new_coins_balance": new_coins_balance,
+                    "participations_count": participations_count,
+                    "raffle_type": "daily" if raffle.get("is_daily", False) else "main"
+                }
+
+                # Додаємо дані про бонус за першу участь
+                if participations_count == 1:
+                    bonus_amount = 50  # Бонус за першу участь
+                    try:
+                        # Створюємо транзакцію для бонусу і оновлюємо баланс
+                        bonus_transaction = {
+                            "telegram_id": telegram_id,
+                            "type": "reward",
+                            "amount": bonus_amount,
+                            "description": "Бонус за першу участь у розіграші",
+                            "status": "completed",
+                            "created_at": now.isoformat()
+                        }
+
+                        supabase.table("transactions").insert(bonus_transaction).execute()
+                        update_balance(telegram_id, bonus_amount)
+
+                        response_data["bonus_amount"] = bonus_amount
+                        response_data["new_balance"] = float(get_user(telegram_id).get("balance", 0))
+                    except Exception as e:
+                        logger.error(f"Помилка нарахування бонусу для {telegram_id}: {str(e)}")
+
+                # Повертаємо результат
+                return jsonify({"status": "success", "data": response_data})
+
             except Exception as e:
+                # Логуємо помилку для діагностики
+                logger.error(f"Спроба {attempt + 1}: Помилка виклику SQL-функції: {str(e)}")
+
                 if attempt < 2:  # На останній спробі не чекаємо
                     time.sleep(0.5 * (attempt + 1))  # Прогресивна затримка
                 else:
                     raise  # Остання спроба - піднімаємо помилку далі
 
-        # Інвалідуємо кеш активних розіграшів
-        clear_cache("active_raffles")
-        clear_cache(f"raffle_details_{raffle_id}")
-
-        # Перевіряємо, чи користувач досяг 5 участей для бейджа початківця
-        participations_count = result.data.get("participations_count", 0)
-        if participations_count >= 5:
-            check_and_update_badges(telegram_id)
-
-        # Формуємо відповідь
-        total_entries = result.data.get("total_entries", entry_count)
-        new_coins_balance = result.data.get("new_coins_balance", 0)
-
-        response_data = {
-            "message": "Ви успішно взяли участь у розіграші",
-            "entry_count": entry_count,
-            "total_entries": total_entries,
-            "new_coins_balance": new_coins_balance,
-            "participations_count": participations_count,
-            "raffle_type": "daily" if raffle.get("is_daily", False) else "main"
-        }
-
-        # Додаємо дані про бонус за першу участь
-        if participations_count == 1:
-            bonus_amount = 50  # Бонус за першу участь
-            try:
-                # Створюємо транзакцію для бонусу і оновлюємо баланс
-                bonus_transaction = {
-                    "telegram_id": telegram_id,
-                    "type": "reward",
-                    "amount": bonus_amount,
-                    "description": "Бонус за першу участь у розіграші",
-                    "status": "completed",
-                    "created_at": now.isoformat()
-                }
-
-                supabase.table("transactions").insert(bonus_transaction).execute()
-                update_balance(telegram_id, bonus_amount)
-
-                response_data["bonus_amount"] = bonus_amount
-                response_data["new_balance"] = float(get_user(telegram_id).get("balance", 0))
-            except Exception as e:
-                logger.error(f"Помилка нарахування бонусу для {telegram_id}: {str(e)}")
-                # Продовжуємо виконання навіть якщо бонус не зарахувався
-
-        return jsonify({"status": "success", "data": response_data})
-
     except (ValueError, InsufficientTokensError, RaffleAlreadyEndedError) as e:
         # Перехоплюємо спеціальні типи винятків
         raise
-
     except Exception as e:
         # Логуємо деталі помилки
         logger.error(f"Помилка участі в розіграші для {telegram_id}: {str(e)}", exc_info=True)
