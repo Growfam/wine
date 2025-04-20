@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (interface-updater.js)
  * Модуль для оновлення інтерфейсу після дій користувача
- * @version 1.0.0
+ * @version 1.2.0
  */
 
 (function() {
@@ -30,17 +30,199 @@
         // Стан блокування інтерфейсу
         isUILocked: false,
 
+        // ДОДАНО: Кеш поточного стану учасників для розіграшів
+        participantsCache: {},
+
+        // ДОДАНО: Кеш поточної кількості переможців для розіграшів
+        winnersCache: {},
+
+        // ДОДАНО: Останній час синхронізації кешу
+        lastCacheSyncTime: 0,
+
+        // ДОДАНО: Таймер автоматичного синхронізації
+        autoSyncTimer: null,
+
         /**
          * Ініціалізація модуля
          */
         init: function() {
             console.log('🔄 Ініціалізація модуля оновлення інтерфейсу...');
 
+            // Ініціалізуємо кеш при старті
+            this.initCache();
+
             // Додаємо обробники подій
             this.setupEventHandlers();
 
             // Створюємо стилі для анімацій оновлення
             this.createUpdateAnimationStyles();
+
+            // ДОДАНО: Запускаємо періодичну синхронізацію
+            this.startAutoSync();
+        },
+
+        /**
+         * Ініціалізуємо кеш поточного стану
+         */
+        initCache: function() {
+            try {
+                // Спробуємо отримати базовий стан з DOM
+                document.querySelectorAll('.raffle-card, .main-raffle').forEach(card => {
+                    const raffleId = card.getAttribute('data-raffle-id');
+                    if (!raffleId) return;
+
+                    // Шукаємо елементи з кількістю учасників
+                    const participantsEl = card.querySelector('.participants-count .count, .participants-info .participants-count');
+                    if (participantsEl) {
+                        const count = parseInt(participantsEl.textContent.replace(/\s+/g, '')) || 0;
+                        this.participantsCache[raffleId] = count;
+                    }
+
+                    // Шукаємо елементи з кількістю переможців
+                    const winnersEl = card.querySelector('.winners-count, .prize-winners-count');
+                    if (winnersEl) {
+                        const count = parseInt(winnersEl.textContent.replace(/\s+/g, '')) || 0;
+                        this.winnersCache[raffleId] = count;
+                    }
+                });
+
+                console.log('📊 Кеш ініціалізовано:', {
+                    participants: this.participantsCache,
+                    winners: this.winnersCache
+                });
+
+                // Зберігаємо час ініціалізації
+                this.lastCacheSyncTime = Date.now();
+            } catch (e) {
+                console.warn('⚠️ Помилка ініціалізації кешу:', e);
+            }
+        },
+
+        /**
+         * Запуск автоматичної синхронізації
+         */
+        startAutoSync: function() {
+            // Очищаємо попередній таймер, якщо він існує
+            if (this.autoSyncTimer) {
+                clearInterval(this.autoSyncTimer);
+            }
+
+            // Запускаємо періодичне оновлення кожні 30 секунд
+            this.autoSyncTimer = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    this.syncUIWithServer();
+                }
+            }, 30000); // 30 секунд
+
+            console.log('🔄 Автоматична синхронізація запущена');
+        },
+
+        /**
+         * Синхронізуємо UI з сервером для коректного відображення
+         */
+        syncUIWithServer: function() {
+            // Перевірка часу з останньої синхронізації
+            const now = Date.now();
+            if (now - this.lastCacheSyncTime < 5000) return; // Не оновлюємо частіше ніж раз на 5 секунд
+
+            console.log('🔄 Синхронізація UI з сервером...');
+
+            // Перевіряємо наявність активних розіграшів в системі
+            if (!window.WinixRaffles || !window.WinixRaffles.state || !Array.isArray(window.WinixRaffles.state.activeRaffles)) {
+                console.warn('⚠️ Не вдалося отримати дані про активні розіграші');
+                return;
+            }
+
+            // Проходимо по всіх активних розіграшах і оновлюємо їхні дані
+            window.WinixRaffles.state.activeRaffles.forEach(raffle => {
+                if (!raffle || !raffle.id) return;
+
+                const raffleId = raffle.id;
+
+                // Оновлюємо кеш кількості учасників
+                if (typeof raffle.participants_count === 'number') {
+                    const oldCount = this.participantsCache[raffleId] || 0;
+                    const newCount = raffle.participants_count;
+
+                    // Якщо є розбіжність, оновлюємо
+                    if (oldCount !== newCount) {
+                        console.log(`📊 Синхронізація: учасники розіграшу ${raffleId}: ${oldCount} -> ${newCount}`);
+                        this.participantsCache[raffleId] = newCount;
+                        this.updateParticipantsCountDisplay(raffleId, newCount);
+                    }
+                }
+
+                // Оновлюємо кеш кількості переможців
+                if (typeof raffle.winners_count === 'number') {
+                    const oldCount = this.winnersCache[raffleId] || 0;
+                    const newCount = raffle.winners_count;
+
+                    // Якщо є розбіжність, оновлюємо
+                    if (oldCount !== newCount) {
+                        console.log(`📊 Синхронізація: переможці розіграшу ${raffleId}: ${oldCount} -> ${newCount}`);
+                        this.winnersCache[raffleId] = newCount;
+                        this.updateWinnersCountDisplay(raffleId, newCount);
+                    }
+                }
+            });
+
+            // Оновлюємо час останньої синхронізації
+            this.lastCacheSyncTime = now;
+            console.log('✅ UI синхронізовано з сервером');
+        },
+
+        /**
+         * Оновлення відображення кількості учасників
+         */
+        updateParticipantsCountDisplay: function(raffleId, count) {
+            // Шукаємо відповідні елементи на сторінці
+            const elements = document.querySelectorAll(
+                `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
+                `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
+                `.main-raffle .participants-info .participants-count`
+            );
+
+            if (elements.length === 0) return;
+
+            elements.forEach(element => {
+                const formattedCount = count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+                element.textContent = formattedCount;
+
+                // Додаємо анімацію оновлення
+                element.classList.add('element-updated');
+
+                // Видаляємо клас через 1 секунду
+                setTimeout(() => {
+                    element.classList.remove('element-updated');
+                }, 1000);
+            });
+        },
+
+        /**
+         * Оновлення відображення кількості переможців
+         */
+        updateWinnersCountDisplay: function(raffleId, count) {
+            // Шукаємо відповідні елементи на сторінці
+            const elements = document.querySelectorAll(
+                `.raffle-card[data-raffle-id="${raffleId}"] .winners-count, ` +
+                `.main-raffle[data-raffle-id="${raffleId}"] .prize-winners-count, ` +
+                `.main-raffle .prize-winners-count`
+            );
+
+            if (elements.length === 0) return;
+
+            elements.forEach(element => {
+                const formattedCount = count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+                element.textContent = formattedCount;
+
+                // Додаємо анімацію оновлення
+                element.classList.add('element-updated');
+
+                // Видаляємо клас через 1 секунду
+                setTimeout(() => {
+                    element.classList.remove('element-updated');
+                }, 1000);
+            });
         },
 
         /**
@@ -66,12 +248,23 @@
                 if (document.visibilityState === 'visible') {
                     // Оновлюємо дані при поверненні на вкладку
                     this.scheduleUIUpdate();
+
+                    // Запускаємо синхронізацію з сервером
+                    setTimeout(() => {
+                        this.syncUIWithServer();
+                    }, 1000); // Затримка для дозволення іншим компонентам ініціалізуватися
                 }
             });
 
             // Обробник після завершення завантаження розіграшів
             document.addEventListener('raffles-loaded', () => {
                 this.addDetailsButtons();
+
+                // Синхронізуємо кеш після завантаження розіграшів
+                setTimeout(() => {
+                    this.initCache();
+                    this.syncUIWithServer();
+                }, 500);
             });
         },
 
@@ -207,17 +400,26 @@
         handleSuccessfulParticipation: function(data) {
             if (!data || !data.raffleId) return;
 
-            // Оновлюємо вигляд кнопки
-            this.updateParticipationButton(data.raffleId, data.ticketCount || 1);
+            // ВИПРАВЛЕНО: Затримка перед оновленням для уникнення колізій
+            setTimeout(() => {
+                // Оновлюємо вигляд кнопки
+                this.updateParticipationButton(data.raffleId, data.ticketCount || 1);
 
-            // Оновлюємо лічильник учасників розіграшу
-            this.updateParticipantsCount(data.raffleId);
+                // Оновлюємо лічильник учасників розіграшу з уникненням рейс-умов
+                this.updateParticipantsCount(data.raffleId);
 
-            // Анімуємо успішну участь
-            this.animateSuccessfulParticipation(data.raffleId);
+                // Анімуємо успішну участь
+                this.animateSuccessfulParticipation(data.raffleId);
 
-            // Додаємо кнопку "Деталі" якщо її ще немає
-            this.addDetailsButtonToRaffle(data.raffleId);
+                // Додаємо кнопку "Деталі" якщо її ще немає
+                this.addDetailsButtonToRaffle(data.raffleId);
+            }, 300);
+
+            // Запланована повна синхронізація через 3 секунди після участі
+            // Дає серверу час обробити зміни
+            setTimeout(() => {
+                this.syncUIWithServer();
+            }, 3000);
         },
 
         /**
@@ -253,16 +455,26 @@
          */
         updateParticipantsCount: function(raffleId) {
             try {
-                // Знаходимо елемент для оновлення кількості учасників
+                // ВИПРАВЛЕНО: Використовуємо кеш для гарантування атомарного оновлення
+                // Спочатку отримуємо поточне значення з кешу
+                let currentCount = this.participantsCache[raffleId] || 0;
+
+                // Збільшуємо на 1
+                currentCount += 1;
+
+                // Оновлюємо кеш
+                this.participantsCache[raffleId] = currentCount;
+
+                // Знаходимо елементи для оновлення кількості учасників
                 const participantsElements = document.querySelectorAll(
                     `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
+                    `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
                     `.main-raffle .participants-info .participants-count`
                 );
 
                 participantsElements.forEach(element => {
-                    // Отримуємо поточне значення і збільшуємо його
-                    const currentCount = parseInt(element.textContent.replace(/\s+/g, '')) || 0;
-                    element.textContent = (currentCount + 1).toString()
+                    // Встановлюємо нове значення з форматуванням
+                    element.textContent = currentCount.toString()
                         .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // Форматування з пробілами між розрядами
 
                     // Додаємо клас для анімації оновлення
@@ -472,6 +684,15 @@
 
                 // Анімація зміни, якщо значення відрізняється
                 if (currentCoins !== newCoins) {
+                    // Додаємо клас залежно від того, збільшується чи зменшується значення
+                    if (newCoins > currentCoins) {
+                        userCoinsElement.classList.add('increasing');
+                        setTimeout(() => userCoinsElement.classList.remove('increasing'), 1000);
+                    } else if (newCoins < currentCoins) {
+                        userCoinsElement.classList.add('decreasing');
+                        setTimeout(() => userCoinsElement.classList.remove('decreasing'), 1000);
+                    }
+
                     userCoinsElement.textContent = newCoins;
                     userCoinsElement.classList.add('element-updated');
 
@@ -552,6 +773,11 @@
 
             // Додаємо кнопки деталей
             this.addDetailsButtons();
+
+            // ДОДАНО: Синхронізуємо з сервером, але з затримкою
+            setTimeout(() => {
+                this.syncUIWithServer();
+            }, 500);
         },
 
         /**

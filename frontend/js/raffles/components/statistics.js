@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (statistics.js)
  * Вдосконалений модуль для роботи зі статистикою розіграшів користувача
- * @version 2.0.0
+ * @version 2.1.0
  */
 
 (function() {
@@ -24,8 +24,8 @@
         // Останній час оновлення
         lastUpdate: 0,
 
-        // Інтервал кешування (5 хвилин)
-        cacheInterval: 5 * 60 * 1000,
+        // Інтервал кешування (3 хвилини)
+        cacheInterval: 3 * 60 * 1000, // ВИПРАВЛЕНО: Зменшено для більш частого оновлення
 
         // Статус завантаження
         isLoading: false,
@@ -38,6 +38,9 @@
 
         // Ідентифікатор таймера оновлення
         updateTimer: null,
+
+        // ДОДАНО: Прапорець примусового оновлення
+        forceUpdateOnNextShow: false,
 
         // Ініціалізація модуля
         init: function() {
@@ -65,9 +68,12 @@
                 button.addEventListener('click', () => {
                     const tabName = button.getAttribute('data-tab');
                     if (tabName === 'stats') {
-                        // Запобігаємо надмірним запитам при частій зміні вкладок
-                        if (Date.now() - this.lastUpdate > 60000) { // 1 хвилина
-                            this.loadStatistics();
+                        // ВИПРАВЛЕННЯ: Оновлюємо при кожному переході на вкладку,
+                        // або використовуємо кеш, якщо дані достатньо свіжі
+                        const now = Date.now();
+                        if (this.forceUpdateOnNextShow || now - this.lastUpdate > 60000) { // 1 хвилина
+                            this.loadStatistics(this.forceUpdateOnNextShow);
+                            this.forceUpdateOnNextShow = false; // Скидаємо прапорець
                         } else {
                             // Відображаємо кешовані дані, якщо вони існують
                             if (this.statsData) {
@@ -81,39 +87,61 @@
             // Обробник оновлення даних користувача
             document.addEventListener('user-data-updated', (event) => {
                 if (event.detail && event.detail.userData) {
-                    // Відкладаємо оновлення, щоб не викликати надмірну кількість запитів
+                    // ВИПРАВЛЕННЯ: Відкладаємо оновлення, щоб не викликати надмірну кількість запитів
                     this.needsUpdate = true;
+                    this.forceUpdateOnNextShow = true;
 
                     // Скасовуємо попередній таймер, якщо він існує
                     if (this.updateTimer) {
                         clearTimeout(this.updateTimer);
                     }
 
-                    // Встановлюємо новий таймер
-                    this.updateTimer = setTimeout(() => {
-                        if (this.needsUpdate && WinixRaffles.state.activeTab === 'stats') {
-                            this.loadStatistics(true);
-                            this.needsUpdate = false;
-                        }
-                    }, 2000); // Затримка у 2 секунди
+                    // Якщо ми на вкладці статистики, оновлюємо відразу,
+                    // інакше встановлюємо прапорець для оновлення при наступному відображенні
+                    if (WinixRaffles.state.activeTab === 'stats') {
+                        this.updateTimer = setTimeout(() => {
+                            if (this.needsUpdate) {
+                                this.loadStatistics(true);
+                                this.needsUpdate = false;
+                            }
+                        }, 2000); // Затримка у 2 секунди
+                    }
                 }
             });
 
             // Обробник події успішної участі в розіграші
             document.addEventListener('raffle-participation', (event) => {
                 if (event.detail && event.detail.successful) {
-                    // Відкладаємо оновлення для запобігання надмірній кількості запитів
+                    // ВИПРАВЛЕННЯ: Встановлюємо прапорці
                     this.needsUpdate = true;
+                    this.forceUpdateOnNextShow = true;
+
+                    // Якщо ми на вкладці статистики, оновлюємо через певний час
+                    if (WinixRaffles.state.activeTab === 'stats') {
+                        if (this.updateTimer) {
+                            clearTimeout(this.updateTimer);
+                        }
+
+                        // Встановлюємо таймер на 3 секунди для дозволення серверу оновити дані
+                        this.updateTimer = setTimeout(() => {
+                            this.loadStatistics(true);
+                            this.needsUpdate = false;
+                        }, 3000);
+                    }
                 }
             });
 
             // Обробник видимості сторінки для оновлення при поверненні
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' &&
-                    WinixRaffles.state.activeTab === 'stats' &&
-                    Date.now() - this.lastUpdate > 300000) { // 5 хвилин
+                    WinixRaffles.state.activeTab === 'stats') {
 
-                    this.loadStatistics();
+                    const now = Date.now();
+                    // ВИПРАВЛЕННЯ: Примусово оновлювати якщо минуло більше 5 хвилин або встановлено прапорець
+                    if (this.forceUpdateOnNextShow || now - this.lastUpdate > 300000) { // 5 хвилин
+                        this.loadStatistics(true);
+                        this.forceUpdateOnNextShow = false;
+                    }
                 }
             });
 
@@ -208,15 +236,27 @@
             try {
                 console.log('📊 Завантаження статистики розіграшів...');
 
+                // ВИПРАВЛЕННЯ: Додано налаштування запиту для оптимізації
+                const requestOptions = {
+                    method: 'GET',
+                    timeout: 10000,
+                    cache: 'no-cache',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache',
+                        'X-Timestamp': now // Додаємо випадковий параметр для уникнення кешування
+                    }
+                };
+
                 // Виконуємо запит із захистом від помилок
                 let response;
 
                 // Спочатку спробуємо отримати повні дані профілю з статистикою
                 if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
-                    response = await window.WinixAPI.getUserData(true);
+                    response = await window.WinixAPI.getUserData(true, requestOptions);
                 } else {
                     // Запасний варіант через прямий запит
-                    response = await this.fallbackStatisticsRequest(userId);
+                    response = await this.fallbackStatisticsRequest(userId, requestOptions);
                 }
 
                 // Обробка результату
@@ -270,17 +310,30 @@
         },
 
         // Запасний запит для отримання статистики
-        fallbackStatisticsRequest: async function(userId) {
+        fallbackStatisticsRequest: async function(userId, options = {}) {
             if (!userId) return null;
 
             try {
                 const endpoint = `/api/user/${userId}/statistics`;
 
                 if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.apiRequest === 'function') {
-                    return await window.WinixAPI.apiRequest(endpoint, 'GET');
+                    // ВИПРАВЛЕННЯ: Передаємо додаткові опції для запиту
+                    return await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                        suppressErrors: true,
+                        hideLoader: true,
+                        timeout: 10000,
+                        headers: options.headers || {},
+                        cache: 'no-cache'
+                    });
                 } else {
                     // Прямий запит через fetch, якщо WinixAPI недоступний
-                    const response = await fetch(endpoint);
+                    const fetchOptions = {
+                        method: 'GET',
+                        cache: 'no-cache',
+                        headers: options.headers || {}
+                    };
+
+                    const response = await fetch(endpoint, fetchOptions);
                     return await response.json();
                 }
             } catch (error) {
