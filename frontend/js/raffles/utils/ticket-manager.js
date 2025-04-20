@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (ticket-manager.js)
  * Оптимізований модуль для управління білетами без дублювання логіки
  * Делегує операції списання жетонів модулю participation.js
- * @version 1.4.0
+ * @version 1.5.0
  */
 
 (function() {
@@ -33,6 +33,9 @@
 
         // Таймер для відкладеної синхронізації
         syncTimer: null,
+
+        // Індикатор, що дані потребують оновлення з сервера
+        needsServerUpdate: false,
 
         /**
          * Ініціалізація модуля
@@ -75,6 +78,9 @@
                 }
             }
             this.cooldownTimers = {};
+
+            // Скидаємо прапорець оновлення
+            this.needsServerUpdate = false;
         },
 
         /**
@@ -93,9 +99,10 @@
                 if (event.detail && event.detail.userData) {
                     // Оновлюємо дані про білети тільки якщо це не наша подія
                     if (event.detail.source !== 'ticket-manager') {
+                        // ВИПРАВЛЕННЯ: збільшуємо затримку для більшої стабільності
                         setTimeout(() => {
                             this.loadUserTickets(true);
-                        }, 1000);
+                        }, 2000);
                     }
                 }
             });
@@ -130,9 +137,18 @@
                 const entryFee = parseInt(participateButton.getAttribute('data-entry-fee')) || 1;
                 this.entryFees[raffleId] = entryFee;
 
-                // Не робимо перевірку на жетони тут, це робить модуль participation
+                // ВИПРАВЛЕННЯ: Перевіряємо баланс перед кліком
+                const userCoins = this.getUserCoins();
+                if (userCoins < entryFee) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${userCoins}`, 'warning');
+                    }
+                    return;
+                }
 
-                // ВИПРАВЛЕНО: Створюємо таймер зворотного відліку для цього розіграшу
+                // ВИПРАВЛЕННЯ: Створюємо таймер зворотного відліку для цього розіграшу
                 this.cooldownTimers[raffleId] = setTimeout(() => {
                     delete this.cooldownTimers[raffleId];
                 }, this.minTransactionInterval);
@@ -147,6 +163,30 @@
                     this.loadUserTickets();
                 }, 1000);
             });
+
+            // ДОДАНО: Обробник для оновлення при зміні видимості сторінки
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && this.needsServerUpdate) {
+                    console.log('🔄 Оновлюємо дані про білети після повернення на сторінку');
+                    this.loadUserTickets(true);
+                    this.needsServerUpdate = false;
+                }
+            });
+        },
+
+        /**
+         * Отримання поточної кількості жетонів користувача
+         * @returns {number} Кількість жетонів
+         */
+        getUserCoins: function() {
+            // Спочатку намагаємось отримати з DOM
+            const userCoinsElement = document.getElementById('user-coins');
+            if (userCoinsElement) {
+                return parseInt(userCoinsElement.textContent) || 0;
+            }
+
+            // Потім з localStorage
+            return parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
         },
 
         /**
@@ -196,6 +236,9 @@
             }
 
             console.log('🎟️ Оновлення даних про білети');
+
+            // Скидаємо прапорець потреби в оновленні
+            this.needsServerUpdate = false;
 
             // Скидаємо попередній стан
             const previousTickets = {...this.ticketCounts};
@@ -250,6 +293,31 @@
             if (hasChanges || forceRefresh) {
                 console.log('🎟️ Оновлені дані про білети:', this.ticketCounts);
                 this.saveTicketsToStorage();
+
+                // ДОДАНО: Оновлення інтерфейсу після оновлення даних
+                this.updateTicketsUI();
+            }
+        },
+
+        /**
+         * Оновлення відображення кількості білетів
+         */
+        updateTicketsUI: function() {
+            // Перебираємо всі кнопки
+            for (const raffleId in this.ticketCounts) {
+                const ticketCount = this.ticketCounts[raffleId];
+                const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+
+                buttons.forEach(button => {
+                    // Змінюємо текст кнопки
+                    const isMini = button.classList.contains('mini-raffle-button');
+                    if (ticketCount > 0) {
+                        button.classList.add('participating');
+                        button.textContent = isMini ?
+                            `Додати ще білет (${ticketCount})` :
+                            `Додати ще білет (у вас: ${ticketCount})`;
+                    }
+                });
             }
         },
 
@@ -269,6 +337,15 @@
 
             // Зберігаємо в localStorage
             this.saveTicketsToStorage();
+
+            // ВИПРАВЛЕННЯ: Встановлюємо прапорець оновлення
+            this.needsServerUpdate = true;
+
+            // ВИПРАВЛЕННЯ: Розклад відкладеного оновлення для стабільності
+            if (this.syncTimer) clearTimeout(this.syncTimer);
+            this.syncTimer = setTimeout(() => {
+                this.loadUserTickets(true);
+            }, 3000);
 
             console.log(`✅ Оновлено кількість білетів для розіграшу ${raffleId}: ${ticketCount}`);
         },
