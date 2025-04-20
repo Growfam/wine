@@ -289,6 +289,92 @@ def check_raffle_exists(raffle_id):
         return False
 
 
+# Нова функція для виконання транзакції напряму
+def execute_transaction_directly(telegram_id, raffle_id, required_coins):
+    """Виконує транзакцію безпосередньо через SQL-запити замість RPC"""
+    try:
+        with execute_transaction() as txn:
+            # 1. Перевірка наявності розіграшу та його статусу
+            raffle_resp = txn.table("raffles").select("*").eq("id", raffle_id).execute()
+            if not raffle_resp.data:
+                return {"status": "error", "message": "Розіграш не знайдено"}
+
+            raffle = raffle_resp.data[0]
+            if raffle.get("status") != "active":
+                return {"status": "error", "message": "Розіграш не є активним"}
+
+            # 2. Перевірка наявності жетонів користувача
+            user_resp = txn.table("winix").select("coins").eq("telegram_id", telegram_id).execute()
+            if not user_resp.data:
+                return {"status": "error", "message": "Користувача не знайдено"}
+
+            user_coins = user_resp.data[0].get("coins", 0)
+            if user_coins < required_coins:
+                return {"status": "error", "message": f"Недостатньо жетонів: потрібно {required_coins}, наявно {user_coins}"}
+
+            # 3. Перевірка поточної участі
+            participant_resp = txn.table("raffle_participants").select("*").eq("telegram_id", telegram_id).eq("raffle_id", raffle_id).execute()
+
+            # 4. Списання жетонів
+            txn.table("winix").update({"coins": user_coins - required_coins}).eq("telegram_id", telegram_id).execute()
+
+            # 5. Додавання або оновлення запису участі
+            if participant_resp.data:
+                # Оновлюємо існуючий запис
+                participant = participant_resp.data[0]
+                entry_count = participant.get("entry_count", 0) + 1
+                txn.table("raffle_participants").update({
+                    "entry_count": entry_count,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", participant.get("id")).execute()
+            else:
+                # Створюємо новий запис
+                participant_id = str(uuid.uuid4())
+                txn.table("raffle_participants").insert({
+                    "id": participant_id,
+                    "telegram_id": telegram_id,
+                    "raffle_id": raffle_id,
+                    "entry_count": 1,
+                    "status": "active",
+                    "entry_time": datetime.now(timezone.utc).isoformat()
+                }).execute()
+                entry_count = 1
+
+            # 6. Оновлюємо кількість учасників у розіграші (безпечний спосіб)
+            # Спочатку отримуємо кількість унікальних учасників
+            count_resp = txn.table("raffle_participants") \
+                           .select("telegram_id", count="exact") \
+                           .eq("raffle_id", raffle_id) \
+                           .execute()
+
+            participants_count = count_resp.count if hasattr(count_resp, 'count') else 0
+
+            # Потім явно оновлюємо поле participants_count
+            txn.table("raffles").update({
+                "participants_count": participants_count,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", raffle_id).execute()
+
+            # 7. Отримуємо оновлені дані
+            updated_user_resp = txn.table("winix").select("coins").eq("telegram_id", telegram_id).execute()
+            new_coins_balance = updated_user_resp.data[0].get("coins", 0) if updated_user_resp.data else 0
+
+            # 8. Отримуємо загальну кількість участей
+            participations_resp = txn.table("raffle_participants").select("id", count="exact").eq("telegram_id", telegram_id).execute()
+            participations_count = participations_resp.count if hasattr(participations_resp, 'count') else 0
+
+            # 9. Повертаємо результат
+            return {
+                "status": "success",
+                "new_coins_balance": new_coins_balance,
+                "total_entries": entry_count,
+                "participations_count": participations_count
+            }
+    except Exception as e:
+        logger.error(f"Помилка прямого виконання транзакції: {str(e)}", exc_info=True)
+        return {"status": "error", "message": f"Помилка обробки: {str(e)}"}
+
+
 @handle_exceptions
 def get_active_raffles():
     """Отримання списку активних розіграшів"""
@@ -554,7 +640,17 @@ def participate_in_raffle(telegram_id, data):
                 # Перевірка на помилку у відповіді SQL-функції
                 if result_data.get("status") == "error":
                     error_message = result_data.get("message", "Невідома помилка")
-                    if "Недостатньо жетонів" in error_message:
+                    # Спеціальна обробка помилки неоднозначності колонки
+                    if "column reference" in error_message and "ambiguous" in error_message:
+                        logger.error(f"Виявлено помилку SQL неоднозначності: {error_message}")
+                        if attempt < 2:  # Якщо це не остання спроба
+                            logger.info(f"Спроба виправлення через альтернативний запит...")
+                            # Спробуємо виконати альтернативний запит напряму
+                            result = execute_transaction_directly(telegram_id, raffle_id, required_coins)
+                            if result and result.get("status") == "success":
+                                return jsonify({"status": "success", "data": result})
+                        raise ValueError("Помилка у SQL-запиті. Спробуйте ще раз або зверніться до адміністратора.")
+                    elif "Недостатньо жетонів" in error_message:
                         raise InsufficientTokensError(error_message)
                     else:
                         raise ValueError(error_message)
