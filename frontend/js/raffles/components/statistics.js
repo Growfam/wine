@@ -24,8 +24,8 @@
         // Останній час оновлення
         lastUpdate: 0,
 
-        // Інтервал кешування (3 хвилини)
-        cacheInterval: 3 * 60 * 1000, // ВИПРАВЛЕНО: Зменшено для більш частого оновлення
+        // Інтервал кешування (5 хвилин)
+        cacheInterval: 5 * 60 * 1000,
 
         // Статус завантаження
         isLoading: false,
@@ -39,8 +39,8 @@
         // Ідентифікатор таймера оновлення
         updateTimer: null,
 
-        // ДОДАНО: Прапорець примусового оновлення
-        forceUpdateOnNextShow: false,
+        // Таймер для автоматичного оновлення
+        autoUpdateTimer: null,
 
         // Ініціалізація модуля
         init: function() {
@@ -59,6 +59,25 @@
 
             // Додаємо стилі для графіків
             this.injectChartStyles();
+
+            // Встановлюємо автоматичне оновлення статистики кожні 5 хвилин
+            this.setupAutoUpdate();
+        },
+
+        // Налаштування автоматичного оновлення
+        setupAutoUpdate: function() {
+            // Очищаємо попередній таймер, якщо він був
+            if (this.autoUpdateTimer) {
+                clearInterval(this.autoUpdateTimer);
+            }
+
+            // Створюємо новий таймер
+            this.autoUpdateTimer = setInterval(() => {
+                // Оновлюємо статистику, якщо відображається відповідна вкладка
+                if (WinixRaffles.state.activeTab === 'stats' && document.visibilityState === 'visible') {
+                    this.loadStatistics(true);
+                }
+            }, 5 * 60 * 1000); // 5 хвилин
         },
 
         // Налаштування обробників подій
@@ -68,12 +87,9 @@
                 button.addEventListener('click', () => {
                     const tabName = button.getAttribute('data-tab');
                     if (tabName === 'stats') {
-                        // ВИПРАВЛЕННЯ: Оновлюємо при кожному переході на вкладку,
-                        // або використовуємо кеш, якщо дані достатньо свіжі
-                        const now = Date.now();
-                        if (this.forceUpdateOnNextShow || now - this.lastUpdate > 60000) { // 1 хвилина
-                            this.loadStatistics(this.forceUpdateOnNextShow);
-                            this.forceUpdateOnNextShow = false; // Скидаємо прапорець
+                        // Запобігаємо надмірним запитам при частій зміні вкладок
+                        if (Date.now() - this.lastUpdate > 60000 || this.statsData === null) { // 1 хвилина або немає даних
+                            this.loadStatistics(true); // ВИПРАВЛЕНО: Примусове оновлення при переключенні вкладки
                         } else {
                             // Відображаємо кешовані дані, якщо вони існують
                             if (this.statsData) {
@@ -87,24 +103,16 @@
             // Обробник оновлення даних користувача
             document.addEventListener('user-data-updated', (event) => {
                 if (event.detail && event.detail.userData) {
-                    // ВИПРАВЛЕННЯ: Відкладаємо оновлення, щоб не викликати надмірну кількість запитів
-                    this.needsUpdate = true;
-                    this.forceUpdateOnNextShow = true;
-
-                    // Скасовуємо попередній таймер, якщо він існує
-                    if (this.updateTimer) {
-                        clearTimeout(this.updateTimer);
-                    }
-
-                    // Якщо ми на вкладці статистики, оновлюємо відразу,
-                    // інакше встановлюємо прапорець для оновлення при наступному відображенні
+                    // ВИПРАВЛЕНО: Перевіряємо, чи це активна вкладка для негайного оновлення
                     if (WinixRaffles.state.activeTab === 'stats') {
+                        // Відкладаємо оновлення на 1 секунду для уникнення гонок між оновленнями
+                        clearTimeout(this.updateTimer);
                         this.updateTimer = setTimeout(() => {
-                            if (this.needsUpdate) {
-                                this.loadStatistics(true);
-                                this.needsUpdate = false;
-                            }
-                        }, 2000); // Затримка у 2 секунди
+                            this.loadStatistics(true);
+                        }, 1000);
+                    } else {
+                        // Просто відзначаємо, що дані потребують оновлення
+                        this.needsUpdate = true;
                     }
                 }
             });
@@ -112,21 +120,15 @@
             // Обробник події успішної участі в розіграші
             document.addEventListener('raffle-participation', (event) => {
                 if (event.detail && event.detail.successful) {
-                    // ВИПРАВЛЕННЯ: Встановлюємо прапорці
-                    this.needsUpdate = true;
-                    this.forceUpdateOnNextShow = true;
-
-                    // Якщо ми на вкладці статистики, оновлюємо через певний час
+                    // ВИПРАВЛЕНО: Негайно оновлюємо статистику при успішній участі
                     if (WinixRaffles.state.activeTab === 'stats') {
-                        if (this.updateTimer) {
-                            clearTimeout(this.updateTimer);
-                        }
-
-                        // Встановлюємо таймер на 3 секунди для дозволення серверу оновити дані
+                        // Відкладаємо на 1 секунду для завершення інших оновлень
+                        clearTimeout(this.updateTimer);
                         this.updateTimer = setTimeout(() => {
                             this.loadStatistics(true);
-                            this.needsUpdate = false;
-                        }, 3000);
+                        }, 1000);
+                    } else {
+                        this.needsUpdate = true;
                     }
                 }
             });
@@ -134,14 +136,11 @@
             // Обробник видимості сторінки для оновлення при поверненні
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' &&
-                    WinixRaffles.state.activeTab === 'stats') {
+                    WinixRaffles.state.activeTab === 'stats' &&
+                    (Date.now() - this.lastUpdate > 300000 || this.needsUpdate)) { // 5 хвилин або потреба оновлення
 
-                    const now = Date.now();
-                    // ВИПРАВЛЕННЯ: Примусово оновлювати якщо минуло більше 5 хвилин або встановлено прапорець
-                    if (this.forceUpdateOnNextShow || now - this.lastUpdate > 300000) { // 5 хвилин
-                        this.loadStatistics(true);
-                        this.forceUpdateOnNextShow = false;
-                    }
+                    this.loadStatistics(true);
+                    this.needsUpdate = false;
                 }
             });
 
@@ -219,7 +218,7 @@
                 return;
             }
 
-            // Перевіряємо чи потрібно оновлювати кеш
+            // ВИПРАВЛЕНО: Завжди оновлюємо при forceRefresh=true
             const now = Date.now();
             if (!forceRefresh && now - this.lastUpdate < this.cacheInterval && this.statsData) {
                 console.log('📊 Використовуємо кешовану статистику розіграшів');
@@ -236,33 +235,60 @@
             try {
                 console.log('📊 Завантаження статистики розіграшів...');
 
-                // ВИПРАВЛЕННЯ: Додано налаштування запиту для оптимізації
-                const requestOptions = {
-                    method: 'GET',
-                    timeout: 10000,
-                    cache: 'no-cache',
-                    headers: {
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache',
-                        'X-Timestamp': now // Додаємо випадковий параметр для уникнення кешування
+                // Блокуємо кнопку оновлення
+                const refreshButton = document.getElementById('refresh-stats-button');
+                if (refreshButton) {
+                    refreshButton.disabled = true;
+                    refreshButton.classList.add('loading');
+                }
+
+                // ВИПРАВЛЕНО: Спочатку спробуємо отримати статистику прямим запитом на спеціальний endpoint
+                let response = null;
+                try {
+                    const endpoint = `user/${userId}/statistics`;
+                    response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                        suppressErrors: true,
+                        hideLoader: true,
+                        timeout: 10000,
+                        retries: 1
+                    });
+
+                    if (response && response.status === 'success' && response.data) {
+                        console.log('📊 Статистику успішно отримано прямим запитом');
+                    } else {
+                        // Запасний варіант: отримуємо повні дані профілю з статистикою
+                        console.log('⚠️ Прямий запит статистики не вдався, використовуємо запасний варіант');
+                        if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
+                            response = await window.WinixAPI.getUserData(true);
+                        }
                     }
-                };
+                } catch (error) {
+                    console.warn('⚠️ Помилка прямого запиту статистики:', error);
+                    // Запасний варіант через отримання даних користувача
+                    if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
+                        response = await window.WinixAPI.getUserData(true);
+                    }
+                }
 
-                // Виконуємо запит із захистом від помилок
-                let response;
-
-                // Спочатку спробуємо отримати повні дані профілю з статистикою
-                if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
-                    response = await window.WinixAPI.getUserData(true, requestOptions);
-                } else {
-                    // Запасний варіант через прямий запит
-                    response = await this.fallbackStatisticsRequest(userId, requestOptions);
+                // КРАЙНІЙ ЗАПАСНИЙ ВАРІАНТ: Через fallback запит
+                if (!response || response.status !== 'success') {
+                    response = await this.fallbackStatisticsRequest(userId);
                 }
 
                 // Обробка результату
                 if (response && response.status === 'success' && response.data) {
+                    // ВИПРАВЛЕНО: Обробляємо статистику окремо від загальних даних користувача
+                    let statsData = response.data;
+
+                    // Якщо відповідь містить багато даних, а не тільки статистику, знаходимо статистику
+                    if (statsData.statistics) {
+                        statsData = statsData.statistics;
+                    } else if (statsData.user && statsData.user.statistics) {
+                        statsData = statsData.user.statistics;
+                    }
+
                     // Зберігаємо і обробляємо дані
-                    this.processStatisticsData(response.data, now);
+                    this.processStatisticsData(statsData, now);
                 } else if (response && response.status === 'error') {
                     console.error('❌ Помилка завантаження статистики:', response.message);
                     this.hasLoadingErrors = true;
@@ -304,36 +330,30 @@
             } finally {
                 this.isLoading = false;
 
+                // Розблоковуємо кнопку оновлення
+                const refreshButton = document.getElementById('refresh-stats-button');
+                if (refreshButton) {
+                    refreshButton.disabled = false;
+                    refreshButton.classList.remove('loading');
+                }
+
                 // Приховуємо індикатор завантаження
                 this.hideLoadingState();
             }
         },
 
         // Запасний запит для отримання статистики
-        fallbackStatisticsRequest: async function(userId, options = {}) {
+        fallbackStatisticsRequest: async function(userId) {
             if (!userId) return null;
 
             try {
                 const endpoint = `/api/user/${userId}/statistics`;
 
                 if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.apiRequest === 'function') {
-                    // ВИПРАВЛЕННЯ: Передаємо додаткові опції для запиту
-                    return await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
-                        suppressErrors: true,
-                        hideLoader: true,
-                        timeout: 10000,
-                        headers: options.headers || {},
-                        cache: 'no-cache'
-                    });
+                    return await window.WinixAPI.apiRequest(endpoint, 'GET');
                 } else {
                     // Прямий запит через fetch, якщо WinixAPI недоступний
-                    const fetchOptions = {
-                        method: 'GET',
-                        cache: 'no-cache',
-                        headers: options.headers || {}
-                    };
-
-                    const response = await fetch(endpoint, fetchOptions);
+                    const response = await fetch(endpoint);
                     return await response.json();
                 }
             } catch (error) {
