@@ -1121,42 +1121,118 @@
      * Отримання балансу користувача
      */
     async function getBalance() {
-        const userId = getUserId();
-        if (!userId) {
-            throw new Error("ID користувача не знайдено");
-        }
-
-        // Перевірка чи пристрій онлайн
-        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
-            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
-
-            // Повертаємо дані з localStorage
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_offline'
-            };
-        }
-
-        try {
-            return await apiRequest(`user/${userId}/balance`);
-        } catch (error) {
-            console.error("🔌 API: Помилка отримання балансу:", error);
-
-            // Повертаємо дані з localStorage при помилці
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: parseInt(localStorage.getItem('userCoins') || '0')
-                },
-                source: 'local_storage_fallback'
-            };
-        }
+    const userId = getUserId();
+    if (!userId) {
+        throw new Error("ID користувача не знайдено");
     }
+
+    // Перевірка чи пристрій онлайн
+    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+        console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
+
+        // Повертаємо дані з localStorage
+        return {
+            status: 'success',
+            data: {
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'local_storage_offline'
+        };
+    }
+
+    try {
+        // Перевіряємо наявність запису про останню транзакцію
+        const lastTxData = localStorage.getItem('winix_last_transaction');
+        let lastTx = null;
+
+        if (lastTxData) {
+            try {
+                lastTx = JSON.parse(lastTxData);
+                const txAge = Date.now() - lastTx.timestamp;
+
+                // Логуємо інформацію про недавню транзакцію
+                if (txAge < 120000 && lastTx.confirmed && lastTx.type === 'participation') {
+                    console.log(`🔌 API: Знайдено недавню транзакцію участі, вік: ${Math.round(txAge/1000)}с, баланс: ${lastTx.newBalance}`);
+                }
+            } catch (e) {
+                console.warn("🔌 API: Помилка парсингу даних транзакції:", e);
+            }
+        }
+
+        // Додаємо параметр для запобігання кешуванню
+        const nocache = Date.now();
+        const endpoint = `user/${userId}/balance?nocache=${nocache}`;
+
+        // Робимо запит до сервера
+        const response = await apiRequest(endpoint, 'GET', null, {
+            suppressErrors: true,
+            timeout: 5000
+        });
+
+        // Перевіряємо успішність відповіді
+        if (response.status === 'success' && response.data) {
+            const serverBalance = response.data.coins;
+
+            // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
+            if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
+                const txAge = Date.now() - lastTx.timestamp;
+
+                // Якщо транзакція відбулась нещодавно (менше 1 хвилини) і баланси не співпадають
+                if (txAge < 60000 && serverBalance !== lastTx.newBalance) {
+                    console.warn(`🔌 API: Виявлено потенційний конфлікт балансів:
+                        - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
+                        - Сервер повернув: ${serverBalance}`);
+
+                    // Для дуже нових транзакцій (менше 30 секунд) використовуємо локальний баланс
+                    if (txAge < 30000) {
+                        console.log("🔌 API: Використовуємо локальний баланс замість серверного");
+
+                        // Зберігаємо мітку часу останнього серверного балансу
+                        localStorage.setItem('winix_server_balance_ts', Date.now().toString());
+                        localStorage.setItem('winix_server_balance', serverBalance.toString());
+
+                        // Повертаємо локальний баланс
+                        return {
+                            status: 'success',
+                            data: {
+                                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                                coins: lastTx.newBalance
+                            },
+                            source: 'local_transaction_override',
+                            serverBalance: serverBalance // Додаємо реальний баланс з сервера для діагностики
+                        };
+                    }
+                }
+            }
+
+            // Якщо немає конфлікту, повертаємо серверний баланс
+            return response;
+        }
+
+        // Якщо відповідь з помилкою, повертаємо локальний баланс
+        return {
+            status: 'success',
+            data: {
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'local_storage_fallback_after_error'
+        };
+    } catch (error) {
+        console.error("🔌 API: Помилка отримання балансу:", error);
+
+        // Повертаємо дані з localStorage при помилці
+        return {
+            status: 'success',
+            data: {
+                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                coins: parseInt(localStorage.getItem('userCoins') || '0')
+            },
+            source: 'local_storage_fallback'
+        };
+    }
+}
 
     // ======== ФУНКЦІЇ ДЛЯ СТЕЙКІНГУ ========
 
