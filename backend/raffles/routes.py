@@ -464,15 +464,25 @@ def register_raffles_routes(app):
             # Отримуємо витрачені жетони
             tokens_spent = 0
             try:
-                if hasattr(participations_query, 'data') and participations_query.data:
-                    for participation in participations_query.data:
-                        # Якщо є поле entry_count або price_amount, додаємо його до загальних витрат
-                        if "entry_count" in participation and participation["entry_count"]:
-                            tokens_spent += int(participation["entry_count"])
-                        elif "price_amount" in participation and participation["price_amount"]:
-                            tokens_spent += int(participation["price_amount"])
+                # Спробуємо зробити прямий запит на суму витрачених жетонів
+                tokens_query = supabase.rpc(
+                    'sum_entry_counts',
+                    {'user_telegram_id': telegram_id}
+                ).execute()
+
+                # Якщо функція суми існує, використовуємо її результат
+                if tokens_query.data and tokens_query.data[0]:
+                    tokens_spent = tokens_query.data[0] or 0
+                else:
+                    # Інакше обчислюємо суму вручну
+                    if participations_query.data:
+                        for participation in participations_query.data:
+                            entry_fee = participation.get("entry_count") or participation.get("price_amount") or 1
+                            tokens_spent += int(entry_fee)
             except Exception as e:
                 logger.error(f"Помилка підрахунку витрачених жетонів: {str(e)}")
+                # Груба оцінка: кількість участей * 1 (мінімальний внесок)
+                tokens_spent = participations_count
 
             # Отримуємо дані активності за останній тиждень
             import datetime
