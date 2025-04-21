@@ -401,6 +401,27 @@
                     color: #4eb5f7 !important;
                     transition: color 1s ease;
                 }
+                
+                /* Анімація для витрачених токенів */
+                @keyframes tokens-spent-animation {
+                    0% { opacity: 0; transform: translate(-50%, 0); }
+                    20% { opacity: 1; transform: translate(-50%, -10px); }
+                    80% { opacity: 1; transform: translate(-50%, -25px); }
+                    100% { opacity: 0; transform: translate(-50%, -35px); }
+                }
+                
+                .tokens-spent-animation {
+                    position: absolute;
+                    top: -20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    color: #FF5722;
+                    font-weight: bold;
+                    font-size: 14px;
+                    pointer-events: none;
+                    z-index: 100;
+                    animation: tokens-spent-animation 1.5s ease-out forwards;
+                }
             `;
 
             document.head.appendChild(styleElement);
@@ -731,6 +752,40 @@
         },
 
         /**
+         * Анімація витрачених токенів
+         * @param {HTMLElement} element - Елемент балансу для анімації
+         * @param {number} amount - Кількість витрачених токенів
+         */
+        showTokensSpentAnimation: function(element, amount) {
+            if (!element || typeof amount !== 'number') return;
+
+            try {
+                // Створюємо елемент анімації витрачених токенів
+                const animationElement = document.createElement('div');
+                animationElement.className = 'tokens-spent-animation';
+                animationElement.textContent = `-${amount}`;
+
+                // Робимо позицію елемента відносною, якщо вона ще не така
+                const currentPosition = window.getComputedStyle(element).position;
+                if (currentPosition === 'static') {
+                    element.style.position = 'relative';
+                }
+
+                // Додаємо елемент анімації
+                element.appendChild(animationElement);
+
+                // Видаляємо елемент після завершення анімації
+                setTimeout(() => {
+                    if (animationElement.parentNode) {
+                        animationElement.parentNode.removeChild(animationElement);
+                    }
+                }, 1500);
+            } catch (error) {
+                console.warn('⚠️ Помилка анімації витрачених токенів:', error);
+            }
+        },
+
+        /**
          * Оновлення відображення балансу користувача
          * @param {number} newBalance - Новий баланс
          * @param {number} oldBalance - Старий баланс (необов'язково)
@@ -753,10 +808,10 @@
                 if (newBalance < oldBalance) {
                     userCoinsElement.classList.add('decreasing');
                     // Показуємо анімацію з кількістю списаних жетонів
-const difference = oldBalance - newBalance;
-if (difference > 0) {
-    this.showTokensSpentAnimation(userCoinsElement, difference);
-}
+                    const difference = oldBalance - newBalance;
+                    if (difference > 0) {
+                        this.showTokensSpentAnimation(userCoinsElement, difference);
+                    }
                     setTimeout(() => {
                         userCoinsElement.classList.remove('decreasing');
                     }, 1000);
