@@ -401,25 +401,6 @@
                     color: #4eb5f7 !important;
                     transition: color 1s ease;
                 }
-
-                /* Анімація для витрачених жетонів */
-                @keyframes float-up {
-                    0% { opacity: 0; transform: translateY(0); }
-                    20% { opacity: 1; transform: translateY(-10px); }
-                    80% { opacity: 1; transform: translateY(-20px); }
-                    100% { opacity: 0; transform: translateY(-30px); }
-                }
-
-                .tokens-spent-animation {
-                    position: absolute;
-                    color: #ff5252;
-                    font-weight: bold;
-                    font-size: 16px;
-                    pointer-events: none;
-                    z-index: 1000;
-                    animation: float-up 1.5s forwards;
-                    text-shadow: 0 0 3px rgba(0,0,0,0.3);
-                }
             `;
 
             document.head.appendChild(styleElement);
@@ -771,13 +752,11 @@
                 // Додаємо клас для анімації в залежності від зміни
                 if (newBalance < oldBalance) {
                     userCoinsElement.classList.add('decreasing');
-
                     // Показуємо анімацію з кількістю списаних жетонів
-                    const difference = oldBalance - newBalance;
-                    if (difference > 0) {
-                        this.showTokensSpentAnimation(userCoinsElement, difference);
-                    }
-
+const difference = oldBalance - newBalance;
+if (difference > 0) {
+    this.showTokensSpentAnimation(userCoinsElement, difference);
+}
                     setTimeout(() => {
                         userCoinsElement.classList.remove('decreasing');
                     }, 1000);
@@ -798,51 +777,6 @@
                 // Оновлюємо локальне сховище
                 localStorage.setItem('userCoins', newBalance.toString());
                 localStorage.setItem('winix_coins', newBalance.toString());
-            }
-        },
-
-        /**
-         * Показує анімацію витрачених жетонів
-         * @param {HTMLElement} element - Елемент балансу
-         * @param {number} amount - Кількість витрачених жетонів
-         */
-        showTokensSpentAnimation: function(element, amount) {
-            if (!element) return;
-
-            // Створюємо елемент для анімації
-            const animation = document.createElement('div');
-            animation.className = 'tokens-spent-animation';
-            animation.textContent = `-${amount} ${this.getTokenWord(amount)}`;
-
-            // Встановлюємо позицію відносно елемента балансу
-            const rect = element.getBoundingClientRect();
-            animation.style.position = 'fixed';
-            animation.style.left = `${rect.right + 10}px`;
-            animation.style.top = `${rect.top + rect.height/2}px`;
-
-            // Додаємо анімацію до body
-            document.body.appendChild(animation);
-
-            // Видаляємо після завершення анімації
-            setTimeout(() => {
-                if (animation.parentNode) {
-                    animation.parentNode.removeChild(animation);
-                }
-            }, 1500);
-        },
-
-        /**
-         * Повертає правильну форму слова "жетон" залежно від кількості
-         * @param {number} count - Кількість жетонів
-         * @returns {string} - Правильна форма слова
-         */
-        getTokenWord: function(count) {
-            if (count % 10 === 1 && count % 100 !== 11) {
-                return "жетон";
-            } else if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) {
-                return "жетони";
-            } else {
-                return "жетонів";
             }
         },
 
