@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
  * Виправлено проблеми з умовами гонки, списанням жетонів та обробкою помилок
- * @version 3.5.0
+ * @version 3.5.1
  */
 
 (function() {
@@ -1605,121 +1605,155 @@
                     // 18.1 ОНОВЛЮЄМО СТАТУС ТРАНЗАКЦІЇ
                     this._updateTransactionStatus(raffleId, transactionId, 'completed');
 
-                    // ВИПРАВЛЕНО: Спочатку встановлюємо прапорець примусової синхронізації
-                    // перед будь-якою зміною локального стану
-                    this.needsForcedSync = true;
+                    // ВИПРАВЛЕНО: Негайно виконуємо примусову синхронізацію з сервером
+                    console.log("🔄 Негайна примусова синхронізація даних після успішної участі");
 
-                    // 18.2 ОНОВЛЮЄМО ДАНІ ПРО УЧАСТЬ
-                    this.participatingRaffles.add(raffleId);
-
-                    // 18.3 ВИЗНАЧАЄМО КІЛЬКІСТЬ БІЛЕТІВ З ДАНИХ СЕРВЕРА
-                    let newTicketCount;
-                    if (response.data && typeof response.data.total_entries === 'number') {
-                        newTicketCount = response.data.total_entries;
-                    } else {
-                        // Якщо сервер не повернув дані, робимо додатковий запит
-                        console.warn("⚠️ Сервер не повернув дані про кількість білетів, запускаємо синхронізацію");
-
-                        // Оцінюємо кількість білетів локально на основі поточного стану
-                        const currentTickets = this.userRaffleTickets[raffleId] || 0;
-                        newTicketCount = currentTickets + 1;
-
-                        // Плануємо синхронізацію через 1 секунду
-                        setTimeout(() => {
-                            this.loadUserRaffles(true);
-                        }, 1000);
-                    }
-
-                    // 18.4 ОНОВЛЮЄМО ЛОКАЛЬНИЙ СТАН БІЛЕТІВ
-                    this.userRaffleTickets[raffleId] = newTicketCount;
-
-                    // 18.5 ОНОВЛЮЄМО БАЛАНС ЖЕТОНІВ - ВИКОРИСТОВУЄМО ТІЛЬКИ ДАНІ СЕРВЕРА
-                    if (response.data && typeof response.data.new_coins_balance === 'number') {
-                        // Запам'ятовуємо баланс до оновлення для виявлення змін
-                        const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
-                        const newBalance = response.data.new_coins_balance;
-
-                        // Оновлюємо відображення балансу
-                        const userCoinsElement = document.getElementById('user-coins');
-                        if (userCoinsElement) {
-                            // Додаємо анімацію, якщо баланс зменшився
-                            if (newBalance < oldBalance) {
-                                userCoinsElement.classList.add('decreasing');
-                                setTimeout(() => {
-                                    userCoinsElement.classList.remove('decreasing');
-                                }, 1000);
+                    try {
+                        // Отримуємо актуальну інформацію про розіграші з серверу
+                        const userRafflesResponse = await WinixAPI.apiRequest(
+                            `user/${userId}/raffles?nocache=${Date.now()}`,
+                            'GET',
+                            null,
+                            {
+                                suppressErrors: true,
+                                hideLoader: true,
+                                timeout: 10000,
+                                allowParallel: true
                             }
+                        );
 
-                            userCoinsElement.textContent = newBalance;
+                        if (userRafflesResponse && userRafflesResponse.status === 'success' && Array.isArray(userRafflesResponse.data)) {
+                            console.log("✅ Отримані актуальні дані про розіграші з сервера");
+
+                            // Оновлюємо дані участі з серверу
+                            this.participatingRaffles.clear();
+                            this.userRaffleTickets = {};
+
+                            userRafflesResponse.data.forEach(raffle => {
+                                if (raffle.raffle_id) {
+                                    this.participatingRaffles.add(raffle.raffle_id);
+                                    this.userRaffleTickets[raffle.raffle_id] = raffle.entry_count || 1;
+                                }
+                            });
+
+                            // Оновлюємо кеш серверних даних
+                            this.serverDataCache.participatingRaffles = new Set(this.participatingRaffles);
+                            this.serverDataCache.userRaffleTickets = {...this.userRaffleTickets};
+                            this.serverDataCache.lastUpdate = Date.now();
+
+                            // Зберігаємо оновлені дані в localStorage
+                            this._saveParticipationToStorage();
                         }
 
-                        // Оновлюємо локальне сховище
-                        localStorage.setItem('userCoins', newBalance.toString());
-                        localStorage.setItem('winix_coins', newBalance.toString());
-                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                        // Тепер отримуємо актуальний баланс
+                        const balanceResponse = await WinixAPI.getBalance();
 
-                        // Оновлюємо кеш балансу
-                        this.lastKnownBalance = newBalance;
-                        this.lastBalanceUpdateTime = Date.now();
+                        if (balanceResponse && balanceResponse.status === 'success' && balanceResponse.data) {
+                            const newBalance = balanceResponse.data.coins;
+                            const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
 
-                        // Додаємо подію для точної синхронізації з іншими модулями
-                        document.dispatchEvent(new CustomEvent('balance-updated', {
-                            detail: {
-                                oldBalance: oldBalance,
-                                newBalance: newBalance,
-                                source: 'participation.js'
+                            console.log(`📊 Отримано актуальний баланс з сервера: ${newBalance} жетонів`);
+
+                            // Запам'ятовуємо новий баланс
+                            this.lastKnownBalance = newBalance;
+                            this.lastBalanceUpdateTime = Date.now();
+
+                            // Оновлюємо відображення балансу
+                            const userCoinsElement = document.getElementById('user-coins');
+                            if (userCoinsElement) {
+                                // Додаємо анімацію зменшення
+                                if (newBalance < oldBalance) {
+                                    userCoinsElement.classList.add('decreasing');
+                                    setTimeout(() => {
+                                        userCoinsElement.classList.remove('decreasing');
+                                    }, 1000);
+                                }
+
+                                // Відразу оновлюємо значення
+                                userCoinsElement.textContent = newBalance;
                             }
-                        }));
-                    } else {
-                        // Якщо сервер не повернув баланс, робимо додатковий запит
-                        console.warn("⚠️ Сервер не повернув дані про новий баланс, отримуємо баланс");
-                        setTimeout(() => this._getServerBalance(), 1000);
+
+                            // Оновлюємо локальне сховище
+                            localStorage.setItem('userCoins', newBalance.toString());
+                            localStorage.setItem('winix_coins', newBalance.toString());
+                            localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+                            // Відправляємо подію оновлення балансу
+                            document.dispatchEvent(new CustomEvent('balance-updated', {
+                                detail: {
+                                    oldBalance: oldBalance,
+                                    newBalance: newBalance,
+                                    source: 'participation.js'
+                                }
+                            }));
+                        }
+                    } catch (syncError) {
+                        console.warn("⚠️ Помилка при примусовій синхронізації:", syncError);
+
+                        // При помилці синхронізації, використовуємо базові дані з відповіді
+                        // Визначаємо кількість білетів
+                        let newTicketCount;
+                        if (response.data && typeof response.data.total_entries === 'number') {
+                            newTicketCount = response.data.total_entries;
+                        } else {
+                            const currentTickets = this.userRaffleTickets[raffleId] || 0;
+                            newTicketCount = currentTickets + 1;
+                        }
+
+                        // Оновлюємо локальний стан
+                        this.participatingRaffles.add(raffleId);
+                        this.userRaffleTickets[raffleId] = newTicketCount;
+
+                        // Якщо є дані про новий баланс, оновлюємо його
+                        if (response.data && typeof response.data.new_coins_balance === 'number') {
+                            const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
+                            const newBalance = response.data.new_coins_balance;
+
+                            // Оновлюємо відображення балансу
+                            const userCoinsElement = document.getElementById('user-coins');
+                            if (userCoinsElement) {
+                                userCoinsElement.textContent = newBalance;
+                            }
+
+                            // Оновлюємо локальне сховище
+                            localStorage.setItem('userCoins', newBalance.toString());
+                            localStorage.setItem('winix_coins', newBalance.toString());
+
+                            // Відправляємо подію оновлення балансу
+                            document.dispatchEvent(new CustomEvent('balance-updated', {
+                                detail: {
+                                    oldBalance: oldBalance,
+                                    newBalance: newBalance,
+                                    source: 'participation.js'
+                                }
+                            }));
+                        }
                     }
 
-                    // 18.6 ЗБЕРІГАЄМО ОНОВЛЕНИЙ СТАН
-                    this._saveParticipationToStorage();
-
-                    // 18.7 ОНОВЛЮЄМО КНОПКИ УЧАСТІ
+                    // Оновлюємо кнопки участі
                     this.updateParticipationButtons();
 
-                    // 18.8 ГЕНЕРУЄМО ПОВІДОМЛЕННЯ ПРО УСПІХ
+                    // Формуємо повідомлення для користувача
                     let message;
                     if (response.data && response.data.message) {
                         message = response.data.message;
                     } else {
-                        // Формуємо стандартне повідомлення
-                        message = newTicketCount > 1 ?
-                            `Додано ще білет! Тепер у вас ${newTicketCount} білетів` :
+                        // Використовуємо дані участі для формування повідомлення
+                        const ticketCount = this.userRaffleTickets[raffleId] || 1;
+                        message = ticketCount > 1 ?
+                            `Додано ще білет! Тепер у вас ${ticketCount} білетів` :
                             'Ви успішно взяли участь у розіграші';
                     }
 
-                    // 18.9 ПОКАЗУЄМО ПОВІДОМЛЕННЯ
+                    // Показуємо повідомлення
                     if (typeof window.showToast === 'function') {
                         window.showToast(message, 'success');
                     }
 
-                    // 18.10 ВІДПРАВЛЯЄМО ПОДІЮ ПРО ОНОВЛЕННЯ ДАНИХ КОРИСТУВАЧА
-                    document.dispatchEvent(new CustomEvent('user-data-updated', {
-                        detail: {
-                            userData: {
-                                coins: response.data.new_coins_balance,
-                                last_update: Date.now()
-                            },
-                            source: 'participation.js'
-                        }
-                    }));
+                    // Генеруємо подію успішної участі
+                    const actualTicketCount = this.userRaffleTickets[raffleId] || 1;
+                    this._triggerParticipationEvent(raffleId, actualTicketCount);
 
-                    // 18.11 ГЕНЕРУЄМО ПОДІЮ УСПІШНОЇ УЧАСТІ
-                    this._triggerParticipationEvent(raffleId, newTicketCount);
-
-                    // 18.12 ПЛАНУВАННЯ ПІДТВЕРДЖУЮЧОЇ СИНХРОНІЗАЦІЇ
-                    setTimeout(() => {
-                        this.confirmParticipation(raffleId).catch(e =>
-                            console.warn('⚠️ Помилка підтвердження участі:', e)
-                        );
-                    }, 3000);
-
-                    // 18.13 ПОВЕРНЕННЯ РЕЗУЛЬТАТУ
                     return {
                         success: true,
                         data: response.data,
@@ -2229,7 +2263,7 @@
         }
     };
 
-    // Додаємо модуль участі до головного модуля розіграшів
+    // Додаємо модуль до головного модуля розіграшів
     WinixRaffles.participation = participation;
 
     // Ініціалізація модуля при завантаженні сторінки
