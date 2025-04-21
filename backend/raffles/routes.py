@@ -403,5 +403,112 @@ def register_raffles_routes(app):
             "timestamp": datetime.now().isoformat()
         })
 
+    @app.route('/api/user/<telegram_id>/statistics', methods=['GET'])
+    def api_get_user_statistics(telegram_id):
+        """Отримання статистики участі користувача в розіграшах"""
+        try:
+            logger.info(f"api_get_user_statistics: Запит отримано для {telegram_id}")
+
+            # Перевіряємо, чи існує користувач
+            try:
+                from users.controllers import get_user_info
+                user = get_user_info(telegram_id)
+
+                if not user:
+                    return jsonify({
+                        "status": "error",
+                        "message": "Користувача не знайдено"
+                    }), 404
+            except Exception as e:
+                logger.error(f"Помилка перевірки користувача: {str(e)}")
+                # Продовжуємо виконання, щоб спробувати отримати статистику навіть без даних користувача
+
+            # Отримуємо дані про участь у розіграшах
+            from supabase_client import supabase
+
+            # Отримуємо кількість участей
+            participations_query = supabase.table("raffle_participants") \
+                .select("id", "count") \
+                .eq("telegram_id", telegram_id) \
+                .execute()
+
+            participations_count = len(participations_query.data) if participations_query.data else 0
+
+            # Отримуємо кількість перемог
+            winners_query = supabase.table("raffle_winners") \
+                .select("id", "count") \
+                .eq("telegram_id", telegram_id) \
+                .execute()
+
+            wins_count = len(winners_query.data) if winners_query.data else 0
+
+            # Отримуємо суму виграшів
+            total_winnings = 0
+            if winners_query.data:
+                for winner in winners_query.data:
+                    # Якщо є поле prize_amount, додаємо його до загальної суми
+                    if "prize_amount" in winner and winner["prize_amount"]:
+                        total_winnings += int(winner["prize_amount"])
+
+            # Отримуємо витрачені жетони
+            tokens_spent = 0
+            if participations_query.data:
+                for participation in participations_query.data:
+                    # Якщо є поле entry_count або price_amount, додаємо його до загальних витрат
+                    if "entry_count" in participation and participation["entry_count"]:
+                        tokens_spent += int(participation["entry_count"])
+                    elif "price_amount" in participation and participation["price_amount"]:
+                        tokens_spent += int(participation["price_amount"])
+
+            # Отримуємо дані активності за останній тиждень
+            import datetime
+
+            today = datetime.datetime.now()
+            week_ago = today - datetime.timedelta(days=7)
+
+            activity_data = []
+
+            # Створюємо дані активності за дні тижня
+            for i in range(7):
+                day = today - datetime.timedelta(days=i)
+                day_name = day.strftime("%a")  # Коротка назва дня тижня
+
+                # Запит для цього дня
+                day_start = day.replace(hour=0, minute=0, second=0)
+                day_end = day.replace(hour=23, minute=59, second=59)
+
+                day_query = supabase.table("raffle_participants") \
+                    .select("id", "count") \
+                    .eq("telegram_id", telegram_id) \
+                    .gte("created_at", day_start.isoformat()) \
+                    .lte("created_at", day_end.isoformat()) \
+                    .execute()
+
+                count = len(day_query.data) if day_query.data else 0
+
+                activity_data.append({
+                    "day": day_name,
+                    "count": count
+                })
+
+            # Повертаємо статистику
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "participations_count": participations_count,
+                    "wins_count": wins_count,
+                    "total_winnings": total_winnings,
+                    "tokens_spent": tokens_spent,
+                    "win_rate": (wins_count / participations_count * 100) if participations_count > 0 else 0,
+                    "activity_data": activity_data
+                }
+            })
+        except Exception as e:
+            logger.error(f"Помилка отримання статистики користувача {telegram_id}: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": f"Помилка отримання статистики: {str(e)}"
+            }), 500
+
     logger.info("✅ Маршрути для розіграшів успішно зареєстровано")
     return True
