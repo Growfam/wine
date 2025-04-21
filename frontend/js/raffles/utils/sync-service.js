@@ -185,45 +185,92 @@
         },
 
         // Оновлення даних балансу
-        _updateBalanceData: function(data) {
-            if (!data) return;
+       // Оновлення даних балансу
+_updateBalanceData: function(data) {
+    if (!data) return;
 
-            // Оновлюємо локальні сховища
-            if (data.coins !== undefined) {
-                const newCoins = data.coins;
-                localStorage.setItem('userCoins', newCoins.toString());
-                localStorage.setItem('winix_coins', newCoins.toString());
+    // ДОДАНО: Перевірка на конфлікт з локальними даними
+    try {
+        const lastTxData = localStorage.getItem('winix_last_transaction');
+        if (lastTxData) {
+            const lastTx = JSON.parse(lastTxData);
+            const txAge = Date.now() - lastTx.timestamp;
 
-                // Оновлюємо відображення в інтерфейсі
-                const userCoinsElement = document.getElementById('user-coins');
-                if (userCoinsElement) {
-                    userCoinsElement.textContent = newCoins;
-                }
+            // Якщо транзакція нещодавня (менше 2 хвилин) і підтверджена локально
+            if (txAge < 120000 && lastTx.confirmed && lastTx.type === "participation") {
+                // Якщо дані з сервера відрізняються від локальної транзакції
+                if (data.coins !== undefined && data.coins !== lastTx.newBalance) {
+                    console.log(`⚠️ sync-service: Виявлено конфлікт даних балансу:
+                        - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
+                        - Синхронізація пропонує: ${data.coins}`);
 
-                // Генеруємо подію оновлення балансу
-                document.dispatchEvent(new CustomEvent('balance-updated', {
-                    detail: {
-                        newBalance: newCoins,
-                        source: 'sync-service'
+                    // Для особливо нових транзакцій (до 1 хвилини) довіряємо локальним даним
+                    if (txAge < 60000) {
+                        console.log("🛡️ sync-service: Застосовуємо локальний баланс замість даних синхронізації");
+                        data.coins = lastTx.newBalance;
                     }
-                }));
-            }
-
-            if (data.balance !== undefined) {
-                const newBalance = data.balance;
-                localStorage.setItem('userTokens', newBalance.toString());
-                localStorage.setItem('winix_balance', newBalance.toString());
-
-                // Оновлюємо відображення в інтерфейсі
-                const userTokensElement = document.getElementById('user-tokens');
-                if (userTokensElement) {
-                    userTokensElement.textContent = newBalance;
                 }
             }
+        }
+    } catch (e) {
+        console.warn("⚠️ sync-service: Помилка обробки перевірки конфлікту:", e);
+    }
 
-            // Оновлюємо час оновлення балансу
-            localStorage.setItem('winix_balance_update_time', Date.now().toString());
-        },
+    // Оновлюємо локальні сховища
+    if (data.coins !== undefined) {
+        const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
+        const newCoins = data.coins;
+
+        // Логуємо зміну балансу
+        if (oldCoins !== newCoins) {
+            console.log(`💰 sync-service: Оновлення балансу жетонів: ${oldCoins} -> ${newCoins}, різниця: ${newCoins - oldCoins}`);
+        }
+
+        localStorage.setItem('userCoins', newCoins.toString());
+        localStorage.setItem('winix_coins', newCoins.toString());
+        localStorage.setItem('winix_server_sync_ts', Date.now().toString()); // ДОДАНО: Момент синхронізації
+
+        // Оновлюємо відображення в інтерфейсі
+        const userCoinsElement = document.getElementById('user-coins');
+        if (userCoinsElement) {
+            // Анімація зміни балансу
+            if (newCoins > oldCoins) {
+                userCoinsElement.classList.add('increasing');
+                setTimeout(() => userCoinsElement.classList.remove('increasing'), 1000);
+            } else if (newCoins < oldCoins) {
+                userCoinsElement.classList.add('decreasing');
+                setTimeout(() => userCoinsElement.classList.remove('decreasing'), 1000);
+            }
+
+            userCoinsElement.textContent = newCoins;
+        }
+
+        // Генеруємо подію оновлення балансу
+        document.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: {
+                oldBalance: oldCoins,
+                newBalance: newCoins,
+                source: 'sync-service',
+                timestamp: Date.now()
+            }
+        }));
+    }
+
+    if (data.balance !== undefined) {
+        const newBalance = data.balance;
+        localStorage.setItem('userTokens', newBalance.toString());
+        localStorage.setItem('winix_balance', newBalance.toString());
+
+        // Оновлюємо відображення в інтерфейсі
+        const userTokensElement = document.getElementById('user-tokens');
+        if (userTokensElement) {
+            userTokensElement.textContent = newBalance;
+        }
+    }
+
+    // Оновлюємо час оновлення балансу
+    localStorage.setItem('winix_balance_update_time', Date.now().toString());
+},
 
         // Синхронізація участі в розіграшах
         syncParticipation: function(force = false) {
