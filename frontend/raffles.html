@@ -1168,6 +1168,211 @@ document.addEventListener('DOMContentLoaded', function() {
         window.addEventListener('load', integrateChanges);
     }
 })();
+// Додайте цей блок коду в кінець HTML-файлу для виправлення проблеми синхронізації
+(function() {
+    // Прапорці блокування для запобігання конфліктам синхронізації
+    window.__winixSyncControl = {
+        // Блокування всіх запитів синхронізації балансу та участі
+        blockAllSync: false,
+        // Час, до якого діє блокування
+        blockUntil: 0,
+        // Останні правильні дані про участь
+        lastValidParticipation: {
+            raffles: [],
+            tickets: {},
+            timestamp: 0
+        },
+        // Останній правильний баланс
+        lastValidBalance: null,
+        // Встановлення блокування на певний час (у секундах)
+        block: function(seconds) {
+            this.blockAllSync = true;
+            this.blockUntil = Date.now() + (seconds * 1000);
+            console.log(`🔒 Встановлено блокування синхронізації на ${seconds} секунд`);
+
+            // Автоматичне зняття блокування після заданого часу
+            setTimeout(() => {
+                this.blockAllSync = false;
+                console.log('🔓 Блокування синхронізації знято');
+            }, seconds * 1000);
+        },
+        // Перевірка, чи активне блокування
+        isBlocked: function() {
+            if (!this.blockAllSync) return false;
+            const now = Date.now();
+            if (now > this.blockUntil) {
+                this.blockAllSync = false;
+                return false;
+            }
+            return true;
+        }
+    };
+
+    // Перехоплення запитів синхронізації у syncService
+    function monkeyPatchSyncService() {
+        if (window.WinixRaffles && window.WinixRaffles.syncService) {
+            // Зберігаємо оригінальні методи
+            const originalSyncBalance = window.WinixRaffles.syncService.syncBalance;
+            const originalSyncParticipation = window.WinixRaffles.syncService.syncParticipation;
+
+            // Перевизначаємо метод syncBalance
+            window.WinixRaffles.syncService.syncBalance = function(force) {
+                // Перевіряємо блокування
+                if (window.__winixSyncControl.isBlocked() && !force) {
+                    console.log('⛔ Запит на оновлення балансу заблоковано');
+                    return Promise.resolve(false);
+                }
+                return originalSyncBalance.call(this, force);
+            };
+
+            // Перевизначаємо метод syncParticipation
+            window.WinixRaffles.syncService.syncParticipation = function(force) {
+                // Перевіряємо блокування
+                if (window.__winixSyncControl.isBlocked() && !force) {
+                    console.log('⛔ Запит на оновлення участі заблоковано');
+                    return Promise.resolve(false);
+                }
+                return originalSyncParticipation.call(this, force);
+            };
+
+            console.log('✅ Інтеграція з syncService успішно виконана');
+        }
+    }
+
+    // Перехоплення запитів у participation.js
+    function monkeyPatchParticipation() {
+        if (window.WinixRaffles && window.WinixRaffles.participation) {
+            // Зберігаємо оригінальний метод
+            const originalParticipate = window.WinixRaffles.participation.participateInRaffle;
+
+            // Перевизначаємо метод participateInRaffle
+            window.WinixRaffles.participation.participateInRaffle = async function(raffleId, raffleType, entryCount) {
+                try {
+                    // Запам'ятовуємо початковий баланс
+                    const initialBalance = parseInt(document.getElementById('user-coins')?.textContent || '0');
+
+                    // Ціна участі
+                    const entryFee = parseInt(document.querySelector(`[data-raffle-id="${raffleId}"]`)?.getAttribute('data-entry-fee')) || 1;
+
+                    // Виконуємо оригінальний метод
+                    const result = await originalParticipate.call(this, raffleId, raffleType, entryCount);
+
+                    if (result && result.success) {
+                        console.log('🚀 Успішна участь, встановлюємо блокування синхронізації');
+
+                        // Зберігаємо актуальний стан
+                        window.__winixSyncControl.lastValidParticipation = {
+                            raffles: Array.from(this.participatingRaffles),
+                            tickets: {...this.userRaffleTickets},
+                            timestamp: Date.now()
+                        };
+
+                        // Встановлюємо актуальний баланс
+                        const newBalance = result.data?.new_coins_balance;
+                        if (newBalance !== undefined) {
+                            window.__winixSyncControl.lastValidBalance = newBalance;
+                        } else {
+                            // Якщо сервер не повернув баланс, обчислюємо його
+                            window.__winixSyncControl.lastValidBalance = Math.max(0, initialBalance - entryFee);
+                        }
+
+                        // Негайно оновлюємо відображення балансу
+                        updateBalanceDisplay(window.__winixSyncControl.lastValidBalance, initialBalance);
+
+                        // Блокуємо запити синхронізації на 15 секунд
+                        window.__winixSyncControl.block(15);
+
+                        // Оновлюємо localStorage для запобігання відкату
+                        localStorage.setItem('userCoins', window.__winixSyncControl.lastValidBalance.toString());
+                        localStorage.setItem('winix_coins', window.__winixSyncControl.lastValidBalance.toString());
+                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                    }
+
+                    return result;
+                } catch (error) {
+                    console.error('❌ Помилка участі в розіграші:', error);
+                    return Promise.reject(error);
+                }
+            };
+
+            console.log('✅ Інтеграція з participation успішно виконана');
+        }
+    }
+
+    // Оновлення відображення балансу з анімацією
+    function updateBalanceDisplay(newBalance, oldBalance) {
+        if (newBalance === undefined || newBalance === null) return;
+
+        // Знаходимо елемент відображення балансу
+        const userCoinsElement = document.getElementById('user-coins');
+        if (!userCoinsElement) return;
+
+        // Отримуємо поточне значення як запасний варіант
+        oldBalance = oldBalance || parseInt(userCoinsElement.textContent || '0');
+
+        // Додаємо клас для анімації зменшення/збільшення
+        if (newBalance < oldBalance) {
+            userCoinsElement.classList.remove('increasing');
+            userCoinsElement.classList.add('decreasing');
+        } else if (newBalance > oldBalance) {
+            userCoinsElement.classList.remove('decreasing');
+            userCoinsElement.classList.add('increasing');
+        }
+
+        // Оновлюємо текст
+        userCoinsElement.textContent = newBalance;
+
+        // Видаляємо класи анімації через 1 секунду
+        setTimeout(() => {
+            userCoinsElement.classList.remove('decreasing', 'increasing');
+        }, 1000);
+    }
+
+    // Перехоплення подій оновлення балансу
+    function setupEventInterceptors() {
+        // Перехоплюємо подію оновлення балансу
+        const originalDispatchEvent = document.dispatchEvent;
+        document.dispatchEvent = function(event) {
+            // Перевіряємо, чи це подія оновлення балансу
+            if (event.type === 'balance-updated' && window.__winixSyncControl.isBlocked()) {
+                const detail = event.detail;
+
+                // Якщо це оновлення не від нашого коду і у нас є останній валідний баланс
+                if (detail && detail.source !== 'participation-fix' &&
+                    window.__winixSyncControl.lastValidBalance !== null) {
+
+                    console.log('⛔ Заблоковано оновлення балансу від джерела:', detail.source);
+
+                    // Створюємо нову подію з правильним балансом
+                    const newEvent = new CustomEvent('balance-updated', {
+                        detail: {
+                            oldBalance: detail.oldBalance,
+                            newBalance: window.__winixSyncControl.lastValidBalance,
+                            source: 'participation-fix',
+                            overridden: true
+                        }
+                    });
+
+                    // Віддаємо правильну подію
+                    return originalDispatchEvent.call(this, newEvent);
+                }
+            }
+
+            // Для всіх інших подій викликаємо оригінальний метод
+            return originalDispatchEvent.call(this, event);
+        };
+
+        console.log('✅ Перехоплення подій успішно налаштовано');
+    }
+
+    // Запуск всіх перехоплень з невеликою затримкою для завантаження інших скриптів
+    setTimeout(() => {
+        monkeyPatchSyncService();
+        monkeyPatchParticipation();
+        setupEventInterceptors();
+        console.log('🔄 Всі патчі для виправлення синхронізації встановлено');
+    }, 2000);
+})();
 </script>
 
 <style id="fix-close-button">
