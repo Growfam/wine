@@ -752,6 +752,11 @@
                 // Додаємо клас для анімації в залежності від зміни
                 if (newBalance < oldBalance) {
                     userCoinsElement.classList.add('decreasing');
+                    // Показуємо анімацію з кількістю списаних жетонів
+const difference = oldBalance - newBalance;
+if (difference > 0) {
+    this.showTokensSpentAnimation(userCoinsElement, difference);
+}
                     setTimeout(() => {
                         userCoinsElement.classList.remove('decreasing');
                     }, 1000);
