@@ -426,70 +426,87 @@ def register_raffles_routes(app):
             # Отримуємо дані про участь у розіграшах
             from supabase_client import supabase
 
-            # Отримуємо кількість участей
-            participations_query = supabase.table("raffle_participants") \
-                .select("id", "count") \
-                .eq("telegram_id", telegram_id) \
-                .execute()
+            # Отримуємо кількість участей (виправлено запит)
+            try:
+                participations_query = supabase.table("raffle_participants") \
+                    .select("*", count="exact") \
+                    .eq("telegram_id", telegram_id) \
+                    .execute()
 
-            participations_count = len(participations_query.data) if participations_query.data else 0
+                participations_count = participations_query.count if hasattr(participations_query, 'count') else 0
+            except Exception as e:
+                logger.error(f"Помилка отримання кількості участей: {str(e)}")
+                participations_count = 0
 
-            # Отримуємо кількість перемог
-            winners_query = supabase.table("raffle_winners") \
-                .select("id", "count") \
-                .eq("telegram_id", telegram_id) \
-                .execute()
+            # Отримуємо кількість перемог (виправлено запит)
+            try:
+                winners_query = supabase.table("raffle_winners") \
+                    .select("*", count="exact") \
+                    .eq("telegram_id", telegram_id) \
+                    .execute()
 
-            wins_count = len(winners_query.data) if winners_query.data else 0
+                wins_count = winners_query.count if hasattr(winners_query, 'count') else 0
+            except Exception as e:
+                logger.error(f"Помилка отримання кількості перемог: {str(e)}")
+                wins_count = 0
 
             # Отримуємо суму виграшів
             total_winnings = 0
-            if winners_query.data:
-                for winner in winners_query.data:
-                    # Якщо є поле prize_amount, додаємо його до загальної суми
-                    if "prize_amount" in winner and winner["prize_amount"]:
-                        total_winnings += int(winner["prize_amount"])
+            try:
+                if hasattr(winners_query, 'data') and winners_query.data:
+                    for winner in winners_query.data:
+                        # Якщо є поле prize_amount, додаємо його до загальної суми
+                        if "prize_amount" in winner and winner["prize_amount"]:
+                            total_winnings += int(winner["prize_amount"])
+            except Exception as e:
+                logger.error(f"Помилка підрахунку суми виграшів: {str(e)}")
 
             # Отримуємо витрачені жетони
             tokens_spent = 0
-            if participations_query.data:
-                for participation in participations_query.data:
-                    # Якщо є поле entry_count або price_amount, додаємо його до загальних витрат
-                    if "entry_count" in participation and participation["entry_count"]:
-                        tokens_spent += int(participation["entry_count"])
-                    elif "price_amount" in participation and participation["price_amount"]:
-                        tokens_spent += int(participation["price_amount"])
+            try:
+                if hasattr(participations_query, 'data') and participations_query.data:
+                    for participation in participations_query.data:
+                        # Якщо є поле entry_count або price_amount, додаємо його до загальних витрат
+                        if "entry_count" in participation and participation["entry_count"]:
+                            tokens_spent += int(participation["entry_count"])
+                        elif "price_amount" in participation and participation["price_amount"]:
+                            tokens_spent += int(participation["price_amount"])
+            except Exception as e:
+                logger.error(f"Помилка підрахунку витрачених жетонів: {str(e)}")
 
             # Отримуємо дані активності за останній тиждень
             import datetime
 
             today = datetime.datetime.now()
-            week_ago = today - datetime.timedelta(days=7)
-
             activity_data = []
 
-            # Створюємо дані активності за дні тижня
-            for i in range(7):
-                day = today - datetime.timedelta(days=i)
-                day_name = day.strftime("%a")  # Коротка назва дня тижня
+            # Створюємо дані активності за дні тижня (виправлено запит)
+            try:
+                for i in range(7):
+                    day = today - datetime.timedelta(days=i)
+                    day_name = day.strftime("%a")  # Коротка назва дня тижня
 
-                # Запит для цього дня
-                day_start = day.replace(hour=0, minute=0, second=0)
-                day_end = day.replace(hour=23, minute=59, second=59)
+                    # Запит для цього дня
+                    day_start = day.replace(hour=0, minute=0, second=0)
+                    day_end = day.replace(hour=23, minute=59, second=59)
 
-                day_query = supabase.table("raffle_participants") \
-                    .select("id", "count") \
-                    .eq("telegram_id", telegram_id) \
-                    .gte("created_at", day_start.isoformat()) \
-                    .lte("created_at", day_end.isoformat()) \
-                    .execute()
+                    day_query = supabase.table("raffle_participants") \
+                        .select("*", count="exact") \
+                        .eq("telegram_id", telegram_id) \
+                        .gte("created_at", day_start.isoformat()) \
+                        .lte("created_at", day_end.isoformat()) \
+                        .execute()
 
-                count = len(day_query.data) if day_query.data else 0
+                    count = day_query.count if hasattr(day_query, 'count') else 0
 
-                activity_data.append({
-                    "day": day_name,
-                    "count": count
-                })
+                    activity_data.append({
+                        "day": day_name,
+                        "count": count
+                    })
+            except Exception as e:
+                logger.error(f"Помилка отримання даних активності: {str(e)}")
+                # Якщо сталася помилка, створюємо пусті дані активності
+                activity_data = [{"day": f"День {i + 1}", "count": 0} for i in range(7)]
 
             # Повертаємо статистику
             return jsonify({
