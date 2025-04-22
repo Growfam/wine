@@ -123,14 +123,14 @@ if (typeof window.showToast === 'function') {
             userRaffleTickets: {}
         },
 
-        // ДОДАНО: Прапорець блокування для запобігання race condition
-        syncLock: false,
-
-        // ДОДАНО: Прапорець для відстеження необхідності відкладеної синхронізації
-        pendingSyncRequested: false,
-
-        // ДОДАНО: Лічильник транзакцій
-        transactionCounter: 0,
+        // Об'єднаний стан для контролю запитів
+requestState: {
+    inProgress: false,        // Чи обробляється зараз запит
+    lastRequestTime: 0,       // Час останнього запиту
+    pendingSync: false,       // Чи потрібна відкладена синхронізація
+    currentRequestId: null,   // ID поточного запиту
+    transactionCounter: 0     // Лічильник транзакцій
+},
 
         /**
          * Ініціалізація модуля
@@ -762,25 +762,30 @@ _getServerBalance: async function() {
                 console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
 
                 // Перевірка на конфлікт з недавньою транзакцією
-                if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-                    const txAge = Date.now() - lastTx.timestamp;
+              // Перевірка на конфлікт з недавньою транзакцією
+if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
+    const txAge = Date.now() - lastTx.timestamp;
 
-                    // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
-                    if (txAge < 120000 && newBalance !== lastTx.newBalance) {
-                        console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
-                            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
-                            - Сервер повернув: ${newBalance} жетонів`);
+    // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
+    if (txAge < 120000 && newBalance !== lastTx.newBalance) {
+        console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
+            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
+            - Сервер повернув: ${newBalance} жетонів`);
 
-                        // Якщо транзакція дуже нова (менше 60 секунд), довіряємо їй більше
-                        if (txAge < 60000) {
-                            console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
-                            shouldUpdate = false; // Не оновлюємо дані з сервера
-
-                            // Повертаємо локальний баланс як актуальний
-                            newBalance = lastTx.newBalance;
-                        }
-                    }
-                }
+        // Для дуже нових транзакцій (менше 30 секунд), довіряємо локальному балансу
+        if (txAge < 30000) {
+            console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
+            newBalance = lastTx.newBalance;
+        } else {
+            // Для старіших транзакцій (30-120 секунд), довіряємо серверу і синхронізуємо локальний стан
+            console.log(`🔄 Виявлено розбіжність з сервером. Використовуємо серверний баланс і запускаємо перевірку транзакцій`);
+            // Запускаємо перевірку стану участі в розіграшах
+            setTimeout(() => {
+                this.verifyAndFixParticipationState();
+            }, 1000);
+        }
+    }
+}
 
                 // Оновлюємо відображення
                 const userCoinsElement = document.getElementById('user-coins');
@@ -2019,19 +2024,41 @@ _getServerBalance: async function() {
                         localStorage.setItem('winix_balance_update_time', Date.now().toString());
                         localStorage.setItem('winix_server_balance', newBalance.toString()); // Додаємо запис серверного балансу
 
-                        // Оновлюємо кеш балансу
-                        this.lastKnownBalance = newBalance;
-                        this.lastBalanceUpdateTime = Date.now();
+                       // Створюємо транзакційний запис
+const transactionData = {
+    id: 'balance_update_' + Date.now(),
+    oldBalance: oldBalance,
+    newBalance: newBalance,
+    type: 'server_sync',
+    timestamp: Date.now(),
+    source: 'server_response'
+};
 
-                        // Генеруємо подію оновлення балансу
-                        document.dispatchEvent(new CustomEvent('balance-updated', {
-                            detail: {
-                                oldBalance: oldBalance,
-                                newBalance: newBalance,
-                                source: 'participation.js',
-                                transactionId: transactionId
-                            }
-                        }));
+// Зберігаємо запис про транзакцію
+try {
+    localStorage.setItem('winix_last_balance_update', JSON.stringify(transactionData));
+} catch (e) {
+    console.warn('⚠️ Помилка збереження даних транзакції:', e);
+}
+
+// Запам'ятовуємо останній відомий баланс
+this.lastKnownBalance = newBalance;
+this.lastBalanceUpdateTime = Date.now();
+
+// Оновлюємо локальне сховище
+localStorage.setItem('userCoins', newBalance.toString());
+localStorage.setItem('winix_coins', newBalance.toString());
+localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+// Генеруємо подію для інших модулів
+document.dispatchEvent(new CustomEvent('balance-updated', {
+    detail: {
+        oldBalance: oldBalance,
+        newBalance: newBalance,
+        source: 'participation.js',
+        transaction: transactionData
+    }
+}));
 
                         console.log(`✅ Баланс успішно оновлено: старий=${oldBalance}, новий=${newBalance}, різниця=${oldBalance-newBalance}`);
 

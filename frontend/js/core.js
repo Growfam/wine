@@ -601,47 +601,82 @@
     }
 
     /**
-     * Оновлення балансу з сервера
-     */
-    async function refreshBalance() {
-        try {
-            // Перевіряємо, чи пристрій онлайн
-            if (!isOnline()) {
-                console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
+ * Оновлення балансу з сервера
+ */
+async function refreshBalance() {
+    try {
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline()) {
+            console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
 
-                // Оновлюємо відображення з локальних даних
-                updateBalanceDisplay();
+            // Отримуємо останні відомі дані балансу
+            const lastKnownBalance = getBalance();
+            const lastKnownCoins = getCoins();
+            const lastUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+            const now = Date.now();
 
+            // Перевіряємо актуальність даних
+            const dataAge = now - lastUpdateTime;
+            let dataStatus = 'fresh'; // 'fresh', 'stale', 'unknown'
+
+            if (lastUpdateTime === 0) {
+                dataStatus = 'unknown';
+            } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
+                dataStatus = 'stale';
+            }
+
+            // Оновлюємо відображення з локальних даних
+            updateBalanceDisplay();
+
+            return {
+                success: true,
+                offline: true,
+                dataStatus: dataStatus,
+                dataAge: dataAge,
+                data: {
+                    balance: lastKnownBalance,
+                    coins: lastKnownCoins,
+                    lastUpdate: lastUpdateTime
+                }
+            };
+        }
+
+        let balanceData;
+
+        // Перевіряємо наявність API модуля
+        if (hasApiModule()) {
+            // Запам'ятовуємо старі значення перед запитом
+            const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
+            const oldTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+            const oldLastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+
+            // Отримуємо баланс з API
+            const response = await window.WinixAPI.getBalance();
+
+            if (response && response.status === 'success' && response.data) {
+                balanceData = response.data;
+            } else {
+                // У випадку помилки API, але не мережі
+                // Повертаємо старі дані але зі статусом помилки
+                console.warn('⚠️ API повернуло помилку:', response?.message);
                 return {
-                    success: true,
-                    offline: true,
+                    success: false,
+                    message: response?.message || 'Не вдалося отримати баланс',
                     data: {
-                        balance: getBalance(),
-                        coins: getCoins()
+                        balance: oldTokens,
+                        coins: oldBalance,
+                        lastUpdate: oldLastUpdate
                     }
                 };
             }
-
-            let balanceData;
-
-            // Перевіряємо наявність API модуля
-            if (hasApiModule()) {
-                // Отримуємо баланс з API
-                const response = await window.WinixAPI.getBalance();
-
-                if (response && response.status === 'success' && response.data) {
-                    balanceData = response.data;
-                } else {
-                    throw new Error(response?.message || 'Не вдалося отримати баланс');
-                }
-            } else {
-                // Якщо API недоступний, отримуємо повні дані користувача
-                const userData = await getUserData(true);
-                balanceData = {
-                    balance: userData.balance || 0,
-                    coins: userData.coins || 0
-                };
-            }
+        } else {
+            // Якщо API недоступний, отримуємо повні дані користувача
+            const userData = await getUserData(true);
+            balanceData = {
+                balance: userData.balance || 0,
+                coins: userData.coins || 0
+            };
+        }
 
             // Оновлюємо дані користувача
             if (!_userData) _userData = {};
@@ -678,24 +713,31 @@
                 }
             };
         } catch (error) {
-            console.error('Помилка оновлення балансу:', error);
+    console.error('Помилка оновлення балансу:', error);
 
-            // Збільшуємо лічильник помилок
-            _errorCounter++;
-            _lastErrorTime = Date.now();
+    // Збільшуємо лічильник помилок
+    _errorCounter++;
+    _lastErrorTime = Date.now();
 
-            // У випадку помилки використовуємо кешовані дані
-            updateBalanceDisplay();
+    // Беремо кешовані дані з позначенням часу останнього оновлення
+    const cachedBalance = getBalance();
+    const cachedCoins = getCoins();
+    const lastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
 
-            return {
-                success: false,
-                message: error.message || 'Не вдалося оновити баланс',
-                data: {
-                    balance: getBalance(),
-                    coins: getCoins()
-                }
-            };
+    // Оновлюємо відображення з кешованих даних
+    updateBalanceDisplay();
+
+    return {
+        success: false,
+        offline: !window.navigator.onLine,
+        message: error.message || 'Не вдалося оновити баланс',
+        data: {
+            balance: cachedBalance,
+            coins: cachedCoins,
+            lastUpdate: lastUpdate
         }
+    };
+}
     }
 
     // ======== НАВІГАЦІЯ ========
@@ -752,24 +794,45 @@
     async function syncUserData() {
         try {
             // Перевіряємо, чи пристрій онлайн
-            if (!isOnline()) {
-                console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані");
+if (!isOnline()) {
+    console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
 
-                // Оновлюємо відображення з локальних даних
-                updateUserDisplay();
-                updateBalanceDisplay();
+    // Отримуємо останні відомі дані балансу
+    const lastKnownBalance = getBalance();
+    const lastKnownCoins = getCoins();
+    const lastUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+    const now = Date.now();
 
-                return {
-                    success: true,
-                    offline: true,
-                    data: _userData || {
-                        telegram_id: getUserId() || 'unknown',
-                        balance: getBalance(),
-                        coins: getCoins(),
-                        source: 'localStorage_offline'
-                    }
-                };
-            }
+    // Перевіряємо актуальність даних
+    const dataAge = now - lastUpdateTime;
+    let dataStatus = 'fresh'; // 'fresh', 'stale', 'unknown'
+
+    if (lastUpdateTime === 0) {
+        dataStatus = 'unknown';
+    } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
+        dataStatus = 'stale';
+    }
+
+    // Оновлюємо відображення з локальних даних
+    updateBalanceDisplay();
+
+    // Показуємо користувачу статус, якщо дані застарілі
+    if (dataStatus === 'stale' && typeof window.showToast === 'function') {
+        window.showToast('Використовуються локально збережені дані. Оновіть баланс при підключенні.', 'info');
+    }
+
+    return {
+        success: true,
+        offline: true,
+        dataStatus: dataStatus,
+        dataAge: dataAge,
+        data: {
+            balance: lastKnownBalance,
+            coins: lastKnownCoins,
+            lastUpdate: lastUpdateTime
+        }
+    };
+}
 
             // Отримуємо дані користувача
             const userData = await getUserData(true);

@@ -754,34 +754,51 @@
          * @param {HTMLElement} element - Елемент балансу для анімації
          * @param {number} amount - Кількість витрачених токенів
          */
-        showTokensSpentAnimation: function(element, amount) {
-            if (!element || typeof amount !== 'number') return;
+       showTokensSpentAnimation: function(element, amount) {
+    if (!element || typeof amount !== 'number') return;
 
-            try {
-                // Створюємо елемент анімації витрачених токенів
-                const animationElement = document.createElement('div');
-                animationElement.className = 'tokens-spent-animation';
-                animationElement.textContent = `-${amount}`;
+    try {
+        // Перевіряємо, чи вже є активна анімація
+        const existingAnimation = element.querySelector('.tokens-spent-animation');
+        if (existingAnimation) {
+            // Якщо вже є анімація, оновлюємо її значення замість створення нової
+            const currentAmount = parseInt(existingAnimation.textContent.replace('-', '')) || 0;
+            const newAmount = currentAmount + amount;
+            existingAnimation.textContent = `-${newAmount}`;
 
-                // Робимо позицію елемента відносною, якщо вона ще не така
-                const currentPosition = window.getComputedStyle(element).position;
-                if (currentPosition === 'static') {
-                    element.style.position = 'relative';
-                }
+            // Скидаємо анімацію, щоб вона почалася спочатку
+            existingAnimation.style.animation = 'none';
+            existingAnimation.offsetHeight; // trigger reflow
+            existingAnimation.style.animation = 'tokens-spent-animation 1.5s ease-out forwards';
 
-                // Додаємо елемент анімації
-                element.appendChild(animationElement);
+            return;
+        }
 
-                // Видаляємо елемент після завершення анімації
-                setTimeout(() => {
-                    if (animationElement.parentNode) {
-                        animationElement.parentNode.removeChild(animationElement);
-                    }
-                }, 1500);
-            } catch (error) {
-                console.warn('⚠️ Помилка анімації витрачених токенів:', error);
+        // Створюємо новий елемент анімації
+        const animationElement = document.createElement('div');
+        animationElement.className = 'tokens-spent-animation';
+        animationElement.textContent = `-${amount}`;
+        animationElement.dataset.animationId = Date.now();
+
+        // Робимо позицію елемента відносною, якщо вона ще не така
+        const currentPosition = window.getComputedStyle(element).position;
+        if (currentPosition === 'static') {
+            element.style.position = 'relative';
+        }
+
+        // Додаємо елемент анімації
+        element.appendChild(animationElement);
+
+        // Видаляємо елемент після завершення анімації
+        setTimeout(() => {
+            if (animationElement.parentNode) {
+                animationElement.parentNode.removeChild(animationElement);
             }
-        },
+        }, 1500);
+    } catch (error) {
+        console.warn('⚠️ Помилка анімації витрачених токенів:', error);
+    }
+},
 
         /**
          * Оновлення відображення балансу користувача

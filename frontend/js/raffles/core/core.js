@@ -1095,50 +1095,73 @@
      * @returns {Promise<Object>} Відповідь від API
      */
     WinixRaffles.refreshUserBalance = async function() {
-        // Якщо є основне ядро, використовуємо його
-        if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
-            return await window.WinixCore.refreshBalance();
-        }
+    // Делегуємо оновлення балансу до основного ядра
+    if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
+        return await window.WinixCore.refreshBalance();
+    }
 
-        try {
-            if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getBalance === 'function') {
-                console.log('🔄 Запит на оновлення балансу користувача');
+    // Запасний варіант, якщо WinixCore недоступний
+    try {
+        if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getBalance === 'function') {
+            console.log('🔄 Запит на оновлення балансу користувача через запасний механізм');
 
-                const response = await window.WinixAPI.getBalance();
+            // Запам'ятовуємо старий баланс перед запитом
+            const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
 
-                if (response && response.status === 'success' && response.data) {
-                    const newCoins = response.data.coins;
+            const response = await window.WinixAPI.apiRequest('user/balance', 'GET', null, {
+                suppressErrors: true,
+                retries: 2,
+                timeout: 10000
+            });
 
-                    // Оновлюємо відображення балансу
-                    const userCoinsElement = document.getElementById('user-coins');
-                    if (userCoinsElement) {
-                        userCoinsElement.textContent = newCoins;
-                    }
+            if (response && response.status === 'success' && response.data) {
+                const newCoins = response.data.coins;
 
-                    // Оновлюємо localStorage
-                    localStorage.setItem('userCoins', newCoins.toString());
-                    localStorage.setItem('winix_coins', newCoins.toString());
-
-                    console.log('✅ Баланс користувача оновлено:', newCoins);
-
-                    return {
-                        success: true,
-                        coins: newCoins
-                    };
-                } else {
-                    throw new Error('Не вдалося отримати баланс');
+                // Оновлюємо відображення балансу
+                const userCoinsElement = document.getElementById('user-coins');
+                if (userCoinsElement) {
+                    userCoinsElement.textContent = newCoins;
                 }
+
+                // Оновлюємо localStorage з часовою міткою
+                localStorage.setItem('userCoins', newCoins.toString());
+                localStorage.setItem('winix_coins', newCoins.toString());
+                localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+                // Генеруємо подію для інших модулів
+                document.dispatchEvent(new CustomEvent('balance-updated', {
+                    detail: {
+                        oldBalance: oldCoins,
+                        newBalance: newCoins,
+                        source: 'core.js'
+                    }
+                }));
+
+                console.log('✅ Баланс користувача оновлено:', newCoins);
+
+                return {
+                    success: true,
+                    coins: newCoins
+                };
             } else {
-                throw new Error('API для отримання балансу недоступне');
+                throw new Error(response?.message || 'Не вдалося отримати баланс');
             }
-        } catch (error) {
-            console.error('❌ Помилка оновлення балансу:', error);
-            return {
-                success: false,
-                message: error.message || 'Не вдалося оновити баланс'
-            };
+        } else {
+            throw new Error('API для отримання балансу недоступне');
         }
-    };
+    } catch (error) {
+        console.error('❌ Помилка оновлення балансу:', error);
+
+        // При помилці повертаємо останні відомі дані
+        const cachedCoins = parseInt(localStorage.getItem('userCoins') || '0');
+
+        return {
+            success: false,
+            message: error.message || 'Не вдалося оновити баланс',
+            fallbackCoins: cachedCoins
+        };
+    }
+};
 
     /**
      * Очищення кешу невалідних розіграшів
@@ -1188,10 +1211,33 @@
                 _loadingLock = false;
             }
 
-            // ВИПРАВЛЕНО: Скидаємо стан participation при помилці
-            if (WinixRaffles.participation) {
-                WinixRaffles.participation.requestInProgress = false;
-            }
+            // Повне скидання стану participation при помилці
+if (window.WinixRaffles && window.WinixRaffles.participation) {
+    if (window.WinixRaffles.participation.requestInProgress) {
+        window.WinixRaffles.participation.requestInProgress = false;
+        console.warn("⚠️ Скинуто стан requestInProgress через необроблену помилку Promise");
+    }
+
+    // Скидаємо всі прапорці блокування
+    if (window.WinixRaffles.participation.syncLock) {
+        window.WinixRaffles.participation.syncLock = false;
+    }
+
+    if (window.WinixRaffles.participation.pendingSyncRequested) {
+        window.WinixRaffles.participation.pendingSyncRequested = false;
+    }
+
+    // Якщо є активні транзакції, очищаємо їх
+    if (window.WinixRaffles.participation.activeTransactions &&
+        typeof window.WinixRaffles.participation.activeTransactions.clear === 'function') {
+        window.WinixRaffles.participation.activeTransactions.clear();
+    }
+
+    // Якщо є спеціальна функція скидання, використовуємо її
+    if (typeof window.WinixRaffles.participation.resetState === 'function') {
+        window.WinixRaffles.participation.resetState();
+    }
+}
 
             if (typeof window.hideLoading === 'function') {
                 window.hideLoading();

@@ -368,21 +368,70 @@
          * @returns {Promise<Object>} Результат участі
          */
         participateInRaffle: async function(raffleId, entryCount = 1) {
-            // ВИПРАВЛЕНО: Делегуємо цю функцію модулю participation
-            if (window.WinixRaffles &&
-                window.WinixRaffles.participation &&
-                typeof window.WinixRaffles.participation.participateInRaffle === 'function') {
+    try {
+        // Перевірка наявності модуля participation
+        if (!window.WinixRaffles ||
+            !window.WinixRaffles.participation ||
+            typeof window.WinixRaffles.participation.participateInRaffle !== 'function') {
 
-                console.log('🔄 Делегування запиту участі модулю participation...');
-                return await window.WinixRaffles.participation.participateInRaffle(raffleId, 'delegate', entryCount);
-            } else {
-                console.error('❌ Модуль participation недоступний. Не можна взяти участь у розіграші');
-                return {
-                    success: false,
-                    message: 'Модуль обробки участі недоступний. Оновіть сторінку.'
-                };
+            console.error('❌ Модуль participation недоступний. Не можна взяти участь у розіграші');
+
+            // Показуємо повідомлення користувачу
+            if (typeof window.showToast === 'function') {
+                window.showToast('Модуль обробки участі недоступний. Оновіть сторінку.', 'error');
             }
-        },
+
+            return {
+                success: false,
+                message: 'Модуль обробки участі недоступний. Оновіть сторінку.'
+            };
+        }
+
+        // Перевірка балансу перед відправленням запиту
+        const userCoins = this.getUserCoins();
+        const entryFee = this.getEntryFee(raffleId) || 1;
+
+        if (userCoins < entryFee) {
+            // Недостатньо жетонів
+            if (typeof window.showToast === 'function') {
+                window.showToast(`Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${userCoins}`, 'warning');
+            }
+
+            return {
+                success: false,
+                message: `Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${userCoins}`
+            };
+        }
+
+        console.log('🔄 Делегування запиту участі модулю participation...');
+
+        // Делегуємо запит модулю participation з додатковими перевірками
+        const result = await window.WinixRaffles.participation.participateInRaffle(raffleId, 'delegate', entryCount);
+
+        // Обробка результату
+        if (result.success) {
+            // Запам'ятовуємо квитки локально
+            if (result.data && typeof result.data.total_entries === 'number') {
+                this.ticketCounts[raffleId] = result.data.total_entries;
+                this.saveTicketsToStorage();
+            }
+        }
+
+        return result;
+    } catch (error) {
+        console.error('❌ Помилка делегування запиту участі:', error);
+
+        // Показуємо повідомлення про помилку
+        if (typeof window.showToast === 'function') {
+            window.showToast(error.message || 'Помилка при спробі участі в розіграші', 'error');
+        }
+
+        return {
+            success: false,
+            message: error.message || 'Внутрішня помилка делегування запиту участі'
+        };
+    }
+},
 
         /**
          * Отримання кількості білетів для розіграшу
