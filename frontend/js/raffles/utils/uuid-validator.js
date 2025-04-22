@@ -1,7 +1,6 @@
 /**
  * Єдина універсальна функція для перевірки валідності UUID
  * Рекомендована для використання в усіх модулях системи
- * @version 1.1.0
  */
 
 /**
@@ -58,81 +57,22 @@ function isValidUUID(id) {
     return true;
 }
 
-/**
- * Нормалізація UUID (видалення пробілів, переведення в нижній регістр)
- * @param {string} uuid - UUID для нормалізації
- * @returns {string} - Нормалізований UUID
- */
-function normalizeUUID(uuid) {
-    if (!uuid || typeof uuid !== 'string') return '';
-    // Видаляємо всі пробіли і переводимо в нижній регістр
-    return uuid.trim().toLowerCase();
-}
-
-/**
- * Конвертація UUID в стандартний формат з дефісами
- * @param {string} uuid - UUID для конвертації
- * @returns {string} - Сконвертований UUID або порожній рядок при помилці
- */
-function formatUUID(uuid) {
-    if (!uuid || typeof uuid !== 'string') return '';
-
-    try {
-        // Видаляємо всі нецифрові і не-букви
-        const cleanUuid = uuid.replace(/[^a-fA-F0-9]/g, '');
-
-        // Перевіряємо, чи вийшло 32 символи
-        if (cleanUuid.length !== 32) return '';
-
-        // Форматуємо у вигляді 8-4-4-4-12
-        return `${cleanUuid.substr(0,8)}-${cleanUuid.substr(8,4)}-${cleanUuid.substr(12,4)}-${cleanUuid.substr(16,4)}-${cleanUuid.substr(20,12)}`;
-    } catch (e) {
-        console.error("Помилка форматування UUID:", e);
-        return '';
-    }
-}
-
-// Експортуємо функції, щоб їх можна було використовувати в різних модулях
+// Експортуємо функцію, щоб її можна було використовувати в різних модулях
 if (typeof window !== 'undefined') {
-    // Головна функція валідації
     window.isValidUUID = isValidUUID;
-
-    // Додаткові функції для роботи з UUID
-    window.normalizeUUID = normalizeUUID;
-    window.formatUUID = formatUUID;
-
-    // Створюємо глобальний простір імен для UUID-утиліт
-    window.UUIDUtils = {
-        isValid: isValidUUID,
-        normalize: normalizeUUID,
-        format: formatUUID
-    };
 
     // Додаємо до WinixRaffles, якщо він існує
     if (window.WinixRaffles) {
         if (!window.WinixRaffles.validators) {
             window.WinixRaffles.validators = {};
         }
-
-        // Перезаписуємо або додаємо функції UUID
         window.WinixRaffles.validators.isValidUUID = isValidUUID;
-        window.WinixRaffles.validators.normalizeUUID = normalizeUUID;
-        window.WinixRaffles.validators.formatUUID = formatUUID;
     }
 
     // Додаємо до WinixAPI, якщо він існує
     if (window.WinixAPI) {
         window.WinixAPI.isValidUUID = isValidUUID;
-        window.WinixAPI.normalizeUUID = normalizeUUID;
-        window.WinixAPI.formatUUID = formatUUID;
     }
 
-    // Додаємо до WinixCore, якщо він існує
-    if (window.WinixCore) {
-        window.WinixCore.isValidUUID = isValidUUID;
-        window.WinixCore.normalizeUUID = normalizeUUID;
-        window.WinixCore.formatUUID = formatUUID;
-    }
-
-    console.log('✅ Уніфіковані функції для роботи з UUID успішно встановлені');
+    console.log('✅ Уніфікована функція валідації UUID успішно встановлена');
 }
