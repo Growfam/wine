@@ -1,7 +1,7 @@
 /**
  * core.js - Базова функціональність WINIX
  * Оптимізована версія з покращеною інтеграцією з API та Auth модулями
- * @version 1.3.0
+ * @version 1.4.0
  */
 
 (function() {
@@ -169,6 +169,39 @@
         }
     };
 
+    // Перевірка доступності модулю обробки помилок
+    const hasErrorHandler = () => {
+        try {
+            return window.WinixRaffles &&
+                   window.WinixRaffles.errorHandler &&
+                   typeof window.WinixRaffles.errorHandler.showUserFriendlyError === 'function';
+        } catch (e) {
+            console.error("🔄 Core: Помилка перевірки ErrorHandler модуля:", e);
+            return false;
+        }
+    };
+
+    // Перевірка доступності сервісу синхронізації
+    const hasSyncService = () => {
+        try {
+            return window.WinixRaffles &&
+                   window.WinixRaffles.syncService &&
+                   typeof window.WinixRaffles.syncService.syncAll === 'function';
+        } catch (e) {
+            console.error("🔄 Core: Помилка перевірки SyncService модуля:", e);
+            return false;
+        }
+    };
+
+    // Реєстр обробників для подій WinixCore
+    const _eventHandlers = {
+        'user-data-updated': [],
+        'balance-updated': [],
+        'transaction-complete': [],
+        'core-initialized': [],
+        'error': []
+    };
+
     // ======== УТИЛІТИ ========
 
     /**
@@ -334,6 +367,12 @@
                 window.WinixRaffles.state.isLoading = false;
             }
 
+            // Викликаємо подію перед перезавантаженням
+            triggerEvent('before-reset', {
+                reason: 'critical_errors',
+                errorCount: _errorCounter
+            });
+
             // Перезавантажуємо сторінку через 1 секунду
             setTimeout(function() {
                 window.location.reload();
@@ -397,6 +436,91 @@
         }
 
         return true;
+    }
+
+    /**
+     * Реєстрація обробника події
+     * @param {string} eventName - Назва події
+     * @param {Function} handler - Функція-обробник
+     * @param {Object} options - Додаткові параметри
+     */
+    function registerEventHandler(eventName, handler, options = {}) {
+        if (!_eventHandlers[eventName]) {
+            _eventHandlers[eventName] = [];
+        }
+
+        // Перевіряємо, чи такий обробник вже зареєстрований
+        const exists = _eventHandlers[eventName].some(h =>
+            h.handler.toString() === handler.toString() &&
+            h.source === (options.source || 'unknown')
+        );
+
+        if (!exists) {
+            _eventHandlers[eventName].push({
+                handler,
+                source: options.source || 'unknown',
+                priority: options.priority || 0,
+                once: options.once || false
+            });
+
+            // Сортуємо обробники за пріоритетом (вищий пріоритет першим)
+            _eventHandlers[eventName].sort((a, b) => b.priority - a.priority);
+
+            console.log(`📌 Core: Зареєстровано обробник для події '${eventName}' від джерела '${options.source || 'unknown'}'`);
+        }
+    }
+
+    /**
+     * Видалення обробника події
+     * @param {string} eventName - Назва події
+     * @param {Function} handler - Функція-обробник
+     * @param {string} source - Джерело обробника
+     */
+    function unregisterEventHandler(eventName, handler, source = 'unknown') {
+        if (!_eventHandlers[eventName]) return;
+
+        _eventHandlers[eventName] = _eventHandlers[eventName].filter(h =>
+            h.handler.toString() !== handler.toString() || h.source !== source
+        );
+    }
+
+    /**
+     * Виклик події
+     * @param {string} eventName - Назва події
+     * @param {Object} detail - Дані події
+     * @param {Object} options - Додаткові параметри
+     */
+    function triggerEvent(eventName, detail = {}, options = {}) {
+        // Додаємо інформацію про джерело події
+        detail.source = options.source || 'core.js';
+        detail.timestamp = options.timestamp || Date.now();
+
+        console.log(`🔔 Core: Виклик події '${eventName}' від джерела '${detail.source}'`);
+
+        // Викликаємо власні обробники
+        if (_eventHandlers[eventName]) {
+            const handlers = [..._eventHandlers[eventName]];
+
+            for (const handlerObj of handlers) {
+                try {
+                    handlerObj.handler(detail);
+
+                    // Видаляємо обробник, якщо він одноразовий
+                    if (handlerObj.once) {
+                        unregisterEventHandler(eventName, handlerObj.handler, handlerObj.source);
+                    }
+                } catch (e) {
+                    console.error(`❌ Core: Помилка виконання обробника події '${eventName}':`, e);
+                }
+            }
+        }
+
+        // Викликаємо стандартну подію DOM
+        try {
+            document.dispatchEvent(new CustomEvent(eventName, { detail }));
+        } catch (e) {
+            console.error(`❌ Core: Помилка виклику DOM події '${eventName}':`, e);
+        }
     }
 
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
@@ -479,10 +603,7 @@
                     saveToStorage('userData', _userData);
 
                     // Генеруємо подію оновлення
-                    document.dispatchEvent(new CustomEvent('user-data-updated', {
-                        detail: { userData: _userData },
-                        source: 'core.js'
-                    }));
+                    triggerEvent('user-data-updated', { userData: _userData });
 
                     return _userData;
                 }
@@ -514,10 +635,7 @@
                     _lastKnownBalance.timestamp = Date.now();
 
                     // Генеруємо подію оновлення
-                    document.dispatchEvent(new CustomEvent('user-data-updated', {
-                        detail: { userData: _userData },
-                        source: 'core.js'
-                    }));
+                    triggerEvent('user-data-updated', { userData: _userData });
 
                     // Скидаємо лічильник помилок при успішному запиті
                     _errorCounter = 0;
@@ -555,11 +673,25 @@
             _errorCounter++;
             _lastErrorTime = Date.now();
 
+            // Відправляємо подію помилки
+            triggerEvent('error', {
+                message: 'Помилка отримання даних користувача',
+                originalError: error,
+                module: 'core.js',
+                function: 'getUserData'
+            });
+
             // Перевірка на критичну кількість помилок
             if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
                 console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
 
-                if (typeof window.showToast === 'function') {
+                // Показуємо повідомлення про помилку через централізований обробник або вбудований
+                if (hasErrorHandler()) {
+                    window.WinixRaffles.errorHandler.showUserFriendlyError(
+                        'Виникли проблеми з`єднання. Спроба відновлення...',
+                        'warning'
+                    );
+                } else if (typeof window.showToast === 'function') {
                     window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
                 }
 
@@ -861,6 +993,27 @@
      */
     async function refreshBalance(forceRefresh = false) {
         try {
+            // Перевіряємо чи доступний сервіс синхронізації для делегування
+            if (hasSyncService() && !forceRefresh) {
+                console.log("🔄 Core: Делегуємо оновлення балансу сервісу синхронізації");
+
+                // Запускаємо синхронізацію балансу
+                const syncResult = await window.WinixRaffles.syncService.syncBalance(false);
+
+                if (syncResult) {
+                    // Оновлюємо інтерфейс
+                    updateBalanceDisplay(true);
+                    return {
+                        success: true,
+                        delegated: true,
+                        data: {
+                            balance: getBalance(),
+                            coins: getCoins()
+                        }
+                    };
+                }
+            }
+
             // Перевіряємо блокування оновлення балансу
             if (isBalanceUpdateLocked() && !forceRefresh) {
                 console.log("🔒 Core: Оновлення балансу заблоковано, використовуємо кеш");
@@ -955,15 +1108,11 @@
             updateBalanceDisplay(true);
 
             // Генеруємо подію оновлення балансу
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    oldBalance: null, // Не знаємо старе значення
-                    newBalance: _userData.coins,
-                    tokens: _userData.balance,
-                    source: 'core.js',
-                    timestamp: Date.now()
-                }
-            }));
+            triggerEvent('balance-updated', {
+                oldBalance: null, // Не знаємо старе значення
+                newBalance: _userData.coins,
+                tokens: _userData.balance
+            });
 
             // Скидаємо лічильник помилок при успішному запиті
             _errorCounter = 0;
@@ -981,6 +1130,14 @@
             // Збільшуємо лічильник помилок
             _errorCounter++;
             _lastErrorTime = Date.now();
+
+            // Відправляємо подію помилки
+            triggerEvent('error', {
+                message: 'Помилка оновлення балансу',
+                originalError: error,
+                module: 'core.js',
+                function: 'refreshBalance'
+            });
 
             // У випадку помилки використовуємо кешовані дані
             updateBalanceDisplay();
@@ -1058,17 +1215,14 @@
             updateBalanceDisplay(true);
 
             // Генеруємо подію оновлення балансу
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    oldBalance: oldCoins,
-                    newBalance: newCoinsValue,
-                    difference: difference,
-                    source: source,
-                    confirmed: confirmed,
-                    timestamp: Date.now(),
-                    transactionId: transactionId
-                }
-            }));
+            triggerEvent('balance-updated', {
+                oldBalance: oldCoins,
+                newBalance: newCoinsValue,
+                difference: difference,
+                source: source,
+                confirmed: confirmed,
+                transactionId: transactionId
+            });
 
             return {
                 success: true,
@@ -1079,6 +1233,13 @@
             };
         } catch (error) {
             console.error('❌ Помилка оновлення локального балансу:', error);
+
+            triggerEvent('error', {
+                message: 'Помилка оновлення локального балансу',
+                originalError: error,
+                module: 'core.js',
+                function: 'updateLocalBalance'
+            });
 
             return {
                 success: false,
@@ -1134,6 +1295,13 @@
         } catch (error) {
             console.error('❌ Помилка витрати жетонів:', error);
 
+            triggerEvent('error', {
+                message: 'Помилка витрати жетонів',
+                originalError: error,
+                module: 'core.js',
+                function: 'spendCoins'
+            });
+
             return {
                 success: false,
                 message: error.message || 'Не вдалося витратити жетони'
@@ -1180,6 +1348,14 @@
                 }
             }
 
+            // Генеруємо подію завершення транзакції
+            triggerEvent('transaction-complete', {
+                transactionId: transactionId,
+                confirmed: true,
+                serverBalance: serverBalance,
+                transaction: transaction
+            });
+
             return {
                 success: true,
                 transaction: transaction,
@@ -1187,6 +1363,13 @@
             };
         } catch (error) {
             console.error('❌ Помилка підтвердження витрати:', error);
+
+            triggerEvent('error', {
+                message: 'Помилка підтвердження витрати',
+                originalError: error,
+                module: 'core.js',
+                function: 'confirmSpending'
+            });
 
             return {
                 success: false,
@@ -1248,6 +1431,24 @@
      */
     async function syncUserData() {
         try {
+            // Спочатку перевіряємо чи доступний сервіс синхронізації
+            if (hasSyncService()) {
+                console.log("🔄 Core: Делегуємо синхронізацію даних сервісу синхронізації");
+
+                // Запускаємо синхронізацію всіх даних
+                const syncResult = await window.WinixRaffles.syncService.syncAll(false);
+
+                // Оновлюємо інтерфейс
+                updateUserDisplay();
+                updateBalanceDisplay();
+
+                return {
+                    success: true,
+                    delegated: true,
+                    data: _userData
+                };
+            }
+
             // Перевіряємо, чи пристрій онлайн
             if (!isOnline()) {
                 console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані");
@@ -1276,10 +1477,7 @@
             updateBalanceDisplay();
 
             // Генеруємо подію оновлення даних користувача
-            document.dispatchEvent(new CustomEvent('user-data-updated', {
-                detail: { userData },
-                source: 'core.js'
-            }));
+            triggerEvent('user-data-updated', { userData });
 
             return {
                 success: true,
@@ -1291,6 +1489,14 @@
             // Збільшуємо лічильник помилок
             _errorCounter++;
             _lastErrorTime = Date.now();
+
+            // Відправляємо подію помилки
+            triggerEvent('error', {
+                message: 'Помилка синхронізації даних користувача',
+                originalError: error,
+                module: 'core.js',
+                function: 'syncUserData'
+            });
 
             // У випадку помилки використовуємо кешовані дані
             updateUserDisplay();
@@ -1309,6 +1515,12 @@
      * @param {number} interval - Інтервал у мілісекундах
      */
     function startAutoSync(interval = 300000) { // 5 хвилин
+        // Перевіряємо чи є сервіс синхронізації
+        if (hasSyncService()) {
+            console.log("🔄 Core: Делегуємо періодичне оновлення сервісу синхронізації");
+            return true;
+        }
+
         // Зупиняємо попередній інтервал
         if (_refreshInterval) {
             clearInterval(_refreshInterval);
@@ -1370,6 +1582,12 @@
                 }
             }
 
+            // Перевіряємо статус ініціалізації
+            const isInitialized = getFromStorage('winix_core_initialized', 'false') === 'true';
+            if (!isInitialized) {
+                saveToStorage('winix_core_initialized', 'true');
+            }
+
             // Очікуємо завантаження API та Auth модулів
             await waitForModules();
 
@@ -1383,97 +1601,48 @@
             // Ініціалізуємо навігацію
             initNavigation();
 
-            // Запускаємо автоматичну синхронізацію, якщо не запущена в Auth
+            // Запускаємо автоматичну синхронізацію, якщо не запущена в Auth і немає сервісу синхронізації
             if (!hasAuthModule() || !window.WinixAuth._periodicUpdateInterval) {
-                startAutoSync();
+                if (!hasSyncService()) {
+                    startAutoSync();
+                }
             }
 
             console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
             // Викликаємо подію ініціалізації
-            document.dispatchEvent(new CustomEvent('winix-initialized'));
+            triggerEvent('core-initialized', { version: '1.4.0' });
 
             return true;
         } catch (error) {
             console.error('Помилка ініціалізації ядра WINIX:', error);
 
+            // Відправляємо подію помилки
+            triggerEvent('error', {
+                message: 'Помилка ініціалізації ядра WINIX',
+                originalError: error,
+                module: 'core.js',
+                function: 'init'
+            });
+
             // У випадку помилки використовуємо кешовані дані
             updateUserDisplay();
             updateBalanceDisplay();
 
-            document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
+            triggerEvent('winix-initialization-error', { detail: error });
 
             return false;
         }
     }
 
+    /**
+     * Перевірка чи ядро ініціалізовано
+     */
+    function isInitialized() {
+        return getFromStorage('winix_core_initialized', 'false') === 'true';
+    }
+
     // ======== ОБРОБНИКИ ПОДІЙ ========
-
-    // Обробник події оновлення даних користувача
-    document.addEventListener('user-data-updated', function(event) {
-        if (event.detail && event.detail.userData && event.source !== 'core.js') {
-            console.log("🔄 Core: Отримано подію оновлення даних користувача");
-
-            // Перевіряємо блокування оновлення балансу
-            if (isBalanceUpdateLocked() && event.detail.userData.coins !== undefined) {
-                console.log("🔒 Core: Ігноруємо оновлення балансу від стороннього джерела через блокування");
-
-                // Створюємо копію даних без балансу
-                const userData = {...event.detail.userData};
-
-                // Встановлюємо локальний баланс
-                userData.coins = getCoins();
-
-                // Оновлюємо userData
-                _userData = userData;
-            } else {
-                // Оновлюємо userData
-                _userData = event.detail.userData;
-            }
-
-            // Оновлюємо відображення
-            updateUserDisplay();
-            updateBalanceDisplay();
-        }
-    });
-
-    // Обробник події оновлення балансу
-    document.addEventListener('balance-updated', function(event) {
-        if (event.detail && event.source !== 'core.js') {
-            console.log(`🔄 Core: Отримано подію оновлення балансу від ${event.detail.source}`);
-
-            // Перевіряємо блокування оновлення балансу
-            if (isBalanceUpdateLocked()) {
-                console.log("🔒 Core: Ігноруємо оновлення балансу від стороннього джерела через блокування");
-                return;
-            }
-
-            // Перевіряємо наявність даних
-            if (event.detail.newBalance !== undefined) {
-                // Оновлюємо локальний баланс
-                updateLocalBalance(event.detail.newBalance, event.detail.source || 'external_event', true);
-            }
-        }
-    });
-
-    // Обробник події підключення до мережі
-    window.addEventListener('online', function() {
-        console.log("🔄 Core: З'єднання з мережею відновлено");
-
-        // Оновлюємо дані після відновлення з'єднання
-        setTimeout(() => {
-            syncUserData().then(() => {
-                console.log("🔄 Core: Дані успішно синхронізовано після відновлення з'єднання");
-            }).catch(error => {
-                console.warn("⚠️ Core: Помилка синхронізації після відновлення з'єднання:", error);
-            });
-        }, 1000);
-    });
-
-    // Обробник події відключення від мережі
-    window.addEventListener('offline', function() {
-        console.warn("⚠️ Core: Втрачено з'єднання з мережею");
-    });
 
     // Глобальна обробка помилок для виявлення проблем
     window.addEventListener('error', function(event) {
@@ -1483,6 +1652,15 @@
         _errorCounter++;
         _lastErrorTime = Date.now();
 
+        // Відправляємо подію помилки
+        triggerEvent('error', {
+            message: 'Критична помилка JavaScript',
+            originalError: event.error,
+            stack: event.error ? event.error.stack : null,
+            module: 'core.js',
+            eventType: 'window.error'
+        });
+
         // При критичному накопиченні помилок скидаємо стан
         if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
             console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
@@ -1490,8 +1668,13 @@
             // Скидаємо лічильник
             _errorCounter = 0;
 
-            // Виводимо сповіщення користувачу
-            if (typeof window.showToast === 'function') {
+            // Виводимо сповіщення користувачу через централізований обробник або вбудований
+            if (hasErrorHandler()) {
+                window.WinixRaffles.errorHandler.showUserFriendlyError(
+                    'Виникли проблеми з додатком. Сторінка буде перезавантажена.',
+                    'error'
+                );
+            } else if (typeof window.showToast === 'function') {
                 window.showToast('Виникли проблеми з додатком. Сторінка буде перезавантажена.', 'error');
             }
 
@@ -1500,12 +1683,57 @@
         }
     });
 
+    // Обробник події підключення до мережі
+    window.addEventListener('online', function() {
+        console.log("🔄 Core: З'єднання з мережею відновлено");
+
+        // Генеруємо власну подію
+        triggerEvent('network-online', {});
+
+        // Оновлюємо дані після відновлення з'єднання
+        setTimeout(() => {
+            if (hasSyncService()) {
+                // Використовуємо сервіс синхронізації, якщо доступний
+                window.WinixRaffles.syncService.syncAll(true)
+                    .then(() => {
+                        console.log("🔄 Core: Дані успішно синхронізовано після відновлення з'єднання через syncService");
+                    })
+                    .catch(error => {
+                        console.warn("⚠️ Core: Помилка синхронізації через syncService після відновлення з'єднання:", error);
+                    });
+            } else {
+                // Інакше використовуємо власний метод
+                syncUserData().then(() => {
+                    console.log("🔄 Core: Дані успішно синхронізовано після відновлення з'єднання");
+                }).catch(error => {
+                    console.warn("⚠️ Core: Помилка синхронізації після відновлення з'єднання:", error);
+                });
+            }
+        }, 1000);
+    });
+
+    // Обробник події відключення від мережі
+    window.addEventListener('offline', function() {
+        console.warn("⚠️ Core: Втрачено з'єднання з мережею");
+
+        // Генеруємо власну подію
+        triggerEvent('network-offline', {});
+
+        // Сповіщаємо користувача через централізований обробник помилок, якщо він доступний
+        if (hasErrorHandler()) {
+            window.WinixRaffles.errorHandler.showUserFriendlyError(
+                'Відсутнє підключення до інтернету. Перевірте мережу.',
+                'warning'
+            );
+        }
+    });
+
     // ======== ПУБЛІЧНИЙ API ========
 
     // Експортуємо публічний API
     window.WinixCore = {
         // Версія модуля
-        version: '1.3.0',
+        version: '1.4.0',
 
         // Утиліти
         getElement,
@@ -1524,7 +1752,7 @@
         updateBalanceDisplay,
         refreshBalance,
 
-        // Нові функції управління балансом
+        // Функції управління балансом
         updateLocalBalance,
         spendCoins,
         confirmSpending,
@@ -1537,12 +1765,18 @@
         startAutoSync,
         stopAutoSync,
 
+        // Функції для роботи з подіями
+        registerEventHandler,
+        unregisterEventHandler,
+        triggerEvent,
+
         // Транзакції
         transactionRegistry: _transactionRegistry,
 
         // Ініціалізація
         init,
-        waitForModules
+        waitForModules,
+        isInitialized
     };
 
     // Додаємо функцію resetAndReloadApplication в глобальний простір імен

@@ -1,8 +1,8 @@
 /**
  * WINIX - Система розіграшів (ticket-manager.js)
- * Оптимізований модуль для управління білетами без дублювання логіки
+ * Оптимізований модуль для управління білетами з координацією з WinixCore
  * Покращена робота з DOM та кешування для зменшення навантаження
- * @version 1.6.0
+ * @version 1.7.0
  */
 
 (function() {
@@ -12,6 +12,72 @@
     if (typeof window.WinixRaffles === 'undefined') {
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше ticket-manager.js');
         return;
+    }
+
+    // Перевірка наявності WinixCore
+    const hasWinixCore = () => {
+        try {
+            return window.WinixCore &&
+                   typeof window.WinixCore.registerEventHandler === 'function' &&
+                   typeof window.WinixCore.getCoins === 'function';
+        } catch (e) {
+            console.error("❌ Помилка перевірки WinixCore:", e);
+            return false;
+        }
+    };
+
+    // Перевірка наявності сервісу синхронізації
+    const hasSyncService = () => {
+        try {
+            return window.WinixRaffles.syncService &&
+                   typeof window.WinixRaffles.syncService.syncParticipation === 'function';
+        } catch (e) {
+            console.error("❌ Помилка перевірки syncService:", e);
+            return false;
+        }
+    };
+
+    // Перевірка наявності обробника помилок
+    const hasErrorHandler = () => {
+        try {
+            return window.WinixRaffles.errorHandler &&
+                   typeof window.WinixRaffles.errorHandler.showUserFriendlyError === 'function';
+        } catch (e) {
+            console.error("❌ Помилка перевірки errorHandler:", e);
+            return false;
+        }
+    };
+
+    // Функція для безпечної роботи з помилками
+    function handleTicketManagerError(error, functionName, details = {}) {
+        console.error(`❌ Помилка у функції ${functionName}:`, error);
+
+        // Якщо є централізований обробник помилок, використовуємо його
+        if (hasErrorHandler()) {
+            window.WinixRaffles.errorHandler.handleRaffleError(error, {
+                module: 'ticket-manager.js',
+                function: functionName,
+                details: details
+            });
+            return;
+        }
+
+        // Якщо WinixCore та його система подій доступні
+        if (hasWinixCore()) {
+            window.WinixCore.triggerEvent('error', {
+                message: `Помилка в управлінні білетами: ${error.message}`,
+                originalError: error,
+                module: 'ticket-manager.js',
+                function: functionName,
+                details: details
+            });
+            return;
+        }
+
+        // Запасний варіант - просто показуємо повідомлення, якщо можливо
+        if (typeof window.showToast === 'function') {
+            window.showToast(`Помилка: ${error.message || 'Щось пішло не так'}`, 'error');
+        }
     }
 
     // Модуль управління білетами
@@ -63,10 +129,15 @@
             // Ініціалізуємо кеш DOM елементів
             this.initDOMCache();
 
+            // Реєструємо обробники подій через WinixCore, якщо доступний
+            if (hasWinixCore()) {
+                this._registerCoreEventHandlers();
+            }
+
             // Завантажуємо кількість білетів користувача
             this.loadUserTickets();
 
-            // Додаємо обробники подій
+            // Додаємо обробники подій DOM
             this.setupEventHandlers();
 
             // Силове оновлення даних після затримки
@@ -80,6 +151,51 @@
             }, 60000); // Раз на хвилину
 
             console.log('✅ Модуль управління білетами успішно ініціалізовано');
+        },
+
+        /**
+         * Реєстрація обробників подій WinixCore
+         * @private
+         */
+        _registerCoreEventHandlers: function() {
+            if (!hasWinixCore()) return;
+
+            // Підписка на оновлення балансу
+            window.WinixCore.registerEventHandler('balance-updated', (detail) => {
+                console.log('🎟️ TicketManager: Отримано подію оновлення балансу');
+                // Не оновлюємо білети, якщо оновлення ініційоване нами
+                if (detail.source !== 'ticket-manager.js') {
+                    setTimeout(() => this.loadUserTickets(false), 1000);
+                }
+            }, { source: 'ticket-manager.js' });
+
+            // Підписка на оновлення даних користувача
+            window.WinixCore.registerEventHandler('user-data-updated', (detail) => {
+                console.log('🎟️ TicketManager: Отримано подію оновлення даних користувача');
+                // Не оновлюємо білети, якщо оновлення ініційоване нами або sync-service
+                if (detail.source !== 'ticket-manager.js' && detail.source !== 'sync-service.js') {
+                    setTimeout(() => this.loadUserTickets(false), 1500);
+                }
+            }, { source: 'ticket-manager.js' });
+
+            // Підписка на успішну участь у розіграші
+            window.WinixCore.registerEventHandler('raffle-participation', (detail) => {
+                if (detail.successful) {
+                    console.log('🎟️ TicketManager: Отримано подію успішної участі в розіграші');
+                    this.handleSuccessfulParticipation(detail);
+                }
+            }, { source: 'ticket-manager.js' });
+
+            // Підписка на відновлення з'єднання
+            window.WinixCore.registerEventHandler('network-online', () => {
+                console.log('🎟️ TicketManager: Відновлено з\'єднання з мережею');
+                if (this.needsServerUpdate) {
+                    setTimeout(() => this.loadUserTickets(true), 2000);
+                    this.needsServerUpdate = false;
+                }
+            }, { source: 'ticket-manager.js' });
+
+            console.log('✅ TicketManager: Зареєстровано обробники подій WinixCore');
         },
 
         /**
@@ -179,30 +295,40 @@
         },
 
         /**
-         * Налаштування обробників подій
+         * Налаштування обробників подій DOM
          */
         setupEventHandlers: function() {
-            // Обробник події успішної участі в розіграші
-            document.addEventListener('raffle-participation', (event) => {
-                if (event.detail && event.detail.successful) {
-                    this.handleSuccessfulParticipation(event.detail);
-                }
-            });
-
-            // Обробник події оновлення балансу користувача
-            document.addEventListener('user-data-updated', (event) => {
-                if (event.detail && event.detail.userData) {
-                    // Оновлюємо дані про білети тільки якщо це не наша подія
-                    if (event.detail.source !== 'ticket-manager') {
-                        // ВИПРАВЛЕННЯ: збільшуємо затримку для більшої стабільності
-                        setTimeout(() => {
-                            this.loadUserTickets(true);
-                        }, 2000);
+            // Додаємо обробники DOM подій, якщо WinixCore недоступний
+            if (!hasWinixCore()) {
+                // Обробник події успішної участі в розіграші
+                document.addEventListener('raffle-participation', (event) => {
+                    if (event.detail && event.detail.successful) {
+                        this.handleSuccessfulParticipation(event.detail);
                     }
-                }
-            });
+                });
 
-            // Обробник завантаження розіграшів
+                // Обробник події оновлення балансу користувача
+                document.addEventListener('user-data-updated', (event) => {
+                    if (event.detail && event.detail.userData) {
+                        // Оновлюємо дані про білети тільки якщо це не наша подія
+                        if (event.detail.source !== 'ticket-manager.js' && event.detail.source !== 'sync-service.js') {
+                            setTimeout(() => {
+                                this.loadUserTickets(false);
+                            }, 1500);
+                        }
+                    }
+                });
+
+                // Обробник відновлення з'єднання
+                window.addEventListener('online', () => {
+                    if (this.needsServerUpdate) {
+                        setTimeout(() => this.loadUserTickets(true), 2000);
+                        this.needsServerUpdate = false;
+                    }
+                });
+            }
+
+            // Завжди додаємо обробник завантаження розіграшів
             document.addEventListener('raffles-loaded', () => {
                 // Скидаємо кеш DOM елементів
                 this.domCache.buttons = {};
@@ -213,7 +339,7 @@
 
                 // Оновлюємо дані про білети
                 setTimeout(() => {
-                    this.loadUserTickets();
+                    this.loadUserTickets(false);
                 }, 1000);
             });
 
@@ -237,7 +363,13 @@
                     event.preventDefault();
                     event.stopPropagation();
 
-                    if (typeof window.showToast === 'function') {
+                    // Показуємо повідомлення через централізований обробник або вбудований
+                    if (hasErrorHandler()) {
+                        window.WinixRaffles.errorHandler.showUserFriendlyError(
+                            'Будь ласка, зачекайте перед наступною спробою',
+                            'info'
+                        );
+                    } else if (typeof window.showToast === 'function') {
                         window.showToast('Будь ласка, зачекайте перед наступною спробою', 'info');
                     }
                     return;
@@ -247,28 +379,42 @@
                 const entryFee = parseInt(participateButton.getAttribute('data-entry-fee')) || 1;
                 this.entryFees[raffleId] = entryFee;
 
-                // ВИПРАВЛЕННЯ: Перевіряємо баланс перед кліком
+                // Перевіряємо баланс перед кліком
                 const userCoins = this.getUserCoins();
                 if (userCoins < entryFee) {
                     event.preventDefault();
                     event.stopPropagation();
-                    if (typeof window.showToast === 'function') {
+
+                    // Показуємо повідомлення через централізований обробник або вбудований
+                    if (hasErrorHandler()) {
+                        window.WinixRaffles.errorHandler.showUserFriendlyError(
+                            `Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${userCoins}`,
+                            'warning'
+                        );
+                    } else if (typeof window.showToast === 'function') {
                         window.showToast(`Недостатньо жетонів. Потрібно: ${entryFee}, у вас: ${userCoins}`, 'warning');
                     }
                     return;
                 }
 
-                // ВИПРАВЛЕННЯ: Створюємо таймер зворотного відліку для цього розіграшу
+                // Створюємо таймер зворотного відліку для цього розіграшу
                 this.cooldownTimers[raffleId] = setTimeout(() => {
                     delete this.cooldownTimers[raffleId];
                 }, this.minTransactionInterval);
             });
 
-            // ДОДАНО: Обробник для оновлення при зміні видимості сторінки
+            // Обробник для оновлення при зміні видимості сторінки
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && this.needsServerUpdate) {
                     console.log('🔄 Оновлюємо дані про білети після повернення на сторінку');
-                    this.loadUserTickets(true);
+
+                    // Делегуємо синхронізацію якщо є сервіс синхронізації
+                    if (hasSyncService()) {
+                        window.WinixRaffles.syncService.syncParticipation(true);
+                    } else {
+                        this.loadUserTickets(true);
+                    }
+
                     this.needsServerUpdate = false;
                 }
             });
@@ -280,7 +426,7 @@
          */
         getUserCoins: function() {
             // Спочатку перевіряємо WinixCore
-            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+            if (hasWinixCore()) {
                 return window.WinixCore.getCoins();
             }
 
@@ -298,42 +444,46 @@
          * Витягування вартості участі з DOM
          */
         extractEntryFeesFromDOM: function() {
-            // Оптимізоване отримання всіх кнопок одним запитом
-            const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
+            try {
+                // Оптимізоване отримання всіх кнопок одним запитом
+                const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
 
-            buttons.forEach(button => {
-                const raffleId = button.getAttribute('data-raffle-id');
-                if (!raffleId) return;
+                buttons.forEach(button => {
+                    const raffleId = button.getAttribute('data-raffle-id');
+                    if (!raffleId) return;
 
-                // Витягуємо вартість участі
-                let entryFee = 1;
+                    // Витягуємо вартість участі
+                    let entryFee = 1;
 
-                // Спробуємо витягти з атрибуту
-                if (button.hasAttribute('data-entry-fee')) {
-                    entryFee = parseInt(button.getAttribute('data-entry-fee')) || 1;
-                } else {
-                    // Спробуємо витягти з тексту
-                    const buttonText = button.textContent;
-                    const matches = buttonText.match(/за\s+(\d+)\s+жетон/i);
-                    if (matches && matches[1]) {
-                        entryFee = parseInt(matches[1]) || 1;
+                    // Спробуємо витягти з атрибуту
+                    if (button.hasAttribute('data-entry-fee')) {
+                        entryFee = parseInt(button.getAttribute('data-entry-fee')) || 1;
+                    } else {
+                        // Спробуємо витягти з тексту
+                        const buttonText = button.textContent;
+                        const matches = buttonText.match(/за\s+(\d+)\s+жетон/i);
+                        if (matches && matches[1]) {
+                            entryFee = parseInt(matches[1]) || 1;
+                        }
                     }
-                }
 
-                // Зберігаємо вартість участі
-                this.entryFees[raffleId] = entryFee;
+                    // Зберігаємо вартість участі
+                    this.entryFees[raffleId] = entryFee;
 
-                // Додаємо атрибут, якщо його немає
-                if (!button.hasAttribute('data-entry-fee')) {
-                    button.setAttribute('data-entry-fee', entryFee);
-                }
+                    // Додаємо атрибут, якщо його немає
+                    if (!button.hasAttribute('data-entry-fee')) {
+                        button.setAttribute('data-entry-fee', entryFee);
+                    }
 
-                // Кешуємо кнопку для подальшого використання
-                if (!this.domCache.buttons[raffleId]) {
-                    this.domCache.buttons[raffleId] = [];
-                }
-                this.domCache.buttons[raffleId].push(button);
-            });
+                    // Кешуємо кнопку для подальшого використання
+                    if (!this.domCache.buttons[raffleId]) {
+                        this.domCache.buttons[raffleId] = [];
+                    }
+                    this.domCache.buttons[raffleId].push(button);
+                });
+            } catch (error) {
+                handleTicketManagerError(error, 'extractEntryFeesFromDOM');
+            }
         },
 
         /**
@@ -341,73 +491,77 @@
          * @param {boolean} forceRefresh - Примусове оновлення
          */
         loadUserTickets: function(forceRefresh = false) {
-            // Перевірка необхідності оновлення
-            if (!forceRefresh && Object.keys(this.ticketCounts).length > 0) {
-                console.log('🎟️ Використовуємо кешовані дані про білети');
-                return;
-            }
-
-            console.log('🎟️ Оновлення даних про білети');
-
-            // Скидаємо прапорець потреби в оновленні
-            this.needsServerUpdate = false;
-
-            // Скидаємо попередній стан
-            const previousTickets = {...this.ticketCounts};
-            this.ticketCounts = {};
-
-            // Спробуємо отримати дані з WinixRaffles
-            if (window.WinixRaffles && window.WinixRaffles.participation) {
-                const participation = window.WinixRaffles.participation;
-
-                // Якщо є список розіграшів з участю
-                if (participation.participatingRaffles) {
-                    participation.participatingRaffles.forEach(raffleId => {
-                        // Отримуємо кількість білетів
-                        const ticketCount = participation.userRaffleTickets &&
-                                          participation.userRaffleTickets[raffleId] || 1;
-
-                        // Зберігаємо кількість білетів
-                        this.ticketCounts[raffleId] = ticketCount;
-                    });
-                }
-
-                // Якщо є дані про кількість білетів
-                if (participation.userRaffleTickets) {
-                    Object.keys(participation.userRaffleTickets).forEach(raffleId => {
-                        this.ticketCounts[raffleId] = participation.userRaffleTickets[raffleId];
-                    });
-                }
-            }
-
-            // Спробуємо отримати дані з localStorage
             try {
-                const savedTickets = localStorage.getItem('winix_user_tickets');
-                if (savedTickets) {
-                    const parsedTickets = JSON.parse(savedTickets);
-
-                    // Об'єднуємо з поточними даними
-                    this.ticketCounts = {...this.ticketCounts, ...parsedTickets};
+                // Перевірка необхідності оновлення
+                if (!forceRefresh && Object.keys(this.ticketCounts).length > 0) {
+                    console.log('🎟️ Використовуємо кешовані дані про білети');
+                    return;
                 }
-            } catch (e) {
-                console.warn('⚠️ Помилка завантаження даних про білети:', e);
-            }
 
-            // Перевіряємо зміни і виводимо логи
-            let hasChanges = false;
-            for (const raffleId in this.ticketCounts) {
-                if (previousTickets[raffleId] !== this.ticketCounts[raffleId]) {
-                    hasChanges = true;
-                    break;
+                console.log('🎟️ Оновлення даних про білети');
+
+                // Скидаємо прапорець потреби в оновленні
+                this.needsServerUpdate = false;
+
+                // Скидаємо попередній стан
+                const previousTickets = {...this.ticketCounts};
+                this.ticketCounts = {};
+
+                // Спробуємо отримати дані з WinixRaffles
+                if (window.WinixRaffles && window.WinixRaffles.participation) {
+                    const participation = window.WinixRaffles.participation;
+
+                    // Якщо є список розіграшів з участю
+                    if (participation.participatingRaffles) {
+                        participation.participatingRaffles.forEach(raffleId => {
+                            // Отримуємо кількість білетів
+                            const ticketCount = participation.userRaffleTickets &&
+                                              participation.userRaffleTickets[raffleId] || 1;
+
+                            // Зберігаємо кількість білетів
+                            this.ticketCounts[raffleId] = ticketCount;
+                        });
+                    }
+
+                    // Якщо є дані про кількість білетів
+                    if (participation.userRaffleTickets) {
+                        Object.keys(participation.userRaffleTickets).forEach(raffleId => {
+                            this.ticketCounts[raffleId] = participation.userRaffleTickets[raffleId];
+                        });
+                    }
                 }
-            }
 
-            if (hasChanges || forceRefresh) {
-                console.log('🎟️ Оновлені дані про білети:', this.ticketCounts);
-                this.saveTicketsToStorage();
+                // Спробуємо отримати дані з localStorage
+                try {
+                    const savedTickets = localStorage.getItem('winix_user_tickets');
+                    if (savedTickets) {
+                        const parsedTickets = JSON.parse(savedTickets);
 
-                // ДОДАНО: Оновлення інтерфейсу після оновлення даних
-                this.updateTicketsUI();
+                        // Об'єднуємо з поточними даними
+                        this.ticketCounts = {...this.ticketCounts, ...parsedTickets};
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка завантаження даних про білети:', e);
+                }
+
+                // Перевіряємо зміни і виводимо логи
+                let hasChanges = false;
+                for (const raffleId in this.ticketCounts) {
+                    if (previousTickets[raffleId] !== this.ticketCounts[raffleId]) {
+                        hasChanges = true;
+                        break;
+                    }
+                }
+
+                if (hasChanges || forceRefresh) {
+                    console.log('🎟️ Оновлені дані про білети:', this.ticketCounts);
+                    this.saveTicketsToStorage();
+
+                    // Оновлення інтерфейсу після оновлення даних
+                    this.updateTicketsUI();
+                }
+            } catch (error) {
+                handleTicketManagerError(error, 'loadUserTickets', { forceRefresh });
             }
         },
 
@@ -415,30 +569,34 @@
          * Оновлення відображення кількості білетів
          */
         updateTicketsUI: function() {
-            // Оптимізований метод з використанням кешу DOM
-            for (const raffleId in this.ticketCounts) {
-                const ticketCount = this.ticketCounts[raffleId];
+            try {
+                // Оптимізований метод з використанням кешу DOM
+                for (const raffleId in this.ticketCounts) {
+                    const ticketCount = this.ticketCounts[raffleId];
 
-                // Отримуємо кнопки з кешу або шукаємо їх в DOM
-                const buttons = this.getDOMElement('buttons', raffleId, () => {
-                    return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
-                });
+                    // Отримуємо кнопки з кешу або шукаємо їх в DOM
+                    const buttons = this.getDOMElement('buttons', raffleId, () => {
+                        return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                    });
 
-                if (!buttons || !buttons.length) continue;
+                    if (!buttons || !buttons.length) continue;
 
-                // Перебираємо і оновлюємо всі кнопки
-                buttons.forEach(button => {
-                    const isMini = button.classList.contains('mini-raffle-button');
-                    if (ticketCount > 0) {
-                        // Додаємо клас для учасників
-                        button.classList.add('participating');
+                    // Перебираємо і оновлюємо всі кнопки
+                    buttons.forEach(button => {
+                        const isMini = button.classList.contains('mini-raffle-button');
+                        if (ticketCount > 0) {
+                            // Додаємо клас для учасників
+                            button.classList.add('participating');
 
-                        // Змінюємо текст кнопки
-                        button.textContent = isMini ?
-                            `Додати ще білет (${ticketCount})` :
-                            `Додати ще білет (у вас: ${ticketCount})`;
-                    }
-                });
+                            // Змінюємо текст кнопки
+                            button.textContent = isMini ?
+                                `Додати ще білет (${ticketCount})` :
+                                `Додати ще білет (у вас: ${ticketCount})`;
+                        }
+                    });
+                }
+            } catch (error) {
+                handleTicketManagerError(error, 'updateTicketsUI');
             }
         },
 
@@ -447,31 +605,40 @@
          * @param {Object} data - Дані про участь
          */
         handleSuccessfulParticipation: function(data) {
-            if (!data || !data.raffleId) return;
+            try {
+                if (!data || !data.raffleId) return;
 
-            // Оновлюємо кількість білетів
-            const raffleId = data.raffleId;
-            const ticketCount = data.ticketCount || (this.ticketCounts[raffleId] || 0) + 1;
+                // Оновлюємо кількість білетів
+                const raffleId = data.raffleId;
+                const ticketCount = data.ticketCount || (this.ticketCounts[raffleId] || 0) + 1;
 
-            // Зберігаємо оновлену кількість білетів
-            this.ticketCounts[raffleId] = ticketCount;
+                // Зберігаємо оновлену кількість білетів
+                this.ticketCounts[raffleId] = ticketCount;
 
-            // Зберігаємо в localStorage
-            this.saveTicketsToStorage();
+                // Зберігаємо в localStorage
+                this.saveTicketsToStorage();
 
-            // Оновлюємо вигляд кнопок
-            this.updateButtons(raffleId, ticketCount);
+                // Оновлюємо вигляд кнопок
+                this.updateButtons(raffleId, ticketCount);
 
-            // ВИПРАВЛЕННЯ: Встановлюємо прапорець оновлення
-            this.needsServerUpdate = true;
+                // Встановлюємо прапорець оновлення
+                this.needsServerUpdate = true;
 
-            // ВИПРАВЛЕННЯ: Розклад відкладеного оновлення для стабільності
-            if (this.syncTimer) clearTimeout(this.syncTimer);
-            this.syncTimer = setTimeout(() => {
-                this.loadUserTickets(true);
-            }, 3000);
+                // Розклад відкладеного оновлення для стабільності
+                if (this.syncTimer) clearTimeout(this.syncTimer);
+                this.syncTimer = setTimeout(() => {
+                    // Делегуємо оновлення до сервісу синхронізації, якщо доступний
+                    if (hasSyncService()) {
+                        window.WinixRaffles.syncService.syncParticipation(true);
+                    } else {
+                        this.loadUserTickets(true);
+                    }
+                }, 3000);
 
-            console.log(`✅ Оновлено кількість білетів для розіграшу ${raffleId}: ${ticketCount}`);
+                console.log(`✅ Оновлено кількість білетів для розіграшу ${raffleId}: ${ticketCount}`);
+            } catch (error) {
+                handleTicketManagerError(error, 'handleSuccessfulParticipation', data);
+            }
         },
 
         /**
@@ -480,31 +647,35 @@
          * @param {number} ticketCount - Кількість білетів
          */
         updateButtons: function(raffleId, ticketCount) {
-            // Отримуємо кнопки з кешу або шукаємо їх в DOM
-            const buttons = this.getDOMElement('buttons', raffleId, () => {
-                return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
-            });
+            try {
+                // Отримуємо кнопки з кешу або шукаємо їх в DOM
+                const buttons = this.getDOMElement('buttons', raffleId, () => {
+                    return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                });
 
-            if (!buttons || !buttons.length) return;
+                if (!buttons || !buttons.length) return;
 
-            // Перебираємо і оновлюємо всі кнопки
-            buttons.forEach(button => {
-                // Видаляємо стан обробки
-                button.classList.remove('processing');
-                button.removeAttribute('data-processing');
+                // Перебираємо і оновлюємо всі кнопки
+                buttons.forEach(button => {
+                    // Видаляємо стан обробки
+                    button.classList.remove('processing');
+                    button.removeAttribute('data-processing');
 
-                // Додаємо клас для учасників
-                button.classList.add('participating');
+                    // Додаємо клас для учасників
+                    button.classList.add('participating');
 
-                // Змінюємо текст кнопки
-                const isMini = button.classList.contains('mini-raffle-button');
-                button.textContent = isMini ?
-                    `Додати ще білет (${ticketCount})` :
-                    `Додати ще білет (у вас: ${ticketCount})`;
+                    // Змінюємо текст кнопки
+                    const isMini = button.classList.contains('mini-raffle-button');
+                    button.textContent = isMini ?
+                        `Додати ще білет (${ticketCount})` :
+                        `Додати ще білет (у вас: ${ticketCount})`;
 
-                // Розблоковуємо кнопку
-                button.disabled = false;
-            });
+                    // Розблоковуємо кнопку
+                    button.disabled = false;
+                });
+            } catch (error) {
+                handleTicketManagerError(error, 'updateButtons', { raffleId, ticketCount });
+            }
         },
 
         /**
@@ -515,29 +686,6 @@
                 localStorage.setItem('winix_user_tickets', JSON.stringify(this.ticketCounts));
             } catch (e) {
                 console.warn('⚠️ Помилка збереження даних про білети:', e);
-            }
-        },
-
-        /**
-         * Участь у розіграші - делегуємо модулю participation
-         * @param {string} raffleId - ID розіграшу
-         * @param {number} entryCount - Кількість білетів для додавання
-         * @returns {Promise<Object>} Результат участі
-         */
-        participateInRaffle: async function(raffleId, entryCount = 1) {
-            // ВИПРАВЛЕНО: Делегуємо цю функцію модулю participation
-            if (window.WinixRaffles &&
-                window.WinixRaffles.participation &&
-                typeof window.WinixRaffles.participation.participateInRaffle === 'function') {
-
-                console.log('🔄 Делегування запиту участі модулю participation...');
-                return await window.WinixRaffles.participation.participateInRaffle(raffleId, 'delegate', entryCount);
-            } else {
-                console.error('❌ Модуль participation недоступний. Не можна взяти участь у розіграші');
-                return {
-                    success: false,
-                    message: 'Модуль обробки участі недоступний. Оновіть сторінку.'
-                };
             }
         },
 
@@ -565,51 +713,66 @@
          * @param {number} fee - Вартість участі
          */
         updateEntryFee: function(raffleId, fee) {
-            if (!raffleId) return;
+            try {
+                if (!raffleId) return;
 
-            // Зберігаємо вартість участі
-            this.entryFees[raffleId] = fee;
+                // Зберігаємо вартість участі
+                this.entryFees[raffleId] = fee;
 
-            // Оновлюємо атрибути кнопок, використовуючи кешовані елементи
-            const buttons = this.getDOMElement('buttons', raffleId, () => {
-                return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
-            });
+                // Оновлюємо атрибути кнопок, використовуючи кешовані елементи
+                const buttons = this.getDOMElement('buttons', raffleId, () => {
+                    return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                });
 
-            if (!buttons || !buttons.length) return;
+                if (!buttons || !buttons.length) return;
 
-            // Перебираємо і оновлюємо всі кнопки
-            buttons.forEach(button => {
-                button.setAttribute('data-entry-fee', fee);
+                // Перебираємо і оновлюємо всі кнопки
+                buttons.forEach(button => {
+                    button.setAttribute('data-entry-fee', fee);
 
-                // Якщо кнопка не в стані участі, оновлюємо текст
-                if (!button.classList.contains('participating')) {
-                    if (button.classList.contains('mini-raffle-button')) {
-                        button.textContent = `Взяти участь`;
-                    } else {
-                        button.textContent = `Взяти участь за ${fee} жетон${fee > 1 ? 'и' : ''}`;
+                    // Якщо кнопка не в стані участі, оновлюємо текст
+                    if (!button.classList.contains('participating')) {
+                        if (button.classList.contains('mini-raffle-button')) {
+                            button.textContent = `Взяти участь`;
+                        } else {
+                            button.textContent = `Взяти участь за ${fee} жетон${fee > 1 ? 'и' : ''}`;
+                        }
                     }
-                }
-            });
+                });
+            } catch (error) {
+                handleTicketManagerError(error, 'updateEntryFee', { raffleId, fee });
+            }
         },
 
         /**
-         * Синхронізація з сервером - делегуємо модулю participation
+         * Синхронізація з сервером - делегуємо сервісу синхронізації або WinixCore
          * @returns {Promise<boolean>} Результат синхронізації
          */
         syncWithServer: async function() {
-            // ВИПРАВЛЕНО: Делегуємо модулю participation або WinixCore
-            if (window.WinixCore && typeof window.WinixCore.syncUserData === 'function') {
-                console.log('🔄 Делегування запиту синхронізації до WinixCore...');
-                const result = await window.WinixCore.syncUserData();
-                return result.success;
-            } else if (window.WinixRaffles &&
-                window.WinixRaffles.participation &&
-                typeof window.WinixRaffles.participation.syncWithServer === 'function') {
-
-                console.log('🔄 Делегування запиту синхронізації модулю participation...');
-                return await window.WinixRaffles.participation.syncWithServer();
-            } else {
-                console.warn('⚠️ Модулі синхронізації недоступні. Не можна синхронізувати дані');
+            try {
+                // Делегуємо сервісу синхронізації, якщо він доступний
+                if (hasSyncService()) {
+                    console.log('🔄 Делегування запиту синхронізації до syncService...');
+                    return await window.WinixRaffles.syncService.syncParticipation(true);
+                }
+                // Делегуємо WinixCore, якщо він доступний
+                else if (hasWinixCore()) {
+                    console.log('🔄 Делегування запиту синхронізації до WinixCore...');
+                    const result = await window.WinixCore.syncUserData();
+                    return result.success;
+                }
+                // Використовуємо власний метод як запасний варіант
+                else if (window.WinixRaffles && window.WinixRaffles.loadUserParticipation) {
+                    console.log('🔄 Використання WinixRaffles.loadUserParticipation для синхронізації...');
+                    const result = await window.WinixRaffles.loadUserParticipation(true);
+                    return result.success;
+                }
+                else {
+                    console.warn('⚠️ Модулі синхронізації недоступні. Не можна синхронізувати дані');
+                    return false;
+                }
+            } catch (error) {
+                handleTicketManagerError(error, 'syncWithServer');
                 return false;
             }
         },
@@ -637,15 +800,58 @@
 
     // Ініціалізація модуля
     document.addEventListener('DOMContentLoaded', function() {
-        if (window.WinixRaffles.state.isInitialized) {
+        // Перевіряємо, чи не ініціалізований WinixCore ще
+        if (hasWinixCore()) {
+            // Якщо WinixCore ініціалізований, просто запускаємо ticket-manager
+            if (window.WinixCore.isInitialized && window.WinixCore.isInitialized()) {
+                // Якщо WinixRaffles також ініціалізований
+                if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
+                    ticketManager.init();
+                } else {
+                    // Інакше чекаємо на ініціалізацію WinixRaffles
+                    document.addEventListener('winix-raffles-initialized', function() {
+                        ticketManager.init();
+                    });
+                }
+            } else {
+                // Якщо WinixCore ще не ініціалізований, чекаємо на його ініціалізацію
+                window.WinixCore.registerEventHandler('core-initialized', function() {
+                    console.log('🎟️ TicketManager: Отримано подію ініціалізації WinixCore');
+
+                    // Перевіряємо стан WinixRaffles
+                    if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
+                        ticketManager.init();
+                    } else {
+                        // Інакше чекаємо на ініціалізацію WinixRaffles
+                        document.addEventListener('winix-raffles-initialized', function() {
+                            ticketManager.init();
+                        });
+                    }
+                }, { source: 'ticket-manager.js', once: true });
+            }
+        } else if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
+            // Якщо WinixCore недоступний, але WinixRaffles ініціалізований
             ticketManager.init();
         } else {
-            // Додаємо обробник події ініціалізації
+            // Якщо WinixRaffles ще не ініціалізований, чекаємо на його ініціалізацію
             document.addEventListener('winix-raffles-initialized', function() {
                 ticketManager.init();
             });
         }
     });
 
-    console.log('✅ Модуль управління білетами успішно завантажено');
+    // Прибирання ресурсів при закритті сторінки
+    window.addEventListener('beforeunload', function() {
+        if (ticketManager.syncTimer) {
+            clearTimeout(ticketManager.syncTimer);
+        }
+
+        for (const timerId in ticketManager.cooldownTimers) {
+            if (ticketManager.cooldownTimers.hasOwnProperty(timerId)) {
+                clearTimeout(ticketManager.cooldownTimers[timerId]);
+            }
+        }
+    });
+
+    console.log('✅ Модуль управління білетами успішно завантажено (v1.7.0)');
 })();
