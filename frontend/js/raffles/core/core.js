@@ -1094,54 +1094,202 @@
      * Отримання балансу користувача з API
      * @returns {Promise<Object>} Відповідь від API
      */
-    WinixRaffles.refreshUserBalance = async function() {
-    // Делегуємо оновлення балансу до основного ядра
-    if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
-        return await window.WinixCore.refreshBalance();
+   /**
+ * Оновлення балансу користувача з API
+ * @param {boolean} forceRefresh - Примусове оновлення, ігноруючи кеш
+ * @returns {Promise<Object>} Відповідь від API
+ */
+WinixRaffles.refreshUserBalance = async function(forceRefresh = false) {
+    // Створюємо ідентифікатор транзакції для відстеження
+    const transactionId = Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+
+    console.log(`🔄 Запит на оновлення балансу (ID: ${transactionId})`);
+
+    // Перевіряємо блокування синхронізації
+    if (window.__winixSyncControl &&
+        window.__winixSyncControl.isBlocked &&
+        window.__winixSyncControl.isBlocked('raffles_balance') &&
+        !forceRefresh) {
+
+        console.log("🔒 Оновлення балансу заблоковано контролером синхронізації");
+
+        // Використовуємо останній валідний баланс, якщо він доступний
+        if (window.__winixSyncControl.lastValidBalance !== null) {
+            return {
+                success: true,
+                blocked: true,
+                source: 'sync_control',
+                data: {
+                    coins: window.__winixSyncControl.lastValidBalance
+                }
+            };
+        }
     }
 
-    // Запасний варіант, якщо WinixCore недоступний
+    // 1. Делегуємо оновлення до WinixCore як пріоритетного джерела
+    if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
+        try {
+            console.log('🔄 Делегуємо оновлення балансу до WinixCore');
+
+            // Викликаємо оновлення балансу з додатковою інформацією
+            const result = await window.WinixCore.refreshBalance(forceRefresh);
+
+            // Зберігаємо останній результат для діагностики
+            this.lastBalanceResult = {
+                success: result.success,
+                source: 'WinixCore.refreshBalance',
+                timestamp: Date.now(),
+                transactionId: transactionId,
+                result: result
+            };
+
+            return result;
+        } catch (coreError) {
+            console.warn('⚠️ Помилка оновлення балансу через WinixCore:', coreError);
+            // Продовжуємо до запасного варіанту
+        }
+    }
+
+    // 2. Запасний варіант через централізовану функцію (якщо доступна)
+    if (window.updateBalance && typeof window.updateBalance === 'function') {
+        try {
+            console.log('🔄 Оновлення балансу через централізовану функцію');
+
+            // Спроба використати централізовану функцію оновлення
+            const result = await window.updateBalance(forceRefresh);
+
+            // Запам'ятовуємо результат для діагностики
+            this.lastBalanceResult = {
+                success: true,
+                source: 'window.updateBalance',
+                timestamp: Date.now(),
+                transactionId: transactionId
+            };
+
+            return {
+                success: true,
+                source: 'updateBalance',
+                data: {
+                    coins: parseInt(document.getElementById('user-coins')?.textContent || '0')
+                }
+            };
+        } catch (updateError) {
+            console.warn('⚠️ Помилка оновлення через централізовану функцію:', updateError);
+            // Продовжуємо до наступного варіанту
+        }
+    }
+
+    // 3. Власна реалізація через API
     try {
         if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getBalance === 'function') {
-            console.log('🔄 Запит на оновлення балансу користувача через запасний механізм');
+            console.log('🔄 Запит балансу через власну реалізацію API');
 
-            // Запам'ятовуємо старий баланс перед запитом
+            // Зберігаємо старий баланс для порівняння і подій
             const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
 
+            // Запит через API з додатковими опціями надійності
             const response = await window.WinixAPI.apiRequest('user/balance', 'GET', null, {
                 suppressErrors: true,
                 retries: 2,
-                timeout: 10000
+                timeout: 10000,
+                headers: forceRefresh ? {'Cache-Control': 'no-cache'} : undefined,
+                transactionId: transactionId
             });
 
             if (response && response.status === 'success' && response.data) {
                 const newCoins = response.data.coins;
 
-                // Оновлюємо відображення балансу
-                const userCoinsElement = document.getElementById('user-coins');
-                if (userCoinsElement) {
-                    userCoinsElement.textContent = newCoins;
+                // Перевіряємо на конфлікти з іншими транзакціями
+                let finalCoins = newCoins;
+                let conflictDetected = false;
+
+                try {
+                    // Перевіряємо останню транзакцію участі
+                    const lastTxData = localStorage.getItem('winix_last_transaction');
+                    if (lastTxData) {
+                        const lastTx = JSON.parse(lastTxData);
+
+                        // Якщо транзакція нова (менше 30 секунд) і є конфлікт
+                        if (lastTx.timestamp &&
+                            (Date.now() - lastTx.timestamp < 30000) &&
+                            lastTx.confirmed &&
+                            lastTx.newBalance !== newCoins) {
+
+                            console.warn(`⚠️ Виявлено конфлікт балансу: транзакція ${lastTx.newBalance}, сервер ${newCoins}`);
+                            finalCoins = lastTx.newBalance; // Перевага локальній транзакції
+                            conflictDetected = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка перевірки конфліктів:', e);
                 }
 
-                // Оновлюємо localStorage з часовою міткою
-                localStorage.setItem('userCoins', newCoins.toString());
-                localStorage.setItem('winix_coins', newCoins.toString());
-                localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                // Оновлюємо відображення балансу централізовано
+                if (window.updateUserBalanceDisplay && typeof window.updateUserBalanceDisplay === 'function') {
+                    window.updateUserBalanceDisplay(finalCoins, !conflictDetected);
+                } else {
+                    // Запасний варіант оновлення
+                    const userCoinsElement = document.getElementById('user-coins');
+                    if (userCoinsElement) {
+                        // Анімація зміни (тільки якщо немає конфлікту)
+                        if (!conflictDetected) {
+                            if (finalCoins < oldCoins) {
+                                userCoinsElement.classList.add('decreasing');
+                                setTimeout(() => userCoinsElement.classList.remove('decreasing'), 1000);
+                            } else if (finalCoins > oldCoins) {
+                                userCoinsElement.classList.add('increasing');
+                                setTimeout(() => userCoinsElement.classList.remove('increasing'), 1000);
+                            }
+                        }
 
-                // Генеруємо подію для інших модулів
+                        userCoinsElement.textContent = finalCoins;
+                    }
+
+                    // Оновлюємо локальне сховище
+                    localStorage.setItem('userCoins', finalCoins.toString());
+                    localStorage.setItem('winix_coins', finalCoins.toString());
+                    localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+                    // Зберігаємо окремо оригінальний серверний баланс для діагностики
+                    if (finalCoins !== newCoins) {
+                        localStorage.setItem('winix_server_balance', newCoins.toString());
+                    }
+                }
+
+                // Генеруємо подію з детальною інформацією
                 document.dispatchEvent(new CustomEvent('balance-updated', {
                     detail: {
                         oldBalance: oldCoins,
-                        newBalance: newCoins,
-                        source: 'core.js'
+                        newBalance: finalCoins,
+                        serverBalance: newCoins,
+                        source: 'raffles.core',
+                        hasConflict: conflictDetected,
+                        transactionId: transactionId,
+                        timestamp: Date.now()
                     }
                 }));
 
-                console.log('✅ Баланс користувача оновлено:', newCoins);
+                console.log(`✅ Баланс користувача оновлено: ${finalCoins} жетонів` +
+                          (conflictDetected ? ` (виявлено конфлікт, сервер: ${newCoins})` : ''));
+
+                // Запам'ятовуємо для діагностики
+                this.lastBalanceResult = {
+                    success: true,
+                    source: 'direct_api',
+                    timestamp: Date.now(),
+                    transactionId: transactionId,
+                    oldCoins: oldCoins,
+                    newCoins: finalCoins,
+                    serverCoins: newCoins,
+                    hasConflict: conflictDetected
+                };
 
                 return {
                     success: true,
-                    coins: newCoins
+                    coins: finalCoins,
+                    serverCoins: newCoins,
+                    hasConflict: conflictDetected,
+                    transactionId: transactionId
                 };
             } else {
                 throw new Error(response?.message || 'Не вдалося отримати баланс');
@@ -1152,13 +1300,23 @@
     } catch (error) {
         console.error('❌ Помилка оновлення балансу:', error);
 
+        // Запам'ятовуємо помилку для діагностики
+        this.lastBalanceResult = {
+            success: false,
+            source: 'error',
+            timestamp: Date.now(),
+            transactionId: transactionId,
+            error: error.message || 'Невідома помилка'
+        };
+
         // При помилці повертаємо останні відомі дані
         const cachedCoins = parseInt(localStorage.getItem('userCoins') || '0');
 
         return {
             success: false,
             message: error.message || 'Не вдалося оновити баланс',
-            fallbackCoins: cachedCoins
+            fallbackCoins: cachedCoins,
+            transactionId: transactionId
         };
     }
 };

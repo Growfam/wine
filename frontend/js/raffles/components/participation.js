@@ -727,104 +727,276 @@ _getServerBalance: async function() {
 
         console.log("🔄 Запит актуального балансу з сервера...");
 
-        if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-            // Перевіряємо наявність останньої транзакції перед запитом
-            const lastTxData = localStorage.getItem('winix_last_transaction');
-            let lastTx = null;
+        // Створюємо інформацію про транзакцію
+        const transactionInfo = {
+            id: 'participation_balance_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
+            timestamp: Date.now(),
+            source: 'participation.js'
+        };
 
-            if (lastTxData) {
-                try {
+        // Перевіряємо, чи доступно централізоване джерело балансу через WinixCore
+        if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
+            console.log("🔄 Використовуємо WinixCore для оновлення балансу");
+            try {
+                // Делегуємо запит балансу до централізованого сервісу
+                const result = await window.WinixCore.refreshBalance(true);
+                // Записуємо результат для діагностики
+                this.lastCoreBalanceResult = {
+                    success: result.success,
+                    timestamp: Date.now(),
+                    source: 'WinixCore.refreshBalance'
+                };
+
+                // Оновлюємо локальний кеш при успіху
+                if (result.success && result.data) {
+                    this.lastKnownBalance = result.data.coins !== undefined ? result.data.coins : this.lastKnownBalance;
+                    this.lastBalanceUpdateTime = Date.now();
+                }
+
+                return result;
+            } catch (coreError) {
+                console.warn('⚠️ Помилка оновлення через WinixCore:', coreError);
+                // Продовжуємо до альтернативного методу
+            }
+        }
+
+        // Альтернативний метод через API
+        if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+            // Отримуємо останню транзакцію баланса
+            let lastTx = null;
+            let lastBalanceTx = null;
+
+            try {
+                const lastTxData = localStorage.getItem('winix_last_transaction');
+                const lastBalanceTxData = localStorage.getItem('winix_last_balance_transaction');
+
+                if (lastTxData) {
                     lastTx = JSON.parse(lastTxData);
-                    // Перевіряємо, чи транзакція досить нова (менше 2 хвилин)
-                    const txAge = Date.now() - lastTx.timestamp;
-                    if (txAge < 120000) {
-                        console.log('📝 Знайдено недавню транзакцію:',
-                            lastTx.type, 'баланс:', lastTx.newBalance,
-                            'вік:', Math.round(txAge/1000) + 'с');
-                    }
-                } catch (e) {
-                    console.warn('⚠️ Помилка парсингу даних транзакції:', e);
+                }
+
+                if (lastBalanceTxData) {
+                    lastBalanceTx = JSON.parse(lastBalanceTxData);
+                }
+            } catch (e) {
+                console.warn('⚠️ Помилка обробки даних транзакцій:', e);
+            }
+
+            // Перевіряємо блокування через глобальний контролер
+            if (window.__winixSyncControl &&
+                window.__winixSyncControl.isBlocked &&
+                window.__winixSyncControl.isBlocked('participation_balance')) {
+
+                console.log("🔒 Оновлення балансу заблоковано контролером синхронізації");
+
+                // Використовуємо останній валідний баланс з контролера, якщо він доступний
+                if (window.__winixSyncControl.lastValidBalance !== null) {
+                    // Оновлюємо локальний кеш
+                    this.lastKnownBalance = window.__winixSyncControl.lastValidBalance;
+                    this.lastBalanceUpdateTime = Date.now();
+
+                    console.log(`🛡️ Використовуємо валідний баланс з контролера: ${this.lastKnownBalance}`);
+
+                    // Оновлюємо відображення без анімації
+                    this._updateBalanceDisplay(this.lastKnownBalance, false);
+
+                    return {
+                        success: true,
+                        blocked: true,
+                        source: 'sync_control',
+                        data: {
+                            coins: this.lastKnownBalance
+                        }
+                    };
                 }
             }
 
             // Запит балансу з сервера
+            const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
+            transactionInfo.oldBalance = oldBalance;
+
+            // Виконуємо запит
             const response = await window.WinixAPI.getBalance();
 
+            // Обробляємо результат
             if (response && response.status === 'success' && response.data) {
                 let newBalance = response.data.coins;
-                const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
-                let shouldUpdate = true;
+                transactionInfo.serverBalance = newBalance;
+                transactionInfo.responseSuccess = true;
 
-                // Запам'ятовуємо баланс від сервера
-                this.lastKnownBalance = newBalance;
-                this.lastBalanceUpdateTime = Date.now();
+                // Тепер потрібно визначити, який баланс вважати правильним
+                let finalBalance = newBalance; // За замовчуванням використовуємо серверний баланс
+                let balanceSource = 'server';
 
-                console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
+                // Запам'ятовуємо баланс для внутрішнього використання
+                this.serverReportedBalance = newBalance;
 
-                // Перевірка на конфлікт з недавньою транзакцією
-              // Перевірка на конфлікт з недавньою транзакцією
-if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-    const txAge = Date.now() - lastTx.timestamp;
+                // Перевірка конфліктів балансу
+                const checkConflicts = () => {
+                    // Перевіряємо наявність недавньої транзакції участі
+                    if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
+                        const txAge = Date.now() - lastTx.timestamp;
 
-    // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
-    if (txAge < 120000 && newBalance !== lastTx.newBalance) {
-        console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
-            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
-            - Сервер повернув: ${newBalance} жетонів`);
+                        // Якщо транзакція недавня (до 2 хвилин) і баланси не співпадають
+                        if (txAge < 120000 && newBalance !== lastTx.newBalance) {
+                            console.warn(`⚠️ Конфлікт балансу: 
+                                - Локальна транзакція (${Math.round(txAge/1000)}с): ${lastTx.newBalance} жетонів
+                                - Сервер: ${newBalance} жетонів`);
 
-        // Для дуже нових транзакцій (менше 30 секунд), довіряємо локальному балансу
-        if (txAge < 30000) {
-            console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
-            newBalance = lastTx.newBalance;
-        } else {
-            // Для старіших транзакцій (30-120 секунд), довіряємо серверу і синхронізуємо локальний стан
-            console.log(`🔄 Виявлено розбіжність з сервером. Використовуємо серверний баланс і запускаємо перевірку транзакцій`);
-            // Запускаємо перевірку стану участі в розіграшах
-            setTimeout(() => {
-                this.verifyAndFixParticipationState();
-            }, 1000);
-        }
-    }
-}
+                            transactionInfo.conflict = true;
+                            transactionInfo.conflictType = 'participation_tx';
+                            transactionInfo.txAge = txAge;
 
-                // Оновлюємо відображення
-                const userCoinsElement = document.getElementById('user-coins');
-                if (userCoinsElement) {
-                    // Додаємо анімацію в залежності від зміни
-                    if (newBalance < oldBalance) {
-                        userCoinsElement.classList.add('decreasing');
-                        setTimeout(() => {
-                            userCoinsElement.classList.remove('decreasing');
-                        }, 1000);
-                    } else if (newBalance > oldBalance) {
-                        userCoinsElement.classList.add('increasing');
-                        setTimeout(() => {
-                            userCoinsElement.classList.remove('increasing');
-                        }, 1000);
+                            // Для дуже нових транзакцій (до 30 секунд) довіряємо локальному балансу
+                            if (txAge < 30000) {
+                                console.log(`🛡️ Використовуємо локальний баланс транзакції: ${lastTx.newBalance}`);
+                                finalBalance = lastTx.newBalance;
+                                balanceSource = 'recent_tx';
+                                return true;
+                            }
+                        }
                     }
 
-                    userCoinsElement.textContent = newBalance;
+                    // Перевіряємо наявність недавньої транзакції оновлення балансу
+                    if (lastBalanceTx && lastBalanceTx.success) {
+                        const txAge = Date.now() - lastBalanceTx.timestamp;
+
+                        // Якщо транзакція оновлення недавня (до 1 хвилини) і баланси не співпадають
+                        if (txAge < 60000 && newBalance !== lastBalanceTx.newCoins) {
+                            console.warn(`⚠️ Конфлікт оновлення балансу: 
+                                - Оновлення (${Math.round(txAge/1000)}с): ${lastBalanceTx.newCoins} жетонів
+                                - Сервер: ${newBalance} жетонів`);
+
+                            transactionInfo.conflict = true;
+                            transactionInfo.conflictType = 'balance_tx';
+                            transactionInfo.txAge = txAge;
+
+                            // Використовуємо баланс з недавньої транзакції оновлення
+                            if (txAge < 20000) { // Якщо дуже свіжа (до 20 секунд)
+                                console.log(`🛡️ Використовуємо баланс оновлення: ${lastBalanceTx.newCoins}`);
+                                finalBalance = lastBalanceTx.newCoins;
+                                balanceSource = 'recent_balance_tx';
+                                return true;
+                            }
+                        }
+                    }
+
+                    return false;
+                };
+
+                // Перевіряємо конфлікти і визначаємо фінальний баланс
+                const hasConflicts = checkConflicts();
+
+                // Зберігаємо фінальний баланс
+                this.lastKnownBalance = finalBalance;
+                this.lastBalanceUpdateTime = Date.now();
+
+                transactionInfo.finalBalance = finalBalance;
+                transactionInfo.balanceSource = balanceSource;
+
+                console.log(`📊 Отримано баланс: ${finalBalance} жетонів (джерело: ${balanceSource})`);
+
+                // Якщо виявлено конфлікт, запускаємо перевірку участі в розіграшах
+                if (hasConflicts) {
+                    setTimeout(() => {
+                        this.verifyAndFixParticipationState();
+                    }, 1500);
                 }
 
+                // Оновлюємо відображення з анімацією
+                this._updateBalanceDisplay(finalBalance, true);
+
                 // Оновлюємо локальне сховище
-                localStorage.setItem('userCoins', newBalance.toString());
-                localStorage.setItem('winix_coins', newBalance.toString());
+                localStorage.setItem('userCoins', finalBalance.toString());
+                localStorage.setItem('winix_coins', finalBalance.toString());
                 localStorage.setItem('winix_balance_update_time', Date.now().toString());
-                localStorage.setItem('winix_server_balance', newBalance.toString());
+                localStorage.setItem('winix_server_balance', newBalance.toString()); // Зберігаємо окремо серверний баланс
+
+                // Зберігаємо інформацію про транзакцію
+                try {
+                    localStorage.setItem('winix_participation_balance_tx', JSON.stringify(transactionInfo));
+                } catch (e) {
+                    console.warn('⚠️ Не вдалося зберегти дані транзакції балансу:', e);
+                }
 
                 // Генеруємо подію для інших модулів
                 document.dispatchEvent(new CustomEvent('balance-updated', {
                     detail: {
                         oldBalance: oldBalance,
-                        newBalance: newBalance,
-                        source: 'participation.js'
+                        newBalance: finalBalance,
+                        serverBalance: newBalance,
+                        source: 'participation.js',
+                        transactionId: transactionInfo.id,
+                        timestamp: transactionInfo.timestamp,
+                        hasConflicts: hasConflicts
                     }
                 }));
+
+                return {
+                    success: true,
+                    data: {
+                        coins: finalBalance,
+                        serverCoins: newBalance
+                    },
+                    transactionInfo: transactionInfo
+                };
+            } else {
+                console.warn('⚠️ Помилка відповіді API:', response?.message);
+                return {
+                    success: false,
+                    message: response?.message || 'Помилка отримання балансу',
+                    data: {
+                        coins: this.lastKnownBalance
+                    }
+                };
             }
         }
+
+        return {
+            success: false,
+            message: 'API для отримання балансу недоступне'
+        };
     } catch (error) {
         console.warn('⚠️ Помилка отримання балансу з сервера:', error);
+        return {
+            success: false,
+            error: error.message || 'Невідома помилка отримання балансу'
+        };
     }
+},
+
+// Додати новий допоміжний метод для оновлення відображення балансу
+_updateBalanceDisplay: function(newBalance, animate = true) {
+    if (typeof newBalance !== 'number') return;
+
+    // Отримуємо поточне значення
+    const userCoinsElement = document.getElementById('user-coins');
+    if (!userCoinsElement) return;
+
+    const oldBalance = parseInt(userCoinsElement.textContent) || 0;
+
+    // Якщо баланс не змінився, не оновлюємо
+    if (oldBalance === newBalance) return;
+
+    // Додаємо анімацію, якщо потрібно
+    if (animate) {
+        // Очищаємо попередні класи анімації
+        userCoinsElement.classList.remove('decreasing', 'increasing');
+
+        if (newBalance < oldBalance) {
+            userCoinsElement.classList.add('decreasing');
+            setTimeout(() => {
+                userCoinsElement.classList.remove('decreasing');
+            }, 1000);
+        } else if (newBalance > oldBalance) {
+            userCoinsElement.classList.add('increasing');
+            setTimeout(() => {
+                userCoinsElement.classList.remove('increasing');
+            }, 1000);
+        }
+    }
+
+    // Оновлюємо відображення
+    userCoinsElement.textContent = newBalance;
 },
 
         /**
@@ -1725,38 +1897,147 @@ if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
                 return Promise.reject(new Error('Невалідний ідентифікатор розіграшу'));
             }
 
-            // 2. ГЛОБАЛЬНЕ БЛОКУВАННЯ ЗАПИТІВ
-            if (this.requestLock) {
-                console.warn('⚠️ Глобальне блокування активне, запит відхилено');
-                return {
-                    success: false,
-                    message: 'Система тимчасово недоступна, спробуйте за кілька секунд'
-                };
-            }
+           // 2. ПОКРАЩЕНА СИСТЕМА ПЕРЕВІРКИ БЛОКУВАНЬ
+// Створюємо єдиний об'єкт стану запиту для відстеження і діагностики
+const requestState = {
+    startTime: requestStartTime,
+    raffleId: raffleId,
+    transactionId: this._generateTransactionId(),
+    globalLock: this.requestLock,
+    inProgress: this.requestInProgress,
+    pendingRequest: this.pendingRequests[raffleId],
+    lastRequestTime: this.lastRequestTimes[raffleId] || 0,
+    timeSinceLastRequest: requestStartTime - (this.lastRequestTimes[raffleId] || 0),
+    timeSinceLastParticipation: requestStartTime - this.lastParticipationTime
+};
 
-            // ВИПРАВЛЕНО: Перевірка на активний запит
-            if (this.requestInProgress) {
-                // Якщо запит висить більше 15 секунд, скидаємо блокування
-                if (requestStartTime - this.lastParticipationTime > 15000) {
-                    console.warn("⚠️ Виявлено застряглий запит, скидаємо блокування");
-                    this.requestInProgress = false;
-                } else {
-                    console.warn("⚠️ Запит уже в процесі, зачекайте його завершення");
-                    return {
-                        success: false,
-                        message: 'Зачекайте завершення попереднього запиту'
-                    };
-                }
-            }
+// Зберігаємо для діагностики
+this.lastRequestState = requestState;
 
-            // 3. ПЕРЕВІРКА ОБМЕЖЕНЬ КОНКРЕТНОГО РОЗІГРАШУ
-            if (this.pendingRequests[raffleId]) {
-                console.warn(`⚠️ Вже є запит для розіграшу ${raffleId}`);
-                return {
-                    success: false,
-                    message: 'Запит для цього розіграшу вже обробляється'
-                };
+// Перевірка глобального блокування
+if (requestState.globalLock) {
+    console.warn('⚠️ Глобальне блокування активне, запит відхилено');
+
+    // Логуємо стан запиту для діагностики
+    this._logTransaction({
+        type: 'rejected',
+        reason: 'global_lock',
+        raffleId: raffleId,
+        state: requestState,
+        timestamp: requestStartTime
+    });
+
+    return {
+        success: false,
+        message: 'Система тимчасово недоступна, спробуйте за кілька секунд',
+        state: 'global_lock'
+    };
+}
+
+// Перевірка на активний запит з автоматичним скиданням зависаючих запитів
+if (requestState.inProgress) {
+    // Якщо виявлено застряглий запит (більше 15 секунд)
+    if (requestState.timeSinceLastParticipation > 15000) {
+        console.warn("⚠️ Виявлено застряглий запит, скидаємо блокування");
+        this.requestInProgress = false;
+
+        // Логуємо скидання для діагностики
+        this._logTransaction({
+            type: 'reset',
+            reason: 'stale_request',
+            raffleId: 'global',
+            timeSinceLastRequest: requestState.timeSinceLastParticipation,
+            timestamp: requestStartTime
+        });
+
+        // Також очищаємо блокування конкретних розіграшів, якщо вони є
+        Object.keys(this.pendingRequests).forEach(id => {
+            const pendingTime = requestStartTime - (this.pendingRequests[id].timestamp || 0);
+            if (pendingTime > 15000) {
+                delete this.pendingRequests[id];
+                console.warn(`⚠️ Скинуто застряглий запит для розіграшу ${id} (${Math.round(pendingTime/1000)}с)`);
             }
+        });
+    } else {
+        console.warn("⚠️ Запит уже в процесі, зачекайте його завершення");
+
+        // Логуємо відхилення для діагностики
+        this._logTransaction({
+            type: 'rejected',
+            reason: 'in_progress',
+            raffleId: raffleId,
+            state: requestState,
+            timestamp: requestStartTime
+        });
+
+        return {
+            success: false,
+            message: 'Зачекайте завершення попереднього запиту',
+            state: 'in_progress',
+            waitTime: Math.round((15000 - requestState.timeSinceLastParticipation) / 1000)
+        };
+    }
+}
+
+// 3. ПОКРАЩЕНА ПЕРЕВІРКА ОБМЕЖЕНЬ КОНКРЕТНОГО РОЗІГРАШУ
+if (requestState.pendingRequest) {
+    const pendingAge = requestStartTime - requestState.pendingRequest.timestamp;
+
+    // Якщо запит зависнув (більше 10 секунд), скидаємо його
+    if (pendingAge > 10000) {
+        console.warn(`⚠️ Виявлено застряглий запит для розіграшу ${raffleId}, скидаємо`);
+        delete this.pendingRequests[raffleId];
+
+        // Логуємо скидання для діагностики
+        this._logTransaction({
+            type: 'reset',
+            reason: 'stale_pending_request',
+            raffleId: raffleId,
+            pendingAge: pendingAge,
+            timestamp: requestStartTime
+        });
+    } else {
+        console.warn(`⚠️ Вже є запит для розіграшу ${raffleId} (${Math.round(pendingAge/1000)}с)`);
+
+        // Логуємо відхилення для діагностики
+        this._logTransaction({
+            type: 'rejected',
+            reason: 'pending_request',
+            raffleId: raffleId,
+            state: requestState,
+            pendingAge: pendingAge,
+            timestamp: requestStartTime
+        });
+
+        return {
+            success: false,
+            message: 'Запит для цього розіграшу вже обробляється',
+            state: 'pending_request',
+            waitTime: Math.round((10000 - pendingAge) / 1000)
+        };
+    }
+}
+
+// 4. ПЕРЕВІРКА МІНІМАЛЬНОГО ІНТЕРВАЛУ МІЖ ЗАПИТАМИ
+if (requestState.timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+    console.warn(`⚠️ Занадто частий запит для розіграшу ${raffleId}, потрібно зачекати`);
+
+    // Логуємо відхилення для діагностики
+    this._logTransaction({
+        type: 'rejected',
+        reason: 'throttle',
+        raffleId: raffleId,
+        state: requestState,
+        timestamp: requestStartTime
+    });
+
+    return {
+        success: false,
+        message: 'Будь ласка, зачекайте перед наступною спробою',
+        state: 'throttle',
+        waitTime: Math.round((this.MIN_REQUEST_INTERVAL - requestState.timeSinceLastRequest) / 1000)
+    };
+}
 
             // 4. ЧАСОВИЙ ІНТЕРВАЛ
             const now = Date.now();

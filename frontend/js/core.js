@@ -605,34 +605,52 @@
  */
 async function refreshBalance() {
     try {
-        // Перевіряємо, чи пристрій онлайн
-        if (!isOnline()) {
+        // Створюємо об'єкт з інформацією про транзакцію
+        const transactionInfo = {
+            id: Date.now().toString() + '_' + Math.random().toString(36).substring(2, 8),
+            timestamp: Date.now(),
+            source: 'core.js',
+            isOffline: !isOnline()
+        };
+
+        // Отримуємо поточні значення для логування транзакції
+        const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
+        const oldTokens = parseFloat(localStorage.getItem('userTokens') || '0');
+        const oldLastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+
+        // Якщо пристрій офлайн, чітко визначаємо поведінку
+        if (transactionInfo.isOffline) {
             console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
 
-            // Отримуємо останні відомі дані балансу
+            // Явно отримуємо та обчислюємо всі дані для офлайн-режиму
             const lastKnownBalance = getBalance();
             const lastKnownCoins = getCoins();
             const lastUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
             const now = Date.now();
-
-            // Перевіряємо актуальність даних
             const dataAge = now - lastUpdateTime;
-            let dataStatus = 'fresh'; // 'fresh', 'stale', 'unknown'
 
+            // Визначаємо статус даних для кращого інформування користувача
+            let dataStatus = 'fresh';
             if (lastUpdateTime === 0) {
                 dataStatus = 'unknown';
             } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
                 dataStatus = 'stale';
             }
 
-            // Оновлюємо відображення з локальних даних
-            updateBalanceDisplay();
+            // Явно встановлюємо блокування синхронізації у офлайн-режимі
+            if (typeof window.__winixSyncControl !== 'undefined') {
+                window.__winixSyncControl.isOffline = true;
+            }
+
+            // Оновлюємо відображення з локальних даних без анімації
+            updateBalanceDisplay(false);
 
             return {
                 success: true,
                 offline: true,
                 dataStatus: dataStatus,
                 dataAge: dataAge,
+                transactionId: transactionInfo.id,
                 data: {
                     balance: lastKnownBalance,
                     coins: lastKnownCoins,
@@ -641,104 +659,168 @@ async function refreshBalance() {
             };
         }
 
+        // Онлайн-режим: перевіряємо блокування перед запитом
+        if (typeof window.__winixSyncControl !== 'undefined' &&
+            window.__winixSyncControl.isBlocked &&
+            window.__winixSyncControl.isBlocked('core_balance')) {
+            console.log("🔒 Core: Оновлення балансу заблоковано, використовуємо кешовані дані");
+            updateBalanceDisplay(false);
+            return {
+                success: true,
+                blocked: true,
+                data: {
+                    balance: getBalance(),
+                    coins: getCoins(),
+                    lastUpdate: oldLastUpdate
+                }
+            };
+        }
+
+        // Отримуємо баланс використовуючи API або дані користувача
         let balanceData;
+        let responseStatus = true;
+        let responseMessage = '';
 
-        // Перевіряємо наявність API модуля
+        // Отримання балансу з API
         if (hasApiModule()) {
-            // Запам'ятовуємо старі значення перед запитом
-            const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
-            const oldTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-            const oldLastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+            try {
+                const response = await window.WinixAPI.getBalance();
 
-            // Отримуємо баланс з API
-            const response = await window.WinixAPI.getBalance();
+                if (response && response.status === 'success' && response.data) {
+                    balanceData = response.data;
+                    transactionInfo.serverResponse = true;
+                } else {
+                    // Чітко визначаємо, що запит не вдався
+                    responseStatus = false;
+                    responseMessage = response?.message || 'Не вдалося отримати баланс';
+                    console.warn('⚠️ API повернуло помилку:', responseMessage);
 
-            if (response && response.status === 'success' && response.data) {
-                balanceData = response.data;
-            } else {
-                // У випадку помилки API, але не мережі
-                // Повертаємо старі дані але зі статусом помилки
-                console.warn('⚠️ API повернуло помилку:', response?.message);
-                return {
-                    success: false,
-                    message: response?.message || 'Не вдалося отримати баланс',
-                    data: {
+                    // При помилці використовуємо кешовані дані
+                    balanceData = {
                         balance: oldTokens,
-                        coins: oldBalance,
-                        lastUpdate: oldLastUpdate
-                    }
+                        coins: oldCoins
+                    };
+                }
+            } catch (apiError) {
+                // Якщо сталася помилка в самому API
+                responseStatus = false;
+                responseMessage = apiError.message || 'Помилка API запиту';
+                console.error('❌ Помилка API запиту балансу:', apiError);
+
+                // Використовуємо кешовані дані
+                balanceData = {
+                    balance: oldTokens,
+                    coins: oldCoins
                 };
             }
         } else {
-            // Якщо API недоступний, отримуємо повні дані користувача
-            const userData = await getUserData(true);
-            balanceData = {
-                balance: userData.balance || 0,
-                coins: userData.coins || 0
-            };
+            // Резервний шлях: через getUserData
+            try {
+                const userData = await getUserData(true);
+                balanceData = {
+                    balance: userData.balance || 0,
+                    coins: userData.coins || 0
+                };
+                transactionInfo.fallbackMethod = 'getUserData';
+            } catch (userDataError) {
+                // При помилці в резервному методі
+                responseStatus = false;
+                responseMessage = userDataError.message || 'Помилка отримання даних користувача';
+                console.error('❌ Помилка отримання даних користувача:', userDataError);
+
+                // Використовуємо кешовані дані
+                balanceData = {
+                    balance: oldTokens,
+                    coins: oldCoins
+                };
+            }
         }
 
-            // Оновлюємо дані користувача
-            if (!_userData) _userData = {};
+        // Ініціалізуємо userData, якщо потрібно
+        if (!_userData) _userData = {};
 
-            _userData.balance = balanceData.balance !== undefined ? balanceData.balance : _userData.balance || 0;
-            _userData.coins = balanceData.coins !== undefined ? balanceData.coins : _userData.coins || 0;
+        // Оновлюємо дані, пріоритизуючи дані з сервера
+        _userData.balance = balanceData.balance !== undefined ? balanceData.balance : (_userData.balance || 0);
+        _userData.coins = balanceData.coins !== undefined ? balanceData.coins : (_userData.coins || 0);
 
-            // Зберігаємо в localStorage
-            saveToStorage('userTokens', _userData.balance);
-            saveToStorage('winix_balance', _userData.balance);
-            saveToStorage('userCoins', _userData.coins);
-            saveToStorage('winix_coins', _userData.coins);
+        // Зберігаємо результат транзакції
+        transactionInfo.oldCoins = oldCoins;
+        transactionInfo.newCoins = _userData.coins;
+        transactionInfo.oldTokens = oldTokens;
+        transactionInfo.newTokens = _userData.balance;
+        transactionInfo.success = responseStatus;
 
-            // Оновлюємо відображення
-            updateBalanceDisplay();
+        // Записуємо результат транзакції для використання іншими модулями
+        try {
+            localStorage.setItem('winix_last_balance_transaction', JSON.stringify(transactionInfo));
+        } catch (e) {
+            console.warn('⚠️ Не вдалося зберегти дані транзакції:', e);
+        }
 
-            // Генеруємо подію оновлення балансу
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    balance: _userData.balance,
-                    coins: _userData.coins
-                },
-                source: 'core.js'
-            }));
+        // Зберігаємо в localStorage з часовою міткою
+        saveToStorage('userTokens', _userData.balance);
+        saveToStorage('winix_balance', _userData.balance);
+        saveToStorage('userCoins', _userData.coins);
+        saveToStorage('winix_coins', _userData.coins);
+        saveToStorage('winix_balance_update_time', Date.now().toString());
 
-            // Скидаємо лічильник помилок при успішному запиті
+        // Оновлюємо відображення з анімацією тільки при успішному запиті
+        updateBalanceDisplay(responseStatus);
+
+        // Генеруємо подію оновлення балансу з розширеними даними
+        document.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: {
+                oldBalance: oldCoins,
+                newBalance: _userData.coins,
+                oldTokens: oldTokens,
+                newTokens: _userData.balance,
+                source: 'core.js',
+                transactionId: transactionInfo.id,
+                timestamp: transactionInfo.timestamp,
+                success: responseStatus
+            }
+        }));
+
+        // Скидаємо лічильник помилок при успішному запиті
+        if (responseStatus) {
             _errorCounter = 0;
-
-            return {
-                success: true,
-                data: {
-                    balance: _userData.balance,
-                    coins: _userData.coins
-                }
-            };
-        } catch (error) {
-    console.error('Помилка оновлення балансу:', error);
-
-    // Збільшуємо лічильник помилок
-    _errorCounter++;
-    _lastErrorTime = Date.now();
-
-    // Беремо кешовані дані з позначенням часу останнього оновлення
-    const cachedBalance = getBalance();
-    const cachedCoins = getCoins();
-    const lastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
-
-    // Оновлюємо відображення з кешованих даних
-    updateBalanceDisplay();
-
-    return {
-        success: false,
-        offline: !window.navigator.onLine,
-        message: error.message || 'Не вдалося оновити баланс',
-        data: {
-            balance: cachedBalance,
-            coins: cachedCoins,
-            lastUpdate: lastUpdate
         }
-    };
-}
+
+        return {
+            success: responseStatus,
+            message: responseMessage,
+            transactionId: transactionInfo.id,
+            data: {
+                balance: _userData.balance,
+                coins: _userData.coins,
+                lastUpdate: Date.now()
+            }
+        };
+    } catch (error) {
+        console.error('❌ Помилка оновлення балансу:', error);
+
+        // Збільшуємо лічильник помилок
+        _errorCounter++;
+        _lastErrorTime = Date.now();
+
+        // Чітко визначаємо дані для повернення
+        const cachedBalance = getBalance();
+        const cachedCoins = getCoins();
+        const lastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+
+        return {
+            success: false,
+            offline: !window.navigator.onLine,
+            message: error.message || 'Не вдалося оновити баланс',
+            error: true,
+            data: {
+                balance: cachedBalance,
+                coins: cachedCoins,
+                lastUpdate: lastUpdate
+            }
+        };
     }
+}
 
     // ======== НАВІГАЦІЯ ========
 
