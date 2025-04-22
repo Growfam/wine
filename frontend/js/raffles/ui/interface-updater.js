@@ -2,7 +2,8 @@
  * WINIX - Система розіграшів (interface-updater.js)
  * Модуль для оновлення інтерфейсу після дій користувача
  * Виправлено проблеми з асинхронним оновленням учасників і переможців
- * @version 1.1.0
+ * Оптимізовано доступ до DOM і кешування елементів
+ * @version 1.2.0
  */
 
 (function() {
@@ -31,6 +32,24 @@
         // Стан блокування інтерфейсу
         isUILocked: false,
 
+        // Кеш DOM елементів для оптимізації доступу
+        domCache: {
+            // Баланс користувача
+            userCoins: null,
+            // Кнопки участі за ID розіграшу
+            participationButtons: {},
+            // Кількість учасників за ID розіграшу
+            participantCounters: {},
+            // Кількість переможців за ID розіграшу
+            winnerCounters: {},
+            // Таймери оновлення кеша за ID елемента
+            cacheTimeouts: {},
+            // Інтервал автоматичного очищення кеша (мс)
+            cacheLifetime: 30000,
+            // Час останнього повного оновлення кеша
+            lastCacheUpdate: 0
+        },
+
         // Кеш останніх відомих значень для уникнення гонок
         lastKnownValues: {
             // Учасники за розіграшем
@@ -57,10 +76,106 @@
             // Створюємо стилі для анімацій оновлення
             this.createUpdateAnimationStyles();
 
+            // Ініціалізуємо кеш DOM елементів
+            this.initDOMCache();
+
             // Запускаємо відкладене оновлення для виявлення розбіжностей
             setTimeout(() => {
                 this.verifyAndCorrectDisplayData();
             }, 2000);
+
+            // Запускаємо періодичне очищення кеша
+            setInterval(() => {
+                this.cleanupDOMCache();
+            }, 60000); // Раз на хвилину
+        },
+
+        /**
+         * Ініціалізація кеша DOM елементів
+         */
+        initDOMCache: function() {
+            // Кешуємо елемент балансу
+            this.domCache.userCoins = document.getElementById('user-coins');
+
+            // Оновлюємо час кешування
+            this.domCache.lastCacheUpdate = Date.now();
+
+            console.log('✅ Кеш DOM елементів ініціалізовано');
+        },
+
+        /**
+         * Очищення кеша DOM елементів
+         */
+        cleanupDOMCache: function() {
+            const now = Date.now();
+
+            // Очищаємо старі таймаути
+            for (const id in this.domCache.cacheTimeouts) {
+                clearTimeout(this.domCache.cacheTimeouts[id]);
+                delete this.domCache.cacheTimeouts[id];
+            }
+
+            // Очищаємо кеш кнопок, якщо він старший за cacheLifetime
+            if (now - this.domCache.lastCacheUpdate > this.domCache.cacheLifetime) {
+                this.domCache.participationButtons = {};
+                this.domCache.participantCounters = {};
+                this.domCache.winnerCounters = {};
+
+                // Оновлюємо елемент балансу
+                this.domCache.userCoins = document.getElementById('user-coins');
+
+                // Оновлюємо час очищення
+                this.domCache.lastCacheUpdate = now;
+
+                console.log('🧹 Кеш DOM елементів очищено');
+            }
+        },
+
+        /**
+         * Отримання кешованого DOM елементу
+         * @param {string} type - Тип елемента (userCoins, participationButtons, participantCounters, winnerCounters)
+         * @param {string} id - ID елемента (для кнопок та лічильників)
+         * @param {Function} selector - Функція для вибору елемента, якщо він не кешований
+         * @returns {HTMLElement|HTMLElement[]|null} - Елемент або масив елементів
+         */
+        getDOMElement: function(type, id, selector) {
+            // Якщо це елемент балансу
+            if (type === 'userCoins') {
+                if (!this.domCache.userCoins) {
+                    this.domCache.userCoins = document.getElementById('user-coins');
+                }
+                return this.domCache.userCoins;
+            }
+
+            // Для інших типів з ID
+            if (!id || !selector) return null;
+
+            // Перевіряємо кеш
+            const cache = this.domCache[type];
+            if (cache && cache[id]) {
+                return cache[id];
+            }
+
+            // Отримуємо елемент через селектор
+            const element = selector();
+
+            // Кешуємо елемент, якщо він існує
+            if (element) {
+                if (!this.domCache[type]) {
+                    this.domCache[type] = {};
+                }
+                this.domCache[type][id] = element;
+
+                // Встановлюємо таймаут для автоматичного очищення
+                const timeoutId = setTimeout(() => {
+                    delete this.domCache[type][id];
+                }, this.domCache.cacheLifetime);
+
+                // Зберігаємо ID таймаута для можливості очищення
+                this.domCache.cacheTimeouts[`${type}_${id}`] = timeoutId;
+            }
+
+            return element;
         },
 
         /**
@@ -121,6 +236,9 @@
             document.addEventListener('raffles-loaded', () => {
                 // Додаємо кнопки деталей до розіграшів
                 this.addDetailsButtons();
+
+                // Оновлюємо кеш DOM елементів
+                this.initDOMCache();
 
                 // Перевіряємо та виправляємо дані відображення
                 setTimeout(() => {
@@ -193,8 +311,8 @@
          * Перевірка правильності відображення балансу
          */
         verifyBalanceDisplay: function() {
-            // Отримуємо поточне відображення балансу
-            const userCoinsElement = document.getElementById('user-coins');
+            // Отримуємо поточне відображення балансу з кешу
+            const userCoinsElement = this.getDOMElement('userCoins');
             if (!userCoinsElement) return;
 
             const displayedBalance = parseInt(userCoinsElement.textContent) || 0;
@@ -202,18 +320,24 @@
             // Спроба отримати актуальний баланс
             let actualBalance = null;
 
-            // 1. Спробуємо отримати з кешу
-            if (this.lastKnownValues.balance !== null &&
+            // 1. Спробуємо отримати з WinixCore (найбільш надійне джерело)
+            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+                actualBalance = window.WinixCore.getCoins();
+            }
+
+            // 2. Спробуємо отримати з кешу
+            if (actualBalance === null &&
+                this.lastKnownValues.balance !== null &&
                 Date.now() - this.lastKnownValues.balanceUpdateTime < 30000) { // 30 секунд
                 actualBalance = this.lastKnownValues.balance;
             }
 
-            // 2. Спробуємо отримати з localStorage
+            // 3. Спробуємо отримати з localStorage
             if (actualBalance === null) {
                 actualBalance = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
             }
 
-            // 3. Якщо є розбіжність, оновлюємо відображення
+            // 4. Якщо є розбіжність, оновлюємо відображення
             if (displayedBalance !== actualBalance && actualBalance > 0) {
                 console.log(`⚠️ Виявлено розбіжність балансу: відображається ${displayedBalance}, має бути ${actualBalance}`);
                 this.updateUserBalanceDisplay(actualBalance, displayedBalance);
@@ -227,49 +351,91 @@
             // Отримуємо всі активні розіграші
             const activeRaffles = window.WinixRaffles.state.activeRaffles || [];
 
+            // Створюємо групований запит для всіх селекторів
+            const participantsElements = {};
+            const winnersElements = {};
+
+            // Отримуємо всі елементи учасників і переможців за один прохід DOM
+            const participantsQuery = document.querySelectorAll('.participants-count .count, .participants-info .participants-count');
+            const winnersQuery = document.querySelectorAll('.winners-count');
+
+            // Групуємо елементи за ID розіграшу
+            participantsQuery.forEach(element => {
+                const card = element.closest('.raffle-card, .main-raffle');
+                if (!card) return;
+
+                const raffleId = card.getAttribute('data-raffle-id');
+                if (!raffleId) return;
+
+                if (!participantsElements[raffleId]) {
+                    participantsElements[raffleId] = [];
+                }
+                participantsElements[raffleId].push(element);
+
+                // Кешуємо елемент
+                if (!this.domCache.participantCounters[raffleId]) {
+                    this.domCache.participantCounters[raffleId] = [];
+                }
+                if (!this.domCache.participantCounters[raffleId].includes(element)) {
+                    this.domCache.participantCounters[raffleId].push(element);
+                }
+            });
+
+            winnersQuery.forEach(element => {
+                const card = element.closest('.raffle-card, .main-raffle');
+                if (!card) return;
+
+                const raffleId = card.getAttribute('data-raffle-id');
+                if (!raffleId) return;
+
+                if (!winnersElements[raffleId]) {
+                    winnersElements[raffleId] = [];
+                }
+                winnersElements[raffleId].push(element);
+
+                // Кешуємо елемент
+                if (!this.domCache.winnerCounters[raffleId]) {
+                    this.domCache.winnerCounters[raffleId] = [];
+                }
+                if (!this.domCache.winnerCounters[raffleId].includes(element)) {
+                    this.domCache.winnerCounters[raffleId].push(element);
+                }
+            });
+
+            // Перевіряємо значення для кожного розіграшу
             activeRaffles.forEach(raffle => {
                 if (!raffle.id) return;
 
                 // Перевіряємо відображення кількості учасників
-                const participantsElements = document.querySelectorAll(
-                    `.raffle-card[data-raffle-id="${raffle.id}"] .participants-count .count, ` +
-                    `.main-raffle[data-raffle-id="${raffle.id}"] .participants-info .participants-count, ` +
-                    `.main-raffle .participants-info .participants-count`
-                );
+                const elements = participantsElements[raffle.id];
+                if (elements && elements.length > 0) {
+                    // Перевіряємо значення першого елемента
+                    const displayedCount = parseInt(elements[0].textContent.replace(/\s+/g, '')) || 0;
+                    const serverCount = raffle.participants_count || 0;
 
-                if (participantsElements.length === 0) return;
+                    // Якщо є розбіжність, оновлюємо відображення
+                    if (displayedCount !== serverCount) {
+                        console.log(`⚠️ Виявлено розбіжність кількості учасників для розіграшу ${raffle.id}: відображається ${displayedCount}, має бути ${serverCount}`);
 
-                // Перевіряємо значення першого елемента
-                const displayedCount = parseInt(participantsElements[0].textContent.replace(/\s+/g, '')) || 0;
-                const serverCount = raffle.participants_count || 0;
-
-                // Якщо є розбіжність, оновлюємо відображення
-                if (displayedCount !== serverCount) {
-                    console.log(`⚠️ Виявлено розбіжність кількості учасників для розіграшу ${raffle.id}: відображається ${displayedCount}, має бути ${serverCount}`);
-
-                    // Оновлюємо всі елементи з правильним значенням
-                    this.updateRaffleParticipantsCount(raffle.id, serverCount);
+                        // Оновлюємо всі елементи з правильним значенням
+                        this.updateRaffleParticipantsCount(raffle.id, serverCount);
+                    }
                 }
 
                 // Перевіряємо відображення кількості переможців
-                const winnersElements = document.querySelectorAll(
-                    `.raffle-card[data-raffle-id="${raffle.id}"] .winners-count, ` +
-                    `.main-raffle[data-raffle-id="${raffle.id}"] .winners-count, ` +
-                    `.main-raffle .winners-count`
-                );
+                const winnerElements = winnersElements[raffle.id];
+                if (winnerElements && winnerElements.length > 0) {
+                    // Перевіряємо значення першого елемента
+                    const displayedWinners = parseInt(winnerElements[0].textContent) || 0;
+                    const serverWinners = raffle.winners_count || 0;
 
-                if (winnersElements.length === 0) return;
+                    // Якщо є розбіжність, оновлюємо відображення
+                    if (displayedWinners !== serverWinners) {
+                        console.log(`⚠️ Виявлено розбіжність кількості переможців для розіграшу ${raffle.id}: відображається ${displayedWinners}, має бути ${serverWinners}`);
 
-                // Перевіряємо значення першого елемента
-                const displayedWinners = parseInt(winnersElements[0].textContent) || 0;
-                const serverWinners = raffle.winners_count || 0;
-
-                // Якщо є розбіжність, оновлюємо відображення
-                if (displayedWinners !== serverWinners) {
-                    console.log(`⚠️ Виявлено розбіжність кількості переможців для розіграшу ${raffle.id}: відображається ${displayedWinners}, має бути ${serverWinners}`);
-
-                    // Оновлюємо всі елементи з правильним значенням
-                    this.updateRaffleWinnersCount(raffle.id, serverWinners);
+                        // Оновлюємо всі елементи з правильним значенням
+                        this.updateRaffleWinnersCount(raffle.id, serverWinners);
+                    }
                 }
             });
         },
@@ -444,7 +610,6 @@
 
             // Анімуємо успішну участь
             this.animateSuccessfulParticipation(data.raffleId);
-
         },
 
         /**
@@ -453,7 +618,12 @@
          * @param {number} ticketCount - Кількість білетів
          */
         updateParticipationButton: function(raffleId, ticketCount) {
-            const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            // Використовуємо кешовані елементи або отримуємо нові
+            const buttons = this.getDOMElement('participationButtons', raffleId, () => {
+                return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            });
+
+            if (!buttons || !buttons.length) return;
 
             buttons.forEach(button => {
                 // Видаляємо стан обробки
@@ -483,12 +653,16 @@
             if (!raffleId || typeof participantsCount !== 'number') return;
 
             try {
-                // Знаходимо елемент для оновлення кількості учасників
-                const participantsElements = document.querySelectorAll(
-                    `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
-                    `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
-                    `.main-raffle .participants-info .participants-count`
-                );
+                // Використовуємо кешовані елементи або отримуємо нові
+                const participantsElements = this.getDOMElement('participantCounters', raffleId, () => {
+                    return document.querySelectorAll(
+                        `.raffle-card[data-raffle-id="${raffleId}"] .participants-count .count, ` +
+                        `.main-raffle[data-raffle-id="${raffleId}"] .participants-info .participants-count, ` +
+                        `.main-raffle .participants-info .participants-count`
+                    );
+                });
+
+                if (!participantsElements || !participantsElements.length) return;
 
                 // Безпечно оновлюємо елементи
                 participantsElements.forEach(element => {
@@ -536,12 +710,16 @@
             if (!raffleId || typeof winnersCount !== 'number') return;
 
             try {
-                // Знаходимо елемент для оновлення кількості переможців
-                const winnersElements = document.querySelectorAll(
-                    `.raffle-card[data-raffle-id="${raffleId}"] .winners-count, ` +
-                    `.main-raffle[data-raffle-id="${raffleId}"] .winners-count, ` +
-                    `.main-raffle .winners-count`
-                );
+                // Використовуємо кешовані елементи або отримуємо нові
+                const winnersElements = this.getDOMElement('winnerCounters', raffleId, () => {
+                    return document.querySelectorAll(
+                        `.raffle-card[data-raffle-id="${raffleId}"] .winners-count, ` +
+                        `.main-raffle[data-raffle-id="${raffleId}"] .winners-count, ` +
+                        `.main-raffle .winners-count`
+                    );
+                });
+
+                if (!winnersElements || !winnersElements.length) return;
 
                 // Безпечно оновлюємо елементи
                 winnersElements.forEach(element => {
@@ -595,9 +773,38 @@
          * @param {string} raffleId - ID розіграшу
          */
         showTicketAddedEffect: function(raffleId) {
-            const button = document.querySelector(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
-            if (!button) return;
+            // Використовуємо кешований елемент або отримуємо новий
+            const button = this.getDOMElement('participationButtons', raffleId, () => {
+                return document.querySelector(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            });
 
+            if (!button || !button.length) {
+                const btn = document.querySelector(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                if (!btn) return;
+
+                // Зберігаємо в кеш
+                if (!this.domCache.participationButtons[raffleId]) {
+                    this.domCache.participationButtons[raffleId] = btn;
+                }
+
+                // Використовуємо знайдений елемент
+                this.createTicketEffect(btn);
+            } else if (Array.isArray(button)) {
+                // Якщо повернувся масив елементів
+                if (button.length > 0) {
+                    this.createTicketEffect(button[0]);
+                }
+            } else {
+                // Якщо повернувся один елемент
+                this.createTicketEffect(button);
+            }
+        },
+
+        /**
+         * Створення ефекту додавання білета для кнопки
+         * @param {HTMLElement} button - Кнопка для ефекту
+         */
+        createTicketEffect: function(button) {
             // Створюємо елемент для анімації
             const ticketEffect = document.createElement('div');
             ticketEffect.className = 'ticket-added-effect';
@@ -633,9 +840,10 @@
          * Додавання кнопок деталей до всіх розіграшів
          */
         addDetailsButtons: function() {
-            // Отримуємо всі карточки розіграшів
+            // Отримуємо всі карточки розіграшів одним запитом
             const mainRaffle = document.querySelector('.main-raffle');
             const miniRaffles = document.querySelectorAll('.mini-raffle');
+            const raffleCards = document.querySelectorAll('.raffle-card');
 
             // Додаємо до головного розіграшу, якщо він існує
             if (mainRaffle) {
@@ -652,30 +860,43 @@
                     this.addDetailsButtonToRaffle(raffleId, 'mini');
                 }
             });
+
+            // Додаємо до звичайних карточок розіграшів
+            raffleCards.forEach(raffle => {
+                const raffleId = raffle.getAttribute('data-raffle-id');
+                if (raffleId) {
+                    this.addDetailsButtonToRaffle(raffleId, 'card');
+                }
+            });
         },
 
         /**
          * Додавання кнопки деталей до конкретного розіграшу
          * Оновлена версія з преміальним стилем
          * @param {string} raffleId - ID розіграшу
-         * @param {string} type - Тип розіграшу (main/mini)
+         * @param {string} type - Тип розіграшу (main/mini/card)
          */
         addDetailsButtonToRaffle: function(raffleId, type = 'main') {
             // Перевіряємо, чи існує вже кнопка
             const existingButton = document.querySelector(`.details-button[data-raffle-id="${raffleId}"]`);
             if (existingButton) return;
 
-            // Знаходимо контейнер для кнопки
+            // Знаходимо контейнер для кнопки використовуючи конкретний селектор
             let buttonContainer;
+            let selector;
 
             if (type === 'main') {
                 // Для головного розіграшу
-                buttonContainer = document.querySelector(`.main-raffle[data-raffle-id="${raffleId}"] .main-raffle-content, .main-raffle .main-raffle-content`);
-            } else {
+                selector = `.main-raffle[data-raffle-id="${raffleId}"] .main-raffle-content, .main-raffle .main-raffle-content`;
+            } else if (type === 'mini') {
                 // Для міні-розіграшу
-                buttonContainer = document.querySelector(`.mini-raffle[data-raffle-id="${raffleId}"] .mini-raffle-info`);
+                selector = `.mini-raffle[data-raffle-id="${raffleId}"] .mini-raffle-info`;
+            } else {
+                // Для звичайної карточки
+                selector = `.raffle-card[data-raffle-id="${raffleId}"] .raffle-content`;
             }
 
+            buttonContainer = document.querySelector(selector);
             if (!buttonContainer) return;
 
             // Створюємо кнопку деталей у преміальному стилі
@@ -791,8 +1012,8 @@
         updateUserBalanceDisplay: function(newBalance, oldBalance) {
             if (typeof newBalance !== 'number') return;
 
-            // Знаходимо елемент балансу жетонів
-            const userCoinsElement = document.getElementById('user-coins');
+            // Знаходимо елемент балансу жетонів з кеша або DOM
+            const userCoinsElement = this.getDOMElement('userCoins');
             if (!userCoinsElement) return;
 
             // Отримуємо поточне значення, якщо oldBalance не вказано
