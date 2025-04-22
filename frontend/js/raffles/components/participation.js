@@ -1,38 +1,37 @@
 /**
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
- * Виправлено проблеми з умовами гонки, списанням жетонів та обробкою помилок
- * @version 3.6.0
+ * ОПТИМІЗОВАНА версія для усунення лагів, дублікатів повідомлень та проблем синхронізації
+ * @version 3.7.0
  */
 
 (function() {
     'use strict';
-// Трекер показаних сповіщень для запобігання дублюванню
-const shownNotifications = new Set();
+
+// Покращений механізм дедублікації повідомлень
+const messageCache = new Map(); // Використовуємо Map замість Set для відстеження часу показу
+const DUPLICATE_TIMEOUT = 5000; // 5 секунд
+
 if (typeof window.showToast === 'function') {
     const originalShowToast = window.showToast;
     window.showToast = function(message, type) {
-        // Створюємо унікальний ключ для повідомлення
-        const messageKey = message + (type || '');
+        const key = message + (type || '');
+        const now = Date.now();
+        const lastShown = messageCache.get(key);
 
         // Перевіряємо, чи не показували це повідомлення нещодавно
-        if (shownNotifications.has(messageKey)) {
+        if (lastShown && now - lastShown < DUPLICATE_TIMEOUT) {
             console.log(`💬 Пропущено дублікат сповіщення: ${message}`);
             return;
         }
 
-        // Додаємо до списку показаних
-        shownNotifications.add(messageKey);
-
-        // Видаляємо зі списку через 5 секунд
-        setTimeout(() => {
-            shownNotifications.delete(messageKey);
-        }, 5000);
+        // Запам'ятовуємо час показу
+        messageCache.set(key, now);
 
         // Викликаємо оригінальну функцію
         return originalShowToast.call(this, message, type);
     };
-    console.log('✅ Функцію showToast успішно патчено для дедуплікації сповіщень');
+    console.log('✅ Функцію showToast оптимізовано для дедуплікації сповіщень');
 }
 
     // Перевірка наявності головного модуля розіграшів
@@ -173,12 +172,12 @@ if (typeof window.showToast === 'function') {
             // Запускаємо періодичну перевірку стану участі
             if (!this.serverSyncInterval) {
                 this.serverSyncInterval = setInterval(() => {
-                    // Перевіряємо та виправляємо стан участі кожні 3 хвилини
+                    // Перевіряємо та виправляємо стан участі кожні 5 хвилин (було 3)
                     if (document.visibilityState === 'visible') {
                         this.verifyAndFixParticipationState()
                             .catch(e => console.warn('Помилка перевірки стану:', e));
                     }
-                }, 3 * 60 * 1000); // 3 хвилини
+                }, 5 * 60 * 1000); // 5 хвилин замість 3
 
                 console.log('🔄 Запущено періодичну перевірку та виправлення стану участі');
             }
@@ -354,7 +353,7 @@ if (typeof window.showToast === 'function') {
                             });
                     }
                 }
-            }, 20000); // Перевіряємо кожні 20 секунд
+            }, 45000); // перевіряємо кожні 45 секунд (було 20)
 
             console.log('🔄 Запущено таймер перевірки стану сервера');
         },
@@ -717,110 +716,75 @@ if (typeof window.showToast === 'function') {
         },
 
         /**
- * Отримання поточного балансу з сервера
- * @private
- */
-_getServerBalance: async function() {
-    try {
-        // Пропускаємо, якщо синхронізація вже виконується
-        if (this.isSyncInProgress) return;
+         * Отримання поточного балансу з сервера
+         * @private
+         */
+        _getServerBalance: async function() {
+            try {
+                // Пропускаємо, якщо синхронізація вже виконується
+                if (this.isSyncInProgress) return;
 
-        console.log("🔄 Запит актуального балансу з сервера...");
+                // Додаємо таймаут
+                const abortController = new AbortController();
+                const timeout = setTimeout(() => abortController.abort(), 8000);
 
-        if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-            // Перевіряємо наявність останньої транзакції перед запитом
-            const lastTxData = localStorage.getItem('winix_last_transaction');
-            let lastTx = null;
+                console.log("🔄 Запит актуального балансу з сервера...");
 
-            if (lastTxData) {
-                try {
-                    lastTx = JSON.parse(lastTxData);
-                    // Перевіряємо, чи транзакція досить нова (менше 2 хвилин)
-                    const txAge = Date.now() - lastTx.timestamp;
-                    if (txAge < 120000) {
-                        console.log('📝 Знайдено недавню транзакцію:',
-                            lastTx.type, 'баланс:', lastTx.newBalance,
-                            'вік:', Math.round(txAge/1000) + 'с');
-                    }
-                } catch (e) {
-                    console.warn('⚠️ Помилка парсингу даних транзакції:', e);
-                }
-            }
+                if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+                    // Запит балансу з сервера з таймаутом
+                    try {
+                        const response = await window.WinixAPI.getBalance({
+                            signal: abortController.signal,
+                            suppressErrors: true
+                        });
 
-            // Запит балансу з сервера
-            const response = await window.WinixAPI.getBalance();
+                        clearTimeout(timeout);
 
-            if (response && response.status === 'success' && response.data) {
-                let newBalance = response.data.coins;
-                const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
-                let shouldUpdate = true;
+                        if (response && response.status === 'success' && response.data) {
+                            const newBalance = response.data.coins;
+                            const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
 
-                // Запам'ятовуємо баланс від сервера
-                this.lastKnownBalance = newBalance;
-                this.lastBalanceUpdateTime = Date.now();
+                            // Оновлюємо значення лише якщо воно змінилося
+                            if (newBalance !== oldBalance) {
+                                // Запам'ятовуємо баланс від сервера
+                                this.lastKnownBalance = newBalance;
+                                this.lastBalanceUpdateTime = Date.now();
 
-                console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
+                                console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
 
-                // Перевірка на конфлікт з недавньою транзакцією
-                if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-                    const txAge = Date.now() - lastTx.timestamp;
+                                // Оновлюємо відображення
+                                const userCoinsElement = document.getElementById('user-coins');
+                                if (userCoinsElement) {
+                                    userCoinsElement.textContent = newBalance;
+                                }
 
-                    // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
-                    if (txAge < 120000 && newBalance !== lastTx.newBalance) {
-                        console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
-                            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
-                            - Сервер повернув: ${newBalance} жетонів`);
+                                // Оновлюємо локальне сховище
+                                localStorage.setItem('userCoins', newBalance.toString());
+                                localStorage.setItem('winix_coins', newBalance.toString());
+                                localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                                localStorage.setItem('winix_server_balance', newBalance.toString());
 
-                        // Якщо транзакція дуже нова (менше 60 секунд), довіряємо їй більше
-                        if (txAge < 60000) {
-                            console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
-                            shouldUpdate = false; // Не оновлюємо дані з сервера
-
-                            // Повертаємо локальний баланс як актуальний
-                            newBalance = lastTx.newBalance;
+                                // Генеруємо подію для інших модулів
+                                document.dispatchEvent(new CustomEvent('balance-updated', {
+                                    detail: {
+                                        oldBalance: oldBalance,
+                                        newBalance: newBalance,
+                                        source: 'participation.js'
+                                    }
+                                }));
+                            }
+                        }
+                    } catch (err) {
+                        clearTimeout(timeout);
+                        if (err.name !== 'AbortError') {
+                            console.warn('⚠️ Помилка отримання балансу:', err);
                         }
                     }
                 }
-
-                // Оновлюємо відображення
-                const userCoinsElement = document.getElementById('user-coins');
-                if (userCoinsElement) {
-                    // Додаємо анімацію в залежності від зміни
-                    if (newBalance < oldBalance) {
-                        userCoinsElement.classList.add('decreasing');
-                        setTimeout(() => {
-                            userCoinsElement.classList.remove('decreasing');
-                        }, 1000);
-                    } else if (newBalance > oldBalance) {
-                        userCoinsElement.classList.add('increasing');
-                        setTimeout(() => {
-                            userCoinsElement.classList.remove('increasing');
-                        }, 1000);
-                    }
-
-                    userCoinsElement.textContent = newBalance;
-                }
-
-                // Оновлюємо локальне сховище
-                localStorage.setItem('userCoins', newBalance.toString());
-                localStorage.setItem('winix_coins', newBalance.toString());
-                localStorage.setItem('winix_balance_update_time', Date.now().toString());
-                localStorage.setItem('winix_server_balance', newBalance.toString());
-
-                // Генеруємо подію для інших модулів
-                document.dispatchEvent(new CustomEvent('balance-updated', {
-                    detail: {
-                        oldBalance: oldBalance,
-                        newBalance: newBalance,
-                        source: 'participation.js'
-                    }
-                }));
+            } catch (error) {
+                console.warn('⚠️ Помилка отримання балансу з сервера:', error);
             }
-        }
-    } catch (error) {
-        console.warn('⚠️ Помилка отримання балансу з сервера:', error);
-    }
-},
+        },
 
         /**
          * Планування примусової синхронізації з сервером
@@ -1694,7 +1658,6 @@ _getServerBalance: async function() {
             }
         },
 
-
         /**
          * Участь у розіграші
          * @param {string} raffleId - ID розіграшу
@@ -1703,6 +1666,26 @@ _getServerBalance: async function() {
          * @returns {Promise<Object>} - Результат участі
          */
         participateInRaffle: async function(raffleId, raffleType, entryCount = 1) {
+            // Глобальний лічильник запитів для відстеження
+            if (!window._requestsInLastMinute) {
+                window._requestsInLastMinute = {
+                    count: 0,
+                    lastReset: Date.now()
+                };
+            }
+
+            const now = Date.now();
+            if (now - window._requestsInLastMinute.lastReset > 60000) {
+                window._requestsInLastMinute.count = 0;
+                window._requestsInLastMinute.lastReset = now;
+            } else if (window._requestsInLastMinute.count > 10) {
+                return {
+                    success: false,
+                    message: "Занадто багато запитів. Будь ласка, зачекайте."
+                };
+            }
+            window._requestsInLastMinute.count++;
+
             // ВИПРАВЛЕНО: Завжди встановлюємо час запиту на початку
             const requestStartTime = Date.now();
             this.lastParticipationTime = requestStartTime;
@@ -1754,7 +1737,6 @@ _getServerBalance: async function() {
             }
 
             // 4. ЧАСОВИЙ ІНТЕРВАЛ
-            const now = Date.now();
             const lastRequestTime = this.lastRequestTimes[raffleId] || 0;
             const timeSinceLastRequest = now - lastRequestTime;
 
@@ -2165,11 +2147,10 @@ _getServerBalance: async function() {
                         console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
                     }
 
-                   if (typeof window.showToast === 'function' && !shownNotifications.has(raffleId)) {
-    window.showToast('Ви успішно взяли участь у розіграші', 'success');
-    shownNotifications.add(raffleId);
-    setTimeout(() => shownNotifications.delete(raffleId), 5000);
-}
+                    // Використовуємо покращений механізм дедублікації повідомлень
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Ви успішно взяли участь у розіграші', 'success');
+                    }
 
                     // ПОВЕРТАЄМО РЕЗУЛЬТАТ
                     return {
@@ -2520,34 +2501,34 @@ _getServerBalance: async function() {
             }
         },
 
- /**
- * Додає розіграш до списку недійсних
- * @param {string} raffleId - ID розіграшу
- */
-addInvalidRaffleId: function(raffleId) {
-    if (!raffleId) return;
+        /**
+         * Додає розіграш до списку недійсних
+         * @param {string} raffleId - ID розіграшу
+         */
+        addInvalidRaffleId: function(raffleId) {
+            if (!raffleId) return;
 
-    this.invalidRaffleIds.add(raffleId);
+            this.invalidRaffleIds.add(raffleId);
 
-    // Також додаємо до глобального списку
-    if (WinixRaffles.state.invalidRaffleIds) {
-        WinixRaffles.state.invalidRaffleIds.add(raffleId);
-    }
+            // Також додаємо до глобального списку
+            if (WinixRaffles.state.invalidRaffleIds) {
+                WinixRaffles.state.invalidRaffleIds.add(raffleId);
+            }
 
-    // Зберігаємо в localStorage
-    try {
-        localStorage.setItem('winix_invalid_raffles', JSON.stringify(Array.from(this.invalidRaffleIds)));
-    } catch (e) {
-        console.warn('⚠️ Не вдалося зберегти недійсні розіграші:', e);
-    }
+            // Зберігаємо в localStorage
+            try {
+                localStorage.setItem('winix_invalid_raffles', JSON.stringify(Array.from(this.invalidRaffleIds)));
+            } catch (e) {
+                console.warn('⚠️ Не вдалося зберегти недійсні розіграші:', e);
+            }
 
-    console.log(`⚠️ Додано розіграш ${raffleId} до списку недійсних`);
+            console.log(`⚠️ Додано розіграш ${raffleId} до списку недійсних`);
 
-    // Оновлюємо відображення кнопок участі
-    this.updateParticipationButtons();
-},
+            // Оновлюємо відображення кнопок участі
+            this.updateParticipationButtons();
+        },
 
-/**
+       /**
  * Очищення списку невалідних розіграшів
  */
 clearInvalidRaffleIds: function() {
@@ -2692,6 +2673,64 @@ resetState: function() {
     }
 
     console.log('✅ Стан модуля участі успішно скинуто');
+    return true;
+},
+
+/**
+ * Повне скидання стану модуля для усунення зависань
+ */
+forceResetState: function() {
+    console.log('🔄 Виконується повне скидання стану модуля...');
+
+    // Скидаємо всі таймери
+    if (this.serverSyncInterval) {
+        clearInterval(this.serverSyncInterval);
+        this.serverSyncInterval = null;
+    }
+
+    if (this.serverCheckTimer) {
+        clearInterval(this.serverCheckTimer);
+        this.serverCheckTimer = null;
+    }
+
+    if (this.syncTimer) {
+        clearTimeout(this.syncTimer);
+        this.syncTimer = null;
+    }
+
+    // Скидаємо всі прапорці блокування
+    this.requestLock = false;
+    this.requestInProgress = false;
+    this.isSyncInProgress = false;
+    this.syncLock = false;
+    this.pendingSyncRequested = false;
+    this.needsForcedSync = false;
+
+    // Очищаємо дані транзакцій
+    this.activeTransactions.clear();
+    this.pendingRequests = {};
+
+    // Скидаємо стан кнопок
+    document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+        button.classList.remove('processing');
+        button.disabled = false;
+
+        // Відновлюємо текст
+        const originalText = button.getAttribute('data-original-text');
+        if (originalText) {
+            button.textContent = originalText;
+        }
+    });
+
+    // Запускаємо таймери заново
+    this._startServerCheckTimer();
+
+    // Запускаємо повторну синхронізацію через 5 секунд
+    setTimeout(() => {
+        this.loadUserRaffles(true);
+    }, 5000);
+
+    console.log('✅ Стан модуля повністю скинуто');
     return true;
 },
 
