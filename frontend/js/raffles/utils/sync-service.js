@@ -2,7 +2,7 @@
  * WINIX - Централізований сервіс синхронізації даних
  * Цей файл потрібно додати у директорію frontend/js/raffles/utils/
  * Назва файлу: sync-service.js
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 (function() {
@@ -13,6 +13,18 @@
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше sync-service.js');
         return;
     }
+
+    // Перевірка наявності WinixCore
+    const hasWinixCore = () => {
+        try {
+            return window.WinixCore &&
+                   typeof window.WinixCore.refreshBalance === 'function' &&
+                   typeof window.WinixCore.syncUserData === 'function';
+        } catch (e) {
+            console.error("❌ Помилка перевірки WinixCore:", e);
+            return false;
+        }
+    };
 
     // Сервіс синхронізації даних
     const syncService = {
@@ -150,31 +162,64 @@
                 return Promise.resolve(false);
             }
 
+            // Перевіряємо блокування балансу в WinixCore
+            if (hasWinixCore() && window.WinixCore.isBalanceUpdateLocked && window.WinixCore.isBalanceUpdateLocked()) {
+                if (!force) {
+                    console.log('🔒 Пропуск синхронізації балансу (баланс заблоковано)');
+                    return Promise.resolve(false);
+                } else {
+                    console.log('⚠️ Примусова синхронізація балансу попри блокування');
+                }
+            }
+
             // Додаємо запит в чергу
             return this._addToSyncQueue('balance', async () => {
                 console.log('💰 Синхронізація балансу...');
 
                 try {
-                    // Перевіряємо наявність API
-                    if (!window.WinixAPI || typeof window.WinixAPI.getBalance !== 'function') {
-                        console.warn('⚠️ API для синхронізації балансу недоступний');
-                        return false;
+                    // Використовуємо WinixCore для оновлення балансу, якщо доступний
+                    if (hasWinixCore()) {
+                        const response = await window.WinixCore.refreshBalance(force);
+
+                        if (response && response.success) {
+                            // Оновлюємо час синхронізації
+                            this.lastSync.balance = Date.now();
+                            console.log('✅ Баланс успішно синхронізовано через WinixCore');
+                            return true;
+                        } else {
+                            console.warn('⚠️ Помилка синхронізації балансу через WinixCore:', response?.message);
+                            // Спробуємо використати запасний метод
+                        }
                     }
 
-                    // Виконуємо запит до сервера
-                    const response = await window.WinixAPI.getBalance();
+                    // Запасний метод через API, якщо WinixCore недоступний або повернув помилку
+                    if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+                        const response = await window.WinixAPI.getBalance();
 
-                    if (response && response.status === 'success' && response.data) {
-                        // Оновлюємо дані
-                        this._updateBalanceData(response.data);
+                        if (response && response.status === 'success' && response.data) {
+                            // Оновлюємо час синхронізації
+                            this.lastSync.balance = Date.now();
 
-                        // Оновлюємо час синхронізації
-                        this.lastSync.balance = Date.now();
+                            // Передаємо результати в WinixCore, якщо він доступний
+                            if (hasWinixCore() && typeof window.WinixCore.updateLocalBalance === 'function') {
+                                window.WinixCore.updateLocalBalance(
+                                    response.data.coins,
+                                    'sync-service',
+                                    true // Підтверджено сервером
+                                );
+                            } else {
+                                // Якщо WinixCore недоступний, оновлюємо самостійно
+                                this._legacyUpdateBalanceData(response.data);
+                            }
 
-                        console.log('✅ Баланс успішно синхронізовано');
-                        return true;
+                            console.log('✅ Баланс успішно синхронізовано через API');
+                            return true;
+                        } else {
+                            console.warn('⚠️ Помилка синхронізації балансу через API:', response?.message);
+                            return false;
+                        }
                     } else {
-                        console.warn('⚠️ Помилка синхронізації балансу:', response?.message || 'Невідома помилка');
+                        console.warn('⚠️ API для синхронізації балансу недоступний');
                         return false;
                     }
                 } catch (error) {
@@ -184,93 +229,67 @@
             });
         },
 
-        // Оновлення даних балансу
-       // Оновлення даних балансу
-_updateBalanceData: function(data) {
-    if (!data) return;
+        // Застарілий метод оновлення даних балансу
+        // Використовується тільки якщо WinixCore недоступний
+        _legacyUpdateBalanceData: function(data) {
+            if (!data) return;
+            console.log("⚠️ Використовується застарілий метод оновлення балансу. Рекомендуємо оновити до WinixCore.");
 
-    // ДОДАНО: Перевірка на конфлікт з локальними даними
-    try {
-        const lastTxData = localStorage.getItem('winix_last_transaction');
-        if (lastTxData) {
-            const lastTx = JSON.parse(lastTxData);
-            const txAge = Date.now() - lastTx.timestamp;
+            // Оновлюємо локальні сховища
+            if (data.coins !== undefined) {
+                const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
+                const newCoins = data.coins;
 
-            // Якщо транзакція нещодавня (менше 2 хвилин) і підтверджена локально
-            if (txAge < 120000 && lastTx.confirmed && lastTx.type === "participation") {
-                // Якщо дані з сервера відрізняються від локальної транзакції
-                if (data.coins !== undefined && data.coins !== lastTx.newBalance) {
-                    console.log(`⚠️ sync-service: Виявлено конфлікт даних балансу:
-                        - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
-                        - Синхронізація пропонує: ${data.coins}`);
+                // Логуємо зміну балансу
+                if (oldCoins !== newCoins) {
+                    console.log(`💰 sync-service: Оновлення балансу жетонів: ${oldCoins} -> ${newCoins}, різниця: ${newCoins - oldCoins}`);
+                }
 
-                    // Для особливо нових транзакцій (до 1 хвилини) довіряємо локальним даним
-                    if (txAge < 60000) {
-                        console.log("🛡️ sync-service: Застосовуємо локальний баланс замість даних синхронізації");
-                        data.coins = lastTx.newBalance;
+                localStorage.setItem('userCoins', newCoins.toString());
+                localStorage.setItem('winix_coins', newCoins.toString());
+                localStorage.setItem('winix_server_sync_ts', Date.now().toString());
+
+                // Оновлюємо відображення в інтерфейсі
+                const userCoinsElement = document.getElementById('user-coins');
+                if (userCoinsElement) {
+                    // Анімація зміни балансу
+                    if (newCoins > oldCoins) {
+                        userCoinsElement.classList.add('increasing');
+                        setTimeout(() => userCoinsElement.classList.remove('increasing'), 1000);
+                    } else if (newCoins < oldCoins) {
+                        userCoinsElement.classList.add('decreasing');
+                        setTimeout(() => userCoinsElement.classList.remove('decreasing'), 1000);
                     }
+
+                    userCoinsElement.textContent = newCoins;
+                }
+
+                // Генеруємо подію оновлення балансу
+                document.dispatchEvent(new CustomEvent('balance-updated', {
+                    detail: {
+                        oldBalance: oldCoins,
+                        newBalance: newCoins,
+                        source: 'sync-service-legacy',
+                        timestamp: Date.now()
+                    }
+                }));
+            }
+
+            if (data.balance !== undefined) {
+                const newBalance = data.balance;
+                localStorage.setItem('userTokens', newBalance.toString());
+                localStorage.setItem('winix_balance', newBalance.toString());
+
+                // Оновлюємо відображення в інтерфейсі
+                const userTokensElement = document.getElementById('user-tokens');
+                if (userTokensElement) {
+                    userTokensElement.textContent = newBalance;
                 }
             }
-        }
-    } catch (e) {
-        console.warn("⚠️ sync-service: Помилка обробки перевірки конфлікту:", e);
-    }
 
-    // Оновлюємо локальні сховища
-    if (data.coins !== undefined) {
-        const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
-        const newCoins = data.coins;
-
-        // Логуємо зміну балансу
-        if (oldCoins !== newCoins) {
-            console.log(`💰 sync-service: Оновлення балансу жетонів: ${oldCoins} -> ${newCoins}, різниця: ${newCoins - oldCoins}`);
-        }
-
-        localStorage.setItem('userCoins', newCoins.toString());
-        localStorage.setItem('winix_coins', newCoins.toString());
-        localStorage.setItem('winix_server_sync_ts', Date.now().toString()); // ДОДАНО: Момент синхронізації
-
-        // Оновлюємо відображення в інтерфейсі
-        const userCoinsElement = document.getElementById('user-coins');
-        if (userCoinsElement) {
-            // Анімація зміни балансу
-            if (newCoins > oldCoins) {
-                userCoinsElement.classList.add('increasing');
-                setTimeout(() => userCoinsElement.classList.remove('increasing'), 1000);
-            } else if (newCoins < oldCoins) {
-                userCoinsElement.classList.add('decreasing');
-                setTimeout(() => userCoinsElement.classList.remove('decreasing'), 1000);
-            }
-
-            userCoinsElement.textContent = newCoins;
-        }
-
-        // Генеруємо подію оновлення балансу
-        document.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: {
-                oldBalance: oldCoins,
-                newBalance: newCoins,
-                source: 'sync-service',
-                timestamp: Date.now()
-            }
-        }));
-    }
-
-    if (data.balance !== undefined) {
-        const newBalance = data.balance;
-        localStorage.setItem('userTokens', newBalance.toString());
-        localStorage.setItem('winix_balance', newBalance.toString());
-
-        // Оновлюємо відображення в інтерфейсі
-        const userTokensElement = document.getElementById('user-tokens');
-        if (userTokensElement) {
-            userTokensElement.textContent = newBalance;
-        }
-    }
-
-    // Оновлюємо час оновлення балансу
-    localStorage.setItem('winix_balance_update_time', Date.now().toString());
-},
+            // Оновлюємо час оновлення балансу
+            localStorage.setItem('winix_balance_update_time', Date.now().toString());
+        },
 
         // Синхронізація участі в розіграшах
         syncParticipation: function(force = false) {
