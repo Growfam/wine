@@ -14,7 +14,11 @@
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше interface-updater.js');
         return;
     }
-
+// Додайте це в верхній частині модуля:
+const domQueryCounter = {
+    count: 0,
+    lastReset: Date.now()
+};
     // Модуль для оновлення інтерфейсу
     const interfaceUpdater = {
         // Лічильник оновлень для відстеження
@@ -138,7 +142,21 @@
          * @param {Function} selector - Функція для вибору елемента, якщо він не кешований
          * @returns {HTMLElement|HTMLElement[]|null} - Елемент або масив елементів
          */
+
         getDOMElement: function(type, id, selector) {
+    // Обмеження кількості запитів до DOM протягом секунди
+    const now = Date.now();
+    if (now - domQueryCounter.lastReset > 1000) {
+        domQueryCounter.count = 0;
+        domQueryCounter.lastReset = now;
+    } else if (domQueryCounter.count > 50) {
+        // Якщо забагато запитів, використовуємо кешовані дані
+        if (type === 'userCoins') return this.domCache.userCoins;
+        if (id && this.domCache[type] && this.domCache[type][id]) return this.domCache[type][id];
+        return null;
+    }
+    domQueryCounter.count++;
+
             // Якщо це елемент балансу
             if (type === 'userCoins') {
                 if (!this.domCache.userCoins) {
