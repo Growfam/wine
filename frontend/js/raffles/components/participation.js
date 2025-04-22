@@ -1694,27 +1694,6 @@ _getServerBalance: async function() {
             }
         },
 
-        /**
-         * Перевірка валідності UUID
-         * @param {string} id - UUID для перевірки
-         * @returns {boolean} Результат перевірки
-         */
-        isValidUUID: function(id) {
-            // Спочатку перевіряємо наявність UUID валідатора у WinixRaffles
-            if (WinixRaffles.validators && typeof WinixRaffles.validators.isValidUUID === 'function') {
-                return WinixRaffles.validators.isValidUUID(id);
-            }
-
-            // Потім перевіряємо валідатор у WinixAPI
-            if (window.WinixAPI && typeof window.WinixAPI.isValidUUID === 'function') {
-                return window.WinixAPI.isValidUUID(id);
-            }
-
-            // Запасний валідатор, якщо інші недоступні
-            if (!id || typeof id !== 'string') return false;
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(id);
-        },
 
         /**
          * Участь у розіграші
@@ -1736,7 +1715,7 @@ _getServerBalance: async function() {
                 return Promise.reject(new Error('Не вказано ID розіграшу'));
             }
 
-            if (!this.isValidUUID(raffleId)) {
+            if (!window.isValidUUID(raffleId)) {
                 console.error('❌ Невалідний ідентифікатор розіграшу');
                 return Promise.reject(new Error('Невалідний ідентифікатор розіграшу'));
             }
@@ -2186,10 +2165,10 @@ _getServerBalance: async function() {
                         console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
                     }
 
-                    if (typeof window.showToast === 'function' && !shownToasts.has(raffleId)) {
+                   if (typeof window.showToast === 'function' && !shownNotifications.has(raffleId)) {
     window.showToast('Ви успішно взяли участь у розіграші', 'success');
-    shownToasts.add(raffleId);
-    setTimeout(() => shownToasts.delete(raffleId), 5000);
+    shownNotifications.add(raffleId);
+    setTimeout(() => shownNotifications.delete(raffleId), 5000);
 }
 
                     // ПОВЕРТАЄМО РЕЗУЛЬТАТ

@@ -442,17 +442,6 @@
         },
 
         /**
-         * Перевірка, чи є UUID валідним
-         * @param {string} id - UUID для перевірки
-         * @returns {boolean} - Результат перевірки
-         */
-        isValidUUID: function(id) {
-            if (!id || typeof id !== 'string') return false;
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(id);
-        },
-
-        /**
          * Обробка помилок HTTP
          * @param {Response} response - Відповідь
          * @param {string} url - URL запиту
@@ -931,7 +920,7 @@
          * @param {string} raffleId - ID розіграшу
          */
         markRaffleAsInvalid: function(raffleId) {
-            if (!raffleId || !this.isValidUUID(raffleId)) {
+            if (!window.isValidUUID(raffleId)) {
                 console.warn('⚠️ Спроба позначити невалідний ID як недійсний розіграш:', raffleId);
                 return;
             }
