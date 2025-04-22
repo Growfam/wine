@@ -2,12 +2,16 @@
  * WINIX - Система розіграшів (index.js)
  * Точка входу для системи розіграшів, підключає всі необхідні модулі
  * Очищена версія без компонентів інтерфейсу
+ * @version 1.3.0
  */
 
 (function() {
     'use strict';
 
-    console.log('🎲 Ініціалізація системи розіграшів WINIX...');
+    console.log('🎲 Запуск системи розіграшів WINIX...');
+
+    // Глобальний прапорець для відстеження ініціалізації
+    window.__winixInitialized = window.__winixInitialized || false;
 
     // Функція для надійного завантаження необхідних ресурсів
     function ensureResourcesLoaded() {
@@ -65,7 +69,10 @@
                 // Очищення контейнера перед створенням нових частинок
                 container.innerHTML = '';
 
-                for (let i = 0; i < 10; i++) {
+                // Отримуємо максимальну кількість частинок з конфігурації або за замовчуванням
+                const maxParticles = (window.WinixRaffles && window.WinixRaffles.config && window.WinixRaffles.config.maxParticles) || 10;
+
+                for (let i = 0; i < maxParticles; i++) {
                     const particle = document.createElement('div');
                     particle.className = 'particle';
 
@@ -209,6 +216,44 @@
         initErrorHandlers();
     };
 
+    // Функція для безпечної ініціалізації WinixRaffles
+    const safeInitializeWinixRaffles = function() {
+        // Перевіряємо, чи вже ініціалізовано
+        if (window.__winixInitialized) {
+            console.log('⚠️ Спроба повторної ініціалізації WinixRaffles. Ігноруємо.');
+            return false;
+        }
+
+        try {
+            // Перевіряємо наявність об'єкта WinixRaffles
+            if (typeof window.WinixRaffles === 'undefined') {
+                console.error('❌ Об\'єкт WinixRaffles відсутній. Перевірте підключення init.js');
+                return false;
+            }
+
+            // Перевіряємо, чи вже ініціалізовано
+            if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
+                console.log('✅ WinixRaffles вже було ініціалізовано');
+                window.__winixInitialized = true;
+                return true;
+            }
+
+            // Ініціалізуємо систему розіграшів
+            if (typeof window.WinixRaffles.init === 'function') {
+                window.WinixRaffles.init();
+                window.__winixInitialized = true;
+                console.log('✅ Система розіграшів WINIX успішно ініціалізована з index.js');
+                return true;
+            } else {
+                console.error('❌ Функція ініціалізації WinixRaffles не знайдена!');
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Помилка при ініціалізації WinixRaffles:', error);
+            return false;
+        }
+    };
+
     // Ініціалізація при завантаженні сторінки
     document.addEventListener('DOMContentLoaded', function() {
         try {
@@ -219,12 +264,9 @@
             ensureResourcesLoaded()
                 .then(() => {
                     // Ініціалізуємо систему розіграшів
-                    if (window.WinixRaffles && typeof window.WinixRaffles.init === 'function') {
-                        window.WinixRaffles.init();
-                    } else {
-                        console.error('❌ Функція ініціалізації WinixRaffles не знайдена!');
+                    if (safeInitializeWinixRaffles()) {
+                        console.log('✅ Система розіграшів WINIX повністю готова');
                     }
-                    console.log('✅ Система розіграшів WINIX повністю готова');
                 })
                 .catch(error => {
                     console.error('❌ Помилка завантаження необхідних ресурсів:', error);
@@ -238,6 +280,26 @@
             console.error('❌ Критична помилка під час ініціалізації:', e);
         }
     });
+
+    // Додатковий обробник для випадку, якщо DOMContentLoaded вже відбувся
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(function() {
+            // Перевіряємо, чи була спроба ініціалізації
+            if (!window.__winixInitialized) {
+                console.log('⚠️ DOMContentLoaded вже відбувся, але ініціалізація не запущена. Запускаємо...');
+
+                // Ініціалізуємо допоміжні компоненти
+                initHelpers();
+
+                // Ініціалізуємо WinixRaffles, якщо він доступний
+                if (typeof window.WinixRaffles !== 'undefined') {
+                    safeInitializeWinixRaffles();
+                } else {
+                    console.warn('⚠️ WinixRaffles не знайдено після DOMContentLoaded');
+                }
+            }
+        }, 100);
+    }
 
     // Додатковий глобальний обробник помилок для діагностики
     window.addEventListener('error', function(event) {
