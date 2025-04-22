@@ -110,9 +110,6 @@
                                     } else {
                                         // Якщо відповідь отримана, але участь не вдалася
                                         console.warn('⚠️ Помилка участі в розіграші:', result.message);
-                                        if (typeof window.showToast === 'function') {
-                                            window.showToast(result.message, 'warning');
-                                        }
                                         // Відновлюємо стан кнопки
                                         this._resetButtonState(e.target, raffleId);
                                     }
@@ -1027,11 +1024,6 @@
                         button.textContent = 'Ви вже берете участь';
                         button.classList.add('participating');
                         button.disabled = false;
-                    }
-
-                    // Показуємо повідомлення про успіх
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Ви успішно взяли участь у розіграші', 'success');
                     }
 
                     // Оновлюємо баланс користувача

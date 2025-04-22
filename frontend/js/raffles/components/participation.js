@@ -2,7 +2,7 @@
  * WINIX - Система розіграшів (participation.js)
  * Оптимізований та виправлений модуль для обробки участі користувача в розіграшах
  * Виправлено проблеми з умовами гонки, списанням жетонів та обробкою помилок
- * @version 3.5.2
+ * @version 3.6.0
  */
 
 (function() {
@@ -114,8 +114,17 @@
             // Очищення стану перед ініціалізацією
             this._cleanupState();
 
-            // Відновлення даних про участь з localStorage
-            this._restoreParticipationFromStorage();
+            // ЗМІНЕНО: Спочатку завантажуємо дані з сервера, а потім відновлюємо з локального сховища
+            // якщо сервер повернув помилку
+            this.loadUserRaffles(true)
+                .then(() => {
+                    console.log('✅ Успішно завантажено дані про участь з сервера');
+                })
+                .catch(error => {
+                    console.warn('⚠️ Не вдалося завантажити дані з сервера, відновлюємо з локального сховища:', error);
+                    // Тепер відновлюємо з локального сховища тільки якщо сервер недоступний
+                    this._restoreParticipationFromStorage();
+                });
 
             // Запуск моніторингу стану транзакцій
             this._startTransactionMonitor();
@@ -126,11 +135,8 @@
             // Налаштування механізмів синхронізації даних
             this._setupSyncMechanisms();
 
-            // Завантаження даних про участь користувача
-            this.loadUserRaffles(true);
-
             // Додавання обробників подій
-            this._setupEventListeners();
+            this._setupEventHandlers();
 
             // Синхронізація з локальною базою даних
             this._syncWithIndexedDB();
@@ -230,6 +236,58 @@
                         `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
                 }
             });
+        },
+
+        /**
+         * Очищення всіх кешів та даних участі
+         * Використовується для примусового оновлення стану
+         * @private
+         */
+        _clearAllCaches: function() {
+            console.log('🧹 Очищення всіх кешів та даних участі...');
+
+            // Очищаємо локальні структури даних
+            this.participatingRaffles.clear();
+            this.userRaffleTickets = {};
+            this.invalidRaffleIds.clear();
+
+            // Очищаємо кеш серверних даних
+            this.serverDataCache.participatingRaffles.clear();
+            this.serverDataCache.userRaffleTickets = {};
+            this.serverDataCache.lastUpdate = 0;
+
+            // Очищаємо дані в localStorage, пов'язані з участю
+            try {
+                localStorage.removeItem('winix_participation_state');
+
+                // Знаходимо всі ключі, пов'язані з підтвердженою участю
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.startsWith('winix_confirmed_participation_') ||
+                        key === 'winix_last_transaction' ||
+                        key === 'winix_pending_transactions' ||
+                        key === 'winix_invalid_raffles' ||
+                        key === 'winix_user_tickets'
+                    )) {
+                        keysToRemove.push(key);
+                    }
+                }
+
+                // Видаляємо всі знайдені ключі
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                    console.log(`🧹 Видалено кеш: ${key}`);
+                });
+            } catch (e) {
+                console.warn('⚠️ Помилка очищення локального сховища:', e);
+            }
+
+            // Встановлюємо прапорець примусової синхронізації з сервером
+            this.needsForcedSync = true;
+
+            console.log('✅ Всі кеші та дані участі очищено');
         },
 
         /**
@@ -636,108 +694,108 @@
          * @private
          */
         _getServerBalance: async function() {
-    try {
-        // Пропускаємо, якщо синхронізація вже виконується
-        if (this.isSyncInProgress) return;
+            try {
+                // Пропускаємо, якщо синхронізація вже виконується
+                if (this.isSyncInProgress) return;
 
-        console.log("🔄 Запит актуального балансу з сервера...");
+                console.log("🔄 Запит актуального балансу з сервера...");
 
-        if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-            // Перевіряємо наявність останньої транзакції перед запитом
-            const lastTxData = localStorage.getItem('winix_last_transaction');
-            let lastTx = null;
+                if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
+                    // Перевіряємо наявність останньої транзакції перед запитом
+                    const lastTxData = localStorage.getItem('winix_last_transaction');
+                    let lastTx = null;
 
-            if (lastTxData) {
-                try {
-                    lastTx = JSON.parse(lastTxData);
-                    // Перевіряємо, чи транзакція досить нова (менше 2 хвилин)
-                    const txAge = Date.now() - lastTx.timestamp;
-                    if (txAge < 120000) {
-                        console.log('📝 Знайдено недавню транзакцію:',
-                            lastTx.type, 'баланс:', lastTx.newBalance,
-                            'вік:', Math.round(txAge/1000) + 'с');
+                    if (lastTxData) {
+                        try {
+                            lastTx = JSON.parse(lastTxData);
+                            // Перевіряємо, чи транзакція досить нова (менше 2 хвилин)
+                            const txAge = Date.now() - lastTx.timestamp;
+                            if (txAge < 120000) {
+                                console.log('📝 Знайдено недавню транзакцію:',
+                                    lastTx.type, 'баланс:', lastTx.newBalance,
+                                    'вік:', Math.round(txAge/1000) + 'с');
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ Помилка парсингу даних транзакції:', e);
+                        }
                     }
-                } catch (e) {
-                    console.warn('⚠️ Помилка парсингу даних транзакції:', e);
+
+                    // Запит балансу з сервера
+                    const response = await window.WinixAPI.getBalance();
+
+                    if (response && response.status === 'success' && response.data) {
+                        const newBalance = response.data.coins;
+                        const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
+                        let shouldUpdate = true;
+
+                        // Запам'ятовуємо баланс від сервера
+                        this.lastKnownBalance = newBalance;
+                        this.lastBalanceUpdateTime = Date.now();
+
+                        console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
+
+                        // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
+                        if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
+                            const txAge = Date.now() - lastTx.timestamp;
+
+                            // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
+                            if (txAge < 120000 && newBalance !== lastTx.newBalance) {
+                                console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
+                                    - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
+                                    - Сервер повернув: ${newBalance} жетонів`);
+
+                                // Якщо транзакція дуже нова (менше 60 секунд), довіряємо їй більше
+                                if (txAge < 60000) {
+                                    console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
+                                    shouldUpdate = false; // Не оновлюємо дані з сервера
+                                }
+                            }
+                        }
+
+                        // Оновлюємо дані, якщо це безпечно
+                        if (shouldUpdate && newBalance !== oldBalance) {
+                            console.log(`📊 Виявлено розбіжність балансу: локально ${oldBalance}, на сервері ${newBalance}`);
+
+                            // Оновлюємо відображення
+                            const userCoinsElement = document.getElementById('user-coins');
+                            if (userCoinsElement) {
+                                // Додаємо анімацію в залежності від зміни
+                                if (newBalance < oldBalance) {
+                                    userCoinsElement.classList.add('decreasing');
+                                    setTimeout(() => {
+                                        userCoinsElement.classList.remove('decreasing');
+                                    }, 1000);
+                                } else if (newBalance > oldBalance) {
+                                    userCoinsElement.classList.add('increasing');
+                                    setTimeout(() => {
+                                        userCoinsElement.classList.remove('increasing');
+                                    }, 1000);
+                                }
+
+                                userCoinsElement.textContent = newBalance;
+                            }
+
+                            // Оновлюємо локальне сховище
+                            localStorage.setItem('userCoins', newBalance.toString());
+                            localStorage.setItem('winix_coins', newBalance.toString());
+                            localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                            localStorage.setItem('winix_server_balance', newBalance.toString());
+
+                            // Генеруємо подію для інших модулів
+                            document.dispatchEvent(new CustomEvent('balance-updated', {
+                                detail: {
+                                    oldBalance: oldBalance,
+                                    newBalance: newBalance,
+                                    source: 'participation.js'
+                                }
+                            }));
+                        }
+                    }
                 }
+            } catch (error) {
+                console.warn('⚠️ Помилка отримання балансу з сервера:', error);
             }
-
-            // Запит балансу з сервера
-            const response = await window.WinixAPI.getBalance();
-
-            if (response && response.status === 'success' && response.data) {
-                const newBalance = response.data.coins;
-                const oldBalance = parseInt(localStorage.getItem('userCoins') || '0');
-                let shouldUpdate = true;
-
-                // Запам'ятовуємо баланс від сервера
-                this.lastKnownBalance = newBalance;
-                this.lastBalanceUpdateTime = Date.now();
-
-                console.log(`📊 Отримано баланс з сервера: ${newBalance} жетонів`);
-
-                // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
-                if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-                    const txAge = Date.now() - lastTx.timestamp;
-
-                    // Якщо транзакція відбулась менше 2 хвилин тому і баланс сервера не відповідає локальному
-                    if (txAge < 120000 && newBalance !== lastTx.newBalance) {
-                        console.warn(`⚠️ Виявлено конфлікт балансу після недавньої транзакції:
-                            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance} жетонів
-                            - Сервер повернув: ${newBalance} жетонів`);
-
-                        // Якщо транзакція дуже нова (менше 60 секунд), довіряємо їй більше
-                        if (txAge < 60000) {
-                            console.log(`🛡️ Використовуємо локальний баланс замість серверного`);
-                            shouldUpdate = false; // Не оновлюємо дані з сервера
-                        }
-                    }
-                }
-
-                // Оновлюємо дані, якщо це безпечно
-                if (shouldUpdate && newBalance !== oldBalance) {
-                    console.log(`📊 Виявлено розбіжність балансу: локально ${oldBalance}, на сервері ${newBalance}`);
-
-                    // Оновлюємо відображення
-                    const userCoinsElement = document.getElementById('user-coins');
-                    if (userCoinsElement) {
-                        // Додаємо анімацію в залежності від зміни
-                        if (newBalance < oldBalance) {
-                            userCoinsElement.classList.add('decreasing');
-                            setTimeout(() => {
-                                userCoinsElement.classList.remove('decreasing');
-                            }, 1000);
-                        } else if (newBalance > oldBalance) {
-                            userCoinsElement.classList.add('increasing');
-                            setTimeout(() => {
-                                userCoinsElement.classList.remove('increasing');
-                            }, 1000);
-                        }
-
-                        userCoinsElement.textContent = newBalance;
-                    }
-
-                    // Оновлюємо локальне сховище
-                    localStorage.setItem('userCoins', newBalance.toString());
-                    localStorage.setItem('winix_coins', newBalance.toString());
-                    localStorage.setItem('winix_balance_update_time', Date.now().toString());
-                    localStorage.setItem('winix_server_balance', newBalance.toString());
-
-                    // Генеруємо подію для інших модулів
-                    document.dispatchEvent(new CustomEvent('balance-updated', {
-                        detail: {
-                            oldBalance: oldBalance,
-                            newBalance: newBalance,
-                            source: 'participation.js'
-                        }
-                    }));
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('⚠️ Помилка отримання балансу з сервера:', error);
-    }
-},
+        },
 
         /**
          * Планування примусової синхронізації з сервером
@@ -781,39 +839,65 @@
          */
         _restoreParticipationFromStorage: function() {
             try {
-                // Відновлення даних участі
-                const savedState = localStorage.getItem('winix_participation_state');
-                if (savedState) {
-                    const parsedState = JSON.parse(savedState);
+                // Спочатку перевіряємо, чи є свіжі дані про транзакції
+                const lastTxData = localStorage.getItem('winix_last_transaction');
+                let prioritizeServerData = false;
 
-                    // Перевірка актуальності даних (не старіші 30 хвилин)
-                    if (parsedState && parsedState.lastUpdate) {
-                        const now = Date.now();
-                        const cacheAge = now - parsedState.lastUpdate;
+                if (lastTxData) {
+                    try {
+                        const lastTx = JSON.parse(lastTxData);
+                        const txAge = Date.now() - lastTx.timestamp;
+                        // Якщо транзакція старша за 10 хвилин, пріоритет віддаємо серверу
+                        if (txAge > 10 * 60 * 1000) {
+                            prioritizeServerData = true;
+                            console.log('📊 Пріоритет віддано серверним даним через вік транзакції');
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Помилка обробки даних останньої транзакції:', e);
+                    }
+                }
 
-                        if (cacheAge < 30 * 60 * 1000) {
-                            // Відновлюємо список розіграшів з участю
-                            if (Array.isArray(parsedState.raffles)) {
-                                this.participatingRaffles = new Set(parsedState.raffles);
+                // Відновлення даних участі - тепер зі ЗНИЖЕНИМ пріоритетом
+                // для уникнення заміщення серверних даних
+                if (!prioritizeServerData) {
+                    const savedState = localStorage.getItem('winix_participation_state');
+                    if (savedState) {
+                        const parsedState = JSON.parse(savedState);
+
+                        // Перевірка актуальності даних (не старіші 10 хвилин - ЗМЕНШЕНО з 30 хвилин)
+                        if (parsedState && parsedState.lastUpdate) {
+                            const now = Date.now();
+                            const cacheAge = now - parsedState.lastUpdate;
+
+                            if (cacheAge < 10 * 60 * 1000) { // 10 хвилин замість 30
+                                // Відновлюємо список розіграшів з участю
+                                if (Array.isArray(parsedState.raffles)) {
+                                    this.participatingRaffles = new Set(parsedState.raffles);
+                                }
+
+                                // Відновлюємо кількість білетів
+                                if (parsedState.tickets) {
+                                    this.userRaffleTickets = parsedState.tickets;
+                                }
+
+                                // ДОДАНО: Відновлюємо баланс
+                                if (parsedState.balance !== undefined) {
+                                    this.lastKnownBalance = parsedState.balance;
+                                    this.lastBalanceUpdateTime = parsedState.lastBalanceUpdateTime || now;
+                                }
+
+                                console.log('✅ Успішно відновлено дані про участь із локального сховища');
+
+                                // ДОДАНО: Встановлюємо прапорець для примусової перевірки з сервером
+                                this.needsForcedSync = true;
+                            } else {
+                                console.log('ℹ️ Кеш участі застарів, виконується очищення');
+                                localStorage.removeItem('winix_participation_state');
                             }
-
-                            // Відновлюємо кількість білетів
-                            if (parsedState.tickets) {
-                                this.userRaffleTickets = parsedState.tickets;
-                            }
-
-                            // ДОДАНО: Відновлюємо баланс
-                            if (parsedState.balance !== undefined) {
-                                this.lastKnownBalance = parsedState.balance;
-                                this.lastBalanceUpdateTime = parsedState.lastBalanceUpdateTime || now;
-                            }
-
-                            console.log('✅ Успішно відновлено дані про участь із локального сховища');
-                        } else {
-                            console.log('ℹ️ Кеш участі застарів, виконується очищення');
-                            localStorage.removeItem('winix_participation_state');
                         }
                     }
+                } else {
+                    console.log('🔄 Пропускаємо відновлення з локального сховища для отримання свіжих даних з сервера');
                 }
 
                 // Відновлення списку невалідних розіграшів
@@ -825,6 +909,9 @@
                         console.warn('⚠️ Помилка відновлення списку недійсних розіграшів:', e);
                     }
                 }
+
+                // ДОДАНО: Встановлюємо прапорець для примусової синхронізації з сервером
+                this.needsForcedSync = true;
             } catch (error) {
                 console.error('❌ Помилка відновлення даних про участь:', error);
             }
@@ -878,7 +965,7 @@
          * Налаштування обробників подій
          * @private
          */
-        _setupEventListeners: function() {
+        _setupEventHandlers: function() {
             // Обробник кліків на кнопки участі (з використанням делегування подій)
             document.addEventListener('click', (event) => {
                 // Знаходимо ближчу кнопку участі
@@ -1367,220 +1454,220 @@
          * Оновлення відображення кнопок участі
          */
         updateParticipationButtons: function() {
-    try {
-        console.log('🔄 Оновлення кнопок участі...');
+            try {
+                console.log('🔄 Оновлення кнопок участі...');
 
-        // НОВИЙ КОД: Відновлення з підтверджених даних участі
-        try {
-            // Збираємо всі записи про підтверджену участь
-            const storageKeys = Object.keys(localStorage);
-            const participationKeys = storageKeys.filter(key => key.startsWith('winix_confirmed_participation_'));
+                // НОВИЙ КОД: Відновлення з підтверджених даних участі
+                try {
+                    // Збираємо всі записи про підтверджену участь
+                    const storageKeys = Object.keys(localStorage);
+                    const participationKeys = storageKeys.filter(key => key.startsWith('winix_confirmed_participation_'));
 
-            if (participationKeys.length > 0) {
-                console.log(`📋 Знайдено ${participationKeys.length} записів про підтверджену участь`);
+                    if (participationKeys.length > 0) {
+                        console.log(`📋 Знайдено ${participationKeys.length} записів про підтверджену участь`);
 
-                participationKeys.forEach(key => {
-                    try {
-                        const data = JSON.parse(localStorage.getItem(key));
-                        const raffleId = data.raffleId;
-                        const ticketCount = data.ticketCount || 1;
-                        const age = Date.now() - data.validatedAt;
+                        participationKeys.forEach(key => {
+                            try {
+                                const data = JSON.parse(localStorage.getItem(key));
+                                const raffleId = data.raffleId;
+                                const ticketCount = data.ticketCount || 1;
+                                const age = Date.now() - data.validatedAt;
 
-                        // Використовуємо підтверджені дані, які не старіші 30 хвилин
-                        if (age < 30 * 60 * 1000 && raffleId) {
-                            this.participatingRaffles.add(raffleId);
-                            this.userRaffleTickets[raffleId] = ticketCount;
+                                // Використовуємо підтверджені дані, які не старіші 30 хвилин
+                                if (age < 30 * 60 * 1000 && raffleId) {
+                                    this.participatingRaffles.add(raffleId);
+                                    this.userRaffleTickets[raffleId] = ticketCount;
+                                }
+                            } catch (e) {
+                                console.warn(`⚠️ Помилка обробки запису ${key}:`, e);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка відновлення з підтверджених даних:', e);
+                }
+
+                // Спочатку перевіряємо дані локального сховища
+                try {
+                    const savedState = localStorage.getItem('winix_participation_state');
+                    if (savedState) {
+                        const parsedState = JSON.parse(savedState);
+
+                        // Відновлюємо множину розіграшів, якщо вона порожня
+                        if (parsedState && Array.isArray(parsedState.raffles) &&
+                            (!this.participatingRaffles || this.participatingRaffles.size === 0)) {
+
+                            this.participatingRaffles = new Set(parsedState.raffles);
+
+                            // Відновлюємо кількість білетів
+                            if (parsedState.tickets) {
+                                this.userRaffleTickets = parsedState.tickets;
+                            }
                         }
-                    } catch (e) {
-                        console.warn(`⚠️ Помилка обробки запису ${key}:`, e);
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка відновлення стану участі:', e);
+                }
+
+                // НОВИЙ КОД: Перевіряємо недавні транзакції
+                try {
+                    const lastTxData = localStorage.getItem('winix_last_transaction');
+                    if (lastTxData) {
+                        const lastTx = JSON.parse(lastTxData);
+                        const txAge = Date.now() - lastTx.timestamp;
+
+                        // Для транзакцій молодших за 3 хвилини, додаємо розіграш у список участі
+                        if (txAge < 180000 && lastTx.confirmed && lastTx.type === 'participation' && lastTx.raffleId) {
+                            console.log(`📝 Застосовуємо дані транзакції для розіграшу ${lastTx.raffleId} (${Math.round(txAge/1000)}с тому)`);
+
+                            // Додаємо розіграш, якщо він відсутній
+                            this.participatingRaffles.add(lastTx.raffleId);
+
+                            // Оновлюємо кількість білетів, якщо не встановлено або менша
+                            const currentTickets = this.userRaffleTickets[lastTx.raffleId] || 0;
+                            if (lastTx.ticketCount && lastTx.ticketCount > currentTickets) {
+                                this.userRaffleTickets[lastTx.raffleId] = lastTx.ticketCount;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Помилка обробки останньої транзакції:', e);
+                }
+
+                // Отримуємо всі кнопки участі
+                const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
+                if (!buttons.length) return;
+
+                // Створюємо кеш для оптимізації
+                const participatingCache = {};
+                this.participatingRaffles.forEach(id => {
+                    participatingCache[id] = true;
+                });
+
+                const invalidCache = {};
+                this.invalidRaffleIds.forEach(id => {
+                    invalidCache[id] = true;
+                });
+
+                const activeRequestsCache = {};
+                this.activeTransactions.forEach((value, key) => {
+                    activeRequestsCache[key] = true;
+                });
+
+                // НОВИЙ КОД: Логування кількості кнопок та розіграшів для діагностики
+                console.log(`🎮 Оновлення ${buttons.length} кнопок, участь у ${this.participatingRaffles.size} розіграшах`);
+
+                // Обробляємо кожну кнопку
+                buttons.forEach(button => {
+                    const raffleId = button.getAttribute('data-raffle-id');
+                    if (!raffleId) return;
+
+                    // Перевіряємо, чи користувач бере участь у розіграші
+                    const isParticipating = participatingCache[raffleId];
+
+                    // Перевіряємо, чи розіграш недійсний
+                    const isInvalid = invalidCache[raffleId] ||
+                                     (WinixRaffles.state.invalidRaffleIds &&
+                                      WinixRaffles.state.invalidRaffleIds.has(raffleId));
+
+                    // Перевіряємо, чи кнопка в процесі обробки
+                    const isProcessing = activeRequestsCache[raffleId] ||
+                                        this.pendingRequests[raffleId];
+
+                    // НОВИЙ КОД: Зберігаємо поточний стан кнопки для порівняння після оновлення
+                    const wasParticipating = button.classList.contains('participating');
+                    const wasDisabled = button.disabled;
+                    const previousText = button.textContent;
+
+                    // Оновлюємо стан кнопки відповідно до перевірок
+                    if (isInvalid) {
+                        // Для недійсних розіграшів
+                        button.textContent = 'Розіграш завершено';
+                        button.classList.add('disabled');
+                        button.disabled = true;
+                    } else if (isProcessing) {
+                        // Для кнопок у процесі обробки
+                        button.textContent = 'Обробка...';
+                        button.classList.add('processing');
+                        button.disabled = true;
+                    } else if (isParticipating) {
+                        // Для розіграшів з участю
+                        const ticketCount = this.userRaffleTickets[raffleId] || 1;
+                        const isMini = button.classList.contains('mini-raffle-button');
+
+                        // НОВИЙ КОД: Зміна тексту тільки якщо кількість білетів змінилася
+                        const newText = isMini ?
+                            `Додати ще білет (${ticketCount})` :
+                            `Додати ще білет (у вас: ${ticketCount})`;
+
+                        if (!wasParticipating || previousText !== newText) {
+                            button.textContent = newText;
+
+                            // НОВИЙ КОД: Додаємо анімацію при зміні кількості білетів
+                            if (wasParticipating && previousText !== newText) {
+                                button.classList.add('ticket-updated');
+                                setTimeout(() => button.classList.remove('ticket-updated'), 1000);
+                            }
+                        }
+
+                        button.classList.add('participating');
+                        button.classList.remove('processing');
+                        button.disabled = false;
+
+                        // НОВИЙ КОД: Зберігаємо кількість білетів у атрибуті для легкого доступу
+                        button.setAttribute('data-ticket-count', ticketCount);
+                    } else {
+                        // Для розіграшів без участі
+                        const entryFee = button.getAttribute('data-entry-fee') || '1';
+
+                        // Відновлюємо оригінальний текст
+                        const originalText = button.getAttribute('data-original-text');
+                        if (originalText && !button.textContent.includes('Взяти участь')) {
+                            button.textContent = originalText;
+                        } else {
+                            // Або встановлюємо стандартний текст
+                            button.textContent = button.classList.contains('mini-raffle-button') ?
+                                'Взяти участь' :
+                                `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+                        }
+
+                        button.classList.remove('participating', 'processing');
+                        button.disabled = false;
+
+                        // Видаляємо атрибут кількості білетів
+                        button.removeAttribute('data-ticket-count');
+                    }
+
+                    // НОВИЙ КОД: Логування зміни стану кнопки для діагностики
+                    if (wasParticipating !== button.classList.contains('participating') ||
+                        wasDisabled !== button.disabled ||
+                        previousText !== button.textContent) {
+
+                        console.log(`🔄 Кнопка ${raffleId}: ${previousText} -> ${button.textContent}`);
                     }
                 });
+
+                // НОВИЙ КОД: Додаємо стилі для анімації оновлення кількості білетів
+                if (!document.getElementById('ticket-update-animation')) {
+                    const style = document.createElement('style');
+                    style.id = 'ticket-update-animation';
+                    style.textContent = `
+                        @keyframes ticket-highlight {
+                            0% { transform: scale(1); background-color: inherit; }
+                            50% { transform: scale(1.05); background-color: rgba(76, 175, 80, 0.3); }
+                            100% { transform: scale(1); background-color: inherit; }
+                        }
+                        
+                        .ticket-updated {
+                            animation: ticket-highlight 0.8s ease-out;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            } catch (error) {
+                console.error("❌ Помилка при оновленні кнопок участі:", error);
             }
-        } catch (e) {
-            console.warn('⚠️ Помилка відновлення з підтверджених даних:', e);
-        }
-
-        // Спочатку перевіряємо дані локального сховища
-        try {
-            const savedState = localStorage.getItem('winix_participation_state');
-            if (savedState) {
-                const parsedState = JSON.parse(savedState);
-
-                // Відновлюємо множину розіграшів, якщо вона порожня
-                if (parsedState && Array.isArray(parsedState.raffles) &&
-                    (!this.participatingRaffles || this.participatingRaffles.size === 0)) {
-
-                    this.participatingRaffles = new Set(parsedState.raffles);
-
-                    // Відновлюємо кількість білетів
-                    if (parsedState.tickets) {
-                        this.userRaffleTickets = parsedState.tickets;
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('⚠️ Помилка відновлення стану участі:', e);
-        }
-
-        // НОВИЙ КОД: Перевіряємо недавні транзакції
-        try {
-            const lastTxData = localStorage.getItem('winix_last_transaction');
-            if (lastTxData) {
-                const lastTx = JSON.parse(lastTxData);
-                const txAge = Date.now() - lastTx.timestamp;
-
-                // Для транзакцій молодших за 3 хвилини, додаємо розіграш у список участі
-                if (txAge < 180000 && lastTx.confirmed && lastTx.type === 'participation' && lastTx.raffleId) {
-                    console.log(`📝 Застосовуємо дані транзакції для розіграшу ${lastTx.raffleId} (${Math.round(txAge/1000)}с тому)`);
-
-                    // Додаємо розіграш, якщо він відсутній
-                    this.participatingRaffles.add(lastTx.raffleId);
-
-                    // Оновлюємо кількість білетів, якщо не встановлено або менша
-                    const currentTickets = this.userRaffleTickets[lastTx.raffleId] || 0;
-                    if (lastTx.ticketCount && lastTx.ticketCount > currentTickets) {
-                        this.userRaffleTickets[lastTx.raffleId] = lastTx.ticketCount;
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('⚠️ Помилка обробки останньої транзакції:', e);
-        }
-
-        // Отримуємо всі кнопки участі
-        const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
-        if (!buttons.length) return;
-
-        // Створюємо кеш для оптимізації
-        const participatingCache = {};
-        this.participatingRaffles.forEach(id => {
-            participatingCache[id] = true;
-        });
-
-        const invalidCache = {};
-        this.invalidRaffleIds.forEach(id => {
-            invalidCache[id] = true;
-        });
-
-        const activeRequestsCache = {};
-        this.activeTransactions.forEach((value, key) => {
-            activeRequestsCache[key] = true;
-        });
-
-        // НОВИЙ КОД: Логування кількості кнопок та розіграшів для діагностики
-        console.log(`🎮 Оновлення ${buttons.length} кнопок, участь у ${this.participatingRaffles.size} розіграшах`);
-
-        // Обробляємо кожну кнопку
-        buttons.forEach(button => {
-            const raffleId = button.getAttribute('data-raffle-id');
-            if (!raffleId) return;
-
-            // Перевіряємо, чи користувач бере участь у розіграші
-            const isParticipating = participatingCache[raffleId];
-
-            // Перевіряємо, чи розіграш недійсний
-            const isInvalid = invalidCache[raffleId] ||
-                             (WinixRaffles.state.invalidRaffleIds &&
-                              WinixRaffles.state.invalidRaffleIds.has(raffleId));
-
-            // Перевіряємо, чи кнопка в процесі обробки
-            const isProcessing = activeRequestsCache[raffleId] ||
-                                this.pendingRequests[raffleId];
-
-            // НОВИЙ КОД: Зберігаємо поточний стан кнопки для порівняння після оновлення
-            const wasParticipating = button.classList.contains('participating');
-            const wasDisabled = button.disabled;
-            const previousText = button.textContent;
-
-            // Оновлюємо стан кнопки відповідно до перевірок
-            if (isInvalid) {
-                // Для недійсних розіграшів
-                button.textContent = 'Розіграш завершено';
-                button.classList.add('disabled');
-                button.disabled = true;
-            } else if (isProcessing) {
-                // Для кнопок у процесі обробки
-                button.textContent = 'Обробка...';
-                button.classList.add('processing');
-                button.disabled = true;
-            } else if (isParticipating) {
-                // Для розіграшів з участю
-                const ticketCount = this.userRaffleTickets[raffleId] || 1;
-                const isMini = button.classList.contains('mini-raffle-button');
-
-                // НОВИЙ КОД: Зміна тексту тільки якщо кількість білетів змінилася
-                const newText = isMini ?
-                    `Додати ще білет (${ticketCount})` :
-                    `Додати ще білет (у вас: ${ticketCount})`;
-
-                if (!wasParticipating || previousText !== newText) {
-                    button.textContent = newText;
-
-                    // НОВИЙ КОД: Додаємо анімацію при зміні кількості білетів
-                    if (wasParticipating && previousText !== newText) {
-                        button.classList.add('ticket-updated');
-                        setTimeout(() => button.classList.remove('ticket-updated'), 1000);
-                    }
-                }
-
-                button.classList.add('participating');
-                button.classList.remove('processing');
-                button.disabled = false;
-
-                // НОВИЙ КОД: Зберігаємо кількість білетів у атрибуті для легкого доступу
-                button.setAttribute('data-ticket-count', ticketCount);
-            } else {
-                // Для розіграшів без участі
-                const entryFee = button.getAttribute('data-entry-fee') || '1';
-
-                // Відновлюємо оригінальний текст
-                const originalText = button.getAttribute('data-original-text');
-                if (originalText && !button.textContent.includes('Взяти участь')) {
-                    button.textContent = originalText;
-                } else {
-                    // Або встановлюємо стандартний текст
-                    button.textContent = button.classList.contains('mini-raffle-button') ?
-                        'Взяти участь' :
-                        `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
-                }
-
-                button.classList.remove('participating', 'processing');
-                button.disabled = false;
-
-                // Видаляємо атрибут кількості білетів
-                button.removeAttribute('data-ticket-count');
-            }
-
-            // НОВИЙ КОД: Логування зміни стану кнопки для діагностики
-            if (wasParticipating !== button.classList.contains('participating') ||
-                wasDisabled !== button.disabled ||
-                previousText !== button.textContent) {
-
-                console.log(`🔄 Кнопка ${raffleId}: ${previousText} -> ${button.textContent}`);
-            }
-        });
-
-        // НОВИЙ КОД: Додаємо стилі для анімації оновлення кількості білетів
-        if (!document.getElementById('ticket-update-animation')) {
-            const style = document.createElement('style');
-            style.id = 'ticket-update-animation';
-            style.textContent = `
-                @keyframes ticket-highlight {
-                    0% { transform: scale(1); background-color: inherit; }
-                    50% { transform: scale(1.05); background-color: rgba(76, 175, 80, 0.3); }
-                    100% { transform: scale(1); background-color: inherit; }
-                }
-                
-                .ticket-updated {
-                    animation: ticket-highlight 0.8s ease-out;
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    } catch (error) {
-        console.error("❌ Помилка при оновленні кнопок участі:", error);
-    }
-},
+        },
 
         /**
          * Перевірка валідності UUID
@@ -1887,62 +1974,62 @@
                     this.userRaffleTickets[raffleId] = newTicketCount;
 
                    // ОНОВЛЮЄМО БАЛАНС, ЯКЩО СЕРВЕР ПОВЕРНУВ НОВЕ ЗНАЧЕННЯ
-if (response.data && typeof response.data.new_coins_balance === 'number') {
-    // Запам'ятовуємо баланс до оновлення для виявлення змін
-    const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
-    const newBalance = response.data.new_coins_balance;
+                    if (response.data && typeof response.data.new_coins_balance === 'number') {
+                        // Запам'ятовуємо баланс до оновлення для виявлення змін
+                        const oldBalance = parseInt(localStorage.getItem('userCoins')) || 0;
+                        const newBalance = response.data.new_coins_balance;
 
-    // Зберігаємо дані транзакції для відстеження і вирішення конфліктів
-const transactionRecord = {
-    type: "participation",
-    raffleId: raffleId,
-    oldBalance: oldBalance,
-    newBalance: newBalance,
-    timestamp: Date.now(),
-    confirmed: true,
-    transactionId: transactionId,
-    ticketCount: (this.userRaffleTickets[raffleId] || 0) + 1  // ДОДАНО: зберігаємо нову кількість білетів
-};
+                        // Зберігаємо дані транзакції для відстеження і вирішення конфліктів
+                        const transactionRecord = {
+                            type: "participation",
+                            raffleId: raffleId,
+                            oldBalance: oldBalance,
+                            newBalance: newBalance,
+                            timestamp: Date.now(),
+                            confirmed: true,
+                            transactionId: transactionId,
+                            ticketCount: newTicketCount
+                        };
 
 
-    // Зберігаємо запис про останню транзакцію з балансом
-    localStorage.setItem('winix_last_transaction', JSON.stringify(transactionRecord));
+                        // Зберігаємо запис про останню транзакцію з балансом
+                        localStorage.setItem('winix_last_transaction', JSON.stringify(transactionRecord));
 
-    // КРИТИЧНО ВАЖЛИВО: НЕГАЙНО ОНОВЛЮЄМО DOM-ЕЛЕМЕНТ БАЛАНСУ
-    const userCoinsElement = document.getElementById('user-coins');
-    if (userCoinsElement) {
-        // Додаємо ефект анімації
-        userCoinsElement.classList.add('decreasing');
+                        // КРИТИЧНО ВАЖЛИВО: НЕГАЙНО ОНОВЛЮЄМО DOM-ЕЛЕМЕНТ БАЛАНСУ
+                        const userCoinsElement = document.getElementById('user-coins');
+                        if (userCoinsElement) {
+                            // Додаємо ефект анімації
+                            userCoinsElement.classList.add('decreasing');
 
-        // Негайно оновлюємо текстове значення
-        userCoinsElement.textContent = newBalance;
+                            // Негайно оновлюємо текстове значення
+                            userCoinsElement.textContent = newBalance;
 
-        setTimeout(() => {
-            userCoinsElement.classList.remove('decreasing');
-        }, 1000);
-    }
+                            setTimeout(() => {
+                                userCoinsElement.classList.remove('decreasing');
+                            }, 1000);
+                        }
 
-    // Оновлюємо локальне сховище відразу
-    localStorage.setItem('userCoins', newBalance.toString());
-    localStorage.setItem('winix_coins', newBalance.toString());
-    localStorage.setItem('winix_balance_update_time', Date.now().toString());
-    localStorage.setItem('winix_server_balance', newBalance.toString()); // Додаємо запис серверного балансу
+                        // Оновлюємо локальне сховище відразу
+                        localStorage.setItem('userCoins', newBalance.toString());
+                        localStorage.setItem('winix_coins', newBalance.toString());
+                        localStorage.setItem('winix_balance_update_time', Date.now().toString());
+                        localStorage.setItem('winix_server_balance', newBalance.toString()); // Додаємо запис серверного балансу
 
-    // Оновлюємо кеш балансу
-    this.lastKnownBalance = newBalance;
-    this.lastBalanceUpdateTime = Date.now();
+                        // Оновлюємо кеш балансу
+                        this.lastKnownBalance = newBalance;
+                        this.lastBalanceUpdateTime = Date.now();
 
-    // Генеруємо подію оновлення балансу
-    document.dispatchEvent(new CustomEvent('balance-updated', {
-        detail: {
-            oldBalance: oldBalance,
-            newBalance: newBalance,
-            source: 'participation.js',
-            transactionId: transactionId
-        }
-    }));
+                        // Генеруємо подію оновлення балансу
+                        document.dispatchEvent(new CustomEvent('balance-updated', {
+                            detail: {
+                                oldBalance: oldBalance,
+                                newBalance: newBalance,
+                                source: 'participation.js',
+                                transactionId: transactionId
+                            }
+                        }));
 
-    console.log(`✅ Баланс успішно оновлено: старий=${oldBalance}, новий=${newBalance}, різниця=${oldBalance-newBalance}`);
+                        console.log(`✅ Баланс успішно оновлено: старий=${oldBalance}, новий=${newBalance}, різниця=${oldBalance-newBalance}`);
 
                     } else {
                         // Якщо сервер не повернув баланс, віднімаємо локально вартість участі
@@ -2029,42 +2116,54 @@ const transactionRecord = {
                             console.warn('⚠️ Помилка підтвердження участі:', e)
                         );
                     }, 3000);
-// НОВИЙ КОД: Створюємо окремий запис про підтверджену участь у розіграші
-try {
-    const confirmedParticipation = {
-        raffleId: raffleId,
-        ticketCount: newTicketCount,
-        validatedAt: Date.now(),
-        source: 'transaction',
-        balanceAfter: newBalance
-    };
 
-    localStorage.setItem(`winix_confirmed_participation_${raffleId}`, JSON.stringify(confirmedParticipation));
+                    // ДОДАНО: Перевіряємо наявність кнопки "Деталі" і видаляємо її, якщо вона є
+                    const detailsButton = document.querySelector(`.details-button[data-raffle-id="${raffleId}"]`);
+                    if (detailsButton && detailsButton.parentNode) {
+                        detailsButton.parentNode.removeChild(detailsButton);
+                        console.log(`🔄 Видалено кнопку "Деталі" для розіграшу ${raffleId}`);
+                    }
 
-    // Додатково перевіримо що кнопка оновилася через 500мс
-    setTimeout(() => {
-        const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
-        buttons.forEach(button => {
-            const currentText = button.textContent;
+                    // НОВИЙ КОД: Створюємо окремий запис про підтверджену участь у розіграші
+                    try {
+                        const confirmedParticipation = {
+                            raffleId: raffleId,
+                            ticketCount: newTicketCount,
+                            validatedAt: Date.now(),
+                            source: 'transaction',
+                            balanceAfter: newBalance
+                        };
 
-            // Перевіряємо, чи відображає кнопка правильну кількість білетів
-            if (!currentText.includes(String(newTicketCount))) {
-                console.log(`⚠️ Виявлено розбіжність тексту кнопки: "${currentText}" не містить кількість білетів ${newTicketCount}`);
+                        localStorage.setItem(`winix_confirmed_participation_${raffleId}`, JSON.stringify(confirmedParticipation));
 
-                // Примусово встановлюємо правильний текст
-                const isMini = button.classList.contains('mini-raffle-button');
-                button.textContent = isMini ?
-                    `Додати ще білет (${newTicketCount})` :
-                    `Додати ще білет (у вас: ${newTicketCount})`;
+                        // Додатково перевіримо що кнопка оновилася через 500мс
+                        setTimeout(() => {
+                            const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                            buttons.forEach(button => {
+                                const currentText = button.textContent;
 
-                button.classList.add('ticket-updated');
-                setTimeout(() => button.classList.remove('ticket-updated'), 1000);
-            }
-        });
-    }, 500);
-} catch (e) {
-    console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
-}
+                                // Перевіряємо, чи відображає кнопка правильну кількість білетів
+                                if (!currentText.includes(String(newTicketCount))) {
+                                    console.log(`⚠️ Виявлено розбіжність тексту кнопки: "${currentText}" не містить кількість білетів ${newTicketCount}`);
+
+                                    // Примусово встановлюємо правильний текст
+                                    const isMini = button.classList.contains('mini-raffle-button');
+                                    button.textContent = isMini ?
+                                        `Додати ще білет (${newTicketCount})` :
+                                        `Додати ще білет (у вас: ${newTicketCount})`;
+
+                                    button.classList.add('ticket-updated');
+                                    setTimeout(() => button.classList.remove('ticket-updated'), 1000);
+                                }
+                            });
+                        }, 500);
+                    } catch (e) {
+                        console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
+                    }
+
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Ви успішно взяли участь у розіграші', 'success');
+                    }
 
                     // ПОВЕРТАЄМО РЕЗУЛЬТАТ
                     return {
@@ -2161,139 +2260,139 @@ try {
          * Використовується для додаткової перевірки після успішної участі
          */
         confirmParticipation: async function(raffleId) {
-    if (!raffleId) return;
+            if (!raffleId) return;
 
-    console.log(`🔍 Підтвердження участі в розіграші ${raffleId}`);
+            console.log(`🔍 Підтвердження участі в розіграші ${raffleId}`);
 
-    // Додаємо таймстамп до запиту для уникнення кешування
-    const timestamp = Date.now();
+            // Додаємо таймстамп до запиту для уникнення кешування
+            const timestamp = Date.now();
 
-    try {
-        // Отримуємо ID користувача
-        const userId = WinixRaffles.state.telegramId ||
-                       (window.WinixAPI ? window.WinixAPI.getUserId() : null);
-
-        if (!userId) {
-            console.warn('⚠️ Не вдалося визначити ID користувача для підтвердження');
-            return;
-        }
-
-        // Зберігаємо поточні дані для порівняння
-        const currentParticipation = this.participatingRaffles.has(raffleId);
-        const currentTickets = this.userRaffleTickets[raffleId] || 0;
-
-        // Спробуємо виконати запит до 3-х разів при помилках мережі
-        for (let attempt = 0; attempt < 3; attempt++) {
             try {
-                // Додаємо nocache-параметр для уникнення кешування
-                const response = await WinixAPI.apiRequest(`user/${userId}/raffles?nocache=${timestamp}`, 'GET', null, {
-                    suppressErrors: true,
-                    hideLoader: true,
-                    timeout: 10000,
-                    retries: 1
-                });
+                // Отримуємо ID користувача
+                const userId = WinixRaffles.state.telegramId ||
+                            (window.WinixAPI ? window.WinixAPI.getUserId() : null);
 
-                if (response && response.status === 'success' && Array.isArray(response.data)) {
-                    // Шукаємо розіграш у відповіді
-                    const foundRaffle = response.data.find(r => r.raffle_id === raffleId);
+                if (!userId) {
+                    console.warn('⚠️ Не вдалося визначити ID користувача для підтвердження');
+                    return;
+                }
 
-                    if (foundRaffle) {
-                        console.log(`✅ Підтверджено участь у розіграші ${raffleId}, білетів: ${foundRaffle.entry_count || 1}`);
+                // Зберігаємо поточні дані для порівняння
+                const currentParticipation = this.participatingRaffles.has(raffleId);
+                const currentTickets = this.userRaffleTickets[raffleId] || 0;
 
-                        // КРИТИЧНО ВАЖЛИВО: Оновлюємо локальні дані
-                        this.participatingRaffles.add(raffleId);
-                        this.userRaffleTickets[raffleId] = foundRaffle.entry_count || 1;
+                // Спробуємо виконати запит до 3-х разів при помилках мережі
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        // Додаємо nocache-параметр для уникнення кешування
+                        const response = await WinixAPI.apiRequest(`user/${userId}/raffles?nocache=${timestamp}`, 'GET', null, {
+                            suppressErrors: true,
+                            hideLoader: true,
+                            timeout: 10000,
+                            retries: 1
+                        });
 
-                        // Оновлюємо кеш серверних даних
-                        this.serverDataCache.participatingRaffles.add(raffleId);
-                        this.serverDataCache.userRaffleTickets[raffleId] = foundRaffle.entry_count || 1;
-                        this.serverDataCache.lastUpdate = Date.now();
+                        if (response && response.status === 'success' && Array.isArray(response.data)) {
+                            // Шукаємо розіграш у відповіді
+                            const foundRaffle = response.data.find(r => r.raffle_id === raffleId);
 
-                        // Записуємо в локальне сховище
-                        this._saveParticipationToStorage();
+                            if (foundRaffle) {
+                                console.log(`✅ Підтверджено участь у розіграші ${raffleId}, білетів: ${foundRaffle.entry_count || 1}`);
 
-                        // НОВИЙ КОД: Зберігаємо гарантовану копію стану участі в локальне сховище
-                        try {
-                            const validatedParticipation = {
-                                raffleId: raffleId,
-                                ticketCount: foundRaffle.entry_count || 1,
-                                validatedAt: Date.now(),
-                                source: 'server'
-                            };
+                                // КРИТИЧНО ВАЖЛИВО: Оновлюємо локальні дані
+                                this.participatingRaffles.add(raffleId);
+                                this.userRaffleTickets[raffleId] = foundRaffle.entry_count || 1;
 
-                            localStorage.setItem(`winix_confirmed_participation_${raffleId}`, JSON.stringify(validatedParticipation));
-                        } catch (e) {
-                            console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
-                        }
+                                // Оновлюємо кеш серверних даних
+                                this.serverDataCache.participatingRaffles.add(raffleId);
+                                this.serverDataCache.userRaffleTickets[raffleId] = foundRaffle.entry_count || 1;
+                                this.serverDataCache.lastUpdate = Date.now();
 
-                        // Гарантуємо оновлення інтерфейсу
-                        this.updateParticipationButtons();
-                        return true;
-                    } else {
-                        console.warn(`⚠️ Розіграш ${raffleId} не знайдено у відповіді сервера`);
+                                // Записуємо в локальне сховище
+                                this._saveParticipationToStorage();
 
-                        // НОВИЙ КОД: Перевіряємо, чи вважаємо ми локально, що участь є
-                        if (currentParticipation && currentTickets > 0) {
-                            console.warn(`⚠️ Виявлено розбіжність: локально участь встановлена, сервер показує відсутність`);
+                                // НОВИЙ КОД: Зберігаємо гарантовану копію стану участі в локальне сховище
+                                try {
+                                    const validatedParticipation = {
+                                        raffleId: raffleId,
+                                        ticketCount: foundRaffle.entry_count || 1,
+                                        validatedAt: Date.now(),
+                                        source: 'server'
+                                    };
 
-                            // НОВИЙ КОД: Якщо у нас є запис про транзакцію, і вона недавня
-                            try {
-                                const lastTxData = localStorage.getItem('winix_last_transaction');
-                                if (lastTxData) {
-                                    const lastTx = JSON.parse(lastTxData);
-                                    const txAge = Date.now() - lastTx.timestamp;
+                                    localStorage.setItem(`winix_confirmed_participation_${raffleId}`, JSON.stringify(validatedParticipation));
+                                } catch (e) {
+                                    console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
+                                }
 
-                                    // Для дуже нових транзакцій (менше 1 хвилини) довіряємо локальним даним
-                                    if (txAge < 60000 && lastTx.raffleId === raffleId && lastTx.confirmed) {
-                                        console.log(`🛡️ Зберігаємо локальну участь, незважаючи на відповідь сервера (транзакція ${Math.round(txAge/1000)}с тому)`);
-                                        return false; // Не змінюємо стан участі
+                                // Гарантуємо оновлення інтерфейсу
+                                this.updateParticipationButtons();
+                                return true;
+                            } else {
+                                console.warn(`⚠️ Розіграш ${raffleId} не знайдено у відповіді сервера`);
+
+                                // НОВИЙ КОД: Перевіряємо, чи вважаємо ми локально, що участь є
+                                if (currentParticipation && currentTickets > 0) {
+                                    console.warn(`⚠️ Виявлено розбіжність: локально участь встановлена, сервер показує відсутність`);
+
+                                    // НОВИЙ КОД: Якщо у нас є запис про транзакцію, і вона недавня
+                                    try {
+                                        const lastTxData = localStorage.getItem('winix_last_transaction');
+                                        if (lastTxData) {
+                                            const lastTx = JSON.parse(lastTxData);
+                                            const txAge = Date.now() - lastTx.timestamp;
+
+                                            // Для дуже нових транзакцій (менше 1 хвилини) довіряємо локальним даним
+                                            if (txAge < 60000 && lastTx.raffleId === raffleId && lastTx.confirmed) {
+                                                console.log(`🛡️ Зберігаємо локальну участь, незважаючи на відповідь сервера (транзакція ${Math.round(txAge/1000)}с тому)`);
+                                                return false; // Не змінюємо стан участі
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('⚠️ Помилка перевірки даних транзакції:', e);
                                     }
                                 }
-                            } catch (e) {
-                                console.warn('⚠️ Помилка перевірки даних транзакції:', e);
+
+                                // Якщо розіграш не знайдено, і немає причин зберігати локальний стан, видаляємо участь
+                                this.participatingRaffles.delete(raffleId);
+                                delete this.userRaffleTickets[raffleId];
+                                this._saveParticipationToStorage();
+                                this.updateParticipationButtons();
+                                return false;
                             }
+                        } else {
+                            console.warn('⚠️ Не вдалося отримати дані для підтвердження участі');
+
+                            // Якщо спроба не остання, повторюємо
+                            if (attempt < 2) {
+                                console.log(`Повторна спроба ${attempt + 1}/3...`);
+                                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                                continue;
+                            }
+
+                            // НОВИЙ КОД: При помилці синхронізації зберігаємо локальний стан
+                            console.log('⚠️ Зберігаємо локальний стан участі через помилку синхронізації');
+                            return false;
                         }
+                    } catch (error) {
+                        console.warn('⚠️ Помилка підтвердження участі:', error);
 
-                        // Якщо розіграш не знайдено, і немає причин зберігати локальний стан, видаляємо участь
-                        this.participatingRaffles.delete(raffleId);
-                        delete this.userRaffleTickets[raffleId];
-                        this._saveParticipationToStorage();
-                        this.updateParticipationButtons();
-                        return false;
+                        // Якщо спроба не остання, повторюємо
+                        if (attempt < 2) {
+                            console.log(`Повторна спроба ${attempt + 1}/3...`);
+                            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                            continue;
+                        }
                     }
-                } else {
-                    console.warn('⚠️ Не вдалося отримати дані для підтвердження участі');
-
-                    // Якщо спроба не остання, повторюємо
-                    if (attempt < 2) {
-                        console.log(`Повторна спроба ${attempt + 1}/3...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                        continue;
-                    }
-
-                    // НОВИЙ КОД: При помилці синхронізації зберігаємо локальний стан
-                    console.log('⚠️ Зберігаємо локальний стан участі через помилку синхронізації');
-                    return false;
                 }
+
+                // Якщо всі спроби не вдалися, збережемо локальний стан
+                return false;
             } catch (error) {
-                console.warn('⚠️ Помилка підтвердження участі:', error);
-
-                // Якщо спроба не остання, повторюємо
-                if (attempt < 2) {
-                    console.log(`Повторна спроба ${attempt + 1}/3...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                    continue;
-                }
+                console.warn('⚠️ Критична помилка підтвердження участі:', error);
+                return false;
             }
-        }
-
-        // Якщо всі спроби не вдалися, збережемо локальний стан
-        return false;
-    } catch (error) {
-        console.warn('⚠️ Критична помилка підтвердження участі:', error);
-        return false;
-    }
-},
+        },
 
         /**
          * Перевірка та виправлення стану участі
@@ -2415,345 +2514,345 @@ try {
             }
         },
 
-        /**
-         * Додає розіграш до списку недійсних
-         * @param {string} raffleId - ID розіграшу
-         */
-        addInvalidRaffleId: function(raffleId) {
-            if (!raffleId) return;
+ /**
+ * Додає розіграш до списку недійсних
+ * @param {string} raffleId - ID розіграшу
+ */
+addInvalidRaffleId: function(raffleId) {
+    if (!raffleId) return;
 
-            this.invalidRaffleIds.add(raffleId);
+    this.invalidRaffleIds.add(raffleId);
 
-            // Також додаємо до глобального списку
-            if (WinixRaffles.state.invalidRaffleIds) {
-                WinixRaffles.state.invalidRaffleIds.add(raffleId);
-            }
+    // Також додаємо до глобального списку
+    if (WinixRaffles.state.invalidRaffleIds) {
+        WinixRaffles.state.invalidRaffleIds.add(raffleId);
+    }
 
-            // Зберігаємо в localStorage
-            try {
-                localStorage.setItem('winix_invalid_raffles', JSON.stringify(Array.from(this.invalidRaffleIds)));
-            } catch (e) {
-                console.warn('⚠️ Не вдалося зберегти недійсні розіграші:', e);
-            }
+    // Зберігаємо в localStorage
+    try {
+        localStorage.setItem('winix_invalid_raffles', JSON.stringify(Array.from(this.invalidRaffleIds)));
+    } catch (e) {
+        console.warn('⚠️ Не вдалося зберегти недійсні розіграші:', e);
+    }
 
-            console.log(`⚠️ Додано розіграш ${raffleId} до списку недійсних`);
+    console.log(`⚠️ Додано розіграш ${raffleId} до списку недійсних`);
 
-            // Оновлюємо відображення кнопок участі
-            this.updateParticipationButtons();
-        },
+    // Оновлюємо відображення кнопок участі
+    this.updateParticipationButtons();
+},
 
-        /**
-         * Очищення списку невалідних розіграшів
-         */
-        clearInvalidRaffleIds: function() {
-            this.invalidRaffleIds.clear();
+/**
+ * Очищення списку невалідних розіграшів
+ */
+clearInvalidRaffleIds: function() {
+    this.invalidRaffleIds.clear();
 
-            if (WinixRaffles.state.invalidRaffleIds) {
-                WinixRaffles.state.invalidRaffleIds.clear();
-            }
+    if (WinixRaffles.state.invalidRaffleIds) {
+        WinixRaffles.state.invalidRaffleIds.clear();
+    }
 
-            localStorage.removeItem('winix_invalid_raffles');
-            console.log('🧹 Список недійсних розіграшів очищено');
-        },
+    localStorage.removeItem('winix_invalid_raffles');
+    console.log('🧹 Список недійсних розіграшів очищено');
+},
 
-        /**
-         * Синхронізація з сервером
-         * @param {boolean} force - Примусова синхронізація
-         * @returns {Promise<Object>} Результат синхронізації
-         */
-        syncWithServer: async function(force = false) {
-            // ДОДАНО: Перевірка, чи синхронізація не заблокована
-            if (this.syncLock && !force) {
-                console.log('🔒 Синхронізація заблокована, встановлюємо прапорець відкладеної синхронізації');
-                this.pendingSyncRequested = true;
-                return Promise.resolve({ success: false, message: "Синхронізація заблокована" });
-            }
+/**
+ * Синхронізація з сервером
+ * @param {boolean} force - Примусова синхронізація
+ * @returns {Promise<Object>} Результат синхронізації
+ */
+syncWithServer: async function(force = false) {
+    // ДОДАНО: Перевірка, чи синхронізація не заблокована
+    if (this.syncLock && !force) {
+        console.log('🔒 Синхронізація заблокована, встановлюємо прапорець відкладеної синхронізації');
+        this.pendingSyncRequested = true;
+        return Promise.resolve({ success: false, message: "Синхронізація заблокована" });
+    }
 
-            // ДОДАНО: Блокування синхронізації на час виконання
-            this.syncLock = true;
+    // ДОДАНО: Блокування синхронізації на час виконання
+    this.syncLock = true;
 
-            try {
-                console.log('🔄 Початок синхронізації з сервером...');
+    try {
+        console.log('🔄 Початок синхронізації з сервером...');
 
-                // Перевіряємо наявність модуля участі
-                if (!window.WinixRaffles || !window.WinixRaffles.participation) {
-                    console.warn('⚠️ Модуль участі недоступний');
-                    return false;
-                }
-
-                // Використовуємо метод завантаження з примусовим оновленням
-                await this.loadUserRaffles(true);
-
-                // Оновлюємо час синхронізації
-                this.lastSyncTime = Date.now();
-
-                // Оновлюємо відображення кнопок участі
-                this.updateParticipationButtons();
-
-                // Також оновлюємо баланс
-                await this._getServerBalance();
-
-                // Скидаємо прапорець примусової синхронізації
-                this.needsForcedSync = false;
-
-                console.log('✅ Дані про участь успішно синхронізовано');
-                return true;
-            } catch (error) {
-                console.error('❌ Помилка синхронізації з сервером:', error);
-                return false;
-            } finally {
-                // ДОДАНО: Знімаємо блокування синхронізації
-                this.syncLock = false;
-
-                // ДОДАНО: Якщо є відкладена синхронізація та немає блокування, запускаємо її
-                if (this.pendingSyncRequested && !this.isSyncInProgress) {
-                    setTimeout(() => {
-                        if (this.pendingSyncRequested) {
-                            this.pendingSyncRequested = false;
-                            this.syncWithServer(false).catch(e => {
-                                console.warn('⚠️ Помилка відкладеної синхронізації:', e);
-                            });
-                        }
-                    }, 2000);
-                }
-            }
-        },
-
-        /**
-         * Скидання стану модуля
-         * @returns {boolean} Результат скидання
-         */
-        resetState: function() {
-            console.log('🔄 Виконується скидання стану модуля участі...');
-
-            // Скидаємо всі активні транзакції
-            this.activeTransactions.clear();
-
-            // Скидаємо глобальне блокування
-            this.requestLock = false;
-
-            // ВИПРАВЛЕНО: Скидаємо прапорець обробки запиту
-            this.requestInProgress = false;
-
-            // Очищення обмежень розіграшів
-            this.pendingRequests = {};
-
-            // Скидаємо часові мітки запитів
-            this.lastRequestTimes = {};
-
-            // Скидаємо прапорець примусової синхронізації
-            this.needsForcedSync = false;
-
-            // ДОДАНО: Скидаємо прапорець блокування синхронізації
-            this.syncLock = false;
-
-            // ДОДАНО: Скидаємо прапорець відкладеної синхронізації
-            this.pendingSyncRequested = false;
-
-            // Скидаємо стан кнопок
-            document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
-                // Отримуємо ID розіграшу
-                const raffleId = button.getAttribute('data-raffle-id');
-                if (raffleId) {
-                    this._resetButtonState(raffleId);
-                } else {
-                    // Якщо ID немає, просто скидаємо стан кнопки
-                    button.classList.remove('processing');
-                    button.disabled = false;
-
-                    // Відновлюємо оригінальний текст
-                    const originalText = button.getAttribute('data-original-text');
-                    if (originalText) {
-                        button.textContent = originalText;
-                    }
-                }
-            });
-
-            // Оновлюємо відображення кнопок участі
-            this.updateParticipationButtons();
-
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            // Скидаємо прапорець синхронізації
-            this.isSyncInProgress = false;
-
-            // Очищаємо таймер синхронізації
-            if (this.syncTimer) {
-                clearTimeout(this.syncTimer);
-                this.syncTimer = null;
-            }
-
-            console.log('✅ Стан модуля участі успішно скинуто');
-            return true;
-        },
-
-        /**
-         * Отримання діагностичної інформації про стан участі
-         * @returns {Object} - Діагностична інформація
-         */
-        getDiagnosticInfo: function() {
-            return {
-                participatingRaffles: Array.from(this.participatingRaffles),
-                ticketCounts: this.userRaffleTickets,
-                invalidRaffles: Array.from(this.invalidRaffleIds),
-                activeTransactions: Array.from(this.activeTransactions.entries()),
-                pendingRequests: this.pendingRequests,
-                lastRequestTimes: this.lastRequestTimes,
-                transactionLog: this.transactionLog,
-                lastSyncTime: this.lastSyncTime,
-                syncCounter: this.syncCounter,
-                isSyncInProgress: this.isSyncInProgress,
-                requestLock: this.requestLock,
-                // ДОДАНО: Стан обробки запиту
-                requestInProgress: this.requestInProgress,
-                lastParticipationTime: this.lastParticipationTime,
-                totalRequestCount: this.totalRequestCount,
-                localOperations: this.localOperations.slice(0, 10), // Останні 10 операцій
-                lastBalanceUpdateTime: this.lastBalanceUpdateTime,
-                lastKnownBalance: this.lastKnownBalance,
-                // ДОДАНО: Інформація про кеш даних сервера
-                serverDataCache: {
-                    lastUpdate: this.serverDataCache.lastUpdate,
-                    rafflesCount: this.serverDataCache.participatingRaffles.size,
-                    needsForcedSync: this.needsForcedSync
-                },
-                // ДОДАНО: Статус блокування синхронізації
-                syncLock: this.syncLock,
-                pendingSyncRequested: this.pendingSyncRequested
-            };
+        // Перевіряємо наявність модуля участі
+        if (!window.WinixRaffles || !window.WinixRaffles.participation) {
+            console.warn('⚠️ Модуль участі недоступний');
+            return false;
         }
-    };
 
-    // Додаємо модуль до головного модуля розіграшів
-    window.WinixRaffles.participation = participation;
+        // Використовуємо метод завантаження з примусовим оновленням
+        await this.loadUserRaffles(true);
 
-    // Ініціалізація модуля при завантаженні сторінки
-    document.addEventListener('DOMContentLoaded', function() {
-        if (window.WinixRaffles.state.isInitialized) {
-            participation.init();
+        // Оновлюємо час синхронізації
+        this.lastSyncTime = Date.now();
+
+        // Оновлюємо відображення кнопок участі
+        this.updateParticipationButtons();
+
+        // Також оновлюємо баланс
+        await this._getServerBalance();
+
+        // Скидаємо прапорець примусової синхронізації
+        this.needsForcedSync = false;
+
+        console.log('✅ Дані про участь успішно синхронізовано');
+        return true;
+    } catch (error) {
+        console.error('❌ Помилка синхронізації з сервером:', error);
+        return false;
+    } finally {
+        // ДОДАНО: Знімаємо блокування синхронізації
+        this.syncLock = false;
+
+        // ДОДАНО: Якщо є відкладена синхронізація та немає блокування, запускаємо її
+        if (this.pendingSyncRequested && !this.isSyncInProgress) {
+            setTimeout(() => {
+                if (this.pendingSyncRequested) {
+                    this.pendingSyncRequested = false;
+                    this.syncWithServer(false).catch(e => {
+                        console.warn('⚠️ Помилка відкладеної синхронізації:', e);
+                    });
+                }
+            }, 2000);
+        }
+    }
+},
+
+/**
+ * Скидання стану модуля
+ * @returns {boolean} Результат скидання
+ */
+resetState: function() {
+    console.log('🔄 Виконується скидання стану модуля участі...');
+
+    // Скидаємо всі активні транзакції
+    this.activeTransactions.clear();
+
+    // Скидаємо глобальне блокування
+    this.requestLock = false;
+
+    // ВИПРАВЛЕНО: Скидаємо прапорець обробки запиту
+    this.requestInProgress = false;
+
+    // Очищення обмежень розіграшів
+    this.pendingRequests = {};
+
+    // Скидаємо часові мітки запитів
+    this.lastRequestTimes = {};
+
+    // Скидаємо прапорець примусової синхронізації
+    this.needsForcedSync = false;
+
+    // ДОДАНО: Скидаємо прапорець блокування синхронізації
+    this.syncLock = false;
+
+    // ДОДАНО: Скидаємо прапорець відкладеної синхронізації
+    this.pendingSyncRequested = false;
+
+    // Скидаємо стан кнопок
+    document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+        // Отримуємо ID розіграшу
+        const raffleId = button.getAttribute('data-raffle-id');
+        if (raffleId) {
+            this._resetButtonState(raffleId);
         } else {
-            // Додаємо обробник події ініціалізації
-            document.addEventListener('winix-raffles-initialized', function() {
-                participation.init();
-            });
-        }
-    });
+            // Якщо ID немає, просто скидаємо стан кнопки
+            button.classList.remove('processing');
+            button.disabled = false;
 
-    // Додаємо класи для анімації зміни учасників
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
-        @keyframes count-updated {
-            0% { transform: scale(1); color: inherit; }
-            50% { transform: scale(1.2); color: #4CAF50; }
-            100% { transform: scale(1); color: inherit; }
-        }
-        
-        .participants-count.updated, .count.updated {
-            animation: count-updated 1s ease-out;
-        }
-        
-        /* Анімація зменшення кількості жетонів */
-        @keyframes decrease-coins {
-            0% { color: #FF5722; transform: scale(1.1); text-shadow: 0 0 5px rgba(255, 87, 34, 0.7); }
-            50% { color: #FF5722; transform: scale(1.15); text-shadow: 0 0 10px rgba(255, 87, 34, 0.5); }
-            100% { color: inherit; transform: scale(1); }
-        }
-        
-        /* Анімація збільшення кількості жетонів */
-        @keyframes increase-coins {
-            0% { color: #4CAF50; transform: scale(1.1); text-shadow: 0 0 5px rgba(76, 175, 80, 0.7); }
-            50% { color: #4CAF50; transform: scale(1.15); text-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
-            100% { color: inherit; transform: scale(1); }
-        }
-        
-        #user-coins.decreasing {
-            animation: decrease-coins 0.8s ease-out;
-        }
-        
-        #user-coins.increasing {
-            animation: increase-coins 0.8s ease-out;
-        }
-
-        /* Спеціальний стиль для невидимого подання кількості білетів */
-        .ticket-count-ghost {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-        }
-    `;
-    document.head.appendChild(styleElement);
-
-    // Глобальний обробник помилок для автоматичного скидання стану при критичних помилках
-    window.addEventListener('error', function(event) {
-        console.error('🚨 Глобальна помилка в participation:', event.error);
-
-        if (participation && (participation.activeTransactions.size > 0 || Object.keys(participation.pendingRequests).length > 0)) {
-            console.warn('⚠️ Виявлено активні транзакції під час помилки. Скидаємо стан...');
-            participation.resetState();
-        }
-
-        // ДОДАНО: Скидаємо стан обробки запиту
-        if (participation) {
-            participation.requestInProgress = false;
-            participation.syncLock = false;
-        }
-
-        // Приховуємо індикатор завантаження
-        if (typeof window.hideLoading === 'function') {
-            window.hideLoading();
-        }
-    });
-
-    // Обробник необроблених помилок Promise
-    window.addEventListener('unhandledrejection', function(event) {
-        if (participation && (participation.activeTransactions.size > 0 || Object.keys(participation.pendingRequests).length > 0)) {
-            console.warn('⚠️ Виявлено необроблену Promise помилку. Скидаємо стан...');
-            participation.resetState();
-        }
-
-        // ДОДАНО: Скидаємо стан обробки запиту
-        if (participation) {
-            participation.requestInProgress = false;
-            participation.syncLock = false;
-        }
-    });
-
-    // ДОДАНО: Очищення "застряглих" станів при завантаженні сторінки
-    window.addEventListener('load', function() {
-        // Затримка для того, щоб інші скрипти встигли ініціалізуватися
-        setTimeout(function() {
-            if (window.WinixRaffles && window.WinixRaffles.participation) {
-                // Очищаємо кнопки в стані обробки
-                document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
-                    button.classList.remove('processing');
-                    button.disabled = false;
-
-                    // Відновлюємо текст кнопки
-                    const originalText = button.getAttribute('data-original-text');
-                    if (originalText) {
-                        button.textContent = originalText;
-                    } else {
-                        const entryFee = button.getAttribute('data-entry-fee') || '1';
-                        button.textContent = button.classList.contains('mini-raffle-button') ?
-                            'Взяти участь' :
-                            `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
-                    }
-                });
-
-                // Скидаємо прапорці блокування
-                window.WinixRaffles.participation.requestInProgress = false;
-                window.WinixRaffles.participation.syncLock = false;
-
-                // Перевіряємо стан активних транзакцій
-                setTimeout(() => {
-                    window.WinixRaffles.participation.verifyAndFixParticipationState();
-                }, 3000);
+            // Відновлюємо оригінальний текст
+            const originalText = button.getAttribute('data-original-text');
+            if (originalText) {
+                button.textContent = originalText;
             }
-        }, 2000);
+        }
     });
 
-    console.log('✅ Модуль participation.js успішно завантажено');
+    // Оновлюємо відображення кнопок участі
+    this.updateParticipationButtons();
+
+    // Приховуємо індикатор завантаження
+    if (typeof window.hideLoading === 'function') {
+        window.hideLoading();
+    }
+
+    // Скидаємо прапорець синхронізації
+    this.isSyncInProgress = false;
+
+    // Очищаємо таймер синхронізації
+    if (this.syncTimer) {
+        clearTimeout(this.syncTimer);
+        this.syncTimer = null;
+    }
+
+    console.log('✅ Стан модуля участі успішно скинуто');
+    return true;
+},
+
+/**
+ * Отримання діагностичної інформації про стан участі
+ * @returns {Object} - Діагностична інформація
+ */
+getDiagnosticInfo: function() {
+    return {
+        participatingRaffles: Array.from(this.participatingRaffles),
+        ticketCounts: this.userRaffleTickets,
+        invalidRaffles: Array.from(this.invalidRaffleIds),
+        activeTransactions: Array.from(this.activeTransactions.entries()),
+        pendingRequests: this.pendingRequests,
+        lastRequestTimes: this.lastRequestTimes,
+        transactionLog: this.transactionLog,
+        lastSyncTime: this.lastSyncTime,
+        syncCounter: this.syncCounter,
+        isSyncInProgress: this.isSyncInProgress,
+        requestLock: this.requestLock,
+        // ДОДАНО: Стан обробки запиту
+        requestInProgress: this.requestInProgress,
+        lastParticipationTime: this.lastParticipationTime,
+        totalRequestCount: this.totalRequestCount,
+        localOperations: this.localOperations.slice(0, 10), // Останні 10 операцій
+        lastBalanceUpdateTime: this.lastBalanceUpdateTime,
+        lastKnownBalance: this.lastKnownBalance,
+        // ДОДАНО: Інформація про кеш даних сервера
+        serverDataCache: {
+            lastUpdate: this.serverDataCache.lastUpdate,
+            rafflesCount: this.serverDataCache.participatingRaffles.size,
+            needsForcedSync: this.needsForcedSync
+        },
+        // ДОДАНО: Статус блокування синхронізації
+        syncLock: this.syncLock,
+        pendingSyncRequested: this.pendingSyncRequested
+    };
+}
+};
+
+// Додаємо модуль до головного модуля розіграшів
+window.WinixRaffles.participation = participation;
+
+// Ініціалізація модуля при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.WinixRaffles.state.isInitialized) {
+        participation.init();
+    } else {
+        // Додаємо обробник події ініціалізації
+        document.addEventListener('winix-raffles-initialized', function() {
+            participation.init();
+        });
+    }
+});
+
+// Додаємо класи для анімації зміни учасників
+const styleElement = document.createElement('style');
+styleElement.textContent = `
+    @keyframes count-updated {
+        0% { transform: scale(1); color: inherit; }
+        50% { transform: scale(1.2); color: #4CAF50; }
+        100% { transform: scale(1); color: inherit; }
+    }
+    
+    .participants-count.updated, .count.updated {
+        animation: count-updated 1s ease-out;
+    }
+    
+    /* Анімація зменшення кількості жетонів */
+    @keyframes decrease-coins {
+        0% { color: #FF5722; transform: scale(1.1); text-shadow: 0 0 5px rgba(255, 87, 34, 0.7); }
+        50% { color: #FF5722; transform: scale(1.15); text-shadow: 0 0 10px rgba(255, 87, 34, 0.5); }
+        100% { color: inherit; transform: scale(1); }
+    }
+    
+    /* Анімація збільшення кількості жетонів */
+    @keyframes increase-coins {
+        0% { color: #4CAF50; transform: scale(1.1); text-shadow: 0 0 5px rgba(76, 175, 80, 0.7); }
+        50% { color: #4CAF50; transform: scale(1.15); text-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+        100% { color: inherit; transform: scale(1); }
+    }
+    
+    #user-coins.decreasing {
+        animation: decrease-coins 0.8s ease-out;
+    }
+    
+    #user-coins.increasing {
+        animation: increase-coins 0.8s ease-out;
+    }
+
+    /* Спеціальний стиль для невидимого подання кількості білетів */
+    .ticket-count-ghost {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+`;
+document.head.appendChild(styleElement);
+
+// Глобальний обробник помилок для автоматичного скидання стану при критичних помилках
+window.addEventListener('error', function(event) {
+    console.error('🚨 Глобальна помилка в participation:', event.error);
+
+    if (participation && (participation.activeTransactions.size > 0 || Object.keys(participation.pendingRequests).length > 0)) {
+        console.warn('⚠️ Виявлено активні транзакції під час помилки. Скидаємо стан...');
+        participation.resetState();
+    }
+
+    // ДОДАНО: Скидаємо стан обробки запиту
+    if (participation) {
+        participation.requestInProgress = false;
+        participation.syncLock = false;
+    }
+
+    // Приховуємо індикатор завантаження
+    if (typeof window.hideLoading === 'function') {
+        window.hideLoading();
+    }
+});
+
+// Обробник необроблених помилок Promise
+window.addEventListener('unhandledrejection', function(event) {
+    if (participation && (participation.activeTransactions.size > 0 || Object.keys(participation.pendingRequests).length > 0)) {
+        console.warn('⚠️ Виявлено необроблену Promise помилку. Скидаємо стан...');
+        participation.resetState();
+    }
+
+    // ДОДАНО: Скидаємо стан обробки запиту
+    if (participation) {
+        participation.requestInProgress = false;
+        participation.syncLock = false;
+    }
+});
+
+// ДОДАНО: Очищення "застряглих" станів при завантаженні сторінки
+window.addEventListener('load', function() {
+    // Затримка для того, щоб інші скрипти встигли ініціалізуватися
+    setTimeout(function() {
+        if (window.WinixRaffles && window.WinixRaffles.participation) {
+            // Очищаємо кнопки в стані обробки
+            document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+                button.classList.remove('processing');
+                button.disabled = false;
+
+                // Відновлюємо текст кнопки
+                const originalText = button.getAttribute('data-original-text');
+                if (originalText) {
+                    button.textContent = originalText;
+                } else {
+                    const entryFee = button.getAttribute('data-entry-fee') || '1';
+                    button.textContent = button.classList.contains('mini-raffle-button') ?
+                        'Взяти участь' :
+                        `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+                }
+            });
+
+            // Скидаємо прапорці блокування
+            window.WinixRaffles.participation.requestInProgress = false;
+            window.WinixRaffles.participation.syncLock = false;
+
+            // Перевіряємо стан активних транзакцій
+            setTimeout(() => {
+                window.WinixRaffles.participation.verifyAndFixParticipationState();
+            }, 3000);
+        }
+    }, 2000);
+});
+
+console.log('✅ Модуль participation.js успішно завантажено');
 })();

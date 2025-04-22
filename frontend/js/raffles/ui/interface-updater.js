@@ -445,8 +445,6 @@
             // Анімуємо успішну участь
             this.animateSuccessfulParticipation(data.raffleId);
 
-            // Додаємо кнопку "Деталі" якщо її ще немає
-            this.addDetailsButtonToRaffle(data.raffleId);
         },
 
         /**
