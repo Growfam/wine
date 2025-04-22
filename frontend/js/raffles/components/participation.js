@@ -1715,7 +1715,7 @@ _getServerBalance: async function() {
                 return Promise.reject(new Error('Не вказано ID розіграшу'));
             }
 
-            if (!this.isValidUUID(raffleId)) {
+            if (!window.isValidUUID(raffleId)) {
                 console.error('❌ Невалідний ідентифікатор розіграшу');
                 return Promise.reject(new Error('Невалідний ідентифікатор розіграшу'));
             }
