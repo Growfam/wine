@@ -1,7 +1,7 @@
 /**
  * core.js - Базова функціональність WINIX
  * Оптимізована версія з покращеною інтеграцією з API та Auth модулями
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 (function() {
@@ -36,6 +36,9 @@
     let _errorCounter = 0;
     const MAX_ERRORS_BEFORE_RESET = 5;
     let _lastErrorTime = 0;
+
+    // Прапорець ініціалізації ядра
+    let _coreInitialized = false;
 
     // Перевірка доступності модулів з повною перевіркою
     const hasApiModule = () => {
@@ -655,6 +658,15 @@
             // Оновлюємо відображення
             updateBalanceDisplay();
 
+            // Генеруємо подію оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    balance: _userData.balance,
+                    coins: _userData.coins
+                },
+                source: 'core.js'
+            }));
+
             // Скидаємо лічильник помилок при успішному запиті
             _errorCounter = 0;
 
@@ -851,6 +863,12 @@
      */
     async function init() {
         try {
+            // Перевіряємо чи вже ініціалізовано ядро
+            if (_coreInitialized) {
+                console.log("✅ Core: Ядро WINIX вже ініціалізоване");
+                return true;
+            }
+
             // Ініціалізуємо Telegram WebApp, якщо він доступний
             if (window.Telegram && window.Telegram.WebApp) {
                 try {
@@ -879,6 +897,9 @@
                 startAutoSync();
             }
 
+            // Позначаємо, що ядро ініціалізовано
+            _coreInitialized = true;
+
             console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
             // Викликаємо подію ініціалізації
@@ -898,6 +919,14 @@
         }
     }
 
+    /**
+     * Перевірка доступності ядра
+     * @returns {boolean} Стан ініціалізації
+     */
+    function isInitialized() {
+        return _coreInitialized;
+    }
+
     // ======== ОБРОБНИКИ ПОДІЙ ========
 
     // Обробник події оновлення даних користувача
@@ -906,6 +935,24 @@
             console.log("🔄 Core: Отримано подію оновлення даних користувача");
             _userData = event.detail.userData;
             updateUserDisplay();
+            updateBalanceDisplay();
+        }
+    });
+
+    // Обробник події оновлення балансу
+    document.addEventListener('balance-updated', function(event) {
+        if (event.detail && event.source !== 'core.js') {
+            console.log("🔄 Core: Отримано подію оновлення балансу");
+            if (!_userData) _userData = {};
+
+            if (event.detail.balance !== undefined) {
+                _userData.balance = event.detail.balance;
+            }
+
+            if (event.detail.coins !== undefined) {
+                _userData.coins = event.detail.coins;
+            }
+
             updateBalanceDisplay();
         }
     });
@@ -958,8 +1005,9 @@
 
     // Експортуємо публічний API
     window.WinixCore = {
-        // Версія модуля
-        version: '1.2.0',
+        // Метадані
+        version: '1.3.0',
+        isInitialized: isInitialized,
 
         // Утиліти
         getElement,
@@ -967,7 +1015,7 @@
         getFromStorage,
         formatCurrency,
         isOnline,
-        isValidUUID,
+        waitForModules,
         resetAndReloadApplication,
 
         // Функції користувача
@@ -985,8 +1033,7 @@
         stopAutoSync,
 
         // Ініціалізація
-        init,
-        waitForModules
+        init
     };
 
     // Додаємо функцію resetAndReloadApplication в глобальний простір імен
