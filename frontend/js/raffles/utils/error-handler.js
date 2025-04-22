@@ -1,8 +1,7 @@
 /**
  * WINIX - Система розіграшів (error-handler.js)
- * Централізований модуль для коректної обробки помилок та покращення UX
- * Оптимізований для координації з WinixCore та уникнення дублювання коду
- * @version 1.3.0
+ * Модуль для коректної обробки помилок та покращення UX
+ * @version 1.2.0
  */
 
 (function() {
@@ -13,17 +12,6 @@
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше error-handler.js');
         return;
     }
-
-    // Перевірка наявності WinixCore
-    const hasWinixCore = () => {
-        try {
-            return window.WinixCore &&
-                   typeof window.WinixCore.registerEventHandler === 'function';
-        } catch (e) {
-            console.error("❌ Помилка перевірки WinixCore:", e);
-            return false;
-        }
-    };
 
     // Модуль обробки помилок
     const errorHandler = {
@@ -72,11 +60,6 @@
         init: function() {
             console.log('🛡️ Ініціалізація модуля обробки помилок...');
 
-            // Перевіряємо наявність WinixCore для інтеграції
-            if (hasWinixCore()) {
-                this.registerCoreErrorHandlers();
-            }
-
             // Реєструємо глобальні обробники помилок
             this.registerGlobalErrorHandlers();
 
@@ -88,102 +71,6 @@
 
             // Оновлюємо стандартну функцію показу сповіщень
             this.upgradeToastFunction();
-
-            console.log('✅ Модуль обробки помилок успішно ініціалізовано (v1.3.0)');
-        },
-
-        /**
-         * Реєстрація обробників помилок з WinixCore
-         */
-        registerCoreErrorHandlers: function() {
-            if (!hasWinixCore()) return;
-
-            // Підписуємося на події помилок від WinixCore
-            window.WinixCore.registerEventHandler('error', (detail) => {
-                console.log('🛡️ ErrorHandler: Отримано подію помилки від WinixCore');
-
-                // Оновлюємо статистику
-                this.updateErrorStats({
-                    type: this.determineErrorType(detail),
-                    message: detail.message,
-                    source: detail.module || detail.source || 'WinixCore',
-                    originalError: detail.originalError,
-                    stack: detail.originalError ? detail.originalError.stack : null
-                });
-
-                // Показуємо повідомлення користувачу
-                this.showUserFriendlyError(
-                    this.getHumanReadableMessage(detail.message || (detail.originalError ? detail.originalError.message : 'Невідома помилка')),
-                    this.isCriticalError(detail.message) ? 'error' : 'warning'
-                );
-
-                // Скидаємо стан індикаторів та кнопок
-                this.resetLoadingIndicators();
-                this.resetParticipationState();
-            }, { source: 'error-handler.js', priority: 100 });
-
-            console.log('🛡️ ErrorHandler: Зареєстровано обробник подій помилок WinixCore');
-        },
-
-        /**
-         * Визначення типу помилки з об'єкта помилки WinixCore
-         * @param {Object} detail - Деталі помилки від WinixCore
-         * @returns {string} Тип помилки
-         */
-        determineErrorType: function(detail) {
-            if (!detail) return this.config.errorTypes.UNKNOWN;
-
-            const message = detail.message ||
-                          (detail.originalError ? detail.originalError.message : '') || '';
-
-            // Перевіряємо наявність ключових слів у повідомленні
-            if (message.toLowerCase().includes('мереж') ||
-                message.toLowerCase().includes('network') ||
-                message.toLowerCase().includes('connect') ||
-                message.toLowerCase().includes('offline')) {
-                return this.config.errorTypes.NETWORK;
-            }
-
-            if (message.toLowerCase().includes('api') ||
-                message.toLowerCase().includes('запит') ||
-                message.toLowerCase().includes('request') ||
-                message.toLowerCase().includes('endpoint')) {
-                return this.config.errorTypes.API;
-            }
-
-            if (message.toLowerCase().includes('auth') ||
-                message.toLowerCase().includes('авториз') ||
-                message.toLowerCase().includes('token') ||
-                message.toLowerCase().includes('доступ')) {
-                return this.config.errorTypes.AUTH;
-            }
-
-            if (message.toLowerCase().includes('valid') ||
-                message.toLowerCase().includes('валід') ||
-                message.toLowerCase().includes('форма') ||
-                message.toLowerCase().includes('поле')) {
-                return this.config.errorTypes.VALIDATION;
-            }
-
-            if (message.toLowerCase().includes('ui') ||
-                message.toLowerCase().includes('interface') ||
-                message.toLowerCase().includes('dom') ||
-                message.toLowerCase().includes('елемент')) {
-                return this.config.errorTypes.UI;
-            }
-
-            // Використовуємо тип з деталей, якщо є
-            if (detail.type) {
-                switch (detail.type.toLowerCase()) {
-                    case 'network': return this.config.errorTypes.NETWORK;
-                    case 'api': return this.config.errorTypes.API;
-                    case 'auth': return this.config.errorTypes.AUTH;
-                    case 'validation': return this.config.errorTypes.VALIDATION;
-                    case 'ui': return this.config.errorTypes.UI;
-                }
-            }
-
-            return this.config.errorTypes.UNKNOWN;
         },
 
         /**
@@ -210,12 +97,7 @@
          * Реєстрація обробників помилок API
          */
         registerApiErrorHandlers: function() {
-            // Якщо WinixCore доступний, використовуємо його систему подій
-            if (hasWinixCore()) {
-                return;
-            }
-
-            // Запасний варіант - перевизначаємо стандартний fetch для відстеження помилок
+            // Перевизначаємо стандартний fetch для відстеження помилок
             const originalFetch = window.fetch;
 
             window.fetch = async (...args) => {
@@ -278,104 +160,6 @@
         },
 
         /**
-         * Загальна функція обробки помилок у розіграшах
-         * Використовується як точка входу з інших модулів
-         * @param {Error} error - Об'єкт помилки
-         * @param {Object} context - Контекст помилки (модуль, функція, деталі)
-         */
-        handleRaffleError: function(error, context = {}) {
-            // Оновлюємо статистику помилок
-            this.updateErrorStats({
-                type: this.determineErrorTypeFromContext(error, context),
-                message: error.message,
-                module: context.module || 'raffles',
-                function: context.function || 'unknown',
-                details: context.details || {},
-                stack: error.stack
-            });
-
-            // Визначаємо тип повідомлення (info, warning, error)
-            let messageType = 'warning';
-
-            // Визначаємо за контекстом ієрархію типів
-            if (this.isNetworkRelatedError(error) ||
-                error.message.toLowerCase().includes('з\'єднання') ||
-                error.message.toLowerCase().includes('connect')) {
-                messageType = 'warning';
-            } else if (this.isCriticalError(error.message)) {
-                messageType = 'error';
-            } else if (error.message.toLowerCase().includes('зачекайте') ||
-                      error.message.toLowerCase().includes('недоступно')) {
-                messageType = 'info';
-            }
-
-            // Показуємо дружнє повідомлення
-            this.showUserFriendlyError(
-                this.getHumanReadableMessage(error.message),
-                messageType
-            );
-
-            // Скидаємо стани
-            this.resetLoadingIndicators();
-            this.resetParticipationState();
-
-            // Додаткова обробка для специфічних помилок розіграшів
-            if (error.message.toLowerCase().includes('розіграш') &&
-                (error.message.toLowerCase().includes('завершено') ||
-                 error.message.toLowerCase().includes('не знайдено'))) {
-
-                // Намагаємось знайти ID розіграшу
-                const raffleId = this.extractRaffleIdFromError(error) ||
-                                (context.details && context.details.raffleId);
-
-                if (raffleId) {
-                    this.markRaffleAsInvalid(raffleId);
-                }
-            }
-        },
-
-        /**
-         * Визначення типу помилки з контексту
-         * @param {Error} error - Об'єкт помилки
-         * @param {Object} context - Контекст помилки
-         * @returns {string} Тип помилки
-         */
-        determineErrorTypeFromContext: function(error, context) {
-            if (!error) return this.config.errorTypes.UNKNOWN;
-
-            // Якщо в контексті вказаний тип, використовуємо його
-            if (context.type) return context.type;
-
-            const message = error.message || '';
-
-            // Перевіряємо наявність ключових слів у повідомленні
-            if (message.toLowerCase().includes('мереж') ||
-                message.toLowerCase().includes('network') ||
-                message.toLowerCase().includes('connect') ||
-                message.toLowerCase().includes('fetch') ||
-                message.toLowerCase().includes('offline')) {
-                return this.config.errorTypes.NETWORK;
-            }
-
-            if (message.toLowerCase().includes('api') ||
-                message.toLowerCase().includes('запит') ||
-                message.toLowerCase().includes('request') ||
-                message.toLowerCase().includes('endpoint') ||
-                context.function && context.function.toLowerCase().includes('api')) {
-                return this.config.errorTypes.API;
-            }
-
-            if (message.toLowerCase().includes('розіграш') ||
-                message.toLowerCase().includes('raffle') ||
-                message.toLowerCase().includes('білет') ||
-                message.toLowerCase().includes('участь')) {
-                return 'raffle_error';
-            }
-
-            return this.config.errorTypes.UNKNOWN;
-        },
-
-        /**
          * Покращення стандартної функції сповіщень
          */
         upgradeToastFunction: function() {
@@ -410,21 +194,6 @@
                     originalShowToast(message, type);
                 }
             };
-        },
-
-        /**
-         * Показ користувацького повідомлення про помилку
-         * @param {string} message - Повідомлення
-         * @param {string} type - Тип сповіщення (error/warning/info)
-         */
-        showUserFriendlyError: function(message, type = 'warning') {
-            // Якщо функція showToast доступна, використовуємо її
-            if (typeof window.showToast === 'function') {
-                window.showToast(message, type);
-            } else {
-                // Альтернативний варіант
-                this.createToast(message, type);
-            }
         },
 
         /**
@@ -538,30 +307,9 @@
                 stack: event.error ? event.error.stack : null
             });
 
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: event.message,
-                    originalError: event.error,
-                    source: 'window.error',
-                    stack: event.error ? event.error.stack : null,
-                    filename: event.filename,
-                    lineno: event.lineno,
-                    colno: event.colno
-                });
-            }
-
             // Обробляємо помилку, якщо вона пов'язана з розіграшами
             if (this.isRaffleRelatedError(event)) {
-                this.handleRaffleError(event.error || new Error(event.message), {
-                    module: 'javascript',
-                    function: 'window.error',
-                    details: {
-                        filename: event.filename,
-                        lineno: event.lineno,
-                        colno: event.colno
-                    }
-                });
+                this.handleRaffleError(event.error);
 
                 // Запобігаємо стандартній обробці
                 event.preventDefault();
@@ -570,10 +318,7 @@
 
             // Для критичних помилок показуємо користувачу повідомлення
             if (this.isCriticalError(event.message)) {
-                this.showUserFriendlyError(
-                    this.getHumanReadableMessage(event.message),
-                    'error'
-                );
+                this.showUserFriendlyError(event.message, 'error');
 
                 // Перезавантаження при критичних помилках
                 if (this.config.autoReloadOnCritical && this.stats.errorsInSession >= this.config.maxErrorsBeforeReload) {
@@ -581,10 +326,7 @@
                 }
             } else if (!this.config.ignoreNonCritical) {
                 // Для некритичних помилок показуємо попередження
-                this.showUserFriendlyError(
-                    this.getHumanReadableMessage(event.message),
-                    'warning'
-                );
+                this.showUserFriendlyError(event.message, 'warning');
             }
 
             // Скидаємо стан індикаторів завантаження
@@ -606,15 +348,6 @@
                 message: message,
                 stack: error && error.stack ? error.stack : null
             });
-
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: message,
-                    originalError: error,
-                    source: 'unhandledrejection'
-                });
-            }
 
             // Перевірка на стандартні повідомлення про зачекайте
             if (message && message.toLowerCase().includes('зачекайте')) {
@@ -652,10 +385,7 @@
 
             // Обробляємо помилку, якщо вона пов'язана з розіграшами
             if (this.isRaffleRelatedError(event)) {
-                this.handleRaffleError(error, {
-                    module: 'promise',
-                    function: 'unhandledrejection'
-                });
+                this.handleRaffleError(error);
 
                 // Запобігаємо стандартній обробці
                 event.preventDefault();
@@ -663,7 +393,7 @@
             }
 
             // Показуємо користувацьке повідомлення
-            this.showUserFriendlyError(this.getHumanReadableMessage(message), 'warning');
+            this.showUserFriendlyError(message, 'warning');
 
             // Скидаємо стан індикаторів завантаження
             this.resetLoadingIndicators();
@@ -691,11 +421,6 @@
                 return error.details.raffle_id;
             }
 
-            // Спроба отримати ID з контексту помилки
-            if (error && error.context && error.context.raffleId) {
-                return error.context.raffleId;
-            }
-
             // Спроба отримати ID з повідомлення помилки
             if (error && error.message) {
                 const uuidMatch = error.message.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
@@ -705,34 +430,15 @@
             }
 
             // Якщо є активний модуль розіграшів, спробуємо перевірити поточний запит
-            if (window.WinixRaffles && window.WinixRaffles.participation) {
-                if (window.WinixRaffles.participation.requestInProgress &&
-                    window.WinixRaffles.participation.currentRaffleId) {
-                    return window.WinixRaffles.participation.currentRaffleId;
-                }
-
-                // Спроба отримати з активних транзакцій
-                if (window.WinixRaffles.participation.pendingRequests) {
-                    const pendingRaffleId = Object.keys(window.WinixRaffles.participation.pendingRequests)[0];
-                    if (pendingRaffleId && this.isValidUUID(pendingRaffleId)) {
-                        return pendingRaffleId;
-                    }
+            if (window.WinixRaffles && window.WinixRaffles.participation && window.WinixRaffles.participation.pendingRequests) {
+                // Шукаємо перший активний запит
+                const pendingRaffleId = Object.keys(window.WinixRaffles.participation.pendingRequests)[0];
+                if (pendingRaffleId && this.isValidUUID(pendingRaffleId)) {
+                    return pendingRaffleId;
                 }
             }
 
             return null;
-        },
-
-        /**
-         * Перевірка валідності UUID
-         * @param {string} uuid - UUID для перевірки
-         * @returns {boolean} Результат перевірки
-         */
-        isValidUUID: function(uuid) {
-            if (!uuid) return false;
-
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(uuid);
         },
 
         /**
@@ -751,18 +457,6 @@
                 code: response.status,
                 url: url
             });
-
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: message,
-                    type: 'api',
-                    statusCode: response.status,
-                    url: url,
-                    source: 'fetch'
-                });
-                return;
-            }
 
             // Спеціальна обробка для різних HTTP-статусів
             if (response.status === 404) {
@@ -796,18 +490,6 @@
                 url: url
             });
 
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: error.message,
-                    type: 'network',
-                    url: url,
-                    originalError: error,
-                    source: 'fetch'
-                });
-                return;
-            }
-
             // Показуємо користувацьке повідомлення
             this.showUserFriendlyError('Проблеми з підключенням. Перевірте інтернет-з\'єднання.', 'warning');
 
@@ -827,18 +509,6 @@
                 message: error.message,
                 endpoint: endpoint
             });
-
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: error.message,
-                    type: 'api',
-                    endpoint: endpoint,
-                    originalError: error,
-                    source: 'api'
-                });
-                return;
-            }
 
             // Обробка помилок для розіграшів
             if (endpoint && endpoint.includes('raffles')) {
@@ -865,18 +535,6 @@
                 message: error.message,
                 raffleId: raffleId
             });
-
-            // Якщо є WinixCore, генеруємо подію помилки через нього
-            if (hasWinixCore()) {
-                window.WinixCore.triggerEvent('error', {
-                    message: error.message,
-                    type: 'raffle_participation',
-                    raffleId: raffleId,
-                    originalError: error,
-                    source: 'raffle'
-                });
-                return;
-            }
 
             // Перевіряємо тип помилки
             if (error.message && error.message.toLowerCase().includes('жетон')) {
@@ -906,6 +564,30 @@
         },
 
         /**
+         * Обробка помилок, пов'язаних з розіграшами
+         * @param {Error} error - Помилка
+         */
+        handleRaffleError: function(error) {
+            // Якщо помилка стосується невалідного UUID
+            if (error.message && error.message.toLowerCase().includes('uuid')) {
+                this.showUserFriendlyError('Дані розіграшу недійсні. Спробуйте оновити сторінку.', 'warning');
+                return;
+            }
+
+            // Якщо помилка стосується незнайденого розіграшу
+            if (error.message && (
+                error.message.toLowerCase().includes('не знайдено') ||
+                error.message.toLowerCase().includes('not found')
+            )) {
+                this.showUserFriendlyError('Розіграш вже завершено або видалено.', 'info');
+                return;
+            }
+
+            // Стандартна обробка
+            this.showUserFriendlyError('Помилка при роботі з розіграшем. Спробуйте оновити сторінку.', 'warning');
+        },
+
+        /**
          * Обробка помилки незнайденого розіграшу
          * @param {string} url - URL запиту
          */
@@ -932,6 +614,7 @@
             if (window.WinixRaffles &&
                 window.WinixRaffles.active &&
                 typeof window.WinixRaffles.active.loadActiveRaffles === 'function') {
+
                 setTimeout(() => {
                     window.WinixRaffles.active.loadActiveRaffles(true);
                 }, 1000);
@@ -997,6 +680,21 @@
         },
 
         /**
+         * Показ користувацького повідомлення про помилку
+         * @param {string} message - Повідомлення
+         * @param {string} type - Тип сповіщення (error/warning/info)
+         */
+        showUserFriendlyError: function(message, type = 'warning') {
+            // Якщо функція showToast доступна, використовуємо її
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, type);
+            } else {
+                // Альтернативний варіант
+                console.error(`${type.toUpperCase()}: ${message}`);
+            }
+        },
+
+        /**
          * Перевірка чи помилка пов'язана з розіграшами
          * @param {Error|Event} error - Помилка або подія помилки
          * @returns {boolean} Результат перевірки
@@ -1021,33 +719,6 @@
             const raffleKeywords = ['raffle', 'розіграш', 'uuid', 'білет', 'ticket', 'participate'];
 
             return raffleKeywords.some(keyword => message.toLowerCase().includes(keyword));
-        },
-
-        /**
-         * Перевірка чи помилка пов'язана з мережею
-         * @param {Error|Event} error - Помилка або подія помилки
-         * @returns {boolean} Результат перевірки
-         */
-        isNetworkRelatedError: function(error) {
-            // Витягуємо повідомлення з різних типів помилок
-            let message = '';
-
-            if (error instanceof Error) {
-                message = error.message;
-            } else if (error.error && error.error.message) {
-                message = error.error.message;
-            } else if (error.reason && error.reason.message) {
-                message = error.reason.message;
-            } else if (error.message) {
-                message = error.message;
-            } else if (typeof error === 'string') {
-                message = error;
-            }
-
-            // Перевіряємо ключові слова, пов'язані з мережею
-            const networkKeywords = ['network', 'мереж', 'connect', 'з\'єднання', 'fetch', 'offline', 'socket'];
-
-            return networkKeywords.some(keyword => message.toLowerCase().includes(keyword));
         },
 
         /**
@@ -1249,7 +920,7 @@
          * @param {string} raffleId - ID розіграшу
          */
         markRaffleAsInvalid: function(raffleId) {
-            if (!this.isValidUUID(raffleId)) {
+            if (!window.isValidUUID(raffleId)) {
                 console.warn('⚠️ Спроба позначити невалідний ID як недійсний розіграш:', raffleId);
                 return;
             }
@@ -1282,12 +953,7 @@
 
             // Зберігаємо в localStorage
             try {
-                let invalidRaffles = [];
-                try {
-                    invalidRaffles = JSON.parse(localStorage.getItem('winix_invalid_raffles') || '[]');
-                } catch (e) {
-                    invalidRaffles = [];
-                }
+                const invalidRaffles = JSON.parse(localStorage.getItem('winix_invalid_raffles') || '[]');
                 if (!invalidRaffles.includes(raffleId)) {
                     invalidRaffles.push(raffleId);
                     localStorage.setItem('winix_invalid_raffles', JSON.stringify(invalidRaffles));
@@ -1343,40 +1009,10 @@
 
     // Ініціалізація модуля
     document.addEventListener('DOMContentLoaded', function() {
-        // Перевіряємо, чи не ініціалізований WinixCore ще
-        if (hasWinixCore()) {
-            // Якщо WinixCore ініціалізований, чекаємо на його ініціалізацію
-            if (window.WinixCore.isInitialized && window.WinixCore.isInitialized()) {
-                // Якщо WinixRaffles також ініціалізований
-                if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
-                    errorHandler.init();
-                } else {
-                    // Інакше чекаємо на ініціалізацію WinixRaffles
-                    document.addEventListener('winix-raffles-initialized', function() {
-                        errorHandler.init();
-                    });
-                }
-            } else {
-                // Якщо WinixCore ще не ініціалізований, чекаємо на його ініціалізацію
-                window.WinixCore.registerEventHandler('core-initialized', function() {
-                    console.log('🛡️ ErrorHandler: Отримано подію ініціалізації WinixCore');
-
-                    // Перевіряємо стан WinixRaffles
-                    if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
-                        errorHandler.init();
-                    } else {
-                        // Інакше чекаємо на ініціалізацію WinixRaffles
-                        document.addEventListener('winix-raffles-initialized', function() {
-                            errorHandler.init();
-                        });
-                    }
-                }, { source: 'error-handler.js', once: true });
-            }
-        } else if (window.WinixRaffles.state && window.WinixRaffles.state.isInitialized) {
-            // Якщо WinixCore недоступний, але WinixRaffles ініціалізований
+        if (window.WinixRaffles.state.isInitialized) {
             errorHandler.init();
         } else {
-            // Якщо WinixRaffles ще не ініціалізований, чекаємо на його ініціалізацію
+            // Додаємо обробник події ініціалізації
             document.addEventListener('winix-raffles-initialized', function() {
                 errorHandler.init();
             });
