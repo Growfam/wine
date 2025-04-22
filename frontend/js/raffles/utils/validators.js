@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (validators.js)
  * Модуль з функціями валідації для системи розіграшів
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 (function() {
@@ -16,32 +16,32 @@
     // Об'єкт з функціями валідації
     const validators = {
         /**
-         * Перевірка валідності UUID
+         * Перевірка валідності UUID - використовує глобальну функцію для єдиного стандарту
          * @param {string} id - UUID для перевірки
          * @returns {boolean} - Результат перевірки
          */
         isValidUUID: function(id) {
-            if (!id || typeof id !== 'string') return false;
+            // Використовуємо глобальну функцію якщо вона існує
+            if (typeof window.isValidUUID === 'function') {
+                return window.isValidUUID(id);
+            }
+
+            // Запасний варіант якщо глобальна функція недоступна
+            if (!id || typeof id !== 'string') {
+                return false;
+            }
 
             // Нормалізуємо ID - приберемо зайві пробіли і переведемо в нижній регістр
             const normalizedId = id.trim().toLowerCase();
 
-            // Перевірка різних форматів UUID
-            const patterns = {
-                // Стандартний формат UUID з дефісами (8-4-4-4-12)
-                standard: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+            // Перевірка на порожній рядок або невалідні значення
+            if (normalizedId === '' || normalizedId === 'undefined' || normalizedId === 'null') {
+                return false;
+            }
 
-                // UUID без дефісів (просто 32 символи hex)
-                noHyphens: /^[0-9a-f]{32}$/i,
-
-                // UUID з фігурними дужками
-                braced: /^\{[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\}$/i
-            };
-
-            // Перевіряємо за всіма шаблонами
-            return patterns.standard.test(normalizedId) ||
-                   patterns.noHyphens.test(normalizedId) ||
-                   patterns.braced.test(normalizedId);
+            // Перевірка стандартного формату UUID (8-4-4-4-12)
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(normalizedId);
         },
 
         /**
@@ -325,6 +325,35 @@
                 console.error("Помилка форматування UUID:", e);
                 return '';
             }
+        },
+
+        /**
+         * Перевірка наявності розіграшу у стані системи
+         * @param {string} raffleId - ID розіграшу для перевірки
+         * @returns {Object|null} - Об'єкт розіграшу або null
+         */
+        findRaffleById: function(raffleId) {
+            if (!this.isValidUUID(raffleId)) return null;
+
+            // Спочатку шукаємо в активних розіграшах
+            const activeRaffles = WinixRaffles.state.activeRaffles || [];
+            let raffle = activeRaffles.find(r => r.id === raffleId);
+            if (raffle) return raffle;
+
+            // Якщо не знайдено в активних, шукаємо в минулих
+            const pastRaffles = WinixRaffles.state.pastRaffles || [];
+            raffle = pastRaffles.find(r => r.id === raffleId || r.raffle_id === raffleId);
+            if (raffle) return raffle;
+
+            // Якщо доступний модуль історії, шукаємо там
+            if (WinixRaffles.history && Array.isArray(WinixRaffles.history.historyData)) {
+                raffle = WinixRaffles.history.historyData.find(r =>
+                    r.id === raffleId || r.raffle_id === raffleId
+                );
+                if (raffle) return raffle;
+            }
+
+            return null;
         }
     };
 

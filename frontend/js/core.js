@@ -152,24 +152,6 @@
     }
 
     /**
-     * Перевірка валідності UUID
-     * @param {string} id - ID для перевірки
-     * @returns {boolean} Результат перевірки
-     */
-    function isValidUUID(id) {
-        try {
-            if (!id || typeof id !== 'string') return false;
-
-            // Повна перевірка на стандартний UUID формат
-            const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return fullUUIDRegex.test(id);
-        } catch (e) {
-            console.error("Помилка перевірки UUID:", e);
-            return false;
-        }
-    }
-
-    /**
      * Функція безпечного очікування завантаження API та Auth модулів
      * @param {number} maxWaitTime - Максимальний час очікування в мс
      * @returns {Promise<boolean>} Результат очікування

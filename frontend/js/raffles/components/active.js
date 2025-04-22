@@ -1140,24 +1140,6 @@
             }
         },
 
-        // Функція для визначення валідності UUID
-        isValidUUID: function(id) {
-            // Спочатку перевіряємо наявність UUID валідатора у WinixRaffles
-            if (WinixRaffles.validators && typeof WinixRaffles.validators.isValidUUID === 'function') {
-                return WinixRaffles.validators.isValidUUID(id);
-            }
-
-            // Потім перевіряємо валідатор у WinixAPI
-            if (window.WinixAPI && typeof window.WinixAPI.isValidUUID === 'function') {
-                return window.WinixAPI.isValidUUID(id);
-            }
-
-            // Запасний валідатор, якщо інші недоступні
-            if (!id || typeof id !== 'string') return false;
-            const fullUUIDRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-            return fullUUIDRegex.test(id);
-        },
-
         // Оновлення активних розіграшів
         refreshActiveRaffles: function() {
             this.loadActiveRaffles(true);
