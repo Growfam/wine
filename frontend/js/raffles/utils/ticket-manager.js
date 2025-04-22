@@ -1,8 +1,8 @@
 /**
  * WINIX - Система розіграшів (ticket-manager.js)
  * Оптимізований модуль для управління білетами без дублювання логіки
- * Делегує операції списання жетонів модулю participation.js
- * @version 1.5.0
+ * Покращена робота з DOM та кешування для зменшення навантаження
+ * @version 1.6.0
  */
 
 (function() {
@@ -37,6 +37,20 @@
         // Індикатор, що дані потребують оновлення з сервера
         needsServerUpdate: false,
 
+        // Кеш DOM елементів для оптимізації доступу
+        domCache: {
+            // Елемент балансу
+            userCoins: null,
+            // Кнопки за ID розіграшу
+            buttons: {},
+            // Кількість учасників за ID розіграшу
+            participants: {},
+            // Час останнього оновлення кеша
+            lastCacheUpdate: 0,
+            // Інтервал автоматичного очищення кеша (мс)
+            cacheLifetime: 30000 // 30 секунд
+        },
+
         /**
          * Ініціалізація модуля
          */
@@ -45,6 +59,9 @@
 
             // Очищення стану перед ініціалізацією
             this._cleanupState();
+
+            // Ініціалізуємо кеш DOM елементів
+            this.initDOMCache();
 
             // Завантажуємо кількість білетів користувача
             this.loadUserTickets();
@@ -57,7 +74,85 @@
                 this.loadUserTickets(true);
             }, 2000);
 
+            // Запускаємо періодичне очищення кеша
+            setInterval(() => {
+                this.cleanupDOMCache();
+            }, 60000); // Раз на хвилину
+
             console.log('✅ Модуль управління білетами успішно ініціалізовано');
+        },
+
+        /**
+         * Ініціалізація кеша DOM елементів
+         */
+        initDOMCache: function() {
+            // Кешуємо елемент балансу
+            this.domCache.userCoins = document.getElementById('user-coins');
+
+            // Оновлюємо час кешування
+            this.domCache.lastCacheUpdate = Date.now();
+
+            console.log('✅ Кеш DOM елементів ініціалізовано');
+        },
+
+        /**
+         * Очищення кеша DOM елементів
+         */
+        cleanupDOMCache: function() {
+            const now = Date.now();
+
+            // Очищаємо кеш, якщо він старший за cacheLifetime
+            if (now - this.domCache.lastCacheUpdate > this.domCache.cacheLifetime) {
+                this.domCache.buttons = {};
+                this.domCache.participants = {};
+
+                // Оновлюємо елемент балансу
+                this.domCache.userCoins = document.getElementById('user-coins');
+
+                // Оновлюємо час очищення
+                this.domCache.lastCacheUpdate = now;
+
+                console.log('🧹 Кеш DOM елементів ticket-manager очищено');
+            }
+        },
+
+        /**
+         * Отримання кешованого DOM елементу
+         * @param {string} type - Тип елемента (userCoins, buttons, participants)
+         * @param {string} id - ID елемента (для кнопок та лічильників)
+         * @param {Function} selector - Функція для вибору елемента, якщо він не кешований
+         * @returns {HTMLElement|HTMLElement[]|null} - Елемент або масив елементів
+         */
+        getDOMElement: function(type, id, selector) {
+            // Якщо це елемент балансу
+            if (type === 'userCoins') {
+                if (!this.domCache.userCoins) {
+                    this.domCache.userCoins = document.getElementById('user-coins');
+                }
+                return this.domCache.userCoins;
+            }
+
+            // Для інших типів з ID
+            if (!id || !selector) return null;
+
+            // Перевіряємо кеш
+            const cache = this.domCache[type];
+            if (cache && cache[id]) {
+                return cache[id];
+            }
+
+            // Отримуємо елемент через селектор
+            const element = selector();
+
+            // Кешуємо елемент, якщо він існує
+            if (element) {
+                if (!this.domCache[type]) {
+                    this.domCache[type] = {};
+                }
+                this.domCache[type][id] = element;
+            }
+
+            return element;
         },
 
         /**
@@ -107,7 +202,22 @@
                 }
             });
 
-            // Покращений обробник натискання на кнопки участі
+            // Обробник завантаження розіграшів
+            document.addEventListener('raffles-loaded', () => {
+                // Скидаємо кеш DOM елементів
+                this.domCache.buttons = {};
+                this.domCache.participants = {};
+
+                // Витягуємо вартість участі з DOM
+                this.extractEntryFeesFromDOM();
+
+                // Оновлюємо дані про білети
+                setTimeout(() => {
+                    this.loadUserTickets();
+                }, 1000);
+            });
+
+            // Покращений обробник натискання на кнопки участі використовуючи делегування подій
             document.addEventListener('click', (event) => {
                 const participateButton = event.target.closest('.join-button, .mini-raffle-button');
                 if (!participateButton) return;
@@ -154,16 +264,6 @@
                 }, this.minTransactionInterval);
             });
 
-            // Обробник завантаження розіграшів
-            document.addEventListener('raffles-loaded', () => {
-                this.extractEntryFeesFromDOM();
-
-                // Оновлюємо дані про білети
-                setTimeout(() => {
-                    this.loadUserTickets();
-                }, 1000);
-            });
-
             // ДОДАНО: Обробник для оновлення при зміні видимості сторінки
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && this.needsServerUpdate) {
@@ -179,13 +279,18 @@
          * @returns {number} Кількість жетонів
          */
         getUserCoins: function() {
-            // Спочатку намагаємось отримати з DOM
-            const userCoinsElement = document.getElementById('user-coins');
+            // Спочатку перевіряємо WinixCore
+            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+                return window.WinixCore.getCoins();
+            }
+
+            // Потім спробуємо отримати з DOM кешу
+            const userCoinsElement = this.getDOMElement('userCoins');
             if (userCoinsElement) {
                 return parseInt(userCoinsElement.textContent) || 0;
             }
 
-            // Потім з localStorage
+            // Як останній варіант - з localStorage
             return parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
         },
 
@@ -193,8 +298,9 @@
          * Витягування вартості участі з DOM
          */
         extractEntryFeesFromDOM: function() {
-            // Перебираємо всі кнопки участі
+            // Оптимізоване отримання всіх кнопок одним запитом
             const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
+
             buttons.forEach(button => {
                 const raffleId = button.getAttribute('data-raffle-id');
                 if (!raffleId) return;
@@ -221,6 +327,12 @@
                 if (!button.hasAttribute('data-entry-fee')) {
                     button.setAttribute('data-entry-fee', entryFee);
                 }
+
+                // Кешуємо кнопку для подальшого використання
+                if (!this.domCache.buttons[raffleId]) {
+                    this.domCache.buttons[raffleId] = [];
+                }
+                this.domCache.buttons[raffleId].push(button);
             });
         },
 
@@ -303,16 +415,25 @@
          * Оновлення відображення кількості білетів
          */
         updateTicketsUI: function() {
-            // Перебираємо всі кнопки
+            // Оптимізований метод з використанням кешу DOM
             for (const raffleId in this.ticketCounts) {
                 const ticketCount = this.ticketCounts[raffleId];
-                const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
 
+                // Отримуємо кнопки з кешу або шукаємо їх в DOM
+                const buttons = this.getDOMElement('buttons', raffleId, () => {
+                    return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+                });
+
+                if (!buttons || !buttons.length) continue;
+
+                // Перебираємо і оновлюємо всі кнопки
                 buttons.forEach(button => {
-                    // Змінюємо текст кнопки
                     const isMini = button.classList.contains('mini-raffle-button');
                     if (ticketCount > 0) {
+                        // Додаємо клас для учасників
                         button.classList.add('participating');
+
+                        // Змінюємо текст кнопки
                         button.textContent = isMini ?
                             `Додати ще білет (${ticketCount})` :
                             `Додати ще білет (у вас: ${ticketCount})`;
@@ -338,6 +459,9 @@
             // Зберігаємо в localStorage
             this.saveTicketsToStorage();
 
+            // Оновлюємо вигляд кнопок
+            this.updateButtons(raffleId, ticketCount);
+
             // ВИПРАВЛЕННЯ: Встановлюємо прапорець оновлення
             this.needsServerUpdate = true;
 
@@ -348,6 +472,39 @@
             }, 3000);
 
             console.log(`✅ Оновлено кількість білетів для розіграшу ${raffleId}: ${ticketCount}`);
+        },
+
+        /**
+         * Оновлення вигляду кнопок
+         * @param {string} raffleId - ID розіграшу
+         * @param {number} ticketCount - Кількість білетів
+         */
+        updateButtons: function(raffleId, ticketCount) {
+            // Отримуємо кнопки з кешу або шукаємо їх в DOM
+            const buttons = this.getDOMElement('buttons', raffleId, () => {
+                return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            });
+
+            if (!buttons || !buttons.length) return;
+
+            // Перебираємо і оновлюємо всі кнопки
+            buttons.forEach(button => {
+                // Видаляємо стан обробки
+                button.classList.remove('processing');
+                button.removeAttribute('data-processing');
+
+                // Додаємо клас для учасників
+                button.classList.add('participating');
+
+                // Змінюємо текст кнопки
+                const isMini = button.classList.contains('mini-raffle-button');
+                button.textContent = isMini ?
+                    `Додати ще білет (${ticketCount})` :
+                    `Додати ще білет (у вас: ${ticketCount})`;
+
+                // Розблоковуємо кнопку
+                button.disabled = false;
+            });
         },
 
         /**
@@ -413,8 +570,14 @@
             // Зберігаємо вартість участі
             this.entryFees[raffleId] = fee;
 
-            // Оновлюємо атрибути кнопок
-            const buttons = document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            // Оновлюємо атрибути кнопок, використовуючи кешовані елементи
+            const buttons = this.getDOMElement('buttons', raffleId, () => {
+                return document.querySelectorAll(`.join-button[data-raffle-id="${raffleId}"], .mini-raffle-button[data-raffle-id="${raffleId}"]`);
+            });
+
+            if (!buttons || !buttons.length) return;
+
+            // Перебираємо і оновлюємо всі кнопки
             buttons.forEach(button => {
                 button.setAttribute('data-entry-fee', fee);
 
@@ -434,15 +597,19 @@
          * @returns {Promise<boolean>} Результат синхронізації
          */
         syncWithServer: async function() {
-            // ВИПРАВЛЕНО: Делегуємо модулю participation
-            if (window.WinixRaffles &&
+            // ВИПРАВЛЕНО: Делегуємо модулю participation або WinixCore
+            if (window.WinixCore && typeof window.WinixCore.syncUserData === 'function') {
+                console.log('🔄 Делегування запиту синхронізації до WinixCore...');
+                const result = await window.WinixCore.syncUserData();
+                return result.success;
+            } else if (window.WinixRaffles &&
                 window.WinixRaffles.participation &&
                 typeof window.WinixRaffles.participation.syncWithServer === 'function') {
 
                 console.log('🔄 Делегування запиту синхронізації модулю participation...');
                 return await window.WinixRaffles.participation.syncWithServer();
             } else {
-                console.warn('⚠️ Модуль participation недоступний. Не можна синхронізувати дані');
+                console.warn('⚠️ Модулі синхронізації недоступні. Не можна синхронізувати дані');
                 return false;
             }
         },
@@ -455,6 +622,11 @@
 
             // Очищення таймерів
             this._cleanupState();
+
+            // Очищення кешу DOM
+            this.domCache.buttons = {};
+            this.domCache.participants = {};
+            this.domCache.userCoins = null;
 
             console.log('✅ Стан ticket-manager успішно скинуто');
         }

@@ -1,7 +1,7 @@
 /**
  * WINIX - Система розіграшів (validators.js)
  * Модуль з функціями валідації для системи розіграшів
- * @version 1.3.0
+ * @version 1.4.0
  */
 
 (function() {
@@ -13,20 +13,32 @@
         return;
     }
 
+    // Перевірка наявності глобальних функцій валідації UUID
+    const hasGlobalUUIDValidator = typeof window.isValidUUID === 'function';
+    const hasGlobalFormatUUID = typeof window.formatUUID === 'function';
+    const hasGlobalNormalizeUUID = typeof window.normalizeUUID === 'function';
+
+    // Якщо функції валідації UUID не знайдені, виводимо попередження
+    if (!hasGlobalUUIDValidator) {
+        console.warn('⚠️ Глобальна функція isValidUUID не знайдена! Переконайтеся, що uuid-validator.js підключено.');
+    }
+
     // Об'єкт з функціями валідації
     const validators = {
         /**
-         * Перевірка валідності UUID - використовує глобальну функцію для єдиного стандарту
+         * Перевірка валідності UUID
+         * УВАГА: Використовує глобальну функцію isValidUUID з uuid-validator.js,
+         * яка має бути підключена раніше цього файлу
          * @param {string} id - UUID для перевірки
          * @returns {boolean} - Результат перевірки
          */
         isValidUUID: function(id) {
-            // Використовуємо глобальну функцію якщо вона існує
-            if (typeof window.isValidUUID === 'function') {
+            // Використовуємо глобальну функцію, якщо вона доступна
+            if (hasGlobalUUIDValidator) {
                 return window.isValidUUID(id);
             }
 
-            // Запасний варіант якщо глобальна функція недоступна
+            // Запасний варіант, якщо глобальна функція недоступна
             if (!id || typeof id !== 'string') {
                 return false;
             }
@@ -39,8 +51,14 @@
                 return false;
             }
 
+            // Перевірка на мінімальну довжину (повний UUID має 36 символів)
+            if (normalizedId.length < 32) {
+                return false;
+            }
+
             // Перевірка стандартного формату UUID (8-4-4-4-12)
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
             return uuidRegex.test(normalizedId);
         },
 
@@ -91,6 +109,12 @@
          */
         hasEnoughTokens: function(requiredTokens) {
             if (isNaN(requiredTokens) || requiredTokens <= 0) return true;
+
+            // Перевіряємо наявність WinixCore
+            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+                const userTokens = window.WinixCore.getCoins();
+                return userTokens >= requiredTokens;
+            }
 
             // Отримуємо поточну кількість жетонів користувача
             let userTokens = 0;
@@ -298,6 +322,11 @@
          * @returns {string} - Нормалізований UUID
          */
         normalizeUUID: function(uuid) {
+            // Використовуємо глобальну функцію, якщо вона доступна
+            if (hasGlobalNormalizeUUID) {
+                return window.normalizeUUID(uuid);
+            }
+
             if (!uuid || typeof uuid !== 'string') return '';
 
             // Видаляємо всі пробіли і переводимо в нижній регістр
@@ -310,6 +339,11 @@
          * @returns {string} - Сконвертований UUID або порожній рядок при помилці
          */
         formatUUID: function(uuid) {
+            // Використовуємо глобальну функцію, якщо вона доступна
+            if (hasGlobalFormatUUID) {
+                return window.formatUUID(uuid);
+            }
+
             if (!uuid || typeof uuid !== 'string') return '';
 
             try {
@@ -362,8 +396,18 @@
 
     // Експортуємо валідатори в глобальний API для зручності використання
     if (window.WinixAPI) {
-        window.WinixAPI.isValidUUID = validators.isValidUUID;
-        window.WinixAPI.formatUUID = validators.formatUUID;
+        // Використовуємо глобальні функції, якщо вони доступні
+        if (!hasGlobalUUIDValidator) {
+            window.WinixAPI.isValidUUID = validators.isValidUUID;
+        }
+
+        if (!hasGlobalFormatUUID) {
+            window.WinixAPI.formatUUID = validators.formatUUID;
+        }
+
+        if (!hasGlobalNormalizeUUID) {
+            window.WinixAPI.normalizeUUID = validators.normalizeUUID;
+        }
     }
 
     console.log('✅ Модуль валідації успішно ініціалізовано');
