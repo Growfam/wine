@@ -403,7 +403,7 @@
 <script src="js/raffles/utils/validators.js"></script>
 <script src="js/raffles/utils/error-handler.js"></script>
 <script src="js/raffles/utils/ticket-manager.js"></script>
-    <script src="js/raffles/utils/sync-service.js"></script>
+<script src="js/raffles/utils/sync-service.js"></script>
 
 <!-- Компоненти інтерфейсу -->
 <script src="js/raffles/ui/templates.js"></script>
@@ -880,17 +880,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Налаштування нижньої навігації
     setupNavigation();
 
-    // Перевірка наявності WinixRaffles та ініціалізація, якщо вона ще не відбулася
-    if (window.WinixRaffles && !window.WinixRaffles.state.isInitialized) {
-        // Ініціалізація модуля розіграшів
-        WinixRaffles.init();
-
-        // Генеруємо подію про ініціалізацію для інших модулів
-        document.dispatchEvent(new CustomEvent('winix-raffles-initialized'));
-
-        console.log('✅ Система розіграшів WINIX успішно ініціалізована');
-    } else if (!window.WinixRaffles) {
+    // Перевірка наявності WinixRaffles
+    if (!window.WinixRaffles) {
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що всі скрипти правильно підключені.');
+    } else if (!window.WinixRaffles.state.isInitialized) {
+        console.log('⏳ WinixRaffles очікує ініціалізації з index.js');
     }
 
     // Ініціалізуємо систему синхронізації даних
@@ -900,6 +894,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     console.log('📱 Сторінка розіграшів повністю завантажена');
 });
+
 /**
  * Цей файл потрібно додати до frontend/raffles.html перед закриваючим тегом </body>
  * Він забезпечує правильну послідовність завантаження і роботу всіх компонентів
