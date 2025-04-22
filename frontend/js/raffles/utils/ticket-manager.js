@@ -178,16 +178,79 @@
          * Отримання поточної кількості жетонів користувача
          * @returns {number} Кількість жетонів
          */
-        getUserCoins: function() {
-            // Спочатку намагаємось отримати з DOM
-            const userCoinsElement = document.getElementById('user-coins');
-            if (userCoinsElement) {
-                return parseInt(userCoinsElement.textContent) || 0;
-            }
+       /**
+ * Отримання поточної кількості жетонів користувача з пріоритизацією джерел
+ * @returns {number} Кількість жетонів
+ */
+getUserCoins: function() {
+    // 1. Перевіряємо глобальний контролер синхронізації (найвищий пріоритет)
+    if (window.__winixSyncControl && window.__winixSyncControl.lastValidBalance !== null) {
+        return window.__winixSyncControl.lastValidBalance;
+    }
 
-            // Потім з localStorage
-            return parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
-        },
+    // 2. Перевіряємо WinixCore як централізоване джерело (високий пріоритет)
+    if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+        const coreCoins = window.WinixCore.getCoins();
+        if (typeof coreCoins === 'number' && !isNaN(coreCoins) && coreCoins >= 0) {
+            return coreCoins;
+        }
+    }
+
+    // 3. Перевіряємо участь як джерело (середній пріоритет)
+    if (window.WinixRaffles &&
+        window.WinixRaffles.participation &&
+        window.WinixRaffles.participation.lastKnownBalance !== null) {
+
+        const partCoins = window.WinixRaffles.participation.lastKnownBalance;
+        if (typeof partCoins === 'number' && !isNaN(partCoins) && partCoins >= 0) {
+            // Перевіряємо актуальність кешу (не старіше 30 секунд)
+            const now = Date.now();
+            const lastUpdate = window.WinixRaffles.participation.lastBalanceUpdateTime || 0;
+
+            if (now - lastUpdate < 30000) {
+                return partCoins;
+            }
+        }
+    }
+
+    // 4. Перевіряємо текст в DOM (низький пріоритет)
+    try {
+        const userCoinsElement = document.getElementById('user-coins');
+        if (userCoinsElement) {
+            const domCoins = parseInt(userCoinsElement.textContent);
+            if (!isNaN(domCoins) && domCoins >= 0) {
+                return domCoins;
+            }
+        }
+    } catch (e) {
+        console.warn('⚠️ Помилка отримання балансу з DOM:', e);
+    }
+
+    // 5. Перевіряємо останню транзакцію (низький пріоритет)
+    try {
+        const lastTxData = localStorage.getItem('winix_last_transaction');
+        if (lastTxData) {
+            const lastTx = JSON.parse(lastTxData);
+
+            // Перевіряємо актуальність транзакції (не старіше 60 секунд)
+            const now = Date.now();
+            if (lastTx.timestamp && now - lastTx.timestamp < 60000 && lastTx.newBalance !== undefined) {
+                return lastTx.newBalance;
+            }
+        }
+    } catch (e) {
+        console.warn('⚠️ Помилка отримання балансу з транзакції:', e);
+    }
+
+    // 6. Перевіряємо localStorage як останній варіант
+    try {
+        const storedCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+        return !isNaN(storedCoins) ? storedCoins : 0;
+    } catch (e) {
+        console.warn('⚠️ Помилка отримання балансу з localStorage:', e);
+        return 0;
+    }
+},
 
         /**
          * Витягування вартості участі з DOM

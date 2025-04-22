@@ -950,14 +950,14 @@ const DataSyncManager = {
     }
 };
 
-// НОВИЙ ОБ'ЄКТ КОНТРОЛЮ СИНХРОНІЗАЦІЇ
+// ПОКРАЩЕНИЙ ОБ'ЄКТ КОНТРОЛЮ СИНХРОНІЗАЦІЇ
 window.__winixSyncControl = {
     // Блокування всіх запитів синхронізації балансу та участі
     blockAllSync: false,
     // Час, до якого діє блокування
     blockUntil: 0,
     // Дозволені джерела
-    allowedSources: ['transaction_confirmation', 'participation_fix', 'core_sync'],
+    allowedSources: ['transaction_confirmation', 'participation_fix', 'core_sync', 'winixcore'],
     // Останні правильні дані про участь
     lastValidParticipation: {
         raffles: [],
@@ -966,47 +966,188 @@ window.__winixSyncControl = {
     },
     // Останній правильний баланс
     lastValidBalance: null,
+    // Стан мережі
+    isOffline: false,
+    // Блокування за типами запитів
+    blockingByType: {},
+    // Журнал операцій
+    operationsLog: [],
+    // Максимальний розмір журналу
+    maxLogSize: 20,
 
-    // Встановлення блокування на певний час (у секундах)
-    block: function(seconds) {
+    /**
+     * Встановлення блокування на певний час
+     * @param {number} seconds - Тривалість блокування в секундах
+     * @param {Object} options - Опції блокування
+     */
+    block: function(seconds, options = {}) {
+        const blockType = options.type || 'general';
+        const reason = options.reason || 'manual_block';
+        const source = options.source || 'unknown';
+
+        // Поточний час для відстеження
+        const now = Date.now();
+        const expiresAt = now + (seconds * 1000);
+
+        // Зберігаємо блокування
         this.blockAllSync = true;
-        this.blockUntil = Date.now() + (seconds * 1000);
-        console.log(`🔒 Встановлено блокування синхронізації на ${seconds} секунд`);
+        this.blockUntil = expiresAt;
 
-        // Якщо доступний WinixCore, використовуємо його для блокування
+        // Зберігаємо також для конкретного типу
+        this.blockingByType[blockType] = {
+            startTime: now,
+            expiresAt: expiresAt,
+            reason: reason,
+            source: source
+        };
+
+        console.log(`🔒 Блокування синхронізації: ${blockType} на ${seconds} секунд (причина: ${reason})`);
+
+        // Використовуємо WinixCore, якщо доступний
         if (window.WinixCore && typeof window.WinixCore.lockBalanceUpdates === 'function') {
             window.WinixCore.lockBalanceUpdates(seconds * 1000, {
-                coins: this.lastValidBalance
+                coins: this.lastValidBalance,
+                type: blockType,
+                reason: reason
             });
         }
 
+        // Додаємо запис в журнал
+        this.logOperation({
+            type: 'block',
+            blockType: blockType,
+            seconds: seconds,
+            reason: reason,
+            source: source,
+            timestamp: now,
+            expiresAt: expiresAt
+        });
+
         // Автоматичне зняття блокування після заданого часу
         setTimeout(() => {
-            this.blockAllSync = false;
-            console.log('🔓 Блокування синхронізації знято');
+            // Знімаємо блокування для цього типу
+            delete this.blockingByType[blockType];
+
+            // Перевіряємо, чи всі блокування зняті
+            const hasActiveBlocks = Object.keys(this.blockingByType).length > 0;
+
+            if (!hasActiveBlocks) {
+                this.blockAllSync = false;
+            }
+
+            console.log(`🔓 Блокування знято: ${blockType}` +
+                      (!hasActiveBlocks ? ' (всі блокування зняті)' : ''));
+
+            // Додаємо запис в журнал
+            this.logOperation({
+                type: 'unblock',
+                blockType: blockType,
+                reason: reason,
+                timestamp: Date.now()
+            });
         }, seconds * 1000);
+
+        return true;
     },
 
-    // Перевірка, чи активне блокування
-    isBlocked: function(source) {
-        // Якщо джерело в "білому списку", не блокуємо
+    /**
+     * Перевірка, чи активне блокування
+     * @param {string} source - Джерело запиту
+     * @param {string} type - Тип запиту
+     * @returns {boolean} Результат перевірки
+     */
+    isBlocked: function(source, type = 'general') {
+        // Якщо режим офлайн, блокуємо всі мережеві запити
+        if (this.isOffline && type.includes('sync')) {
+            return true;
+        }
+
+        // Перевіряємо білий список
         if (source && this.allowedSources.includes(source)) {
             return false;
         }
 
-        // Якщо доступний WinixCore, використовуємо його метод
-        if (window.WinixCore && typeof window.WinixCore.isBalanceUpdateLocked === 'function') {
-            return window.WinixCore.isBalanceUpdateLocked(source);
+        // Перевіряємо блокування для конкретного типу
+        if (this.blockingByType[type]) {
+            const blockInfo = this.blockingByType[type];
+            const now = Date.now();
+
+            // Якщо блокування не закінчилося
+            if (blockInfo.expiresAt > now) {
+                return true;
+            } else {
+                // Якщо блокування закінчилося, видаляємо його
+                delete this.blockingByType[type];
+            }
         }
 
-        // Запасний варіант
+        // Перевіряємо WinixCore
+        if (window.WinixCore && typeof window.WinixCore.isBalanceUpdateLocked === 'function') {
+            return window.WinixCore.isBalanceUpdateLocked(source, type);
+        }
+
+        // Перевіряємо глобальне блокування
         if (!this.blockAllSync) return false;
+
         const now = Date.now();
         if (now > this.blockUntil) {
             this.blockAllSync = false;
             return false;
         }
+
         return true;
+    },
+
+    /**
+     * Додавання запису в журнал операцій
+     * @param {Object} operation - Інформація про операцію
+     */
+    logOperation: function(operation) {
+        // Додаємо запис на початок масиву
+        this.operationsLog.unshift(operation);
+
+        // Обмежуємо розмір журналу
+        if (this.operationsLog.length > this.maxLogSize) {
+            this.operationsLog = this.operationsLog.slice(0, this.maxLogSize);
+        }
+    },
+
+    /**
+     * Отримання стану блокування
+     * @returns {Object} Стан блокування
+     */
+    getState: function() {
+        return {
+            blockAllSync: this.blockAllSync,
+            blockUntil: this.blockUntil,
+            isOffline: this.isOffline,
+            blockingByType: {...this.blockingByType},
+            lastValidBalance: this.lastValidBalance,
+            lastValidParticipation: {
+                rafflesCount: this.lastValidParticipation.raffles.length,
+                ticketsCount: Object.keys(this.lastValidParticipation.tickets).length,
+                timestamp: this.lastValidParticipation.timestamp
+            },
+            operationsLog: this.operationsLog.slice(0, 5) // Повертаємо 5 останніх записів
+        };
+    },
+
+    /**
+     * Скидання стану контролера
+     */
+    reset: function() {
+        this.blockAllSync = false;
+        this.blockUntil = 0;
+        this.blockingByType = {};
+        this.isOffline = false;
+
+        // Додаємо запис в журнал
+        this.logOperation({
+            type: 'reset',
+            timestamp: Date.now()
+        });
+
+        console.log('🔄 Стан контролера синхронізації скинуто');
     }
 };
 

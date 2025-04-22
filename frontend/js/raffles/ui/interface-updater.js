@@ -754,47 +754,142 @@
          * @param {HTMLElement} element - Елемент балансу для анімації
          * @param {number} amount - Кількість витрачених токенів
          */
-       showTokensSpentAnimation: function(element, amount) {
-    if (!element || typeof amount !== 'number') return;
+       /**
+ * Анімація витрачених токенів
+ * @param {HTMLElement} element - Елемент балансу для анімації
+ * @param {number} amount - Кількість витрачених токенів
+ */
+showTokensSpentAnimation: function(element, amount) {
+    if (!element || typeof amount !== 'number' || amount <= 0) return;
 
     try {
-        // Перевіряємо, чи вже є активна анімація
-        const existingAnimation = element.querySelector('.tokens-spent-animation');
-        if (existingAnimation) {
-            // Якщо вже є анімація, оновлюємо її значення замість створення нової
-            const currentAmount = parseInt(existingAnimation.textContent.replace('-', '')) || 0;
-            const newAmount = currentAmount + amount;
-            existingAnimation.textContent = `-${newAmount}`;
+        // Створюємо унікальний ID для анімації
+        const animationId = 'animation_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5);
 
-            // Скидаємо анімацію, щоб вона почалася спочатку
-            existingAnimation.style.animation = 'none';
-            existingAnimation.offsetHeight; // trigger reflow
-            existingAnimation.style.animation = 'tokens-spent-animation 1.5s ease-out forwards';
+        // Перевіряємо, чи вже є активні анімації
+        const existingAnimations = Array.from(element.querySelectorAll('.tokens-spent-animation'));
 
-            return;
+        // Обмежуємо кількість одночасних анімацій до 1
+        if (existingAnimations.length > 0) {
+            // Консолідуємо всі існуючі анімації в одну
+            let totalAmount = amount;
+
+            existingAnimations.forEach(anim => {
+                // Додаємо суму з існуючої анімації
+                const animAmount = parseInt(anim.textContent.replace('-', '')) || 0;
+                totalAmount += animAmount;
+
+                // Видаляємо існуючу анімацію
+                if (anim.parentNode) {
+                    anim.parentNode.removeChild(anim);
+                }
+            });
+
+            // Створюємо нову анімацію з сумарним значенням
+            amount = totalAmount;
         }
 
-        // Створюємо новий елемент анімації
+        // Створюємо контейнер для анімації (якщо він відсутній)
+        let animContainer = element.querySelector('.animation-container');
+        if (!animContainer) {
+            animContainer = document.createElement('div');
+            animContainer.className = 'animation-container';
+            animContainer.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                overflow: hidden;
+                z-index: 10;
+            `;
+
+            // Переконуємося, що батьківський елемент має відносну позицію
+            const currentPosition = window.getComputedStyle(element).position;
+            if (currentPosition === 'static') {
+                element.style.position = 'relative';
+            }
+
+            element.appendChild(animContainer);
+        }
+
+        // Створюємо елемент анімації з використанням requestAnimationFrame
         const animationElement = document.createElement('div');
         animationElement.className = 'tokens-spent-animation';
+        animationElement.id = animationId;
         animationElement.textContent = `-${amount}`;
-        animationElement.dataset.animationId = Date.now();
+        animationElement.dataset.amount = amount;
+        animationElement.dataset.startTime = Date.now();
+        animationElement.style.cssText = `
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FF5722;
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            opacity: 0;
+            pointer-events: none;
+        `;
 
-        // Робимо позицію елемента відносною, якщо вона ще не така
-        const currentPosition = window.getComputedStyle(element).position;
-        if (currentPosition === 'static') {
-            element.style.position = 'relative';
-        }
+        // Додаємо елемент до контейнера
+        animContainer.appendChild(animationElement);
 
-        // Додаємо елемент анімації
-        element.appendChild(animationElement);
+        // Запускаємо анімацію через requestAnimationFrame для плавності
+        let startTime = null;
+        const animationDuration = 1500; // Тривалість анімації в мс
 
-        // Видаляємо елемент після завершення анімації
-        setTimeout(() => {
-            if (animationElement.parentNode) {
-                animationElement.parentNode.removeChild(animationElement);
+        const animateSpending = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+
+            // Перевіряємо, чи елемент досі в DOM
+            if (!document.getElementById(animationId)) {
+                return; // Припиняємо анімацію, якщо елемент видалено
             }
-        }, 1500);
+
+            // Обчислюємо прогрес анімації (від 0 до 1)
+            const progress = Math.min(elapsed / animationDuration, 1);
+
+            // Визначаємо стилі для поточного кадру анімації
+            if (progress < 0.2) {
+                // Фаза появи (0% - 20%)
+                const appearProgress = progress / 0.2;
+                animationElement.style.opacity = appearProgress.toString();
+                animationElement.style.transform = `translateX(-50%) translateY(${-10 * appearProgress}px)`;
+            } else if (progress < 0.8) {
+                // Фаза руху вгору (20% - 80%)
+                const moveProgress = (progress - 0.2) / 0.6;
+                animationElement.style.opacity = '1';
+                animationElement.style.transform = `translateX(-50%) translateY(${-10 - 20 * moveProgress}px)`;
+            } else {
+                // Фаза зникнення (80% - 100%)
+                const fadeProgress = (progress - 0.8) / 0.2;
+                animationElement.style.opacity = (1 - fadeProgress).toString();
+                animationElement.style.transform = `translateX(-50%) translateY(${-30}px)`;
+            }
+
+            // Продовжуємо анімацію, якщо вона не завершена
+            if (progress < 1) {
+                requestAnimationFrame(animateSpending);
+            } else {
+                // Видаляємо елемент після завершення анімації
+                if (animationElement.parentNode) {
+                    animationElement.parentNode.removeChild(animationElement);
+                }
+
+                // Перевіряємо, чи контейнер порожній, і видаляємо його
+                if (animContainer.children.length === 0 && animContainer.parentNode) {
+                    animContainer.parentNode.removeChild(animContainer);
+                }
+            }
+        };
+
+        // Запускаємо анімацію
+        requestAnimationFrame(animateSpending);
+
     } catch (error) {
         console.warn('⚠️ Помилка анімації витрачених токенів:', error);
     }
