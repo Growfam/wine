@@ -9,17 +9,32 @@
     'use strict';
 // Трекер показаних сповіщень для запобігання дублюванню
 const shownNotifications = new Set();
+if (typeof window.showToast === 'function') {
+    const originalShowToast = window.showToast;
+    window.showToast = function(message, type) {
+        // Створюємо унікальний ключ для повідомлення
+        const messageKey = message + (type || '');
 
-// Потім замініть виклик showToast в методі participateInRaffle на:
-if (typeof window.showToast === 'function' && !shownNotifications.has(raffleId)) {
-    window.showToast('Ви успішно взяли участь у розіграші', 'success');
-    // Запам'ятовуємо, що повідомлення вже було показано
-    shownNotifications.add(raffleId);
-    // Очищаємо через деякий час
-    setTimeout(() => {
-        shownNotifications.delete(raffleId);
-    }, 5000);
+        // Перевіряємо, чи не показували це повідомлення нещодавно
+        if (shownNotifications.has(messageKey)) {
+            console.log(`💬 Пропущено дублікат сповіщення: ${message}`);
+            return;
+        }
+
+        // Додаємо до списку показаних
+        shownNotifications.add(messageKey);
+
+        // Видаляємо зі списку через 5 секунд
+        setTimeout(() => {
+            shownNotifications.delete(messageKey);
+        }, 5000);
+
+        // Викликаємо оригінальну функцію
+        return originalShowToast.call(this, message, type);
+    };
+    console.log('✅ Функцію showToast успішно патчено для дедуплікації сповіщень');
 }
+
     // Перевірка наявності головного модуля розіграшів
     if (typeof window.WinixRaffles === 'undefined') {
         console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше participation.js');
@@ -2171,9 +2186,11 @@ _getServerBalance: async function() {
                         console.warn('⚠️ Помилка збереження підтвердженої участі:', e);
                     }
 
-                    if (typeof window.showToast === 'function') {
-                        window.showToast('Ви успішно взяли участь у розіграші', 'success');
-                    }
+                    if (typeof window.showToast === 'function' && !shownToasts.has(raffleId)) {
+    window.showToast('Ви успішно взяли участь у розіграші', 'success');
+    shownToasts.add(raffleId);
+    setTimeout(() => shownToasts.delete(raffleId), 5000);
+}
 
                     // ПОВЕРТАЄМО РЕЗУЛЬТАТ
                     return {
