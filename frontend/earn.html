@@ -6,927 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <title>WINIX - Заробляй</title>
 
+    <!-- Підключення основних стилів -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- Підключення стилів для завдань -->
+    <link rel="stylesheet" href="css/earn/styles.css">
+    <link rel="stylesheet" href="css/earn/components-tasks.css">
+    <link rel="stylesheet" href="css/earn/leaderboard.css">
+
+    <!-- Підключення Telegram WebApp API -->
     <script src="js/telegram-web-app.js"></script>
-    <script src="js/telegram-web-app.js"></script>
-<script>
-// Ініціалізація та перевірка Telegram WebApp
-(function() {
-  console.log("🔄 Ініціалізація Telegram WebApp...");
-
-  // Перевіряємо, чи скрипт завантажився
-  if (!window.Telegram || !window.Telegram.WebApp) {
-    console.error("❌ Telegram WebApp API не завантажено. Перевірте шлях до файлу.");
-    return;
-  }
-
-  try {
-    // Ініціалізуємо Telegram WebApp
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
-    console.log("✅ Telegram WebApp успішно ініціалізовано");
-
-    // Перевіряємо наявність даних користувача
-    if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-      const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-      localStorage.setItem('telegram_user_id', userId);
-      console.log("✅ Отримано Telegram ID:", userId);
-    } else {
-      console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
-    }
-  } catch (e) {
-    console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
-  }
-})();
-</script>
-<!-- Потім усі інші скрипти -->
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/language.js"></script>
-    <script src="js/core.js"></script>
-
-
-    <style>
-        :root {
-            /* Основні кольори для теми */
-            --primary-gradient: linear-gradient(90deg, #1A1A2E, #0F3460, #00C9A7);
-            --secondary-color: #4eb5f7;
-            --bg-card: rgba(30, 39, 70, 0.8);
-            --bg-item: rgba(20, 30, 60, 0.7);
-            --bg-active: rgba(0, 201, 167, 0.3);
-            --text-color: #fff;
-            --text-secondary: rgba(255, 255, 255, 0.7);
-            --shadow-color: rgba(0, 0, 0, 0.5);
-            --glow-color: rgba(0, 201, 167, 0.5);
-            --border-color: rgba(78, 181, 247, 0.2);
-            --positive-color: #4caf50;
-            --negative-color: #f44336;
-            --neutral-color: #9e9e9e;
-
-            /* Основні розміри */
-            --container-max-width: 37.5rem; /* 600px */
-            --header-height: 3.5rem; /* 56px */
-            --nav-height: 4.5rem; /* 72px */
-            --bottom-padding: 6rem; /* 96px */
-            --card-border-radius: 1.5rem; /* 24px */
-            --item-border-radius: 0.75rem; /* 12px */
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-            color: var(--text-color);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            height: 100vh;
-            padding: 0;
-            background: none;
-        }
-
-        .container {
-            width: 100%;
-            height: 100%;
-            max-width: var(--container-max-width);
-            box-sizing: border-box;
-            padding: 0.625rem; /* 10px */
-            position: relative;
-            z-index: 1;
-            background: url('assets/Fon.png') no-repeat center center;
-            background-size: cover;
-            animation: backgroundShift 15s infinite linear;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.9375rem; /* 15px */
-            overflow-y: auto;
-            padding-bottom: var(--bottom-padding) !important;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: thin;
-            scrollbar-color: var(--secondary-color) transparent;
-        }
-
-        /* Стилізація скролбару для Chrome/Safari */
-        .container::-webkit-scrollbar {
-            width: 0.375rem; /* 6px */
-        }
-
-        .container::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .container::-webkit-scrollbar-thumb {
-            background-color: var(--secondary-color);
-            border-radius: 1.25rem; /* 20px */
-        }
-
-        @keyframes backgroundShift {
-            0% { background-position: 0% 0%; }
-            50% { background-position: 10% 10%; }
-            100% { background-position: 0% 0%; }
-        }
-
-        .header {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 0.125rem 0.625rem var(--shadow-color);
-            width: 100%;
-            height: var(--header-height);
-            margin-bottom: 0.9375rem; /* 15px */
-            position: sticky;
-            top: 0.3125rem; /* 5px */
-            z-index: 10;
-        }
-
-        /* Стилі для аватара користувача та ID */
-        .header .profile-avatar {
-            width: 2.5rem; /* 40px */
-            height: 2.5rem;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem; /* 20px */
-            font-weight: bold;
-            color: white;
-            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5); /* 0 0 5px */
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-
-        .header .profile-avatar:hover {
-            transform: scale(1.1);
-        }
-
-        .header .profile-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-        }
-
-        .header .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem; /* 8px */
-            cursor: pointer;
-        }
-
-        .header .user-id-container {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            font-size: 0.75rem; /* 12px */
-        }
-
-        .header .user-id-label {
-            color: var(--text-secondary);
-        }
-
-        .header .user-id-value {
-            font-weight: bold;
-        }
-
-        .header .winix-title {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            font-size: 1.5rem; /* 24px */
-            font-weight: bold;
-            letter-spacing: 0.125rem; /* 2px */
-            color: var(--text-color);
-            text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3);
-            animation: glow 11s infinite ease-in-out;
-        }
-
-        @keyframes glow {
-            0% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-            72% { text-shadow: 0 0 0.9375rem rgba(0, 201, 167, 0.8), 0 0 1.875rem rgba(0, 201, 167, 0.5); }
-            100% { text-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.3); }
-        }
-
-        .header .balance-container {
-            display: flex;
-            gap: 0.625rem; /* 10px */
-            align-items: center;
-            margin-right: 0.3125rem; /* 5px */
-        }
-
-        .header .jeton-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-left: -2.1875rem; /* -35px */
-        }
-
-        .header .winix-balance {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .header .jeton-balance .balance-value,
-        .header .winix-balance .balance-value {
-            font-size: 0.875rem; /* 14px */
-            font-weight: bold;
-        }
-
-        .header .jeton-balance .balance-label,
-        .header .winix-balance .balance-label {
-            font-size: 0.75rem; /* 12px */
-            font-weight: normal;
-        }
-
-        .header .jeton-icon {
-            width: 1.875rem; /* 30px */
-            height: 1.875rem;
-            background-size: cover;
-            border-radius: 50%;
-            box-shadow: 0 0 0.3125rem rgba(255, 255, 255, 0.3);
-            animation: pulse 1.5s infinite ease-in-out;
-        }
-
-        /* Стилі для вкладок у категоріях завдань */
-        .tabs {
-            display: flex;
-            justify-content: center;
-            width: 100%;
-            margin: 0 0 0.9375rem 0; /* 0 0 15px 0 */
-            background: rgba(15, 23, 42, 0.4);
-            border-radius: 1.25rem; /* 20px */
-            padding: 0.3125rem; /* 5px */
-            border: none;
-        }
-
-        .tab {
-            flex: 1;
-            text-align: center;
-            padding: 0.625rem; /* 10px */
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            color: #ccc;
-            cursor: pointer;
-            border-radius: 0.9375rem; /* 15px */
-            transition: all 0.3s ease;
-        }
-
-        .tab.active {
-            background: var(--primary-gradient);
-            color: white;
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3); /* 0 4px 8px */
-        }
-
-        /* Стилі для карток категорій */
-        .category-card {
-            background: rgba(15, 23, 42, 0.0); /* Прозорий фон */
-            border-radius: 1.5rem; /* 24px */
-            width: 100%;
-            padding: 0.9375rem 0; /* 15px 0 */
-            margin: 0.3125rem 0; /* 5px 0 */
-            box-shadow: none; /* Видаляємо тінь */
-            border: none; /* Видаляємо рамку */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .category-card:first-of-type {
-            margin-bottom: 1.5625rem; /* 25px */
-            padding-bottom: 1.25rem; /* 20px */
-        }
-
-        .category-title {
-            font-size: 1.625rem; /* 26px */
-            font-weight: bold;
-            margin-bottom: 1.25rem; /* 20px */
-            text-align: center;
-            color: #fff;
-            text-shadow: 0 0 0.625rem rgba(0, 201, 167, 0.7); /* 0 0 10px */
-            letter-spacing: 0.0625rem; /* 1px */
-        }
-
-        /* Стилі для щоденного бонусу */
-        .daily-bonus {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 1.25rem; /* 20px */
-        }
-
-        /* Мінімалістичний стиль з підсвічуванням днів */
-        /* Контейнер щоденного бонусу */
-        .daily-bonus-bar {
-            width: 100%;
-            height: 7.5rem;
-            background: rgba(15, 23, 42, 0.4);
-            border-radius: 1.25rem;
-            padding: 1.5rem 0.75rem;
-            margin: 0.9375rem 0;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(78, 181, 247, 0.1);
-        }
-
-        /* Контейнер денного прогресу */
-        .daily-progress {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            padding: 0 0.3125rem;
-            position: relative;
-            z-index: 2;
-            margin-bottom: 1.5rem;
-        }
-
-        /* Маркер дня */
-        .day-marker {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 2;
-            position: relative;
-            min-width: 2.5rem;
-        }
-
-        /* Мінімалістичний дизайн для кружечків днів */
-        .day-circle {
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 500;
-            font-size: 0.9rem;
-            background: rgba(20, 30, 60, 0.3);
-            border: 1px solid rgba(78, 181, 247, 0.15);
-            margin-bottom: 0.625rem;
-            z-index: 3;
-            transition: all 0.3s ease;
-            color: rgba(255, 255, 255, 0.6);
-            position: relative;
-        }
-
-        /* Активний день з мінімалістичним підсвічуванням */
-        .day-circle.active {
-            background: rgba(78, 181, 247, 0.15);
-            border: 1px solid rgba(78, 181, 247, 0.5);
-            box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
-            color: white;
-        }
-
-        /* Додаємо пульсуючий ефект для активного дня */
-        .day-circle.active::after {
-            content: '';
-            position: absolute;
-            top: -3px;
-            left: -3px;
-            right: -3px;
-            bottom: -3px;
-            border-radius: 50%;
-            border: 1px solid rgba(78, 181, 247, 0.3);
-            animation: pulse 2s infinite;
-            z-index: -1;
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-                opacity: 0.8;
-            }
-            70% {
-                transform: scale(1.1);
-                opacity: 0;
-            }
-            100% {
-                transform: scale(1);
-                opacity: 0;
-            }
-        }
-
-        /* Завершений день - світіння замість прогрес-бару */
-        .day-circle.completed {
-            background: rgba(0, 201, 167, 0.2);
-            border: 1px solid rgba(0, 201, 167, 0.5);
-            color: white;
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.4);
-        }
-
-        /* Відображення винагороди дня */
-        .day-reward {
-            font-size: 0.85rem;
-            color: rgba(255, 255, 255, 0.8);
-            font-weight: 500;
-        }
-
-        /* Для активного дня підсвічуємо також винагороду */
-        .day-circle.active + .day-reward {
-            color: white;
-            text-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
-        }
-
-        /* Для завершених днів підсвічуємо винагороду зеленим */
-        .day-circle.completed + .day-reward {
-            color: rgba(0, 201, 167, 0.9);
-        }
-
-        /* З'єднувальні лінії між кружечками - мінімалістичний підхід */
-        .day-marker:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            top: 1.125rem; /* Центрування по кружечку */
-            right: -1.25rem;
-            width: 1.25rem;
-            height: 1px;
-            background: rgba(78, 181, 247, 0.15);
-            z-index: 1;
-        }
-
-        /* Мінімалістична кнопка отримання бонусу */
-        .claim-button {
-            margin-top: 0.75rem;
-            padding: 0.75rem 2rem;
-            border-radius: 1.5rem;
-            font-size: 0.9375rem;
-            font-weight: 500;
-            background: rgba(0, 201, 167, 0.15);
-            border: 1px solid rgba(0, 201, 167, 0.3);
-            color: white;
-            transition: all 0.3s ease;
-            letter-spacing: 0.0625rem;
-            cursor: pointer;
-            align-self: center;
-        }
-
-        .claim-button:hover:not(:disabled) {
-            background: rgba(0, 201, 167, 0.25);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .claim-button:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        .claim-button:disabled {
-            background: rgba(30, 39, 70, 0.2);
-            color: rgba(255, 255, 255, 0.4);
-            border-color: rgba(78, 181, 247, 0.1);
-            cursor: not-allowed;
-        }
-
-        /* Приберемо прогрес-бар повністю, оскільки він нам більше не потрібен */
-        .progress-bar {
-            display: none;
-        }
-
-        /* Стилі для завдань */
-        .task-container {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.9375rem; /* 15px */
-        }
-
-        .task-item {
-            width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            border-radius: 1.25rem; /* 20px */
-            padding: 0.9375rem; /* 15px */
-            display: flex;
-            flex-direction: column;
-            gap: 0.625rem; /* 10px */
-            margin-bottom: 0.9375rem; /* 15px */
-            box-sizing: border-box;
-            border: none;
-        }
-
-        .task-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .task-title {
-            font-size: 1.125rem; /* 18px */
-            font-weight: bold;
-            color: #fff;
-        }
-
-        .task-reward {
-            font-size: 1.125rem; /* 18px */
-            font-weight: bold;
-            color: #00C9A7;
-            display: flex;
-            align-items: center;
-            gap: 0.3125rem; /* 5px */
-        }
-
-        .token-symbol {
-            font-size: 0.875rem; /* 14px */
-            color: #ccc;
-        }
-
-        .task-description {
-            font-size: 0.875rem; /* 14px */
-            color: #ccc;
-            margin: 0.3125rem 0; /* 5px 0 */
-        }
-
-        .task-progress {
-            display: flex;
-            align-items: center;
-            gap: 0.625rem; /* 10px */
-            margin-top: 0.3125rem; /* 5px */
-        }
-
-        .progress-text {
-            font-size: 0.875rem; /* 14px */
-            color: #4eb5f7;
-        }
-
-        .progress-bar-container {
-            flex: 1;
-            height: 0.625rem; /* 10px */
-            background: rgba(10, 20, 40, 0.5);
-            border-radius: 0.3125rem; /* 5px */
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4eb5f7, #00C9A7);
-            border-radius: 0.3125rem; /* 5px */
-            transition: width 0.3s ease;
-        }
-
-        .task-action {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 0.625rem; /* 10px */
-        }
-
-        .action-button {
-            background: linear-gradient(90deg, #2D6EB6, #52C0BD);
-            border: none;
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.75rem 1.5625rem; /* 12px 25px */
-            color: white;
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            min-width: 7.5rem; /* 120px */
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 0 2px 5px */
-        }
-
-        .action-button:disabled {
-            background: #333;
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .action-button:hover:not(:disabled) {
-            transform: translateY(-0.125rem); /* -2px */
-            box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.4); /* 0 4px 8px */
-        }
-
-        .verify-button {
-            background: linear-gradient(90deg, #5E72EB, #AD6EE5);
-        }
-
-        .completed-label {
-            padding: 0.3125rem 0.625rem; /* 5px 10px */
-            background: rgba(0, 201, 167, 0.2);
-            border-radius: 0.625rem; /* 10px */
-            color: #00C9A7;
-            font-weight: bold;
-            font-size: 0.875rem; /* 14px */
-        }
-
-        /* Стилі для лідерської дошки */
-        .leaderboard {
-            width: 100%;
-            margin-top: 0.9375rem; /* 15px */
-        }
-
-        .leaderboard-title {
-            font-size: 1.125rem; /* 18px */
-            font-weight: bold;
-            color: #fff;
-            margin-bottom: 0.625rem; /* 10px */
-            text-align: center;
-        }
-
-        .leaderboard-item {
-            background: rgba(20, 30, 60, 0.7);
-            border-radius: 0.75rem; /* 12px */
-            padding: 0.75rem; /* 12px */
-            display: flex;
-            align-items: center;
-            margin-bottom: 0.5rem; /* 8px */
-            border: 0.0625rem solid rgba(78, 181, 247, 0.2); /* 1px */
-        }
-
-        .position {
-            width: 1.875rem; /* 30px */
-            height: 1.875rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 0.9375rem; /* 15px */
-            background: linear-gradient(90deg, #4eb5f7, #b251f7);
-        }
-
-        .position.top-3 {
-            background: linear-gradient(90deg, #FFD700, #FFA500);
-            box-shadow: 0 0 0.625rem rgba(255, 215, 0, 0.5); /* 0 0 10px */
-        }
-
-        .user-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .username {
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            color: #fff;
-        }
-
-        .referral-count {
-            font-size: 0.875rem; /* 14px */
-            color: #ccc;
-        }
-
-        .user-reward {
-            font-size: 1rem; /* 16px */
-            font-weight: bold;
-            color: #00C9A7;
-        }
-
-        /* Стилі для таймерів на обмежених завданнях */
-        .timer-container {
-            display: flex;
-            align-items: center;
-            gap: 0.3125rem; /* 5px */
-            font-size: 0.875rem; /* 14px */
-            color: #FFD700;
-        }
-
-        .timer-icon {
-            font-size: 1.125rem; /* 18px */
-        }
-
-        /* Стилі для спливаючих підказок */
-        .tooltip {
-            position: absolute;
-            background: rgba(10, 20, 40, 0.9);
-            border-radius: 0.5rem; /* 8px */
-            padding: 0.5rem 0.75rem; /* 8px 12px */
-            font-size: 0.75rem; /* 12px */
-            color: #fff;
-            box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 0 2px 5px */
-            z-index: 10;
-            max-width: 12.5rem; /* 200px */
-            display: none;
-        }
-
-        /* Стилі для навігаційної панелі */
-        .nav-bar {
-            background: var(--primary-gradient);
-            border-radius: 1.5625rem; /* 25px */
-            padding: 0.5rem; /* 8px */
-            display: flex;
-            justify-content: space-around;
-            width: 90%;
-            max-width: 33.75rem; /* 540px */
-            height: var(--nav-height);
-            box-shadow: 0 0.25rem 0.75rem var(--shadow-color); /* 0 4px 12px */
-            position: fixed;
-            bottom: 1.875rem; /* 30px, підняли вгору на 20px з початкових 10px */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-        }
-
-        .nav-item {
-            text-align: center;
-            color: var(--text-color);
-            font-size: 0.875rem; /* 14px */
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 20%;
-            position: relative;
-        }
-
-        .nav-item .icon-wrapper {
-            width: 3.75rem; /* 60px */
-            height: 3.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 0.75rem; /* 12px */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.3125rem; /* 5px */
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.2); /* 0 2px 4px */
-            transition: transform 0.3s ease;
-        }
-
-        .nav-item.active .icon-wrapper {
-            background: var(--bg-active);
-            box-shadow: 0 0 0.9375rem var(--glow-color);
-        }
-
-        .nav-item img {
-            width: 2.1875rem; /* 35px */
-            height: 2.1875rem;
-            display: block;
-            filter: brightness(0) invert(1);
-        }
-
-        .nav-item.active img {
-            filter: brightness(1.2) invert(1);
-        }
-
-        .nav-item:hover .icon-wrapper {
-            transform: scale(1.1);
-        }
-
-        /* Стиль для повідомлень */
-        .toast-message {
-            position: fixed;
-            top: 1.25rem; /* 20px */
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #1A1A2E, #0F3460);
-            color: #ffffff;
-            padding: 0.75rem 1.5rem; /* 12px 24px */
-            border-radius: 12px;
-            z-index: 1000;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            border: 1px solid rgba(78, 181, 247, 0.2);
-            opacity: 0;
-            transition: all 0.3s ease;
-            font-size: 0.9375rem; /* 15px */
-            display: flex;
-            align-items: center;
-            max-width: 350px;
-            width: 90%;
-        }
-
-        .toast-message::after {
-            content: '×';
-            color: #4eb5f7;
-            margin-left: 10px;
-            cursor: pointer;
-            font-size: 20px;
-        }
-
-        .toast-message.show {
-            opacity: 1;
-            transform: translate(-50%, 0.625rem); /* -50%, 10px */
-        }
-
-        /* Стилі для секцій контенту */
-        .content-section {
-            width: 100%;
-            display: none;
-        }
-
-        .content-section.active {
-            display: block;
-        }
-
-        /* Медіа-запити для адаптивності */
-        @media (max-width: 450px) {
-            :root {
-                /* Зменшуємо розміри для маленьких екранів */
-                --header-height: 3rem; /* 48px */
-                --nav-height: 4rem; /* 64px */
-            }
-
-            .header .token-icon {
-                width: 2.8125rem; /* 45px */
-                height: 2.8125rem;
-            }
-
-            .header .winix-title {
-                font-size: 1.25rem; /* 20px */
-            }
-
-            .category-title {
-                font-size: 1.5rem; /* 24px */
-            }
-
-            .day-circle {
-                width: 2.1875rem; /* 35px */
-                height: 2.1875rem;
-                font-size: 0.875rem; /* 14px */
-            }
-
-            .day-reward {
-                font-size: 0.875rem; /* 14px */
-            }
-
-            .claim-button {
-                font-size: 1rem; /* 16px */
-                padding: 0.75rem 1.875rem; /* 12px 30px */
-            }
-
-            .task-title, .task-reward {
-                font-size: 1rem; /* 16px */
-            }
-
-            .action-button {
-                font-size: 0.875rem; /* 14px */
-                padding: 0.625rem 1.25rem; /* 10px 20px */
-                min-width: 6.25rem; /* 100px */
-            }
-
-            .nav-item .icon-wrapper {
-                width: 3.125rem; /* 50px */
-                height: 3.125rem;
-            }
-
-            .nav-item img {
-                width: 1.875rem; /* 30px */
-                height: 1.875rem;
-            }
-        }
-
-        @media (max-width: 350px) {
-            .header .jeton-balance {
-                margin-left: -1.25rem; /* -20px */
-            }
-
-            .header .balance-label {
-                font-size: 0.6875rem; /* 11px */
-            }
-
-            .day-circle {
-                width: 1.875rem; /* 30px */
-                height: 1.875rem;
-                font-size: 0.75rem; /* 12px */
-            }
-
-            .day-reward {
-                font-size: 0.75rem; /* 12px */
-            }
-
-            .daily-bonus-bar {
-                height: 6.25rem; /* 100px */
-            }
-
-            .task-action {
-                flex-direction: column;
-                gap: 0.625rem; /* 10px */
-            }
-
-            .action-button {
-                width: 100%;
-                min-width: 100%;
-            }
-        }
-
-        @media (min-width: 768px) {
-            body {
-                background: linear-gradient(135deg, #141e30, #243b55);
-            }
-
-            .container {
-                box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3); /* 0 10px 30px */
-                margin: 1.25rem auto; /* 20px auto */
-                height: calc(100vh - 2.5rem); /* calc(100vh - 40px) */
-                border-radius: 1.25rem; /* 20px */
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <!-- Оновлений Header як в general.html -->
+        <!-- Шапка сторінки -->
         <div class="header">
             <div class="user-profile" id="profile-link">
                 <div class="profile-avatar" id="profile-avatar">W</div>
@@ -948,180 +41,42 @@
             </div>
         </div>
 
-        <!-- Перемикач категорій -->
+        <!-- Перемикач категорій завдань -->
         <div class="tabs">
             <div class="tab active" data-tab="social" data-lang-key="earn.social_networks">Соціальні</div>
             <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Лімітовані</div>
             <div class="tab" data-tab="partners" data-lang-key="earn.partners_tasks">Партнерські</div>
         </div>
 
-        <!-- Секція Соціальних завдань -->
+        <!-- Контейнери для різних типів завдань -->
+        <!-- Соціальні завдання -->
         <div class="content-section active" id="social-content">
             <!-- Щоденний бонус -->
-            <div class="category-card">
+            <div class="category-card" id="daily-bonus-container">
                 <div class="category-title" data-lang-key="earn.daily_bonus">Щоденний бонус</div>
                 <div class="daily-bonus">
                     <div class="daily-bonus-bar">
-                        <div class="daily-progress">
-                            <div class="day-marker">
-                                <div class="day-circle completed">1</div>
-                                <div class="day-reward">10</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle completed">2</div>
-                                <div class="day-reward">20</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle active">3</div>
-                                <div class="day-reward">30</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle">4</div>
-                                <div class="day-reward">40</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle">5</div>
-                                <div class="day-reward">50</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle">6</div>
-                                <div class="day-reward">60</div>
-                            </div>
-                            <div class="day-marker">
-                                <div class="day-circle">7</div>
-                                <div class="day-reward">70</div>
-                            </div>
+                        <div class="daily-progress" id="daily-progress-container">
+                            <!-- Дні генеруються динамічно через JS -->
                         </div>
-                        <!-- Прогрес-бар видалено звідси -->
                     </div>
-                    <button class="claim-button" id="claim-daily" data-lang-key="earn.get">Отримати 30 $WINIX</button>
+                    <button class="claim-button" id="claim-daily" data-lang-key="earn.get">Отримати бонус</button>
                 </div>
             </div>
 
             <!-- Соціальні завдання -->
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.social_networks">Соціальні мережі</div>
-                <div class="task-container">
-                    <!-- Завдання Twitter -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title">Twitter</div>
-                            <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Підпишись на офіційний Twitter проєкту та отримай нагороду!</div>
-                        <div class="task-action">
-                            <button class="action-button" id="twitter-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="twitter-verify" data-lang-key="earn.verify">Перевірити</button>
-                        </div>
-                    </div>
-
-                    <!-- Завдання Telegram -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title">Telegram канал</div>
-                            <div class="task-reward">80 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Приєднайся до нашого Telegram-каналу та зароби більше!</div>
-                        <div class="task-action">
-                            <button class="action-button" id="telegram-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="telegram-verify" data-lang-key="earn.verify">Перевірити</button>
-                        </div>
-                    </div>
-
-                    <!-- Завдання YouTube -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title">YouTube</div>
-                            <div class="task-reward">50 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Підпишись на наш YouTube-канал, щоб не пропустити оновлення!</div>
-                        <div class="task-action">
-                            <button class="action-button" id="youtube-subscribe" data-lang-key="earn.subscribe">Підписатись</button>
-                            <button class="action-button verify-button" id="youtube-verify" data-lang-key="earn.verify">Перевірити</button>
-                        </div>
-                    </div>
+                <div class="task-container" id="social-tasks-container">
+                    <!-- Соціальні завдання генеруються динамічно через JS -->
                 </div>
             </div>
 
             <!-- Реферальні завдання -->
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.referral_tasks">Реферальні завдання</div>
-                <div class="task-container">
-                    <!-- Завдання 5 друзів -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title" data-lang-key="earn.invite_friends">Запроси 5 друзів</div>
-                            <div class="task-reward">300 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Запроси 5 друзів через своє реферальне посилання!</div>
-                        <div class="task-progress">
-                            <div class="progress-text">0/5 друзів запрошено</div>
-                            <div class="progress-bar-container">
-                                <div class="progress-fill" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="task-action">
-                            <button class="action-button" id="invite-friends" data-lang-key="earn.invite">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
-                        </div>
-                    </div>
-
-                    <!-- Завдання 10 друзів -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title" data-lang-key="earn.invite_friends">Запроси 10 друзів</div>
-                            <div class="task-reward">700 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Запроси 10 друзів та отримай ще більше!</div>
-                        <div class="task-progress">
-                            <div class="progress-text">0/10 друзів запрошено</div>
-                            <div class="progress-bar-container">
-                                <div class="progress-fill" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="task-action">
-                            <button class="action-button" id="invite-friends-10" data-lang-key="earn.invite">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
-                        </div>
-                    </div>
-
-                    <!-- Завдання 25 друзів -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title" data-lang-key="earn.invite_friends">Запроси 25 друзів</div>
-                            <div class="task-reward">1500 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Стань лідером – запроси 25 друзів!</div>
-                        <div class="task-progress">
-                            <div class="progress-text">0/25 друзів запрошено</div>
-                            <div class="progress-bar-container">
-                                <div class="progress-fill" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="task-action">
-                            <button class="action-button" id="invite-friends-25" data-lang-key="earn.invite">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
-                        </div>
-                    </div>
-
-                    <!-- Завдання 100 друзів -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title" data-lang-key="earn.invite_friends">Запроси 100 друзів</div>
-                            <div class="task-reward">5000 <span class="token-symbol">$WINIX</span></div>
-                        </div>
-                        <div class="task-description">Епічна мета – запроси 100 друзів та отримай суперприз!</div>
-                        <div class="task-progress">
-                            <div class="progress-text">0/100 друзів запрошено</div>
-                            <div class="progress-bar-container">
-                                <div class="progress-fill" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                        <div class="task-action">
-                            <button class="action-button" id="invite-friends-100" data-lang-key="earn.invite">Запросити друзів</button>
-                            <div class="completed-label" style="display: none;" data-lang-key="earn.completed">Виконано</div>
-                        </div>
-                    </div>
+                <div class="task-container" id="referral-tasks-container">
+                    <!-- Реферальні завдання генеруються динамічно через JS -->
                 </div>
             </div>
 
@@ -1129,91 +84,32 @@
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.leaderboard">Лідерська дошка</div>
                 <div class="leaderboard-title" data-lang-key="earn.leaderboard.title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
-                <div class="leaderboard">
-                    <!-- Перший користувач -->
-                    <div class="leaderboard-item">
-                        <div class="position top-3">1</div>
-                        <div class="user-info">
-                            <div class="username">Користувач123</div>
-                            <div class="referral-count">35 рефералів</div>
-                        </div>
-                        <div class="user-reward">1000 $WINIX</div>
-                    </div>
-
-                    <!-- Другий користувач -->
-                    <div class="leaderboard-item">
-                        <div class="position top-3">2</div>
-                        <div class="user-info">
-                            <div class="username">Winix_Fan</div>
-                            <div class="referral-count">28 рефералів</div>
-                        </div>
-                        <div class="user-reward">700 $WINIX</div>
-                    </div>
-
-                    <!-- Третій користувач -->
-                    <div class="leaderboard-item">
-                        <div class="position top-3">3</div>
-                        <div class="user-info">
-                            <div class="username">CryptoUkr</div>
-                            <div class="referral-count">22 рефералів</div>
-                        </div>
-                        <div class="user-reward">500 $WINIX</div>
-                    </div>
-
-                    <!-- Інші користувачі -->
-                    <div class="leaderboard-item">
-                        <div class="position">4</div>
-                        <div class="user-info">
-                            <div class="username">TokenMaster</div>
-                            <div class="referral-count">19 рефералів</div>
-                        </div>
-                    </div>
-
-                    <div class="leaderboard-item">
-                        <div class="position">5</div>
-                        <div class="user-info">
-                            <div class="username">BlockchainUA</div>
-                            <div class="referral-count">15 рефералів</div>
-                        </div>
-                    </div>
+                <div class="leaderboard" id="leaderboard-container">
+                    <!-- Лідерська дошка генерується динамічно через JS -->
                 </div>
             </div>
         </div>
 
-        <!-- Секція Лімітованих завдань -->
+        <!-- Лімітовані завдання -->
         <div class="content-section" id="limited-content">
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.limited_tasks">Обмежені за часом завдання</div>
-                <div class="task-container">
-                    <!-- Тут буде вміст лімітованих завдань -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title">Очікуйте на нові завдання</div>
-                            <div class="timer-container">
-                                <span class="timer-icon">⏰</span> <span data-lang-key="earn.coming_soon">Скоро</span>
-                            </div>
-                        </div>
-                        <div class="task-description" data-lang-key="earn.expect_new_tasks">Лімітовані завдання будуть доступні найближчим часом. Не пропустіть можливість отримати додаткові нагороди!</div>
-                    </div>
+                <div class="task-container" id="limited-tasks-container">
+                    <!-- Лімітовані завдання генеруються динамічно через JS -->
                 </div>
             </div>
         </div>
 
-        <!-- Секція Партнерських завдань -->
+        <!-- Партнерські завдання -->
         <div class="content-section" id="partners-content">
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.partners_tasks">Партнерські завдання</div>
-                <div class="task-container">
-                    <!-- Тут буде вміст партнерських завдань -->
-                    <div class="task-item">
-                        <div class="task-header">
-                            <div class="task-title">Очікуйте на партнерські пропозиції</div>
-                        </div>
-                        <div class="task-description" data-lang-key="earn.expect_partners">Партнерські завдання будуть доступні найближчим часом. Слідкуйте за оновленнями!</div>
-                    </div>
+                <div class="task-container" id="partners-tasks-container">
+                    <!-- Партнерські завдання генеруються динамічно через JS -->
                 </div>
             </div>
         </div>
+
         <!-- Нижня навігаційна панель -->
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
@@ -1252,15 +148,51 @@
     <!-- Повідомлення для копіювання -->
     <div class="toast-message" id="toast-message">Реферальне посилання скопійовано в буфер обміну!</div>
 
-<script>
-    // Ініціалізація Telegram WebApp
-document.addEventListener('DOMContentLoaded', function() {
-    // Ініціалізуємо Telegram WebApp, якщо він доступний
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-    }
-});
-</script>
+    <!-- Підключення основних скриптів -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/language.js"></script>
+    <script src="js/core.js"></script>
+
+    <!-- Підключення компонентів завдань -->
+    <script src="js/tasks/components/daily-bonus.js"></script>
+    <script src="js/tasks/components/social-task.js"></script>
+    <script src="js/tasks/components/limited-task.js"></script>
+    <script src="js/tasks/components/partner-task.js"></script>
+    <script src="js/tasks/components/leaderboard.js"></script>
+
+    <!-- Підключення основної логіки завдань -->
+    <script src="js/tasks/core/task-manager.js"></script>
+    <script src="js/tasks/core/progress.js"></script>
+    <script src="js/tasks/core/rewards.js"></script>
+    <script src="js/tasks/core/verification.js"></script>
+
+    <!-- Підключення UI компонентів -->
+    <script src="js/tasks/ui/animations.js"></script>
+    <script src="js/tasks/ui/countdown.js"></script>
+    <script src="js/tasks/ui/notifications.js"></script>
+    <script src="js/tasks/ui/progress-bar.js"></script>
+
+    <!-- Підключення утиліт -->
+    <script src="js/tasks/utils/formatters.js"></script>
+    <script src="js/tasks/utils/storage.js"></script>
+    <script src="js/tasks/utils/time-utils.js"></script>
+    <script src="js/tasks/utils/validators.js"></script>
+
+    <script>
+        // Ініціалізація Telegram WebApp
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ініціалізуємо Telegram WebApp, якщо він доступний
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+            }
+
+            // Ініціалізація системи завдань
+            if (window.TaskManager) {
+                window.TaskManager.init();
+            }
+        });
+    </script>
 </body>
 </html>

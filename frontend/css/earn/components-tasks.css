@@ -1,0 +1,357 @@
+/* Стилі для щоденного бонусу */
+.daily-bonus {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.25rem; /* 20px */
+}
+
+/* Мінімалістичний стиль з підсвічуванням днів */
+/* Контейнер щоденного бонусу */
+.daily-bonus-bar {
+    width: 100%;
+    height: 7.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 1.25rem;
+    padding: 1.5rem 0.75rem;
+    margin: 0.9375rem 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(78, 181, 247, 0.1);
+}
+
+/* Контейнер денного прогресу */
+.daily-progress {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 0.3125rem;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 1.5rem;
+}
+
+/* Маркер дня */
+.day-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    position: relative;
+    min-width: 2.5rem;
+}
+
+/* Мінімалістичний дизайн для кружечків днів */
+.day-circle {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    font-size: 0.9rem;
+    background: rgba(20, 30, 60, 0.3);
+    border: 1px solid rgba(78, 181, 247, 0.15);
+    margin-bottom: 0.625rem;
+    z-index: 3;
+    transition: all 0.3s ease;
+    color: rgba(255, 255, 255, 0.6);
+    position: relative;
+}
+
+/* Активний день з мінімалістичним підсвічуванням */
+.day-circle.active {
+    background: rgba(78, 181, 247, 0.15);
+    border: 1px solid rgba(78, 181, 247, 0.5);
+    box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
+    color: white;
+}
+
+/* Додаємо пульсуючий ефект для активного дня */
+.day-circle.active::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: 50%;
+    border: 1px solid rgba(78, 181, 247, 0.3);
+    animation: pulse 2s infinite;
+    z-index: -1;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    70% {
+        transform: scale(1.1);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
+}
+
+/* Завершений день - світіння замість прогрес-бару */
+.day-circle.completed {
+    background: rgba(0, 201, 167, 0.2);
+    border: 1px solid rgba(0, 201, 167, 0.5);
+    color: white;
+    box-shadow: 0 0 8px rgba(0, 201, 167, 0.4);
+}
+
+/* Відображення винагороди дня */
+.day-reward {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+/* Для активного дня підсвічуємо також винагороду */
+.day-circle.active + .day-reward {
+    color: white;
+    text-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+}
+
+/* Для завершених днів підсвічуємо винагороду зеленим */
+.day-circle.completed + .day-reward {
+    color: rgba(0, 201, 167, 0.9);
+}
+
+/* З'єднувальні лінії між кружечками - мінімалістичний підхід */
+.day-marker:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 1.125rem; /* Центрування по кружечку */
+    right: -1.25rem;
+    width: 1.25rem;
+    height: 1px;
+    background: rgba(78, 181, 247, 0.15);
+    z-index: 1;
+}
+
+/* Мінімалістична кнопка отримання бонусу */
+.claim-button {
+    margin-top: 0.75rem;
+    padding: 0.75rem 2rem;
+    border-radius: 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    background: rgba(0, 201, 167, 0.15);
+    border: 1px solid rgba(0, 201, 167, 0.3);
+    color: white;
+    transition: all 0.3s ease;
+    letter-spacing: 0.0625rem;
+    cursor: pointer;
+    align-self: center;
+}
+
+.claim-button:hover:not(:disabled) {
+    background: rgba(0, 201, 167, 0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.claim-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.claim-button:disabled {
+    background: rgba(30, 39, 70, 0.2);
+    color: rgba(255, 255, 255, 0.4);
+    border-color: rgba(78, 181, 247, 0.1);
+    cursor: not-allowed;
+}
+
+/* Приберемо прогрес-бар повністю, оскільки він нам більше не потрібен */
+.progress-bar {
+    display: none;
+}
+
+/* Стилі для завдань */
+.task-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9375rem; /* 15px */
+}
+
+.task-item {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 1.25rem; /* 20px */
+    padding: 0.9375rem; /* 15px */
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem; /* 10px */
+    margin-bottom: 0.9375rem; /* 15px */
+    box-sizing: border-box;
+    border: none;
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.task-title {
+    font-size: 1.125rem; /* 18px */
+    font-weight: bold;
+    color: #fff;
+}
+
+.task-reward {
+    font-size: 1.125rem; /* 18px */
+    font-weight: bold;
+    color: #00C9A7;
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem; /* 5px */
+}
+
+.token-symbol {
+    font-size: 0.875rem; /* 14px */
+    color: #ccc;
+}
+
+.task-description {
+    font-size: 0.875rem; /* 14px */
+    color: #ccc;
+    margin: 0.3125rem 0; /* 5px 0 */
+}
+
+.task-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem; /* 10px */
+    margin-top: 0.3125rem; /* 5px */
+}
+
+.progress-text {
+    font-size: 0.875rem; /* 14px */
+    color: #4eb5f7;
+}
+
+.progress-bar-container {
+    flex: 1;
+    height: 0.625rem; /* 10px */
+    background: rgba(10, 20, 40, 0.5);
+    border-radius: 0.3125rem; /* 5px */
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+    border-radius: 0.3125rem; /* 5px */
+    transition: width 0.3s ease;
+}
+
+.task-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.625rem; /* 10px */
+}
+
+.action-button {
+    background: linear-gradient(90deg, #2D6EB6, #52C0BD);
+    border: none;
+    border-radius: 1.5625rem; /* 25px */
+    padding: 0.75rem 1.5625rem; /* 12px 25px */
+    color: white;
+    font-size: 1rem; /* 16px */
+    font-weight: bold;
+    min-width: 7.5rem; /* 120px */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3); /* 0 2px 5px */
+}
+
+.action-button:disabled {
+    background: #333;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-button:hover:not(:disabled) {
+    transform: translateY(-0.125rem); /* -2px */
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.4); /* 0 4px 8px */
+}
+
+.verify-button {
+    background: linear-gradient(90deg, #5E72EB, #AD6EE5);
+}
+
+.completed-label {
+    padding: 0.3125rem 0.625rem; /* 5px 10px */
+    background: rgba(0, 201, 167, 0.2);
+    border-radius: 0.625rem; /* 10px */
+    color: #00C9A7;
+    font-weight: bold;
+    font-size: 0.875rem; /* 14px */
+}
+
+/* Стилі для таймерів на обмежених завданнях */
+.timer-container {
+    display: flex;
+    align-items: center;
+    gap: 0.3125rem; /* 5px */
+    font-size: 0.875rem; /* 14px */
+    color: #FFD700;
+}
+
+.timer-icon {
+    font-size: 1.125rem; /* 18px */
+}
+
+/* Медіа-запити для завдань */
+@media (max-width: 450px) {
+    .day-circle {
+        width: 2.1875rem; /* 35px */
+        height: 2.1875rem;
+        font-size: 0.875rem; /* 14px */
+    }
+
+    .day-reward {
+        font-size: 0.875rem; /* 14px */
+    }
+
+    .claim-button {
+        font-size: 1rem; /* 16px */
+        padding: 0.75rem 1.875rem; /* 12px 30px */
+    }
+
+    .task-title, .task-reward {
+        font-size: 1rem; /* 16px */
+    }
+
+    .action-button {
+        font-size: 0.875rem; /* 14px */
+        padding: 0.625rem 1.25rem; /* 10px 20px */
+        min-width: 6.25rem; /* 100px */
+    }
+}
+
+@media (max-width: 350px) {
+    .day-circle {
+        width: 1.875rem; /* 30px */
+        height: 1.875rem;
+        font-size: 0.75rem; /* 12px */
+    }
+
+    .day-reward {
+        font-size: 0.75rem; /* 12px */
+    }
+}
