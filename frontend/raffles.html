@@ -5,37 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WINIX - Преміальні секції розіграшів</title>
 
-    <!-- Основні стилі -->
+    <!-- Підключення стилів та скриптів -->
+    <script src="js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="css/raffles.css">
     <link rel="stylesheet" href="css/components-raffles.css">
     <link rel="stylesheet" href="css/premium-raffles.css">
 
-    <!-- Telegram WebApp -->
-    <script src="js/telegram-web-app.js"></script>
-
     <!-- Базова ініціалізація -->
     <script>
-    // Ініціалізація Telegram WebApp
     (function() {
+      console.log("🔄 Ініціалізація Telegram WebApp...");
+      if (!window.Telegram || !window.Telegram.WebApp) {
+        console.error("❌ Telegram WebApp API не завантажено");
+        return;
+      }
       try {
-        if (window.Telegram && window.Telegram.WebApp) {
-          window.Telegram.WebApp.ready();
-          window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
 
-          // Отримання ID користувача
-          if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-            const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-            localStorage.setItem('telegram_user_id', userId);
+        if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+          const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+          localStorage.setItem('telegram_user_id', userId);
 
-            // Встановлюємо ID в DOM
-            document.addEventListener('DOMContentLoaded', function() {
-              const userIdElement = document.getElementById('user-id');
-              const headerUserIdElement = document.getElementById('header-user-id');
-
-              if (userIdElement) userIdElement.textContent = userId;
-              if (headerUserIdElement) headerUserIdElement.textContent = userId;
-            });
-          }
+          const userIdElement = document.getElementById('user-id');
+          if (userIdElement) userIdElement.textContent = userId;
         }
       } catch (e) {
         console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
@@ -44,7 +37,6 @@
     </script>
 </head>
 <body>
-    <!-- ID користувача (прихований) -->
     <div id="user-id" style="display: none;">7066583465</div>
 
     <div class="container">
@@ -81,10 +73,7 @@
         <div class="tab-content active" id="active-raffles">
             <!-- Преміальний заголовок секції -->
             <div class="section-header">
-                <div class="particles-container">
-                    <!-- Частинки будуть додані динамічно через JS -->
-                </div>
-
+                <div class="particles-container"></div>
                 <svg class="active-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="prizeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -103,7 +92,6 @@
                         <ellipse cx="28" cy="0" rx="5" ry="2" fill="url(#prizeGradient)" />
                     </g>
                 </svg>
-
                 <h2 class="section-title">АКТИВНІ РОЗІГРАШІ</h2>
                 <div class="premium-divider"></div>
                 <p class="section-subtitle">Приймайте участь та вигравайте реальні призи</p>
@@ -111,7 +99,6 @@
 
             <!-- Головний розіграш -->
             <div class="main-raffle">
-                <!-- Вміст головного розіграшу буде додано динамічно через JS -->
                 <div class="main-raffle-content">
                     <p>Завантаження розіграшів...</p>
                 </div>
@@ -122,7 +109,6 @@
 
             <!-- Щоденні розіграші -->
             <div class="mini-raffles-container">
-                <!-- Вміст міні-розіграшів буде додано динамічно через JS -->
                 <div class="mini-raffle">
                     <div class="mini-raffle-info">
                         <h3 class="mini-raffle-title">Завантаження...</h3>
@@ -136,10 +122,7 @@
         <div class="tab-content" id="past-raffles">
             <!-- Преміальний заголовок секції -->
             <div class="section-header">
-                <div class="particles-container">
-                    <!-- Частинки будуть додані динамічно через JS -->
-                </div>
-
+                <div class="particles-container"></div>
                 <svg class="past-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="clockGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -156,7 +139,6 @@
                     <path d="M25,90 L30,85 L70,85 L75,90 L75,95 L25,95 Z" fill="url(#clockGradient)" />
                     <rect x="45" y="85" width="10" height="10" fill="url(#clockGradient)" />
                 </svg>
-
                 <h2 class="section-title">МИНУЛІ РОЗІГРАШІ</h2>
                 <div class="premium-divider"></div>
                 <p class="section-subtitle">Історія розіграшів та результати попередніх розіграшів</p>
@@ -164,7 +146,6 @@
 
             <!-- Історія розіграшів -->
             <div id="history-container">
-                <!-- Вміст історії розіграшів буде додано динамічно через JS -->
                 <div class="history-card">
                     <div class="history-date">Завантаження...</div>
                     <div class="history-prize">Очікуйте завантаження історії</div>
@@ -176,10 +157,7 @@
         <div class="tab-content" id="stats-raffles">
             <!-- Преміальний заголовок секції -->
             <div class="section-header">
-                <div class="particles-container">
-                    <!-- Частинки будуть додані динамічно через JS -->
-                </div>
-
+                <div class="particles-container"></div>
                 <svg class="stats-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="statsGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -188,22 +166,15 @@
                         </linearGradient>
                     </defs>
                     <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(78, 181, 247, 0.3)" stroke-width="3" />
-
-                    <!-- Графік -->
                     <rect x="20" y="70" width="60" height="2" fill="url(#statsGradient)" />
                     <rect x="20" y="30" width="2" height="40" fill="url(#statsGradient)" />
-
-                    <!-- Графік стовпці -->
                     <rect x="25" y="55" width="8" height="15" rx="1" fill="url(#statsGradient)" />
                     <rect x="37" y="45" width="8" height="25" rx="1" fill="url(#statsGradient)" />
                     <rect x="49" y="50" width="8" height="20" rx="1" fill="url(#statsGradient)" />
                     <rect x="61" y="35" width="8" height="35" rx="1" fill="url(#statsGradient)" />
                     <rect x="73" y="40" width="8" height="30" rx="1" fill="url(#statsGradient)" />
-
-                    <!-- Кругова діаграма -->
                     <path d="M75,20 A15,15 0 1,0 90,35" fill="none" stroke="url(#statsGradient)" stroke-width="6" />
                 </svg>
-
                 <h2 class="section-title">СТАТИСТИКА</h2>
                 <div class="premium-divider"></div>
                 <p class="section-subtitle">Статистика вашої участі у розіграшах</p>
@@ -274,13 +245,250 @@
         <div class="spinner-inner"></div>
     </div>
 
-    <!-- Стилі анімацій -->
-    <style>
+    <!-- Базові утиліти та API -->
+    <script src="js/raffles/utils/uuid-validator.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/core.js"></script>
+
+    <!-- Ядро системи розіграшів -->
+    <script src="js/raffles/core/init.js"></script>
+    <script src="js/raffles/core/core.js"></script>
+
+    <!-- Утиліти системи розіграшів -->
+    <script src="js/raffles/utils/formatters.js"></script>
+    <script src="js/raffles/utils/validators.js"></script>
+    <script src="js/raffles/utils/error-handler.js"></script>
+    <script src="js/raffles/utils/ticket-manager.js"></script>
+    <script src="js/raffles/utils/sync-service.js"></script>
+
+    <!-- Компоненти інтерфейсу -->
+    <script src="js/raffles/ui/templates.js"></script>
+    <script src="js/raffles/ui/modal.js"></script>
+    <script src="js/raffles/ui/interface-updater.js"></script>
+
+    <!-- Основні функціональні компоненти -->
+    <script src="js/raffles/components/participation.js"></script>
+    <script src="js/raffles/components/active.js"></script>
+    <script src="js/raffles/components/history.js"></script>
+    <script src="js/raffles/components/statistics.js"></script>
+
+    <!-- Входна точка та анімації -->
+    <script src="js/raffles/core/index.js"></script>
+    <script src="js/raffles/ui/animations.js"></script>
+
+    <!-- Оптимізовані допоміжні скрипти -->
+    <script>
+    // Оптимізований допоміжний код
+
+    // Базові функції для сповіщень
+    window.showToast = function(message, type = 'info') {
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toast-container';
+            toastContainer.className = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        // Обмежуємо кількість активних повідомлень
+        const existingToasts = toastContainer.querySelectorAll('.toast-message');
+        if (existingToasts.length >= 2) {
+            toastContainer.removeChild(existingToasts[0]);
+        }
+
+        // Створюємо сповіщення
+        const toast = document.createElement('div');
+        toast.className = `toast-message ${type}`;
+        toast.innerHTML = `
+            <div class="toast-content">${message}</div>
+            <button class="toast-close">×</button>
+        `;
+
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+
+        // Автоматичне приховування
+        const hideTimeout = setTimeout(() => hideToast(toast), 5000);
+
+        // Додаємо обробник закриття
+        toast.querySelector('.toast-close').addEventListener('click', () => {
+            clearTimeout(hideTimeout);
+            hideToast(toast);
+        });
+
+        function hideToast(toastElement) {
+            toastElement.classList.remove('show');
+            setTimeout(() => {
+                if (toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            }, 300);
+        }
+    };
+
+    // Лічильник для коректного відстеження активних запитів
+    let loadingCounter = 0;
+
+    // Функція для показу спінера
+    window.showLoading = function() {
+        loadingCounter++;
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.classList.add('active');
+            spinner.style.display = 'flex';
+        }
+
+        // Автоматичне скидання через 15 секунд
+        setTimeout(function() {
+            if (loadingCounter > 0) {
+                console.warn("⚠️ Виявлено активний спінер більше 15 секунд, скидаємо...");
+                window.resetLoadingState();
+            }
+        }, 15000);
+    };
+
+    // Функція для приховування спінера
+    window.hideLoading = function() {
+        loadingCounter = Math.max(0, loadingCounter - 1);
+        if (loadingCounter === 0) {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.classList.remove('active');
+                spinner.style.display = 'none';
+            }
+        }
+    };
+
+    // Функція для примусового скидання стану спінера
+    window.resetLoadingState = function() {
+        loadingCounter = 0;
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            spinner.classList.remove('active');
+            spinner.style.display = 'none';
+        }
+
+        // Скидаємо також стан participation, якщо він є
+        if (window.WinixRaffles && window.WinixRaffles.participation) {
+            window.WinixRaffles.participation.requestInProgress = false;
+
+            // Очищаємо кнопки в стані обробки
+            document.querySelectorAll('.join-button.processing, .mini-raffle-button.processing').forEach(button => {
+                button.classList.remove('processing');
+                button.disabled = false;
+                button.removeAttribute('data-processing');
+
+                // Відновлюємо оригінальний текст
+                const originalText = button.getAttribute('data-original-text');
+                if (originalText) {
+                    button.textContent = originalText;
+                } else {
+                    const isMini = button.classList.contains('mini-raffle-button');
+                    const entryFee = button.getAttribute('data-entry-fee') || '1';
+                    button.textContent = isMini
+                        ? 'Взяти участь'
+                        : `Взяти участь за ${entryFee} жетон${parseInt(entryFee) > 1 ? 'и' : ''}`;
+                }
+            });
+        }
+    };
+
+    // Функція для оновлення відображення балансу
+    window.updateUserBalanceDisplay = function(newBalance, animate = true) {
+        if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
+            console.warn('⚠️ Спроба встановити некоректний баланс:', newBalance);
+            return false;
+        }
+
+        // Перевіряємо наявність WinixCore для централізованого оновлення
+        if (window.WinixCore && typeof window.WinixCore.updateLocalBalance === 'function') {
+            return window.WinixCore.updateLocalBalance(newBalance, 'raffles_html', animate);
+        }
+
+        // Запасний варіант - безпосереднє оновлення
+        const userCoinsElement = document.getElementById('user-coins');
+        if (!userCoinsElement) return false;
+
+        // Отримуємо поточне значення для порівняння
+        const oldBalance = parseInt(userCoinsElement.textContent) || 0;
+
+        // Уникаємо непотрібних оновлень DOM
+        if (oldBalance === newBalance) return true;
+
+        // Видаляємо попередні класи анімації
+        userCoinsElement.classList.remove('increasing', 'decreasing', 'updated');
+
+        // Додаємо клас анімації, якщо потрібно
+        if (animate) {
+            if (newBalance > oldBalance) {
+                userCoinsElement.classList.add('increasing');
+            } else if (newBalance < oldBalance) {
+                userCoinsElement.classList.add('decreasing');
+            }
+        }
+
+        // Встановлюємо нове значення
+        userCoinsElement.textContent = newBalance;
+
+        // Оновлюємо localStorage
+        localStorage.setItem('userCoins', newBalance.toString());
+        localStorage.setItem('winix_coins', newBalance.toString());
+        localStorage.setItem('winix_balance_update_time', Date.now().toString());
+
+        // Видаляємо класи анімації після 1 секунди
+        if (animate) {
+            setTimeout(() => {
+                userCoinsElement.classList.remove('increasing', 'decreasing', 'updated');
+            }, 1000);
+        }
+
+        return true;
+    };
+
+    // Налаштування нижньої навігації
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ініціалізація верхнього блоку з балансом
+        const userId = document.getElementById('user-id').textContent;
+        const headerUserId = document.getElementById('header-user-id');
+        if (headerUserId) {
+            headerUserId.textContent = userId;
+        }
+
+        // Налаштування навігації
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const section = this.getAttribute('data-section');
+                if (section === 'general') {
+                    window.location.href = 'general.html';
+                } else if (section === 'home') {
+                    window.location.href = 'index.html';
+                } else if (section === 'wallet') {
+                    window.location.href = 'wallet.html';
+                } else if (section === 'referrals') {
+                    window.location.href = 'referrals.html';
+                } else if (section === 'earn') {
+                    window.location.href = 'earn.html';
+                }
+            });
+        });
+
+        // Ініціалізація модуля розіграшів
+        if (window.WinixRaffles && !window.WinixRaffles.state.isInitialized) {
+            window.WinixRaffles.init();
+            document.dispatchEvent(new CustomEvent('winix-raffles-initialized'));
+            console.log('✅ Система розіграшів WINIX успішно ініціалізована');
+        }
+    });
+    </script>
+
+    <!-- Стилі для анімації оновлення -->
+    <style id="update-animation-styles">
         /* Анімація оновлення елементів */
         @keyframes update-pulse {
             0% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.05); opacity: 0.8; }
-            100% { transform: scale(1); color: inherit; }
+            100% { transform: scale(1); opacity: 1; }
         }
 
         .updated {
@@ -310,295 +518,6 @@
         #user-coins.increasing {
             animation: increase-coins 0.8s ease-out;
         }
-
-        /* Стилі для сповіщень */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            max-width: 300px;
-            z-index: 9999;
-        }
-
-        .toast-message {
-            background: rgba(30, 39, 70, 0.85);
-            backdrop-filter: blur(8px);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transform: translateX(100%);
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-
-        .toast-message.show {
-            transform: translateX(0);
-            opacity: 1;
-        }
-
-        .toast-message.info {
-            border-left: 4px solid #4eb5f7;
-        }
-
-        .toast-message.success {
-            border-left: 4px solid #4CAF50;
-        }
-
-        .toast-message.warning {
-            border-left: 4px solid #FFC107;
-        }
-
-        .toast-message.error {
-            border-left: 4px solid #F44336;
-        }
-
-        .toast-close {
-            background: none;
-            border: none;
-            color: white;
-            opacity: 0.7;
-            cursor: pointer;
-            font-size: 18px;
-            margin-left: 10px;
-        }
-
-        .toast-close:hover {
-            opacity: 1;
-        }
-
-        /* Стилі для спінера */
-        .spinner {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(10, 14, 25, 0.65);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9998;
-        }
-
-        .spinner.active {
-            display: flex;
-        }
-
-        .spinner-inner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(78, 181, 247, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid #4eb5f7;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
-
-    <!-- Скрипти для основних UI функцій -->
-    <script>
-    // Функція для показу сповіщень
-    window.showToast = function(message, type = 'info') {
-        // Перевіряємо контейнер
-        let toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) {
-            toastContainer = document.createElement('div');
-            toastContainer.id = 'toast-container';
-            toastContainer.className = 'toast-container';
-            document.body.appendChild(toastContainer);
-        }
-
-        // Обмежуємо кількість активних повідомлень до 2
-        const existingToasts = toastContainer.querySelectorAll('.toast-message');
-        if (existingToasts.length >= 2) {
-            toastContainer.removeChild(existingToasts[0]);
-        }
-
-        // Створюємо нове сповіщення
-        const toast = document.createElement('div');
-        toast.className = `toast-message ${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">${message}</div>
-            <button class="toast-close">×</button>
-        `;
-
-        // Додаємо сповіщення до контейнера
-        toastContainer.appendChild(toast);
-
-        // Затримка для анімації
-        setTimeout(() => {
-            toast.classList.add('show');
-        }, 10);
-
-        // Автоматичне приховування через 5 секунд
-        const hideTimeout = setTimeout(() => {
-            hideToast(toast);
-        }, 5000);
-
-        // Додаємо обробник закриття
-        toast.querySelector('.toast-close').addEventListener('click', () => {
-            clearTimeout(hideTimeout);
-            hideToast(toast);
-        });
-
-        // Функція приховування
-        function hideToast(toastElement) {
-            toastElement.classList.remove('show');
-            // Видалення елементу після завершення анімації
-            setTimeout(() => {
-                if (toastElement.parentNode) {
-                    toastElement.parentNode.removeChild(toastElement);
-                }
-            }, 300);
-        }
-    };
-
-    // Лічильник для індикатора завантаження
-    let loadingCounter = 0;
-
-    // Функція для показу спінера
-    window.showLoading = function() {
-        loadingCounter++;
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.classList.add('active');
-        }
-    };
-
-    // Функція для приховування спінера
-    window.hideLoading = function() {
-        loadingCounter = Math.max(0, loadingCounter - 1);
-        if (loadingCounter === 0) {
-            const spinner = document.getElementById('loading-spinner');
-            if (spinner) {
-                spinner.classList.remove('active');
-            }
-        }
-    };
-
-    // Функція для примусового скидання стану спінера
-    window.resetLoadingState = function() {
-        loadingCounter = 0;
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) {
-            spinner.classList.remove('active');
-        }
-    };
-
-    // Функція для перемикання вкладок
-    function setupTabs() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
-
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                // Визначаємо, яку вкладку потрібно показати
-                const tabName = button.getAttribute('data-tab');
-
-                // Видаляємо активний клас з усіх кнопок і вкладок
-                tabButtons.forEach(btn => btn.classList.remove('active'));
-                tabContents.forEach(content => content.classList.remove('active'));
-
-                // Додаємо активний клас до поточної кнопки і вкладки
-                button.classList.add('active');
-                document.getElementById(tabName + '-raffles').classList.add('active');
-
-                // Зберігаємо активну вкладку
-                if (window.WinixRaffles && window.WinixRaffles.state) {
-                    window.WinixRaffles.state.activeTab = tabName;
-                }
-
-                // Оновлюємо дані вкладки
-                if (window.WinixRaffles && typeof window.WinixRaffles.reloadRafflesTab === 'function') {
-                    window.WinixRaffles.reloadRafflesTab();
-                }
-            });
-        });
-    }
-
-    // Функція для налаштування нижньої навігації
-    function setupNavigation() {
-        const navItems = document.querySelectorAll('.nav-item');
-        navItems.forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-                if (section === 'general') {
-                    window.location.href = 'general.html';
-                } else if (section === 'home') {
-                    window.location.href = 'index.html';
-                } else if (section === 'wallet') {
-                    window.location.href = 'wallet.html';
-                } else if (section === 'referrals') {
-                    window.location.href = 'referrals.html';
-                } else if (section === 'earn') {
-                    window.location.href = 'earn.html';
-                }
-            });
-        });
-    }
-
-    // Оновлення відображення балансу
-    function updateBalance() {
-        // Отримання останніх значень з localStorage
-        const coins = localStorage.getItem('userCoins') || '0';
-        const tokens = localStorage.getItem('userTokens') || '0';
-
-        // Оновлення відображення
-        const userCoinsElement = document.getElementById('user-coins');
-        const userTokensElement = document.getElementById('user-tokens');
-
-        if (userCoinsElement) userCoinsElement.textContent = coins;
-        if (userTokensElement) userTokensElement.textContent = tokens;
-    }
-
-    // Ініціалізація при завантаженні сторінки
-    document.addEventListener('DOMContentLoaded', function() {
-        // Налаштування вкладок
-        setupTabs();
-
-        // Налаштування навігації
-        setupNavigation();
-
-        // Оновлення балансу
-        updateBalance();
-
-        // Отримуємо ID користувача
-        const userId = document.getElementById('user-id').textContent;
-        const headerUserIdElement = document.getElementById('header-user-id');
-        if (headerUserIdElement) {
-            headerUserIdElement.textContent = userId;
-        }
-
-        // Первинна ініціалізація аватару
-        const avatar = document.getElementById('profile-avatar');
-        if (avatar) {
-            const username = localStorage.getItem('username') || 'W';
-            avatar.textContent = username.charAt(0).toUpperCase();
-        }
-
-        console.log('📱 Сторінка розіграшів завантажена');
-    });
-    </script>
-
-    <!-- Завантаження основних модулів -->
-    <script src="js/raffles/utils/uuid-validator.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/raffles/core/init.js"></script>
-    <script src="js/raffles/core/core.js"></script>
-    <script src="js/raffles/components/participation.js"></script>
-    <script src="js/raffles/components/active.js"></script>
-    <script src="js/raffles/utils/ticket-manager.js"></script>
-    <script src="js/raffles/components/history.js"></script>
-    <script src="js/raffles/components/statistics.js"></script>
 </body>
 </html>
