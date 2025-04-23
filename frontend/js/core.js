@@ -1,7 +1,7 @@
 /**
  * core.js - Базова функціональність WINIX
- * Оптимізована версія з покращеною інтеграцією з API та Auth модулями
- * @version 1.3.0
+ * Оптимізована версія з покращеною продуктивністю та стабільністю
+ * @version 2.0.0
  */
 
 (function() {
@@ -14,53 +14,43 @@
     // Дані користувача
     let _userData = null;
 
-    // Інтервал автооновлення
-    let _refreshInterval = null;
+    // Стан модуля
+    const _state = {
+        // Прапорець ініціалізації ядра
+        initialized: false,
 
-    // Прапорець для індикатора завантаження
-    let _loaderVisible = false;
+        // Інтервал автооновлення
+        refreshInterval: null,
 
-    // Лічильник останнього запиту
-    let _lastRequestTime = 0;
+        // Блокування запитів
+        requestInProgress: false,
 
-    // Мінімальний інтервал між запитами (збільшено з 5 до 15 секунд)
-    const MIN_REQUEST_INTERVAL = 15000;
+        // Час останнього запиту
+        lastRequestTime: 0,
 
-    // Час життя кешу даних користувача
-    const USER_CACHE_TTL = 300000; // 5 хвилин
+        // Лічильник помилок
+        errorCounter: 0,
 
-    // Прапорець, що вказує, чи виконується запит до API
-    let _requestInProgress = false;
+        // Максимальна кількість помилок перед скиданням стану
+        maxErrorsBeforeReset: 5,
 
-    // Лічильник помилок - для відстеження критичних проблем
-    let _errorCounter = 0;
-    const MAX_ERRORS_BEFORE_RESET = 5;
-    let _lastErrorTime = 0;
+        // Час останньої помилки
+        lastErrorTime: 0,
 
-    // Прапорець ініціалізації ядра
-    let _coreInitialized = false;
-
-    // Перевірка доступності модулів з повною перевіркою
-    const hasApiModule = () => {
-        try {
-            return window.WinixAPI &&
-                   typeof window.WinixAPI.apiRequest === 'function' &&
-                   typeof window.WinixAPI.getUserId === 'function';
-        } catch (e) {
-            console.error("🔄 Core: Помилка перевірки API модуля:", e);
-            return false;
-        }
+        // Кеш запитів
+        requestCache: {}
     };
 
-    const hasAuthModule = () => {
-        try {
-            return window.WinixAuth &&
-                   typeof window.WinixAuth.getUserData === 'function' &&
-                   typeof window.WinixAuth.getUserIdFromAllSources === 'function';
-        } catch (e) {
-            console.error("🔄 Core: Помилка перевірки Auth модуля:", e);
-            return false;
-        }
+    // Конфігурація
+    const _config = {
+        // Мінімальний інтервал між запитами (мс)
+        minRequestInterval: 5000,
+
+        // Час життя кешу даних користувача (мс)
+        userCacheTtl: 300000, // 5 хвилин
+
+        // Інтервал автооновлення (мс)
+        autoRefreshInterval: 300000 // 5 хвилин
     };
 
     // ======== УТИЛІТИ ========
@@ -69,6 +59,7 @@
      * Отримання елемента DOM
      * @param {string} selector - Селектор елемента
      * @param {boolean} multiple - Отримати всі елементи
+     * @returns {Element|NodeList|null} Елемент DOM
      */
     function getElement(selector, multiple = false) {
         try {
@@ -80,7 +71,7 @@
             }
             return document.querySelector(selector);
         } catch (e) {
-            console.error('Помилка отримання елемента DOM:', e);
+            console.warn('⚠️ Помилка отримання елемента DOM:', e);
             return null;
         }
     }
@@ -89,6 +80,7 @@
      * Зберігання даних в localStorage
      * @param {string} key - Ключ
      * @param {any} value - Значення
+     * @returns {boolean} Результат збереження
      */
     function saveToStorage(key, value) {
         try {
@@ -99,7 +91,7 @@
             }
             return true;
         } catch (e) {
-            console.error(`Помилка збереження в localStorage: ${key}`, e);
+            console.warn(`⚠️ Помилка збереження в localStorage: ${key}`, e);
             return false;
         }
     }
@@ -109,6 +101,7 @@
      * @param {string} key - Ключ
      * @param {any} defaultValue - Значення за замовчуванням
      * @param {boolean} isObject - Чи парсити як об'єкт
+     * @returns {any} Значення з localStorage
      */
     function getFromStorage(key, defaultValue = null, isObject = false) {
         try {
@@ -133,6 +126,7 @@
      * Форматування числа як валюти
      * @param {number} amount - Сума
      * @param {number} decimals - Кількість знаків після коми
+     * @returns {string} Форматоване число
      */
     function formatCurrency(amount, decimals = 2) {
         try {
@@ -155,42 +149,18 @@
     }
 
     /**
-     * Функція безпечного очікування завантаження API та Auth модулів
-     * @param {number} maxWaitTime - Максимальний час очікування в мс
-     * @returns {Promise<boolean>} Результат очікування
+     * Перевірка наявності API модуля
+     * @returns {boolean} Чи доступний API модуль
      */
-    async function waitForModules(maxWaitTime = 5000) {
-        const startTime = Date.now();
-        const checkInterval = 200; // 200 мс між перевірками
-
-        // Функція для перевірки доступності обох модулів
-        const checkModules = () => hasApiModule() && hasAuthModule();
-
-        // Якщо модулі вже доступні, повертаємо true
-        if (checkModules()) {
-            console.log("🔄 Core: API та Auth модулі вже доступні");
-            return true;
+    function hasApiModule() {
+        try {
+            return window.WinixAPI &&
+                   typeof window.WinixAPI.apiRequest === 'function' &&
+                   typeof window.WinixAPI.getUserId === 'function';
+        } catch (e) {
+            console.warn("⚠️ Помилка перевірки API модуля:", e);
+            return false;
         }
-
-        // Очікуємо завантаження модулів
-        return new Promise(resolve => {
-            const intervalId = setInterval(() => {
-                // Перевіряємо доступність модулів
-                if (checkModules()) {
-                    clearInterval(intervalId);
-                    console.log("🔄 Core: API та Auth модулі успішно завантажені");
-                    resolve(true);
-                    return;
-                }
-
-                // Перевіряємо таймаут
-                if (Date.now() - startTime > maxWaitTime) {
-                    clearInterval(intervalId);
-                    console.warn("⚠️ Core: Час очікування завантаження модулів вичерпано");
-                    resolve(false);
-                }
-            }, checkInterval);
-        });
     }
 
     /**
@@ -205,35 +175,36 @@
                 window.WinixAPI.clearCache();
             }
 
-            // Очищаємо локальне сховище
+            // Очищаємо локальне сховище з важливими виключеннями
             try {
                 // Зберігаємо лише критичні дані для автентифікації
                 const userId = getFromStorage('telegram_user_id');
                 const authToken = getFromStorage('auth_token');
 
-                // Очищаємо кеш
-                localStorage.clear();
-
-                // Відновлюємо критичні дані
+                // Перезаписуємо критичні дані після очищення
                 if (userId) saveToStorage('telegram_user_id', userId);
                 if (authToken) saveToStorage('auth_token', authToken);
             } catch (e) {
-                console.warn("⚠️ Core: Помилка очищення localStorage:", e);
+                console.warn("⚠️ Помилка очищення localStorage:", e);
             }
 
-            // Очищаємо кеш розіграшів
-            if (window.WinixRaffles && window.WinixRaffles.state) {
-                window.WinixRaffles.state.activeRaffles = [];
-                window.WinixRaffles.state.pastRaffles = [];
-                window.WinixRaffles.state.isLoading = false;
+            // Скидаємо стан WinixRaffles, якщо він існує
+            if (window.WinixRaffles && typeof window.WinixRaffles.resetState === 'function') {
+                window.WinixRaffles.resetState();
             }
 
-            // Перезавантажуємо сторінку через 1 секунду
+            // Показуємо повідомлення користувачу
+            if (typeof window.showToast === 'function') {
+                window.showToast('Виконується перезавантаження додатку...', 'info');
+            }
+
+            // Перезавантажуємо сторінку з невеликою затримкою
             setTimeout(function() {
                 window.location.reload();
             }, 1000);
         } catch (e) {
             console.error("❌ Core: Помилка скидання стану:", e);
+
             // У випадку критичної помилки просто перезавантажуємо
             setTimeout(function() {
                 window.location.reload();
@@ -246,11 +217,12 @@
     /**
      * Отримання даних користувача
      * @param {boolean} forceRefresh - Примусово оновити
+     * @returns {Promise<Object>} Дані користувача
      */
     async function getUserData(forceRefresh = false) {
         // Перевіряємо, чи пристрій онлайн
         if (!isOnline() && !forceRefresh) {
-            console.warn("🔄 Core: Пристрій офлайн, використовуємо кешовані дані");
+            console.warn("⚠️ Core: Пристрій офлайн, використовуємо кешовані дані");
 
             // Якщо є збережені дані, повертаємо їх
             if (_userData) {
@@ -276,19 +248,27 @@
             return _userData;
         }
 
-        // Перевіряємо частоту запитів
+        // Перевіряємо частоту запитів і наявність кешу
         const now = Date.now();
-        if (!forceRefresh && (now - _lastRequestTime < MIN_REQUEST_INTERVAL)) {
-            console.log("🔄 Core: Занадто частий запит даних користувача, використовуємо кеш");
+        if (!forceRefresh && (now - _state.lastRequestTime < _config.minRequestInterval)) {
+            console.log("⏳ Core: Занадто частий запит даних користувача, використовуємо кеш");
+
             // Якщо у нас вже є дані і не потрібно оновлювати
             if (_userData) {
+                return _userData;
+            }
+
+            // Намагаємося завантажити з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
                 return _userData;
             }
         }
 
         // Запобігаємо паралельним запитам
-        if (_requestInProgress && !forceRefresh) {
-            console.log("🔄 Core: Запит даних користувача вже виконується");
+        if (_state.requestInProgress && !forceRefresh) {
+            console.log("⏳ Core: Запит даних користувача вже виконується");
 
             // Якщо у нас вже є дані, повертаємо їх
             if (_userData) {
@@ -303,36 +283,29 @@
             }
         }
 
-        _lastRequestTime = now;
-        _requestInProgress = true;
+        // Оновлюємо час останнього запиту і встановлюємо блокування
+        _state.lastRequestTime = now;
+        _state.requestInProgress = true;
 
         try {
-            // Перевіряємо наявність модулів
-            if (hasAuthModule()) {
-                // Використовуємо WinixAuth, якщо доступний
-                const userData = await window.WinixAuth.getUserData(forceRefresh);
-
-                _requestInProgress = false;
-
-                if (userData) {
-                    _userData = userData;
-
-                    // Оновлюємо дані в localStorage
-                    saveToStorage('userData', _userData);
-
-                    // Генеруємо подію оновлення
-                    document.dispatchEvent(new CustomEvent('user-data-updated', {
-                        detail: { userData: _userData },
-                        source: 'core.js'
-                    }));
-
-                    return _userData;
+            // Використовуємо API для отримання даних користувача
+            if (hasApiModule()) {
+                // Формуємо запит
+                const userId = getUserId();
+                if (!userId) {
+                    throw new Error('ID користувача не знайдено');
                 }
-            } else if (hasApiModule()) {
-                // Використовуємо WinixAPI, якщо доступний
-                const response = await window.WinixAPI.getUserData(forceRefresh);
 
-                _requestInProgress = false;
+                // Додаємо параметр запобігання кешування
+                const endpoint = `user/${userId}/info?t=${now}`;
+
+                // Відправляємо запит
+                const response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                    suppressErrors: true,
+                    timeout: 10000
+                });
+
+                _state.requestInProgress = false;
 
                 if (response && response.status === 'success' && response.data) {
                     _userData = response.data;
@@ -351,6 +324,9 @@
                         saveToStorage('winix_coins', _userData.coins.toString());
                     }
 
+                    // Оновлюємо час кешування
+                    saveToStorage('userData_timestamp', now.toString());
+
                     // Генеруємо подію оновлення
                     document.dispatchEvent(new CustomEvent('user-data-updated', {
                         detail: { userData: _userData },
@@ -358,21 +334,24 @@
                     }));
 
                     // Скидаємо лічильник помилок при успішному запиті
-                    _errorCounter = 0;
+                    _state.errorCounter = 0;
 
                     return _userData;
+                } else {
+                    throw new Error(response?.message || 'Не вдалося отримати дані користувача');
                 }
             } else {
-                _requestInProgress = false;
+                // Якщо WinixAPI недоступний, використовуємо запасний метод
+                _state.requestInProgress = false;
 
-                // Якщо немає модулів - використовуємо дані з localStorage
+                // Використовуємо дані з localStorage
                 const storedUserData = getFromStorage('userData', null, true);
                 if (storedUserData) {
                     _userData = storedUserData;
                     return _userData;
                 }
 
-                console.warn('🔄 Core: API та Auth модулі недоступні');
+                console.warn('⚠️ Core: API модуль недоступний');
 
                 // Створюємо мінімальні дані користувача
                 const userId = getUserId();
@@ -386,25 +365,25 @@
                 return _userData;
             }
         } catch (error) {
-            console.error('Помилка отримання даних користувача:', error);
-            _requestInProgress = false;
+            console.error('❌ Помилка отримання даних користувача:', error);
+            _state.requestInProgress = false;
 
             // Збільшуємо лічильник помилок
-            _errorCounter++;
-            _lastErrorTime = Date.now();
+            _state.errorCounter++;
+            _state.lastErrorTime = now;
 
             // Перевірка на критичну кількість помилок
-            if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
-                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
+            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), скидання стану...`);
 
                 if (typeof window.showToast === 'function') {
                     window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
                 }
 
                 // Скидаємо лічильник помилок
-                _errorCounter = 0;
+                _state.errorCounter = 0;
 
-                // Запускаємо скидання стану через 1 секунду
+                // Запускаємо скидання стану
                 setTimeout(resetAndReloadApplication, 1000);
             }
 
@@ -433,34 +412,44 @@
      * @returns {string|null} ID користувача або null
      */
     function getUserId() {
-        // Використовуємо API або Auth модуль, якщо доступні
+        // Перевіряємо різні джерела ID користувача в порядку пріоритету
+
+        // 1. З API модуля
         if (hasApiModule()) {
             try {
-                return window.WinixAPI.getUserId();
+                const apiId = window.WinixAPI.getUserId();
+                if (apiId && apiId !== 'undefined' && apiId !== 'null') {
+                    return apiId;
+                }
             } catch (e) {
-                console.warn("🔄 Core: Помилка отримання ID через API:", e);
-            }
-        } else if (hasAuthModule() && typeof window.WinixAuth.getUserIdFromAllSources === 'function') {
-            try {
-                return window.WinixAuth.getUserIdFromAllSources();
-            } catch (e) {
-                console.warn("🔄 Core: Помилка отримання ID через Auth:", e);
+                console.warn("⚠️ Core: Помилка отримання ID через API:", e);
             }
         }
 
-        // Резервний варіант - зі сховища
+        // 2. З localStorage
         try {
             const storedId = getFromStorage('telegram_user_id');
             if (storedId && storedId !== 'undefined' && storedId !== 'null') {
                 return storedId;
             }
         } catch (e) {
-            console.warn("🔄 Core: Помилка отримання ID зі сховища:", e);
+            console.warn("⚠️ Core: Помилка отримання ID зі сховища:", e);
         }
 
-        // З DOM
+        // 3. З DOM
         try {
-            const userIdElement = getElement('#header-user-id');
+            // Спочатку перевіряємо елемент в хедері
+            const headerUserIdElement = getElement('#header-user-id');
+            if (headerUserIdElement && headerUserIdElement.textContent) {
+                const id = headerUserIdElement.textContent.trim();
+                if (id && id !== 'undefined' && id !== 'null') {
+                    saveToStorage('telegram_user_id', id);
+                    return id;
+                }
+            }
+
+            // Потім перевіряємо прихований елемент
+            const userIdElement = getElement('#user-id');
             if (userIdElement && userIdElement.textContent) {
                 const id = userIdElement.textContent.trim();
                 if (id && id !== 'undefined' && id !== 'null') {
@@ -469,19 +458,36 @@
                 }
             }
         } catch (e) {
-            console.warn("🔄 Core: Помилка отримання ID з DOM:", e);
+            console.warn("⚠️ Core: Помилка отримання ID з DOM:", e);
         }
 
-        // З URL
+        // 4. З URL
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-            if (urlId) {
+            if (urlId && urlId !== 'undefined' && urlId !== 'null') {
                 saveToStorage('telegram_user_id', urlId);
                 return urlId;
             }
         } catch (e) {
-            console.warn("🔄 Core: Помилка отримання ID з URL:", e);
+            console.warn("⚠️ Core: Помилка отримання ID з URL:", e);
+        }
+
+        // 5. З Telegram WebApp
+        try {
+            if (window.Telegram && window.Telegram.WebApp &&
+                window.Telegram.WebApp.initDataUnsafe &&
+                window.Telegram.WebApp.initDataUnsafe.user &&
+                window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                if (telegramId) {
+                    saveToStorage('telegram_user_id', telegramId);
+                    return telegramId;
+                }
+            }
+        } catch (e) {
+            console.warn("⚠️ Core: Помилка отримання ID з Telegram WebApp:", e);
         }
 
         return null;
@@ -492,27 +498,27 @@
      */
     function updateUserDisplay() {
         try {
-            // Отримуємо актуальні дані
+            // Отримуємо дані користувача
             const userData = _userData || {};
             const userId = userData.telegram_id || getUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
             const username = userData.username || getFromStorage('username', 'User');
 
             // Оновлюємо ID користувача
             const userIdElement = getElement('#header-user-id');
-            if (userIdElement) {
+            if (userIdElement && userIdElement.textContent !== userId) {
                 userIdElement.textContent = userId;
             }
 
             // Оновлюємо ім'я користувача
             const usernameElement = getElement('#username');
-            if (usernameElement) {
+            if (usernameElement && usernameElement.textContent !== username) {
                 usernameElement.textContent = username;
             }
 
             // Оновлюємо аватар
             updateUserAvatar(username);
         } catch (e) {
-            console.error('Помилка оновлення відображення користувача:', e);
+            console.warn('⚠️ Помилка оновлення відображення користувача:', e);
         }
     }
 
@@ -525,34 +531,36 @@
             const avatarElement = getElement('#profile-avatar');
             if (!avatarElement) return;
 
-            // Очищаємо вміст аватара
-            avatarElement.innerHTML = '';
-
-            // Перевіряємо наявність зображення аватара
+            // Очищаємо вміст аватара тільки якщо потрібні зміни
             username = username || _userData?.username || getFromStorage('username', 'User');
             const avatarSrc = getFromStorage('userAvatarSrc') || getFromStorage('avatarSrc');
 
+            // Перевіряємо, чи потрібно оновлювати аватар
             if (avatarSrc) {
-                // Створюємо зображення
-                const img = document.createElement('img');
-                img.src = avatarSrc;
-                img.alt = username;
-                img.onerror = () => {
-                    // Якщо не вдалося завантажити, показуємо першу літеру імені
-                    avatarElement.textContent = username[0].toUpperCase();
-                };
-                avatarElement.appendChild(img);
-            } else {
-                // Показуємо першу літеру імені
+                // Якщо є зображення
+                if (!avatarElement.querySelector('img')) {
+                    avatarElement.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = avatarSrc;
+                    img.alt = username;
+                    img.onerror = () => {
+                        avatarElement.textContent = username[0].toUpperCase();
+                    };
+                    avatarElement.appendChild(img);
+                }
+            } else if (avatarElement.textContent !== username[0].toUpperCase()) {
+                // Якщо немає зображення, показуємо першу літеру
+                avatarElement.innerHTML = '';
                 avatarElement.textContent = username[0].toUpperCase();
             }
         } catch (e) {
-            console.error('Помилка оновлення аватара:', e);
+            console.warn('⚠️ Помилка оновлення аватара:', e);
         }
     }
 
     /**
      * Отримання балансу користувача
+     * @returns {number} Баланс користувача
      */
     function getBalance() {
         try {
@@ -566,12 +574,27 @@
 
     /**
      * Отримання кількості жетонів
+     * @returns {number} Кількість жетонів
      */
     function getCoins() {
         try {
-            return _userData?.coins ||
-                  parseInt(getFromStorage('userCoins', '0')) ||
-                  parseInt(getFromStorage('winix_coins', '0')) || 0;
+            // 1. Перевіряємо глобальний контролер синхронізації (найвищий пріоритет)
+            if (window.__winixSyncControl && window.__winixSyncControl.lastValidBalance !== null) {
+                return window.__winixSyncControl.lastValidBalance;
+            }
+
+            // 2. Перевіряємо дані користувача
+            if (_userData?.coins !== undefined) {
+                return _userData.coins;
+            }
+
+            // 3. Перевіряємо локальне сховище
+            const storedCoins = parseInt(getFromStorage('userCoins', '0')) || parseInt(getFromStorage('winix_coins', '0'));
+            if (storedCoins) {
+                return storedCoins;
+            }
+
+            return 0;
         } catch (e) {
             return 0;
         }
@@ -579,67 +602,157 @@
 
     /**
      * Оновлення відображення балансу
+     * @param {boolean} animate - Використовувати анімацію
      */
-    function updateBalanceDisplay() {
+    function updateBalanceDisplay(animate = false) {
         try {
             // Оновлюємо відображення токенів
             const tokensElement = getElement('#user-tokens');
             if (tokensElement) {
                 const balance = getBalance();
-                tokensElement.textContent = formatCurrency(balance);
+                const formattedBalance = formatCurrency(balance);
+
+                // Оновлюємо тільки якщо змінилося
+                if (tokensElement.textContent !== formattedBalance) {
+                    tokensElement.textContent = formattedBalance;
+                }
             }
 
             // Оновлюємо відображення жетонів
             const coinsElement = getElement('#user-coins');
             if (coinsElement) {
                 const coins = getCoins();
-                coinsElement.textContent = coins;
+                const currentCoins = parseInt(coinsElement.textContent) || 0;
+
+                // Оновлюємо тільки якщо змінилося
+                if (currentCoins !== coins) {
+                    // Додаємо анімацію, якщо потрібно
+                    if (animate) {
+                        coinsElement.classList.remove('decreasing', 'increasing');
+
+                        if (coins < currentCoins) {
+                            coinsElement.classList.add('decreasing');
+                        } else if (coins > currentCoins) {
+                            coinsElement.classList.add('increasing');
+                        }
+
+                        // Видаляємо класи анімації через 1 секунду
+                        setTimeout(() => {
+                            coinsElement.classList.remove('decreasing', 'increasing');
+                        }, 1000);
+                    }
+
+                    coinsElement.textContent = coins;
+                }
             }
         } catch (e) {
-            console.error('Помилка оновлення відображення балансу:', e);
+            console.warn('⚠️ Помилка оновлення відображення балансу:', e);
         }
     }
 
     /**
- * Оновлення балансу з сервера
- */
-async function refreshBalance() {
-    try {
-        // Створюємо об'єкт з інформацією про транзакцію
+     * Оновлення локального балансу з налаштуваннями анімації
+     * @param {number} newBalance - Нове значення балансу
+     * @param {string} source - Джерело зміни
+     * @param {boolean} animate - Чи використовувати анімацію
+     * @returns {boolean} Успішність оновлення
+     */
+    function updateLocalBalance(newBalance, source = 'unknown', animate = true) {
+        if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
+            console.warn('⚠️ Спроба встановити некоректний баланс:', newBalance);
+            return false;
+        }
+
+        try {
+            // Отримуємо поточне значення для порівняння
+            const coinsElement = getElement('#user-coins');
+            if (!coinsElement) return false;
+
+            const oldBalance = parseInt(coinsElement.textContent) || 0;
+
+            // Уникаємо непотрібних оновлень DOM
+            if (oldBalance === newBalance) return true;
+
+            // Видаляємо попередні класи анімації
+            coinsElement.classList.remove('increasing', 'decreasing', 'updated');
+
+            // Додаємо клас анімації, якщо потрібно
+            if (animate) {
+                if (newBalance > oldBalance) {
+                    coinsElement.classList.add('increasing');
+                } else if (newBalance < oldBalance) {
+                    coinsElement.classList.add('decreasing');
+                }
+            }
+
+            // Встановлюємо нове значення
+            coinsElement.textContent = newBalance;
+
+            // Оновлюємо дані користувача
+            if (_userData) {
+                _userData.coins = newBalance;
+            }
+
+            // Оновлюємо локальне сховище
+            saveToStorage('userCoins', newBalance.toString());
+            saveToStorage('winix_coins', newBalance.toString());
+            saveToStorage('winix_balance_update_time', Date.now().toString());
+
+            // Генеруємо стандартну подію про оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    oldBalance: oldBalance,
+                    newBalance: newBalance,
+                    source: source || 'core.js',
+                    timestamp: Date.now()
+                }
+            }));
+
+            // Видаляємо класи анімації після 1 секунди
+            if (animate) {
+                setTimeout(() => {
+                    coinsElement.classList.remove('increasing', 'decreasing', 'updated');
+                }, 1000);
+            }
+
+            return true;
+        } catch (e) {
+            console.warn('⚠️ Помилка оновлення локального балансу:', e);
+            return false;
+        }
+    }
+
+    /**
+     * Оновлення балансу з сервера
+     * @param {boolean} forceRefresh - Примусове оновлення
+     * @returns {Promise<Object>} Результат оновлення
+     */
+    async function refreshBalance(forceRefresh = false) {
+        // Створюємо інформацію про транзакцію для відстеження
         const transactionInfo = {
             id: Date.now().toString() + '_' + Math.random().toString(36).substring(2, 8),
             timestamp: Date.now(),
-            source: 'core.js',
-            isOffline: !isOnline()
+            source: 'core.js'
         };
 
-        // Отримуємо поточні значення для логування транзакції
-        const oldCoins = parseInt(localStorage.getItem('userCoins') || '0');
-        const oldTokens = parseFloat(localStorage.getItem('userTokens') || '0');
-        const oldLastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+        console.log(`🔄 Core: Запит оновлення балансу (ID: ${transactionInfo.id})`);
 
-        // Якщо пристрій офлайн, чітко визначаємо поведінку
-        if (transactionInfo.isOffline) {
-            console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline() && !forceRefresh) {
+            console.warn("⚠️ Core: Пристрій офлайн, використовуємо локальні дані балансу");
 
             // Явно отримуємо та обчислюємо всі дані для офлайн-режиму
-            const lastKnownBalance = getBalance();
-            const lastKnownCoins = getCoins();
-            const lastUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+            const lastKnownBalance = getCoins();
+            const lastUpdateTime = parseInt(getFromStorage('winix_balance_update_time') || '0');
             const now = Date.now();
             const dataAge = now - lastUpdateTime;
 
-            // Визначаємо статус даних для кращого інформування користувача
+            // Визначаємо статус даних для інформування
             let dataStatus = 'fresh';
             if (lastUpdateTime === 0) {
                 dataStatus = 'unknown';
             } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
                 dataStatus = 'stale';
-            }
-
-            // Явно встановлюємо блокування синхронізації у офлайн-режимі
-            if (typeof window.__winixSyncControl !== 'undefined') {
-                window.__winixSyncControl.isOffline = true;
             }
 
             // Оновлюємо відображення з локальних даних без анімації
@@ -652,175 +765,185 @@ async function refreshBalance() {
                 dataAge: dataAge,
                 transactionId: transactionInfo.id,
                 data: {
-                    balance: lastKnownBalance,
-                    coins: lastKnownCoins,
+                    coins: lastKnownBalance,
                     lastUpdate: lastUpdateTime
                 }
             };
         }
 
-        // Онлайн-режим: перевіряємо блокування перед запитом
-        if (typeof window.__winixSyncControl !== 'undefined' &&
+        // Перевіряємо блокування через глобальний контролер
+        if (window.__winixSyncControl &&
             window.__winixSyncControl.isBlocked &&
-            window.__winixSyncControl.isBlocked('core_balance')) {
-            console.log("🔒 Core: Оновлення балансу заблоковано, використовуємо кешовані дані");
-            updateBalanceDisplay(false);
+            window.__winixSyncControl.isBlocked('core_balance') &&
+            !forceRefresh) {
+
+            console.log("🔒 Core: Оновлення балансу заблоковано контролером синхронізації");
+
+            // Використовуємо останній валідний баланс з контролера
+            if (window.__winixSyncControl.lastValidBalance !== null) {
+                // Оновлюємо відображення без анімації
+                updateLocalBalance(window.__winixSyncControl.lastValidBalance, 'sync_control', false);
+
+                return {
+                    success: true,
+                    blocked: true,
+                    source: 'sync_control',
+                    data: {
+                        coins: window.__winixSyncControl.lastValidBalance
+                    }
+                };
+            }
+        }
+
+        // Перевірка на частоту запитів
+        if (!forceRefresh && (Date.now() - _state.lastRequestTime < _config.minRequestInterval)) {
+            console.log("⏳ Core: Занадто частий запит балансу, використовуємо кеш");
             return {
                 success: true,
-                blocked: true,
+                cached: true,
                 data: {
-                    balance: getBalance(),
                     coins: getCoins(),
-                    lastUpdate: oldLastUpdate
+                    cached: true
                 }
             };
         }
 
-        // Отримуємо баланс використовуючи API або дані користувача
-        let balanceData;
-        let responseStatus = true;
-        let responseMessage = '';
+        // Блокуємо паралельні запити
+        if (_state.requestInProgress && !forceRefresh) {
+            console.log("⏳ Core: Запит балансу вже виконується");
+            return {
+                success: true,
+                inProgress: true,
+                data: {
+                    coins: getCoins(),
+                    inProgress: true
+                }
+            };
+        }
 
-        // Отримання балансу з API
-        if (hasApiModule()) {
-            try {
-                const response = await window.WinixAPI.getBalance();
+        // Оновлюємо час останнього запиту і встановлюємо блокування
+        _state.lastRequestTime = Date.now();
+        _state.requestInProgress = true;
+
+        // Зберігаємо поточний баланс для порівняння
+        const oldBalance = getCoins();
+        transactionInfo.oldBalance = oldBalance;
+
+        try {
+            // Отримання балансу через API
+            if (hasApiModule()) {
+                // Отримуємо ID користувача
+                const userId = getUserId();
+                if (!userId) {
+                    throw new Error('ID користувача не знайдено');
+                }
+
+                // Додаємо параметр запобігання кешування
+                const endpoint = `user/${userId}/balance?t=${Date.now()}`;
+
+                // Відправляємо запит
+                const response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                    suppressErrors: true,
+                    timeout: 10000
+                });
+
+                // Завершуємо запит
+                _state.requestInProgress = false;
 
                 if (response && response.status === 'success' && response.data) {
-                    balanceData = response.data;
+                    // Отримуємо новий баланс з відповіді
+                    const newBalance = response.data.coins !== undefined ? response.data.coins : oldBalance;
+                    transactionInfo.newBalance = newBalance;
                     transactionInfo.serverResponse = true;
-                } else {
-                    // Чітко визначаємо, що запит не вдався
-                    responseStatus = false;
-                    responseMessage = response?.message || 'Не вдалося отримати баланс';
-                    console.warn('⚠️ API повернуло помилку:', responseMessage);
 
-                    // При помилці використовуємо кешовані дані
-                    balanceData = {
-                        balance: oldTokens,
-                        coins: oldCoins
+                    // Перевіряємо наявність глобального контролера синхронізації
+                    if (window.__winixSyncControl) {
+                        // Зберігаємо останній валідний баланс
+                        window.__winixSyncControl.lastValidBalance = newBalance;
+                    }
+
+                    // Оновлюємо відображення з анімацією
+                    updateLocalBalance(newBalance, 'core.js', true);
+
+                    // Оновлюємо дані користувача
+                    if (_userData) {
+                        _userData.coins = newBalance;
+                    }
+
+                    // Оновлюємо кеш
+                    saveToStorage('userCoins', newBalance.toString());
+                    saveToStorage('winix_coins', newBalance.toString());
+                    saveToStorage('winix_balance_update_time', Date.now().toString());
+
+                    // Записуємо інформацію про транзакцію
+                    saveToStorage('winix_last_balance_transaction', JSON.stringify(transactionInfo));
+
+                    // Скидаємо лічильник помилок
+                    _state.errorCounter = 0;
+
+                    return {
+                        success: true,
+                        transactionId: transactionInfo.id,
+                        data: {
+                            coins: newBalance,
+                            oldCoins: oldBalance
+                        }
                     };
+                } else {
+                    throw new Error(response?.message || 'Не вдалося отримати баланс');
                 }
-            } catch (apiError) {
-                // Якщо сталася помилка в самому API
-                responseStatus = false;
-                responseMessage = apiError.message || 'Помилка API запиту';
-                console.error('❌ Помилка API запиту балансу:', apiError);
+            } else {
+                // Альтернативна логіка, якщо API недоступне
+                _state.requestInProgress = false;
 
-                // Використовуємо кешовані дані
-                balanceData = {
-                    balance: oldTokens,
-                    coins: oldCoins
+                // Отримуємо баланс з localStorage
+                const storedCoins = getCoins();
+
+                return {
+                    success: true,
+                    fallback: true,
+                    transactionId: transactionInfo.id,
+                    data: {
+                        coins: storedCoins,
+                        fallback: true
+                    }
                 };
             }
-        } else {
-            // Резервний шлях: через getUserData
-            try {
-                const userData = await getUserData(true);
-                balanceData = {
-                    balance: userData.balance || 0,
-                    coins: userData.coins || 0
-                };
-                transactionInfo.fallbackMethod = 'getUserData';
-            } catch (userDataError) {
-                // При помилці в резервному методі
-                responseStatus = false;
-                responseMessage = userDataError.message || 'Помилка отримання даних користувача';
-                console.error('❌ Помилка отримання даних користувача:', userDataError);
+        } catch (error) {
+            console.error('❌ Core: Помилка оновлення балансу:', error);
+            _state.requestInProgress = false;
 
-                // Використовуємо кешовані дані
-                balanceData = {
-                    balance: oldTokens,
-                    coins: oldCoins
-                };
+            // Збільшуємо лічильник помилок
+            _state.errorCounter++;
+            _state.lastErrorTime = Date.now();
+
+            // Перевірка на критичну кількість помилок
+            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), скидання стану...`);
+
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
+                }
+
+                // Скидаємо лічильник помилок
+                _state.errorCounter = 0;
+
+                // Запускаємо скидання стану
+                setTimeout(resetAndReloadApplication, 1000);
             }
-        }
 
-        // Ініціалізуємо userData, якщо потрібно
-        if (!_userData) _userData = {};
-
-        // Оновлюємо дані, пріоритизуючи дані з сервера
-        _userData.balance = balanceData.balance !== undefined ? balanceData.balance : (_userData.balance || 0);
-        _userData.coins = balanceData.coins !== undefined ? balanceData.coins : (_userData.coins || 0);
-
-        // Зберігаємо результат транзакції
-        transactionInfo.oldCoins = oldCoins;
-        transactionInfo.newCoins = _userData.coins;
-        transactionInfo.oldTokens = oldTokens;
-        transactionInfo.newTokens = _userData.balance;
-        transactionInfo.success = responseStatus;
-
-        // Записуємо результат транзакції для використання іншими модулями
-        try {
-            localStorage.setItem('winix_last_balance_transaction', JSON.stringify(transactionInfo));
-        } catch (e) {
-            console.warn('⚠️ Не вдалося зберегти дані транзакції:', e);
-        }
-
-        // Зберігаємо в localStorage з часовою міткою
-        saveToStorage('userTokens', _userData.balance);
-        saveToStorage('winix_balance', _userData.balance);
-        saveToStorage('userCoins', _userData.coins);
-        saveToStorage('winix_coins', _userData.coins);
-        saveToStorage('winix_balance_update_time', Date.now().toString());
-
-        // Оновлюємо відображення з анімацією тільки при успішному запиті
-        updateBalanceDisplay(responseStatus);
-
-        // Генеруємо подію оновлення балансу з розширеними даними
-        document.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: {
-                oldBalance: oldCoins,
-                newBalance: _userData.coins,
-                oldTokens: oldTokens,
-                newTokens: _userData.balance,
-                source: 'core.js',
+            // Повертаємо останній відомий баланс
+            return {
+                success: false,
+                message: error.message || 'Не вдалося оновити баланс',
                 transactionId: transactionInfo.id,
-                timestamp: transactionInfo.timestamp,
-                success: responseStatus
-            }
-        }));
-
-        // Скидаємо лічильник помилок при успішному запиті
-        if (responseStatus) {
-            _errorCounter = 0;
+                data: {
+                    coins: oldBalance,
+                    error: true
+                }
+            };
         }
-
-        return {
-            success: responseStatus,
-            message: responseMessage,
-            transactionId: transactionInfo.id,
-            data: {
-                balance: _userData.balance,
-                coins: _userData.coins,
-                lastUpdate: Date.now()
-            }
-        };
-    } catch (error) {
-        console.error('❌ Помилка оновлення балансу:', error);
-
-        // Збільшуємо лічильник помилок
-        _errorCounter++;
-        _lastErrorTime = Date.now();
-
-        // Чітко визначаємо дані для повернення
-        const cachedBalance = getBalance();
-        const cachedCoins = getCoins();
-        const lastUpdate = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
-
-        return {
-            success: false,
-            offline: !window.navigator.onLine,
-            message: error.message || 'Не вдалося оновити баланс',
-            error: true,
-            data: {
-                balance: cachedBalance,
-                coins: cachedCoins,
-                lastUpdate: lastUpdate
-            }
-        };
     }
-}
 
     // ======== НАВІГАЦІЯ ========
 
@@ -849,22 +972,26 @@ async function refreshBalance() {
                     item.classList.remove('active');
                 }
 
-                // Додаємо обробник кліку
-                item.addEventListener('click', () => {
-                    // Визначаємо URL для переходу
-                    let url;
-                    if (section === 'home') {
-                        url = 'index.html';
-                    } else {
-                        url = `${section}.html`;
-                    }
+                // Додаємо обробник кліку, якщо його ще немає
+                if (!item.hasAttribute('data-initialized')) {
+                    item.setAttribute('data-initialized', 'true');
 
-                    // Переходимо на сторінку
-                    window.location.href = url;
-                });
+                    item.addEventListener('click', () => {
+                        // Визначаємо URL для переходу
+                        let url;
+                        if (section === 'home') {
+                            url = 'index.html';
+                        } else {
+                            url = `${section}.html`;
+                        }
+
+                        // Переходимо на сторінку
+                        window.location.href = url;
+                    });
+                }
             });
         } catch (e) {
-            console.error('Помилка ініціалізації навігації:', e);
+            console.warn('⚠️ Помилка ініціалізації навігації:', e);
         }
     }
 
@@ -872,52 +999,55 @@ async function refreshBalance() {
 
     /**
      * Синхронізація даних користувача з сервером
+     * @param {boolean} forceRefresh - Примусова синхронізація
+     * @returns {Promise<Object>} Результат синхронізації
      */
-    async function syncUserData() {
+    async function syncUserData(forceRefresh = false) {
         try {
+            console.log('🔄 Core: Початок синхронізації даних користувача...');
+
             // Перевіряємо, чи пристрій онлайн
-if (!isOnline()) {
-    console.warn("🔄 Core: Пристрій офлайн, використовуємо локальні дані балансу");
+            if (!isOnline() && !forceRefresh) {
+                console.warn("⚠️ Core: Пристрій офлайн, використовуємо локальні дані");
 
-    // Отримуємо останні відомі дані балансу
-    const lastKnownBalance = getBalance();
-    const lastKnownCoins = getCoins();
-    const lastUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
-    const now = Date.now();
+                // Отримуємо останні відомі дані
+                const lastKnownBalance = getCoins();
+                const lastUpdateTime = parseInt(getFromStorage('winix_balance_update_time') || '0');
+                const now = Date.now();
 
-    // Перевіряємо актуальність даних
-    const dataAge = now - lastUpdateTime;
-    let dataStatus = 'fresh'; // 'fresh', 'stale', 'unknown'
+                // Перевіряємо актуальність даних
+                const dataAge = now - lastUpdateTime;
+                let dataStatus = 'fresh';
 
-    if (lastUpdateTime === 0) {
-        dataStatus = 'unknown';
-    } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
-        dataStatus = 'stale';
-    }
+                if (lastUpdateTime === 0) {
+                    dataStatus = 'unknown';
+                } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
+                    dataStatus = 'stale';
+                }
 
-    // Оновлюємо відображення з локальних даних
-    updateBalanceDisplay();
+                // Оновлюємо відображення
+                updateUserDisplay();
+                updateBalanceDisplay();
 
-    // Показуємо користувачу статус, якщо дані застарілі
-    if (dataStatus === 'stale' && typeof window.showToast === 'function') {
-        window.showToast('Використовуються локально збережені дані. Оновіть баланс при підключенні.', 'info');
-    }
+                // Показуємо статус, якщо дані застарілі
+                if (dataStatus === 'stale' && typeof window.showToast === 'function') {
+                    window.showToast('Використовуються локально збережені дані. Оновіть баланс при підключенні.', 'info');
+                }
 
-    return {
-        success: true,
-        offline: true,
-        dataStatus: dataStatus,
-        dataAge: dataAge,
-        data: {
-            balance: lastKnownBalance,
-            coins: lastKnownCoins,
-            lastUpdate: lastUpdateTime
-        }
-    };
-}
+                return {
+                    success: true,
+                    offline: true,
+                    dataStatus: dataStatus,
+                    dataAge: dataAge,
+                    data: {
+                        balance: lastKnownBalance,
+                        lastUpdate: lastUpdateTime
+                    }
+                };
+            }
 
-            // Отримуємо дані користувача
-            const userData = await getUserData(true);
+            // Оновлюємо дані користувача
+            const userData = await getUserData(forceRefresh);
 
             // Оновлюємо відображення
             updateUserDisplay();
@@ -934,11 +1064,7 @@ if (!isOnline()) {
                 data: userData
             };
         } catch (error) {
-            console.error('Помилка синхронізації даних користувача:', error);
-
-            // Збільшуємо лічильник помилок
-            _errorCounter++;
-            _lastErrorTime = Date.now();
+            console.error('❌ Core: Помилка синхронізації даних користувача:', error);
 
             // У випадку помилки використовуємо кешовані дані
             updateUserDisplay();
@@ -958,32 +1084,26 @@ if (!isOnline()) {
      */
     function startAutoSync(interval = 300000) { // 5 хвилин
         // Зупиняємо попередній інтервал
-        if (_refreshInterval) {
-            clearInterval(_refreshInterval);
-            _refreshInterval = null;
-        }
-
-        // Перевіряємо, чи вже запущене оновлення в інших модулях
-        if (hasAuthModule() && window.WinixAuth._periodicUpdateInterval) {
-            console.log("🔄 Core: Періодичне оновлення вже запущено в Auth модулі");
-            return;
+        if (_state.refreshInterval) {
+            clearInterval(_state.refreshInterval);
+            _state.refreshInterval = null;
         }
 
         // Запускаємо періодичну синхронізацію
-        _refreshInterval = setInterval(async () => {
+        _state.refreshInterval = setInterval(async () => {
             try {
                 // Перевіряємо, чи пристрій онлайн
                 if (!isOnline()) {
-                    console.warn("🔄 Core: Пристрій офлайн, пропускаємо синхронізацію");
+                    console.warn("⚠️ Core: Пристрій офлайн, пропускаємо синхронізацію");
                     return;
                 }
 
-                // Перевіряємо мінімальний інтервал
-                if (Date.now() - _lastRequestTime >= MIN_REQUEST_INTERVAL && !_requestInProgress) {
+                // Перевіряємо мінімальний інтервал і запит в прогресі
+                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
                     await syncUserData();
                 }
             } catch (e) {
-                console.warn('Помилка автоматичної синхронізації:', e);
+                console.warn('⚠️ Core: Помилка автоматичної синхронізації:', e);
             }
         }, interval);
 
@@ -994,10 +1114,78 @@ if (!isOnline()) {
      * Зупинка періодичної синхронізації
      */
     function stopAutoSync() {
-        if (_refreshInterval) {
-            clearInterval(_refreshInterval);
-            _refreshInterval = null;
+        if (_state.refreshInterval) {
+            clearInterval(_state.refreshInterval);
+            _state.refreshInterval = null;
             console.log("⏹️ Core: Періодичне оновлення зупинено");
+        }
+    }
+
+    // ======== БЛОКУВАННЯ ОНОВЛЕНЬ БАЛАНСУ ========
+
+    /**
+     * Блокування оновлень балансу на вказаний час
+     * @param {number} duration - Тривалість блокування в мс
+     * @param {Object} options - Опції блокування
+     * @returns {boolean} Результат блокування
+     */
+    function lockBalanceUpdates(duration, options = {}) {
+        // Якщо є контролер синхронізації, використовуємо його
+        if (window.__winixSyncControl && typeof window.__winixSyncControl.block === 'function') {
+            return window.__winixSyncControl.block(duration / 1000, {
+                type: options.type || 'core_balance',
+                reason: options.reason || 'manual_lock',
+                source: 'core.js'
+            });
+        }
+
+        return false;
+    }
+
+    /**
+     * Перевірка, чи заблоковані оновлення балансу
+     * @param {string} source - Джерело запиту
+     * @param {string} type - Тип запиту
+     * @returns {boolean} Стан блокування
+     */
+    function isBalanceUpdateLocked(source, type = 'general') {
+        // Якщо є контролер синхронізації, використовуємо його
+        if (window.__winixSyncControl && typeof window.__winixSyncControl.isBlocked === 'function') {
+            return window.__winixSyncControl.isBlocked(source, type);
+        }
+
+        return false;
+    }
+
+    // ======== УТИЛІТИ ДЛЯ ІНШИХ МОДУЛІВ ========
+
+    /**
+     * Перевірка частоти запитів до API
+     * @param {string} key - Ключ для ідентифікації типу запиту
+     * @param {number} interval - Мінімальний інтервал між запитами (мс)
+     * @returns {boolean} true, якщо запит можна виконати, false - якщо потрібно почекати
+     */
+    function checkRequestThrottle(key, interval = 5000) {
+        const now = Date.now();
+        const lastRequest = _state.requestCache[key] || 0;
+
+        if (now - lastRequest < interval) {
+            return false;
+        }
+
+        _state.requestCache[key] = now;
+        return true;
+    }
+
+    /**
+     * Очищення кешу запитів
+     * @param {string} key - Ключ для очищення (якщо не вказано, очищається весь кеш)
+     */
+    function clearRequestCache(key) {
+        if (key) {
+            delete _state.requestCache[key];
+        } else {
+            _state.requestCache = {};
         }
     }
 
@@ -1005,30 +1193,32 @@ if (!isOnline()) {
 
     /**
      * Ініціалізація ядра WINIX
+     * @returns {Promise<boolean>} Результат ініціалізації
      */
     async function init() {
         try {
             // Перевіряємо чи вже ініціалізовано ядро
-            if (_coreInitialized) {
+            if (_state.initialized) {
                 console.log("✅ Core: Ядро WINIX вже ініціалізоване");
                 return true;
             }
+
+            console.log("🔄 Core: Початок ініціалізації ядра WINIX");
 
             // Ініціалізуємо Telegram WebApp, якщо він доступний
             if (window.Telegram && window.Telegram.WebApp) {
                 try {
                     window.Telegram.WebApp.ready();
                     window.Telegram.WebApp.expand();
+                    console.log("✅ Core: Telegram WebApp успішно ініціалізовано");
                 } catch (e) {
-                    console.warn("Помилка ініціалізації Telegram WebApp:", e);
+                    console.warn("⚠️ Core: Помилка ініціалізації Telegram WebApp:", e);
                 }
             }
 
-            // Очікуємо завантаження API та Auth модулів
-            await waitForModules();
-
             // Отримуємо дані користувача
             await getUserData();
+            console.log("✅ Core: Дані користувача отримано");
 
             // Оновлюємо відображення
             updateUserDisplay();
@@ -1037,13 +1227,11 @@ if (!isOnline()) {
             // Ініціалізуємо навігацію
             initNavigation();
 
-            // Запускаємо автоматичну синхронізацію, якщо не запущена в Auth
-            if (!hasAuthModule() || !window.WinixAuth._periodicUpdateInterval) {
-                startAutoSync();
-            }
+            // Запускаємо автоматичну синхронізацію
+            startAutoSync();
 
             // Позначаємо, що ядро ініціалізовано
-            _coreInitialized = true;
+            _state.initialized = true;
 
             console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
@@ -1052,7 +1240,7 @@ if (!isOnline()) {
 
             return true;
         } catch (error) {
-            console.error('Помилка ініціалізації ядра WINIX:', error);
+            console.error('❌ Core: Помилка ініціалізації ядра WINIX:', error);
 
             // У випадку помилки використовуємо кешовані дані
             updateUserDisplay();
@@ -1065,11 +1253,11 @@ if (!isOnline()) {
     }
 
     /**
-     * Перевірка доступності ядра
+     * Перевірка, чи ядро ініціалізовано
      * @returns {boolean} Стан ініціалізації
      */
     function isInitialized() {
-        return _coreInitialized;
+        return _state.initialized;
     }
 
     // ======== ОБРОБНИКИ ПОДІЙ ========
@@ -1088,14 +1276,12 @@ if (!isOnline()) {
     document.addEventListener('balance-updated', function(event) {
         if (event.detail && event.source !== 'core.js') {
             console.log("🔄 Core: Отримано подію оновлення балансу");
+
+            // Оновлюємо дані користувача
             if (!_userData) _userData = {};
 
-            if (event.detail.balance !== undefined) {
-                _userData.balance = event.detail.balance;
-            }
-
-            if (event.detail.coins !== undefined) {
-                _userData.coins = event.detail.coins;
+            if (event.detail.newBalance !== undefined) {
+                _userData.coins = event.detail.newBalance;
             }
 
             updateBalanceDisplay();
@@ -1109,7 +1295,7 @@ if (!isOnline()) {
         // Оновлюємо дані після відновлення з'єднання
         setTimeout(() => {
             syncUserData().then(() => {
-                console.log("🔄 Core: Дані успішно синхронізовано після відновлення з'єднання");
+                console.log("✅ Core: Дані успішно синхронізовано після відновлення з'єднання");
             }).catch(error => {
                 console.warn("⚠️ Core: Помилка синхронізації після відновлення з'єднання:", error);
             });
@@ -1121,28 +1307,22 @@ if (!isOnline()) {
         console.warn("⚠️ Core: Втрачено з'єднання з мережею");
     });
 
-    // Глобальна обробка помилок для виявлення проблем
-    window.addEventListener('error', function(event) {
-        console.error('Критична помилка JavaScript:', event.error);
+    // Обробник події завантаження сторінки
+    window.addEventListener('load', function() {
+        // Запобігаємо частій ініціалізації
+        if (!_state.initialized) {
+            init().catch(e => {
+                console.error("❌ Core: Помилка ініціалізації:", e);
+            });
+        }
+    });
 
-        // Збільшуємо лічильник помилок
-        _errorCounter++;
-        _lastErrorTime = Date.now();
-
-        // При критичному накопиченні помилок скидаємо стан
-        if (_errorCounter >= MAX_ERRORS_BEFORE_RESET) {
-            console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_errorCounter}), скидання стану...`);
-
-            // Скидаємо лічильник
-            _errorCounter = 0;
-
-            // Виводимо сповіщення користувачу
-            if (typeof window.showToast === 'function') {
-                window.showToast('Виникли проблеми з додатком. Сторінка буде перезавантажена.', 'error');
-            }
-
-            // Відкладене скидання стану для уникнення циклічних перезавантажень
-            setTimeout(resetAndReloadApplication, 2000);
+    // Обробник події DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!_state.initialized) {
+            init().catch(e => {
+                console.error("❌ Core: Помилка ініціалізації:", e);
+            });
         }
     });
 
@@ -1151,7 +1331,7 @@ if (!isOnline()) {
     // Експортуємо публічний API
     window.WinixCore = {
         // Метадані
-        version: '1.3.0',
+        version: '2.0.0',
         isInitialized: isInitialized,
 
         // Утиліти
@@ -1160,8 +1340,9 @@ if (!isOnline()) {
         getFromStorage,
         formatCurrency,
         isOnline,
-        waitForModules,
         resetAndReloadApplication,
+        checkRequestThrottle,
+        clearRequestCache,
 
         // Функції користувача
         getUserData,
@@ -1170,7 +1351,10 @@ if (!isOnline()) {
         getBalance,
         getCoins,
         updateBalanceDisplay,
+        updateLocalBalance,
         refreshBalance,
+        lockBalanceUpdates,
+        isBalanceUpdateLocked,
 
         // Функції для синхронізації даних
         syncUserData,
@@ -1184,15 +1368,5 @@ if (!isOnline()) {
     // Додаємо функцію resetAndReloadApplication в глобальний простір імен
     window.resetAndReloadApplication = resetAndReloadApplication;
 
-    // Ініціалізуємо ядро при завантаженні сторінки
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        // Додаємо невелику затримку для дозавантаження інших модулів
-        setTimeout(() => {
-            init().catch(e => {
-                console.error("Помилка ініціалізації ядра:", e);
-            });
-        }, 100);
-    }
+    console.log("✅ Core: Модуль успішно завантажено");
 })();
