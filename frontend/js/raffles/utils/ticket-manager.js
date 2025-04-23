@@ -199,37 +199,107 @@
          * @returns {number} Кількість жетонів
          */
         getUserCoins: function() {
-            // Централізоване джерело балансу через контролер синхронізації
-            if (window.__winixSyncControl && window.__winixSyncControl.lastValidBalance !== null) {
-                return window.__winixSyncControl.lastValidBalance;
-            }
+            try {
+                // Створюємо дані для логування
+                const debugData = {
+                    sources: {},
+                    selectedSource: '',
+                    selectedValue: 0
+                };
 
-            // Централізований WinixCore
-            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
-                const coreCoins = window.WinixCore.getCoins();
-                if (typeof coreCoins === 'number' && !isNaN(coreCoins) && coreCoins >= 0) {
-                    return coreCoins;
+                // 1. Перевіряємо останні серверні дані в localStorage
+                // Встановлюємо найвищий пріоритет для серверного балансу
+                const serverTimestamp = parseInt(localStorage.getItem('winix_server_balance_ts') || '0');
+                const serverBalance = parseInt(localStorage.getItem('winix_server_balance') || '0');
+
+                // Якщо серверні дані існують і не старші 2 хвилин, використовуємо їх
+                if (serverBalance > 0 && serverTimestamp > 0 && (Date.now() - serverTimestamp < 120000)) {
+                    debugData.sources.server = serverBalance;
+                    debugData.selectedSource = 'server';
+                    debugData.selectedValue = serverBalance;
+
+                    return serverBalance;
+                }
+
+                // 2. Перевіряємо глобальний контролер синхронізації
+                if (window.__winixSyncControl &&
+                    window.__winixSyncControl.lastValidBalance !== null &&
+                    typeof window.__winixSyncControl.lastValidBalance === 'number') {
+
+                    debugData.sources.syncControl = window.__winixSyncControl.lastValidBalance;
+                    debugData.selectedSource = 'syncControl';
+                    debugData.selectedValue = window.__winixSyncControl.lastValidBalance;
+
+                    return window.__winixSyncControl.lastValidBalance;
+                }
+
+                // 3. Перевіряємо WinixCore
+                if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
+                    const coreCoins = window.WinixCore.getCoins();
+                    if (typeof coreCoins === 'number' && !isNaN(coreCoins) && coreCoins >= 0) {
+                        debugData.sources.winixCore = coreCoins;
+                        debugData.selectedSource = 'winixCore';
+                        debugData.selectedValue = coreCoins;
+
+                        return coreCoins;
+                    }
+                }
+
+                // 4. Перевіряємо участь
+                if (window.WinixRaffles && window.WinixRaffles.participation &&
+                    window.WinixRaffles.participation.lastKnownBalance !== null) {
+
+                    debugData.sources.participation = window.WinixRaffles.participation.lastKnownBalance;
+
+                    // Перевіряємо як давно було оновлення
+                    const participationUpdateTime = window.WinixRaffles.participation.lastBalanceUpdateTime || 0;
+                    const storedUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+
+                    // Якщо дані participation свіжіші, використовуємо їх
+                    if (participationUpdateTime > storedUpdateTime) {
+                        debugData.selectedSource = 'participation';
+                        debugData.selectedValue = window.WinixRaffles.participation.lastKnownBalance;
+
+                        return window.WinixRaffles.participation.lastKnownBalance;
+                    }
+                }
+
+                // 5. Перевіряємо DOM
+                const userCoinsElement = document.getElementById('user-coins');
+                if (userCoinsElement) {
+                    const domCoins = parseInt(userCoinsElement.textContent);
+                    if (!isNaN(domCoins) && domCoins >= 0) {
+                        debugData.sources.dom = domCoins;
+
+                        // Використовуємо DOM тільки якщо немає свіжіших даних
+                        const domUpdateTime = parseInt(localStorage.getItem('winix_balance_update_time') || '0');
+
+                        if (domUpdateTime > serverTimestamp) {
+                            debugData.selectedSource = 'dom';
+                            debugData.selectedValue = domCoins;
+
+                            return domCoins;
+                        }
+                    }
+                }
+
+                // 6. Використовуємо localStorage як останній варіант
+                const storedCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+                debugData.sources.localStorage = storedCoins;
+                debugData.selectedSource = 'localStorage';
+                debugData.selectedValue = storedCoins;
+
+                return !isNaN(storedCoins) ? storedCoins : 0;
+            } catch (error) {
+                console.error('❌ Помилка отримання балансу в ticket-manager:', error);
+
+                // Безпечне повернення при помилці
+                try {
+                    return parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0') || 0;
+                } catch (e) {
+                    return 0;
                 }
             }
-
-            // Модуль participation
-            if (window.WinixRaffles && window.WinixRaffles.participation &&
-                window.WinixRaffles.participation.lastKnownBalance !== null) {
-                return window.WinixRaffles.participation.lastKnownBalance;
-            }
-
-            // Значення з DOM
-            const userCoinsElement = document.getElementById('user-coins');
-            if (userCoinsElement) {
-                const domCoins = parseInt(userCoinsElement.textContent);
-                if (!isNaN(domCoins) && domCoins >= 0) {
-                    return domCoins;
-                }
-            }
-
-            // Значення з localStorage
-            const storedCoins = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
-            return !isNaN(storedCoins) ? storedCoins : 0;
         },
 
         /**
