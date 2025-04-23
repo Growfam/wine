@@ -1,1316 +1,1372 @@
 /**
- * WINIX - Система розіграшів (core.js)
- * Оптимізована версія з виправленими проблемами пам'яті і рекурсії
+ * core.js - Базова функціональність WINIX
+ * Оптимізована версія з покращеною продуктивністю та стабільністю
  * @version 2.0.0
  */
 
 (function() {
     'use strict';
 
-    // Перевірка наявності необхідних модулів
-    if (typeof window.WinixRaffles === 'undefined') {
-        console.error('❌ WinixRaffles не знайдено! Переконайтеся, що init.js підключено перед core.js');
-        return;
-    }
+    console.log("🔄 Core: Ініціалізація ядра WINIX");
 
-    // Ініціалізація контролера синхронізації
-    if (!window.__winixSyncControl) {
-        window.__winixSyncControl = {
-            // Останній відомий баланс від сервера
-            lastValidBalance: null,
+    // ======== ПРИВАТНІ ЗМІННІ ========
 
-            // Час останньої синхронізації
-            lastSyncTime: 0,
+    // Дані користувача
+    let _userData = null;
 
-            // Блокування запитів оновлення
-            locks: {},
+    // Стан модуля
+    const _state = {
+        // Прапорець ініціалізації ядра
+        initialized: false,
 
-            // Чи очікуємо оновлення з сервера
-            expectServerUpdate: false,
+        // Інтервал автооновлення
+        refreshInterval: null,
 
-            /**
-             * Блокування оновлень балансу
-             * @param {number} duration - Тривалість блокування в секундах
-             * @param {Object} options - Опції блокування
-             * @returns {boolean} Результат блокування
-             */
-            block: function(duration, options = {}) {
-                const type = options.type || 'general';
-                const now = Date.now();
+        // Блокування запитів
+        requestInProgress: false,
 
-                this.locks[type] = {
-                    until: now + (duration * 1000),
-                    reason: options.reason || 'manual',
-                    source: options.source || 'api'
-                };
+        // Час останнього запиту
+        lastRequestTime: 0,
 
-                console.log(`🔒 Синхронізатор: Блокування ${type} на ${duration}с. Причина: ${this.locks[type].reason}`);
-
-                // Автоматичне зняття блокування
-                setTimeout(() => {
-                    if (this.locks[type]) {
-                        console.log(`🔓 Синхронізатор: Розблокування ${type}`);
-                        delete this.locks[type];
-                    }
-                }, duration * 1000);
-
-                return true;
-            },
-
-            /**
-             * Перевірка, чи заблокований тип оновлення
-             * @param {string} type - Тип оновлення
-             * @returns {boolean} Стан блокування
-             */
-            isBlocked: function(type) {
-                const now = Date.now();
-
-                // Перевірка глобального блокування
-                if (this.locks['general'] && this.locks['general'].until > now) {
-                    return true;
-                }
-
-                // Перевірка конкретного типу
-                if (this.locks[type] && this.locks[type].until > now) {
-                    return true;
-                }
-
-                return false;
-            },
-
-            /**
-             * Встановлення серверного балансу
-             * @param {number} balance - Новий баланс
-             * @param {string} source - Джерело оновлення
-             * @returns {boolean} Результат оновлення
-             */
-            setServerBalance: function(balance, source = 'api') {
-                if (typeof balance !== 'number' || isNaN(balance) || balance < 0) {
-                    return false;
-                }
-
-                this.lastValidBalance = balance;
-                this.lastSyncTime = Date.now();
-                this.expectServerUpdate = false;
-
-                // Зберігаємо в localStorage для інших модулів
-                localStorage.setItem('winix_server_balance', balance.toString());
-                localStorage.setItem('winix_server_balance_ts', this.lastSyncTime.toString());
-
-                console.log(`💰 Синхронізатор: Оновлено серверний баланс ${balance} (джерело: ${source})`);
-                return true;
-            }
-        };
-
-        console.log("✅ Core: Ініціалізовано контролер синхронізації балансу");
-    }
-
-    // Підмодуль для обробки помилок
-    const errorHandler = {
         // Лічильник помилок
-        errorCount: 0,
+        errorCounter: 0,
 
-        // Максимальна кількість помилок до скидання
+        // Максимальна кількість помилок перед скиданням стану
         maxErrorsBeforeReset: 5,
 
         // Час останньої помилки
         lastErrorTime: 0,
 
-        // Обробка помилки
-        handleError: function(error, source) {
-            this.errorCount++;
-            this.lastErrorTime = Date.now();
-
-            console.error(`❌ Помилка в ${source || 'raffles/core.js'}:`, error);
-
-            // Якщо досягнуто максимальної кількості помилок, скидаємо стан
-            if (this.errorCount >= this.maxErrorsBeforeReset) {
-                this.errorCount = 0;
-                console.warn(`⚠️ Досягнуто критичної кількості помилок (${this.maxErrorsBeforeReset}), скидання стану...`);
-
-                if (typeof window.resetAndReloadApplication === 'function') {
-                    window.resetAndReloadApplication();
-                } else if (typeof window.WinixRaffles.resetState === 'function') {
-                    window.WinixRaffles.resetState();
-                }
-            }
-        },
-
-        // Скидання лічильника помилок
-        resetErrorCount: function() {
-            this.errorCount = 0;
-        }
-    };
-
-    // Стан модуля
-    const state = {
-        // Множина ID невалідних розіграшів
-        invalidRaffleIds: new Set(),
-
-        // Час останнього завантаження
-        lastLoadTime: 0,
-
-        // Виконується запит
-        isLoading: false,
-
-        // Виконується оновлення таймерів
-        updatingTimers: false,
-
-        // Розіграші обробляються
-        rafflesProcessed: false,
-
-        // Таймери зворотного відліку
-        countdownTimers: {},
-
-        // Час останнього оновлення балансу
-        lastBalanceUpdate: 0
+        // Кеш запитів
+        requestCache: {}
     };
 
     // Конфігурація
-    const config = {
-        // Мінімальний інтервал між завантаженнями (мс)
-        minLoadInterval: 5000,
+    const _config = {
+        // Мінімальний інтервал між запитами (мс)
+        minRequestInterval: 5000,
 
-        // Інтервал оновлення таймерів (мс)
-        timerUpdateInterval: 1000,
+        // Час життя кешу даних користувача (мс)
+        userCacheTtl: 300000, // 5 хвилин
 
-        // Таймаут запитів (мс)
-        requestTimeout: 15000
+        // Інтервал автооновлення (мс)
+        autoRefreshInterval: 300000 // 5 хвилин
     };
 
-    /**
-     * Скидання стану модуля
-     */
-    window.WinixRaffles.resetState = function() {
-        console.log('🔄 Скидання стану модуля розіграшів...');
-
-        // Скидаємо стан
-        state.isLoading = false;
-        state.updatingTimers = false;
-
-        // Очищуємо таймери
-        for (const timerId in state.countdownTimers) {
-            if (state.countdownTimers.hasOwnProperty(timerId)) {
-                clearInterval(state.countdownTimers[timerId]);
-            }
-        }
-        state.countdownTimers = {};
-
-        // Скидаємо глобальні таймери
-        if (window.WinixRaffles._globalRefreshInterval) {
-            clearInterval(window.WinixRaffles._globalRefreshInterval);
-            window.WinixRaffles._globalRefreshInterval = null;
-        }
-
-        if (window.WinixRaffles._globalCountdownTimer) {
-            clearInterval(window.WinixRaffles._globalCountdownTimer);
-            window.WinixRaffles._globalCountdownTimer = null;
-        }
-
-        // Приховуємо індикатор завантаження
-        if (typeof window.hideLoading === 'function') {
-            window.hideLoading();
-        }
-
-        // Скидаємо стан participation та ticketManager, якщо вони існують
-        if (window.WinixRaffles.participation && typeof window.WinixRaffles.participation.resetState === 'function') {
-            window.WinixRaffles.participation.resetState();
-        }
-
-        if (window.WinixRaffles.ticketManager && typeof window.WinixRaffles.ticketManager.reset === 'function') {
-            window.WinixRaffles.ticketManager.reset();
-        }
-
-        console.log('✅ Стан модуля розіграшів скинуто');
-    };
+    // ======== УТИЛІТИ ========
 
     /**
-     * Завантаження активних розіграшів
-     * @param {boolean} forceRefresh - Примусове оновлення
-     * @param {number} limit - Ліміт кількості розіграшів
-     * @param {number} offset - Зміщення для пагінації
-     * @returns {Promise<Object>} Результат завантаження
+     * Отримання елемента DOM
+     * @param {string} selector - Селектор елемента
+     * @param {boolean} multiple - Отримати всі елементи
+     * @returns {Element|NodeList|null} Елемент DOM
      */
-    window.WinixRaffles.loadActiveRaffles = async function(forceRefresh = false, limit = 50, offset = 0) {
-        // Запобігаємо паралельним запитам
-        if (state.isLoading && !forceRefresh) {
-            console.log("⏳ Завантаження розіграшів вже виконується");
-
-            // Повертаємо кеш при наявності даних
-            if (this.state.activeRaffles.length > 0) {
-                return {
-                    success: true,
-                    source: 'cache',
-                    data: this.state.activeRaffles,
-                    message: "Використано кешовані дані (запит вже виконується)"
-                };
+    function getElement(selector, multiple = false) {
+        try {
+            if (multiple) {
+                return document.querySelectorAll(selector);
             }
-
-            return { success: false, message: "Завантаження вже виконується" };
+            if (selector.startsWith('#')) {
+                return document.getElementById(selector.substring(1));
+            }
+            return document.querySelector(selector);
+        } catch (e) {
+            console.warn('⚠️ Помилка отримання елемента DOM:', e);
+            return null;
         }
+    }
 
-        // Перевірка інтервалу між запитами
-        const now = Date.now();
-        if (!forceRefresh && (now - state.lastLoadTime < config.minLoadInterval) && this.state.activeRaffles.length > 0) {
-            console.log("⏳ Занадто частий запит, використовуємо кеш");
-            return {
-                success: true,
-                source: 'cache',
-                data: this.state.activeRaffles,
-                message: "Використано кешовані дані (обмеження частоти)"
-            };
+    /**
+     * Зберігання даних в localStorage
+     * @param {string} key - Ключ
+     * @param {any} value - Значення
+     * @returns {boolean} Результат збереження
+     */
+    function saveToStorage(key, value) {
+        try {
+            if (typeof value === 'object') {
+                localStorage.setItem(key, JSON.stringify(value));
+            } else {
+                localStorage.setItem(key, value);
+            }
+            return true;
+        } catch (e) {
+            console.warn(`⚠️ Помилка збереження в localStorage: ${key}`, e);
+            return false;
         }
+    }
 
-        // Встановлюємо стан завантаження
-        state.isLoading = true;
+    /**
+     * Отримання даних з localStorage
+     * @param {string} key - Ключ
+     * @param {any} defaultValue - Значення за замовчуванням
+     * @param {boolean} isObject - Чи парсити як об'єкт
+     * @returns {any} Значення з localStorage
+     */
+    function getFromStorage(key, defaultValue = null, isObject = false) {
+        try {
+            const value = localStorage.getItem(key);
+            if (value === null) return defaultValue;
 
-        // Показуємо індикатор завантаження, якщо потрібно
-        if (!this.skipLoader && (this.state.activeRaffles.length === 0 || forceRefresh)) {
-            try {
-                if (typeof window.showLoading === 'function') {
-                    window.showLoading();
+            if (isObject) {
+                try {
+                    return JSON.parse(value);
+                } catch (e) {
+                    return defaultValue;
                 }
-            } catch (e) {
-                console.warn("⚠️ Помилка показу індикатора завантаження:", e);
             }
+
+            return value;
+        } catch (e) {
+            return defaultValue;
         }
+    }
+
+    /**
+     * Форматування числа як валюти
+     * @param {number} amount - Сума
+     * @param {number} decimals - Кількість знаків після коми
+     * @returns {string} Форматоване число
+     */
+    function formatCurrency(amount, decimals = 2) {
+        try {
+            const numberFormat = new Intl.NumberFormat('uk-UA', {
+                maximumFractionDigits: decimals,
+                minimumFractionDigits: decimals
+            });
+            return numberFormat.format(parseFloat(amount) || 0);
+        } catch (e) {
+            return (parseFloat(amount) || 0).toFixed(decimals);
+        }
+    }
+
+    /**
+     * Перевірка, чи пристрій онлайн
+     * @returns {boolean} Стан підключення
+     */
+    function isOnline() {
+        return typeof navigator.onLine === 'undefined' || navigator.onLine;
+    }
+
+    /**
+     * Перевірка наявності API модуля
+     * @returns {boolean} Чи доступний API модуль
+     */
+    function hasApiModule() {
+        try {
+            return window.WinixAPI &&
+                   typeof window.WinixAPI.apiRequest === 'function' &&
+                   typeof window.WinixAPI.getUserId === 'function';
+        } catch (e) {
+            console.warn("⚠️ Помилка перевірки API модуля:", e);
+            return false;
+        }
+    }
+
+    /**
+     * Функція для скидання стану та перезавантаження після критичних помилок
+     */
+    function resetAndReloadApplication() {
+        console.log("🔄 Core: Скидання стану додатку через критичні помилки...");
 
         try {
-            console.log("🔄 Розпочато завантаження активних розіграшів");
-
-            // Формуємо URL запиту
-            const apiEndpoint = `${this.config.activeRafflesEndpoint}?limit=${limit}&offset=${offset}&t=${now}`;
-
-            // Відправляємо запит
-            let response;
-            if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.apiRequest === 'function') {
-                response = await window.WinixAPI.apiRequest(apiEndpoint, 'GET', null, {
-                    timeout: config.requestTimeout,
-                    suppressErrors: true,
-                    retries: 2,
-                    bypassThrottle: forceRefresh
-                });
-            } else {
-                const fetchResponse = await fetch(apiEndpoint);
-                response = await fetchResponse.json();
+            // Очищаємо кеш API
+            if (hasApiModule() && typeof window.WinixAPI.clearCache === 'function') {
+                window.WinixAPI.clearCache();
             }
 
-            // Обробка відповіді
-            if (response && response.status === 'success' && Array.isArray(response.data)) {
-                // Зберігаємо дані розіграшів
-                this.state.activeRaffles = response.data;
+            // Очищаємо локальне сховище з важливими виключеннями
+            try {
+                // Зберігаємо лише критичні дані для автентифікації
+                const userId = getFromStorage('telegram_user_id');
+                const authToken = getFromStorage('auth_token');
 
-                // Оновлюємо час завантаження
-                state.lastLoadTime = now;
+                // Перезаписуємо критичні дані після очищення
+                if (userId) saveToStorage('telegram_user_id', userId);
+                if (authToken) saveToStorage('auth_token', authToken);
+            } catch (e) {
+                console.warn("⚠️ Помилка очищення localStorage:", e);
+            }
 
-                // Обробляємо дані розіграшів
-                this._processRafflesData();
+            // Скидаємо стан WinixRaffles, якщо він існує
+            if (window.WinixRaffles && typeof window.WinixRaffles.resetState === 'function') {
+                window.WinixRaffles.resetState();
+            }
 
-                // Відкладена перевірка участі
-                this._scheduleParticipationCheck();
+            // Показуємо повідомлення користувачу
+            if (typeof window.showToast === 'function') {
+                window.showToast('Виконується перезавантаження додатку...', 'info');
+            }
 
-                // Оновлюємо відображення
-                this.renderActiveRaffles();
+            // Перезавантажуємо сторінку з невеликою затримкою
+            setTimeout(function() {
+                window.location.reload();
+            }, 1000);
+        } catch (e) {
+            console.error("❌ Core: Помилка скидання стану:", e);
+
+            // У випадку критичної помилки просто перезавантажуємо
+            setTimeout(function() {
+                window.location.reload();
+            }, 500);
+        }
+    }
+
+    // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
+
+    /**
+     * Отримання даних користувача
+     * @param {boolean} forceRefresh - Примусово оновити
+     * @returns {Promise<Object>} Дані користувача
+     */
+    async function getUserData(forceRefresh = false) {
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline() && !forceRefresh) {
+            console.warn("⚠️ Core: Пристрій офлайн, використовуємо кешовані дані");
+
+            // Якщо є збережені дані, повертаємо їх
+            if (_userData) {
+                return _userData;
+            }
+
+            // Створюємо базові дані з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
+                return _userData;
+            }
+
+            // Створюємо мінімальні дані користувача з localStorage
+            const userId = getUserId();
+            _userData = {
+                telegram_id: userId || 'unknown',
+                balance: parseFloat(getFromStorage('userTokens', '0')),
+                coins: parseInt(getFromStorage('userCoins', '0')),
+                source: 'localStorage_offline'
+            };
+
+            return _userData;
+        }
+
+        // Перевіряємо частоту запитів і наявність кешу
+        const now = Date.now();
+        if (!forceRefresh && (now - _state.lastRequestTime < _config.minRequestInterval)) {
+            console.log("⏳ Core: Занадто частий запит даних користувача, використовуємо кеш");
+
+            // Якщо у нас вже є дані і не потрібно оновлювати
+            if (_userData) {
+                return _userData;
+            }
+
+            // Намагаємося завантажити з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
+                return _userData;
+            }
+        }
+
+        // Запобігаємо паралельним запитам
+        if (_state.requestInProgress && !forceRefresh) {
+            console.log("⏳ Core: Запит даних користувача вже виконується");
+
+            // Якщо у нас вже є дані, повертаємо їх
+            if (_userData) {
+                return _userData;
+            }
+
+            // Завантажуємо з localStorage
+            const storedData = getFromStorage('userData', null, true);
+            if (storedData) {
+                _userData = storedData;
+                return _userData;
+            }
+        }
+
+        // Оновлюємо час останнього запиту і встановлюємо блокування
+        _state.lastRequestTime = now;
+        _state.requestInProgress = true;
+
+        try {
+            // Використовуємо API для отримання даних користувача
+            if (hasApiModule()) {
+                // Формуємо запит
+                const userId = getUserId();
+                if (!userId) {
+                    throw new Error('ID користувача не знайдено');
+                }
+
+                // Додаємо параметр запобігання кешування
+                const endpoint = `user/${userId}/info?t=${now}`;
+
+                // Відправляємо запит
+                const response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                    suppressErrors: true,
+                    timeout: 10000
+                });
+
+                _state.requestInProgress = false;
+
+                if (response && response.status === 'success' && response.data) {
+                    _userData = response.data;
+
+                    // Оновлюємо дані в localStorage
+                    saveToStorage('userData', _userData);
+
+                    // Зберігаємо також окремі поля для сумісності
+                    if (_userData.balance !== undefined) {
+                        saveToStorage('userTokens', _userData.balance.toString());
+                        saveToStorage('winix_balance', _userData.balance.toString());
+                    }
+
+                    if (_userData.coins !== undefined) {
+                        saveToStorage('userCoins', _userData.coins.toString());
+                        saveToStorage('winix_coins', _userData.coins.toString());
+                    }
+
+                    // Оновлюємо час кешування
+                    saveToStorage('userData_timestamp', now.toString());
+
+                    // Генеруємо подію оновлення
+                    document.dispatchEvent(new CustomEvent('user-data-updated', {
+                        detail: { userData: _userData },
+                        source: 'core.js'
+                    }));
+
+                    // Скидаємо лічильник помилок при успішному запиті
+                    _state.errorCounter = 0;
+
+                    return _userData;
+                } else {
+                    throw new Error(response?.message || 'Не вдалося отримати дані користувача');
+                }
+            } else {
+                // Якщо WinixAPI недоступний, використовуємо запасний метод
+                _state.requestInProgress = false;
+
+                // Використовуємо дані з localStorage
+                const storedUserData = getFromStorage('userData', null, true);
+                if (storedUserData) {
+                    _userData = storedUserData;
+                    return _userData;
+                }
+
+                console.warn('⚠️ Core: API модуль недоступний');
+
+                // Створюємо мінімальні дані користувача
+                const userId = getUserId();
+                _userData = {
+                    telegram_id: userId || 'unknown',
+                    balance: parseFloat(getFromStorage('userTokens', '0')),
+                    coins: parseInt(getFromStorage('userCoins', '0')),
+                    source: 'localStorage_no_modules'
+                };
+
+                return _userData;
+            }
+        } catch (error) {
+            console.error('❌ Помилка отримання даних користувача:', error);
+            _state.requestInProgress = false;
+
+            // Збільшуємо лічильник помилок
+            _state.errorCounter++;
+            _state.lastErrorTime = now;
+
+            // Перевірка на критичну кількість помилок
+            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), скидання стану...`);
+
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
+                }
 
                 // Скидаємо лічильник помилок
-                errorHandler.resetErrorCount();
+                _state.errorCounter = 0;
 
-                console.log(`✅ Успішно завантажено ${this.state.activeRaffles.length} активних розіграшів`);
-
-                // Відправляємо подію
-                document.dispatchEvent(new CustomEvent('raffles-loaded', {
-                    detail: { count: this.state.activeRaffles.length }
-                }));
-
-                return {
-                    success: true,
-                    data: this.state.activeRaffles,
-                    message: `Завантажено ${this.state.activeRaffles.length} розіграшів`
-                };
-            } else {
-                throw new Error(response?.message || 'Не вдалося завантажити активні розіграші');
-            }
-        } catch (error) {
-            // Обробка помилки
-            errorHandler.handleError(error, 'loadActiveRaffles');
-
-            // Повертаємо кеш при наявності даних
-            if (this.state.activeRaffles.length > 0) {
-                console.log("⚠️ Використовуємо кешовані дані розіграшів через помилку");
-                return {
-                    success: true,
-                    source: 'cache_error',
-                    data: this.state.activeRaffles,
-                    message: "Використано кешовані дані (сталася помилка)"
-                };
+                // Запускаємо скидання стану
+                setTimeout(resetAndReloadApplication, 1000);
             }
 
-            // Відображаємо повідомлення про помилку
-            this.renderError('Не вдалося завантажити розіграші', 'Спробуйте оновити сторінку');
+            // У випадку помилки використовуємо дані з localStorage
+            const storedUserData = getFromStorage('userData', null, true);
+            if (storedUserData) {
+                _userData = storedUserData;
+                return _userData;
+            }
 
-            return {
-                success: false,
-                message: error.message || 'Помилка завантаження розіграшів'
+            // Створюємо мінімальні дані користувача
+            const userId = getUserId();
+            _userData = {
+                telegram_id: userId || 'unknown',
+                balance: parseFloat(getFromStorage('userTokens', '0')),
+                coins: parseInt(getFromStorage('userCoins', '0')),
+                source: 'localStorage_after_error'
             };
-        } finally {
-            // Завершуємо процес завантаження
-            state.isLoading = false;
 
-            // Приховуємо індикатор завантаження
-            try {
-                if (!this.skipLoader && typeof window.hideLoading === 'function') {
-                    window.hideLoading();
-                }
-            } catch (e) {
-                console.warn("⚠️ Помилка приховування індикатора завантаження:", e);
-            }
-
-            // Скидаємо флаг пропуску індикатора
-            this.skipLoader = false;
+            return _userData;
         }
-    };
-
-    /**
-     * Обробка даних розіграшів
-     * @private
-     */
-    window.WinixRaffles._processRafflesData = function() {
-        try {
-            // Пропускаємо, якщо обробка вже виконується
-            if (state.rafflesProcessed) {
-                return;
-            }
-
-            const now = Date.now();
-
-            // Перевіряємо розіграші на завершення
-            this.state.activeRaffles.forEach(raffle => {
-                const endTime = new Date(raffle.end_time).getTime();
-
-                // Якщо розіграш завершився, додаємо в невалідні
-                if (endTime <= now) {
-                    state.invalidRaffleIds.add(raffle.id);
-
-                    if (this.participation && this.participation.invalidRaffleIds) {
-                        this.participation.invalidRaffleIds.add(raffle.id);
-                    }
-                }
-            });
-
-            state.rafflesProcessed = true;
-        } catch (e) {
-            console.warn("⚠️ Помилка обробки даних розіграшів:", e);
-        }
-    };
-
-    /**
-     * Планування перевірки участі
-     * @private
-     */
-    window.WinixRaffles._scheduleParticipationCheck = function() {
-        // Відкладена перевірка участі користувача
-        setTimeout(() => {
-            this.loadUserParticipation().catch(err => {
-                console.warn("⚠️ Не вдалося завантажити дані участі:", err);
-            });
-        }, 1000);
-    };
-
-    /**
-     * Завантаження даних про участь користувача
-     * @returns {Promise<Object>} Результат завантаження
-     */
-    window.WinixRaffles.loadUserParticipation = async function() {
-        try {
-            // Отримання ID користувача
-            if (!this.state.telegramId) {
-                this.state.telegramId = this._getUserId();
-
-                if (!this.state.telegramId) {
-                    console.warn("⚠️ ID користувача відсутній, не можемо завантажити участь");
-                    return { success: false, message: "ID користувача відсутній" };
-                }
-            }
-
-            console.log("🔄 Розпочато завантаження участі користувача");
-
-            // Формуємо URL запиту
-            const apiEndpoint = this.config.userRafflesEndpoint.replace('{userId}', this.state.telegramId);
-
-            // Додаємо параметр запобігання кешування
-            const nocache = Date.now();
-            const url = `${apiEndpoint}?nocache=${nocache}`;
-
-            // Відправляємо запит
-            let response;
-            if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.apiRequest === 'function') {
-                response = await window.WinixAPI.apiRequest(url, 'GET', null, {
-                    timeout: 10000,
-                    suppressErrors: true,
-                    bypassThrottle: true,
-                    hideLoader: true,
-                    allowParallel: true
-                });
-            } else {
-                const fetchResponse = await fetch(url);
-                response = await fetchResponse.json();
-            }
-
-            // Обробка відповіді
-            if (response && response.status === 'success' && Array.isArray(response.data)) {
-                // Ініціалізація модуля участі, якщо потрібно
-                this._initParticipationModule();
-
-                // Очищаємо попередні дані участі
-                this.participation.participatingRaffles.clear();
-                this.participation.userRaffleTickets = {};
-
-                // Заповнюємо дані участі
-                response.data.forEach(raffle => {
-                    const raffleId = raffle.raffle_id || raffle.id;
-
-                    if (raffleId && typeof raffleId === 'string' && raffleId.length > 10) {
-                        this.participation.participatingRaffles.add(raffleId);
-                        this.participation.userRaffleTickets[raffleId] = raffle.entry_count || 1;
-                    }
-                });
-
-                console.log(`✅ Завантажено участь у ${response.data.length} розіграшах`);
-
-                // Оновлюємо кнопки участі
-                this.updateParticipationButtons();
-
-                return {
-                    success: true,
-                    data: response.data
-                };
-            } else {
-                console.warn("⚠️ Не вдалося завантажити дані участі:", response?.message);
-                return {
-                    success: false,
-                    message: response?.message || "Помилка завантаження даних участі"
-                };
-            }
-        } catch (error) {
-            console.error('❌ Помилка завантаження участі користувача:', error);
-            return {
-                success: false,
-                message: error.message || 'Помилка завантаження участі користувача'
-            };
-        }
-    };
-
-    /**
-     * Ініціалізація модуля участі
-     * @private
-     */
-    window.WinixRaffles._initParticipationModule = function() {
-        if (!this.participation) {
-            this.participation = {
-                participatingRaffles: new Set(),
-                userRaffleTickets: {},
-                invalidRaffleIds: new Set(),
-                lastParticipationTime: 0,
-                requestInProgress: false
-            };
-        } else if (!this.participation.participatingRaffles) {
-            this.participation.participatingRaffles = new Set();
-            this.participation.userRaffleTickets = {};
-            this.participation.lastParticipationTime = 0;
-            this.participation.requestInProgress = false;
-        }
-    };
+    }
 
     /**
      * Отримання ID користувача
-     * @returns {string|null} ID користувача
-     * @private
+     * @returns {string|null} ID користувача або null
      */
-    window.WinixRaffles._getUserId = function() {
-        // З WinixCore
-        if (window.WinixCore && typeof window.WinixCore.getUserId === 'function') {
-            const coreId = window.WinixCore.getUserId();
-            if (coreId) return coreId;
-        }
+    function getUserId() {
+        // Перевіряємо різні джерела ID користувача в порядку пріоритету
 
-        // З WinixAPI
-        if (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function') {
-            const apiId = window.WinixAPI.getUserId();
-            if (apiId) return apiId;
-        }
-
-        // З localStorage
-        const storedId = localStorage.getItem('telegram_user_id');
-        if (storedId && storedId !== 'undefined' && storedId !== 'null') {
-            return storedId;
-        }
-
-        // З DOM
-        const userIdElement = document.getElementById('user-id');
-        if (userIdElement && userIdElement.textContent) {
-            const id = userIdElement.textContent.trim();
-            if (id && id !== 'undefined' && id !== 'null') {
-                return id;
+        // 1. З API модуля
+        if (hasApiModule()) {
+            try {
+                const apiId = window.WinixAPI.getUserId();
+                if (apiId && apiId !== 'undefined' && apiId !== 'null') {
+                    return apiId;
+                }
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка отримання ID через API:", e);
             }
+        }
+
+        // 2. З localStorage
+        try {
+            const storedId = getFromStorage('telegram_user_id');
+            if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                return storedId;
+            }
+        } catch (e) {
+            console.warn("⚠️ Core: Помилка отримання ID зі сховища:", e);
+        }
+
+        // 3. З DOM
+        try {
+            // Спочатку перевіряємо елемент в хедері
+            const headerUserIdElement = getElement('#header-user-id');
+            if (headerUserIdElement && headerUserIdElement.textContent) {
+                const id = headerUserIdElement.textContent.trim();
+                if (id && id !== 'undefined' && id !== 'null') {
+                    saveToStorage('telegram_user_id', id);
+                    return id;
+                }
+            }
+
+            // Потім перевіряємо прихований елемент
+            const userIdElement = getElement('#user-id');
+            if (userIdElement && userIdElement.textContent) {
+                const id = userIdElement.textContent.trim();
+                if (id && id !== 'undefined' && id !== 'null') {
+                    saveToStorage('telegram_user_id', id);
+                    return id;
+                }
+            }
+        } catch (e) {
+            console.warn("⚠️ Core: Помилка отримання ID з DOM:", e);
+        }
+
+        // 4. З URL
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            if (urlId && urlId !== 'undefined' && urlId !== 'null') {
+                saveToStorage('telegram_user_id', urlId);
+                return urlId;
+            }
+        } catch (e) {
+            console.warn("⚠️ Core: Помилка отримання ID з URL:", e);
+        }
+
+        // 5. З Telegram WebApp
+        try {
+            if (window.Telegram && window.Telegram.WebApp &&
+                window.Telegram.WebApp.initDataUnsafe &&
+                window.Telegram.WebApp.initDataUnsafe.user &&
+                window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                if (telegramId) {
+                    saveToStorage('telegram_user_id', telegramId);
+                    return telegramId;
+                }
+            }
+        } catch (e) {
+            console.warn("⚠️ Core: Помилка отримання ID з Telegram WebApp:", e);
         }
 
         return null;
-    };
+    }
 
     /**
-     * Оновлення статусу кнопок участі
+     * Оновлення відображення користувача
      */
-    window.WinixRaffles.updateParticipationButtons = function() {
-        // Делегуємо модулю participation, якщо він доступний
-        if (this.participation && typeof this.participation.updateParticipationButtons === 'function') {
-            this.participation.updateParticipationButtons();
-            return;
-        }
-
+    function updateUserDisplay() {
         try {
-            // Ініціалізація модуля участі, якщо потрібно
-            this._initParticipationModule();
+            // Отримуємо дані користувача
+            const userData = _userData || {};
+            const userId = userData.telegram_id || getUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
+            const username = userData.username || getFromStorage('username', 'User');
 
-            // Отримуємо всі кнопки участі
-            const buttons = document.querySelectorAll('.join-button, .mini-raffle-button');
-            if (!buttons.length) return;
-
-            // Створюємо кеш для оптимізації
-            const participatingCache = {};
-            const invalidCache = {};
-
-            // Заповнюємо кеш
-            this.participation.participatingRaffles.forEach(id => {
-                participatingCache[id] = true;
-            });
-
-            state.invalidRaffleIds.forEach(id => {
-                invalidCache[id] = true;
-            });
-
-            if (this.participation.invalidRaffleIds) {
-                this.participation.invalidRaffleIds.forEach(id => {
-                    invalidCache[id] = true;
-                });
+            // Оновлюємо ID користувача
+            const userIdElement = getElement('#header-user-id');
+            if (userIdElement && userIdElement.textContent !== userId) {
+                userIdElement.textContent = userId;
             }
 
-            // Оновлюємо кнопки
-            buttons.forEach(button => {
-                const raffleId = button.getAttribute('data-raffle-id');
-                if (!raffleId) return;
+            // Оновлюємо ім'я користувача
+            const usernameElement = getElement('#username');
+            if (usernameElement && usernameElement.textContent !== username) {
+                usernameElement.textContent = username;
+            }
 
-                // Для розіграшів, у яких користувач бере участь
-                if (participatingCache[raffleId]) {
-                    const ticketCount = this.participation.userRaffleTickets[raffleId] || 1;
+            // Оновлюємо аватар
+            updateUserAvatar(username);
+        } catch (e) {
+            console.warn('⚠️ Помилка оновлення відображення користувача:', e);
+        }
+    }
 
-                    // Оновлюємо текст кнопки
-                    if (!button.classList.contains('participating')) {
-                        const isMini = button.classList.contains('mini-raffle-button');
-                        button.textContent = isMini ?
-                            `Додати ще білет (${ticketCount})` :
-                            `Додати ще білет (у вас: ${ticketCount})`;
+    /**
+     * Оновлення аватара користувача
+     * @param {string} username - Ім'я користувача
+     */
+    function updateUserAvatar(username) {
+        try {
+            const avatarElement = getElement('#profile-avatar');
+            if (!avatarElement) return;
 
-                        button.classList.add('participating');
-                        button.disabled = false;
+            // Очищаємо вміст аватара тільки якщо потрібні зміни
+            username = username || _userData?.username || getFromStorage('username', 'User');
+            const avatarSrc = getFromStorage('userAvatarSrc') || getFromStorage('avatarSrc');
 
-                        // Видаляємо статус обробки
-                        button.removeAttribute('data-processing');
-                        button.classList.remove('processing');
-                    }
+            // Перевіряємо, чи потрібно оновлювати аватар
+            if (avatarSrc) {
+                // Якщо є зображення
+                if (!avatarElement.querySelector('img')) {
+                    avatarElement.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = avatarSrc;
+                    img.alt = username;
+                    img.onerror = () => {
+                        avatarElement.textContent = username[0].toUpperCase();
+                    };
+                    avatarElement.appendChild(img);
                 }
-
-                // Для невалідних розіграшів
-                if (invalidCache[raffleId] && !button.classList.contains('disabled')) {
-                    button.textContent = 'Розіграш завершено';
-                    button.classList.add('disabled');
-                    button.disabled = true;
-                }
-            });
-        } catch (error) {
-            console.error("❌ Помилка при оновленні кнопок участі:", error);
-        }
-    };
-
-    /**
-     * Відмалювання активних розіграшів
-     */
-    window.WinixRaffles.renderActiveRaffles = function() {
-        try {
-            // Отримуємо контейнер для активних розіграшів
-            const container = document.getElementById('active-raffles');
-            if (!container) {
-                console.warn("⚠️ Контейнер активних розіграшів не знайдено");
-                return false;
-            }
-
-            // Перевіряємо наявність даних
-            if (!this.state.activeRaffles || this.state.activeRaffles.length === 0) {
-                container.innerHTML = `
-                    <div class="no-raffles">
-                        <p>На даний момент активних розіграшів немає.</p>
-                        <p>Спробуйте пізніше або перевірте вкладку "Історія".</p>
-                    </div>
-                `;
-                return false;
-            }
-
-            // Структуруємо дані для відображення
-            let mainRaffle = null;
-            const dailyRaffles = [];
-
-            // Розділяємо на основний та щоденні розіграші
-            this.state.activeRaffles.forEach(raffle => {
-                if (raffle.is_daily) {
-                    dailyRaffles.push(raffle);
-                } else if (!mainRaffle) {
-                    mainRaffle = raffle;
-                }
-            });
-
-            // Формуємо HTML для основного розіграшу
-            let mainRaffleHtml = '';
-            if (mainRaffle) {
-                mainRaffleHtml = this._renderMainRaffle(mainRaffle);
-            }
-
-            // Формуємо HTML для щоденних розіграшів
-            let dailyRafflesHtml = '';
-            if (dailyRaffles.length > 0) {
-                dailyRafflesHtml = this._renderDailyRaffles(dailyRaffles);
-            }
-
-            // Оновлюємо контейнер
-            container.innerHTML = `
-                <div class="main-raffle-container">
-                    ${mainRaffleHtml}
-                </div>
-                
-                <h2 class="mini-raffles-title">Щоденні розіграші</h2>
-                
-                <div class="mini-raffles-container">
-                    ${dailyRafflesHtml}
-                </div>
-            `;
-
-            // Ініціалізуємо таймери
-            this.initializeCountdownTimers();
-
-            // Оновлюємо кнопки участі
-            setTimeout(() => {
-                this.updateParticipationButtons();
-            }, 100);
-
-            return true;
-        } catch (error) {
-            console.error("❌ Помилка відмалювання активних розіграшів:", error);
-
-            // Виводимо повідомлення про помилку
-            this.renderError('Помилка відображення розіграшів', 'Будь ласка, оновіть сторінку');
-
-            return false;
-        }
-    };
-
-    /**
-     * Відмалювання основного розіграшу
-     * @param {Object} raffle - Дані розіграшу
-     * @returns {string} HTML-код
-     * @private
-     */
-    window.WinixRaffles._renderMainRaffle = function(raffle) {
-        if (!raffle) return '';
-
-        // Форматування дати і часу
-        const endTime = new Date(raffle.end_time);
-        const dateFormatted = endTime.toLocaleDateString('uk-UA', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
-
-        // Форматування назви та опису
-        const title = raffle.title || 'Розіграш';
-        const description = raffle.description || 'Опис відсутній';
-
-        // Вартість участі та призи
-        const entryFee = raffle.entry_fee || 1;
-        const prizeAmount = raffle.prize_amount || 0;
-        const prizeCurrency = raffle.prize_currency || 'WINIX';
-        const winnersCount = raffle.winners_count || 1;
-
-        // Формування зображення призу
-        const imageUrl = raffle.image_url || 'assets/prize-default.png';
-
-        // Формування ID елементів таймера
-        const timerPrefix = raffle.id;
-
-        return `
-        <div class="main-raffle" data-raffle-id="${raffle.id}" data-is-daily="false">
-            <div class="raffle-header">
-                <h3 class="raffle-title">${title}</h3>
-                <div class="raffle-badge main">Головний</div>
-            </div>
-            
-            <div class="raffle-content">
-                <div class="raffle-info">
-                    <div class="raffle-description">${description}</div>
-                    
-                    <div class="raffle-details">
-                        <div class="raffle-prize">
-                            <span class="label">Приз:</span>
-                            <span class="value">${prizeAmount} ${prizeCurrency}</span>
-                        </div>
-                        <div class="raffle-winners">
-                            <span class="label">Переможців:</span>
-                            <span class="value">${winnersCount}</span>
-                        </div>
-                        <div class="raffle-entry-fee">
-                            <span class="label">Вартість участі:</span>
-                            <span class="value">${entryFee} жетон${entryFee > 1 ? 'и' : ''}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="raffle-countdown">
-                        <div class="countdown-label">До завершення:</div>
-                        <div class="countdown-timer">
-                            <div class="countdown-block">
-                                <div class="countdown-value" id="days-${timerPrefix}">00</div>
-                                <div class="countdown-label">Дні</div>
-                            </div>
-                            <div class="countdown-block">
-                                <div class="countdown-value" id="hours-${timerPrefix}">00</div>
-                                <div class="countdown-label">Год</div>
-                            </div>
-                            <div class="countdown-block">
-                                <div class="countdown-value" id="minutes-${timerPrefix}">00</div>
-                                <div class="countdown-label">Хв</div>
-                            </div>
-                            <div class="countdown-block">
-                                <div class="countdown-value" id="seconds-${timerPrefix}">00</div>
-                                <div class="countdown-label">Сек</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="raffle-image">
-                    <img src="${imageUrl}" alt="${title}" onerror="this.src='assets/prize-default.png'">
-                </div>
-            </div>
-            
-            <div class="raffle-footer">
-                <button class="join-button" data-raffle-id="${raffle.id}" data-entry-fee="${entryFee}">
-                    Взяти участь за ${entryFee} жетон${entryFee > 1 ? 'и' : ''}
-                </button>
-                <div class="participants-count">
-                    <span class="icon">👥</span>
-                    <span class="count">${raffle.participants_count || 0}</span>
-                </div>
-            </div>
-        </div>`;
-    };
-
-    /**
-     * Відмалювання щоденних розіграшів
-     * @param {Array} raffles - Дані розіграшів
-     * @returns {string} HTML-код
-     * @private
-     */
-    window.WinixRaffles._renderDailyRaffles = function(raffles) {
-        if (!raffles || raffles.length === 0) {
-            return `<div class="no-mini-raffles">Наразі немає щоденних розіграшів</div>`;
-        }
-
-        let html = '';
-
-        // Формуємо HTML для кожного розіграшу
-        raffles.forEach(raffle => {
-            const title = raffle.title || 'Щоденний розіграш';
-            const prizeAmount = raffle.prize_amount || 0;
-            const prizeCurrency = raffle.prize_currency || 'WINIX';
-            const entryFee = raffle.entry_fee || 1;
-            const timerPrefix = raffle.id;
-
-            html += `
-            <div class="mini-raffle" data-raffle-id="${raffle.id}">
-                <div class="mini-raffle-header">
-                    <h3 class="mini-raffle-title">${title}</h3>
-                    <div class="mini-raffle-badge">Щоденний</div>
-                </div>
-                
-                <div class="mini-raffle-content">
-                    <div class="mini-raffle-prize">${prizeAmount} ${prizeCurrency}</div>
-                    
-                    <div class="mini-raffle-countdown">
-                        <div class="mini-countdown-timer">
-                            <div class="mini-countdown-block">
-                                <div class="mini-countdown-value" id="hours-${timerPrefix}">00</div>
-                                <div class="mini-countdown-label">год</div>
-                            </div>
-                            <div class="mini-countdown-block">
-                                <div class="mini-countdown-value" id="minutes-${timerPrefix}">00</div>
-                                <div class="mini-countdown-label">хв</div>
-                            </div>
-                            <div class="mini-countdown-block">
-                                <div class="mini-countdown-value" id="seconds-${timerPrefix}">00</div>
-                                <div class="mini-countdown-label">сек</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mini-raffle-footer">
-                    <button class="mini-raffle-button" data-raffle-id="${raffle.id}" data-entry-fee="${entryFee}">
-                        Взяти участь
-                    </button>
-                    <div class="mini-participants-count">
-                        <span class="mini-icon">👥</span>
-                        <span class="mini-count">${raffle.participants_count || 0}</span>
-                    </div>
-                </div>
-            </div>`;
-        });
-
-        return html;
-    };
-
-    /**
-     * Ініціалізація таймерів зворотного відліку
-     */
-    window.WinixRaffles.initializeCountdownTimers = function() {
-        try {
-            // Запобігаємо одночасному оновленню таймерів
-            if (state.updatingTimers) {
-                return;
-            }
-
-            state.updatingTimers = true;
-
-            // Зупиняємо існуючі таймери
-            this._clearCountdownTimers();
-
-            // Обробляємо кожен розіграш
-            this.state.activeRaffles.forEach(raffle => {
-                if (!raffle.end_time) return;
-
-                const raffleId = raffle.id;
-                const endTime = new Date(raffle.end_time).getTime();
-
-                // Початкове встановлення значень
-                this._updateCountdownValues(raffleId, endTime);
-
-                // Створюємо таймер для розіграшу
-                state.countdownTimers[raffleId] = setInterval(() => {
-                    this._updateCountdownValues(raffleId, endTime);
-                }, config.timerUpdateInterval);
-            });
-
-            state.updatingTimers = false;
-        } catch (error) {
-            console.error("❌ Помилка ініціалізації таймерів:", error);
-            state.updatingTimers = false;
-        }
-    };
-
-    /**
-     * Очищення таймерів зворотного відліку
-     * @private
-     */
-    window.WinixRaffles._clearCountdownTimers = function() {
-        for (const timerId in state.countdownTimers) {
-            if (state.countdownTimers.hasOwnProperty(timerId)) {
-                clearInterval(state.countdownTimers[timerId]);
-            }
-        }
-        state.countdownTimers = {};
-    };
-
-    /**
-     * Оновлення значень таймера
-     * @param {string} raffleId - ID розіграшу
-     * @param {number} endTime - Час завершення в мілісекундах
-     * @private
-     */
-    window.WinixRaffles._updateCountdownValues = function(raffleId, endTime) {
-        const now = Date.now();
-        const timeLeft = endTime - now;
-
-        // Перевіряємо, чи розіграш закінчився
-        if (timeLeft <= 0) {
-            // Зупиняємо таймер
-            if (state.countdownTimers[raffleId]) {
-                clearInterval(state.countdownTimers[raffleId]);
-                delete state.countdownTimers[raffleId];
-            }
-
-            // Додаємо до невалідних
-            state.invalidRaffleIds.add(raffleId);
-
-            if (this.participation && this.participation.invalidRaffleIds) {
-                this.participation.invalidRaffleIds.add(raffleId);
-            }
-
-            // Встановлюємо нулі
-            this._safeUpdateCountdownElement(`days-${raffleId}`, '00');
-            this._safeUpdateCountdownElement(`hours-${raffleId}`, '00');
-            this._safeUpdateCountdownElement(`minutes-${raffleId}`, '00');
-            this._safeUpdateCountdownElement(`seconds-${raffleId}`, '00');
-
-            // Оновлюємо кнопки участі
-            this.updateParticipationButtons();
-            return;
-        }
-
-        // Обчислюємо значення
-        const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-
-        // Оновлюємо елементи
-        this._safeUpdateCountdownElement(`days-${raffleId}`, days.toString().padStart(2, '0'));
-        this._safeUpdateCountdownElement(`hours-${raffleId}`, hours.toString().padStart(2, '0'));
-        this._safeUpdateCountdownElement(`minutes-${raffleId}`, minutes.toString().padStart(2, '0'));
-        this._safeUpdateCountdownElement(`seconds-${raffleId}`, seconds.toString().padStart(2, '0'));
-    };
-
-    /**
-     * Безпечне оновлення елементу таймера
-     * @param {string} elementId - ID елемента
-     * @param {string} value - Нове значення
-     * @private
-     */
-    window.WinixRaffles._safeUpdateCountdownElement = function(elementId, value) {
-        try {
-            const element = document.getElementById(elementId);
-            if (element && element.textContent !== value) {
-                element.textContent = value;
+            } else if (avatarElement.textContent !== username[0].toUpperCase()) {
+                // Якщо немає зображення, показуємо першу літеру
+                avatarElement.innerHTML = '';
+                avatarElement.textContent = username[0].toUpperCase();
             }
         } catch (e) {
-            // Ігноруємо помилки для стабільності
+            console.warn('⚠️ Помилка оновлення аватара:', e);
         }
-    };
+    }
 
     /**
-     * Відображення повідомлення про помилку
-     * @param {string} title - Заголовок помилки
-     * @param {string} message - Текст повідомлення
+     * Отримання балансу користувача
+     * @returns {number} Баланс користувача
      */
-    window.WinixRaffles.renderError = function(title, message) {
+    function getBalance() {
         try {
-            // Отримуємо контейнер
-            const container = document.getElementById('active-raffles');
-            if (!container) return;
-
-            // Додаємо HTML для помилки
-            container.innerHTML = `
-                <div class="error-container">
-                    <div class="error-icon">❌</div>
-                    <h3 class="error-title">${title}</h3>
-                    <p class="error-message">${message}</p>
-                    <button class="retry-button" onclick="WinixRaffles.loadActiveRaffles(true)">
-                        Спробувати знову
-                    </button>
-                </div>
-            `;
-        } catch (error) {
-            console.error("❌ Помилка відображення повідомлення про помилку:", error);
+            return _userData?.balance ||
+                  parseFloat(getFromStorage('userTokens', '0')) ||
+                  parseFloat(getFromStorage('winix_balance', '0')) || 0;
+        } catch (e) {
+            return 0;
         }
-    };
+    }
 
     /**
-     * Оновлення балансу користувача
+     * Отримання кількості жетонів
+     * @returns {number} Кількість жетонів
+     */
+    function getCoins() {
+        try {
+            // 1. Перевіряємо глобальний контролер синхронізації (найвищий пріоритет)
+            if (window.__winixSyncControl && window.__winixSyncControl.lastValidBalance !== null) {
+                return window.__winixSyncControl.lastValidBalance;
+            }
+
+            // 2. Перевіряємо дані користувача
+            if (_userData?.coins !== undefined) {
+                return _userData.coins;
+            }
+
+            // 3. Перевіряємо локальне сховище
+            const storedCoins = parseInt(getFromStorage('userCoins', '0')) || parseInt(getFromStorage('winix_coins', '0'));
+            if (storedCoins) {
+                return storedCoins;
+            }
+
+            return 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Оновлення відображення балансу
+     * @param {boolean} animate - Використовувати анімацію
+     */
+    function updateBalanceDisplay(animate = false) {
+        try {
+            // Оновлюємо відображення токенів
+            const tokensElement = getElement('#user-tokens');
+            if (tokensElement) {
+                const balance = getBalance();
+                const formattedBalance = formatCurrency(balance);
+
+                // Оновлюємо тільки якщо змінилося
+                if (tokensElement.textContent !== formattedBalance) {
+                    tokensElement.textContent = formattedBalance;
+                }
+            }
+
+            // Оновлюємо відображення жетонів
+            const coinsElement = getElement('#user-coins');
+            if (coinsElement) {
+                const coins = getCoins();
+                const currentCoins = parseInt(coinsElement.textContent) || 0;
+
+                // Оновлюємо тільки якщо змінилося
+                if (currentCoins !== coins) {
+                    // Додаємо анімацію, якщо потрібно
+                    if (animate) {
+                        coinsElement.classList.remove('decreasing', 'increasing');
+
+                        if (coins < currentCoins) {
+                            coinsElement.classList.add('decreasing');
+                        } else if (coins > currentCoins) {
+                            coinsElement.classList.add('increasing');
+                        }
+
+                        // Видаляємо класи анімації через 1 секунду
+                        setTimeout(() => {
+                            coinsElement.classList.remove('decreasing', 'increasing');
+                        }, 1000);
+                    }
+
+                    coinsElement.textContent = coins;
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ Помилка оновлення відображення балансу:', e);
+        }
+    }
+
+    /**
+     * Оновлення локального балансу з налаштуваннями анімації
+     * @param {number} newBalance - Нове значення балансу
+     * @param {string} source - Джерело зміни
+     * @param {boolean} animate - Чи використовувати анімацію
+     * @returns {boolean} Успішність оновлення
+     */
+    function updateLocalBalance(newBalance, source = 'unknown', animate = true) {
+        if (typeof newBalance !== 'number' || isNaN(newBalance) || newBalance < 0) {
+            console.warn('⚠️ Спроба встановити некоректний баланс:', newBalance);
+            return false;
+        }
+
+        try {
+            // Отримуємо поточне значення для порівняння
+            const coinsElement = getElement('#user-coins');
+            if (!coinsElement) return false;
+
+            const oldBalance = parseInt(coinsElement.textContent) || 0;
+
+            // Уникаємо непотрібних оновлень DOM
+            if (oldBalance === newBalance) return true;
+
+            // Видаляємо попередні класи анімації
+            coinsElement.classList.remove('increasing', 'decreasing', 'updated');
+
+            // Додаємо клас анімації, якщо потрібно
+            if (animate) {
+                if (newBalance > oldBalance) {
+                    coinsElement.classList.add('increasing');
+                } else if (newBalance < oldBalance) {
+                    coinsElement.classList.add('decreasing');
+                }
+            }
+
+            // Встановлюємо нове значення
+            coinsElement.textContent = newBalance;
+
+            // Оновлюємо дані користувача
+            if (_userData) {
+                _userData.coins = newBalance;
+            }
+
+            // Оновлюємо локальне сховище
+            saveToStorage('userCoins', newBalance.toString());
+            saveToStorage('winix_coins', newBalance.toString());
+            saveToStorage('winix_balance_update_time', Date.now().toString());
+
+            // Генеруємо стандартну подію про оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    oldBalance: oldBalance,
+                    newBalance: newBalance,
+                    source: source || 'core.js',
+                    timestamp: Date.now()
+                }
+            }));
+
+            // Видаляємо класи анімації після 1 секунди
+            if (animate) {
+                setTimeout(() => {
+                    coinsElement.classList.remove('increasing', 'decreasing', 'updated');
+                }, 1000);
+            }
+
+            return true;
+        } catch (e) {
+            console.warn('⚠️ Помилка оновлення локального балансу:', e);
+            return false;
+        }
+    }
+
+    /**
+     * Оновлення балансу з сервера
      * @param {boolean} forceRefresh - Примусове оновлення
      * @returns {Promise<Object>} Результат оновлення
      */
-    window.WinixRaffles.refreshUserBalance = async function(forceRefresh = false) {
-        // Створюємо ідентифікатор транзакції
-        const transactionId = 'balance_' + Date.now();
+    async function refreshBalance(forceRefresh = false) {
+        // Створюємо інформацію про транзакцію для відстеження
+        const transactionInfo = {
+            id: Date.now().toString() + '_' + Math.random().toString(36).substring(2, 8),
+            timestamp: Date.now(),
+            source: 'core.js'
+        };
 
-        try {
-            // Перевіряємо контролер синхронізації
-            if (window.__winixSyncControl &&
-                window.__winixSyncControl.isBlocked &&
-                window.__winixSyncControl.isBlocked('raffles_balance') &&
-                !forceRefresh) {
+        console.log(`🔄 Core: Запит оновлення балансу (ID: ${transactionInfo.id})`);
 
-                console.log("🔒 Оновлення балансу заблоковано контролером синхронізації");
+        // Перевіряємо, чи пристрій онлайн
+        if (!isOnline() && !forceRefresh) {
+            console.warn("⚠️ Core: Пристрій офлайн, використовуємо локальні дані балансу");
 
-                if (window.__winixSyncControl.lastValidBalance !== null) {
-                    return {
-                        success: true,
-                        blocked: true,
-                        source: 'sync_control',
-                        data: {
-                            coins: window.__winixSyncControl.lastValidBalance
-                        }
-                    };
-                }
+            // Явно отримуємо та обчислюємо всі дані для офлайн-режиму
+            const lastKnownBalance = getCoins();
+            const lastUpdateTime = parseInt(getFromStorage('winix_balance_update_time') || '0');
+            const now = Date.now();
+            const dataAge = now - lastUpdateTime;
+
+            // Визначаємо статус даних для інформування
+            let dataStatus = 'fresh';
+            if (lastUpdateTime === 0) {
+                dataStatus = 'unknown';
+            } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
+                dataStatus = 'stale';
             }
 
-            // Перевіряємо частоту запитів
-            const now = Date.now();
-            if (!forceRefresh && (now - state.lastBalanceUpdate < 5000)) {
-                console.log("⏳ Занадто частий запит балансу");
+            // Оновлюємо відображення з локальних даних без анімації
+            updateBalanceDisplay(false);
+
+            return {
+                success: true,
+                offline: true,
+                dataStatus: dataStatus,
+                dataAge: dataAge,
+                transactionId: transactionInfo.id,
+                data: {
+                    coins: lastKnownBalance,
+                    lastUpdate: lastUpdateTime
+                }
+            };
+        }
+
+        // Перевіряємо блокування через глобальний контролер
+        if (window.__winixSyncControl &&
+            window.__winixSyncControl.isBlocked &&
+            window.__winixSyncControl.isBlocked('core_balance') &&
+            !forceRefresh) {
+
+            console.log("🔒 Core: Оновлення балансу заблоковано контролером синхронізації");
+
+            // Використовуємо останній валідний баланс з контролера
+            if (window.__winixSyncControl.lastValidBalance !== null) {
+                // Оновлюємо відображення без анімації
+                updateLocalBalance(window.__winixSyncControl.lastValidBalance, 'sync_control', false);
+
                 return {
                     success: true,
-                    throttled: true,
-                    message: "Занадто частий запит балансу"
+                    blocked: true,
+                    source: 'sync_control',
+                    data: {
+                        coins: window.__winixSyncControl.lastValidBalance
+                    }
                 };
             }
+        }
 
-            // Оновлюємо час останнього запиту
-            state.lastBalanceUpdate = now;
+        // Перевірка на частоту запитів
+        if (!forceRefresh && (Date.now() - _state.lastRequestTime < _config.minRequestInterval)) {
+            console.log("⏳ Core: Занадто частий запит балансу, використовуємо кеш");
+            return {
+                success: true,
+                cached: true,
+                data: {
+                    coins: getCoins(),
+                    cached: true
+                }
+            };
+        }
 
-            // Використовуємо WinixCore для оновлення балансу
-            if (window.WinixCore && typeof window.WinixCore.refreshBalance === 'function') {
-                console.log('🔄 Делегуємо оновлення балансу до WinixCore');
-                return await window.WinixCore.refreshBalance(forceRefresh);
-            }
+        // Блокуємо паралельні запити
+        if (_state.requestInProgress && !forceRefresh) {
+            console.log("⏳ Core: Запит балансу вже виконується");
+            return {
+                success: true,
+                inProgress: true,
+                data: {
+                    coins: getCoins(),
+                    inProgress: true
+                }
+            };
+        }
 
-            // Запасний варіант через API
-            if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-                console.log('🔄 Запит балансу через WinixAPI');
+        // Оновлюємо час останнього запиту і встановлюємо блокування
+        _state.lastRequestTime = Date.now();
+        _state.requestInProgress = true;
 
-                // Отримуємо поточний баланс для порівняння
-                const oldBalance = this._getCurrentCoins();
+        // Зберігаємо поточний баланс для порівняння
+        const oldBalance = getCoins();
+        transactionInfo.oldBalance = oldBalance;
 
-                // Запит через API
-                const response = await window.WinixAPI.getBalance();
+        try {
+            // Отримання балансу через API
+            if (hasApiModule()) {
+                // Отримуємо ID користувача
+                const userId = getUserId();
+                if (!userId) {
+                    throw new Error('ID користувача не знайдено');
+                }
+
+                // Додаємо параметр запобігання кешування
+                const endpoint = `user/${userId}/balance?t=${Date.now()}`;
+
+                // Відправляємо запит
+                const response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+                    suppressErrors: true,
+                    timeout: 10000
+                });
+
+                // Завершуємо запит
+                _state.requestInProgress = false;
 
                 if (response && response.status === 'success' && response.data) {
-                    const newBalance = response.data.coins;
+                    // Отримуємо новий баланс з відповіді
+                    const newBalance = response.data.coins !== undefined ? response.data.coins : oldBalance;
+                    transactionInfo.newBalance = newBalance;
+                    transactionInfo.serverResponse = true;
 
+                    // Перевіряємо наявність глобального контролера синхронізації
                     if (window.__winixSyncControl) {
-                        window.__winixSyncControl.setServerBalance(newBalance, 'core_refresh');
+                        // Зберігаємо останній валідний баланс
+                        window.__winixSyncControl.lastValidBalance = newBalance;
                     }
 
-                    // Оновлюємо DOM
-                    this._updateBalanceDisplay(newBalance, oldBalance);
+                    // Оновлюємо відображення з анімацією
+                    updateLocalBalance(newBalance, 'core.js', true);
 
-                    // Оновлюємо локальне сховище
-                    localStorage.setItem('userCoins', newBalance.toString());
-                    localStorage.setItem('winix_coins', newBalance.toString());
-                    localStorage.setItem('winix_balance_update_time', now.toString());
+                    // Оновлюємо дані користувача
+                    if (_userData) {
+                        _userData.coins = newBalance;
+                    }
 
-                    // Генеруємо подію
-                    document.dispatchEvent(new CustomEvent('balance-updated', {
-                        detail: {
-                            oldBalance: oldBalance,
-                            newBalance: newBalance,
-                            source: 'raffles.core',
-                            transactionId: transactionId
-                        }
-                    }));
+                    // Оновлюємо кеш
+                    saveToStorage('userCoins', newBalance.toString());
+                    saveToStorage('winix_coins', newBalance.toString());
+                    saveToStorage('winix_balance_update_time', Date.now().toString());
+
+                    // Записуємо інформацію про транзакцію
+                    saveToStorage('winix_last_balance_transaction', JSON.stringify(transactionInfo));
+
+                    // Скидаємо лічильник помилок
+                    _state.errorCounter = 0;
 
                     return {
                         success: true,
+                        transactionId: transactionInfo.id,
                         data: {
-                            coins: newBalance
+                            coins: newBalance,
+                            oldCoins: oldBalance
                         }
                     };
                 } else {
                     throw new Error(response?.message || 'Не вдалося отримати баланс');
                 }
+            } else {
+                // Альтернативна логіка, якщо API недоступне
+                _state.requestInProgress = false;
+
+                // Отримуємо баланс з localStorage
+                const storedCoins = getCoins();
+
+                return {
+                    success: true,
+                    fallback: true,
+                    transactionId: transactionInfo.id,
+                    data: {
+                        coins: storedCoins,
+                        fallback: true
+                    }
+                };
+            }
+        } catch (error) {
+            console.error('❌ Core: Помилка оновлення балансу:', error);
+            _state.requestInProgress = false;
+
+            // Збільшуємо лічильник помилок
+            _state.errorCounter++;
+            _state.lastErrorTime = Date.now();
+
+            // Перевірка на критичну кількість помилок
+            if (_state.errorCounter >= _state.maxErrorsBeforeReset) {
+                console.warn(`⚠️ Core: Досягнуто критичної кількості помилок (${_state.errorCounter}), скидання стану...`);
+
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Виникли проблеми з`єднання. Спроба відновлення...', 'warning');
+                }
+
+                // Скидаємо лічильник помилок
+                _state.errorCounter = 0;
+
+                // Запускаємо скидання стану
+                setTimeout(resetAndReloadApplication, 1000);
             }
 
-            // Якщо жоден метод не доступний
+            // Повертаємо останній відомий баланс
             return {
                 success: false,
-                message: 'API для оновлення балансу недоступне'
+                message: error.message || 'Не вдалося оновити баланс',
+                transactionId: transactionInfo.id,
+                data: {
+                    coins: oldBalance,
+                    error: true
+                }
+            };
+        }
+    }
+
+    // ======== НАВІГАЦІЯ ========
+
+    /**
+     * Ініціалізація навігаційних елементів
+     */
+    function initNavigation() {
+        try {
+            const navItems = getElement('.nav-item', true);
+            if (!navItems || navItems.length === 0) return;
+
+            // Отримуємо поточний шлях
+            const currentPath = window.location.pathname;
+            const currentPage = currentPath.split('/').pop().split('.')[0];
+
+            navItems.forEach(item => {
+                // Отримуємо секцію з атрибуту
+                const section = item.getAttribute('data-section');
+
+                // Перевіряємо, чи поточна сторінка відповідає секції
+                if ((currentPage === section) ||
+                    (currentPage === '' && section === 'home') ||
+                    (currentPage === 'index' && section === 'home')) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+
+                // Додаємо обробник кліку, якщо його ще немає
+                if (!item.hasAttribute('data-initialized')) {
+                    item.setAttribute('data-initialized', 'true');
+
+                    item.addEventListener('click', () => {
+                        // Визначаємо URL для переходу
+                        let url;
+                        if (section === 'home') {
+                            url = 'index.html';
+                        } else {
+                            url = `${section}.html`;
+                        }
+
+                        // Переходимо на сторінку
+                        window.location.href = url;
+                    });
+                }
+            });
+        } catch (e) {
+            console.warn('⚠️ Помилка ініціалізації навігації:', e);
+        }
+    }
+
+    // ======== СИНХРОНІЗАЦІЯ ДАНИХ ========
+
+    /**
+     * Синхронізація даних користувача з сервером
+     * @param {boolean} forceRefresh - Примусова синхронізація
+     * @returns {Promise<Object>} Результат синхронізації
+     */
+    async function syncUserData(forceRefresh = false) {
+        try {
+            console.log('🔄 Core: Початок синхронізації даних користувача...');
+
+            // Перевіряємо, чи пристрій онлайн
+            if (!isOnline() && !forceRefresh) {
+                console.warn("⚠️ Core: Пристрій офлайн, використовуємо локальні дані");
+
+                // Отримуємо останні відомі дані
+                const lastKnownBalance = getCoins();
+                const lastUpdateTime = parseInt(getFromStorage('winix_balance_update_time') || '0');
+                const now = Date.now();
+
+                // Перевіряємо актуальність даних
+                const dataAge = now - lastUpdateTime;
+                let dataStatus = 'fresh';
+
+                if (lastUpdateTime === 0) {
+                    dataStatus = 'unknown';
+                } else if (dataAge > 30 * 60 * 1000) { // старше 30 хвилин
+                    dataStatus = 'stale';
+                }
+
+                // Оновлюємо відображення
+                updateUserDisplay();
+                updateBalanceDisplay();
+
+                // Показуємо статус, якщо дані застарілі
+                if (dataStatus === 'stale' && typeof window.showToast === 'function') {
+                    window.showToast('Використовуються локально збережені дані. Оновіть баланс при підключенні.', 'info');
+                }
+
+                return {
+                    success: true,
+                    offline: true,
+                    dataStatus: dataStatus,
+                    dataAge: dataAge,
+                    data: {
+                        balance: lastKnownBalance,
+                        lastUpdate: lastUpdateTime
+                    }
+                };
+            }
+
+            // Оновлюємо дані користувача
+            const userData = await getUserData(forceRefresh);
+
+            // Оновлюємо відображення
+            updateUserDisplay();
+            updateBalanceDisplay();
+
+            // Генеруємо подію оновлення даних користувача
+            document.dispatchEvent(new CustomEvent('user-data-updated', {
+                detail: { userData },
+                source: 'core.js'
+            }));
+
+            return {
+                success: true,
+                data: userData
             };
         } catch (error) {
-            console.error('❌ Помилка оновлення балансу:', error);
+            console.error('❌ Core: Помилка синхронізації даних користувача:', error);
+
+            // У випадку помилки використовуємо кешовані дані
+            updateUserDisplay();
+            updateBalanceDisplay();
 
             return {
                 success: false,
-                message: error.message || 'Не вдалося оновити баланс'
+                message: error.message || 'Не вдалося синхронізувати дані користувача',
+                data: _userData
             };
         }
-    };
+    }
 
     /**
-     * Отримання поточного балансу
-     * @returns {number} Поточний баланс
-     * @private
+     * Запуск періодичної синхронізації даних
+     * @param {number} interval - Інтервал у мілісекундах
      */
-    window.WinixRaffles._getCurrentCoins = function() {
-        // З DOM
-        const userCoinsElement = document.getElementById('user-coins');
-        if (userCoinsElement) {
-            return parseInt(userCoinsElement.textContent) || 0;
+    function startAutoSync(interval = 300000) { // 5 хвилин
+        // Зупиняємо попередній інтервал
+        if (_state.refreshInterval) {
+            clearInterval(_state.refreshInterval);
+            _state.refreshInterval = null;
         }
 
-        // З localStorage
-        return parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins')) || 0;
-    };
+        // Запускаємо періодичну синхронізацію
+        _state.refreshInterval = setInterval(async () => {
+            try {
+                // Перевіряємо, чи пристрій онлайн
+                if (!isOnline()) {
+                    console.warn("⚠️ Core: Пристрій офлайн, пропускаємо синхронізацію");
+                    return;
+                }
+
+                // Перевіряємо мінімальний інтервал і запит в прогресі
+                if (Date.now() - _state.lastRequestTime >= _config.minRequestInterval && !_state.requestInProgress) {
+                    await syncUserData();
+                }
+            } catch (e) {
+                console.warn('⚠️ Core: Помилка автоматичної синхронізації:', e);
+            }
+        }, interval);
+
+        console.log(`🔄 Core: Періодичне оновлення запущено (інтервал: ${interval}ms)`);
+    }
 
     /**
-     * Оновлення відображення балансу
-     * @param {number} newBalance - Новий баланс
-     * @param {number} oldBalance - Старий баланс
-     * @private
+     * Зупинка періодичної синхронізації
      */
-    window.WinixRaffles._updateBalanceDisplay = function(newBalance, oldBalance) {
-        const userCoinsElement = document.getElementById('user-coins');
-        if (!userCoinsElement) return;
+    function stopAutoSync() {
+        if (_state.refreshInterval) {
+            clearInterval(_state.refreshInterval);
+            _state.refreshInterval = null;
+            console.log("⏹️ Core: Періодичне оновлення зупинено");
+        }
+    }
 
-        // Додаємо анімацію
-        userCoinsElement.classList.remove('decreasing', 'increasing');
+    // ======== БЛОКУВАННЯ ОНОВЛЕНЬ БАЛАНСУ ========
 
-        if (newBalance < oldBalance) {
-            userCoinsElement.classList.add('decreasing');
-        } else if (newBalance > oldBalance) {
-            userCoinsElement.classList.add('increasing');
+    /**
+     * Блокування оновлень балансу на вказаний час
+     * @param {number} duration - Тривалість блокування в мс
+     * @param {Object} options - Опції блокування
+     * @returns {boolean} Результат блокування
+     */
+    function lockBalanceUpdates(duration, options = {}) {
+        // Якщо є контролер синхронізації, використовуємо його
+        if (window.__winixSyncControl && typeof window.__winixSyncControl.block === 'function') {
+            return window.__winixSyncControl.block(duration / 1000, {
+                type: options.type || 'core_balance',
+                reason: options.reason || 'manual_lock',
+                source: 'core.js'
+            });
         }
 
-        // Оновлюємо значення
-        userCoinsElement.textContent = newBalance;
+        return false;
+    }
 
-        // Видаляємо класи анімації через 1 секунду
-        setTimeout(() => {
-            userCoinsElement.classList.remove('decreasing', 'increasing');
-        }, 1000);
-    };
+    /**
+     * Перевірка, чи заблоковані оновлення балансу
+     * @param {string} source - Джерело запиту
+     * @param {string} type - Тип запиту
+     * @returns {boolean} Стан блокування
+     */
+    function isBalanceUpdateLocked(source, type = 'general') {
+        // Якщо є контролер синхронізації, використовуємо його
+        if (window.__winixSyncControl && typeof window.__winixSyncControl.isBlocked === 'function') {
+            return window.__winixSyncControl.isBlocked(source, type);
+        }
 
-    // Додавання методу getUserBalanceSource для діагностики
-    window.WinixRaffles.getUserBalanceSource = function() {
-        // Створюємо діагностичний об'єкт
-        const diagnostic = {
-            domValue: null,
-            localStorage: null,
-            serverStored: null,
-            serverTimestamp: null,
-            syncControl: null,
-            winixCore: null,
-            participation: null,
-            participationTime: null,
-            conflicts: [],
-            selectedSource: 'unknown',
-            selectedValue: 0
-        };
+        return false;
+    }
 
+    // ======== УТИЛІТИ ДЛЯ ІНШИХ МОДУЛІВ ========
+
+    /**
+     * Перевірка частоти запитів до API
+     * @param {string} key - Ключ для ідентифікації типу запиту
+     * @param {number} interval - Мінімальний інтервал між запитами (мс)
+     * @returns {boolean} true, якщо запит можна виконати, false - якщо потрібно почекати
+     */
+    function checkRequestThrottle(key, interval = 5000) {
+        const now = Date.now();
+        const lastRequest = _state.requestCache[key] || 0;
+
+        if (now - lastRequest < interval) {
+            return false;
+        }
+
+        _state.requestCache[key] = now;
+        return true;
+    }
+
+    /**
+     * Очищення кешу запитів
+     * @param {string} key - Ключ для очищення (якщо не вказано, очищається весь кеш)
+     */
+    function clearRequestCache(key) {
+        if (key) {
+            delete _state.requestCache[key];
+        } else {
+            _state.requestCache = {};
+        }
+    }
+
+    // ======== ІНІЦІАЛІЗАЦІЯ ========
+
+    /**
+     * Ініціалізація ядра WINIX
+     * @returns {Promise<boolean>} Результат ініціалізації
+     */
+    async function init() {
         try {
-            // 1. Отримуємо дані з DOM
-            const userCoinsElement = document.getElementById('user-coins');
-            if (userCoinsElement) {
-                diagnostic.domValue = parseInt(userCoinsElement.textContent) || 0;
+            // Перевіряємо чи вже ініціалізовано ядро
+            if (_state.initialized) {
+                console.log("✅ Core: Ядро WINIX вже ініціалізоване");
+                return true;
             }
 
-            // 2. Отримуємо дані з localStorage
-            diagnostic.localStorage = parseInt(localStorage.getItem('userCoins') || localStorage.getItem('winix_coins') || '0');
+            console.log("🔄 Core: Початок ініціалізації ядра WINIX");
 
-            // 3. Отримуємо серверні дані
-            diagnostic.serverStored = parseInt(localStorage.getItem('winix_server_balance') || '0');
-            diagnostic.serverTimestamp = parseInt(localStorage.getItem('winix_server_balance_ts') || '0');
-
-            // 4. Отримуємо дані з контролера синхронізації
-            if (window.__winixSyncControl && window.__winixSyncControl.lastValidBalance !== null) {
-                diagnostic.syncControl = window.__winixSyncControl.lastValidBalance;
+            // Ініціалізуємо Telegram WebApp, якщо він доступний
+            if (window.Telegram && window.Telegram.WebApp) {
+                try {
+                    window.Telegram.WebApp.ready();
+                    window.Telegram.WebApp.expand();
+                    console.log("✅ Core: Telegram WebApp успішно ініціалізовано");
+                } catch (e) {
+                    console.warn("⚠️ Core: Помилка ініціалізації Telegram WebApp:", e);
+                }
             }
 
-            // 5. Отримуємо дані з WinixCore
-            if (window.WinixCore && typeof window.WinixCore.getCoins === 'function') {
-                diagnostic.winixCore = window.WinixCore.getCoins();
-            }
+            // Отримуємо дані користувача
+            await getUserData();
+            console.log("✅ Core: Дані користувача отримано");
 
-            // 6. Отримуємо дані з participation
-            if (window.WinixRaffles && window.WinixRaffles.participation) {
-                diagnostic.participation = window.WinixRaffles.participation.lastKnownBalance;
-                diagnostic.participationTime = window.WinixRaffles.participation.lastBalanceUpdateTime;
-            }
+            // Оновлюємо відображення
+            updateUserDisplay();
+            updateBalanceDisplay();
 
-            // Виявлення конфліктів
-            const values = [
-                diagnostic.domValue,
-                diagnostic.localStorage,
-                diagnostic.serverStored,
-                diagnostic.syncControl,
-                diagnostic.winixCore,
-                diagnostic.participation
-            ].filter(val => val !== null && val !== undefined);
+            // Ініціалізуємо навігацію
+            initNavigation();
 
-            // Перевіряємо наявність різних значень
-            const uniqueValues = [...new Set(values)];
-            if (uniqueValues.length > 1) {
-                diagnostic.conflicts = uniqueValues;
-            }
+            // Запускаємо автоматичну синхронізацію
+            startAutoSync();
 
-            // Визначаємо вибране джерело
-            // Пріоритет: serverStored (свіжий) -> syncControl -> winixCore -> localStorage
-            const now = Date.now();
+            // Позначаємо, що ядро ініціалізовано
+            _state.initialized = true;
 
-            if (diagnostic.serverStored && diagnostic.serverTimestamp &&
-                now - diagnostic.serverTimestamp < 120000) {
-                diagnostic.selectedSource = 'server';
-                diagnostic.selectedValue = diagnostic.serverStored;
-            } else if (diagnostic.syncControl !== null) {
-                diagnostic.selectedSource = 'syncControl';
-                diagnostic.selectedValue = diagnostic.syncControl;
-            } else if (diagnostic.winixCore !== null) {
-                diagnostic.selectedSource = 'winixCore';
-                diagnostic.selectedValue = diagnostic.winixCore;
-            } else if (diagnostic.localStorage !== null) {
-                diagnostic.selectedSource = 'localStorage';
-                diagnostic.selectedValue = diagnostic.localStorage;
-            } else if (diagnostic.domValue !== null) {
-                diagnostic.selectedSource = 'dom';
-                diagnostic.selectedValue = diagnostic.domValue;
-            }
+            console.log("✅ Core: Ядро WINIX успішно ініціалізовано");
 
-            return diagnostic;
-        } catch (e) {
-            console.error('❌ Помилка діагностики джерел балансу:', e);
-            return {
-                error: e.message,
-                domValue: document.getElementById('user-coins')?.textContent || 'N/A'
-            };
+            // Викликаємо подію ініціалізації
+            document.dispatchEvent(new CustomEvent('winix-initialized'));
+
+            return true;
+        } catch (error) {
+            console.error('❌ Core: Помилка ініціалізації ядра WINIX:', error);
+
+            // У випадку помилки використовуємо кешовані дані
+            updateUserDisplay();
+            updateBalanceDisplay();
+
+            document.dispatchEvent(new CustomEvent('winix-initialization-error', { detail: error }));
+
+            return false;
         }
+    }
+
+    /**
+     * Перевірка, чи ядро ініціалізовано
+     * @returns {boolean} Стан ініціалізації
+     */
+    function isInitialized() {
+        return _state.initialized;
+    }
+
+    // ======== ОБРОБНИКИ ПОДІЙ ========
+
+    // Обробник події оновлення даних користувача
+    document.addEventListener('user-data-updated', function(event) {
+        if (event.detail && event.detail.userData && event.source !== 'core.js') {
+            console.log("🔄 Core: Отримано подію оновлення даних користувача");
+            _userData = event.detail.userData;
+            updateUserDisplay();
+            updateBalanceDisplay();
+        }
+    });
+
+    // Обробник події оновлення балансу
+    document.addEventListener('balance-updated', function(event) {
+        if (event.detail && event.source !== 'core.js') {
+            console.log("🔄 Core: Отримано подію оновлення балансу");
+
+            // Оновлюємо дані користувача
+            if (!_userData) _userData = {};
+
+            if (event.detail.newBalance !== undefined) {
+                _userData.coins = event.detail.newBalance;
+            }
+
+            updateBalanceDisplay();
+        }
+    });
+
+    // Обробник події підключення до мережі
+    window.addEventListener('online', function() {
+        console.log("🔄 Core: З'єднання з мережею відновлено");
+
+        // Оновлюємо дані після відновлення з'єднання
+        setTimeout(() => {
+            syncUserData().then(() => {
+                console.log("✅ Core: Дані успішно синхронізовано після відновлення з'єднання");
+            }).catch(error => {
+                console.warn("⚠️ Core: Помилка синхронізації після відновлення з'єднання:", error);
+            });
+        }, 1000);
+    });
+
+    // Обробник події відключення від мережі
+    window.addEventListener('offline', function() {
+        console.warn("⚠️ Core: Втрачено з'єднання з мережею");
+    });
+
+    // Обробник події завантаження сторінки
+    window.addEventListener('load', function() {
+        // Запобігаємо частій ініціалізації
+        if (!_state.initialized) {
+            init().catch(e => {
+                console.error("❌ Core: Помилка ініціалізації:", e);
+            });
+        }
+    });
+
+    // Обробник події DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!_state.initialized) {
+            init().catch(e => {
+                console.error("❌ Core: Помилка ініціалізації:", e);
+            });
+        }
+    });
+
+    // ======== ПУБЛІЧНИЙ API ========
+
+    // Експортуємо публічний API
+    window.WinixCore = {
+        // Метадані
+        version: '2.0.0',
+        isInitialized: isInitialized,
+
+        // Утиліти
+        getElement,
+        saveToStorage,
+        getFromStorage,
+        formatCurrency,
+        isOnline,
+        resetAndReloadApplication,
+        checkRequestThrottle,
+        clearRequestCache,
+
+        // Функції користувача
+        getUserData,
+        getUserId,
+        updateUserDisplay,
+        getBalance,
+        getCoins,
+        updateBalanceDisplay,
+        updateLocalBalance,
+        refreshBalance,
+        lockBalanceUpdates,
+        isBalanceUpdateLocked,
+
+        // Функції для синхронізації даних
+        syncUserData,
+        startAutoSync,
+        stopAutoSync,
+
+        // Ініціалізація
+        init
     };
 
-    // Додаємо глобальні обробники подій
-    window.addEventListener('error', function(event) {
-        console.error('Глобальна помилка JavaScript:', event.error);
+    // Додаємо функцію resetAndReloadApplication в глобальний простір імен
+    window.resetAndReloadApplication = resetAndReloadApplication;
 
-        // Скидаємо стан при помилці
-        if (window.WinixRaffles) {
-            if (window.WinixRaffles.state && window.WinixRaffles.state.isLoading) {
-                window.WinixRaffles.state.isLoading = false;
-                state.isLoading = false;
-            }
-
-            // Скидаємо стан participation
-            if (window.WinixRaffles.participation) {
-                window.WinixRaffles.participation.requestInProgress = false;
-            }
-
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-        }
-    });
-
-    // Обробник необроблених Promise помилок
-    window.addEventListener('unhandledrejection', function(event) {
-        console.error('Необроблена Promise помилка:', event.reason);
-
-        // Скидаємо стан спінера
-        if (typeof window.resetLoadingState === 'function') {
-            window.resetLoadingState();
-        }
-
-        // Скидаємо стан participation
-        if (window.WinixRaffles && window.WinixRaffles.participation) {
-            window.WinixRaffles.participation.requestInProgress = false;
-        }
-
-        // Скидаємо стан оновлення таймерів
-        state.updatingTimers = false;
-    });
-
-    // Ініціалізуємо систему при завантаженні сторінки
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('✅ Модуль raffles/core.js успішно завантажено, версія 2.0.0');
-    });
+    console.log("✅ Core: Модуль успішно завантажено");
 })();
