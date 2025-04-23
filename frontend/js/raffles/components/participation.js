@@ -710,35 +710,19 @@
                         const oldBalance = this._getCurrentCoins();
                         const newBalance = response.data.new_coins_balance;
 
-                        // ЗМІНЕНО: Зберігаємо транзакцію з тимчасовим статусом
-                        // Тимчасовий статус дозволить серверним даним перезаписати її пізніше
+                        // Зберігаємо транзакцію
                         const transactionRecord = {
                             type: "participation",
                             raffleId: raffleId,
                             oldBalance: oldBalance,
                             newBalance: newBalance,
                             timestamp: Date.now(),
-                            confirmed: false,  // ЗМІНЕНО: Було true, зробили false
+                            confirmed: true,
                             transactionId: transactionId,
-                            ticketCount: newTicketCount,
-                            temporary: true    // ДОДАНО: Маркер тимчасових даних
+                            ticketCount: newTicketCount
                         };
 
                         localStorage.setItem('winix_last_transaction', JSON.stringify(transactionRecord));
-
-                        // Створюємо таймер, який скине confirmed через 10 секунд,
-                        // щоб дозволити серверним даним оновити баланс
-                        setTimeout(() => {
-                            try {
-                                const storedTx = JSON.parse(localStorage.getItem('winix_last_transaction'));
-                                if (storedTx && storedTx.transactionId === transactionId) {
-                                    storedTx.temporary = false;
-                                    localStorage.setItem('winix_last_transaction', JSON.stringify(storedTx));
-                                }
-                            } catch (e) {
-                                console.warn("⚠️ Помилка оновлення статусу транзакції:", e);
-                            }
-                        }, 10000);
 
                         // Оновлюємо DOM
                         const userCoinsElement = document.getElementById('user-coins');
@@ -760,31 +744,14 @@
                         this.lastKnownBalance = newBalance;
                         this.lastBalanceUpdateTime = Date.now();
 
-                        // ДОДАНО: Позначаємо в глобальному контролері, що скоро буде оновлення
-                        if (!window.__winixSyncControl) {
-                            window.__winixSyncControl = {};
-                        }
-                        window.__winixSyncControl.lastValidBalance = newBalance;
-                        window.__winixSyncControl.expectServerUpdate = true;
-
                         // Генеруємо подію для інших модулів
                         document.dispatchEvent(new CustomEvent('balance-updated', {
                             detail: {
                                 oldBalance: oldBalance,
                                 newBalance: newBalance,
-                                source: 'participation.js',
-                                temporary: true  // ДОДАНО: Маркер тимчасовості оновлення
+                                source: 'participation.js'
                             }
                         }));
-
-                        // ДОДАНО: Запланувати оновлення з сервера через 5 секунд
-                        setTimeout(() => {
-                            if (window.WinixAPI && typeof window.WinixAPI.getBalance === 'function') {
-                                console.log("🔄 Запланована перевірка балансу після транзакції");
-                                window.WinixAPI.getBalance()
-                                    .catch(e => console.warn("⚠️ Помилка запланованої перевірки балансу:", e));
-                            }
-                        }, 5000);
                     }
 
                     // Оновлюємо кнопки

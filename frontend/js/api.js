@@ -1120,11 +1120,7 @@
     /**
      * Отримання балансу користувача
      */
-    /**
- * Виправлена функція getBalance для api.js
- * Змінено логіку, щоб серверний баланс завжди мав пріоритет над локальним
- */
-async function getBalance() {
+    async function getBalance() {
     const userId = getUserId();
     if (!userId) {
         throw new Error("ID користувача не знайдено");
@@ -1178,49 +1174,40 @@ async function getBalance() {
         if (response.status === 'success' && response.data) {
             const serverBalance = response.data.coins;
 
-            // ЗМІНЕНО: Завжди використовуємо серверний баланс, але логуємо розбіжності
+            // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
             if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
                 const txAge = Date.now() - lastTx.timestamp;
 
-                // Якщо транзакція відбулась нещодавно і баланси не співпадають
+                // Якщо транзакція відбулась нещодавно (менше 1 хвилини) і баланси не співпадають
                 if (txAge < 60000 && serverBalance !== lastTx.newBalance) {
-                    console.warn(`🔌 API: Виявлено розбіжність балансів:
+                    console.warn(`🔌 API: Виявлено потенційний конфлікт балансів:
                         - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
                         - Сервер повернув: ${serverBalance}`);
 
-                    // ЗМІНЕНО: Зберігаємо обидва баланси для діагностики, але ВИКОРИСТОВУЄМО СЕРВЕРНИЙ
-                    localStorage.setItem('winix_server_balance', serverBalance.toString());
-                    localStorage.setItem('winix_server_balance_ts', Date.now().toString());
-                    localStorage.setItem('winix_balance_conflict', JSON.stringify({
-                        server: serverBalance,
-                        local: lastTx.newBalance,
-                        txAge: txAge
-                    }));
+                    // Для дуже нових транзакцій (менше 30 секунд) використовуємо локальний баланс
+                    if (txAge < 30000) {
+                        console.log("🔌 API: Використовуємо локальний баланс замість серверного");
+
+                        // Зберігаємо мітку часу останнього серверного балансу
+                        localStorage.setItem('winix_server_balance_ts', Date.now().toString());
+                        localStorage.setItem('winix_server_balance', serverBalance.toString());
+
+                        // Повертаємо локальний баланс
+                        return {
+                            status: 'success',
+                            data: {
+                                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                                coins: lastTx.newBalance
+                            },
+                            source: 'local_transaction_override',
+                            serverBalance: serverBalance // Додаємо реальний баланс з сервера для діагностики
+                        };
+                    }
                 }
             }
 
-            // Оновлюємо локальне сховище серверним балансом
-            localStorage.setItem('userCoins', serverBalance.toString());
-            localStorage.setItem('winix_coins', serverBalance.toString());
-            localStorage.setItem('winix_balance_update_time', Date.now().toString());
-
-            // Створюємо глобальний контролер синхронізації, якщо його немає
-            if (!window.__winixSyncControl) {
-                window.__winixSyncControl = { lastValidBalance: null };
-            }
-
-            // Оновлюємо останній відомий баланс
-            window.__winixSyncControl.lastValidBalance = serverBalance;
-
-            // ЗМІНЕНО: Завжди повертаємо серверний баланс
-            return {
-                status: 'success',
-                data: {
-                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                    coins: serverBalance
-                },
-                source: 'server'
-            };
+            // Якщо немає конфлікту, повертаємо серверний баланс
+            return response;
         }
 
         // Якщо відповідь з помилкою, повертаємо локальний баланс
