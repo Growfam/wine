@@ -1,9 +1,14 @@
 /**
- * TaskManager - модуль керування завданнями з покращеною інтеграцією компонентів
+ * TaskManager - оптимізований модуль керування завданнями
  * Відповідає за:
  * - Координацію між всіма модулями системи завдань
  * - Завантаження та відображення завдань
  * - Обробку взаємодії користувача з завданнями
+ *
+ * Виправлено:
+ * - Коректне делегування оновлення балансу до TaskRewards
+ * - Узгоджена обробка типів винагород
+ * - Безпечна асинхронна взаємодія між компонентами
  */
 
 window.TaskManager = (function() {
@@ -12,6 +17,12 @@ window.TaskManager = (function() {
     let limitedTasks = [];
     let partnerTasks = [];
     let userProgress = {};
+
+    // Типи винагород
+    const REWARD_TYPES = {
+        TOKENS: 'tokens',
+        COINS: 'coins'
+    };
 
     // Стан ініціалізації компонентів
     const componentsState = {
@@ -22,6 +33,14 @@ window.TaskManager = (function() {
         notifications: false,
         dailyBonus: false,
         leaderboard: false
+    };
+
+    // Контроль операцій
+    const operationStatus = {
+        tasksLoading: false,
+        verificationInProgress: {},
+        lastVerificationTime: {},
+        lastOperationId: null
     };
 
     // DOM-елементи
@@ -37,7 +56,7 @@ window.TaskManager = (function() {
      * Ініціалізація менеджера завдань
      */
     function init() {
-        console.log('Ініціалізація TaskManager...');
+        console.log('TaskManager: Ініціалізація оптимізованого модуля TaskManager...');
 
         // Знаходимо необхідні DOM-елементи
         findDomElements();
@@ -65,7 +84,7 @@ window.TaskManager = (function() {
                 }
             })
             .catch(error => {
-                console.error('Помилка завантаження даних:', error);
+                console.error('TaskManager: Помилка завантаження даних:', error);
                 showErrorMessage('Не вдалося завантажити завдання. Спробуйте пізніше.');
             });
 
@@ -185,10 +204,21 @@ window.TaskManager = (function() {
                 return userProgress;
             }
 
-            // Якщо API недоступне, повертаємо пустий об'єкт
+            // Якщо API недоступне, спробуємо завантажити з localStorage
+            try {
+                const savedProgress = localStorage.getItem('winix_task_progress');
+                if (savedProgress) {
+                    userProgress = JSON.parse(savedProgress);
+                    return userProgress;
+                }
+            } catch (e) {
+                console.warn('TaskManager: Помилка завантаження прогресу з localStorage:', e);
+            }
+
+            // Якщо нічого не вдалося, повертаємо пустий об'єкт
             return {};
         } catch (error) {
-            console.error('Помилка завантаження прогресу користувача:', error);
+            console.error('TaskManager: Помилка завантаження прогресу користувача:', error);
             userProgress = {};
             return {};
         }
@@ -199,8 +229,16 @@ window.TaskManager = (function() {
      */
     async function loadTasks() {
         try {
+            // Запобігаємо одночасним запитам
+            if (operationStatus.tasksLoading) {
+                console.log('TaskManager: Завантаження завдань вже виконується');
+                return;
+            }
+
+            operationStatus.tasksLoading = true;
+
             if (!window.API) {
-                console.error('API не доступний. Використання тестових даних.');
+                console.warn('TaskManager: API не доступний. Використання тестових даних.');
 
                 // Використовуємо тестові дані
                 socialTasks = getMockSocialTasks();
@@ -212,6 +250,7 @@ window.TaskManager = (function() {
                 renderLimitedTasks();
                 renderPartnerTasks();
 
+                operationStatus.tasksLoading = false;
                 return;
             }
 
@@ -224,21 +263,23 @@ window.TaskManager = (function() {
 
             // Зберігаємо дані та відображаємо завдання
             if (socialResponse.success) {
-                socialTasks = socialResponse.data || [];
+                socialTasks = normalizeTasksData(socialResponse.data || []);
                 renderSocialTasks();
             }
 
             if (limitedResponse.success) {
-                limitedTasks = limitedResponse.data || [];
+                limitedTasks = normalizeTasksData(limitedResponse.data || []);
                 renderLimitedTasks();
             }
 
             if (partnerResponse.success) {
-                partnerTasks = partnerResponse.data || [];
+                partnerTasks = normalizeTasksData(partnerResponse.data || []);
                 renderPartnerTasks();
             }
+
+            operationStatus.tasksLoading = false;
         } catch (error) {
-            console.error('Помилка завантаження завдань:', error);
+            console.error('TaskManager: Помилка завантаження завдань:', error);
 
             // Використовуємо тестові дані
             socialTasks = getMockSocialTasks();
@@ -252,7 +293,48 @@ window.TaskManager = (function() {
 
             // Показуємо повідомлення про помилку
             showErrorMessage('Не вдалося завантажити завдання. Використовуються демонстраційні дані.');
+
+            operationStatus.tasksLoading = false;
         }
+    }
+
+    /**
+     * Нормалізація даних завдань
+     * @param {Array} tasks - Масив завдань
+     * @returns {Array} Нормалізовані завдання
+     */
+    function normalizeTasksData(tasks) {
+        if (!Array.isArray(tasks)) return [];
+
+        return tasks.map(task => {
+            // Створюємо копію завдання
+            const normalizedTask = { ...task };
+
+            // Перевіряємо наявність обов'язкових полів
+            normalizedTask.id = normalizedTask.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            normalizedTask.title = normalizedTask.title || 'Завдання';
+            normalizedTask.description = normalizedTask.description || 'Опис завдання';
+
+            // Нормалізуємо тип винагороди
+            if (normalizedTask.reward_type) {
+                const lowerType = normalizedTask.reward_type.toLowerCase();
+                if (lowerType.includes('token') || lowerType.includes('winix')) {
+                    normalizedTask.reward_type = REWARD_TYPES.TOKENS;
+                } else if (lowerType.includes('coin') || lowerType.includes('жетон')) {
+                    normalizedTask.reward_type = REWARD_TYPES.COINS;
+                }
+            } else {
+                normalizedTask.reward_type = REWARD_TYPES.TOKENS;
+            }
+
+            // Нормалізуємо суму винагороди
+            normalizedTask.reward_amount = parseFloat(normalizedTask.reward_amount) || 10;
+
+            // Нормалізуємо цільове значення
+            normalizedTask.target_value = parseInt(normalizedTask.target_value) || 1;
+
+            return normalizedTask;
+        });
     }
 
     /**
@@ -265,7 +347,7 @@ window.TaskManager = (function() {
                 title: 'Підписатися на Telegram',
                 description: 'Підпишіться на наш офіційний Telegram канал для отримання останніх новин та оновлень',
                 type: 'social',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 10,
                 target_value: 1,
                 action_type: 'visit',
@@ -277,7 +359,7 @@ window.TaskManager = (function() {
                 title: 'Підписатися на Twitter',
                 description: 'Підпишіться на наш Twitter акаунт та будьте в курсі останніх новин',
                 type: 'social',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 15,
                 target_value: 1,
                 action_type: 'visit',
@@ -289,7 +371,7 @@ window.TaskManager = (function() {
                 title: 'Приєднатися до Discord',
                 description: 'Приєднайтеся до нашої спільноти в Discord, спілкуйтеся з іншими учасниками та отримуйте підтримку',
                 type: 'social',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 15,
                 target_value: 1,
                 action_type: 'visit',
@@ -301,7 +383,7 @@ window.TaskManager = (function() {
                 title: 'Поділитися з друзями',
                 description: 'Розкажіть друзям про WINIX у соціальних мережах',
                 type: 'social',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 20,
                 target_value: 1,
                 action_type: 'share',
@@ -328,7 +410,7 @@ window.TaskManager = (function() {
                 title: 'Проголосувати за проект',
                 description: 'Проголосуйте за WINIX на платформі CoinVote для підтримки проекту',
                 type: 'limited',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 30,
                 target_value: 1,
                 action_type: 'visit',
@@ -341,7 +423,7 @@ window.TaskManager = (function() {
                 title: 'Зіграти в мініГРУ',
                 description: 'Зіграйте в нашу мініГру та отримайте бонус за досягнення 1000 очок',
                 type: 'limited',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.COINS,
                 reward_amount: 50,
                 target_value: 1,
                 action_type: 'play',
@@ -361,7 +443,7 @@ window.TaskManager = (function() {
                 title: 'Зареєструватися на біржі',
                 description: 'Зареєструйтеся на нашій партнерській біржі та отримайте бонус',
                 type: 'partner',
-                reward_type: 'tokens',
+                reward_type: REWARD_TYPES.TOKENS,
                 reward_amount: 100,
                 target_value: 1,
                 action_type: 'register',
@@ -461,6 +543,9 @@ window.TaskManager = (function() {
         const progressValue = progress ? progress.progress_value : 0;
         const progressPercent = Math.min(100, Math.round((progressValue / task.target_value) * 100)) || 0;
 
+        // Форматуємо тип нагороди
+        const rewardType = task.reward_type === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів';
+
         let timerHtml = '';
         if (isLimited && task.end_date) {
             const endDate = new Date(task.end_date);
@@ -489,7 +574,7 @@ window.TaskManager = (function() {
                     <div class="task-title">${escapeHtml(task.title)}</div>
                     ${completed ? 
                       '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>' : 
-                      `<div class="task-reward">${task.reward_amount} <span class="token-symbol">${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</span></div>${timerHtml}`
+                      `<div class="task-reward">${task.reward_amount} <span class="token-symbol">${rewardType}</span></div>${timerHtml}`
                     }
                 </div>
                 <div class="task-description">${escapeHtml(task.description)}</div>
@@ -573,7 +658,7 @@ window.TaskManager = (function() {
                 throw new Error('Завдання не знайдено');
             }
 
-            // Якщо є модуль верифікації, використовуємо його
+            // Якщо є API, використовуємо його
             if (window.API) {
                 const response = await window.API.post(`/quests/tasks/${taskId}/start`);
 
@@ -582,7 +667,7 @@ window.TaskManager = (function() {
                 }
             }
 
-            // Якщо це соціальне завдання, відкриваємо відповідне посилання
+            // Якщо це завдання з URL, відкриваємо відповідне посилання
             if (task.action_url) {
                 window.open(task.action_url, '_blank');
             }
@@ -604,7 +689,7 @@ window.TaskManager = (function() {
                 }
             }
         } catch (error) {
-            console.error('Помилка при запуску завдання:', error);
+            console.error('TaskManager: Помилка при запуску завдання:', error);
             showErrorMessage('Сталася помилка при спробі розпочати завдання');
         }
     }
@@ -614,84 +699,160 @@ window.TaskManager = (function() {
      */
     async function verifyTask(taskId) {
         try {
-            // Показуємо індикатор завантаження
-            showLoadingIndicator(taskId);
-
-            // Знаходимо завдання
-            const task = findTaskById(taskId);
-            if (!task) {
-                throw new Error('Завдання не знайдено');
-            }
-
-            // Якщо є модуль верифікації, використовуємо його
-            if (window.TaskVerification) {
-                const result = await window.TaskVerification.verifyTask(taskId);
-
-                // Якщо верифікація успішна
-                if (result.success) {
-                    // Оновлюємо прогрес
-                    await loadUserProgress();
-
-                    // Оновлюємо відображення
-                    refreshTaskDisplay(taskId);
-
-                    // Показуємо повідомлення про успіх
-                    showSuccessMessage(result.message || 'Завдання успішно виконано!');
-                } else {
-                    // Оновлюємо відображення
-                    refreshTaskDisplay(taskId);
-
-                    // Показуємо повідомлення про помилку
-                    showErrorMessage(result.message || 'Не вдалося перевірити виконання завдання');
-                }
-
+            // Запобігаємо повторним перевіркам
+            if (operationStatus.verificationInProgress[taskId]) {
+                showErrorMessage('Перевірка вже виконується. Зачекайте.');
                 return;
             }
 
-            // Якщо немає модуля верифікації, використовуємо API
-            if (window.API) {
-                const response = await window.API.post(`/quests/tasks/${taskId}/verify`);
+            // Перевіряємо інтервал між перевірками
+            const now = Date.now();
+            const lastTime = operationStatus.lastVerificationTime[taskId] || 0;
+            if (now - lastTime < 3000) { // 3 секунди між перевірками
+                showErrorMessage('Зачекайте кілька секунд перед новою спробою');
+                return;
+            }
 
-                // Приховуємо індикатор завантаження
-                hideLoadingIndicator(taskId);
+            // Встановлюємо стан перевірки
+            operationStatus.verificationInProgress[taskId] = true;
+            operationStatus.lastVerificationTime[taskId] = now;
 
-                if (response.success) {
-                    // Оновлюємо прогрес
-                    await loadUserProgress();
+            // Показуємо індикатор завантаження
+            showLoadingIndicator(taskId);
 
-                    // Оновлюємо відображення
+            try {
+                // Якщо є модуль верифікації, використовуємо його
+                if (window.TaskVerification) {
+                    const result = await window.TaskVerification.verifyTask(taskId);
+
+                    // Оновлюємо стан відображення
                     refreshTaskDisplay(taskId);
 
-                    // Показуємо повідомлення про успіх
-                    showSuccessMessage(response.message || 'Завдання успішно виконано!');
-
-                    // Якщо є винагорода, показуємо анімацію
-                    if (response.reward) {
-                        showRewardAnimation(response.reward);
+                    // Відображаємо результат перевірки
+                    if (result.success) {
+                        showSuccessMessage(result.message || 'Завдання успішно виконано!');
+                    } else {
+                        showErrorMessage(result.message || 'Не вдалося перевірити виконання завдання');
                     }
                 } else {
-                    // Оновлюємо відображення
-                    refreshTaskDisplay(taskId);
+                    // Якщо немає модуля верифікації, використовуємо API
+                    if (window.API) {
+                        const response = await window.API.post(`/quests/tasks/${taskId}/verify`);
 
-                    // Показуємо повідомлення про помилку
-                    showErrorMessage(response.message || 'Не вдалося перевірити виконання завдання');
+                        // Оновлюємо стан відображення
+                        refreshTaskDisplay(taskId);
+
+                        if (response.success) {
+                            showSuccessMessage(response.message || 'Завдання успішно виконано!');
+
+                            // Якщо є винагорода, обробляємо її
+                            if (response.reward) {
+                                const task = findTaskById(taskId);
+                                processReward(taskId, normalizeReward(response.reward, task));
+                            }
+                        } else {
+                            showErrorMessage(response.message || 'Не вдалося перевірити виконання завдання');
+                        }
+                    } else {
+                        // Якщо немає ні модуля верифікації, ні API, імітуємо перевірку
+                        simulateVerification(taskId);
+                    }
                 }
-            } else {
-                // Якщо немає API, імітуємо перевірку
-                simulateVerification(taskId);
-
-                // Приховуємо індикатор завантаження
+            } finally {
+                // Приховуємо індикатор завантаження і очищаємо стан перевірки
                 hideLoadingIndicator(taskId);
+                delete operationStatus.verificationInProgress[taskId];
             }
         } catch (error) {
-            console.error('Помилка при перевірці завдання:', error);
+            console.error('TaskManager: Помилка при перевірці завдання:', error);
 
             // Приховуємо індикатор завантаження
             hideLoadingIndicator(taskId);
+            delete operationStatus.verificationInProgress[taskId];
 
             // Показуємо повідомлення про помилку
             showErrorMessage('Сталася помилка при спробі перевірити виконання завдання');
         }
+    }
+
+    /**
+     * Нормалізація об'єкта винагороди
+     * @param {Object} reward - Об'єкт винагороди
+     * @param {Object} task - Дані завдання для резервного визначення типу
+     * @returns {Object} Нормалізована винагорода
+     */
+    function normalizeReward(reward, task) {
+        // Якщо винагорода вже є об'єктом з вірним форматом
+        if (reward && typeof reward === 'object' &&
+            reward.type && typeof reward.amount === 'number') {
+            // Перевіряємо тип
+            const type = normalizeRewardType(reward.type);
+            return {
+                type: type,
+                amount: Math.abs(reward.amount)
+            };
+        }
+
+        // Якщо немає винагороди, але є дані завдання
+        if (task && task.reward_type && task.reward_amount) {
+            return {
+                type: normalizeRewardType(task.reward_type),
+                amount: parseFloat(task.reward_amount)
+            };
+        }
+
+        // За замовчуванням
+        return {
+            type: REWARD_TYPES.TOKENS,
+            amount: 10
+        };
+    }
+
+    /**
+     * Нормалізація типу винагороди
+     * @param {string} type - Тип винагороди
+     * @returns {string} Нормалізований тип
+     */
+    function normalizeRewardType(type) {
+        if (!type || typeof type !== 'string') {
+            return REWARD_TYPES.TOKENS;
+        }
+
+        const lowerType = type.toLowerCase();
+
+        if (lowerType.includes('token') || lowerType.includes('winix')) {
+            return REWARD_TYPES.TOKENS;
+        } else if (lowerType.includes('coin') || lowerType.includes('жетон')) {
+            return REWARD_TYPES.COINS;
+        }
+
+        return REWARD_TYPES.TOKENS;
+    }
+
+    /**
+     * Обробка винагороди
+     * @param {string} taskId - ID завдання
+     * @param {Object} reward - Дані винагороди
+     */
+    function processReward(taskId, reward) {
+        // Перевіряємо, чи є модуль винагород
+        if (window.TaskRewards) {
+            // Делегуємо обробку винагороди до TaskRewards
+            const operationId = `reward_${taskId}_${Date.now()}`;
+            operationStatus.lastOperationId = operationId;
+
+            const normalizedReward = normalizeReward(reward, findTaskById(taskId));
+            window.TaskRewards.updateBalance(normalizedReward);
+
+            // Показуємо анімацію
+            window.TaskRewards.showRewardAnimation(normalizedReward);
+
+            return;
+        }
+
+        // Якщо немає модуля винагород, обробляємо вручну
+        showRewardAnimation(reward);
+        updateBalance(reward);
     }
 
     /**
@@ -728,13 +889,13 @@ window.TaskManager = (function() {
                 // Показуємо повідомлення про успіх
                 showSuccessMessage('Завдання успішно виконано!');
 
-                // Показуємо анімацію винагороди
+                // Створюємо і опрацьовуємо винагороду
                 const reward = {
-                    type: task.reward_type,
-                    amount: task.reward_amount
+                    type: normalizeRewardType(task.reward_type),
+                    amount: parseFloat(task.reward_amount)
                 };
 
-                showRewardAnimation(reward);
+                processReward(taskId, reward);
             } else {
                 // Оновлюємо відображення
                 refreshTaskDisplay(taskId);
@@ -840,55 +1001,100 @@ window.TaskManager = (function() {
      * Показати анімацію отримання винагороди
      */
     function showRewardAnimation(reward) {
+        // Нормалізуємо винагороду
+        const normalizedReward = typeof reward === 'object' ? reward : { type: REWARD_TYPES.TOKENS, amount: 10 };
+
         // Якщо є модуль анімацій, використовуємо його
         if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
-            window.UI.Animations.showReward(reward);
+            window.UI.Animations.showReward(normalizedReward);
             return;
         }
 
         // Якщо є модуль винагород, використовуємо його
         if (window.TaskRewards && window.TaskRewards.showRewardAnimation) {
-            window.TaskRewards.showRewardAnimation(reward);
+            window.TaskRewards.showRewardAnimation(normalizedReward);
             return;
         }
 
         // Проста анімація, якщо модуль анімацій не доступний
-        showSuccessMessage(`Ви отримали ${reward.amount} ${reward.type === 'tokens' ? '$WINIX' : 'жетонів'}!`);
+        const rewardType = normalizedReward.type === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів';
+        showSuccessMessage(`Ви отримали ${normalizedReward.amount} ${rewardType}!`);
 
         // Оновлюємо відображення балансу
-        updateBalance(reward);
+        updateBalance(normalizedReward);
     }
 
     /**
      * Оновити відображення балансу
      */
     function updateBalance(reward) {
+        // Нормалізуємо винагороду
+        const normalizedReward = typeof reward === 'object' ? reward : { type: REWARD_TYPES.TOKENS, amount: 10 };
+
         // Якщо є модуль винагород, використовуємо його
         if (window.TaskRewards && window.TaskRewards.updateBalance) {
-            window.TaskRewards.updateBalance(reward);
+            window.TaskRewards.updateBalance(normalizedReward);
             return;
         }
 
         // Інакше оновлюємо вручну
-        if (reward.type === 'tokens') {
+        if (normalizedReward.type === REWARD_TYPES.TOKENS) {
             const userTokensElement = document.getElementById('user-tokens');
             if (userTokensElement) {
                 const currentBalance = parseFloat(userTokensElement.textContent) || 0;
-                userTokensElement.textContent = (currentBalance + reward.amount).toFixed(2);
+                const newBalance = currentBalance + normalizedReward.amount;
+                userTokensElement.textContent = newBalance.toFixed(2);
                 userTokensElement.classList.add('highlight');
                 setTimeout(() => {
                     userTokensElement.classList.remove('highlight');
                 }, 2000);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userTokens', newBalance.toString());
+                    localStorage.setItem('winix_balance', newBalance.toString());
+                } catch (e) {
+                    console.warn('TaskManager: Помилка збереження балансу токенів в localStorage:', e);
+                }
+
+                // Відправляємо подію оновлення балансу
+                document.dispatchEvent(new CustomEvent('balance-updated', {
+                    detail: {
+                        oldBalance: currentBalance,
+                        newBalance: newBalance,
+                        type: REWARD_TYPES.TOKENS,
+                        source: 'task_manager'
+                    }
+                }));
             }
-        } else if (reward.type === 'coins') {
+        } else if (normalizedReward.type === REWARD_TYPES.COINS) {
             const userCoinsElement = document.getElementById('user-coins');
             if (userCoinsElement) {
                 const currentBalance = parseInt(userCoinsElement.textContent) || 0;
-                userCoinsElement.textContent = currentBalance + reward.amount;
+                const newBalance = currentBalance + normalizedReward.amount;
+                userCoinsElement.textContent = newBalance.toString();
                 userCoinsElement.classList.add('highlight');
                 setTimeout(() => {
                     userCoinsElement.classList.remove('highlight');
                 }, 2000);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userCoins', newBalance.toString());
+                    localStorage.setItem('winix_coins', newBalance.toString());
+                } catch (e) {
+                    console.warn('TaskManager: Помилка збереження балансу жетонів в localStorage:', e);
+                }
+
+                // Відправляємо подію оновлення балансу
+                document.dispatchEvent(new CustomEvent('balance-updated', {
+                    detail: {
+                        oldBalance: currentBalance,
+                        newBalance: newBalance,
+                        type: REWARD_TYPES.COINS,
+                        source: 'task_manager'
+                    }
+                }));
             }
         }
     }
@@ -962,16 +1168,31 @@ window.TaskManager = (function() {
         return div.innerHTML;
     }
 
+    /**
+     * Скидання стану модуля
+     */
+    function resetState() {
+        operationStatus.tasksLoading = false;
+        operationStatus.verificationInProgress = {};
+        operationStatus.lastVerificationTime = {};
+        operationStatus.lastOperationId = null;
+
+        console.log('TaskManager: Стан модуля скинуто');
+    }
+
     // Публічний API модуля
     return {
         init,
         loadTasks,
         startTask,
         verifyTask,
+        findTaskById,
         refreshTaskDisplay,
         showSuccessMessage,
         showErrorMessage,
         showRewardAnimation,
-        findTaskById
+        normalizeReward,
+        resetState,
+        REWARD_TYPES
     };
 })();
