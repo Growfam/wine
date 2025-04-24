@@ -33,7 +33,7 @@
     padding: 0.625rem; /* 10px */
     position: relative;
     z-index: 1;
-    background: url('//assets/Fon.png') no-repeat center center;
+   background: url('../../assets/Fon.png') no-repeat center center;
     background-size: cover;
     animation: backgroundShift 15s infinite linear;
     display: flex;
