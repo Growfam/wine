@@ -3,7 +3,7 @@
  * Відповідає за:
  * - Створення та відображення лімітованих завдань
  * - Обробку взаємодії користувача з лімітованими завданнями
- * - Відображення таймера зворотного відліку
+ * - Відображення таймера зворотного відліку з преміальними іконками
  */
 
 window.LimitedTask = (function() {
@@ -55,19 +55,19 @@ window.LimitedTask = (function() {
             taskElement.classList.add('expired');
         }
 
-        // Підготовка HTML для таймера
+        // Підготовка HTML для таймера з використанням нової іконки SVG
         let timerHtml = '';
         if (task.end_date && !isExpired && !isCompleted) {
             timerHtml = `
                 <div class="timer-container">
-                    <span class="timer-icon">⏰</span>
+                    <span class="timer-icon"></span>
                     <span class="timer-value" data-end-date="${task.end_date}">${timeLeft}</span>
                 </div>
             `;
         } else if (isExpired) {
             timerHtml = `
                 <div class="timer-container expired">
-                    <span class="timer-icon">⏰</span>
+                    <span class="timer-icon"></span>
                     <span data-lang-key="earn.expired">Закінчено</span>
                 </div>
             `;
@@ -155,7 +155,8 @@ window.LimitedTask = (function() {
                 if (timeLeft <= 0) {
                     // Таймер закінчився
                     timerElement.parentElement.classList.add('expired');
-                    timerElement.parentElement.innerHTML = '<span class="timer-icon">⏰</span> <span data-lang-key="earn.expired">Закінчено</span>';
+                    // Використовуємо HTML з новою іконкою таймера
+                    timerElement.parentElement.innerHTML = '<span class="timer-icon"></span> <span data-lang-key="earn.expired">Закінчено</span>';
 
                     // Деактивуємо кнопки
                     const actionButtons = document.querySelectorAll(`.task-item[data-task-id="${taskId}"] .action-button`);
@@ -214,6 +215,11 @@ window.LimitedTask = (function() {
      * Обробник початку виконання завдання
      */
     function handleStartTask(task) {
+        // Відтворюємо звук кліку з нового модуля анімацій
+        if (window.UI && window.UI.Animations && window.UI.Animations.playSound) {
+            window.UI.Animations.playSound('click');
+        }
+
         // Якщо є TaskManager, делегуємо обробку йому
         if (window.TaskManager && window.TaskManager.startTask) {
             window.TaskManager.startTask(task.id);
@@ -248,6 +254,11 @@ window.LimitedTask = (function() {
      * Обробник перевірки виконання завдання
      */
     function handleVerifyTask(task) {
+        // Відтворюємо звук кліку з нового модуля анімацій
+        if (window.UI && window.UI.Animations && window.UI.Animations.playSound) {
+            window.UI.Animations.playSound('click');
+        }
+
         // Якщо є TaskManager, делегуємо обробку йому
         if (window.TaskManager && window.TaskManager.verifyTask) {
             window.TaskManager.verifyTask(task.id);
@@ -277,6 +288,11 @@ window.LimitedTask = (function() {
                         // Якщо є винагорода, показуємо анімацію
                         if (response.reward) {
                             showRewardAnimation(response.reward);
+                        }
+
+                        // Анімуємо успішне виконання за допомогою нового модуля
+                        if (window.UI && window.UI.Animations && window.UI.Animations.animateSuccessfulCompletion) {
+                            window.UI.Animations.animateSuccessfulCompletion(task.id);
                         }
                     } else {
                         // Відображаємо помилку
@@ -346,13 +362,13 @@ window.LimitedTask = (function() {
      * Показати анімацію отримання винагороди
      */
     function showRewardAnimation(reward) {
-        // Якщо є модуль анімацій, використовуємо його
+        // Використовуємо новий модуль преміальних анімацій
         if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
             window.UI.Animations.showReward(reward);
             return;
         }
 
-        // Інакше робимо просту анімацію
+        // Резервний варіант, якщо новий модуль недоступний
         const rewardAmount = reward.amount;
         const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
 
@@ -385,14 +401,21 @@ window.LimitedTask = (function() {
      * Оновити баланс користувача
      */
     function updateUserBalance(reward) {
+        // Використовуємо новий модуль для оновлення балансу, якщо доступний
+        if (window.UI && window.UI.Notifications && window.UI.Notifications.updateBalanceUI) {
+            window.UI.Notifications.updateBalanceUI(reward);
+            return;
+        }
+
+        // Резервний варіант
         if (reward.type === 'tokens') {
             const userTokensElement = document.getElementById('user-tokens');
             if (userTokensElement) {
                 const currentBalance = parseFloat(userTokensElement.textContent) || 0;
                 userTokensElement.textContent = (currentBalance + reward.amount).toFixed(2);
-                userTokensElement.classList.add('highlight');
+                userTokensElement.classList.add('increasing');
                 setTimeout(() => {
-                    userTokensElement.classList.remove('highlight');
+                    userTokensElement.classList.remove('increasing');
                 }, 2000);
             }
         } else if (reward.type === 'coins') {
@@ -400,9 +423,9 @@ window.LimitedTask = (function() {
             if (userCoinsElement) {
                 const currentBalance = parseInt(userCoinsElement.textContent) || 0;
                 userCoinsElement.textContent = currentBalance + reward.amount;
-                userCoinsElement.classList.add('highlight');
+                userCoinsElement.classList.add('increasing');
                 setTimeout(() => {
-                    userCoinsElement.classList.remove('highlight');
+                    userCoinsElement.classList.remove('increasing');
                 }, 2000);
             }
         }
@@ -412,7 +435,7 @@ window.LimitedTask = (function() {
      * Показати повідомлення
      */
     function showMessage(message, type = 'info') {
-        // Якщо є компонент сповіщень, використовуємо його
+        // Використовуємо новий модуль сповіщень
         if (window.UI && window.UI.Notifications) {
             if (type === 'error') {
                 window.UI.Notifications.showError(message);
@@ -424,7 +447,7 @@ window.LimitedTask = (function() {
             return;
         }
 
-        // Інакше робимо просте сповіщення
+        // Резервний варіант для простого сповіщення
         const toastElement = document.getElementById('toast-message');
         if (toastElement) {
             // Встановлюємо текст
@@ -433,11 +456,9 @@ window.LimitedTask = (function() {
             // Встановлюємо стиль в залежності від типу
             toastElement.className = 'toast-message';
             if (type === 'error') {
-                toastElement.style.background = 'linear-gradient(135deg, #F44336, #D32F2F)';
+                toastElement.classList.add('error');
             } else if (type === 'success') {
-                toastElement.style.background = 'linear-gradient(135deg, #4CAF50, #2E7D32)';
-            } else {
-                toastElement.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+                toastElement.classList.add('success');
             }
 
             // Показуємо сповіщення
@@ -448,7 +469,7 @@ window.LimitedTask = (function() {
                 toastElement.classList.remove('show');
                 // Повертаємо оригінальний стиль
                 setTimeout(() => {
-                    toastElement.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+                    toastElement.classList.remove('error', 'success');
                 }, 300);
             }, 3000);
         } else {
