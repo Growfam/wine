@@ -427,3 +427,38 @@
         border-radius: 1.25rem; /* 20px */
     }
 }
+/* Додайте ці стилі для запобігання горизонтального скролу */
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    padding-left: 0.625rem !important;
+    padding-right: 0.625rem !important;
+}
+
+/* Розширення для мобільних пристроїв */
+@media (max-width: 480px) {
+    .container {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+
+    .task-item, .leaderboard-item, .daily-bonus-bar {
+        width: 100% !important;
+        box-sizing: border-box;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .nav-bar {
+        width: 95%;
+    }
+}

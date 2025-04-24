@@ -1,0 +1,357 @@
+/* WINIX - Преміальні анімації та ефекти */
+
+/* Глобальні анімації для всіх елементів */
+.container {
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Покращений ефект світіння для логотипу */
+.winix-title {
+    animation: premium-glow 8s infinite ease-in-out;
+}
+
+@keyframes premium-glow {
+    0% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+    40% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.5); }
+    50% { text-shadow: 0 0 25px rgba(0, 201, 167, 0.8), 0 0 40px rgba(0, 201, 167, 0.4); }
+    60% { text-shadow: 0 0 15px rgba(0, 201, 167, 0.5); }
+    100% { text-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
+}
+
+/* Покращені стилі для кнопки отримання бонусу */
+.claim-button {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(90deg, rgba(0, 201, 167, 0.2), rgba(0, 201, 167, 0.3));
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.3) inset;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.claim-button:not(:disabled)::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(rgba(0, 201, 167, 0.3), transparent 70%);
+    transform: rotate(0deg);
+    animation: rotate-glow 10s linear infinite;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.claim-button:not(:disabled):hover::before {
+    opacity: 1;
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.claim-button:not(:disabled):hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 201, 167, 0.5) inset, 0 0 20px rgba(0, 201, 167, 0.3);
+}
+
+.claim-button:not(:disabled):active {
+    transform: translateY(0);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.3) inset;
+}
+
+/* Преміальні ефекти для навігаційної панелі */
+.nav-item .icon-wrapper {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: hidden;
+}
+
+.nav-item:hover .icon-wrapper {
+    transform: translateY(-5px) scale(1.1);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item.active .icon-wrapper {
+    animation: nav-pulse 3s infinite alternate;
+}
+
+@keyframes nav-pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+    }
+    100% {
+        box-shadow: 0 0 20px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.3);
+    }
+}
+
+/* Покращені анімації для завдань */
+.task-item {
+    position: relative;
+    transform: translateZ(0);
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.task-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 0%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.task-item:hover {
+    transform: translateY(-7px) scale(1.01);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+}
+
+.task-item:hover::before {
+    opacity: 1;
+}
+
+/* Ефект входження елементів */
+.task-item, .leaderboard-item {
+    animation: slide-up 0.5s cubic-bezier(0.165, 0.84, 0.44, 1) both;
+    animation-delay: calc(var( - item-index, 0) * 0.1s);
+    opacity: 0;
+}
+
+@keyframes slide-up {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Покращені стилі для кнопок дій */
+.action-button {
+    overflow: hidden;
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+    position: relative;
+}
+
+.action-button::before {
+    content: '';
+    position: absolute;
+    top: -10%;
+    left: -10%;
+    width: 120%;
+    height: 120%;
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0),
+        rgba(255, 255, 255, 0.1),
+        rgba(255, 255, 255, 0.2),
+        rgba(255, 255, 255, 0.1),
+        rgba(255, 255, 255, 0));
+    transform: translateX(-100%) skewX(-15deg);
+    animation: shine 5s infinite;
+}
+
+@keyframes shine {
+    0% { transform: translateX(-100%) skewX(-15deg); }
+    20% { transform: translateX(100%) skewX(-15deg); }
+    100% { transform: translateX(100%) skewX(-15deg); }
+}
+
+.action-button:hover:not(:disabled) {
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 15px rgba(78, 181, 247, 0.5);
+}
+
+.action-button:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Покращені анімації для лідерської дошки */
+.leaderboard-item {
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.leaderboard-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        rgba(78, 181, 247, 0),
+        rgba(78, 181, 247, 0.1),
+        rgba(78, 181, 247, 0));
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.leaderboard-item:hover::before {
+    transform: translateX(100%);
+}
+
+.leaderboard-item.current-user {
+    animation: highlight-pulse 3s infinite alternate;
+}
+
+@keyframes highlight-pulse {
+    0% {
+        background: rgba(0, 201, 167, 0.15);
+        box-shadow: 0 0 10px rgba(0, 201, 167, 0.2);
+    }
+    100% {
+        background: rgba(0, 201, 167, 0.25);
+        box-shadow: 0 0 20px rgba(0, 201, 167, 0.4);
+    }
+}
+
+.position.top-3 {
+    animation: top-position-glow 2s infinite alternate;
+}
+
+@keyframes top-position-glow {
+    0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+    100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.3); }
+}
+
+/* Покращені стилі для щоденного бонусу */
+.daily-bonus-bar {
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(5px);
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.daily-bonus-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 70% 80%, rgba(78, 181, 247, 0.2), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+}
+
+.daily-bonus-bar:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+}
+
+.daily-bonus-bar:hover::after {
+    opacity: 1;
+}
+
+.day-circle {
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.day-circle:hover {
+    transform: scale(1.1);
+}
+
+.day-circle.active {
+    animation: active-day-pulse 2s infinite alternate;
+}
+
+@keyframes active-day-pulse {
+    0% {
+        box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
+        border-color: rgba(78, 181, 247, 0.5);
+    }
+    100% {
+        box-shadow: 0 0 20px rgba(78, 181, 247, 0.6);
+        border-color: rgba(78, 181, 247, 0.8);
+    }
+}
+
+/* Покращена анімація для активної вкладки */
+.tab.active {
+    position: relative;
+    overflow: hidden;
+}
+
+.tab.active::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(rgba(0, 201, 167, 0.2), transparent 70%);
+    transform: rotate(0deg);
+    animation: rotate-glow 15s linear infinite;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+/* Анімація для анімації балансу */
+#user-tokens.increasing,
+#user-coins.increasing {
+    animation: premium-balance-increase 1.5s ease-out;
+}
+
+@keyframes premium-balance-increase {
+    0% {
+        transform: scale(1);
+        color: inherit;
+    }
+    10% {
+        transform: scale(1.1);
+        color: #4caf50;
+        text-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+    }
+    20% {
+        transform: scale(1.15);
+        color: #4caf50;
+        text-shadow: 0 0 20px rgba(76, 175, 80, 1);
+    }
+    100% {
+        transform: scale(1);
+        color: inherit;
+        text-shadow: none;
+    }
+}
+
+/* Стилі для повідомлення toast */
+.toast-message {
+    background: rgba(30, 39, 70, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(78, 181, 247, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+.toast-message.show {
+    transform: translate(-50%, 0.625rem) scale(1);
+}
+
+.toast-message.success {
+    background: linear-gradient(135deg, rgba(0, 201, 167, 0.85), rgba(30, 39, 70, 0.95));
+    border: 1px solid rgba(0, 201, 167, 0.3);
+}
+
+.toast-message.error {
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.85), rgba(30, 39, 70, 0.95));
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}

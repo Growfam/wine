@@ -1,17 +1,13 @@
 /**
  * Premium Notifications - покращений модуль для відображення сповіщень
- * Відповідає за:
- * - Показ преміум-сповіщень з анімацією
- * - Управління чергою сповіщень (максимум 1 одночасно)
- * - Стильні діалоги підтвердження
- * - Уніфіковані індикатори завантаження
+ * Відповідає за стильні сповіщення та діалоги з анімованими SVG іконками
  */
 
-// Створюємо namespace для UI компонентів, якщо його ще немає
+// Створюємо namespace для UI компонентів
 window.UI = window.UI || {};
 
 window.UI.Notifications = (function() {
-    // Конфігурація
+    // Конфігурація модуля
     const CONFIG = {
         maxNotificationsAtOnce: 1,   // Максимальна кількість одночасних сповіщень
         autoHideTimeout: 5000,       // Час автоматичного закриття сповіщення (мс)
@@ -35,7 +31,7 @@ window.UI.Notifications = (function() {
         // Додаємо стилі
         injectStyles();
 
-        // Створюємо контейнер для сповіщень, якщо його ще немає
+        // Створюємо контейнер для сповіщень
         if (!document.getElementById(_containerId)) {
             const container = document.createElement('div');
             container.id = _containerId;
@@ -90,13 +86,16 @@ window.UI.Notifications = (function() {
                 backdrop-filter: blur(10px);
                 border-radius: 16px;
                 padding: 16px;
-                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 
+                            0 8px 16px rgba(0, 0, 0, 0.3), 
+                            0 0 0 1px rgba(78, 181, 247, 0.1) inset;
                 display: flex;
                 align-items: center;
                 color: white;
                 transform: translateX(50px) scale(0.95);
                 opacity: 0;
-                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                            opacity 0.3s ease;
                 margin-bottom: 0.5rem;
                 overflow: hidden;
                 pointer-events: auto;
@@ -155,12 +154,15 @@ window.UI.Notifications = (function() {
                 height: 32px;
                 min-width: 32px;
                 border-radius: 50%;
-                background: rgba(0, 201, 167, 0.15);
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 margin-right: 12px;
-                font-size: 18px;
+                position: relative;
+            }
+            
+            .premium-notification .premium-notification-icon {
+                background: rgba(0, 201, 167, 0.15);
             }
             
             .premium-notification.error .premium-notification-icon {
@@ -199,11 +201,34 @@ window.UI.Notifications = (function() {
                 transition: all 0.2s ease;
                 padding: 0;
                 margin-left: 8px;
+                position: relative;
+            }
+            
+            .premium-notification-close::before,
+            .premium-notification-close::after {
+                content: '';
+                position: absolute;
+                width: 12px;
+                height: 2px;
+                background: rgba(255, 255, 255, 0.7);
+                border-radius: 1px;
+            }
+            
+            .premium-notification-close::before {
+                transform: rotate(45deg);
+            }
+            
+            .premium-notification-close::after {
+                transform: rotate(-45deg);
             }
             
             .premium-notification-close:hover {
                 background: rgba(255, 255, 255, 0.2);
-                color: white;
+            }
+            
+            .premium-notification-close:hover::before,
+            .premium-notification-close:hover::after {
+                background: white;
             }
             
             /* Прогрес-бар для автозакриття */
@@ -278,7 +303,9 @@ window.UI.Notifications = (function() {
                 transform: scale(0.95);
                 opacity: 0;
                 transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset, 0 6px 12px rgba(0, 0, 0, 0.25);
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 
+                            0 0 0 1px rgba(78, 181, 247, 0.15) inset, 
+                            0 6px 12px rgba(0, 0, 0, 0.25);
                 text-align: center;
                 display: flex;
                 flex-direction: column;
@@ -300,9 +327,8 @@ window.UI.Notifications = (function() {
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                font-size: 36px;
-                color: #FF5252;
                 margin-bottom: 16px;
+                position: relative;
             }
             
             .premium-confirm-title {
@@ -406,17 +432,6 @@ window.UI.Notifications = (function() {
                 to { transform: rotate(360deg); }
             }
             
-            /* Анімація для оновлення балансу */
-            @keyframes balance-highlight {
-                0% { color: inherit; text-shadow: none; }
-                50% { color: #4eb5f7; text-shadow: 0 0 8px rgba(78, 181, 247, 0.6); }
-                100% { color: inherit; text-shadow: none; }
-            }
-            
-            .balance-updated {
-                animation: balance-highlight 1s ease;
-            }
-            
             /* Адаптивність для невеликих екранів */
             @media (max-width: 480px) {
                 .premium-notification-container {
@@ -432,7 +447,6 @@ window.UI.Notifications = (function() {
                     width: 28px;
                     height: 28px;
                     min-width: 28px;
-                    font-size: 16px;
                 }
                 
                 .premium-notification-title {
@@ -450,7 +464,6 @@ window.UI.Notifications = (function() {
                 .premium-confirm-icon {
                     width: 60px;
                     height: 60px;
-                    font-size: 30px;
                 }
                 
                 .premium-confirm-title {
@@ -476,7 +489,7 @@ window.UI.Notifications = (function() {
      * Перевизначення глобальних функцій для сумісності
      */
     function overrideGlobalNotificationFunctions() {
-        // Перевизначаємо глобальну функцію для toast-повідомлень
+        // Для toast-повідомлень
         window.showToast = function(message, isError) {
             if (isError) {
                 showError(message);
@@ -485,14 +498,14 @@ window.UI.Notifications = (function() {
             }
         };
 
-        // Перевизначаємо глобальну функцію для сповіщень
+        // Для сповіщень
         window.showNotification = showInfo;
 
-        // Перевизначаємо функції для індикаторів завантаження
+        // Для індикаторів завантаження
         window.showLoading = showLoading;
         window.hideLoading = hideLoading;
 
-        // Перевизначаємо функцію для діалогів підтвердження
+        // Для діалогів підтвердження
         window.showModernConfirm = showConfirmDialog;
     }
 
@@ -572,21 +585,7 @@ window.UI.Notifications = (function() {
 
             // Додаємо іконку
             const icon = document.createElement('div');
-            icon.className = 'premium-notification-icon';
-
-            // Встановлюємо іконку залежно від типу
-            switch (type) {
-                case 'error':
-                    icon.innerHTML = '&#10060;'; // ❌
-                    break;
-                case 'success':
-                    icon.innerHTML = '&#10004;'; // ✔
-                    break;
-                case 'info':
-                default:
-                    icon.innerHTML = '&#8505;'; // ℹ
-                    break;
-            }
+            icon.className = `premium-notification-icon icon-${type}`;
 
             // Контент повідомлення
             const content = document.createElement('div');
@@ -620,7 +619,6 @@ window.UI.Notifications = (function() {
             // Кнопка закриття
             const closeBtn = document.createElement('button');
             closeBtn.className = 'premium-notification-close';
-            closeBtn.innerHTML = '&times;';
 
             // Індикатор прогресу
             const progress = document.createElement('div');
@@ -721,7 +719,7 @@ window.UI.Notifications = (function() {
             confirmText = 'Підтвердити',
             cancelText = 'Скасувати',
             type = 'default',
-            icon = '⚠️'
+            iconType = 'warning'
         } = options;
 
         return new Promise((resolve) => {
@@ -738,7 +736,7 @@ window.UI.Notifications = (function() {
                     const dialog = document.createElement('div');
                     dialog.className = 'premium-confirm-dialog';
                     dialog.innerHTML = `
-                        <div class="premium-confirm-icon">${icon}</div>
+                        <div class="premium-confirm-icon icon-${iconType}"></div>
                         <div class="premium-confirm-title">${title}</div>
                         <div class="premium-confirm-message">${message}</div>
                         <div class="premium-confirm-buttons">
@@ -759,7 +757,9 @@ window.UI.Notifications = (function() {
 
                     if (titleEl) titleEl.textContent = title;
                     if (messageEl) messageEl.textContent = message;
-                    if (iconEl) iconEl.innerHTML = icon;
+                    if (iconEl) {
+                        iconEl.className = `premium-confirm-icon icon-${iconType}`;
+                    }
                     if (confirmBtn) {
                         confirmBtn.textContent = confirmText;
                         confirmBtn.className = `premium-confirm-button premium-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}`;

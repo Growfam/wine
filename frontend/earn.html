@@ -13,11 +13,59 @@
     <link rel="stylesheet" href="css/earn/styles.css">
     <link rel="stylesheet" href="css/earn/components-tasks.css">
     <link rel="stylesheet" href="css/earn/leaderboard.css">
-
+    <link rel="stylesheet" href="css/earn/premium-animations.css">
+    <link rel="stylesheet" href="css/earn/winix-icons.css">
     <!-- Підключення Telegram WebApp API -->
     <script src="js/telegram-web-app.js"></script>
 </head>
 <body>
+<svg class="winix-filters">
+  <defs>
+    <!-- Синє світіння -->
+    <filter id="blue-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+      <feFlood flood-color="#4EB5F7" flood-opacity="0.5" result="color" />
+      <feComposite in="color" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Бірюзове світіння -->
+    <filter id="teal-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+      <feFlood flood-color="#00C9A7" flood-opacity="0.5" result="color" />
+      <feComposite in="color" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Червоне світіння -->
+    <filter id="red-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+      <feFlood flood-color="#F44336" flood-opacity="0.5" result="color" />
+      <feComposite in="color" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Золоте світіння -->
+    <filter id="gold-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+      <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
+      <feComposite in="color" in2="blur" operator="in" result="glow" />
+      <feMerge>
+        <feMergeNode in="glow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
     <div class="container">
         <!-- Шапка сторінки -->
         <div class="header">
