@@ -1,414 +1,934 @@
 /**
- * Notifications - модуль для відображення сповіщень та повідомлень
+ * Premium Notifications - покращений модуль для відображення сповіщень
  * Відповідає за:
- * - Показ сповіщень про успіх, помилки та інформаційних повідомлень
- * - Управління чергою сповіщень
- * - Стилізацію сповіщень
+ * - Показ преміум-сповіщень з анімацією
+ * - Управління чергою сповіщень (максимум 1 одночасно)
+ * - Стильні діалоги підтвердження
+ * - Уніфіковані індикатори завантаження
  */
 
 // Створюємо namespace для UI компонентів, якщо його ще немає
 window.UI = window.UI || {};
 
 window.UI.Notifications = (function() {
-    // Максимальна кількість одночасних сповіщень
-    const MAX_NOTIFICATIONS = 3;
+    // Конфігурація
+    const CONFIG = {
+        maxNotificationsAtOnce: 1,   // Максимальна кількість одночасних сповіщень
+        autoHideTimeout: 5000,       // Час автоматичного закриття сповіщення (мс)
+        animationDuration: 300,      // Тривалість анімації (мс)
+        position: 'top-right'        // Позиція сповіщень: 'top-right', 'top-center'
+    };
 
-    // Тривалість відображення сповіщення за замовчуванням
-    const DEFAULT_DURATION = 3000;
-
-    // Черга сповіщень, які очікують відображення
-    const notificationQueue = [];
-
-    // Контейнер для сповіщень
-    let notificationsContainer;
+    // Приватні змінні
+    let _notificationShowing = false;
+    let _notificationsQueue = [];
+    let _containerId = 'premium-notification-container';
+    let _loadingSpinnerId = 'loading-spinner';
+    let _confirmDialogId = 'premium-confirm-dialog';
 
     /**
      * Ініціалізація модуля сповіщень
      */
     function init() {
-        console.log('UI.Notifications: Ініціалізація модуля сповіщень');
+        console.log('UI.Notifications: Ініціалізація модуля преміум-сповіщень');
 
         // Додаємо стилі
         injectStyles();
 
         // Створюємо контейнер для сповіщень, якщо його ще немає
-        if (!document.getElementById('notifications-container')) {
-            notificationsContainer = document.createElement('div');
-            notificationsContainer.id = 'notifications-container';
-            document.body.appendChild(notificationsContainer);
-        } else {
-            notificationsContainer = document.getElementById('notifications-container');
+        if (!document.getElementById(_containerId)) {
+            const container = document.createElement('div');
+            container.id = _containerId;
+            container.className = 'premium-notification-container ' + CONFIG.position;
+            document.body.appendChild(container);
         }
+
+        // Перевизначаємо глобальні функції для сумісності
+        overrideGlobalNotificationFunctions();
     }
 
     /**
-     * Показати сповіщення про успіх
-     * @param {string} message - Текст повідомлення
-     * @param {number} duration - Тривалість відображення в мс
-     */
-    function showSuccess(message, duration = DEFAULT_DURATION) {
-        showNotification(message, 'success', duration);
-    }
-
-    /**
-     * Показати сповіщення про помилку
-     * @param {string} message - Текст повідомлення
-     * @param {number} duration - Тривалість відображення в мс
-     */
-    function showError(message, duration = DEFAULT_DURATION) {
-        showNotification(message, 'error', duration);
-    }
-
-    /**
-     * Показати інформаційне сповіщення
-     * @param {string} message - Текст повідомлення
-     * @param {number} duration - Тривалість відображення в мс
-     */
-    function showInfo(message, duration = DEFAULT_DURATION) {
-        showNotification(message, 'info', duration);
-    }
-
-    /**
-     * Показати сповіщення
-     * @param {string} message - Текст повідомлення
-     * @param {string} type - Тип сповіщення ('success', 'error', 'info')
-     * @param {number} duration - Тривалість відображення в мс
-     */
-    function showNotification(message, type = 'info', duration = DEFAULT_DURATION) {
-        // Перевіряємо, чи ініціалізовано модуль
-        if (!notificationsContainer) {
-            init();
-        }
-
-        // Створюємо об'єкт сповіщення
-        const notification = {
-            message,
-            type,
-            duration,
-            id: Date.now().toString()
-        };
-
-        // Додаємо до черги
-        notificationQueue.push(notification);
-
-        // Оброблюємо чергу
-        processQueue();
-    }
-
-    /**
-     * Обробка черги сповіщень
-     */
-    function processQueue() {
-        // Отримуємо поточні відображені сповіщення
-        const currentNotifications = notificationsContainer.querySelectorAll('.notification');
-
-        // Якщо відображено максимальну кількість, виходимо
-        if (currentNotifications.length >= MAX_NOTIFICATIONS) {
-            return;
-        }
-
-        // Якщо черга пуста, виходимо
-        if (notificationQueue.length === 0) {
-            return;
-        }
-
-        // Беремо перше сповіщення з черги
-        const notification = notificationQueue.shift();
-
-        // Створюємо елемент сповіщення
-        const notificationElement = createNotificationElement(notification);
-
-        // Додаємо до контейнера
-        notificationsContainer.appendChild(notificationElement);
-
-        // Запускаємо анімацію появи
-        setTimeout(() => {
-            notificationElement.classList.add('show');
-        }, 10);
-
-        // Додаємо вібрацію для помилок, якщо пристрій підтримує
-        if (notification.type === 'error' && navigator.vibrate) {
-            navigator.vibrate(200);
-        }
-
-        // Відтворюємо звук, якщо доступний
-        if (window.UI.Animations && window.UI.Animations.playSound) {
-            window.UI.Animations.playSound(notification.type);
-        }
-
-        // Таймер для автоматичного закриття
-        const closeTimer = setTimeout(() => {
-            closeNotification(notificationElement);
-        }, notification.duration);
-
-        // Зберігаємо таймер в елементі
-        notificationElement.dataset.closeTimer = closeTimer;
-    }
-
-    /**
-     * Створення елементу сповіщення
-     */
-    function createNotificationElement(notification) {
-        const notificationElement = document.createElement('div');
-        notificationElement.className = `notification ${notification.type}`;
-        notificationElement.dataset.id = notification.id;
-
-        // Додаємо іконку залежно від типу
-        let iconHtml = '';
-        switch (notification.type) {
-            case 'success':
-                iconHtml = '<div class="notification-icon">✓</div>';
-                break;
-            case 'error':
-                iconHtml = '<div class="notification-icon">✕</div>';
-                break;
-            case 'info':
-                iconHtml = '<div class="notification-icon">ℹ</div>';
-                break;
-        }
-
-        // Наповнюємо контент
-        notificationElement.innerHTML = `
-            ${iconHtml}
-            <div class="notification-message">${escapeHtml(notification.message)}</div>
-            <div class="notification-close">×</div>
-        `;
-
-        // Додаємо обробник для закриття
-        const closeButton = notificationElement.querySelector('.notification-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
-                closeNotification(notificationElement);
-            });
-        }
-
-        return notificationElement;
-    }
-
-    /**
-     * Закриття сповіщення
-     */
-    function closeNotification(notificationElement) {
-        // Очищаємо таймер, якщо він є
-        if (notificationElement.dataset.closeTimer) {
-            clearTimeout(parseInt(notificationElement.dataset.closeTimer));
-        }
-
-        // Запускаємо анімацію виходу
-        notificationElement.classList.remove('show');
-
-        // Видаляємо елемент після завершення анімації
-        setTimeout(() => {
-            notificationElement.remove();
-
-            // Обробляємо наступне сповіщення в черзі
-            processQueue();
-        }, 300);
-    }
-
-    /**
-     * Додати стилі для сповіщень
+     * Додавання CSS стилів для сповіщень
      */
     function injectStyles() {
         // Перевіряємо, чи стилі вже додані
-        if (document.getElementById('notifications-styles')) return;
+        if (document.getElementById('premium-notification-styles')) return;
 
         // Створюємо елемент стилів
         const styleElement = document.createElement('style');
-        styleElement.id = 'notifications-styles';
+        styleElement.id = 'premium-notification-styles';
 
-        // Додаємо CSS для сповіщень
+        // Додаємо CSS для преміальних сповіщень
         styleElement.textContent = `
-            /* Контейнер для сповіщень */
-            #notifications-container {
+            /* Загальні стилі для сповіщень */
+            .premium-notification-container {
                 position: fixed;
-                top: 0.625rem; /* 10px */
-                left: 50%;
-                transform: translateX(-50%);
+                z-index: 9999;
                 width: 90%;
-                max-width: 25rem; /* 400px */
-                z-index: 10000;
+                max-width: 380px;
                 display: flex;
                 flex-direction: column;
-                gap: 0.625rem; /* 10px */
+                gap: 0.625rem;
                 pointer-events: none;
             }
             
+            /* Позиціонування */
+            .premium-notification-container.top-right {
+                top: 1.25rem;
+                right: 1.25rem;
+            }
+            
+            .premium-notification-container.top-center {
+                top: 1.25rem;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            
             /* Стилі для сповіщення */
-            .notification {
-                background: linear-gradient(135deg, #1A1A2E, #0F3460);
-                color: #fff;
-                padding: 0.75rem 1rem; /* 12px 16px */
-                border-radius: 0.75rem; /* 12px */
-                box-shadow: 0 0.25rem 0.625rem rgba(0, 0, 0, 0.3); /* 0 4px 10px */
+            .premium-notification {
+                background: rgba(30, 39, 70, 0.85);
+                backdrop-filter: blur(10px);
+                border-radius: 16px;
+                padding: 16px;
+                box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
                 display: flex;
                 align-items: center;
-                gap: 0.75rem; /* 12px */
-                transform: translateY(-1.25rem); /* -20px */
+                color: white;
+                transform: translateX(50px) scale(0.95);
                 opacity: 0;
-                transition: transform 0.3s ease, opacity 0.3s ease;
-                pointer-events: all;
-                max-width: 100%;
+                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                margin-bottom: 0.5rem;
+                overflow: hidden;
+                pointer-events: auto;
+                position: relative;
+            }
+            
+            /* Позиціонування анімації залежно від позиції контейнера */
+            .top-center .premium-notification {
+                transform: translateY(-20px) scale(0.95);
+            }
+            
+            .premium-notification.show {
+                transform: translateX(0) scale(1);
+                opacity: 1;
+            }
+            
+            .top-center .premium-notification.show {
+                transform: translateY(0) scale(1);
+            }
+            
+            .premium-notification.hide {
+                transform: translateX(50px) scale(0.95);
+                opacity: 0;
+            }
+            
+            .top-center .premium-notification.hide {
+                transform: translateY(-20px) scale(0.95);
+            }
+            
+            /* Кольорова лінія для типу сповіщення */
+            .premium-notification::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 4px;
+                height: 100%;
+                background: linear-gradient(to bottom, #4DB6AC, #00C9A7);
+            }
+            
+            .premium-notification.error::before {
+                background: linear-gradient(to bottom, #FF5252, #B71C1C);
+            }
+            
+            .premium-notification.success::before {
+                background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            }
+            
+            .premium-notification.info::before {
+                background: linear-gradient(to bottom, #2196F3, #1976D2);
+            }
+            
+            /* Іконка сповіщення */
+            .premium-notification-icon {
+                width: 32px;
+                height: 32px;
+                min-width: 32px;
+                border-radius: 50%;
+                background: rgba(0, 201, 167, 0.15);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin-right: 12px;
+                font-size: 18px;
+            }
+            
+            .premium-notification.error .premium-notification-icon {
+                background: rgba(244, 67, 54, 0.15);
+            }
+            
+            .premium-notification.success .premium-notification-icon {
+                background: rgba(76, 175, 80, 0.15);
+            }
+            
+            .premium-notification.info .premium-notification-icon {
+                background: rgba(33, 150, 243, 0.15);
+            }
+            
+            /* Контент сповіщення */
+            .premium-notification-content {
+                flex-grow: 1;
+                padding-right: 8px;
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            
+            /* Кнопка закриття */
+            .premium-notification-close {
+                width: 24px;
+                height: 24px;
+                background: rgba(255, 255, 255, 0.1);
+                border: none;
+                border-radius: 50%;
+                color: rgba(255, 255, 255, 0.7);
+                font-size: 14px;
+                cursor: pointer;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transition: all 0.2s ease;
+                padding: 0;
+                margin-left: 8px;
+            }
+            
+            .premium-notification-close:hover {
+                background: rgba(255, 255, 255, 0.2);
+                color: white;
+            }
+            
+            /* Прогрес-бар для автозакриття */
+            .premium-notification-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 3px;
+                background: linear-gradient(to right, rgba(78, 181, 247, 0.5), rgba(0, 201, 167, 0.8));
+                width: 100%;
+                transform-origin: left;
+                animation: progress-shrink 5s linear forwards;
+            }
+            
+            .premium-notification.error .premium-notification-progress {
+                background: linear-gradient(to right, rgba(244, 67, 54, 0.5), rgba(183, 28, 28, 0.8));
+            }
+            
+            .premium-notification.success .premium-notification-progress {
+                background: linear-gradient(to right, rgba(76, 175, 80, 0.5), rgba(46, 125, 50, 0.8));
+            }
+            
+            .premium-notification.info .premium-notification-progress {
+                background: linear-gradient(to right, rgba(33, 150, 243, 0.5), rgba(13, 71, 161, 0.8));
+            }
+            
+            @keyframes progress-shrink {
+                from { transform: scaleX(1); }
+                to { transform: scaleX(0); }
+            }
+            
+            /* Заголовок та повідомлення */
+            .premium-notification-title {
+                font-weight: 600;
+                margin-bottom: 4px;
+                font-size: 15px;
+            }
+            
+            .premium-notification-message {
+                opacity: 0.9;
+            }
+            
+            /* Стилі для діалогу підтвердження */
+            .premium-confirm-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s, visibility 0.3s;
+                backdrop-filter: blur(8px);
+            }
+            
+            .premium-confirm-overlay.show {
+                opacity: 1;
+                visibility: visible;
+            }
+            
+            .premium-confirm-dialog {
+                background: rgba(30, 39, 70, 0.90);
+                border-radius: 20px;
+                padding: 24px;
+                width: 90%;
+                max-width: 380px;
+                transform: scale(0.95);
+                opacity: 0;
+                transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(78, 181, 247, 0.15) inset, 0 6px 12px rgba(0, 0, 0, 0.25);
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
                 overflow: hidden;
                 position: relative;
             }
             
-            /* Стилі для показаного сповіщення */
-            .notification.show {
-                transform: translateY(0);
+            .premium-confirm-overlay.show .premium-confirm-dialog {
+                transform: scale(1);
                 opacity: 1;
             }
             
-            /* Іконка сповіщення */
-            .notification-icon {
-                width: 1.5rem; /* 24px */
-                height: 1.5rem;
+            .premium-confirm-icon {
+                width: 70px;
+                height: 70px;
+                background: rgba(244, 67, 54, 0.15);
                 border-radius: 50%;
                 display: flex;
-                align-items: center;
                 justify-content: center;
-                font-weight: bold;
-                flex-shrink: 0;
+                align-items: center;
+                font-size: 36px;
+                color: #FF5252;
+                margin-bottom: 16px;
             }
             
-            /* Текст сповіщення */
-            .notification-message {
-                flex: 1;
-                font-size: 0.9375rem; /* 15px */
-                word-break: break-word;
+            .premium-confirm-title {
+                font-size: 20px;
+                font-weight: 600;
+                margin-bottom: 12px;
+                color: white;
             }
             
-            /* Кнопка закриття */
-            .notification-close {
-                width: 1.25rem; /* 20px */
-                height: 1.25rem;
+            .premium-confirm-message {
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 24px;
+                color: rgba(255, 255, 255, 0.9);
+            }
+            
+            .premium-confirm-buttons {
                 display: flex;
-                align-items: center;
                 justify-content: center;
+                gap: 12px;
+                width: 100%;
+            }
+            
+            .premium-confirm-button {
+                flex-basis: 45%;
+                padding: 12px;
+                border-radius: 12px;
+                border: none;
+                font-size: 16px;
+                font-weight: 600;
                 cursor: pointer;
-                font-size: 1.25rem; /* 20px */
-                color: rgba(255, 255, 255, 0.7);
-                transition: color 0.2s ease;
-                flex-shrink: 0;
+                transition: all 0.2s ease;
             }
             
-            .notification-close:hover {
-                color: #fff;
+            .premium-confirm-button:active {
+                transform: scale(0.97);
             }
             
-            /* Прогрес-бар для автозакриття */
-            .notification::after {
-                content: '';
-                position: absolute;
-                bottom: 0;
+            .premium-confirm-button-cancel {
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+            }
+            
+            .premium-confirm-button-confirm {
+                background: linear-gradient(90deg, #0288D1, #26A69A, #4CAF50);
+                color: white;
+            }
+            
+            .premium-confirm-button-danger {
+                background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
+                color: white;
+            }
+            
+            /* Стилі для індикатора завантаження */
+            .spinner-overlay {
+                position: fixed;
+                top: 0;
                 left: 0;
                 width: 100%;
-                height: 0.1875rem; /* 3px */
-                background: rgba(255, 255, 255, 0.3);
-                transform-origin: left;
-                animation: notification-timer linear forwards;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.3s ease, visibility 0.3s ease;
+                backdrop-filter: blur(3px);
             }
             
-            /* Типи сповіщень */
-            .notification.success {
-                background: linear-gradient(135deg, #4CAF50, #2E7D32);
-                border-left: 0.25rem solid #4CAF50; /* 4px */
+            .spinner-overlay.show {
+                opacity: 1;
+                visibility: visible;
             }
             
-            .notification.success .notification-icon {
-                background-color: rgba(76, 175, 80, 0.2);
-                color: #4CAF50;
+            .spinner-content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
             }
             
-            .notification.error {
-                background: linear-gradient(135deg, #F44336, #D32F2F);
-                border-left: 0.25rem solid #F44336; /* 4px */
+            .spinner {
+                width: 50px;
+                height: 50px;
+                border: 5px solid rgba(0, 201, 167, 0.3);
+                border-radius: 50%;
+                border-top-color: rgb(0, 201, 167);
+                animation: spin 1s linear infinite;
             }
             
-            .notification.error .notification-icon {
-                background-color: rgba(244, 67, 54, 0.2);
-                color: #F44336;
+            .spinner-message {
+                color: white;
+                font-size: 16px;
+                text-align: center;
+                max-width: 300px;
             }
             
-            .notification.info {
-                background: linear-gradient(135deg, #2196F3, #1976D2);
-                border-left: 0.25rem solid #2196F3; /* 4px */
+            @keyframes spin {
+                to { transform: rotate(360deg); }
             }
             
-            .notification.info .notification-icon {
-                background-color: rgba(33, 150, 243, 0.2);
-                color: #2196F3;
+            /* Анімація для оновлення балансу */
+            @keyframes balance-highlight {
+                0% { color: inherit; text-shadow: none; }
+                50% { color: #4eb5f7; text-shadow: 0 0 8px rgba(78, 181, 247, 0.6); }
+                100% { color: inherit; text-shadow: none; }
             }
             
-            /* Анімація для таймера автозакриття */
-            @keyframes notification-timer {
-                0% {
-                    transform: scaleX(1);
-                }
-                100% {
-                    transform: scaleX(0);
-                }
+            .balance-updated {
+                animation: balance-highlight 1s ease;
             }
             
-            /* Адаптивність для мобільних пристроїв */
-            @media (max-width: 450px) {
-                #notifications-container {
-                    top: 0.3125rem; /* 5px */
-                    max-width: 93%;
+            /* Адаптивність для невеликих екранів */
+            @media (max-width: 480px) {
+                .premium-notification-container {
+                    max-width: 320px;
+                    width: 95%;
                 }
                 
-                .notification {
-                    padding: 0.625rem 0.75rem; /* 10px 12px */
+                .premium-notification {
+                    padding: 12px;
                 }
                 
-                .notification-message {
-                    font-size: 0.875rem; /* 14px */
+                .premium-notification-icon {
+                    width: 28px;
+                    height: 28px;
+                    min-width: 28px;
+                    font-size: 16px;
+                }
+                
+                .premium-notification-title {
+                    font-size: 14px;
+                }
+                
+                .premium-notification-message {
+                    font-size: 13px;
+                }
+                
+                .premium-confirm-dialog {
+                    padding: 20px;
+                }
+                
+                .premium-confirm-icon {
+                    width: 60px;
+                    height: 60px;
+                    font-size: 30px;
+                }
+                
+                .premium-confirm-title {
+                    font-size: 18px;
+                }
+                
+                .premium-confirm-message {
+                    font-size: 14px;
+                }
+                
+                .premium-confirm-button {
+                    font-size: 14px;
+                    padding: 10px;
                 }
             }
         `;
-
-        // Додаємо правило анімації для кожного типу сповіщення
-        const animationCss = `
-            .notification.success::after {
-                animation-duration: var(--duration, 3s);
-                background: rgba(76, 175, 80, 0.5);
-            }
-            
-            .notification.error::after {
-                animation-duration: var(--duration, 3s);
-                background: rgba(244, 67, 54, 0.5);
-            }
-            
-            .notification.info::after {
-                animation-duration: var(--duration, 3s);
-                background: rgba(33, 150, 243, 0.5);
-            }
-        `;
-
-        styleElement.textContent += animationCss;
 
         // Додаємо стилі до документу
         document.head.appendChild(styleElement);
     }
 
     /**
-     * Функція для безпечного виведення HTML
+     * Перевизначення глобальних функцій для сумісності
      */
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    function overrideGlobalNotificationFunctions() {
+        // Перевизначаємо глобальну функцію для toast-повідомлень
+        window.showToast = function(message, isError) {
+            if (isError) {
+                showError(message);
+            } else {
+                showSuccess(message);
+            }
+        };
+
+        // Перевизначаємо глобальну функцію для сповіщень
+        window.showNotification = showInfo;
+
+        // Перевизначаємо функції для індикаторів завантаження
+        window.showLoading = showLoading;
+        window.hideLoading = hideLoading;
+
+        // Перевизначаємо функцію для діалогів підтвердження
+        window.showModernConfirm = showConfirmDialog;
     }
 
-    // Ініціалізуємо модуль під час завантаження
+    /**
+     * Показати інформаційне сповіщення
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
+     */
+    function showInfo(message, callback = null) {
+        showNotification(message, 'info', callback);
+    }
+
+    /**
+     * Показати сповіщення про успіх
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
+     */
+    function showSuccess(message, callback = null) {
+        showNotification(message, 'success', callback);
+    }
+
+    /**
+     * Показати сповіщення про помилку
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
+     */
+    function showError(message, callback = null) {
+        showNotification(message, 'error', callback);
+    }
+
+    /**
+     * Універсальна функція показу сповіщень
+     * @param {string} message - Текст повідомлення
+     * @param {string} type - Тип сповіщення ('info', 'success', 'error')
+     * @param {Function} callback - Функція зворотнього зв'язку
+     */
+    function showNotification(message, type = 'info', callback = null) {
+        // Якщо тип передано як boolean (для сумісності зі старим API)
+        if (typeof type === 'boolean') {
+            type = type ? 'error' : 'success';
+        }
+
+        // Запобігаємо показу порожніх повідомлень
+        if (!message || message.trim() === '') {
+            if (callback) setTimeout(callback, 100);
+            return;
+        }
+
+        // Якщо уже показується сповіщення, додаємо в чергу
+        if (_notificationShowing) {
+            if (_notificationsQueue.length < CONFIG.maxNotificationsAtOnce) {
+                _notificationsQueue.push({ message, type, callback });
+            } else {
+                // Якщо черга переповнена, і це повідомлення про помилку, показуємо його через alert
+                if (type === 'error') alert(message);
+                if (callback) setTimeout(callback, 100);
+            }
+            return;
+        }
+
+        _notificationShowing = true;
+
+        try {
+            // Перевіряємо, чи контейнер для повідомлень існує
+            let container = document.getElementById(_containerId);
+
+            if (!container) {
+                container = document.createElement('div');
+                container.id = _containerId;
+                container.className = 'premium-notification-container ' + CONFIG.position;
+                document.body.appendChild(container);
+            }
+
+            // Створюємо сповіщення
+            const notification = document.createElement('div');
+            notification.className = `premium-notification ${type}`;
+
+            // Додаємо іконку
+            const icon = document.createElement('div');
+            icon.className = 'premium-notification-icon';
+
+            // Встановлюємо іконку залежно від типу
+            switch (type) {
+                case 'error':
+                    icon.innerHTML = '&#10060;'; // ❌
+                    break;
+                case 'success':
+                    icon.innerHTML = '&#10004;'; // ✔
+                    break;
+                case 'info':
+                default:
+                    icon.innerHTML = '&#8505;'; // ℹ
+                    break;
+            }
+
+            // Контент повідомлення
+            const content = document.createElement('div');
+            content.className = 'premium-notification-content';
+
+            // Додаємо заголовок та текст
+            const title = document.createElement('div');
+            title.className = 'premium-notification-title';
+
+            // Встановлюємо заголовок залежно від типу
+            switch (type) {
+                case 'error':
+                    title.textContent = 'Помилка';
+                    break;
+                case 'success':
+                    title.textContent = 'Успішно';
+                    break;
+                case 'info':
+                default:
+                    title.textContent = 'Інформація';
+                    break;
+            }
+
+            const messageEl = document.createElement('div');
+            messageEl.className = 'premium-notification-message';
+            messageEl.textContent = message;
+
+            content.appendChild(title);
+            content.appendChild(messageEl);
+
+            // Кнопка закриття
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'premium-notification-close';
+            closeBtn.innerHTML = '&times;';
+
+            // Індикатор прогресу
+            const progress = document.createElement('div');
+            progress.className = 'premium-notification-progress';
+            progress.style.animationDuration = (CONFIG.autoHideTimeout / 1000) + 's';
+
+            // Збираємо елементи
+            notification.appendChild(icon);
+            notification.appendChild(content);
+            notification.appendChild(closeBtn);
+            notification.appendChild(progress);
+
+            // Додаємо повідомлення до контейнера
+            container.appendChild(notification);
+
+            // Показуємо повідомлення після короткої затримки
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 10);
+
+            // Запускаємо вібрацію для помилок на мобільних пристроях
+            if (type === 'error' && navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+
+            // Відтворюємо звук, якщо доступний
+            if (window.UI.Animations && window.UI.Animations.playSound) {
+                window.UI.Animations.playSound(type);
+            }
+
+            // Закриття при кліку на кнопку
+            closeBtn.addEventListener('click', () => {
+                closeNotification(notification, callback);
+            });
+
+            // Автоматичне закриття
+            setTimeout(() => {
+                if (notification.parentNode) { // Перевіряємо, що сповіщення все ще у DOM
+                    closeNotification(notification, callback);
+                }
+            }, CONFIG.autoHideTimeout);
+        } catch (e) {
+            console.error('Помилка показу сповіщення:', e);
+            // Якщо не вдалося створити сповіщення, використовуємо alert
+            alert(message);
+            _notificationShowing = false;
+            if (callback) callback();
+        }
+    }
+
+    /**
+     * Закриття сповіщення
+     * @param {HTMLElement} notification - DOM елемент сповіщення
+     * @param {Function} callback - Функція зворотнього зв'язку
+     */
+    function closeNotification(notification, callback = null) {
+        notification.classList.remove('show');
+        notification.classList.add('hide');
+
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+
+            _notificationShowing = false;
+
+            // Показуємо наступне сповіщення з черги
+            if (_notificationsQueue.length > 0) {
+                const nextNotification = _notificationsQueue.shift();
+                showNotification(nextNotification.message, nextNotification.type, nextNotification.callback);
+            } else if (callback) {
+                callback();
+            }
+        }, CONFIG.animationDuration);
+    }
+
+    /**
+     * Показ діалогового вікна з підтвердженням
+     * @param {Object} options - Опції діалогу
+     * @returns {Promise} Результат вибору користувача
+     */
+    function showConfirmDialog(options) {
+        // Якщо options - це рядок, вважаємо його повідомленням
+        if (typeof options === 'string') {
+            options = {
+                message: options,
+                title: 'Підтвердження',
+                confirmText: 'Підтвердити',
+                cancelText: 'Скасувати',
+                type: 'default' // 'default', 'danger'
+            };
+        }
+
+        // Встановлюємо значення за замовчуванням
+        const {
+            message,
+            title = 'Підтвердження',
+            confirmText = 'Підтвердити',
+            cancelText = 'Скасувати',
+            type = 'default',
+            icon = '⚠️'
+        } = options;
+
+        return new Promise((resolve) => {
+            try {
+                // Перевіряємо, чи існує діалог
+                let confirmOverlay = document.getElementById(_confirmDialogId);
+
+                if (!confirmOverlay) {
+                    // Створюємо діалог
+                    confirmOverlay = document.createElement('div');
+                    confirmOverlay.id = _confirmDialogId;
+                    confirmOverlay.className = 'premium-confirm-overlay';
+
+                    const dialog = document.createElement('div');
+                    dialog.className = 'premium-confirm-dialog';
+                    dialog.innerHTML = `
+                        <div class="premium-confirm-icon">${icon}</div>
+                        <div class="premium-confirm-title">${title}</div>
+                        <div class="premium-confirm-message">${message}</div>
+                        <div class="premium-confirm-buttons">
+                            <button class="premium-confirm-button premium-confirm-button-cancel" id="task-cancel-no">${cancelText}</button>
+                            <button class="premium-confirm-button premium-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}" id="task-cancel-yes">${confirmText}</button>
+                        </div>
+                    `;
+
+                    confirmOverlay.appendChild(dialog);
+                    document.body.appendChild(confirmOverlay);
+                } else {
+                    // Оновлюємо контент діалогу
+                    const titleEl = confirmOverlay.querySelector('.premium-confirm-title');
+                    const messageEl = confirmOverlay.querySelector('.premium-confirm-message');
+                    const iconEl = confirmOverlay.querySelector('.premium-confirm-icon');
+                    const confirmBtn = confirmOverlay.querySelector('#task-cancel-yes');
+                    const cancelBtn = confirmOverlay.querySelector('#task-cancel-no');
+
+                    if (titleEl) titleEl.textContent = title;
+                    if (messageEl) messageEl.textContent = message;
+                    if (iconEl) iconEl.innerHTML = icon;
+                    if (confirmBtn) {
+                        confirmBtn.textContent = confirmText;
+                        confirmBtn.className = `premium-confirm-button premium-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}`;
+                    }
+                    if (cancelBtn) cancelBtn.textContent = cancelText;
+                }
+
+                // Отримуємо кнопки
+                const cancelBtn = document.getElementById('task-cancel-no');
+                const confirmBtn = document.getElementById('task-cancel-yes');
+
+                // Замінюємо кнопки, щоб уникнути накопичення обробників подій
+                if (cancelBtn) {
+                    const newCancelBtn = cancelBtn.cloneNode(true);
+                    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+                    // Додаємо новий обробник
+                    newCancelBtn.addEventListener('click', function() {
+                        confirmOverlay.classList.remove('show');
+                        setTimeout(() => resolve(false), CONFIG.animationDuration);
+                    });
+                }
+
+                if (confirmBtn) {
+                    const newConfirmBtn = confirmBtn.cloneNode(true);
+                    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+                    // Додаємо новий обробник
+                    newConfirmBtn.addEventListener('click', function() {
+                        confirmOverlay.classList.remove('show');
+                        setTimeout(() => resolve(true), CONFIG.animationDuration);
+                    });
+                }
+
+                // Показуємо діалог
+                confirmOverlay.classList.add('show');
+
+            } catch (e) {
+                console.error('Помилка показу діалогу підтвердження:', e);
+                // Використовуємо стандартний confirm
+                resolve(confirm(message));
+            }
+        });
+    }
+
+    /**
+     * Показ індикатора завантаження
+     * @param {string} message - Повідомлення (опціонально)
+     */
+    function showLoading(message) {
+        try {
+            let spinner = document.getElementById(_loadingSpinnerId);
+
+            if (!spinner) {
+                // Створюємо індикатор завантаження
+                const spinnerContainer = document.createElement('div');
+                spinnerContainer.id = _loadingSpinnerId;
+                spinnerContainer.className = 'spinner-overlay';
+
+                spinnerContainer.innerHTML = `
+                    <div class="spinner-content">
+                        <div class="spinner"></div>
+                        ${message ? `<div class="spinner-message">${message}</div>` : ''}
+                    </div>
+                `;
+
+                document.body.appendChild(spinnerContainer);
+                spinner = spinnerContainer;
+            } else {
+                // Оновлюємо повідомлення, якщо воно передане
+                if (message) {
+                    const messageEl = spinner.querySelector('.spinner-message');
+                    if (messageEl) {
+                        messageEl.textContent = message;
+                    } else {
+                        const newMessageEl = document.createElement('div');
+                        newMessageEl.className = 'spinner-message';
+                        newMessageEl.textContent = message;
+
+                        const content = spinner.querySelector('.spinner-content');
+                        if (content) {
+                            content.appendChild(newMessageEl);
+                        }
+                    }
+                }
+            }
+
+            // Показуємо індикатор
+            spinner.classList.add('show');
+
+        } catch (e) {
+            console.error('Помилка показу індикатора завантаження:', e);
+        }
+    }
+
+    /**
+     * Приховування індикатора завантаження
+     */
+    function hideLoading() {
+        try {
+            const spinner = document.getElementById(_loadingSpinnerId);
+            if (spinner) {
+                spinner.classList.remove('show');
+            }
+        } catch (e) {
+            console.error('Помилка приховування індикатора завантаження:', e);
+        }
+    }
+
+    /**
+     * Оновлення відображення балансу на всіх можливих елементах UI
+     * @param {number} newBalance - Новий баланс
+     */
+    function updateBalanceUI(newBalance) {
+        try {
+            // 1. Безпосередньо оновлюємо DOM-елементи
+            const balanceElements = [
+                document.getElementById('user-tokens'),
+                document.getElementById('main-balance'),
+                document.querySelector('.balance-amount'),
+                document.getElementById('current-balance'),
+                ...document.querySelectorAll('[data-balance-display]')
+            ];
+
+            balanceElements.forEach(element => {
+                if (element) {
+                    // Для основного балансу з іконкою
+                    if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                        const iconPart = element.querySelector('.main-balance-icon')?.outerHTML || '';
+                        element.innerHTML = `${parseFloat(newBalance).toFixed(2)} ${iconPart}`;
+                    } else {
+                        element.textContent = parseFloat(newBalance).toFixed(2);
+                    }
+
+                    // Додаємо клас для анімації оновлення
+                    element.classList.add('balance-updated');
+                    setTimeout(() => {
+                        element.classList.remove('balance-updated');
+                    }, 1000);
+                }
+            });
+
+            // 2. Зберігаємо в localStorage
+            localStorage.setItem('userTokens', newBalance.toString());
+            localStorage.setItem('winix_balance', newBalance.toString());
+
+            // 3. Генеруємо подію для інших модулів
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: { newBalance: parseFloat(newBalance) }
+            }));
+
+        } catch (error) {
+            console.error('Помилка оновлення відображення балансу:', error);
+        }
+    }
+
+    // Ініціалізуємо модуль при завантаженні
     document.addEventListener('DOMContentLoaded', init);
 
     // Публічний API модуля
     return {
+        showInfo,
         showSuccess,
         showError,
-        showInfo,
         showNotification,
+        showConfirmDialog,
+        showLoading,
+        hideLoading,
+        updateBalanceUI,
         init
     };
 })();
