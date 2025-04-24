@@ -1,47 +1,33 @@
 /**
- * Animations - преміальний модуль анімацій для системи завдань
- * Адаптований на основі системи розіграшів з додатковими функціями
+ * Premium Animations - модуль анімацій преміум-класу для системи завдань
+ * Відповідає за вражаючі візуальні ефекти при отриманні винагород
  */
 
-// Створюємо namespace для UI компонентів, якщо його ще немає
+// Створюємо namespace для UI компонентів
 window.UI = window.UI || {};
 
 window.UI.Animations = (function() {
-    // Константи для анімацій
-    const ANIMATION_DURATION = 2000; // мс
-    const PARTICLE_COUNT = 30;
-    const PARTICLE_COLORS = ['#4eb5f7', '#00C9A7', '#AD6EE5', '#FFD700'];
-
     // Налаштування анімацій
     const config = {
-        // Чи включені преміальні анімації
-        enabled: true,
-        // Чи включена адаптація для слабких пристроїв
-        adaptiveMode: true,
-        // Тривалість анімацій в мс (можна змінювати для оптимізації)
-        animationDuration: 500,
-        // Максимальна кількість частинок для ефектів
-        maxParticles: 15,
-        // Швидкість анімації для різних ефектів
-        speeds: {
-            fast: 300,
-            normal: 500,
-            slow: 800
-        }
+        enabled: true,                // Чи включені анімації
+        adaptiveMode: true,           // Адаптація під потужність пристрою
+        rewardDuration: 2500,         // Тривалість анімації нагороди (мс)
+        confettiCount: {              // Кількість частинок для різних пристроїв
+            low: 20,
+            medium: 40,
+            high: 60
+        },
+        particleColors: [             // Кольори частинок
+            '#4EB5F7', '#00C9A7', '#AD6EE5', '#FFD700', '#52C0BD'
+        ]
     };
 
     // Стан анімацій
     const state = {
-        // Чи були ініціалізовані анімації
-        initialized: false,
-        // Чи були створені частинки
-        particlesCreated: false,
-        // Продуктивність пристрою (визначається автоматично)
-        devicePerformance: 'high', // 'low', 'medium', 'high'
-        // Таймери для різних анімацій
-        timers: {},
-        // Обмеження для паралельних анімацій
-        animationsInProgress: 0
+        initialized: false,             // Чи були ініціалізовані анімації
+        devicePerformance: 'high',      // Продуктивність пристрою
+        animationsInProgress: 0,        // Кількість анімацій в процесі
+        timers: {}                      // Збереження таймерів
     };
 
     /**
@@ -56,21 +42,16 @@ window.UI.Animations = (function() {
         // Визначаємо продуктивність пристрою
         detectDevicePerformance();
 
-        // Додаємо стилі для анімацій
+        // Додаємо стилі для преміальних анімацій
         injectAnimationStyles();
 
-        // Створюємо частинки для фону, якщо потрібно
-        if (document.querySelector('.particles-container')) {
-            createParticles();
-        }
-
-        // Додаємо обробники подій
+        // Налаштування обробників подій
         setupEventHandlers();
 
         // Встановлюємо флаг ініціалізації
         state.initialized = true;
 
-        console.log('UI.Animations: Преміальні анімації успішно ініціалізовано');
+        console.log(`UI.Animations: Ініціалізація завершена (режим: ${state.devicePerformance})`);
     }
 
     /**
@@ -78,51 +59,48 @@ window.UI.Animations = (function() {
      */
     function detectDevicePerformance() {
         try {
+            // Виконуємо простий тест продуктивності
             const startTime = performance.now();
-            // Проста тестова операція
             let counter = 0;
             for (let i = 0; i < 500000; i++) {
                 counter++;
             }
-            const endTime = performance.now();
-            const duration = endTime - startTime;
+            const duration = performance.now() - startTime;
 
-            // Визначення категорії пристрою
+            // Визначаємо категорію пристрою
             if (duration > 50) {
                 state.devicePerformance = 'low';
-                config.maxParticles = 5;
-                config.animationDuration = 300;
             } else if (duration > 20) {
                 state.devicePerformance = 'medium';
-                config.maxParticles = 10;
             } else {
                 state.devicePerformance = 'high';
             }
 
-            console.log(`UI.Animations: Визначено продуктивність пристрою: ${state.devicePerformance}`);
+            console.log(`UI.Animations: Продуктивність пристрою: ${state.devicePerformance}`);
 
-            // Адаптація налаштувань для мобільних пристроїв
-            if (window.innerWidth < 768) {
-                config.maxParticles = Math.max(5, Math.floor(config.maxParticles * 0.7));
+            // Адаптація для мобільних пристроїв
+            if (window.innerWidth < 768 && state.devicePerformance !== 'low') {
+                state.devicePerformance = 'medium';
             }
+
         } catch (e) {
-            console.warn('UI.Animations: Помилка при визначенні продуктивності пристрою:', e);
-            state.devicePerformance = 'medium';
+            console.warn('UI.Animations: Помилка визначення продуктивності:', e);
+            state.devicePerformance = 'medium'; // За замовчуванням
         }
     }
 
     /**
-     * Вставка стилів анімацій в DOM
+     * Додавання CSS стилів для преміальних анімацій
      */
     function injectAnimationStyles() {
         // Перевіряємо, чи стилі вже додані
-        if (document.getElementById('premium-animations-style')) return;
+        if (document.getElementById('premium-animations-styles')) return;
 
-        const style = document.createElement('style');
-        style.id = 'premium-animations-style';
-        style.textContent = `
-            /* Анімація винагороди */
-            .reward-animation-container {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'premium-animations-styles';
+        styleElement.textContent = `
+            /* Основний контейнер для анімації винагороди */
+            .premium-reward-container {
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -132,680 +110,697 @@ window.UI.Animations = (function() {
                 justify-content: center;
                 align-items: center;
                 pointer-events: none;
-                z-index: 1000;
+                z-index: 10000;
+                perspective: 1000px;
             }
             
-            .reward-animation {
-                background: linear-gradient(135deg, #4eb5f7, #00C9A7);
-                color: white;
-                font-size: 1.5rem;
-                font-weight: bold;
-                padding: 1rem 1.5rem;
-                border-radius: 0.9375rem;
-                box-shadow: 0 0 1.25rem rgba(0, 201, 167, 0.5);
-                transform: scale(0);
-                opacity: 0;
-                transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                display: flex;
-                align-items: center;
-                gap: 0.625rem;
-                backdrop-filter: blur(0.625rem);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .reward-animation.show {
-                transform: scale(1);
-                opacity: 1;
-            }
-            
-            .reward-icon {
-                font-size: 1.75rem;
-                animation: icon-pulse 2s infinite;
-            }
-            
-            @keyframes icon-pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.2); }
-                100% { transform: scale(1); }
-            }
-            
-            /* Анімація частинок */
-            .particles-container {
+            /* Фон затемнення */
+            .premium-reward-overlay {
                 position: absolute;
                 top: 0;
                 left: 0;
-                right: 0;
-                height: 100%;
-                pointer-events: none;
-                overflow: hidden;
-                z-index: -1;
-            }
-            
-            .particle {
-                position: absolute;
-                border-radius: 50%;
-                background: rgba(78, 181, 247, 0.6);
-                box-shadow: 0 0 0.625rem rgba(78, 181, 247, 0.4);
-                animation: float 15s infinite linear;
-            }
-            
-            @keyframes float {
-                0% { transform: translateY(0) translateX(0); }
-                25% { transform: translateY(-30px) translateX(10px); }
-                50% { transform: translateY(-10px) translateX(20px); }
-                75% { transform: translateY(-20px) translateX(-10px); }
-                100% { transform: translateY(0) translateX(0); }
-            }
-            
-            /* Анімація конфетті */
-            .confetti {
-                position: fixed;
-                width: 0.625rem;
-                height: 0.625rem;
-                border-radius: 50%;
-                animation: confetti-fall 4s ease-out forwards;
-                z-index: 999;
-                pointer-events: none;
-            }
-            
-            @keyframes confetti-fall {
-                0% {
-                    transform: translate(-50%, -50%) translateY(0) rotate(0deg);
-                    opacity: 1;
-                }
-                100% {
-                    transform: translate(-50%, -50%) translateY(100vh) rotate(720deg);
-                    opacity: 0;
-                }
-            }
-            
-            /* Анімації для входження елементів */
-            .fade-in-up {
-                opacity: 0;
-                animation: fadeInUp 0.5s ease forwards;
-            }
-            
-            .fade-in-right {
-                opacity: 0;
-                animation: fadeInRight 0.5s ease forwards;
-            }
-            
-            .fade-in-down {
-                opacity: 0;
-                animation: fadeInDown 0.5s ease forwards;
-            }
-            
-            .scale-in {
-                opacity: 0;
-                animation: scaleIn 0.5s ease forwards;
-            }
-            
-            @keyframes fadeInUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            
-            @keyframes fadeInRight {
-                from {
-                    opacity: 0;
-                    transform: translateX(-20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateX(0);
-                }
-            }
-            
-            @keyframes fadeInDown {
-                from {
-                    opacity: 0;
-                    transform: translateY(-20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            
-            @keyframes scaleIn {
-                from {
-                    opacity: 0;
-                    transform: scale(0.9);
-                }
-                to {
-                    opacity: 1;
-                    transform: scale(1);
-                }
-            }
-            
-            /* Поступова поява елементів з різними затримками */
-            .stagger-item:nth-child(1) { animation-delay: 0.1s; }
-            .stagger-item:nth-child(2) { animation-delay: 0.2s; }
-            .stagger-item:nth-child(3) { animation-delay: 0.3s; }
-            .stagger-item:nth-child(4) { animation-delay: 0.4s; }
-            .stagger-item:nth-child(5) { animation-delay: 0.5s; }
-            
-            /* Преміальні стилі для кнопок */
-            .action-button {
-                position: relative;
-                overflow: hidden;
-                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-                z-index: 1;
-            }
-            
-            .action-button::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(90deg,
-                    rgba(255, 255, 255, 0),
-                    rgba(255, 255, 255, 0.2),
-                    rgba(255, 255, 255, 0));
-                transition: all 0.6s;
-                z-index: -1;
-            }
-            
-            .action-button:hover::before {
-                left: 100%;
-            }
-            
-            .action-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 0.25rem 0.9375rem rgba(0, 0, 0, 0.3);
-            }
-            
-            .action-button:active {
-                transform: translateY(1px);
-                box-shadow: 0 0.125rem 0.3125rem rgba(0, 0, 0, 0.3);
-            }
-            
-            /* Ефект свічення для таймера */
-            .timer-container {
-                animation: glow-pulse 10s infinite;
-            }
-            
-            @keyframes glow-pulse {
-                0% { box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-                50% { box-shadow: 0 0 15px rgba(0, 201, 167, 0.8), 0 0 30px rgba(0, 201, 167, 0.5); }
-                100% { box-shadow: 0 0 5px rgba(0, 201, 167, 0.3); }
-            }
-            
-            /* Анімація для виділення балансу */
-            .highlight {
-                animation: highlight-animation 2s ease-out;
-            }
-            
-            @keyframes highlight-animation {
-                0% {
-                    color: white;
-                    text-shadow: 0 0 10px rgba(0, 201, 167, 0.8);
-                }
-                50% {
-                    color: #00C9A7;
-                    text-shadow: 0 0 15px rgba(0, 201, 167, 1);
-                }
-                100% {
-                    color: white;
-                    text-shadow: none;
-                }
-            }
-            
-            /* Преміальні стилі для завдань */
-            .task-item {
-                transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-                border-left: 3px solid transparent;
-                overflow: hidden;
-                backface-visibility: hidden;
-                position: relative;
-            }
-            
-            .task-item:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-                border-left: 3px solid rgba(0, 201, 167, 0.8);
-            }
-            
-            .task-item::before {
-                content: '';
-                position: absolute;
-                top: -50%;
-                left: -50%;
-                width: 200%;
-                height: 200%;
-                background-color: rgba(0, 201, 167, 0.05);
-                background-image: radial-gradient(rgba(0, 201, 167, 0.1) 0%, transparent 70%);
-                animation: rotate 30s infinite linear;
-                pointer-events: none;
+                background-color: rgba(0, 0, 0, 0.4);
                 opacity: 0;
                 transition: opacity 0.5s ease;
+                backdrop-filter: blur(5px);
             }
             
-            .task-item:hover::before {
+            .premium-reward-overlay.show {
                 opacity: 1;
             }
             
-            @keyframes rotate {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
+            /* Картка винагороди */
+            .premium-reward-card {
+                position: relative;
+                background: linear-gradient(135deg, rgba(30, 39, 70, 0.85), rgba(15, 23, 42, 0.95));
+                color: white;
+                border-radius: 20px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 
+                            0 0 0 1px rgba(78, 181, 247, 0.2) inset,
+                            0 0 30px rgba(0, 201, 167, 0.5);
+                padding: 30px 40px;
+                transform: scale(0.8) rotateX(20deg);
+                opacity: 0;
+                transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+                text-align: center;
+                overflow: hidden;
+                width: 90%;
+                max-width: 350px;
+                backdrop-filter: blur(10px);
             }
             
-            /* Анімація успішного виконання завдання */
-            .success-pulse {
-                animation: success-pulse 1s ease;
+            .premium-reward-card.show {
+                transform: scale(1) rotateX(0);
+                opacity: 1;
             }
             
-            @keyframes success-pulse {
-                0% {
-                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5);
-                }
-                50% {
-                    box-shadow: 0 0 30px 5px rgba(0, 201, 167, 0.8);
-                }
-                100% {
-                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5);
-                }
+            /* Заголовок винагороди */
+            .premium-reward-title {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+                text-shadow: 0 0 10px rgba(0, 201, 167, 0.7);
+                position: relative;
             }
             
-            /* Адаптивні стилі для різних пристроїв */
-            @media (max-width: 768px) {
-                .reward-animation {
-                    font-size: 1.25rem;
-                    padding: 0.75rem 1.25rem;
+            /* Світіння навколо заголовка */
+            .premium-reward-title::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 80%;
+                height: 20px;
+                background: radial-gradient(rgba(0, 201, 167, 0.3), transparent 70%);
+                transform: translate(-50%, -50%);
+                z-index: -1;
+                border-radius: 50%;
+                filter: blur(10px);
+            }
+            
+            /* Іконка винагороди */
+            .premium-reward-icon {
+                position: relative;
+                width: 100px;
+                height: 100px;
+                margin: 15px auto;
+                background: linear-gradient(135deg, #4eb5f7, #00C9A7);
+                border-radius: 50%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                box-shadow: 0 0 20px rgba(0, 201, 167, 0.7);
+                animation: icon-pulse 2s infinite ease-in-out;
+                overflow: hidden;
+                transform: scale(0);
+                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s;
+            }
+            
+            .premium-reward-card.show .premium-reward-icon {
+                transform: scale(1);
+            }
+            
+            /* Значок всередині іконки */
+            .premium-reward-icon-inner {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                transition: all 0.3s ease;
+                filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+            }
+            
+            /* Світіння навколо іконки */
+            .premium-reward-icon::after {
+                content: '';
+                position: absolute;
+                top: -20%;
+                left: -20%;
+                width: 140%;
+                height: 140%;
+                background: radial-gradient(rgba(0, 201, 167, 0.3), transparent 70%);
+                z-index: -1;
+                border-radius: 50%;
+                filter: blur(15px);
+            }
+            
+            /* Частинки всередині іконки */
+            .premium-reward-particles {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                border-radius: 50%;
+            }
+            
+            .premium-reward-particle {
+                position: absolute;
+                width: 5px;
+                height: 5px;
+                background: rgba(255, 255, 255, 0.8);
+                border-radius: 50%;
+                pointer-events: none;
+                animation: particle-float 2s infinite linear;
+            }
+            
+            /* Кількість винагороди */
+            .premium-reward-amount {
+                font-size: 36px;
+                font-weight: bold;
+                color: #FFD700;
+                margin: 10px 0;
+                text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+                transform: scale(0);
+                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .premium-reward-card.show .premium-reward-amount {
+                transform: scale(1);
+            }
+            
+            /* Іконка валюти біля суми */
+            .premium-reward-currency-icon {
+                width: 24px;
+                height: 24px;
+                position: relative;
+                display: inline-block;
+            }
+            
+            /* Тип винагороди */
+            .premium-reward-type {
+                font-size: 18px;
+                color: rgba(255, 255, 255, 0.8);
+                margin-bottom: 15px;
+                transform: translateY(20px);
+                opacity: 0;
+                transition: all 0.5s ease 0.4s;
+            }
+            
+            .premium-reward-card.show .premium-reward-type {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            
+            /* Кнопка прийняття винагороди */
+            .premium-reward-button {
+                padding: 12px 30px;
+                font-size: 16px;
+                font-weight: bold;
+                color: white;
+                background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+                border: none;
+                border-radius: 30px;
+                cursor: pointer;
+                transform: translateY(20px);
+                opacity: 0;
+                transition: all 0.3s ease, transform 0.5s ease 0.5s, opacity 0.5s ease 0.5s;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 201, 167, 0.2) inset;
+            }
+            
+            .premium-reward-card.show .premium-reward-button {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            
+            .premium-reward-button:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 201, 167, 0.5);
+            }
+            
+            .premium-reward-button:active {
+                transform: translateY(0);
+                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            }
+            
+            /* Фонові елементи та декорації */
+            .premium-reward-decoration {
+                position: absolute;
+                border-radius: 50%;
+                background: radial-gradient(rgba(78, 181, 247, 0.1), transparent);
+                z-index: -1;
+                transform: scale(0);
+                transition: transform 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+            
+            .premium-reward-decoration-1 {
+                top: -50px;
+                left: -50px;
+                width: 200px;
+                height: 200px;
+                transition-delay: 0.2s;
+            }
+            
+            .premium-reward-decoration-2 {
+                bottom: -70px;
+                right: -70px;
+                width: 250px;
+                height: 250px;
+                background: radial-gradient(rgba(0, 201, 167, 0.1), transparent);
+                transition-delay: 0.3s;
+            }
+            
+            .premium-reward-card.show .premium-reward-decoration {
+                transform: scale(1);
+            }
+            
+            /* Конфетті для ефекту святкування */
+            .premium-confetti-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 9999;
+                overflow: hidden;
+            }
+            
+            .premium-confetti {
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                pointer-events: none;
+                z-index: 9998;
+                opacity: 0.8;
+                transform-origin: center;
+            }
+            
+            /* Анімація для частинок всередині іконки */
+            @keyframes particle-float {
+                0% { transform: translateY(0) rotate(0deg); }
+                100% { transform: translateY(-20px) rotate(360deg); opacity: 0; }
+            }
+            
+            /* Анімація пульсації іконки */
+            @keyframes icon-pulse {
+                0% { box-shadow: 0 0 20px rgba(0, 201, 167, 0.5); }
+                50% { box-shadow: 0 0 30px rgba(0, 201, 167, 0.8), 0 0 50px rgba(0, 201, 167, 0.4); }
+                100% { box-shadow: 0 0 20px rgba(0, 201, 167, 0.5); }
+            }
+            
+            /* Адаптивний дизайн */
+            @media (max-width: 480px) {
+                .premium-reward-card {
+                    padding: 25px 30px;
                 }
                 
-                .reward-icon {
-                    font-size: 1.5rem;
+                .premium-reward-title {
+                    font-size: 20px;
+                }
+                
+                .premium-reward-icon {
+                    width: 80px;
+                    height: 80px;
+                    margin: 10px auto;
+                }
+                
+                .premium-reward-amount {
+                    font-size: 30px;
+                }
+                
+                .premium-reward-type {
+                    font-size: 16px;
+                }
+                
+                .premium-reward-button {
+                    padding: 10px 25px;
+                    font-size: 15px;
                 }
             }
-            
-            /* Адаптація для слабких пристроїв */
-            .low-performance-mode .task-item::before,
-            .low-performance-mode .action-button::before {
-                display: none;
-            }
-            
-            .low-performance-mode .task-item:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            }
         `;
-        document.head.appendChild(style);
-    }
 
-    /**
-     * Створення частинок для фону
-     */
-    function createParticles() {
-        if (!config.enabled || state.particlesCreated) return;
-
-        // Знаходимо всі контейнери для частинок
-        const containers = document.querySelectorAll('.particles-container');
-        if (!containers.length) return;
-
-        // Очищаємо контейнери
-        containers.forEach(container => {
-            container.innerHTML = '';
-        });
-
-        // Визначаємо кількість частинок в залежності від продуктивності
-        let particleCount = config.maxParticles;
-        if (state.devicePerformance === 'low') {
-            particleCount = 5;
-        } else if (state.devicePerformance === 'medium') {
-            particleCount = 8;
-        }
-
-        // Створюємо частинки
-        containers.forEach(container => {
-            for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-
-                // Випадковий розмір
-                const size = Math.random() * 5 + 2;
-                particle.style.width = `${size}px`;
-                particle.style.height = `${size}px`;
-
-                // Випадкова початкова позиція
-                particle.style.left = `${Math.random() * 100}%`;
-                particle.style.top = `${Math.random() * 100}%`;
-
-                // Випадкова прозорість
-                particle.style.opacity = (Math.random() * 0.5 + 0.1).toString();
-
-                // Випадковий колір
-                const hue = Math.random() * 40 + 190; // Від блакитного до синього
-                particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.6)`;
-
-                // Випадкова анімація
-                const duration = Math.random() * 15 + 5;
-                particle.style.animationDuration = `${duration}s`;
-
-                // Додаємо частинку в контейнер
-                container.appendChild(particle);
-            }
-        });
-
-        state.particlesCreated = true;
+        // Додаємо стилі до документу
+        document.head.appendChild(styleElement);
     }
 
     /**
      * Налаштування обробників подій
      */
     function setupEventHandlers() {
-        // Оновлення частинок при зміні розміру вікна
-        window.addEventListener('resize', debounce(() => {
-            state.particlesCreated = false;
-            createParticles();
-        }, 300));
-
-        // Прослуховування події для анімації успішного виконання завдання
-        document.addEventListener('task-completed', (event) => {
+        // Обробники подій для анімацій завдань
+        document.addEventListener('task-completed', function(event) {
             if (event.detail && event.detail.taskId) {
                 animateSuccessfulCompletion(event.detail.taskId);
             }
         });
+
+        // Обробник зміни розміру вікна для адаптації анімацій
+        window.addEventListener('resize', debounce(function() {
+            // Адаптуємо анімації під новий розмір
+            if (window.innerWidth < 768 && state.devicePerformance === 'high') {
+                state.devicePerformance = 'medium';
+            }
+        }, 300));
     }
 
     /**
-     * Показати анімацію отримання винагороди
-     * @param {Object} reward - Об'єкт з даними про винагороду
-     * @param {Object} options - Додаткові параметри анімації
+     * Показати преміальну анімацію отримання винагороди
+     * @param {Object} reward - Об'єкт винагороди {amount: число, type: 'tokens'|'coins'}
+     * @param {Object} options - Додаткові параметри
      */
     function showReward(reward, options = {}) {
-        // Параметри анімації
-        const {
-            duration = ANIMATION_DURATION,
-            showParticles = true,
-            showNotification = true
-        } = options;
+        // Параметри за замовчуванням
+        const settings = {
+            duration: config.rewardDuration,
+            showConfetti: true,
+            autoClose: true,
+            onClose: null,
+            ...options
+        };
 
-        // Формуємо текст винагороди
+        // Формуємо дані про винагороду
         const rewardAmount = reward.amount;
         const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
-        const rewardText = `+${rewardAmount} ${rewardType}`;
 
-        // Створюємо контейнер для анімації винагороди
-        const animationContainer = document.createElement('div');
-        animationContainer.className = 'reward-animation-container';
-        document.body.appendChild(animationContainer);
+        // Визначаємо іконку в залежності від типу
+        const iconType = reward.type === 'tokens' ? 'token' : 'coin';
 
-        // Створюємо елемент з винагородою
-        const rewardElement = document.createElement('div');
-        rewardElement.className = 'reward-animation';
-
-        // Додаємо іконку в залежності від типу винагороди
-        const iconElement = document.createElement('span');
-        iconElement.className = 'reward-icon';
-        iconElement.textContent = reward.type === 'tokens' ? '💰' : '🎖️';
-
-        // Додаємо текст винагороди
-        const textElement = document.createElement('span');
-        textElement.textContent = rewardText;
-
-        // Збираємо елементи
-        rewardElement.appendChild(iconElement);
-        rewardElement.appendChild(textElement);
-
-        // Додаємо елемент винагороди до контейнера
-        animationContainer.appendChild(rewardElement);
-
-        // Додаємо частинки, якщо потрібно
-        if (showParticles) {
-            createConfetti(rewardElement);
+        // Показуємо конфетті, якщо це включено
+        if (settings.showConfetti) {
+            createPremiumConfetti();
         }
 
-        // Показуємо анімацію
+        // Створюємо контейнер для анімації
+        const container = document.createElement('div');
+        container.className = 'premium-reward-container';
+
+        // Створюємо затемнений фон
+        const overlay = document.createElement('div');
+        overlay.className = 'premium-reward-overlay';
+
+        // Створюємо картку винагороди
+        const card = document.createElement('div');
+        card.className = 'premium-reward-card';
+
+        // Наповнюємо картку контентом
+        card.innerHTML = `
+            <div class="premium-reward-decoration premium-reward-decoration-1"></div>
+            <div class="premium-reward-decoration premium-reward-decoration-2"></div>
+            
+            <div class="premium-reward-title">Вітаємо!</div>
+            
+            <div class="premium-reward-icon">
+                <div class="premium-reward-icon-inner" data-icon-type="${iconType}"></div>
+                <div class="premium-reward-particles"></div>
+            </div>
+            
+            <div class="premium-reward-amount">
+                +${rewardAmount} <span class="premium-reward-currency-icon" data-icon-type="${iconType}-small"></span>
+            </div>
+            
+            <div class="premium-reward-type">Ви отримали ${rewardType}</div>
+            
+            <button class="premium-reward-button">Чудово!</button>
+        `;
+
+        // Додаємо частинки всередині іконки
+        const particlesContainer = card.querySelector('.premium-reward-particles');
+        for (let i = 0; i < 10; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'premium-reward-particle';
+
+            // Встановлюємо випадкову позицію та затримку
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.top = `${Math.random() * 100}%`;
+            particle.style.animationDelay = `${Math.random() * 2}s`;
+
+            particlesContainer.appendChild(particle);
+        }
+
+        // Збираємо все разом
+        container.appendChild(overlay);
+        container.appendChild(card);
+        document.body.appendChild(container);
+
+        // Відтворюємо звук успіху
+        playSound('success');
+
+        // Показуємо анімацію з невеликою затримкою
         setTimeout(() => {
-            rewardElement.classList.add('show');
-
-            // Видаляємо після завершення
-            setTimeout(() => {
-                rewardElement.classList.remove('show');
-                setTimeout(() => {
-                    animationContainer.remove();
-
-                    // Показуємо сповіщення після анімації
-                    if (showNotification) {
-                        showRewardNotification(reward);
-                    }
-                }, 300);
-            }, duration);
+            overlay.classList.add('show');
+            card.classList.add('show');
         }, 100);
+
+        // Додаємо обробник для кнопки
+        const button = card.querySelector('.premium-reward-button');
+        button.addEventListener('click', () => {
+            closeRewardAnimation();
+        });
 
         // Оновлюємо баланс користувача
         updateUserBalance(reward);
 
-        // Відтворюємо звук успіху, якщо він доступний
-        playSound('success');
-    }
+        // Автоматично закриваємо через вказаний час
+        if (settings.autoClose) {
+            state.timers.rewardClose = setTimeout(() => {
+                closeRewardAnimation();
+            }, settings.duration);
+        }
 
-    /**
-     * Показати сповіщення про отриману винагороду
-     */
-    function showRewardNotification(reward) {
-        // Якщо є компонент сповіщень, використовуємо його
-        if (window.UI.Notifications && window.UI.Notifications.showSuccess) {
-            const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
-            window.UI.Notifications.showSuccess(`Ви отримали ${reward.amount} ${rewardType}!`);
+        // Функція закриття анімації
+        function closeRewardAnimation() {
+            // Очищаємо таймер, якщо він існує
+            if (state.timers.rewardClose) {
+                clearTimeout(state.timers.rewardClose);
+            }
+
+            // Приховуємо елементи
+            overlay.classList.remove('show');
+            card.classList.remove('show');
+
+            // Видаляємо контейнер після завершення анімації
+            setTimeout(() => {
+                container.remove();
+
+                // Викликаємо callback, якщо він є
+                if (typeof settings.onClose === 'function') {
+                    settings.onClose();
+                }
+            }, 500);
         }
     }
 
     /**
-     * Створення конфетті для анімації
+     * Створення преміальних конфетті для анімації
      */
-    function createConfetti(targetElement) {
-        // Обмеження для слабких пристроїв
-        const confettiCount = state.devicePerformance === 'low' ? 20 :
-                              state.devicePerformance === 'medium' ? 30 : 50;
+    function createPremiumConfetti() {
+        // Визначаємо кількість конфетті в залежності від продуктивності
+        let confettiCount;
+        switch (state.devicePerformance) {
+            case 'low':
+                confettiCount = config.confettiCount.low;
+                break;
+            case 'medium':
+                confettiCount = config.confettiCount.medium;
+                break;
+            default:
+                confettiCount = config.confettiCount.high;
+        }
 
-        const confettiColors = PARTICLE_COLORS;
-
-        // Отримуємо позицію елемента
-        const rect = targetElement.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
+        // Створюємо контейнер для конфетті
+        const container = document.createElement('div');
+        container.className = 'premium-confetti-container';
+        document.body.appendChild(container);
 
         // Створюємо конфетті
         for (let i = 0; i < confettiCount; i++) {
+            // Створення елементу конфетті
             const confetti = document.createElement('div');
-            confetti.className = 'confetti';
+            confetti.className = 'premium-confetti';
+
+            // Випадковий тип фігури (коло, квадрат, прямокутник)
+            const shapeType = Math.floor(Math.random() * 3);
+            if (shapeType === 0) {
+                confetti.style.borderRadius = '50%';
+            } else if (shapeType === 1) {
+                confetti.style.borderRadius = '2px';
+                confetti.style.width = `${Math.random() * 15 + 5}px`;
+                confetti.style.height = `${Math.random() * 10 + 5}px`;
+            }
 
             // Випадковий розмір
-            const size = Math.random() * 8 + 4;
+            const size = Math.random() * 15 + 5;
             confetti.style.width = `${size}px`;
             confetti.style.height = `${size}px`;
 
             // Випадковий колір
-            const color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+            const color = config.particleColors[Math.floor(Math.random() * config.particleColors.length)];
             confetti.style.backgroundColor = color;
+            confetti.style.boxShadow = `0 0 6px ${color}`;
 
-            // Випадкова форма (коло або квадрат)
-            confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+            // Початкова позиція у верхній частині екрану
+            confetti.style.left = `${Math.random() * 100}%`;
+            confetti.style.top = `-50px`;
 
-            // Встановлюємо початкову позицію
-            confetti.style.top = `${centerY}px`;
-            confetti.style.left = `${centerX}px`;
+            // Додаємо конфетті до контейнера
+            container.appendChild(confetti);
 
-            // Випадковий кут і відстань
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 100 + 50;
-            const speedX = Math.cos(angle) * distance;
-            const speedY = Math.sin(angle) * distance;
+            // Анімуємо конфетті
+            const animationDuration = Math.random() * 3 + 2;
+            const horizontal = Math.random() * 100 - 50; // Горизонтальний зсув
+            const finalRotation = Math.random() * 720 - 360; // Обертання
 
-            // Випадкова затримка
-            const delay = Math.random() * 0.5;
+            // Створюємо анімацію для конфетті
+            const animation = confetti.animate([
+                {
+                    transform: 'translate(0, 0) rotate(0deg)',
+                    opacity: 1
+                },
+                {
+                    transform: `translate(${horizontal}px, ${window.innerHeight + 100}px) rotate(${finalRotation}deg)`,
+                    opacity: 0
+                }
+            ], {
+                duration: animationDuration * 1000,
+                easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)',
+                fill: 'forwards'
+            });
 
-            // Встановлюємо анімацію
-            confetti.style.animationDelay = `${delay}s`;
-            confetti.style.transform = `translate(-50%, -50%) translateX(${speedX}px) translateY(${speedY}px)`;
-
-            // Додаємо до body
-            document.body.appendChild(confetti);
-
-            // Видаляємо після завершення анімації
-            setTimeout(() => {
+            // Видаляємо конфетті після завершення анімації
+            animation.onfinish = () => {
                 confetti.remove();
-            }, 4000 + delay * 1000);
+
+                // Видаляємо контейнер, якщо всі конфетті закінчили анімацію
+                if (container.children.length === 0) {
+                    container.remove();
+                }
+            };
         }
     }
 
     /**
-     * Оновити баланс користувача
+     * Оновлення балансу користувача
+     * @param {Object} reward - Об'єкт винагороди {amount: число, type: 'tokens'|'coins'}
      */
     function updateUserBalance(reward) {
         if (reward.type === 'tokens') {
+            // Оновлюємо баланс токенів
             const userTokensElement = document.getElementById('user-tokens');
             if (userTokensElement) {
                 const currentBalance = parseFloat(userTokensElement.textContent) || 0;
-                userTokensElement.textContent = (currentBalance + reward.amount).toFixed(2);
-                userTokensElement.classList.add('highlight');
+                const newBalance = currentBalance + reward.amount;
+                userTokensElement.textContent = newBalance.toFixed(2);
+
+                // Додаємо клас для анімації оновлення
+                userTokensElement.classList.add('increasing');
                 setTimeout(() => {
-                    userTokensElement.classList.remove('highlight');
+                    userTokensElement.classList.remove('increasing');
                 }, 2000);
+
+                // Зберігаємо значення в localStorage
+                localStorage.setItem('userTokens', newBalance.toString());
             }
         } else if (reward.type === 'coins') {
+            // Оновлюємо баланс жетонів
             const userCoinsElement = document.getElementById('user-coins');
             if (userCoinsElement) {
                 const currentBalance = parseInt(userCoinsElement.textContent) || 0;
-                userCoinsElement.textContent = currentBalance + reward.amount;
-                userCoinsElement.classList.add('highlight');
+                const newBalance = currentBalance + reward.amount;
+                userCoinsElement.textContent = newBalance.toString();
+
+                // Додаємо клас для анімації оновлення
+                userCoinsElement.classList.add('increasing');
                 setTimeout(() => {
-                    userCoinsElement.classList.remove('highlight');
+                    userCoinsElement.classList.remove('increasing');
                 }, 2000);
+
+                // Зберігаємо значення в localStorage
+                localStorage.setItem('userCoins', newBalance.toString());
             }
         }
+
+        // Генеруємо подію про оновлення балансу
+        document.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: {
+                type: reward.type,
+                amount: reward.amount
+            }
+        }));
     }
 
     /**
      * Анімація успішного виконання завдання
+     * @param {string} taskId - ID завдання
      */
     function animateSuccessfulCompletion(taskId) {
-        // Знаходимо елемент завдання
         const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
         if (!taskElement) return;
 
-        // Додаємо ефект пульсації
+        // Додаємо клас для анімації
         taskElement.classList.add('success-pulse');
 
-        // Створюємо конфетті навколо елемента
+        // Додаємо ефект частинок навколо завдання
         createTaskConfetti(taskElement);
 
-        // Видаляємо класи через 2 секунди
+        // Відтворюємо звук успіху
+        playSound('success');
+
+        // Видаляємо класи анімації через 2 секунди
         setTimeout(() => {
             taskElement.classList.remove('success-pulse');
         }, 2000);
     }
 
     /**
-     * Створення конфетті для завдання
+     * Створення конфетті для анімації завдання
+     * @param {HTMLElement} taskElement - DOM елемент завдання
      */
     function createTaskConfetti(taskElement) {
-        // Обмеження для слабких пристроїв
+        // Пропускаємо на слабких пристроях
         if (state.devicePerformance === 'low') return;
 
-        const confettiCount = state.devicePerformance === 'medium' ? 20 : 30;
-        const confettiColors = ['#4eb5f7', '#00c9a7', '#ffcc00', '#ff6b6b', '#8a2be2'];
+        // Кількість частинок
+        const particleCount = state.devicePerformance === 'medium' ? 15 : 25;
 
-        // Отримуємо позицію і розміри елемента
+        // Отримуємо розміри та позицію елемента
         const rect = taskElement.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
 
-        // Створюємо конфетті
-        for (let i = 0; i < confettiCount; i++) {
-            const confetti = document.createElement('div');
-            confetti.style.position = 'fixed';
-            confetti.style.width = `${Math.random() * 8 + 4}px`;
-            confetti.style.height = `${Math.random() * 8 + 4}px`;
-            confetti.style.backgroundColor = confettiColors[Math.floor(Math.random() * confettiColors.length)];
-            confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-            confetti.style.top = `${centerY}px`;
-            confetti.style.left = `${centerX}px`;
-            confetti.style.position = 'fixed';
-            confetti.style.pointerEvents = 'none';
-            confetti.style.zIndex = '9999';
-            confetti.style.transform = 'translate(-50%, -50%)';
+        // Створюємо частинки
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.style.position = 'fixed';
+            particle.style.width = `${Math.random() * 8 + 4}px`;
+            particle.style.height = `${Math.random() * 8 + 4}px`;
+            particle.style.backgroundColor = config.particleColors[Math.floor(Math.random() * config.particleColors.length)];
+            particle.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            particle.style.top = `${centerY}px`;
+            particle.style.left = `${centerX}px`;
+            particle.style.position = 'fixed';
+            particle.style.pointerEvents = 'none';
+            particle.style.zIndex = '9999';
+            particle.style.transform = 'translate(-50%, -50%)';
 
-            // Додаємо до body
-            document.body.appendChild(confetti);
+            // Додаємо до документу
+            document.body.appendChild(particle);
 
-            // Анімуємо конфетті
+            // Анімуємо частинку
             const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * 150 + 50;
-            const duration = Math.random() + 1;
+            const distance = Math.random() * 100 + 50;
+            const duration = Math.random() * 1.5 + 0.5;
 
-            confetti.animate([
+            const animation = particle.animate([
                 {
                     transform: 'translate(-50%, -50%) scale(0.3)',
                     opacity: 1
                 },
                 {
-                    transform: `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px)) scale(1) rotate(${Math.random() * 360}deg)`,
+                    transform: `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px)) scale(1.2) rotate(${Math.random() * 360}deg)`,
                     opacity: 0
                 }
             ], {
                 duration: duration * 1000,
-                easing: 'cubic-bezier(0, 0.5, 0.5, 1)',
+                easing: 'cubic-bezier(0.1, 0.8, 0.2, 1)',
                 fill: 'forwards'
             });
 
-            // Видаляємо після завершення анімації
-            setTimeout(() => {
-                confetti.remove();
-            }, duration * 1000);
+            // Видаляємо частинку після завершення анімації
+            animation.onfinish = () => {
+                particle.remove();
+            };
         }
     }
 
     /**
-     * Анімація прогресу для завдання
-     * @param {string} taskId - ID завдання
-     * @param {number} progress - Поточний прогрес (0-100)
-     */
-    function showProgressAnimation(taskId, progress) {
-        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-        if (!taskElement) return;
-
-        const progressBar = taskElement.querySelector('.progress-fill');
-        if (progressBar) {
-            // Зберігаємо поточну ширину
-            const currentWidth = parseFloat(progressBar.style.width) || 0;
-
-            // Встановлюємо нову ширину з анімацією
-            progressBar.style.transition = 'width 1s ease-out';
-            progressBar.style.width = `${progress}%`;
-
-            // Додаємо ефект пульсації, якщо прогрес збільшився
-            if (progress > currentWidth) {
-                progressBar.classList.add('pulse');
-                setTimeout(() => {
-                    progressBar.classList.remove('pulse');
-                }, 1000);
-            }
-        }
-    }
-
-    /**
-     * Відтворити звуковий ефект
+     * Відтворення звукового ефекту
      * @param {string} type - Тип звуку ('success', 'error', 'click')
      */
     function playSound(type) {
-        // Перевіряємо чи включені звуки в налаштуваннях користувача
+        // Перевіряємо налаштування звуку користувача
         const soundsEnabled = localStorage.getItem('sounds_enabled') !== 'false';
         if (!soundsEnabled) return;
 
         let soundUrl;
 
-        // Визначаємо URL звуку залежно від типу
+        // Визначаємо URL звуку
         switch (type) {
             case 'success':
                 soundUrl = 'assets/sounds/success.mp3';
@@ -820,42 +815,52 @@ window.UI.Animations = (function() {
                 return;
         }
 
-        // Створюємо аудіо елемент
-        const audio = new Audio(soundUrl);
+        try {
+            // Створюємо аудіо елемент
+            const audio = new Audio(soundUrl);
+            audio.volume = 0.5;
 
-        // Встановлюємо гучність
-        audio.volume = 0.5;
-
-        // Відтворюємо звук
-        audio.play().catch(error => {
-            console.warn('Не вдалося відтворити звук:', error);
-        });
+            // Відтворюємо звук
+            audio.play().catch(error => {
+                console.warn('Не вдалося відтворити звук:', error);
+            });
+        } catch (e) {
+            console.warn('Помилка відтворення звуку:', e);
+        }
     }
 
     /**
-     * Анімація заголовків
+     * Показати анімацію прогресу для завдання
+     * @param {string} taskId - ID завдання
+     * @param {number} progress - Значення прогресу (0-100)
      */
-    function animateHeaders() {
-        // Анімуємо заголовки секцій
-        document.querySelectorAll('.category-title').forEach((title, index) => {
-            title.classList.add('fade-in-down');
-            title.style.animationDelay = `${index * 0.2}s`;
-        });
+    function showProgressAnimation(taskId, progress) {
+        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+        if (!taskElement) return;
+
+        const progressBar = taskElement.querySelector('.progress-fill');
+        if (progressBar) {
+            // Зберігаємо поточне значення
+            const currentWidth = parseFloat(progressBar.style.width) || 0;
+
+            // Встановлюємо нове значення з анімацією
+            progressBar.style.transition = 'width 1s cubic-bezier(0.1, 0.8, 0.2, 1)';
+            progressBar.style.width = `${progress}%`;
+
+            // Додаємо ефект пульсації якщо прогрес збільшився
+            if (progress > currentWidth) {
+                progressBar.classList.add('pulse');
+                setTimeout(() => {
+                    progressBar.classList.remove('pulse');
+                }, 1000);
+            }
+        }
     }
 
     /**
-     * Анімація завдань
-     */
-    function animateTasks() {
-        // Анімуємо завдання
-        document.querySelectorAll('.task-item').forEach((task, index) => {
-            task.classList.add('fade-in-up', 'stagger-item');
-            task.style.animationDelay = `${0.1 + index * 0.1}s`;
-        });
-    }
-
-    /**
-     * Допоміжна функція для відкладеного виконання (debounce)
+     * Функція для відкладеного виконання
+     * @param {Function} func - Функція для виконання
+     * @param {number} wait - Час затримки у мс
      */
     function debounce(func, wait) {
         let timeout;
@@ -866,43 +871,8 @@ window.UI.Animations = (function() {
         };
     }
 
-    /**
-     * Швидке створення елементу з класом та вмістом
-     */
-    function createElement(tag, className, content = '') {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        if (content) element.innerHTML = content;
-        return element;
-    }
-
-    /**
-     * Ініціалізація анімацій для всієї сторінки
-     */
-    function initPageAnimations() {
-        // Визначаємо режим продуктивності для Body
-        if (state.devicePerformance === 'low') {
-            document.body.classList.add('low-performance-mode');
-        }
-
-        // Анімуємо заголовки
-        animateHeaders();
-
-        // Анімуємо завдання
-        animateTasks();
-
-        // Додаємо обробники подій для анімованих елементів
-        document.querySelectorAll('.action-button').forEach(button => {
-            button.addEventListener('mouseenter', () => {
-                playSound('click');
-            });
-        });
-
-        // Створюємо частинки для фону
-        if (document.querySelector('.particles-container')) {
-            createParticles();
-        }
-    }
+    // Ініціалізуємо модуль при завантаженні
+    document.addEventListener('DOMContentLoaded', init);
 
     // Публічний API модуля
     return {
@@ -911,9 +881,6 @@ window.UI.Animations = (function() {
         showProgressAnimation,
         playSound,
         animateSuccessfulCompletion,
-        createConfetti,
-        animateHeaders,
-        animateTasks,
-        initPageAnimations
+        createPremiumConfetti,
     };
 })();
