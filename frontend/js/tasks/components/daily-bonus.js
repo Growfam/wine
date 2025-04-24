@@ -36,27 +36,97 @@ window.DailyBonus = (function() {
      */
     async function loadBonusData() {
         try {
-            const response = await window.API.get('/quests/daily-bonus/status');
+            // Тестові дані, які використовуються як запасний варіант або для демонстрації
+            const defaultBonusData = {
+                current_day: 1,
+                claimed_today: false,
+                last_claim_date: null,
+                rewards: {
+                    1: 10,
+                    2: 20,
+                    3: 30,
+                    4: 40,
+                    5: 50,
+                    6: 60,
+                    7: 100
+                }
+            };
 
-            if (response.success) {
-                bonusData = response.data;
+            // Перевіряємо наявність API та методу get
+            if (!window.API || typeof window.API.get !== 'function') {
+                console.warn('API не доступний. Використання тестових даних для щоденного бонусу.');
+
+                // Зберігаємо тестові дані
+                bonusData = defaultBonusData;
                 currentDay = bonusData.current_day || 1;
                 bonusAmount = getBonusAmount(currentDay);
 
                 // Оновлюємо текст кнопки
+                if (claimButton) {
+                    const buttonText = claimButton.getAttribute('data-lang-key') || 'earn.get';
+                    claimButton.innerText = `${buttonText.replace('earn.get', 'Отримати')} ${bonusAmount} $WINIX`;
+                }
+
+                return bonusData;
+            }
+
+            // Якщо API доступний, робимо запит
+            try {
+                const response = await window.API.get('/quests/daily-bonus/status');
+
+                if (response && response.success) {
+                    bonusData = response.data || defaultBonusData;
+                    currentDay = bonusData.current_day || 1;
+                    bonusAmount = getBonusAmount(currentDay);
+
+                    // Оновлюємо текст кнопки
+                    if (claimButton) {
+                        const buttonText = claimButton.getAttribute('data-lang-key');
+                        claimButton.innerText = `${buttonText.replace('earn.get', 'Отримати')} ${bonusAmount} $WINIX`;
+                    }
+
+                    return bonusData;
+                } else {
+                    console.error('Не вдалося завантажити дані щоденного бонусу:', response?.message);
+                    // Використовуємо тестові дані як запасний варіант
+                    bonusData = defaultBonusData;
+                    currentDay = bonusData.current_day || 1;
+                    bonusAmount = getBonusAmount(currentDay);
+
+                    if (claimButton) {
+                        const buttonText = claimButton.getAttribute('data-lang-key');
+                        claimButton.innerText = `${buttonText.replace('earn.get', 'Отримати')} ${bonusAmount} $WINIX`;
+                    }
+
+                    return bonusData;
+                }
+            } catch (apiError) {
+                console.error('Помилка запиту до API щоденного бонусу:', apiError);
+                // Використовуємо тестові дані при помилці API
+                bonusData = defaultBonusData;
+                currentDay = bonusData.current_day || 1;
+                bonusAmount = getBonusAmount(currentDay);
+
                 if (claimButton) {
                     const buttonText = claimButton.getAttribute('data-lang-key');
                     claimButton.innerText = `${buttonText.replace('earn.get', 'Отримати')} ${bonusAmount} $WINIX`;
                 }
 
                 return bonusData;
-            } else {
-                console.error('Не вдалося завантажити дані щоденного бонусу:', response.message);
-                return null;
             }
         } catch (error) {
             console.error('Помилка завантаження даних щоденного бонусу:', error);
-            return null;
+            // Базові дані як останній запасний варіант
+            bonusData = {
+                current_day: 1,
+                claimed_today: false,
+                rewards: {
+                    1: 10, 2: 20, 3: 30, 4: 40, 5: 50, 6: 60, 7: 100
+                }
+            };
+            currentDay = 1;
+            bonusAmount = 10;
+            return bonusData;
         }
     }
 
@@ -154,6 +224,39 @@ window.DailyBonus = (function() {
         claimButton.innerText = 'Отримання...';
 
         try {
+            // Перевіряємо наявність API
+            if (!window.API || typeof window.API.post !== 'function') {
+                console.warn('API не доступний. Симуляція отримання бонусу.');
+
+                // Симулюємо успішне отримання бонусу
+                setTimeout(() => {
+                    // Показуємо анімацію винагороди
+                    const reward = {
+                        type: 'tokens',
+                        amount: bonusAmount
+                    };
+                    showBonusAnimation(reward);
+
+                    // Оновлюємо стан бонусу
+                    bonusData.claimed_today = true;
+                    if (currentDay >= 7) {
+                        currentDay = 1;
+                    } else {
+                        currentDay += 1;
+                    }
+                    bonusData.current_day = currentDay;
+                    bonusData.last_claim_date = new Date().toISOString().split('T')[0];
+
+                    renderBonusProgress();
+                    updateClaimButton();
+
+                    // Оновлюємо баланс користувача
+                    updateUserBalance(reward);
+                }, 1000);
+
+                return;
+            }
+
             const response = await window.API.post('/quests/daily-bonus/claim');
 
             if (response.success) {
@@ -209,7 +312,7 @@ window.DailyBonus = (function() {
         if (reward.type === 'tokens') {
             const userTokensElement = document.getElementById('user-tokens');
             if (userTokensElement) {
-                const currentBalance = parseInt(userTokensElement.textContent) || 0;
+                const currentBalance = parseFloat(userTokensElement.textContent) || 0;
                 userTokensElement.textContent = currentBalance + reward.amount;
             }
         } else if (reward.type === 'coins') {
