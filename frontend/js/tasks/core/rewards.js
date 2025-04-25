@@ -4,11 +4,6 @@
  * - Нарахування винагород за виконані завдання
  * - Анімацію отримання винагород
  * - Оновлення балансу користувача
- *
- * Оптимізована версія з виправленими проблемами:
- * - Коректне розрізнення токенів та жетонів
- * - Стабільне оновлення балансу
- * - Вдосконалена логіка валідації
  */
 
 window.TaskRewards = (function() {
@@ -16,21 +11,8 @@ window.TaskRewards = (function() {
     let tokenBalance = 0;
     let coinsBalance = 0;
 
-    // Типи винагород
-    const REWARD_TYPES = {
-        TOKENS: 'tokens',
-        COINS: 'coins'
-    };
-
     // Історія винагород
     const rewardHistory = [];
-
-    // Лічильник операцій для запобігання дублювання
-    const operationCounter = {
-        lastOperationId: null,
-        lastOperationTime: 0,
-        operationsInProgress: {}
-    };
 
     /**
      * Ініціалізація модуля винагород
@@ -54,44 +36,6 @@ window.TaskRewards = (function() {
 
         // Подія оновлення балансу
         document.addEventListener('balance-updated', handleBalanceUpdate);
-
-        // Запобігання дублювання подій
-        preventDuplicateEvents();
-    }
-
-    /**
-     * Запобігання дублювання подій оновлення балансу
-     */
-    function preventDuplicateEvents() {
-        // Оригінальний метод dispatchEvent
-        const originalDispatchEvent = document.dispatchEvent;
-
-        // Перевизначаємо метод
-        document.dispatchEvent = function(event) {
-            // Перевіряємо, чи це подія оновлення балансу
-            if (event.type === 'balance-updated' && event.detail) {
-                const { source, timestamp, operationId } = event.detail;
-
-                // Якщо це наша подія або вже є operationId, пропускаємо
-                if (source === 'task_rewards' || operationId === operationCounter.lastOperationId) {
-                    return originalDispatchEvent.call(this, event);
-                }
-
-                // Перевіряємо час останньої події
-                const now = Date.now();
-                if (now - operationCounter.lastOperationTime < 500) {
-                    console.warn('TaskRewards: Виявлено потенційне дублювання події balance-updated, фільтрування...');
-                    return true; // Не дозволяємо дублювання подій
-                }
-
-                // Оновлюємо лічильник
-                operationCounter.lastOperationTime = now;
-                operationCounter.lastOperationId = operationId || `op_${now}_${Math.random().toString(36).substr(2, 9)}`;
-            }
-
-            // Викликаємо оригінальний метод
-            return originalDispatchEvent.call(this, event);
-        };
     }
 
     /**
@@ -146,10 +90,10 @@ window.TaskRewards = (function() {
         }
 
         // Оновлюємо локальний баланс, тільки якщо тип чітко вказаний
-        if (type === REWARD_TYPES.TOKENS) {
+        if (type === 'tokens') {
             tokenBalance = newBalance;
             console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
-        } else if (type === REWARD_TYPES.COINS) {
+        } else if (type === 'coins') {
             coinsBalance = newBalance;
             console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
         }
@@ -161,74 +105,32 @@ window.TaskRewards = (function() {
      * @param {Object} reward - Дані винагороди
      */
     function processReward(taskId, reward) {
-        // Перевіряємо коректність даних
-        if (!validateReward(reward)) {
-            console.error('TaskRewards: Отримано некоректні дані нагороди', reward);
+        // Переконуємося, що reward є об'єктом
+        if (!reward || typeof reward !== 'object') {
+            console.error('TaskRewards: Отримано невалідну винагороду', reward);
             return;
         }
 
-        // Нормалізуємо формат винагороди
-        const normalizedReward = normalizeReward(reward);
+        // Переконуємося, що тип винагороди визначено правильно
+        if (!reward.type || (reward.type !== 'tokens' && reward.type !== 'coins')) {
+            console.warn('TaskRewards: Невизначений тип винагороди, використовуємо тип за замовчуванням (tokens)');
+            reward.type = 'tokens';
+        }
+
+        // Переконуємося, що сума винагороди є числом
+        if (typeof reward.amount !== 'number' || isNaN(reward.amount) || reward.amount <= 0) {
+            console.warn('TaskRewards: Невалідна сума винагороди, використовуємо значення за замовчуванням (10)');
+            reward.amount = 10;
+        }
 
         // Додаємо винагороду до історії
-        addToRewardHistory(taskId, normalizedReward);
+        addToRewardHistory(taskId, reward);
 
         // Оновлюємо баланс
-        updateBalance(normalizedReward);
+        updateBalance(reward);
 
         // Показуємо анімацію винагороди
-        showRewardAnimation(normalizedReward);
-    }
-
-    /**
-     * Валідація даних винагороди
-     * @param {Object} reward - Дані винагороди
-     * @returns {boolean} Результат валідації
-     */
-    function validateReward(reward) {
-        // Перевіряємо, чи є об'єктом
-        if (!reward || typeof reward !== 'object') {
-            return false;
-        }
-
-        // Перевіряємо наявність типу
-        if (!reward.type || !['tokens', 'coins'].includes(reward.type)) {
-            return false;
-        }
-
-        // Перевіряємо amount
-        if (typeof reward.amount !== 'number' || isNaN(reward.amount) || reward.amount <= 0) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Нормалізація даних винагороди
-     * @param {Object} reward - Дані винагороди
-     * @returns {Object} Нормалізовані дані
-     */
-    function normalizeReward(reward) {
-        // Створюємо копію об'єкта
-        const normalizedReward = { ...reward };
-
-        // Перевіряємо тип
-        if (typeof normalizedReward.type === 'string') {
-            // Перевірка за ключовими словами
-            if (normalizedReward.type.toLowerCase().includes('token') ||
-                normalizedReward.type.toLowerCase().includes('winix')) {
-                normalizedReward.type = REWARD_TYPES.TOKENS;
-            } else if (normalizedReward.type.toLowerCase().includes('coin') ||
-                       normalizedReward.type.toLowerCase().includes('жетон')) {
-                normalizedReward.type = REWARD_TYPES.COINS;
-            }
-        }
-
-        // Перевіряємо значення
-        normalizedReward.amount = Math.abs(parseFloat(normalizedReward.amount) || 0);
-
-        return normalizedReward;
+        showRewardAnimation(reward);
     }
 
     /**
@@ -237,13 +139,11 @@ window.TaskRewards = (function() {
      * @param {Object} reward - Дані винагороди
      */
     function addToRewardHistory(taskId, reward) {
-        const historyItem = {
+        rewardHistory.push({
             taskId,
             reward,
             timestamp: Date.now()
-        };
-
-        rewardHistory.push(historyItem);
+        });
 
         // Зберігаємо історію в localStorage
         try {
@@ -260,95 +160,55 @@ window.TaskRewards = (function() {
      * @param {Object} reward - Дані винагороди
      */
     function updateBalance(reward) {
-        // Перевіряємо валідність винагороди
-        if (!validateReward(reward)) {
-            console.error('TaskRewards: Спроба оновити баланс з невалідними даними', reward);
+        // Ще раз перевіряємо валідність винагороди
+        if (!reward || typeof reward !== 'object') {
+            console.error('TaskRewards: Спроба оновити баланс з невалідними даними');
+            return;
+        }
+
+        // Чітко визначаємо тип винагороди
+        const rewardType = reward.type === 'tokens' ? 'tokens' : 'coins';
+
+        // Валідуємо суму
+        const rewardAmount = Math.max(0, parseFloat(reward.amount) || 0);
+
+        if (rewardAmount <= 0) {
+            console.warn('TaskRewards: Спроба додати нульову або від\'ємну суму');
             return;
         }
 
         // Визначаємо, який баланс оновлювати
-        const operationId = `reward_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (rewardType === 'tokens') {
+            // Оновлюємо токени
+            tokenBalance += rewardAmount;
+            updateTokenBalance(tokenBalance, true);
 
-        try {
-            // Запобігання одночасним операціям
-            if (operationCounter.operationsInProgress[reward.type]) {
-                console.warn(`TaskRewards: Вже виконується оновлення балансу типу ${reward.type}, операція відкладена`);
-                setTimeout(() => updateBalance(reward), 200);
-                return;
-            }
+            // Зберігаємо баланс в localStorage
+            localStorage.setItem('userTokens', tokenBalance.toString());
+            localStorage.setItem('winix_balance', tokenBalance.toString());
 
-            // Ставимо мітку про операцію в прогресі
-            operationCounter.operationsInProgress[reward.type] = operationId;
+            console.log(`TaskRewards: Оновлено баланс токенів: +${rewardAmount}, новий баланс: ${tokenBalance}`);
+        } else {
+            // Оновлюємо жетони
+            coinsBalance += rewardAmount;
+            updateCoinsBalance(coinsBalance, true);
 
-            if (reward.type === REWARD_TYPES.TOKENS) {
-                // Оновлюємо токени
-                const oldBalance = tokenBalance;
-                tokenBalance += reward.amount;
+            // Зберігаємо баланс в localStorage
+            localStorage.setItem('userCoins', coinsBalance.toString());
+            localStorage.setItem('winix_coins', coinsBalance.toString());
 
-                // Переконуємось, що значення валідне
-                tokenBalance = Math.max(0, parseFloat(tokenBalance.toFixed(2)));
-
-                updateTokenBalance(tokenBalance, true);
-
-                // Зберігаємо баланс в localStorage
-                localStorage.setItem('userTokens', tokenBalance.toString());
-                localStorage.setItem('winix_balance', tokenBalance.toString());
-
-                // Відправляємо подію оновлення балансу
-                dispatchBalanceUpdatedEvent({
-                    oldBalance: oldBalance,
-                    newBalance: tokenBalance,
-                    reward: reward,
-                    type: REWARD_TYPES.TOKENS,
-                    operationId: operationId
-                });
-
-                console.log(`TaskRewards: Оновлено баланс токенів: ${oldBalance} -> ${tokenBalance} (${reward.amount})`);
-            } else if (reward.type === REWARD_TYPES.COINS) {
-                // Оновлюємо жетони
-                const oldBalance = coinsBalance;
-                coinsBalance += reward.amount;
-
-                // Переконуємось, що значення валідне
-                coinsBalance = Math.max(0, Math.round(coinsBalance));
-
-                updateCoinsBalance(coinsBalance, true);
-
-                // Зберігаємо баланс в localStorage
-                localStorage.setItem('userCoins', coinsBalance.toString());
-                localStorage.setItem('winix_coins', coinsBalance.toString());
-
-                // Відправляємо подію оновлення балансу
-                dispatchBalanceUpdatedEvent({
-                    oldBalance: oldBalance,
-                    newBalance: coinsBalance,
-                    reward: reward,
-                    type: REWARD_TYPES.COINS,
-                    operationId: operationId
-                });
-
-                console.log(`TaskRewards: Оновлено баланс жетонів: ${oldBalance} -> ${coinsBalance} (${reward.amount})`);
-            }
-        } finally {
-            // Видаляємо мітку про операцію в прогресі
-            setTimeout(() => {
-                delete operationCounter.operationsInProgress[reward.type];
-            }, 300);
+            console.log(`TaskRewards: Оновлено баланс жетонів: +${rewardAmount}, новий баланс: ${coinsBalance}`);
         }
-    }
 
-    /**
-     * Відправка події оновлення балансу
-     * @param {Object} detail - Деталі події
-     */
-    function dispatchBalanceUpdatedEvent(detail) {
-        // Додаємо джерело та часову мітку
-        detail.source = 'task_rewards';
-        detail.timestamp = Date.now();
-
-        // Відправляємо подію
+        // Відправляємо подію оновлення балансу
         document.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: detail
+            detail: {
+                oldBalance: rewardType === 'tokens' ? (tokenBalance - rewardAmount) : (coinsBalance - rewardAmount),
+                newBalance: rewardType === 'tokens' ? tokenBalance : coinsBalance,
+                reward: reward,
+                type: rewardType,
+                source: 'task_rewards'
+            }
         }));
     }
 
@@ -364,19 +224,16 @@ window.TaskRewards = (function() {
         // Отримуємо поточне значення
         const oldBalance = parseFloat(tokenElement.textContent) || 0;
 
-        // Перевіряємо чи змінився баланс
-        if (oldBalance === newBalance) return;
-
         // Встановлюємо нове значення
         tokenElement.textContent = newBalance.toFixed(2);
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
-            tokenElement.classList.remove('decreasing', 'increasing');
-
             if (newBalance > oldBalance) {
+                tokenElement.classList.remove('decreasing');
                 tokenElement.classList.add('increasing');
             } else if (newBalance < oldBalance) {
+                tokenElement.classList.remove('increasing');
                 tokenElement.classList.add('decreasing');
             }
 
@@ -399,19 +256,16 @@ window.TaskRewards = (function() {
         // Отримуємо поточне значення
         const oldBalance = parseInt(coinsElement.textContent) || 0;
 
-        // Перевіряємо чи змінився баланс
-        if (oldBalance === newBalance) return;
-
-        // Встановлюємо нове значення (ціле число)
-        coinsElement.textContent = Math.round(newBalance);
+        // Встановлюємо нове значення
+        coinsElement.textContent = newBalance;
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
-            coinsElement.classList.remove('decreasing', 'increasing');
-
             if (newBalance > oldBalance) {
+                coinsElement.classList.remove('decreasing');
                 coinsElement.classList.add('increasing');
             } else if (newBalance < oldBalance) {
+                coinsElement.classList.remove('increasing');
                 coinsElement.classList.add('decreasing');
             }
 
@@ -427,36 +281,34 @@ window.TaskRewards = (function() {
      * @param {Object} reward - Дані винагороди
      */
     function showRewardAnimation(reward) {
-        // Нормалізуємо винагороду
-        const normalizedReward = normalizeReward(reward);
+        // Визначаємо тип винагороди
+        const rewardType = reward.type === 'tokens' ? 'tokens' : 'coins';
+        const rewardAmount = parseFloat(reward.amount) || 0;
 
         // Якщо є модуль анімацій, використовуємо його
         if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
-            window.UI.Animations.showReward(normalizedReward);
+            // Переконуємося, що передаємо коректну винагороду
+            window.UI.Animations.showReward({
+                type: rewardType,
+                amount: rewardAmount
+            });
             return;
         }
 
         // Інакше робимо просту анімацію
-        const rewardAmount = normalizedReward.amount;
-        let rewardType;
-
-        if (normalizedReward.type === REWARD_TYPES.TOKENS) {
-            rewardType = '$WINIX';
-        } else {
-            rewardType = 'жетонів';
-        }
+        const displayType = rewardType === 'tokens' ? '$WINIX' : 'жетонів';
 
         // Створюємо елемент анімації
         const animationElement = document.createElement('div');
         animationElement.className = 'reward-animation';
+        animationElement.textContent = `+${rewardAmount} ${displayType}`;
 
-        if (normalizedReward.type === REWARD_TYPES.TOKENS) {
+        // Додаємо класи залежно від типу винагороди
+        if (rewardType === 'tokens') {
             animationElement.classList.add('tokens-reward');
         } else {
             animationElement.classList.add('coins-reward');
         }
-
-        animationElement.textContent = `+${rewardAmount} ${rewardType}`;
 
         // Додаємо елемент до body
         document.body.appendChild(animationElement);
@@ -476,22 +328,6 @@ window.TaskRewards = (function() {
     }
 
     /**
-     * Отримання поточного балансу токенів
-     * @returns {number} Баланс токенів
-     */
-    function getTokenBalance() {
-        return tokenBalance;
-    }
-
-    /**
-     * Отримання поточного балансу жетонів
-     * @returns {number} Баланс жетонів
-     */
-    function getCoinsBalance() {
-        return coinsBalance;
-    }
-
-    /**
      * Отримання історії винагород
      * @returns {Array} Історія винагород
      */
@@ -505,36 +341,26 @@ window.TaskRewards = (function() {
      * @param {number} amount - Кількість
      */
     function addReward(type, amount) {
+        // Нормалізуємо тип
+        const rewardType = type === 'tokens' ? 'tokens' : 'coins';
+
+        // Нормалізуємо суму
+        const rewardAmount = Math.max(0, parseFloat(amount) || 0);
+
+        if (rewardAmount <= 0) {
+            console.warn('TaskRewards: Спроба додати винагороду з нульовою або від\'ємною сумою');
+            return false;
+        }
+
         const reward = {
-            type: type,
-            amount: parseFloat(amount)
+            type: rewardType,
+            amount: rewardAmount
         };
 
-        // Нормалізуємо винагороду
-        const normalizedReward = normalizeReward(reward);
-
         // Обробляємо винагороду
-        processReward('manual', normalizedReward);
+        processReward('manual', reward);
 
-        return normalizedReward;
-    }
-
-    /**
-     * Скидання кешу та стану
-     */
-    function resetState() {
-        // Очищаємо історію винагород
-        rewardHistory.length = 0;
-
-        // Скидаємо лічильники
-        operationCounter.lastOperationId = null;
-        operationCounter.lastOperationTime = 0;
-        operationCounter.operationsInProgress = {};
-
-        // Перезавантажуємо баланс
-        loadBalance();
-
-        console.log('TaskRewards: Стан модуля скинуто');
+        return true;
     }
 
     // Публічний API модуля
@@ -543,10 +369,6 @@ window.TaskRewards = (function() {
         updateBalance,
         showRewardAnimation,
         getRewardHistory,
-        addReward,
-        getTokenBalance,
-        getCoinsBalance,
-        resetState,
-        REWARD_TYPES
+        addReward
     };
 })();
