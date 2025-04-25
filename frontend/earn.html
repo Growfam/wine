@@ -4,43 +4,86 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta name="description" content="WINIX - Платформа для виконання завдань та заробітку токенів">
+    <meta name="description" content="WINIX - Виконуйте завдання та заробляйте токени">
+    <meta name="theme-color" content="#1A1A2E">
     <title>WINIX - Заробляй</title>
 
-    <!-- Попереднє завантаження критичних ресурсів -->
-    <link rel="preload" href="css/styles.css" as="style">
-    <link rel="preload" href="css/earn/styles.css" as="style">
-    <link rel="preload" href="js/telegram-web-app.js" as="script">
-    <link rel="preload" href="js/core.js" as="script">
+    <!-- Критичні стилі для швидкого відображення -->
+    <style>
+        /* Базові стилі для найшвидшого рендерингу контенту */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #0F0F1A;
+            color: #FFFFFF;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0;
+            position: relative;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #1A1A2E;
+        }
+        .loading-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+        .loading-indicator .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #E94560;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 
     <!-- Підключення основних стилів -->
     <link rel="stylesheet" href="css/styles.css">
-
-    <!-- Підключення стилів для завдань -->
     <link rel="stylesheet" href="css/earn/styles.css">
-    <link rel="stylesheet" href="css/earn/components-tasks.css">
-    <link rel="stylesheet" href="css/earn/leaderboard.css">
-    <link rel="stylesheet" href="css/earn/premium-animations.css">
-    <link rel="stylesheet" href="css/earn/winix-icons.css">
 
-    <!-- Критичні скрипти - завантажуються негайно -->
+    <!-- Попереднє завантаження критичних ресурсів -->
+    <link rel="preload" href="css/earn/components-tasks.css" as="style">
+    <link rel="preload" href="js/core.js" as="script">
+    <link rel="preload" href="js/tasks/core/task-manager.js" as="script">
+
+    <!-- Відкладене завантаження некритичних стилів -->
+    <link rel="stylesheet" href="css/earn/components-tasks.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="css/earn/leaderboard.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="css/earn/premium-animations.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="css/earn/winix-icons.css" media="print" onload="this.media='all'">
+
+    <!-- Запасні варіанти для браузерів без підтримки onload для стилів -->
+    <noscript>
+        <link rel="stylesheet" href="css/earn/components-tasks.css">
+        <link rel="stylesheet" href="css/earn/leaderboard.css">
+        <link rel="stylesheet" href="css/earn/premium-animations.css">
+        <link rel="stylesheet" href="css/earn/winix-icons.css">
+    </noscript>
+
+    <!-- Підключення Telegram WebApp API негайно -->
     <script src="js/telegram-web-app.js"></script>
-
-    <!-- Оптимізовані скрипти з атрибутом defer -->
-    <script src="js/api.js" defer></script>
-    <script src="js/auth.js" defer></script>
-    <script src="js/language.js" defer></script>
-    <script src="js/core.js" defer></script>
-    <script src="js/tasks/ui/notifications.js" defer></script>
 </head>
 <body>
 <!-- Індикатор завантаження -->
-<div id="loading-overlay" class="loading-overlay">
+<div id="initial-loading" class="loading-indicator">
     <div class="spinner"></div>
+    <p>Завантаження...</p>
 </div>
-
-<!-- Контейнер для сповіщень -->
-<div id="toast-container" class="toast-container"></div>
 
 <svg class="winix-filters">
   <defs>
@@ -90,7 +133,7 @@
   </defs>
 </svg>
     <div class="container">
-        <!-- Шапка сторінки в стилі staking.html -->
+        <!-- Шапка сторінки -->
         <div class="header">
             <div class="user-profile" id="profile-link">
                 <div class="profile-avatar" id="profile-avatar">W</div>
@@ -112,14 +155,14 @@
             </div>
         </div>
 
-        <!-- Перемикач категорій завдань з оптимізованою структурою -->
-        <div class="tabs" id="task-tabs">
+        <!-- Перемикач категорій завдань -->
+        <div class="tabs">
             <div class="tab active" data-tab="social" data-lang-key="earn.social_networks">Соціальні</div>
             <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Лімітовані</div>
             <div class="tab" data-tab="partners" data-lang-key="earn.partners_tasks">Партнерські</div>
         </div>
 
-        <!-- Контейнери для різних типів завдань з оптимізованим рендерингом -->
+        <!-- Контейнери для різних типів завдань -->
         <!-- Соціальні завдання -->
         <div class="content-section active" id="social-content">
             <!-- Щоденний бонус -->
@@ -138,24 +181,18 @@
             <!-- Соціальні завдання -->
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.social_networks">Соціальні мережі</div>
-                <div class="task-container" id="social-tasks-container">
+                <div class="task-container" id="social-tasks-container" aria-live="polite">
                     <!-- Соціальні завдання генеруються динамічно через JS -->
-                    <div class="loader-container" id="social-tasks-loader">
-                        <div class="spinner"></div>
-                        <p data-lang-key="loading">Завантаження...</p>
-                    </div>
+                    <div class="task-loader">Завантаження завдань...</div>
                 </div>
             </div>
 
             <!-- Реферальні завдання -->
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.referral_tasks">Реферальні завдання</div>
-                <div class="task-container" id="referral-tasks-container">
+                <div class="task-container" id="referral-tasks-container" aria-live="polite">
                     <!-- Реферальні завдання генеруються динамічно через JS -->
-                    <div class="loader-container" id="referral-tasks-loader">
-                        <div class="spinner"></div>
-                        <p data-lang-key="loading">Завантаження...</p>
-                    </div>
+                    <div class="task-loader">Завантаження завдань...</div>
                 </div>
             </div>
 
@@ -163,12 +200,9 @@
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.leaderboard">Лідерська дошка</div>
                 <div class="leaderboard-title" data-lang-key="earn.leaderboard.title">Топ-10 користувачів з найбільшою кількістю запрошених друзів</div>
-                <div class="leaderboard" id="leaderboard-container">
+                <div class="leaderboard" id="leaderboard-container" aria-live="polite">
                     <!-- Лідерська дошка генерується динамічно через JS -->
-                    <div class="loader-container" id="leaderboard-loader">
-                        <div class="spinner"></div>
-                        <p data-lang-key="loading">Завантаження...</p>
-                    </div>
+                    <div class="leaderboard-loader">Завантаження лідерської дошки...</div>
                 </div>
             </div>
         </div>
@@ -177,12 +211,9 @@
         <div class="content-section" id="limited-content">
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.limited_tasks">Обмежені за часом завдання</div>
-                <div class="task-container" id="limited-tasks-container">
+                <div class="task-container" id="limited-tasks-container" aria-live="polite">
                     <!-- Лімітовані завдання генеруються динамічно через JS -->
-                    <div class="loader-container" id="limited-tasks-loader">
-                        <div class="spinner"></div>
-                        <p data-lang-key="loading">Завантаження...</p>
-                    </div>
+                    <div class="task-loader">Завантаження завдань...</div>
                 </div>
             </div>
         </div>
@@ -191,45 +222,42 @@
         <div class="content-section" id="partners-content">
             <div class="category-card">
                 <div class="category-title" data-lang-key="earn.partners_tasks">Партнерські завдання</div>
-                <div class="task-container" id="partners-tasks-container">
+                <div class="task-container" id="partners-tasks-container" aria-live="polite">
                     <!-- Партнерські завдання генеруються динамічно через JS -->
-                    <div class="loader-container" id="partners-tasks-loader">
-                        <div class="spinner"></div>
-                        <p data-lang-key="loading">Завантаження...</p>
-                    </div>
+                    <div class="task-loader">Завантаження завдань...</div>
                 </div>
             </div>
         </div>
 
-        <!-- Нижня навігаційна панель в стилі staking.html -->
+        <!-- Нижня навігаційна панель -->
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
-                    <img loading="lazy" src="assets/home-icon.png" alt="Home" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                    <img src="assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
                 <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item active" data-section="earn">
                 <div class="icon-wrapper">
-                    <img loading="lazy" src="assets/earn-icon.png" alt="Earn" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                    <img src="assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
                 <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
-                    <img loading="lazy" src="assets/referrals-icon.png" alt="Referrals" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                    <img src="assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
                 <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
-                    <img loading="lazy" src="assets/wallet-icon.png" alt="Wallet" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                    <img src="assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
                 <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
-                    <img loading="lazy" src="assets/general-icon.png" alt="General" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                    <img src="assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
                 <span data-lang-key="general">General</span>
             </div>
@@ -237,390 +265,154 @@
     </div>
 
     <!-- Повідомлення для копіювання -->
-    <div class="toast-message" id="toast-message">Реферальне посилання скопійовано в буфер обміну!</div>
+    <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
 
-    <!-- Модульна система модулів компонентів -->
-    <script type="module">
-        // Динамічне завантаження модулів
-        import('./js/tasks/utils/storage.js').then(module => {
-            window.StorageUtils = module.default;
-            console.log('StorageUtils модуль завантажено');
+    <!-- Підключення основних скриптів з атрибутами defer -->
+    <script src="js/api.js" defer></script>
+    <script src="js/auth.js" defer></script>
+    <script src="js/language.js" defer></script>
 
-            // Після завантаження базових утиліт, завантажуємо компоненти
-            Promise.all([
-                import('./js/tasks/components/daily-bonus.js'),
-                import('./js/tasks/components/social-task.js'),
-                import('./js/tasks/components/limited-task.js'),
-                import('./js/tasks/components/partner-task.js'),
-                import('./js/tasks/components/leaderboard.js')
-            ]).then(() => {
-                console.log('Компоненти завдань завантажено');
+    <!-- Основний скрипт (без defer для швидкого запуску) -->
+    <script src="js/core.js"></script>
 
-                // Завантажуємо ядро системи і запускаємо ініціалізацію
-                import('./js/tasks/core/task-manager.js').then(module => {
-                    window.TaskManager = module.default;
-                    console.log('TaskManager завантажено');
+    <!-- Підключення утиліт (з defer для паралельного завантаження) -->
+    <script src="js/tasks/utils/formatters.js" defer></script>
+    <script src="js/tasks/utils/storage.js" defer></script>
+    <script src="js/tasks/utils/time-utils.js" defer></script>
+    <script src="js/tasks/utils/validators.js" defer></script>
 
-                    if (window.TaskManager && window.TaskManager.init) {
-                        window.TaskManager.init();
-                        console.log('TaskManager ініціалізовано');
-                    }
-                });
-            });
+    <!-- Підключення UI компонентів (з defer для паралельного завантаження) -->
+    <script src="js/tasks/ui/animations.js" defer></script>
+    <script src="js/tasks/ui/countdown.js" defer></script>
+    <script src="js/tasks/ui/notifications.js" defer></script>
+    <script src="js/tasks/ui/progress-bar.js" defer></script>
 
-            // Завантажуємо допоміжні модулі з низьким пріоритетом
-            if ('requestIdleCallback' in window) {
-                requestIdleCallback(() => {
-                    Promise.all([
-                        import('./js/tasks/utils/formatters.js'),
-                        import('./js/tasks/utils/time-utils.js'),
-                        import('./js/tasks/utils/validators.js'),
-                        import('./js/tasks/ui/animations.js'),
-                        import('./js/tasks/ui/countdown.js'),
-                        import('./js/tasks/ui/progress-bar.js')
-                    ]).then(() => {
-                        console.log('Допоміжні модулі завантажено');
-                    });
-                });
-            } else {
-                // Запасний варіант для браузерів без підтримки requestIdleCallback
-                setTimeout(() => {
-                    Promise.all([
-                        import('./js/tasks/utils/formatters.js'),
-                        import('./js/tasks/utils/time-utils.js'),
-                        import('./js/tasks/utils/validators.js'),
-                        import('./js/tasks/ui/animations.js'),
-                        import('./js/tasks/ui/countdown.js'),
-                        import('./js/tasks/ui/progress-bar.js')
-                    ]).then(() => {
-                        console.log('Допоміжні модулі завантажено');
-                    });
-                }, 1000);
-            }
-        });
-    </script>
+    <!-- Підключення основної логіки завдань (з defer для паралельного завантаження) -->
+    <script src="js/tasks/core/task-manager.js" defer></script>
+    <script src="js/tasks/core/progress.js" defer></script>
+    <script src="js/tasks/core/rewards.js" defer></script>
+    <script src="js/tasks/core/verification.js" defer></script>
+    <script src="js/tasks/core/integration.js" defer></script>
 
-    <!-- Ініціалізація Telegram WebApp -->
+    <!-- Підключення компонентів завдань (з defer для паралельного завантаження) -->
+    <script src="js/tasks/components/daily-bonus.js" defer></script>
+    <script src="js/tasks/components/social-task.js" defer></script>
+    <script src="js/tasks/components/limited-task.js" defer></script>
+    <script src="js/tasks/components/partner-task.js" defer></script>
+    <script src="js/tasks/components/leaderboard.js" defer></script>
+
     <script>
-        // Ініціалізація Telegram WebApp
+        // Ініціалізація та покращена обробка завантаження
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("Ініціалізація Telegram WebApp...");
+            console.log('DOM Content Loaded');
 
-            try {
-                // Ініціалізуємо Telegram WebApp, якщо він доступний
-                if (window.Telegram && window.Telegram.WebApp) {
-                    window.Telegram.WebApp.ready();
-                    window.Telegram.WebApp.expand();
-                    console.log("Telegram WebApp успішно ініціалізовано");
-
-                    // Перевіряємо наявність даних користувача
-                    if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                        const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                        console.log("Отримано ID користувача Telegram:", userId);
-
-                        // Безпечне збереження ID користувача
-                        try {
-                            localStorage.setItem('telegram_user_id', userId);
-                        } catch (storageError) {
-                            console.warn("Не вдалося зберегти ID користувача:", storageError);
-                        }
-                    } else {
-                        console.warn("Дані користувача Telegram недоступні");
-                    }
-                } else {
-                    console.warn("Telegram WebApp API недоступний");
+            // Прихований індикатор завантаження через 3 секунди
+            // якщо сторінка завантажилась швидше
+            setTimeout(function() {
+                const loadingIndicator = document.getElementById('initial-loading');
+                if (loadingIndicator) {
+                    loadingIndicator.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingIndicator.style.display = 'none';
+                    }, 300);
                 }
-            } catch (error) {
-                console.error("Помилка ініціалізації Telegram WebApp:", error);
+            }, 3000);
+
+            // Ініціалізуємо Telegram WebApp, якщо він доступний
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
             }
 
-            // Налаштування навігації
-            setupNavigation();
+            // Перевіряємо необхідні компоненти і завантажуємо їх поступово
+            const initializationQueue = [
+                function checkAndInitCore() {
+                    if (window.Core) {
+                        window.Core.init();
+                        return true;
+                    }
+                    return false;
+                },
+                function checkAndInitTaskManager() {
+                    if (window.TaskManager) {
+                        window.TaskManager.init();
+                        return true;
+                    }
+                    return false;
+                }
+            ];
 
-            // Оновлення даних користувача
-            updateUserData();
+            // Запуск ініціалізаторів з перевіркою готовності
+            function runInitializers() {
+                // Копіюємо масив ініціалізаторів для видалення виконаних
+                const remainingInitializers = initializationQueue.filter(initializer => !initializer());
 
-            // Налаштування вкладок
-            setupTabs();
+                // Якщо залишились невиконані ініціалізатори, спробуємо ще раз через 100мс
+                if (remainingInitializers.length > 0) {
+                    initializationQueue.length = 0; // Очищаємо оригінальний масив
+                    initializationQueue.push(...remainingInitializers); // Додаємо невиконані ініціалізатори
+                    setTimeout(runInitializers, 100);
+                } else {
+                    // Всі компоненти ініціалізовано
+                    console.log('All components initialized successfully');
+
+                    // Приховуємо індикатор завантаження
+                    const loadingIndicator = document.getElementById('initial-loading');
+                    if (loadingIndicator) {
+                        loadingIndicator.style.opacity = '0';
+                        setTimeout(() => {
+                            loadingIndicator.style.display = 'none';
+                        }, 300);
+                    }
+                }
+            }
+
+            // Запускаємо ініціалізатори
+            setTimeout(runInitializers, 100);
         });
 
-        // Функція налаштування навігації
-        function setupNavigation() {
-            const navItems = document.querySelectorAll('.nav-bar .nav-item');
-            navItems.forEach(item => {
-                item.addEventListener('click', function() {
-                    const section = this.getAttribute('data-section');
-                    if (section === 'earn') return; // Вже на цій сторінці
+        // Додаємо обробник для швидкого відображення сторінки
+        window.addEventListener('load', function() {
+            console.log('All resources loaded');
 
-                    try {
-                        // Показуємо індикатор завантаження
-                        const loadingOverlay = document.getElementById('loading-overlay');
-                        if (loadingOverlay) loadingOverlay.classList.add('show');
-
-                        // Перенаправлення на відповідну сторінку
-                        window.location.href = section === 'home' ? 'index.html' : `${section}.html`;
-                    } catch (error) {
-                        console.error("Помилка навігації:", error);
-                        alert("Помилка при переході на іншу сторінку");
-                    }
-                });
-            });
-
-            // Налаштування посилання профілю
-            const profileLink = document.getElementById('profile-link');
-            if (profileLink) {
-                profileLink.addEventListener('click', function() {
-                    window.location.href = 'profile.html';
-                });
+            // Приховуємо індикатор завантаження
+            const loadingIndicator = document.getElementById('initial-loading');
+            if (loadingIndicator) {
+                loadingIndicator.style.opacity = '0';
+                setTimeout(() => {
+                    loadingIndicator.style.display = 'none';
+                }, 300);
             }
-        }
 
-        // Функція оновлення даних користувача
-        function updateUserData() {
-            try {
-                // Оновлення ID користувача
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement) {
-                    const userId = localStorage.getItem('telegram_user_id') ||
-                                  localStorage.getItem('userId') ||
-                                  'Guest';
-                    userIdElement.textContent = userId;
-                }
-
-                // Оновлення балансу
-                const userTokens = document.getElementById('user-tokens');
-                const userCoins = document.getElementById('user-coins');
-
-                if (userTokens) {
-                    const tokens = localStorage.getItem('userTokens') ||
-                                 localStorage.getItem('winix_balance') ||
-                                 '0.00';
-                    userTokens.textContent = parseFloat(tokens).toFixed(2);
-                }
-
-                if (userCoins) {
-                    const coins = localStorage.getItem('userCoins') ||
-                                localStorage.getItem('winix_coins') ||
-                                '0';
-                    userCoins.textContent = parseInt(coins);
-                }
-
-                // Оновлення аватару
-                const avatarElement = document.getElementById('profile-avatar');
-                if (avatarElement) {
-                    const username = localStorage.getItem('username') || 'W';
-                    const avatarUrl = localStorage.getItem('userAvatar');
-
-                    if (avatarUrl) {
-                        const img = document.createElement('img');
-                        img.src = avatarUrl;
-                        img.alt = username;
-                        img.onerror = () => {
-                            avatarElement.textContent = username.charAt(0).toUpperCase();
-                        };
-                        avatarElement.innerHTML = '';
-                        avatarElement.appendChild(img);
-                    } else {
-                        avatarElement.textContent = username.charAt(0).toUpperCase();
-                    }
-                }
-            } catch (error) {
-                console.error("Помилка оновлення даних користувача:", error);
+            // Оновлення контентних зон, якщо необхідно
+            if (window.TaskManager && window.TaskManager.refreshAllTasks) {
+                window.TaskManager.refreshAllTasks();
             }
-        }
+        });
 
-        // Функція налаштування вкладок
-        function setupTabs() {
-            const tabButtons = document.querySelectorAll('.tabs .tab');
-            const contentSections = document.querySelectorAll('.content-section');
+        // Обробка помилок завантаження скриптів
+        window.addEventListener('error', function(e) {
+            if (e.target && e.target.tagName === 'SCRIPT') {
+                console.error('Failed to load script:', e.target.src);
 
-            tabButtons.forEach(tab => {
-                tab.addEventListener('click', function() {
-                    // Зняти активний клас з усіх вкладок
-                    tabButtons.forEach(t => t.classList.remove('active'));
+                // Спробуємо перезавантажити скрипт
+                const failedScript = e.target;
+                const scriptSrc = failedScript.src;
 
-                    // Додати активний клас вибраній вкладці
-                    this.classList.add('active');
+                if (scriptSrc && !scriptSrc.includes('already-retried')) {
+                    console.log('Attempting to reload script:', scriptSrc);
 
-                    // Сховати всі секції контенту
-                    contentSections.forEach(section => {
-                        section.classList.remove('active');
-                    });
+                    // Створюємо новий елемент script
+                    const newScript = document.createElement('script');
+                    newScript.src = scriptSrc + '?already-retried=true';
+                    newScript.defer = failedScript.defer;
+                    newScript.async = failedScript.async;
 
-                    // Показати відповідну секцію
-                    const targetId = this.getAttribute('data-tab') + '-content';
-                    const targetSection = document.getElementById(targetId);
-                    if (targetSection) {
-                        targetSection.classList.add('active');
-                    }
-
-                    // Зберегти вибір користувача
-                    try {
-                        localStorage.setItem('active_tab', this.getAttribute('data-tab'));
-                    } catch (error) {
-                        console.warn("Не вдалося зберегти вибрану вкладку:", error);
-                    }
-                });
-            });
-
-            // Відновити вибрану вкладку з localStorage
-            try {
-                const activeTab = localStorage.getItem('active_tab');
-                if (activeTab) {
-                    const tabToActivate = document.querySelector(`.tab[data-tab="${activeTab}"]`);
-                    if (tabToActivate) {
-                        tabToActivate.click();
-                    }
+                    // Замінюємо старий елемент
+                    failedScript.parentNode.replaceChild(newScript, failedScript);
                 }
-            } catch (error) {
-                console.warn("Не вдалося відновити вибрану вкладку:", error);
             }
-        }
+        }, true);
     </script>
-
-    <!-- CSS для індикатора завантаження та сповіщень -->
-    <style>
-        /* Стилі для індикаторів завантаження */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s, visibility 0.3s;
-            backdrop-filter: blur(5px);
-        }
-
-        .loading-overlay.show {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(78, 181, 247, 0.3);
-            border-radius: 50%;
-            border-top-color: #4EB5F7;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .loader-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            width: 100%;
-        }
-
-        .loader-container .spinner {
-            width: 40px;
-            height: 40px;
-            margin-bottom: 10px;
-        }
-
-        /* Стилі для сповіщень */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 2000;
-            width: 90%;
-            max-width: 350px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-
-        .toast {
-            background: rgba(30, 39, 70, 0.85);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(78, 181, 247, 0.15);
-            border-radius: 12px;
-            padding: 15px 20px;
-            color: white;
-            font-size: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-            opacity: 0;
-            transform: translateY(-20px);
-            animation: toast-in 0.3s forwards, toast-out 0.3s forwards 3s;
-            pointer-events: auto;
-        }
-
-        @keyframes toast-in {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes toast-out {
-            from { opacity: 1; transform: translateY(0); }
-            to { opacity: 0; transform: translateY(-20px); }
-        }
-
-        /* Стилі для профіля з аватаром як у staking.html */
-        .header .profile-avatar {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #2D6EB6, #52C0BD);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: white;
-            box-shadow: 0 0 0.3125rem rgba(0, 201, 167, 0.5);
-            cursor: pointer;
-            transition: transform 0.2s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header .profile-avatar:hover {
-            transform: scale(1.1);
-        }
-
-        .header .profile-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 50%;
-        }
-
-        .header .profile-avatar::after {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 50%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .header .profile-avatar:hover::after {
-            opacity: 1;
-        }
-    </style>
 </body>
 </html>

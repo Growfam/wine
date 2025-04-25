@@ -1,92 +1,46 @@
 /**
- * UniNotify - Уніфікована система сповіщень
- * Централізована система для сповіщень, підтверджень та індикаторів з чергою
+ * Premium Notifications - покращений модуль для відображення сповіщень
+ * Відповідає за стильні сповіщення та діалоги з анімованими SVG іконками
  */
 
 // Створюємо namespace для UI компонентів
 window.UI = window.UI || {};
 
 window.UI.Notifications = (function() {
-    // Конфігурація модуля з можливістю налаштування
+    // Конфігурація модуля
     const CONFIG = {
-        maxVisibleNotifications: 3,    // Максимальна кількість одночасних сповіщень
-        autoHideTimeout: 5000,         // Час автоматичного закриття сповіщення (мс)
-        animationDuration: 300,        // Тривалість анімації (мс)
-        position: 'top-right',         // Позиція сповіщень: 'top-right', 'top-center', 'bottom-right'
-        enableSounds: true,            // Звукові ефекти для сповіщень
-        preventDuplicates: true,       // Запобігання дублюванню сповіщень
-        duplicateTimeout: 3000,        // Час, протягом якого ідентичні сповіщення вважаються дублікатами (мс)
-        criticalErrorMode: 'alert',    // Що робити з критичними помилками: 'notify', 'alert', 'both'
-        debugMode: false               // Режим відлагодження
+        maxNotificationsAtOnce: 1,   // Максимальна кількість одночасних сповіщень
+        autoHideTimeout: 5000,       // Час автоматичного закриття сповіщення (мс)
+        animationDuration: 300,      // Тривалість анімації (мс)
+        position: 'top-right'        // Позиція сповіщень: 'top-right', 'top-center'
     };
 
     // Приватні змінні
-    let _notificationsShowing = 0;        // Кількість активних сповіщень
-    let _notificationsQueue = [];         // Черга сповіщень
-    let _recentNotifications = {};        // Нещодавні сповіщення для запобігання дублюванню
-    let _containerId = 'uni-notification-container';
-    let _loadingSpinnerId = 'uni-loading-spinner';
-    let _confirmDialogId = 'uni-confirm-dialog';
-    let _initialized = false;             // Флаг ініціалізації
-
-    // Імена подій для внутрішньої комунікації
-    const EVENTS = {
-        NOTIFICATION_SHOWN: 'uni-notification-shown',
-        NOTIFICATION_CLOSED: 'uni-notification-closed',
-        NOTIFICATION_QUEUED: 'uni-notification-queued',
-        DIALOG_SHOWN: 'uni-dialog-shown',
-        DIALOG_CLOSED: 'uni-dialog-closed'
-    };
+    let _notificationShowing = false;
+    let _notificationsQueue = [];
+    let _containerId = 'premium-notification-container';
+    let _loadingSpinnerId = 'loading-spinner';
+    let _confirmDialogId = 'premium-confirm-dialog';
 
     /**
      * Ініціалізація модуля сповіщень
-     * @param {Object} options - Користувацькі налаштування
      */
-    function init(options = {}) {
-        // Запобігаємо повторній ініціалізації
-        if (_initialized) return;
-
-        log('Ініціалізація уніфікованої системи сповіщень...');
-
-        // Застосовуємо користувацькі налаштування
-        Object.assign(CONFIG, options);
-
-        // Завантажуємо налаштування з localStorage
-        loadUserSettings();
+    function init() {
+        console.log('UI.Notifications: Ініціалізація модуля преміум-сповіщень');
 
         // Додаємо стилі
         injectStyles();
 
         // Створюємо контейнер для сповіщень
-        createNotificationContainer();
+        if (!document.getElementById(_containerId)) {
+            const container = document.createElement('div');
+            container.id = _containerId;
+            container.className = 'premium-notification-container ' + CONFIG.position;
+            document.body.appendChild(container);
+        }
 
         // Перевизначаємо глобальні функції для сумісності
         overrideGlobalNotificationFunctions();
-
-        // Встановлюємо підписки на події
-        setupEventListeners();
-
-        // Відмічаємо, що модуль ініціалізовано
-        _initialized = true;
-
-        log('Уніфікована система сповіщень ініціалізована');
-    }
-
-    /**
-     * Завантаження налаштувань користувача з localStorage
-     */
-    function loadUserSettings() {
-        try {
-            // Перевіряємо налаштування звуку
-            const soundsEnabled = localStorage.getItem('sounds_enabled');
-            if (soundsEnabled !== null) {
-                CONFIG.enableSounds = soundsEnabled === 'true';
-            }
-
-            // Можливо, інші налаштування у майбутньому
-        } catch (e) {
-            console.warn('Помилка завантаження налаштувань користувача:', e);
-        }
     }
 
     /**
@@ -94,45 +48,40 @@ window.UI.Notifications = (function() {
      */
     function injectStyles() {
         // Перевіряємо, чи стилі вже додані
-        if (document.getElementById('uni-notification-styles')) return;
+        if (document.getElementById('premium-notification-styles')) return;
 
         // Створюємо елемент стилів
         const styleElement = document.createElement('style');
-        styleElement.id = 'uni-notification-styles';
+        styleElement.id = 'premium-notification-styles';
 
-        // Додаємо CSS для уніфікованої системи сповіщень
+        // Додаємо CSS для преміальних сповіщень
         styleElement.textContent = `
             /* Загальні стилі для сповіщень */
-            .uni-notification-container {
+            .premium-notification-container {
                 position: fixed;
                 z-index: 9999;
                 width: 90%;
                 max-width: 380px;
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
+                gap: 0.625rem;
                 pointer-events: none;
             }
             
             /* Позиціонування */
-            .uni-notification-container.top-right {
-                top: 20px;
-                right: 20px;
+            .premium-notification-container.top-right {
+                top: 1.25rem;
+                right: 1.25rem;
             }
             
-            .uni-notification-container.top-center {
-                top: 20px;
+            .premium-notification-container.top-center {
+                top: 1.25rem;
                 left: 50%;
                 transform: translateX(-50%);
             }
             
-            .uni-notification-container.bottom-right {
-                bottom: 20px;
-                right: 20px;
-            }
-            
             /* Стилі для сповіщення */
-            .uni-notification {
+            .premium-notification {
                 background: rgba(30, 39, 70, 0.85);
                 backdrop-filter: blur(10px);
                 border-radius: 16px;
@@ -147,50 +96,37 @@ window.UI.Notifications = (function() {
                 opacity: 0;
                 transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
                             opacity 0.3s ease;
-                margin-bottom: 8px;
+                margin-bottom: 0.5rem;
                 overflow: hidden;
                 pointer-events: auto;
                 position: relative;
-                max-width: 100%;
             }
             
             /* Позиціонування анімації залежно від позиції контейнера */
-            .top-center .uni-notification {
+            .top-center .premium-notification {
                 transform: translateY(-20px) scale(0.95);
             }
             
-            .bottom-right .uni-notification {
-                transform: translateX(50px) scale(0.95);
-            }
-            
-            .uni-notification.show {
+            .premium-notification.show {
                 transform: translateX(0) scale(1);
                 opacity: 1;
             }
             
-            .top-center .uni-notification.show {
+            .top-center .premium-notification.show {
                 transform: translateY(0) scale(1);
             }
             
-            .bottom-right .uni-notification.show {
-                transform: translateX(0) scale(1);
-            }
-            
-            .uni-notification.hide {
+            .premium-notification.hide {
                 transform: translateX(50px) scale(0.95);
                 opacity: 0;
             }
             
-            .top-center .uni-notification.hide {
+            .top-center .premium-notification.hide {
                 transform: translateY(-20px) scale(0.95);
             }
             
-            .bottom-right .uni-notification.hide {
-                transform: translateX(50px) scale(0.95);
-            }
-            
             /* Кольорова лінія для типу сповіщення */
-            .uni-notification::before {
+            .premium-notification::before {
                 content: '';
                 position: absolute;
                 top: 0;
@@ -200,24 +136,20 @@ window.UI.Notifications = (function() {
                 background: linear-gradient(to bottom, #4DB6AC, #00C9A7);
             }
             
-            .uni-notification.error::before {
+            .premium-notification.error::before {
                 background: linear-gradient(to bottom, #FF5252, #B71C1C);
             }
             
-            .uni-notification.success::before {
+            .premium-notification.success::before {
                 background: linear-gradient(to bottom, #4CAF50, #2E7D32);
             }
             
-            .uni-notification.info::before {
+            .premium-notification.info::before {
                 background: linear-gradient(to bottom, #2196F3, #1976D2);
             }
             
-            .uni-notification.warning::before {
-                background: linear-gradient(to bottom, #FFC107, #FF9800);
-            }
-            
             /* Іконка сповіщення */
-            .uni-notification-icon {
+            .premium-notification-icon {
                 width: 32px;
                 height: 32px;
                 min-width: 32px;
@@ -229,41 +161,32 @@ window.UI.Notifications = (function() {
                 position: relative;
             }
             
-            .uni-notification .uni-notification-icon {
+            .premium-notification .premium-notification-icon {
                 background: rgba(0, 201, 167, 0.15);
             }
             
-            .uni-notification.error .uni-notification-icon {
+            .premium-notification.error .premium-notification-icon {
                 background: rgba(244, 67, 54, 0.15);
             }
             
-            .uni-notification.success .uni-notification-icon {
+            .premium-notification.success .premium-notification-icon {
                 background: rgba(76, 175, 80, 0.15);
             }
             
-            .uni-notification.info .uni-notification-icon {
+            .premium-notification.info .premium-notification-icon {
                 background: rgba(33, 150, 243, 0.15);
             }
             
-            .uni-notification.warning .uni-notification-icon {
-                background: rgba(255, 193, 7, 0.15);
-            }
-            
             /* Контент сповіщення */
-            .uni-notification-content {
+            .premium-notification-content {
                 flex-grow: 1;
                 padding-right: 8px;
                 font-size: 14px;
                 line-height: 1.5;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
-                max-width: calc(100% - 70px);
-                word-break: break-word;
             }
             
             /* Кнопка закриття */
-            .uni-notification-close {
+            .premium-notification-close {
                 width: 24px;
                 height: 24px;
                 background: rgba(255, 255, 255, 0.1);
@@ -279,11 +202,10 @@ window.UI.Notifications = (function() {
                 padding: 0;
                 margin-left: 8px;
                 position: relative;
-                flex-shrink: 0;
             }
             
-            .uni-notification-close::before,
-            .uni-notification-close::after {
+            .premium-notification-close::before,
+            .premium-notification-close::after {
                 content: '';
                 position: absolute;
                 width: 12px;
@@ -292,25 +214,25 @@ window.UI.Notifications = (function() {
                 border-radius: 1px;
             }
             
-            .uni-notification-close::before {
+            .premium-notification-close::before {
                 transform: rotate(45deg);
             }
             
-            .uni-notification-close::after {
+            .premium-notification-close::after {
                 transform: rotate(-45deg);
             }
             
-            .uni-notification-close:hover {
+            .premium-notification-close:hover {
                 background: rgba(255, 255, 255, 0.2);
             }
             
-            .uni-notification-close:hover::before,
-            .uni-notification-close:hover::after {
+            .premium-notification-close:hover::before,
+            .premium-notification-close:hover::after {
                 background: white;
             }
             
             /* Прогрес-бар для автозакриття */
-            .uni-notification-progress {
+            .premium-notification-progress {
                 position: absolute;
                 bottom: 0;
                 left: 0;
@@ -318,23 +240,19 @@ window.UI.Notifications = (function() {
                 background: linear-gradient(to right, rgba(78, 181, 247, 0.5), rgba(0, 201, 167, 0.8));
                 width: 100%;
                 transform-origin: left;
-                animation: progress-shrink var(--progress-duration, 5s) linear forwards;
+                animation: progress-shrink 5s linear forwards;
             }
             
-            .uni-notification.error .uni-notification-progress {
+            .premium-notification.error .premium-notification-progress {
                 background: linear-gradient(to right, rgba(244, 67, 54, 0.5), rgba(183, 28, 28, 0.8));
             }
             
-            .uni-notification.success .uni-notification-progress {
+            .premium-notification.success .premium-notification-progress {
                 background: linear-gradient(to right, rgba(76, 175, 80, 0.5), rgba(46, 125, 50, 0.8));
             }
             
-            .uni-notification.info .uni-notification-progress {
+            .premium-notification.info .premium-notification-progress {
                 background: linear-gradient(to right, rgba(33, 150, 243, 0.5), rgba(13, 71, 161, 0.8));
-            }
-            
-            .uni-notification.warning .uni-notification-progress {
-                background: linear-gradient(to right, rgba(255, 193, 7, 0.5), rgba(255, 152, 0, 0.8));
             }
             
             @keyframes progress-shrink {
@@ -343,22 +261,18 @@ window.UI.Notifications = (function() {
             }
             
             /* Заголовок та повідомлення */
-            .uni-notification-title {
+            .premium-notification-title {
                 font-weight: 600;
                 margin-bottom: 4px;
                 font-size: 15px;
-                overflow: hidden;
-                text-overflow: ellipsis;
             }
             
-            .uni-notification-message {
+            .premium-notification-message {
                 opacity: 0.9;
-                overflow: hidden;
-                text-overflow: ellipsis;
             }
             
             /* Стилі для діалогу підтвердження */
-            .uni-confirm-overlay {
+            .premium-confirm-overlay {
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -375,12 +289,12 @@ window.UI.Notifications = (function() {
                 backdrop-filter: blur(8px);
             }
             
-            .uni-confirm-overlay.show {
+            .premium-confirm-overlay.show {
                 opacity: 1;
                 visibility: visible;
             }
             
-            .uni-confirm-dialog {
+            .premium-confirm-dialog {
                 background: rgba(30, 39, 70, 0.90);
                 border-radius: 20px;
                 padding: 24px;
@@ -400,12 +314,12 @@ window.UI.Notifications = (function() {
                 position: relative;
             }
             
-            .uni-confirm-overlay.show .uni-confirm-dialog {
+            .premium-confirm-overlay.show .premium-confirm-dialog {
                 transform: scale(1);
                 opacity: 1;
             }
             
-            .uni-confirm-icon {
+            .premium-confirm-icon {
                 width: 70px;
                 height: 70px;
                 background: rgba(244, 67, 54, 0.15);
@@ -417,40 +331,28 @@ window.UI.Notifications = (function() {
                 position: relative;
             }
             
-            .uni-confirm-icon.icon-question {
-                background: rgba(33, 150, 243, 0.15);
-            }
-            
-            .uni-confirm-icon.icon-warning {
-                background: rgba(255, 193, 7, 0.15);
-            }
-            
-            .uni-confirm-icon.icon-danger {
-                background: rgba(244, 67, 54, 0.15);
-            }
-            
-            .uni-confirm-title {
+            .premium-confirm-title {
                 font-size: 20px;
                 font-weight: 600;
                 margin-bottom: 12px;
                 color: white;
             }
             
-            .uni-confirm-message {
+            .premium-confirm-message {
                 font-size: 16px;
                 line-height: 1.5;
                 margin-bottom: 24px;
                 color: rgba(255, 255, 255, 0.9);
             }
             
-            .uni-confirm-buttons {
+            .premium-confirm-buttons {
                 display: flex;
                 justify-content: center;
                 gap: 12px;
                 width: 100%;
             }
             
-            .uni-confirm-button {
+            .premium-confirm-button {
                 flex-basis: 45%;
                 padding: 12px;
                 border-radius: 12px;
@@ -461,27 +363,27 @@ window.UI.Notifications = (function() {
                 transition: all 0.2s ease;
             }
             
-            .uni-confirm-button:active {
+            .premium-confirm-button:active {
                 transform: scale(0.97);
             }
             
-            .uni-confirm-button-cancel {
+            .premium-confirm-button-cancel {
                 background: rgba(255, 255, 255, 0.1);
                 color: white;
             }
             
-            .uni-confirm-button-confirm {
+            .premium-confirm-button-confirm {
                 background: linear-gradient(90deg, #0288D1, #26A69A, #4CAF50);
                 color: white;
             }
             
-            .uni-confirm-button-danger {
+            .premium-confirm-button-danger {
                 background: linear-gradient(90deg, #8B0000, #A52A2A, #B22222);
                 color: white;
             }
             
             /* Стилі для індикатора завантаження */
-            .uni-spinner-overlay {
+            .spinner-overlay {
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -498,19 +400,19 @@ window.UI.Notifications = (function() {
                 backdrop-filter: blur(3px);
             }
             
-            .uni-spinner-overlay.show {
+            .spinner-overlay.show {
                 opacity: 1;
                 visibility: visible;
             }
             
-            .uni-spinner-content {
+            .spinner-content {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 gap: 16px;
             }
             
-            .uni-spinner {
+            .spinner {
                 width: 50px;
                 height: 50px;
                 border: 5px solid rgba(0, 201, 167, 0.3);
@@ -519,7 +421,7 @@ window.UI.Notifications = (function() {
                 animation: spin 1s linear infinite;
             }
             
-            .uni-spinner-message {
+            .spinner-message {
                 color: white;
                 font-size: 16px;
                 text-align: center;
@@ -530,89 +432,49 @@ window.UI.Notifications = (function() {
                 to { transform: rotate(360deg); }
             }
             
-            /* Кількість сповіщень у черзі */
-            .uni-notification-queue-badge {
-                position: absolute;
-                top: -8px;
-                right: -8px;
-                background: #FF5252;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-                width: 20px;
-                height: 20px;
-                border-radius: 50%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                opacity: 0;
-                transform: scale(0);
-                transition: opacity 0.3s, transform 0.3s;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            }
-            
-            .uni-notification-queue-badge.show {
-                opacity: 1;
-                transform: scale(1);
-            }
-            
             /* Адаптивність для невеликих екранів */
             @media (max-width: 480px) {
-                .uni-notification-container {
+                .premium-notification-container {
                     max-width: 320px;
                     width: 95%;
                 }
                 
-                .uni-notification-container.top-right,
-                .uni-notification-container.bottom-right {
-                    right: 10px;
-                }
-                
-                .uni-notification-container.top-right,
-                .uni-notification-container.top-center {
-                    top: 10px;
-                }
-                
-                .uni-notification-container.bottom-right {
-                    bottom: 10px;
-                }
-                
-                .uni-notification {
+                .premium-notification {
                     padding: 12px;
                 }
                 
-                .uni-notification-icon {
+                .premium-notification-icon {
                     width: 28px;
                     height: 28px;
                     min-width: 28px;
                 }
                 
-                .uni-notification-title {
+                .premium-notification-title {
                     font-size: 14px;
                 }
                 
-                .uni-notification-message {
+                .premium-notification-message {
                     font-size: 13px;
                 }
                 
-                .uni-confirm-dialog {
+                .premium-confirm-dialog {
                     padding: 20px;
                 }
                 
-                .uni-confirm-icon {
+                .premium-confirm-icon {
                     width: 60px;
                     height: 60px;
                 }
                 
-                .uni-confirm-title {
+                .premium-confirm-title {
                     font-size: 18px;
                 }
                 
-                .uni-confirm-message {
+                .premium-confirm-message {
                     font-size: 14px;
                 }
                 
-                .uni-confirm-button {
+                .premium-confirm-button {
                     font-size: 14px;
                     padding: 10px;
                 }
@@ -624,29 +486,10 @@ window.UI.Notifications = (function() {
     }
 
     /**
-     * Створення контейнера для сповіщень
-     */
-    function createNotificationContainer() {
-        if (!document.getElementById(_containerId)) {
-            const container = document.createElement('div');
-            container.id = _containerId;
-            container.className = 'uni-notification-container ' + CONFIG.position;
-
-            // Додаємо індикатор черги сповіщень
-            const queueBadge = document.createElement('div');
-            queueBadge.className = 'uni-notification-queue-badge';
-            queueBadge.textContent = '0';
-            container.appendChild(queueBadge);
-
-            document.body.appendChild(container);
-        }
-    }
-
-    /**
      * Перевизначення глобальних функцій для сумісності
      */
     function overrideGlobalNotificationFunctions() {
-        // Перевизначаємо функції для сповіщень
+        // Для toast-повідомлень
         window.showToast = function(message, isError) {
             if (isError) {
                 showError(message);
@@ -655,284 +498,119 @@ window.UI.Notifications = (function() {
             }
         };
 
+        // Для сповіщень
         window.showNotification = showInfo;
-        window.showSuccess = showSuccess;
-        window.showError = showError;
-        window.showWarning = showWarning;
 
         // Для індикаторів завантаження
         window.showLoading = showLoading;
         window.hideLoading = hideLoading;
 
         // Для діалогів підтвердження
-        window.showConfirm = showConfirmDialog;
-        window.showConfirmDialog = showConfirmDialog;
         window.showModernConfirm = showConfirmDialog;
-
-        // Перевизначаємо методи в існуючих модулях, якщо вони доступні
-        if (window.TaskManager) {
-            window.TaskManager.showSuccessMessage = showSuccess;
-            window.TaskManager.showErrorMessage = showError;
-            log('Перевизначено методи сповіщень в TaskManager');
-        }
-
-        if (window.DailyBonus) {
-            window.DailyBonus.showSuccessMessage = showSuccess;
-            window.DailyBonus.showErrorMessage = showError;
-            log('Перевизначено методи сповіщень в DailyBonus');
-        }
-
-        // Делегуємо методи до UI.Notifications (для сумісності з іншими модулями)
-        window.UI.showNotification = showInfo;
-        window.UI.showSuccess = showSuccess;
-        window.UI.showError = showError;
-        window.UI.showWarning = showWarning;
-    }
-
-    /**
-     * Встановлення обробників подій
-     */
-    function setupEventListeners() {
-        // Обробник для автоматичного закриття сповіщень після натискання Escape
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                clearAllNotifications();
-            }
-        });
-
-        // Обробник для видалення всіх сповіщень при зміні сторінки
-        window.addEventListener('beforeunload', function() {
-            clearAllNotifications(false); // Без анімації
-        });
-
-        // Обробник для адаптації під розмір екрану
-        window.addEventListener('resize', function() {
-            adjustNotificationsForScreenSize();
-        });
-    }
-
-    /**
-     * Адаптація сповіщень під розмір екрану
-     */
-    function adjustNotificationsForScreenSize() {
-        // Адаптуємо максимальну кількість сповіщень залежно від висоти екрана
-        const screenHeight = window.innerHeight;
-
-        if (screenHeight < 600) {
-            CONFIG.maxVisibleNotifications = 2;
-        } else if (screenHeight < 900) {
-            CONFIG.maxVisibleNotifications = 3;
-        } else {
-            CONFIG.maxVisibleNotifications = 4;
-        }
-
-        // Оновлюємо розмір контейнера
-        const container = document.getElementById(_containerId);
-        if (container) {
-            if (window.innerWidth < 480) {
-                container.classList.add('small-screen');
-            } else {
-                container.classList.remove('small-screen');
-            }
-        }
     }
 
     /**
      * Показати інформаційне сповіщення
-     * @param {string|Object} message - Текст повідомлення або об'єкт конфігурації
-     * @param {Function|Object} callbackOrOptions - Функція зворотнього зв'язку або додаткові опції
-     * @returns {string} ID сповіщення
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
      */
-    function showInfo(message, callbackOrOptions = null) {
-        return showNotification(message, 'info', callbackOrOptions);
+    function showInfo(message, callback = null) {
+        showNotification(message, 'info', callback);
     }
 
     /**
      * Показати сповіщення про успіх
-     * @param {string|Object} message - Текст повідомлення або об'єкт конфігурації
-     * @param {Function|Object} callbackOrOptions - Функція зворотнього зв'язку або додаткові опції
-     * @returns {string} ID сповіщення
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
      */
-    function showSuccess(message, callbackOrOptions = null) {
-        return showNotification(message, 'success', callbackOrOptions);
+    function showSuccess(message, callback = null) {
+        showNotification(message, 'success', callback);
     }
 
     /**
      * Показати сповіщення про помилку
-     * @param {string|Object} message - Текст повідомлення або об'єкт конфігурації
-     * @param {Function|Object} callbackOrOptions - Функція зворотнього зв'язку або додаткові опції
-     * @returns {string} ID сповіщення
+     * @param {string} message - Текст повідомлення
+     * @param {Function} callback - Функція зворотнього зв'язку
      */
-    function showError(message, callbackOrOptions = null) {
-        // Для критичних помилок, можливо, показати в alert
-        if (CONFIG.criticalErrorMode === 'alert' && typeof message === 'string') {
-            alert(message);
-            return null;
-        } else if (CONFIG.criticalErrorMode === 'both' && typeof message === 'string') {
-            alert(message);
-        }
-
-        return showNotification(message, 'error', callbackOrOptions);
-    }
-
-    /**
-     * Показати попереджувальне сповіщення
-     * @param {string|Object} message - Текст повідомлення або об'єкт конфігурації
-     * @param {Function|Object} callbackOrOptions - Функція зворотнього зв'язку або додаткові опції
-     * @returns {string} ID сповіщення
-     */
-    function showWarning(message, callbackOrOptions = null) {
-        return showNotification(message, 'warning', callbackOrOptions);
+    function showError(message, callback = null) {
+        showNotification(message, 'error', callback);
     }
 
     /**
      * Універсальна функція показу сповіщень
-     * @param {string|Object} message - Текст повідомлення або об'єкт конфігурації
-     * @param {string|Function} typeOrCallback - Тип сповіщення або функція зворотнього зв'язку
-     * @param {Function|Object} callbackOrOptions - Функція зворотнього зв'язку або додаткові опції
-     * @returns {string} ID сповіщення
+     * @param {string} message - Текст повідомлення
+     * @param {string} type - Тип сповіщення ('info', 'success', 'error')
+     * @param {Function} callback - Функція зворотнього зв'язку
      */
-    function showNotification(message, typeOrCallback = 'info', callbackOrOptions = null) {
-        // Ініціалізуємо модуль, якщо це ще не зроблено
-        if (!_initialized) init();
-
-        // Обробляємо різні формати параметрів
-        let type = 'info';
-        let callback = null;
-        let options = {};
-
-        // Якщо message - це об'єкт з параметрами
-        if (typeof message === 'object' && message !== null && !Array.isArray(message)) {
-            options = message;
-            message = options.message || '';
-            type = options.type || 'info';
-            callback = options.callback || null;
-        } else {
-            // Якщо typeOrCallback - це функція, то це callback
-            if (typeof typeOrCallback === 'function') {
-                callback = typeOrCallback;
-                type = 'info';
-            } else if (typeof typeOrCallback === 'string') {
-                type = typeOrCallback;
-            }
-
-            // Якщо callbackOrOptions - це функція, то це callback
-            if (typeof callbackOrOptions === 'function') {
-                callback = callbackOrOptions;
-            } else if (typeof callbackOrOptions === 'object' && callbackOrOptions !== null) {
-                options = callbackOrOptions;
-                callback = options.callback || callback;
-            }
+    function showNotification(message, type = 'info', callback = null) {
+        // Якщо тип передано як boolean (для сумісності зі старим API)
+        if (typeof type === 'boolean') {
+            type = type ? 'error' : 'success';
         }
-
-        // Формуємо фінальний об'єкт налаштувань
-        const finalOptions = {
-            title: getDefaultTitle(type),
-            autoClose: true,
-            duration: CONFIG.autoHideTimeout,
-            onClick: null,
-            onClose: callback,
-            id: 'notification_' + generateUniqueId(),
-            ...options
-        };
 
         // Запобігаємо показу порожніх повідомлень
-        if (!message || (typeof message === 'string' && message.trim() === '')) {
-            if (finalOptions.onClose) setTimeout(finalOptions.onClose, 100);
-            return finalOptions.id;
+        if (!message || message.trim() === '') {
+            if (callback) setTimeout(callback, 100);
+            return;
         }
 
-        // Запобігаємо дублюванню сповіщень
-        if (CONFIG.preventDuplicates && isDuplicateNotification(message, type)) {
-            log(`Дублікат сповіщення проігноровано: ${message}`);
-            if (finalOptions.onClose) setTimeout(finalOptions.onClose, 100);
-            return finalOptions.id;
+        // Якщо уже показується сповіщення, додаємо в чергу
+        if (_notificationShowing) {
+            if (_notificationsQueue.length < CONFIG.maxNotificationsAtOnce) {
+                _notificationsQueue.push({ message, type, callback });
+            } else {
+                // Якщо черга переповнена, і це повідомлення про помилку, показуємо його через alert
+                if (type === 'error') alert(message);
+                if (callback) setTimeout(callback, 100);
+            }
+            return;
         }
 
-        // Додаємо в реєстр нещодавніх сповіщень
-        addToRecentNotifications(message, type);
+        _notificationShowing = true;
 
-        // Створюємо об'єкт сповіщення для черги
-        const notificationObject = {
-            message,
-            type,
-            options: finalOptions
-        };
-
-        // Додаємо сповіщення в чергу
-        _notificationsQueue.push(notificationObject);
-
-        // Генеруємо подію
-        triggerEvent(EVENTS.NOTIFICATION_QUEUED, notificationObject);
-
-        // Оновлюємо відображення черги
-        updateQueueBadge();
-
-        // Обробляємо чергу
-        processNotificationsQueue();
-
-        // Повертаємо ID сповіщення для можливості керування ним пізніше
-        return finalOptions.id;
-    }
-
-    /**
-     * Обробка черги сповіщень
-     */
-    function processNotificationsQueue() {
-        // Якщо черга порожня, немає що обробляти
-        if (_notificationsQueue.length === 0) return;
-
-        // Якщо досягнуто ліміту одночасних сповіщень, чекаємо
-        if (_notificationsShowing >= CONFIG.maxVisibleNotifications) return;
-
-        // Отримуємо наступне сповіщення з черги
-        const notification = _notificationsQueue.shift();
-
-        // Оновлюємо відображення черги
-        updateQueueBadge();
-
-        // Показуємо сповіщення
-        displayNotification(notification.message, notification.type, notification.options);
-    }
-
-    /**
-     * Відображення сповіщення в UI
-     * @param {string} message - Текст повідомлення
-     * @param {string} type - Тип сповіщення
-     * @param {Object} options - Додаткові параметри
-     */
-    function displayNotification(message, type, options) {
         try {
-            // Збільшуємо лічильник активних сповіщень
-            _notificationsShowing++;
-
             // Перевіряємо, чи контейнер для повідомлень існує
             let container = document.getElementById(_containerId);
+
             if (!container) {
-                createNotificationContainer();
-                container = document.getElementById(_containerId);
+                container = document.createElement('div');
+                container.id = _containerId;
+                container.className = 'premium-notification-container ' + CONFIG.position;
+                document.body.appendChild(container);
             }
 
             // Створюємо сповіщення
             const notification = document.createElement('div');
-            notification.className = `uni-notification ${type}`;
-            notification.dataset.id = options.id;
+            notification.className = `premium-notification ${type}`;
 
             // Додаємо іконку
             const icon = document.createElement('div');
-            icon.className = `uni-notification-icon icon-${type}`;
+            icon.className = `premium-notification-icon icon-${type}`;
 
             // Контент повідомлення
             const content = document.createElement('div');
-            content.className = 'uni-notification-content';
+            content.className = 'premium-notification-content';
 
             // Додаємо заголовок та текст
             const title = document.createElement('div');
-            title.className = 'uni-notification-title';
-            title.textContent = options.title || getDefaultTitle(type);
+            title.className = 'premium-notification-title';
+
+            // Встановлюємо заголовок залежно від типу
+            switch (type) {
+                case 'error':
+                    title.textContent = 'Помилка';
+                    break;
+                case 'success':
+                    title.textContent = 'Успішно';
+                    break;
+                case 'info':
+                default:
+                    title.textContent = 'Інформація';
+                    break;
+            }
 
             const messageEl = document.createElement('div');
-            messageEl.className = 'uni-notification-message';
+            messageEl.className = 'premium-notification-message';
             messageEl.textContent = message;
 
             content.appendChild(title);
@@ -940,21 +618,18 @@ window.UI.Notifications = (function() {
 
             // Кнопка закриття
             const closeBtn = document.createElement('button');
-            closeBtn.className = 'uni-notification-close';
+            closeBtn.className = 'premium-notification-close';
 
             // Індикатор прогресу
             const progress = document.createElement('div');
-            progress.className = 'uni-notification-progress';
-            progress.style.setProperty('--progress-duration', `${options.duration / 1000}s`);
+            progress.className = 'premium-notification-progress';
+            progress.style.animationDuration = (CONFIG.autoHideTimeout / 1000) + 's';
 
             // Збираємо елементи
             notification.appendChild(icon);
             notification.appendChild(content);
             notification.appendChild(closeBtn);
-
-            if (options.autoClose) {
-                notification.appendChild(progress);
-            }
+            notification.appendChild(progress);
 
             // Додаємо повідомлення до контейнера
             container.appendChild(notification);
@@ -969,54 +644,28 @@ window.UI.Notifications = (function() {
                 navigator.vibrate(200);
             }
 
-            // Відтворюємо звук, якщо доступний і дозволений
-            if (CONFIG.enableSounds) {
-                if (window.UI.Animations && window.UI.Animations.playSound) {
-                    window.UI.Animations.playSound(type);
-                }
-            }
-
-            // Обробник кліку по сповіщенню
-            if (options.onClick) {
-                notification.addEventListener('click', function(event) {
-                    // Перевіряємо, що клік не по кнопці закриття
-                    if (!event.target.classList.contains('uni-notification-close')) {
-                        options.onClick();
-                    }
-                });
+            // Відтворюємо звук, якщо доступний
+            if (window.UI.Animations && window.UI.Animations.playSound) {
+                window.UI.Animations.playSound(type);
             }
 
             // Закриття при кліку на кнопку
             closeBtn.addEventListener('click', () => {
-                closeNotification(notification, options.onClose);
+                closeNotification(notification, callback);
             });
 
             // Автоматичне закриття
-            if (options.autoClose) {
-                setTimeout(() => {
-                    if (notification.parentNode) { // Перевіряємо, що сповіщення все ще у DOM
-                        closeNotification(notification, options.onClose);
-                    }
-                }, options.duration);
-            }
-
-            // Генеруємо подію про показ сповіщення
-            triggerEvent(EVENTS.NOTIFICATION_SHOWN, {
-                id: options.id,
-                type,
-                message
-            });
-
+            setTimeout(() => {
+                if (notification.parentNode) { // Перевіряємо, що сповіщення все ще у DOM
+                    closeNotification(notification, callback);
+                }
+            }, CONFIG.autoHideTimeout);
         } catch (e) {
             console.error('Помилка показу сповіщення:', e);
-            // Зменшуємо лічильник, оскільки сповіщення не було показано
-            _notificationsShowing--;
             // Якщо не вдалося створити сповіщення, використовуємо alert
-            if (type === 'error') alert(message);
-            if (options.onClose) options.onClose();
-
-            // Обробляємо наступне сповіщення з черги
-            processNotificationsQueue();
+            alert(message);
+            _notificationShowing = false;
+            if (callback) callback();
         }
     }
 
@@ -1026,185 +675,29 @@ window.UI.Notifications = (function() {
      * @param {Function} callback - Функція зворотнього зв'язку
      */
     function closeNotification(notification, callback = null) {
-        if (!notification) return;
-
         notification.classList.remove('show');
         notification.classList.add('hide');
-
-        // Отримуємо ID сповіщення для події
-        const notificationId = notification.dataset.id || null;
 
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
 
-            // Зменшуємо лічильник активних сповіщень
-            _notificationsShowing--;
+            _notificationShowing = false;
 
-            // Генеруємо подію про закриття сповіщення
-            if (notificationId) {
-                triggerEvent(EVENTS.NOTIFICATION_CLOSED, { id: notificationId });
+            // Показуємо наступне сповіщення з черги
+            if (_notificationsQueue.length > 0) {
+                const nextNotification = _notificationsQueue.shift();
+                showNotification(nextNotification.message, nextNotification.type, nextNotification.callback);
+            } else if (callback) {
+                callback();
             }
-
-            // Викликаємо callback, якщо він переданий
-            if (callback) callback();
-
-            // Обробляємо наступне сповіщення з черги
-            processNotificationsQueue();
-
         }, CONFIG.animationDuration);
     }
 
     /**
-     * Закриття всіх активних сповіщень
-     * @param {boolean} animate - Чи анімувати закриття
-     */
-    function clearAllNotifications(animate = true) {
-        const container = document.getElementById(_containerId);
-        if (!container) return;
-
-        // Отримуємо всі активні сповіщення
-        const notifications = container.querySelectorAll('.uni-notification');
-
-        if (animate) {
-            // Закриваємо кожне сповіщення з анімацією
-            notifications.forEach(notification => {
-                closeNotification(notification);
-            });
-        } else {
-            // Видаляємо всі сповіщення без анімації
-            notifications.forEach(notification => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            });
-
-            // Скидаємо лічильник
-            _notificationsShowing = 0;
-
-            // Обробляємо чергу
-            processNotificationsQueue();
-        }
-
-        // Очищаємо чергу
-        _notificationsQueue = [];
-        updateQueueBadge();
-    }
-
-    /**
-     * Закриття конкретного сповіщення за ID
-     * @param {string} id - ID сповіщення
-     */
-    function closeNotificationById(id) {
-        if (!id) return;
-
-        const container = document.getElementById(_containerId);
-        if (!container) return;
-
-        // Шукаємо сповіщення за ID
-        const notification = container.querySelector(`.uni-notification[data-id="${id}"]`);
-        if (notification) {
-            closeNotification(notification);
-        }
-
-        // Також видаляємо з черги, якщо там є
-        _notificationsQueue = _notificationsQueue.filter(item => item.options.id !== id);
-        updateQueueBadge();
-    }
-
-    /**
-     * Оновлення значка кількості в черзі
-     */
-    function updateQueueBadge() {
-        const container = document.getElementById(_containerId);
-        if (!container) return;
-
-        const badge = container.querySelector('.uni-notification-queue-badge');
-        if (!badge) return;
-
-        if (_notificationsQueue.length > 0) {
-            badge.textContent = _notificationsQueue.length;
-            badge.classList.add('show');
-        } else {
-            badge.classList.remove('show');
-        }
-    }
-
-    /**
-     * Перевірка, чи є сповіщення дублікатом
-     * @param {string} message - Текст повідомлення
-     * @param {string} type - Тип сповіщення
-     * @returns {boolean} Чи є сповіщення дублікатом
-     */
-    function isDuplicateNotification(message, type) {
-        // Формуємо ключ для перевірки
-        const key = `${type}:${message}`;
-
-        // Перевіряємо чи є такий ключ серед нещодавніх сповіщень
-        return _recentNotifications[key] !== undefined;
-    }
-
-    /**
-     * Додавання сповіщення до реєстру нещодавніх
-     * @param {string} message - Текст повідомлення
-     * @param {string} type - Тип сповіщення
-     */
-    function addToRecentNotifications(message, type) {
-        // Формуємо ключ
-        const key = `${type}:${message}`;
-
-        // Зберігаємо час додавання
-        _recentNotifications[key] = Date.now();
-
-        // Очищаємо старі сповіщення
-        cleanupRecentNotifications();
-    }
-
-    /**
-     * Очищення старих сповіщень з реєстру
-     */
-    function cleanupRecentNotifications() {
-        const now = Date.now();
-
-        // Видаляємо записи, старіші за duplicateTimeout
-        Object.keys(_recentNotifications).forEach(key => {
-            if (now - _recentNotifications[key] > CONFIG.duplicateTimeout) {
-                delete _recentNotifications[key];
-            }
-        });
-    }
-
-    /**
-     * Отримання заголовка за замовчуванням для типу сповіщення
-     * @param {string} type - Тип сповіщення
-     * @returns {string} Заголовок за замовчуванням
-     */
-    function getDefaultTitle(type) {
-        switch (type) {
-            case 'error':
-                return 'Помилка';
-            case 'success':
-                return 'Успішно';
-            case 'warning':
-                return 'Увага';
-            case 'info':
-            default:
-                return 'Інформація';
-        }
-    }
-
-    /**
-     * Генерація унікального ID
-     * @returns {string} Унікальний ID
-     */
-    function generateUniqueId() {
-        return Date.now().toString(36) + Math.random().toString(36).substring(2);
-    }
-
-    /**
      * Показ діалогового вікна з підтвердженням
-     * @param {Object|string} options - Опції діалогу або повідомлення
+     * @param {Object} options - Опції діалогу
      * @returns {Promise} Результат вибору користувача
      */
     function showConfirmDialog(options) {
@@ -1226,14 +719,11 @@ window.UI.Notifications = (function() {
             confirmText = 'Підтвердити',
             cancelText = 'Скасувати',
             type = 'default',
-            iconType = 'question'
+            iconType = 'warning'
         } = options;
 
         return new Promise((resolve) => {
             try {
-                // Ініціалізуємо модуль, якщо це ще не зроблено
-                if (!_initialized) init();
-
                 // Перевіряємо, чи існує діалог
                 let confirmOverlay = document.getElementById(_confirmDialogId);
 
@@ -1241,17 +731,17 @@ window.UI.Notifications = (function() {
                     // Створюємо діалог
                     confirmOverlay = document.createElement('div');
                     confirmOverlay.id = _confirmDialogId;
-                    confirmOverlay.className = 'uni-confirm-overlay';
+                    confirmOverlay.className = 'premium-confirm-overlay';
 
                     const dialog = document.createElement('div');
-                    dialog.className = 'uni-confirm-dialog';
+                    dialog.className = 'premium-confirm-dialog';
                     dialog.innerHTML = `
-                        <div class="uni-confirm-icon icon-${iconType}"></div>
-                        <div class="uni-confirm-title">${title}</div>
-                        <div class="uni-confirm-message">${message}</div>
-                        <div class="uni-confirm-buttons">
-                            <button class="uni-confirm-button uni-confirm-button-cancel" id="uni-cancel-no">${cancelText}</button>
-                            <button class="uni-confirm-button uni-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}" id="uni-cancel-yes">${confirmText}</button>
+                        <div class="premium-confirm-icon icon-${iconType}"></div>
+                        <div class="premium-confirm-title">${title}</div>
+                        <div class="premium-confirm-message">${message}</div>
+                        <div class="premium-confirm-buttons">
+                            <button class="premium-confirm-button premium-confirm-button-cancel" id="task-cancel-no">${cancelText}</button>
+                            <button class="premium-confirm-button premium-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}" id="task-cancel-yes">${confirmText}</button>
                         </div>
                     `;
 
@@ -1259,27 +749,27 @@ window.UI.Notifications = (function() {
                     document.body.appendChild(confirmOverlay);
                 } else {
                     // Оновлюємо контент діалогу
-                    const titleEl = confirmOverlay.querySelector('.uni-confirm-title');
-                    const messageEl = confirmOverlay.querySelector('.uni-confirm-message');
-                    const iconEl = confirmOverlay.querySelector('.uni-confirm-icon');
-                    const confirmBtn = confirmOverlay.querySelector('#uni-cancel-yes');
-                    const cancelBtn = confirmOverlay.querySelector('#uni-cancel-no');
+                    const titleEl = confirmOverlay.querySelector('.premium-confirm-title');
+                    const messageEl = confirmOverlay.querySelector('.premium-confirm-message');
+                    const iconEl = confirmOverlay.querySelector('.premium-confirm-icon');
+                    const confirmBtn = confirmOverlay.querySelector('#task-cancel-yes');
+                    const cancelBtn = confirmOverlay.querySelector('#task-cancel-no');
 
                     if (titleEl) titleEl.textContent = title;
                     if (messageEl) messageEl.textContent = message;
                     if (iconEl) {
-                        iconEl.className = `uni-confirm-icon icon-${iconType}`;
+                        iconEl.className = `premium-confirm-icon icon-${iconType}`;
                     }
                     if (confirmBtn) {
                         confirmBtn.textContent = confirmText;
-                        confirmBtn.className = `uni-confirm-button uni-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}`;
+                        confirmBtn.className = `premium-confirm-button premium-confirm-button-${type === 'danger' ? 'danger' : 'confirm'}`;
                     }
                     if (cancelBtn) cancelBtn.textContent = cancelText;
                 }
 
                 // Отримуємо кнопки
-                const cancelBtn = document.getElementById('uni-cancel-no');
-                const confirmBtn = document.getElementById('uni-cancel-yes');
+                const cancelBtn = document.getElementById('task-cancel-no');
+                const confirmBtn = document.getElementById('task-cancel-yes');
 
                 // Замінюємо кнопки, щоб уникнути накопичення обробників подій
                 if (cancelBtn) {
@@ -1289,10 +779,7 @@ window.UI.Notifications = (function() {
                     // Додаємо новий обробник
                     newCancelBtn.addEventListener('click', function() {
                         confirmOverlay.classList.remove('show');
-                        setTimeout(() => {
-                            triggerEvent(EVENTS.DIALOG_CLOSED, { result: false });
-                            resolve(false);
-                        }, CONFIG.animationDuration);
+                        setTimeout(() => resolve(false), CONFIG.animationDuration);
                     });
                 }
 
@@ -1303,23 +790,12 @@ window.UI.Notifications = (function() {
                     // Додаємо новий обробник
                     newConfirmBtn.addEventListener('click', function() {
                         confirmOverlay.classList.remove('show');
-                        setTimeout(() => {
-                            triggerEvent(EVENTS.DIALOG_CLOSED, { result: true });
-                            resolve(true);
-                        }, CONFIG.animationDuration);
+                        setTimeout(() => resolve(true), CONFIG.animationDuration);
                     });
                 }
 
                 // Показуємо діалог
                 confirmOverlay.classList.add('show');
-
-                // Відтворюємо звук, якщо доступний
-                if (CONFIG.enableSounds && window.UI.Animations && window.UI.Animations.playSound) {
-                    window.UI.Animations.playSound('question');
-                }
-
-                // Генеруємо подію про показ діалогу
-                triggerEvent(EVENTS.DIALOG_SHOWN, { type, message });
 
             } catch (e) {
                 console.error('Помилка показу діалогу підтвердження:', e);
@@ -1335,21 +811,18 @@ window.UI.Notifications = (function() {
      */
     function showLoading(message) {
         try {
-            // Ініціалізуємо модуль, якщо це ще не зроблено
-            if (!_initialized) init();
-
             let spinner = document.getElementById(_loadingSpinnerId);
 
             if (!spinner) {
                 // Створюємо індикатор завантаження
                 const spinnerContainer = document.createElement('div');
                 spinnerContainer.id = _loadingSpinnerId;
-                spinnerContainer.className = 'uni-spinner-overlay';
+                spinnerContainer.className = 'spinner-overlay';
 
                 spinnerContainer.innerHTML = `
-                    <div class="uni-spinner-content">
-                        <div class="uni-spinner"></div>
-                        ${message ? `<div class="uni-spinner-message">${message}</div>` : ''}
+                    <div class="spinner-content">
+                        <div class="spinner"></div>
+                        ${message ? `<div class="spinner-message">${message}</div>` : ''}
                     </div>
                 `;
 
@@ -1358,15 +831,15 @@ window.UI.Notifications = (function() {
             } else {
                 // Оновлюємо повідомлення, якщо воно передане
                 if (message) {
-                    const messageEl = spinner.querySelector('.uni-spinner-message');
+                    const messageEl = spinner.querySelector('.spinner-message');
                     if (messageEl) {
                         messageEl.textContent = message;
                     } else {
                         const newMessageEl = document.createElement('div');
-                        newMessageEl.className = 'uni-spinner-message';
+                        newMessageEl.className = 'spinner-message';
                         newMessageEl.textContent = message;
 
-                        const content = spinner.querySelector('.uni-spinner-content');
+                        const content = spinner.querySelector('.spinner-content');
                         if (content) {
                             content.appendChild(newMessageEl);
                         }
@@ -1397,78 +870,49 @@ window.UI.Notifications = (function() {
     }
 
     /**
-     * Зміна позиції контейнера сповіщень
-     * @param {string} position - Нова позиція ('top-right', 'top-center', 'bottom-right')
+     * Оновлення відображення балансу на всіх можливих елементах UI
+     * @param {number} newBalance - Новий баланс
      */
-    function setPosition(position) {
-        const validPositions = ['top-right', 'top-center', 'bottom-right'];
+    function updateBalanceUI(newBalance) {
+        try {
+            // 1. Безпосередньо оновлюємо DOM-елементи
+            const balanceElements = [
+                document.getElementById('user-tokens'),
+                document.getElementById('main-balance'),
+                document.querySelector('.balance-amount'),
+                document.getElementById('current-balance'),
+                ...document.querySelectorAll('[data-balance-display]')
+            ];
 
-        if (!validPositions.includes(position)) {
-            console.warn(`Невірна позиція: ${position}. Доступні опції: ${validPositions.join(', ')}`);
-            return;
-        }
+            balanceElements.forEach(element => {
+                if (element) {
+                    // Для основного балансу з іконкою
+                    if (element.id === 'main-balance' && element.innerHTML && element.innerHTML.includes('main-balance-icon')) {
+                        const iconPart = element.querySelector('.main-balance-icon')?.outerHTML || '';
+                        element.innerHTML = `${parseFloat(newBalance).toFixed(2)} ${iconPart}`;
+                    } else {
+                        element.textContent = parseFloat(newBalance).toFixed(2);
+                    }
 
-        CONFIG.position = position;
-
-        const container = document.getElementById(_containerId);
-        if (container) {
-            // Видаляємо всі існуючі класи позицій
-            validPositions.forEach(pos => {
-                container.classList.remove(pos);
+                    // Додаємо клас для анімації оновлення
+                    element.classList.add('balance-updated');
+                    setTimeout(() => {
+                        element.classList.remove('balance-updated');
+                    }, 1000);
+                }
             });
 
-            // Додаємо новий клас позиції
-            container.classList.add(position);
-        }
-    }
+            // 2. Зберігаємо в localStorage
+            localStorage.setItem('userTokens', newBalance.toString());
+            localStorage.setItem('winix_balance', newBalance.toString());
 
-    /**
-     * Зміна налаштувань сповіщень
-     * @param {Object} newConfig - Нові налаштування
-     */
-    function updateConfig(newConfig) {
-        Object.assign(CONFIG, newConfig);
+            // 3. Генеруємо подію для інших модулів
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: { newBalance: parseFloat(newBalance) }
+            }));
 
-        // Якщо змінилась позиція, оновлюємо її
-        if (newConfig.position) {
-            setPosition(newConfig.position);
-        }
-
-        // Зберігаємо налаштування в localStorage, якщо потрібно
-        if (newConfig.enableSounds !== undefined) {
-            localStorage.setItem('sounds_enabled', newConfig.enableSounds.toString());
-        }
-
-        log('Налаштування оновлено:', newConfig);
-    }
-
-    /**
-     * Генерація події
-     * @param {string} eventName - Назва події
-     * @param {Object} data - Дані події
-     */
-    function triggerEvent(eventName, data) {
-        // Створюємо подію
-        const event = new CustomEvent(eventName, {
-            detail: data,
-            bubbles: false,
-            cancelable: true
-        });
-
-        // Відправляємо подію через документ
-        document.dispatchEvent(event);
-
-        // Логуємо подію в режимі налагодження
-        log(`Подія: ${eventName}`, data);
-    }
-
-    /**
-     * Логування з перевіркою режиму налагодження
-     * @param  {...any} args - Аргументи для логування
-     */
-    function log(...args) {
-        if (CONFIG.debugMode) {
-            console.log('[UniNotify]', ...args);
+        } catch (error) {
+            console.error('Помилка оновлення відображення балансу:', error);
         }
     }
 
@@ -1477,30 +921,14 @@ window.UI.Notifications = (function() {
 
     // Публічний API модуля
     return {
-        // Основні методи
-        init,
         showInfo,
         showSuccess,
         showError,
-        showWarning,
         showNotification,
         showConfirmDialog,
         showLoading,
         hideLoading,
-
-        // Керування сповіщеннями
-        clearAllNotifications,
-        closeNotificationById,
-
-        // Налаштування
-        setPosition,
-        updateConfig,
-
-        // Доступ до конфігурації (тільки читання)
-        getConfig: () => ({ ...CONFIG }),
-
-        // Інформація про стан
-        getQueueLength: () => _notificationsQueue.length,
-        isInitialized: () => _initialized
+        updateBalanceUI,
+        init
     };
 })();
