@@ -297,7 +297,7 @@
                 }
 
                 // Додаємо параметр запобігання кешування
-                const endpoint = `user/${userId}/info?t=${now}`;
+                const endpoint = `user/${userId}?t=${now}`;
 
                 // Відправляємо запит
                 const response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
