@@ -1,52 +1,473 @@
 /**
- * TimeUtils - модуль утиліт для роботи з часом
- * Надає:
- * - Форматування відображення дати та часу
- * - Функціональність таймерів зворотного відліку
- * - Утиліти для роботи з інтервалами часу
+ * TimeUtils - оптимізований модуль утиліт для роботи з часом
+ * Відповідає за:
+ * - Централізоване форматування дати та часу
+ * - Управління таймерами зворотного відліку
+ * - Обробку часових поясів та локалізацію
+ * - Ефективне використання ресурсів для таймерів
  */
 
 window.TimeUtils = (function() {
-    // Кеш активних таймерів
-    const timers = {};
-    let timerIdCounter = 0;
+    // Приватні змінні та стан модуля
+    const timers = {};            // Кеш активних таймерів
+    let timerIdCounter = 0;       // Лічильник для генерації ID таймерів
+    let masterTimerInterval = null; // Головний інтервал для всіх таймерів
+    let masterTimerCount = 0;     // Кількість активних таймерів
+
+    // Кеш DOM елементів таймерів
+    const timerElements = new WeakMap();
+
+    // Опції за замовчуванням
+    const DEFAULT_OPTIONS = {
+        updateInterval: 1000,      // Інтервал оновлення в мс
+        autoCleanup: true,         // Автоматичне очищення таймерів
+        useLocalTimezone: true,    // Використовувати локальний часовий пояс
+        adjustForTimezone: true    // Коригувати відображення за часовим поясом
+    };
+
+    // Зберігання налаштувань
+    const config = { ...DEFAULT_OPTIONS };
+
+    // MutationObserver для відстеження видалення елементів з DOM
+    let domObserver = null;
 
     /**
-     * Форматування дати у людино-зрозумілий рядок
-     * @param {Date|string|number} date - Дата для форматування
-     * @param {string} format - Формат (short, medium, long, relative)
-     * @returns {string} Відформатований рядок дати
+     * Ініціалізація модуля
+     * @param {Object} options - Налаштування модуля
      */
-    function formatDate(date, format = 'medium') {
-        // Конвертуємо вхідне значення у Date
-        const dateObj = parseDate(date);
-        if (!dateObj) return 'Невірна дата';
+    function init(options = {}) {
+        // Оновлюємо налаштування
+        Object.assign(config, options);
 
-        switch (format) {
-            case 'short':
-                return `${padZero(dateObj.getDate())}.${padZero(dateObj.getMonth() + 1)}.${dateObj.getFullYear()}`;
-
-            case 'long':
-                return dateObj.toLocaleDateString('uk-UA', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-
-            case 'time':
-                return `${padZero(dateObj.getHours())}:${padZero(dateObj.getMinutes())}`;
-
-            case 'datetime':
-                return `${padZero(dateObj.getDate())}.${padZero(dateObj.getMonth() + 1)}.${dateObj.getFullYear()} ${padZero(dateObj.getHours())}:${padZero(dateObj.getMinutes())}`;
-
-            case 'relative':
-                return getRelativeTimeString(dateObj);
-
-            case 'medium':
-            default:
-                return dateObj.toLocaleDateString('uk-UA');
+        // Ініціалізуємо спостерігач за DOM, якщо потрібно автоматичне очищення
+        if (config.autoCleanup && window.MutationObserver) {
+            setupDomObserver();
         }
+
+        console.log('TimeUtils: Ініціалізація оптимізованого модуля TimeUtils');
+
+        // Перевіряємо чи є активні таймери на сторінці
+        initExistingTimers();
+    }
+
+    /**
+     * Налаштування спостерігача за DOM для автоматичного очищення таймерів
+     */
+    function setupDomObserver() {
+        // Якщо спостерігач вже існує, не створюємо новий
+        if (domObserver) return;
+
+        domObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                // Перевіряємо видалені вузли
+                if (mutation.removedNodes.length > 0) {
+                    mutation.removedNodes.forEach(function(node) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Шукаємо таймери в видаленому вузлі
+                            cleanupTimersForNode(node);
+                        }
+                    });
+                }
+            });
+        });
+
+        // Починаємо спостереження за всім документом
+        domObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('TimeUtils: Налаштовано автоматичне очищення таймерів');
+    }
+
+    /**
+     * Очищення таймерів для видаленого вузла DOM
+     * @param {Node} node - Вузол DOM
+     */
+    function cleanupTimersForNode(node) {
+        // Якщо вузол сам є елементом таймера
+        timerElements.forEach((elementRef, timerId) => {
+            if (node.contains(elementRef) || node === elementRef) {
+                stopCountdown(timerId);
+                timerElements.delete(timerId);
+            }
+        });
+
+        // Додаткова перевірка для всіх вкладених елементів з атрибутом data-timer-id
+        if (node.querySelectorAll) {
+            const timerNodes = node.querySelectorAll('[data-timer-id]');
+            timerNodes.forEach(timerNode => {
+                const timerId = timerNode.getAttribute('data-timer-id');
+                if (timerId && timers[timerId]) {
+                    stopCountdown(parseInt(timerId));
+                }
+            });
+        }
+    }
+
+    /**
+     * Ініціалізація існуючих таймерів на сторінці
+     */
+    function initExistingTimers() {
+        // Знаходимо всі елементи з атрибутом data-end-date
+        const timerElements = document.querySelectorAll('[data-end-date]');
+
+        if (timerElements.length > 0) {
+            console.log(`TimeUtils: Знайдено ${timerElements.length} елементів таймерів на сторінці`);
+
+            // Ініціалізуємо кожен таймер
+            timerElements.forEach(element => {
+                const endDate = element.getAttribute('data-end-date');
+                const format = element.getAttribute('data-format') || 'short';
+                const onComplete = element.getAttribute('data-on-complete');
+
+                // Створюємо таймер для цього елемента
+                createCountdown({
+                    element,
+                    endDate,
+                    format,
+                    onComplete: onComplete ? new Function(`return ${onComplete}`)() : null
+                });
+            });
+        }
+    }
+
+    /**
+     * Управління головним таймером
+     * @param {string} action - Дія ('start' або 'stop')
+     */
+    function manageMasterTimer(action) {
+        if (action === 'start' && masterTimerInterval === null) {
+            // Запускаємо головний таймер
+            masterTimerInterval = setInterval(updateAllTimers, config.updateInterval);
+            console.log('TimeUtils: Запущено головний таймер');
+        } else if (action === 'stop' && masterTimerInterval !== null && masterTimerCount === 0) {
+            // Зупиняємо головний таймер, якщо нема активних таймерів
+            clearInterval(masterTimerInterval);
+            masterTimerInterval = null;
+            console.log('TimeUtils: Зупинено головний таймер');
+        }
+    }
+
+    /**
+     * Оновлення всіх активних таймерів
+     */
+    function updateAllTimers() {
+        const now = new Date();
+        const expiredTimers = [];
+
+        // Оновлюємо кожен таймер
+        Object.keys(timers).forEach(timerId => {
+            const timer = timers[timerId];
+            const timeLeft = timer.endDate - now;
+
+            // Перевіряємо, чи не закінчився час
+            if (timeLeft <= 0) {
+                expiredTimers.push(timerId);
+                return;
+            }
+
+            // Оновлюємо відображення таймера
+            if (timer.elementRef && timer.elementRef.isConnected) {
+                // Оптимізуємо інтервал оновлення на основі залишку часу
+                if (timer.lastUpdate && now - timer.lastUpdate < timer.updateFrequency) {
+                    return; // Пропускаємо оновлення для економії ресурсів
+                }
+
+                // Форматуємо залишок часу
+                const formattedTime = formatTimeLeft(timer.endDate, timer.options);
+
+                // Оновлюємо контент елемента
+                timer.elementRef.textContent = formattedTime;
+
+                // Викликаємо колбек оновлення, якщо він є
+                if (typeof timer.onTick === 'function') {
+                    timer.onTick(formattedTime, timeLeft);
+                }
+
+                // Оновлюємо час останнього оновлення
+                timer.lastUpdate = now;
+
+                // Оптимізуємо частоту оновлень залежно від залишку часу
+                updateTimerFrequency(timer, timeLeft);
+            } else if (!timer.elementRef || !timer.elementRef.isConnected) {
+                // Таймер не прив'язаний до DOM або елемент видалено
+                expiredTimers.push(timerId);
+            }
+        });
+
+        // Обробляємо таймери, час яких вийшов
+        expiredTimers.forEach(timerId => {
+            handleExpiredTimer(timerId);
+        });
+    }
+
+    /**
+     * Оновлення частоти оновлення таймера в залежності від залишку часу
+     * @param {Object} timer - Об'єкт таймера
+     * @param {number} timeLeft - Залишок часу в мс
+     */
+    function updateTimerFrequency(timer, timeLeft) {
+        // Встановлюємо частоту оновлення в залежності від залишку часу
+        if (timeLeft > 24 * 60 * 60 * 1000) { // > 24 години
+            timer.updateFrequency = 60000; // 1 хвилина
+        } else if (timeLeft > 60 * 60 * 1000) { // > 1 година
+            timer.updateFrequency = 30000; // 30 секунд
+        } else if (timeLeft > 5 * 60 * 1000) { // > 5 хвилин
+            timer.updateFrequency = 10000; // 10 секунд
+        } else if (timeLeft > 60 * 1000) { // > 1 хвилина
+            timer.updateFrequency = 1000; // 1 секунда
+        } else {
+            timer.updateFrequency = 500; // 0.5 секунди для останньої хвилини
+        }
+    }
+
+    /**
+     * Обробка таймера, час якого вийшов
+     * @param {string} timerId - ID таймера
+     */
+    function handleExpiredTimer(timerId) {
+        const timer = timers[timerId];
+        if (!timer) return;
+
+        // Оновлюємо елемент, щоб показати закінчення часу
+        if (timer.elementRef && timer.elementRef.isConnected) {
+            timer.elementRef.textContent = 'Закінчено';
+            timer.elementRef.classList.add('expired');
+
+            // Встановлюємо атрибут, що таймер закінчився
+            timer.elementRef.setAttribute('data-timer-expired', 'true');
+
+            // Викликаємо подію закінчення часу
+            timer.elementRef.dispatchEvent(new CustomEvent('timer-expired', {
+                bubbles: true,
+                detail: { timerId }
+            }));
+        }
+
+        // Викликаємо колбек завершення, якщо він є
+        if (typeof timer.onComplete === 'function') {
+            timer.onComplete();
+        }
+
+        // Видаляємо таймер
+        delete timers[timerId];
+        masterTimerCount--;
+
+        // Якщо таймерів більше немає, зупиняємо головний таймер
+        if (masterTimerCount === 0) {
+            manageMasterTimer('stop');
+        }
+    }
+
+    /**
+     * Створення таймера зворотного відліку
+     * @param {Object} options - Опції таймера
+     * @returns {number} ID таймера
+     */
+    function createCountdown(options) {
+        const {
+            endDate,
+            element,
+            onTick,
+            onComplete,
+            format = 'short',
+            updateFrequency = null
+        } = options;
+
+        // Перевіряємо наявність кінцевої дати
+        const endDateTime = parseDate(endDate);
+        if (!endDateTime) {
+            console.error('TimeUtils: Невірна кінцева дата для таймера:', endDate);
+            return -1;
+        }
+
+        // Перевіряємо, чи не минула дата
+        const now = new Date();
+        if (endDateTime <= now) {
+            // Якщо відображаємо в DOM
+            if (element) {
+                const elementRef = typeof element === 'string' ? document.querySelector(element) : element;
+                if (elementRef) {
+                    elementRef.textContent = 'Закінчено';
+                    elementRef.classList.add('expired');
+                    elementRef.setAttribute('data-timer-expired', 'true');
+                }
+            }
+
+            // Викликаємо колбек завершення, якщо він є
+            if (typeof onComplete === 'function') {
+                onComplete();
+            }
+
+            return -1;
+        }
+
+        // Генеруємо унікальний ID
+        const timerId = ++timerIdCounter;
+
+        // Отримуємо DOM елемент, якщо вказано
+        let elementRef = null;
+        if (element) {
+            elementRef = typeof element === 'string' ? document.querySelector(element) : element;
+
+            // Зберігаємо зв'язок між таймером та елементом
+            if (elementRef) {
+                timerElements.set(timerId, elementRef);
+
+                // Додаємо атрибут для легкого пошуку
+                elementRef.setAttribute('data-timer-id', timerId);
+                elementRef.classList.add('countdown-timer');
+                elementRef.classList.add('active');
+            }
+        }
+
+        // Визначаємо оптимальну частоту оновлення
+        const timeLeft = endDateTime - now;
+        let initialUpdateFrequency = updateFrequency;
+
+        if (!initialUpdateFrequency) {
+            if (timeLeft > 24 * 60 * 60 * 1000) { // > 24 години
+                initialUpdateFrequency = 60000; // 1 хвилина
+            } else if (timeLeft > 60 * 60 * 1000) { // > 1 година
+                initialUpdateFrequency = 30000; // 30 секунд
+            } else if (timeLeft > 5 * 60 * 1000) { // > 5 хвилин
+                initialUpdateFrequency = 10000; // 10 секунд
+            } else if (timeLeft > 60 * 1000) { // > 1 хвилина
+                initialUpdateFrequency = 1000; // 1 секунда
+            } else {
+                initialUpdateFrequency = 500; // 0.5 секунди для останньої хвилини
+            }
+        }
+
+        // Зберігаємо інформацію про таймер
+        timers[timerId] = {
+            endDate: endDateTime,
+            elementRef,
+            onTick,
+            onComplete,
+            options: {
+                showSeconds: true,
+                shortFormat: format === 'short',
+                hideZeroUnits: format !== 'full'
+            },
+            updateFrequency: initialUpdateFrequency,
+            lastUpdate: null
+        };
+
+        // Збільшуємо лічильник таймерів
+        masterTimerCount++;
+
+        // Запускаємо головний таймер, якщо потрібно
+        manageMasterTimer('start');
+
+        // Форматуємо та відображаємо поточний час
+        if (elementRef) {
+            const formattedTime = formatTimeLeft(endDateTime, timers[timerId].options);
+            elementRef.textContent = formattedTime;
+
+            // Викликаємо колбек першого оновлення
+            if (typeof onTick === 'function') {
+                onTick(formattedTime, timeLeft);
+            }
+        }
+
+        return timerId;
+    }
+
+    /**
+     * Зупинка таймера зворотного відліку
+     * @param {number} timerId - ID таймера
+     * @returns {boolean} Результат операції
+     */
+    function stopCountdown(timerId) {
+        const timer = timers[timerId];
+        if (!timer) return false;
+
+        // Видаляємо атрибути таймера з елемента
+        if (timer.elementRef) {
+            timer.elementRef.removeAttribute('data-timer-id');
+            timer.elementRef.classList.remove('active');
+            timerElements.delete(timerId);
+        }
+
+        // Видаляємо таймер зі списку
+        delete timers[timerId];
+        masterTimerCount--;
+
+        // Якщо таймерів більше немає, зупиняємо головний таймер
+        if (masterTimerCount === 0) {
+            manageMasterTimer('stop');
+        }
+
+        return true;
+    }
+
+    /**
+     * Зупинка всіх активних таймерів
+     */
+    function stopAllCountdowns() {
+        Object.keys(timers).forEach(timerId => {
+            stopCountdown(parseInt(timerId));
+        });
+
+        // Для надійності очищаємо все
+        masterTimerCount = 0;
+        manageMasterTimer('stop');
+    }
+
+    /**
+     * Перетворення дати в об'єкт Date з урахуванням часового поясу
+     * @param {Date|string|number} date - Дата для парсингу
+     * @returns {Date|null} Об'єкт Date або null
+     */
+    function parseDate(date) {
+        if (date instanceof Date) {
+            return new Date(date);
+        }
+
+        if (typeof date === 'string') {
+            // Спершу спробуємо ISO формат
+            const isoDate = new Date(date);
+            if (!isNaN(isoDate.getTime())) {
+                return adjustForTimezone(isoDate);
+            }
+
+            // Спроба парсити український формат (дд.мм.рррр)
+            const dateParts = date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+            if (dateParts) {
+                const [_, day, month, year, hours = 0, minutes = 0, seconds = 0] = dateParts;
+                const parsedDate = new Date(
+                    parseInt(year),
+                    parseInt(month) - 1,
+                    parseInt(day),
+                    parseInt(hours),
+                    parseInt(minutes),
+                    parseInt(seconds)
+                );
+                return adjustForTimezone(parsedDate);
+            }
+
+            return null;
+        }
+
+        if (typeof date === 'number') {
+            return new Date(date);
+        }
+
+        return null;
+    }
+
+    /**
+     * Коригування дати з урахуванням часового поясу
+     * @param {Date} date - Дата для коригування
+     * @returns {Date} Скоригована дата
+     */
+    function adjustForTimezone(date) {
+        if (!config.adjustForTimezone) return date;
+
+        // Коригування не потрібне, якщо дата вже локальна
+        return date;
     }
 
     /**
@@ -117,142 +538,41 @@ window.TimeUtils = (function() {
     }
 
     /**
-     * Створення таймера зворотного відліку
-     * @param {Object} options - Опції таймера
-     * @returns {number} ID таймера
+     * Форматування дати у людино-зрозумілий рядок
+     * @param {Date|string|number} date - Дата для форматування
+     * @param {string} format - Формат (short, medium, long, relative)
+     * @returns {string} Відформатований рядок дати
      */
-    function createCountdown(options) {
-        const {
-            endDate,
-            onTick,
-            onComplete,
-            tickInterval = 1000,
-            element = null,
-            format = 'short'
-        } = options;
+    function formatDate(date, format = 'medium') {
+        // Конвертуємо вхідне значення у Date
+        const dateObj = parseDate(date);
+        if (!dateObj) return 'Невірна дата';
 
-        // Генеруємо унікальний ID для таймера
-        const timerId = ++timerIdCounter;
+        switch (format) {
+            case 'short':
+                return `${padZero(dateObj.getDate())}.${padZero(dateObj.getMonth() + 1)}.${dateObj.getFullYear()}`;
 
-        // Перевіряємо, чи правильна кінцева дата
-        const endDateTime = parseDate(endDate);
-        if (!endDateTime) {
-            console.error('Невірна кінцева дата для таймера:', endDate);
-            return -1;
+            case 'long':
+                return dateObj.toLocaleDateString('uk-UA', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+            case 'time':
+                return `${padZero(dateObj.getHours())}:${padZero(dateObj.getMinutes())}`;
+
+            case 'datetime':
+                return `${padZero(dateObj.getDate())}.${padZero(dateObj.getMonth() + 1)}.${dateObj.getFullYear()} ${padZero(dateObj.getHours())}:${padZero(dateObj.getMinutes())}`;
+
+            case 'relative':
+                return getRelativeTimeString(dateObj);
+
+            case 'medium':
+            default:
+                return dateObj.toLocaleDateString('uk-UA');
         }
-
-        // Функція оновлення таймера
-        const updateTimer = () => {
-            const now = new Date();
-            const timeLeft = endDateTime - now;
-
-            // Якщо час вийшов
-            if (timeLeft <= 0) {
-                // Викликаємо функцію завершення, якщо є
-                if (typeof onComplete === 'function') {
-                    onComplete();
-                }
-
-                // Оновлюємо елемент, якщо він є
-                if (element && element instanceof HTMLElement) {
-                    element.textContent = 'Закінчено';
-                    element.classList.add('expired');
-                }
-
-                // Очищаємо таймер
-                clearInterval(timers[timerId].intervalId);
-                delete timers[timerId];
-
-                return;
-            }
-
-            // Форматуємо залишок часу
-            const formattedTime = formatTimeLeft(endDateTime, {
-                showSeconds: true,
-                shortFormat: format === 'short',
-                hideZeroUnits: format !== 'full'
-            });
-
-            // Викликаємо функцію тіка, якщо є
-            if (typeof onTick === 'function') {
-                onTick(formattedTime, timeLeft);
-            }
-
-            // Оновлюємо елемент, якщо він є
-            if (element && element instanceof HTMLElement) {
-                element.textContent = formattedTime;
-            }
-        };
-
-        // Запускаємо таймер
-        const intervalId = setInterval(updateTimer, tickInterval);
-
-        // Зберігаємо інформацію про таймер
-        timers[timerId] = {
-            intervalId,
-            endDate: endDateTime,
-            element
-        };
-
-        // Виконуємо перше оновлення
-        updateTimer();
-
-        return timerId;
-    }
-
-    /**
-     * Зупинка таймера зворотного відліку
-     * @param {number} timerId - ID таймера
-     * @returns {boolean} Чи успішно зупинено
-     */
-    function stopCountdown(timerId) {
-        if (!timers[timerId]) return false;
-
-        clearInterval(timers[timerId].intervalId);
-        delete timers[timerId];
-
-        return true;
-    }
-
-    /**
-     * Перезапуск таймера зворотного відліку
-     * @param {number} timerId - ID таймера
-     * @param {Date|string|number} newEndDate - Нова кінцева дата
-     * @returns {boolean} Чи успішно перезапущено
-     */
-    function restartCountdown(timerId, newEndDate) {
-        if (!timers[timerId]) return false;
-
-        const timerInfo = timers[timerId];
-
-        // Зупиняємо поточний таймер
-        clearInterval(timerInfo.intervalId);
-
-        // Новий кінцевий час
-        const endDateTime = newEndDate ? parseDate(newEndDate) : timerInfo.endDate;
-
-        // Перевіряємо кінцеву дату
-        if (!endDateTime) {
-            console.error('Невірна кінцева дата для перезапуску таймера:', newEndDate);
-            delete timers[timerId];
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Зупинка всіх таймерів
-     */
-    function stopAllCountdowns() {
-        Object.keys(timers).forEach(timerId => {
-            clearInterval(timers[timerId].intervalId);
-        });
-
-        // Очищаємо об'єкт таймерів
-        Object.keys(timers).forEach(key => {
-            delete timers[key];
-        });
     }
 
     /**
@@ -326,39 +646,6 @@ window.TimeUtils = (function() {
     }
 
     /**
-     * Перетворення різних форматів дати в об'єкт Date
-     * @param {Date|string|number} date - Дата для парсингу
-     * @returns {Date|null} Об'єкт Date або null
-     */
-    function parseDate(date) {
-        if (date instanceof Date) {
-            return date;
-        }
-
-        if (typeof date === 'string') {
-            // Перевіряємо ISO формат
-            const parsedDate = new Date(date);
-            if (!isNaN(parsedDate.getTime())) {
-                return parsedDate;
-            }
-
-            // Спроба парсити український формат дати (дд.мм.рррр)
-            const dateParts = date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-            if (dateParts) {
-                return new Date(parseInt(dateParts[3]), parseInt(dateParts[2]) - 1, parseInt(dateParts[1]));
-            }
-
-            return null;
-        }
-
-        if (typeof date === 'number') {
-            return new Date(date);
-        }
-
-        return null;
-    }
-
-    /**
      * Додавання нуля перед числом, якщо воно менше 10
      * @param {number} num - Число
      * @returns {string} Число з нулем, якщо потрібно
@@ -367,16 +654,61 @@ window.TimeUtils = (function() {
         return num < 10 ? `0${num}` : num.toString();
     }
 
+    /**
+     * Визначення часового поясу користувача
+     * @returns {number} Зміщення часового поясу в хвилинах
+     */
+    function getUserTimezoneOffset() {
+        return new Date().getTimezoneOffset();
+    }
+
+    /**
+     * Перевірка, чи істекла дата таймера
+     * @param {number} timerId - ID таймера
+     * @returns {boolean} true, якщо таймер істік
+     */
+    function isExpired(timerId) {
+        const timer = timers[timerId];
+        if (!timer) return true;
+
+        const now = new Date();
+        return timer.endDate <= now;
+    }
+
+    /**
+     * Отримання залишку часу в мілісекундах
+     * @param {number} timerId - ID таймера
+     * @returns {number} Залишок часу в мс або -1, якщо таймер не знайдено
+     */
+    function getTimeLeft(timerId) {
+        const timer = timers[timerId];
+        if (!timer) return -1;
+
+        const now = new Date();
+        const timeLeft = timer.endDate - now;
+
+        return Math.max(0, timeLeft);
+    }
+
+    // Очищення ресурсів при виході зі сторінки
+    window.addEventListener('beforeunload', stopAllCountdowns);
+
+    // Ініціалізація модуля при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', init);
+
     // Публічний API модуля
     return {
+        init,
         formatDate,
         formatTimeLeft,
         createCountdown,
         stopCountdown,
-        restartCountdown,
         stopAllCountdowns,
         getRelativeTimeString,
+        parseDate,
         pluralize,
-        parseDate
+        getUserTimezoneOffset,
+        getTimeLeft,
+        isExpired
     };
 })();

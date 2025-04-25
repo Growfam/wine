@@ -14,6 +14,15 @@ window.TaskRewards = (function() {
     // Історія винагород
     const rewardHistory = [];
 
+    // Реєстр оброблених винагород для запобігання дублюванню
+    const processedRewards = {};
+
+    // Константи типів винагород (уніфіковані з іншими модулями)
+    const REWARD_TYPES = {
+        TOKENS: 'tokens',
+        COINS: 'coins'
+    };
+
     /**
      * Ініціалізація модуля винагород
      */
@@ -36,6 +45,9 @@ window.TaskRewards = (function() {
 
         // Подія оновлення балансу
         document.addEventListener('balance-updated', handleBalanceUpdate);
+
+        // Подія завершення завдання (для надійного отримання винагород)
+        document.addEventListener('task-completed', handleTaskCompleted);
     }
 
     /**
@@ -68,12 +80,55 @@ window.TaskRewards = (function() {
      * @param {CustomEvent} event - Подія результату перевірки
      */
     function handleVerificationResult(event) {
-        const { taskId, result } = event.detail;
+        const { taskId, result, eventId } = event.detail;
+
+        // Перевіряємо на дублювання обробки події
+        if (eventId && processedRewards[eventId]) {
+            console.log(`TaskRewards: Подія верифікації ${eventId} вже була оброблена, ігноруємо`);
+            return;
+        }
 
         // Якщо перевірка успішна і є винагорода
         if (result && result.success && result.reward) {
             console.log(`TaskRewards: Отримано результат верифікації для завдання ${taskId}`, result.reward);
-            processReward(taskId, result.reward);
+
+            // Обробляємо винагороду
+            processReward(taskId, result.reward, eventId);
+
+            // Зберігаємо ідентифікатор обробленої події
+            if (eventId) {
+                processedRewards[eventId] = Date.now();
+
+                // Очищення старих записів (старіших за 1 годину)
+                cleanupProcessedRewards();
+            }
+        }
+    }
+
+    /**
+     * Обробник події завершення завдання
+     * @param {CustomEvent} event - Подія завершення завдання
+     */
+    function handleTaskCompleted(event) {
+        const { taskId, reward, eventId } = event.detail;
+
+        // Перевіряємо на дублювання обробки події
+        if (eventId && processedRewards[eventId]) {
+            console.log(`TaskRewards: Подія завершення завдання ${eventId} вже була оброблена, ігноруємо`);
+            return;
+        }
+
+        // Якщо є винагорода, обробляємо її
+        if (reward) {
+            console.log(`TaskRewards: Отримано винагороду за завершення завдання ${taskId}`, reward);
+
+            // Обробляємо винагороду
+            processReward(taskId, reward, eventId);
+
+            // Зберігаємо ідентифікатор обробленої події
+            if (eventId) {
+                processedRewards[eventId] = Date.now();
+            }
         }
     }
 
@@ -82,66 +137,134 @@ window.TaskRewards = (function() {
      * @param {CustomEvent} event - Подія оновлення балансу
      */
     function handleBalanceUpdate(event) {
-        const { newBalance, type, source } = event.detail;
+        const { newBalance, type, source, operationId } = event.detail;
 
         // Ігноруємо власні події
         if (source === 'task_rewards') {
             return;
         }
 
+        // Перевіряємо на дублювання операцій
+        if (operationId && processedRewards[operationId]) {
+            console.log(`TaskRewards: Операція ${operationId} вже була оброблена, ігноруємо`);
+            return;
+        }
+
         // Оновлюємо локальний баланс, тільки якщо тип чітко вказаний
-        if (type === 'tokens') {
+        if (type === REWARD_TYPES.TOKENS) {
             tokenBalance = newBalance;
             console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
-        } else if (type === 'coins') {
+        } else if (type === REWARD_TYPES.COINS) {
             coinsBalance = newBalance;
             console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
         }
+
+        // Зберігаємо ідентифікатор обробленої операції
+        if (operationId) {
+            processedRewards[operationId] = Date.now();
+        }
+    }
+
+    /**
+     * Очищення застарілих записів оброблених винагород
+     */
+    function cleanupProcessedRewards() {
+        const oneHourAgo = Date.now() - 3600000; // 1 година в мілісекундах
+        Object.keys(processedRewards).forEach(key => {
+            if (processedRewards[key] < oneHourAgo) {
+                delete processedRewards[key];
+            }
+        });
+    }
+
+    /**
+     * Нормалізація винагороди
+     * @param {Object} reward - Дані винагороди
+     * @returns {Object} Нормалізована винагорода
+     */
+    function normalizeReward(reward) {
+        // Базова перевірка на об'єкт
+        if (!reward || typeof reward !== 'object') {
+            console.warn('TaskRewards: Отримано невалідну винагороду, використовуємо значення за замовчуванням');
+            return {
+                type: REWARD_TYPES.TOKENS,
+                amount: 10
+            };
+        }
+
+        // Перевірка та нормалізація типу
+        let rewardType;
+        if (reward.type && typeof reward.type === 'string') {
+            const lowerType = reward.type.toLowerCase();
+            rewardType = (lowerType.includes('token') || lowerType.includes('winix')) ?
+                REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+        } else {
+            // За замовчуванням
+            rewardType = REWARD_TYPES.TOKENS;
+        }
+
+        // Перевірка та нормалізація суми
+        const rewardAmount = Math.max(0, parseFloat(reward.amount) || 0);
+
+        if (rewardAmount <= 0) {
+            console.warn('TaskRewards: Винагорода з нульовою або від\'ємною сумою, використовуємо значення за замовчуванням');
+            return {
+                type: rewardType,
+                amount: 10
+            };
+        }
+
+        return {
+            type: rewardType,
+            amount: rewardAmount
+        };
     }
 
     /**
      * Обробка винагороди
      * @param {string} taskId - ID завдання
      * @param {Object} reward - Дані винагороди
+     * @param {string} [operationId] - Унікальний ідентифікатор операції
      */
-    function processReward(taskId, reward) {
-        // Переконуємося, що reward є об'єктом
-        if (!reward || typeof reward !== 'object') {
-            console.error('TaskRewards: Отримано невалідну винагороду', reward);
+    function processReward(taskId, reward, operationId) {
+        // Створюємо унікальний ідентифікатор, якщо не переданий
+        const uniqueId = operationId || `reward_${taskId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // Перевіряємо, чи не була ця винагорода вже оброблена
+        if (processedRewards[uniqueId]) {
+            console.log(`TaskRewards: Винагорода з ID ${uniqueId} вже була оброблена, ігноруємо`);
             return;
         }
 
-        // Переконуємося, що тип винагороди визначено правильно
-        if (!reward.type || (reward.type !== 'tokens' && reward.type !== 'coins')) {
-            console.warn('TaskRewards: Невизначений тип винагороди, використовуємо тип за замовчуванням (tokens)');
-            reward.type = 'tokens';
-        }
-
-        // Переконуємося, що сума винагороди є числом
-        if (typeof reward.amount !== 'number' || isNaN(reward.amount) || reward.amount <= 0) {
-            console.warn('TaskRewards: Невалідна сума винагороди, використовуємо значення за замовчуванням (10)');
-            reward.amount = 10;
-        }
+        // Нормалізуємо винагороду
+        const normalizedReward = normalizeReward(reward);
 
         // Додаємо винагороду до історії
-        addToRewardHistory(taskId, reward);
+        addToRewardHistory(taskId, normalizedReward, uniqueId);
 
         // Оновлюємо баланс
-        updateBalance(reward);
+        updateBalance(normalizedReward, uniqueId);
 
         // Показуємо анімацію винагороди
-        showRewardAnimation(reward);
+        showRewardAnimation(normalizedReward);
+
+        // Зберігаємо ідентифікатор обробленої винагороди
+        processedRewards[uniqueId] = Date.now();
+
+        console.log(`TaskRewards: Оброблено винагороду для завдання ${taskId} з ID ${uniqueId}`, normalizedReward);
     }
 
     /**
      * Додавання винагороди до історії
      * @param {string} taskId - ID завдання
      * @param {Object} reward - Дані винагороди
+     * @param {string} operationId - Унікальний ідентифікатор операції
      */
-    function addToRewardHistory(taskId, reward) {
+    function addToRewardHistory(taskId, reward, operationId) {
         rewardHistory.push({
             taskId,
             reward,
+            operationId,
             timestamp: Date.now()
         });
 
@@ -158,19 +281,26 @@ window.TaskRewards = (function() {
     /**
      * Оновлення балансу
      * @param {Object} reward - Дані винагороди
+     * @param {string} [operationId] - Унікальний ідентифікатор операції
      */
-    function updateBalance(reward) {
-        // Ще раз перевіряємо валідність винагороди
-        if (!reward || typeof reward !== 'object') {
-            console.error('TaskRewards: Спроба оновити баланс з невалідними даними');
+    function updateBalance(reward, operationId) {
+        // Створюємо унікальний ідентифікатор, якщо не переданий
+        const uniqueId = operationId || `balance_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+        // Перевіряємо, чи не була ця операція вже оброблена
+        if (processedRewards[uniqueId]) {
+            console.log(`TaskRewards: Операція оновлення балансу ${uniqueId} вже була оброблена, ігноруємо`);
             return;
         }
 
+        // Нормалізуємо винагороду
+        const normalizedReward = normalizeReward(reward);
+
         // Чітко визначаємо тип винагороди
-        const rewardType = reward.type === 'tokens' ? 'tokens' : 'coins';
+        const rewardType = normalizedReward.type;
 
         // Валідуємо суму
-        const rewardAmount = Math.max(0, parseFloat(reward.amount) || 0);
+        const rewardAmount = normalizedReward.amount;
 
         if (rewardAmount <= 0) {
             console.warn('TaskRewards: Спроба додати нульову або від\'ємну суму');
@@ -178,8 +308,9 @@ window.TaskRewards = (function() {
         }
 
         // Визначаємо, який баланс оновлювати
-        if (rewardType === 'tokens') {
+        if (rewardType === REWARD_TYPES.TOKENS) {
             // Оновлюємо токени
+            const oldBalance = tokenBalance;
             tokenBalance += rewardAmount;
             updateTokenBalance(tokenBalance, true);
 
@@ -188,8 +319,21 @@ window.TaskRewards = (function() {
             localStorage.setItem('winix_balance', tokenBalance.toString());
 
             console.log(`TaskRewards: Оновлено баланс токенів: +${rewardAmount}, новий баланс: ${tokenBalance}`);
+
+            // Відправляємо подію оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    oldBalance: oldBalance,
+                    newBalance: tokenBalance,
+                    reward: normalizedReward,
+                    type: rewardType,
+                    source: 'task_rewards',
+                    operationId: uniqueId
+                }
+            }));
         } else {
             // Оновлюємо жетони
+            const oldBalance = coinsBalance;
             coinsBalance += rewardAmount;
             updateCoinsBalance(coinsBalance, true);
 
@@ -198,18 +342,22 @@ window.TaskRewards = (function() {
             localStorage.setItem('winix_coins', coinsBalance.toString());
 
             console.log(`TaskRewards: Оновлено баланс жетонів: +${rewardAmount}, новий баланс: ${coinsBalance}`);
+
+            // Відправляємо подію оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    oldBalance: oldBalance,
+                    newBalance: coinsBalance,
+                    reward: normalizedReward,
+                    type: rewardType,
+                    source: 'task_rewards',
+                    operationId: uniqueId
+                }
+            }));
         }
 
-        // Відправляємо подію оновлення балансу
-        document.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: {
-                oldBalance: rewardType === 'tokens' ? (tokenBalance - rewardAmount) : (coinsBalance - rewardAmount),
-                newBalance: rewardType === 'tokens' ? tokenBalance : coinsBalance,
-                reward: reward,
-                type: rewardType,
-                source: 'task_rewards'
-            }
-        }));
+        // Зберігаємо ідентифікатор обробленої операції
+        processedRewards[uniqueId] = Date.now();
     }
 
     /**
@@ -281,9 +429,12 @@ window.TaskRewards = (function() {
      * @param {Object} reward - Дані винагороди
      */
     function showRewardAnimation(reward) {
+        // Нормалізуємо винагороду
+        const normalizedReward = normalizeReward(reward);
+
         // Визначаємо тип винагороди
-        const rewardType = reward.type === 'tokens' ? 'tokens' : 'coins';
-        const rewardAmount = parseFloat(reward.amount) || 0;
+        const rewardType = normalizedReward.type;
+        const rewardAmount = normalizedReward.amount;
 
         // Якщо є модуль анімацій, використовуємо його
         if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
@@ -296,7 +447,7 @@ window.TaskRewards = (function() {
         }
 
         // Інакше робимо просту анімацію
-        const displayType = rewardType === 'tokens' ? '$WINIX' : 'жетонів';
+        const displayType = rewardType === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів';
 
         // Створюємо елемент анімації
         const animationElement = document.createElement('div');
@@ -304,7 +455,7 @@ window.TaskRewards = (function() {
         animationElement.textContent = `+${rewardAmount} ${displayType}`;
 
         // Додаємо класи залежно від типу винагороди
-        if (rewardType === 'tokens') {
+        if (rewardType === REWARD_TYPES.TOKENS) {
             animationElement.classList.add('tokens-reward');
         } else {
             animationElement.classList.add('coins-reward');
@@ -342,7 +493,7 @@ window.TaskRewards = (function() {
      */
     function addReward(type, amount) {
         // Нормалізуємо тип
-        const rewardType = type === 'tokens' ? 'tokens' : 'coins';
+        const rewardType = type === REWARD_TYPES.TOKENS ? REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
 
         // Нормалізуємо суму
         const rewardAmount = Math.max(0, parseFloat(amount) || 0);
@@ -357,10 +508,25 @@ window.TaskRewards = (function() {
             amount: rewardAmount
         };
 
+        // Створюємо унікальний ідентифікатор для ручного додавання
+        const uniqueId = `manual_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
         // Обробляємо винагороду
-        processReward('manual', reward);
+        processReward('manual', reward, uniqueId);
 
         return true;
+    }
+
+    /**
+     * Скидання стану модуля (для тестування)
+     */
+    function resetState() {
+        // Очищаємо реєстр оброблених винагород
+        Object.keys(processedRewards).forEach(key => {
+            delete processedRewards[key];
+        });
+
+        console.log('TaskRewards: Стан модуля скинуто');
     }
 
     // Публічний API модуля
@@ -369,6 +535,9 @@ window.TaskRewards = (function() {
         updateBalance,
         showRewardAnimation,
         getRewardHistory,
-        addReward
+        addReward,
+        normalizeReward,
+        resetState,
+        REWARD_TYPES
     };
 })();

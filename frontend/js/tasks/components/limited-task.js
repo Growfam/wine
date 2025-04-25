@@ -1,14 +1,14 @@
 /**
- * LimitedTask - компонент для лімітованих за часом завдань
+ * LimitedTask - оптимізований компонент для лімітованих за часом завдань
  * Відповідає за:
  * - Створення та відображення лімітованих завдань
- * - Обробку взаємодії користувача з лімітованими завданнями
- * - Відображення таймера зворотного відліку з преміальними іконками
+ * - Інтеграцію з оновленими системами таймерів та обробки часу
+ * - Ефективну обробку подій та оновлення завдань
  */
 
 window.LimitedTask = (function() {
-    // Зберігаємо список таймерів для очищення
-    const timers = {};
+    // Кеш активних завдань та їх таймерів
+    const tasks = new Map();
 
     /**
      * Створення елементу лімітованого завдання
@@ -24,22 +24,21 @@ window.LimitedTask = (function() {
             ? Math.min(100, Math.round((progressValue / task.target_value) * 100))
             : 0;
 
-        // Визначаємо статус закінчення терміну
+        // Перевіряємо кінцеву дату та розраховуємо статус
         let isExpired = false;
-        let timeLeft = '';
         let endDate = null;
 
         if (task.end_date) {
-            endDate = new Date(task.end_date);
-            const now = new Date();
+            // Парсимо дату з використанням TimeUtils, якщо доступний
+            if (window.TimeUtils && window.TimeUtils.parseDate) {
+                endDate = window.TimeUtils.parseDate(task.end_date);
+            } else {
+                endDate = new Date(task.end_date);
+            }
 
             // Перевіряємо, чи не закінчився термін
+            const now = new Date();
             isExpired = endDate <= now;
-
-            // Обчислюємо час, що залишився
-            if (!isExpired) {
-                timeLeft = formatTimeLeft(endDate, now);
-            }
         }
 
         // Створюємо основний контейнер завдання
@@ -47,6 +46,7 @@ window.LimitedTask = (function() {
         taskElement.className = 'task-item';
         taskElement.dataset.taskId = task.id;
         taskElement.dataset.taskType = 'limited';
+        taskElement.dataset.targetValue = task.target_value.toString();
 
         // Додаємо клас для завершеного або закінченого терміну
         if (isCompleted) {
@@ -55,13 +55,14 @@ window.LimitedTask = (function() {
             taskElement.classList.add('expired');
         }
 
-        // Підготовка HTML для таймера з використанням нової іконки SVG
+        // Підготовка HTML для таймера
         let timerHtml = '';
         if (task.end_date && !isExpired && !isCompleted) {
+            // Створюємо контейнер для таймера, який буде ініціалізовано пізніше
             timerHtml = `
                 <div class="timer-container">
                     <span class="timer-icon"></span>
-                    <span class="timer-value" data-end-date="${task.end_date}">${timeLeft}</span>
+                    <span class="timer-value" data-end-date="${task.end_date}" data-format="short"></span>
                 </div>
             `;
         } else if (isExpired) {
@@ -125,102 +126,149 @@ window.LimitedTask = (function() {
                 });
             }
 
-            // Запускаємо таймер зворотного відліку
+            // Ініціалізуємо таймер зворотного відліку, якщо є дата завершення
             if (task.end_date && !isExpired) {
-                initializeCountdown(task.id, new Date(task.end_date));
+                initializeTaskTimer(task.id, taskElement);
             }
         }
+
+        // Зберігаємо зв'язок між завданням і елементом
+        tasks.set(task.id, {
+            element: taskElement,
+            task: task,
+            progress: progress
+        });
 
         return taskElement;
     }
 
     /**
-     * Ініціалізація таймера зворотного відліку
+     * Ініціалізація таймера для завдання
+     * @param {string} taskId - ID завдання
+     * @param {HTMLElement} taskElement - DOM елемент завдання
      */
-    function initializeCountdown(taskId, endDate) {
-        // Очищаємо попередній таймер, якщо такий є
-        if (timers[taskId]) {
-            clearInterval(timers[taskId]);
-        }
+    function initializeTaskTimer(taskId, taskElement) {
+        // Знаходимо елемент таймера
+        const timerElement = taskElement.querySelector('.timer-value[data-end-date]');
+        if (!timerElement) return;
 
-        // Функція оновлення таймера
-        const updateTimer = () => {
-            const now = new Date();
-            const timeLeft = endDate - now;
+        // Отримуємо кінцеву дату
+        const endDate = timerElement.getAttribute('data-end-date');
+        if (!endDate) return;
 
-            // Знаходимо елемент таймера
-            const timerElement = document.querySelector(`.task-item[data-task-id="${taskId}"] .timer-value`);
+        // Функція, що викликається при закінченні часу
+        const onTimerComplete = function() {
+            // Позначаємо завдання як закінчене
+            taskElement.classList.add('expired');
 
-            if (timerElement) {
-                if (timeLeft <= 0) {
-                    // Таймер закінчився
-                    timerElement.parentElement.classList.add('expired');
-                    // Використовуємо HTML з новою іконкою таймера
-                    timerElement.parentElement.innerHTML = '<span class="timer-icon"></span> <span data-lang-key="earn.expired">Закінчено</span>';
+            // Оновлюємо відображення
+            refreshTaskDisplay(taskId);
 
-                    // Деактивуємо кнопки
-                    const actionButtons = document.querySelectorAll(`.task-item[data-task-id="${taskId}"] .action-button`);
-                    actionButtons.forEach(button => {
-                        button.disabled = true;
-                    });
-
-                    // Очищаємо таймер
-                    clearInterval(timers[taskId]);
-                    timers[taskId] = null;
-
-                    // Оновлюємо відображення завдання
-                    refreshTaskDisplay(taskId);
-                } else {
-                    // Оновлюємо відображення таймера
-                    timerElement.textContent = formatTimeLeft(endDate, now);
-                }
-            } else {
-                // Якщо елемент таймера не знайдено, очищаємо таймер
-                clearInterval(timers[taskId]);
-                timers[taskId] = null;
-            }
+            // Деактивуємо кнопки
+            const actionButtons = taskElement.querySelectorAll('.action-button');
+            actionButtons.forEach(button => {
+                button.disabled = true;
+            });
         };
 
-        // Запускаємо таймер з оновленням кожну секунду
-        updateTimer(); // Перше оновлення
-        timers[taskId] = setInterval(updateTimer, 1000);
+        // Використовуємо UI.Countdown, якщо доступний
+        if (window.UI && window.UI.Countdown) {
+            window.UI.Countdown.createCountdown({
+                element: timerElement,
+                endDate: endDate,
+                format: 'short',
+                onComplete: onTimerComplete
+            });
+        }
+        // Або використовуємо TimeUtils напряму
+        else if (window.TimeUtils) {
+            window.TimeUtils.createCountdown({
+                element: timerElement,
+                endDate: endDate,
+                format: 'short',
+                onComplete: onTimerComplete
+            });
+        }
+        // Простий запасний варіант
+        else {
+            // Парсимо кінцеву дату
+            const endDateTime = new Date(endDate);
+
+            // Форматуємо і відображаємо початковий час
+            updateTimerDisplay(timerElement, endDateTime);
+
+            // Створюємо інтервал для оновлення
+            const intervalId = setInterval(() => {
+                const now = new Date();
+                const timeLeft = endDateTime - now;
+
+                if (timeLeft <= 0) {
+                    // Таймер закінчився
+                    clearInterval(intervalId);
+                    timerElement.textContent = 'Закінчено';
+                    timerElement.parentElement.classList.add('expired');
+
+                    // Викликаємо обробник завершення
+                    onTimerComplete();
+                } else {
+                    // Оновлюємо відображення
+                    updateTimerDisplay(timerElement, endDateTime);
+                }
+            }, 1000);
+
+            // Зберігаємо ID інтервалу для подальшого очищення
+            const taskData = tasks.get(taskId);
+            if (taskData) {
+                taskData.timerId = intervalId;
+                tasks.set(taskId, taskData);
+            }
+        }
     }
 
     /**
-     * Форматування часу, що залишився
+     * Оновлення відображення таймера (для запасного варіанту)
+     * @param {HTMLElement} timerElement - Елемент таймера
+     * @param {Date} endDate - Кінцева дата
      */
-    function formatTimeLeft(endDate, now) {
+    function updateTimerDisplay(timerElement, endDate) {
+        const now = new Date();
         const timeLeft = endDate - now;
 
         if (timeLeft <= 0) {
-            return 'Закінчено';
+            timerElement.textContent = 'Закінчено';
+            return;
         }
 
+        // Форматуємо час
         const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
         const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-        // Форматуємо відображення залежно від залишку часу
+        // Форматуємо відображення
+        let formattedTime;
         if (days > 0) {
-            return `${days}д ${hours}г`;
+            formattedTime = `${days}д ${hours}г`;
         } else if (hours > 0) {
-            return `${hours}г ${minutes}хв`;
+            formattedTime = `${hours}г ${minutes}хв`;
         } else {
-            return `${minutes}хв ${seconds}с`;
+            formattedTime = `${minutes}хв ${seconds}с`;
         }
+
+        timerElement.textContent = formattedTime;
     }
 
     /**
      * Обробник початку виконання завдання
+     * @param {Object} task - Дані завдання
      */
     function handleStartTask(task) {
-        // Відтворюємо звук кліку з нового модуля анімацій
+        // Відтворюємо звук кліку, якщо доступний модуль анімацій
         if (window.UI && window.UI.Animations && window.UI.Animations.playSound) {
             window.UI.Animations.playSound('click');
         }
 
-        // Якщо є TaskManager, делегуємо обробку йому
+        // Делегуємо обробку до TaskManager, якщо він доступний
         if (window.TaskManager && window.TaskManager.startTask) {
             window.TaskManager.startTask(task.id);
             return;
@@ -231,7 +279,7 @@ window.LimitedTask = (function() {
             window.open(task.action_url, '_blank');
         }
 
-        // Викликаємо API самостійно
+        // Викликаємо API самостійно, якщо доступний
         if (window.API) {
             window.API.post(`/quests/tasks/${task.id}/start`)
                 .then(response => {
@@ -244,7 +292,7 @@ window.LimitedTask = (function() {
                     }
                 })
                 .catch(error => {
-                    console.error('Помилка при старті завдання:', error);
+                    console.error('LimitedTask: Помилка при старті завдання:', error);
                     showMessage('Сталася помилка при спробі розпочати завдання', 'error');
                 });
         }
@@ -252,14 +300,15 @@ window.LimitedTask = (function() {
 
     /**
      * Обробник перевірки виконання завдання
+     * @param {Object} task - Дані завдання
      */
     function handleVerifyTask(task) {
-        // Відтворюємо звук кліку з нового модуля анімацій
+        // Відтворюємо звук кліку, якщо доступний модуль анімацій
         if (window.UI && window.UI.Animations && window.UI.Animations.playSound) {
             window.UI.Animations.playSound('click');
         }
 
-        // Якщо є TaskManager, делегуємо обробку йому
+        // Делегуємо обробку до TaskManager, якщо він доступний
         if (window.TaskManager && window.TaskManager.verifyTask) {
             window.TaskManager.verifyTask(task.id);
             return;
@@ -274,7 +323,7 @@ window.LimitedTask = (function() {
             }
         }
 
-        // Викликаємо API самостійно
+        // Викликаємо API самостійно, якщо доступний
         if (window.API) {
             window.API.post(`/quests/tasks/${task.id}/verify`)
                 .then(response => {
@@ -290,7 +339,7 @@ window.LimitedTask = (function() {
                             showRewardAnimation(response.reward);
                         }
 
-                        // Анімуємо успішне виконання за допомогою нового модуля
+                        // Анімуємо успішне виконання, якщо доступний модуль анімацій
                         if (window.UI && window.UI.Animations && window.UI.Animations.animateSuccessfulCompletion) {
                             window.UI.Animations.animateSuccessfulCompletion(task.id);
                         }
@@ -300,7 +349,7 @@ window.LimitedTask = (function() {
                     }
                 })
                 .catch(error => {
-                    console.error('Помилка при перевірці завдання:', error);
+                    console.error('LimitedTask: Помилка при перевірці завдання:', error);
                     showMessage('Сталася помилка при спробі перевірити завдання', 'error');
 
                     // Оновлюємо відображення завдання
@@ -311,25 +360,26 @@ window.LimitedTask = (function() {
 
     /**
      * Оновлення відображення конкретного завдання
+     * @param {string} taskId - ID завдання
      */
     function refreshTaskDisplay(taskId) {
-        // Очищаємо таймер для цього завдання
-        if (timers[taskId]) {
-            clearInterval(timers[taskId]);
-            timers[taskId] = null;
-        }
-
-        // Якщо є TaskManager, використовуємо його метод
+        // Делегуємо оновлення до TaskManager, якщо він доступний
         if (window.TaskManager && window.TaskManager.refreshTaskDisplay) {
             window.TaskManager.refreshTaskDisplay(taskId);
             return;
         }
 
-        // Знаходимо завдання в DOM
-        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-        if (!taskElement) return;
+        // Отримуємо дані завдання
+        const taskData = tasks.get(taskId);
+        if (!taskData) return;
 
-        // Робимо новий запит для отримання актуальних даних
+        // Очищаємо таймер, якщо він був створений нами
+        if (taskData.timerId) {
+            clearInterval(taskData.timerId);
+            taskData.timerId = null;
+        }
+
+        // Оновлюємо дані з сервера, якщо доступне API
         if (window.API) {
             Promise.all([
                 window.API.get('/quests/tasks/limited'),
@@ -348,27 +398,37 @@ window.LimitedTask = (function() {
                         const newTaskElement = create(task, progress[taskId]);
 
                         // Замінюємо старий елемент
-                        taskElement.parentNode.replaceChild(newTaskElement, taskElement);
+                        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+                        if (taskElement && taskElement.parentNode) {
+                            taskElement.parentNode.replaceChild(newTaskElement, taskElement);
+                        }
                     }
                 }
             })
             .catch(error => {
-                console.error('Помилка при оновленні відображення завдання:', error);
+                console.error('LimitedTask: Помилка при оновленні відображення завдання:', error);
             });
         }
     }
 
     /**
      * Показати анімацію отримання винагороди
+     * @param {Object} reward - Дані винагороди
      */
     function showRewardAnimation(reward) {
-        // Використовуємо новий модуль преміальних анімацій
+        // Використовуємо TaskRewards, якщо доступний
+        if (window.TaskRewards && window.TaskRewards.showRewardAnimation) {
+            window.TaskRewards.showRewardAnimation(reward);
+            return;
+        }
+
+        // Використовуємо UI.Animations, якщо доступний
         if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
             window.UI.Animations.showReward(reward);
             return;
         }
 
-        // Резервний варіант, якщо новий модуль недоступний
+        // Резервний варіант для простої анімації
         const rewardAmount = reward.amount;
         const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
 
@@ -377,6 +437,13 @@ window.LimitedTask = (function() {
         animationElement.className = 'reward-animation';
         animationElement.textContent = `+${rewardAmount} ${rewardType}`;
 
+        // Додаємо класи залежно від типу винагороди
+        if (reward.type === 'tokens') {
+            animationElement.classList.add('tokens-reward');
+        } else {
+            animationElement.classList.add('coins-reward');
+        }
+
         // Додаємо до body
         document.body.appendChild(animationElement);
 
@@ -384,7 +451,7 @@ window.LimitedTask = (function() {
         setTimeout(() => {
             animationElement.classList.add('show');
 
-            // Видаляємо після завершення
+            // Видаляємо елемент через 2 секунди
             setTimeout(() => {
                 animationElement.classList.remove('show');
                 setTimeout(() => {
@@ -399,9 +466,16 @@ window.LimitedTask = (function() {
 
     /**
      * Оновити баланс користувача
+     * @param {Object} reward - Дані винагороди
      */
     function updateUserBalance(reward) {
-        // Використовуємо новий модуль для оновлення балансу, якщо доступний
+        // Використовуємо TaskRewards, якщо доступний
+        if (window.TaskRewards && window.TaskRewards.updateBalance) {
+            window.TaskRewards.updateBalance(reward);
+            return;
+        }
+
+        // Використовуємо UI.Notifications, якщо доступний
         if (window.UI && window.UI.Notifications && window.UI.Notifications.updateBalanceUI) {
             window.UI.Notifications.updateBalanceUI(reward);
             return;
@@ -433,9 +507,11 @@ window.LimitedTask = (function() {
 
     /**
      * Показати повідомлення
+     * @param {string} message - Текст повідомлення
+     * @param {string} type - Тип повідомлення (success, error, info)
      */
     function showMessage(message, type = 'info') {
-        // Використовуємо новий модуль сповіщень
+        // Використовуємо UI.Notifications, якщо доступний
         if (window.UI && window.UI.Notifications) {
             if (type === 'error') {
                 window.UI.Notifications.showError(message);
@@ -455,11 +531,7 @@ window.LimitedTask = (function() {
 
             // Встановлюємо стиль в залежності від типу
             toastElement.className = 'toast-message';
-            if (type === 'error') {
-                toastElement.classList.add('error');
-            } else if (type === 'success') {
-                toastElement.classList.add('success');
-            }
+            toastElement.classList.add(type);
 
             // Показуємо сповіщення
             toastElement.classList.add('show');
@@ -469,7 +541,7 @@ window.LimitedTask = (function() {
                 toastElement.classList.remove('show');
                 // Повертаємо оригінальний стиль
                 setTimeout(() => {
-                    toastElement.classList.remove('error', 'success');
+                    toastElement.className = 'toast-message';
                 }, 300);
             }, 3000);
         } else {
@@ -480,6 +552,8 @@ window.LimitedTask = (function() {
 
     /**
      * Функція для безпечного виведення HTML
+     * @param {string} text - Текст для обробки
+     * @returns {string} Безпечний HTML
      */
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -488,17 +562,24 @@ window.LimitedTask = (function() {
     }
 
     /**
-     * Очищення всіх таймерів при виході з модуля
+     * Очищення всіх таймерів та ресурсів
      */
     function cleanup() {
-        // Очищаємо всі таймери
-        for (const taskId in timers) {
-            if (timers[taskId]) {
-                clearInterval(timers[taskId]);
-                timers[taskId] = null;
+        // Очищаємо всі таймери, створені цим модулем
+        tasks.forEach((taskData, taskId) => {
+            if (taskData.timerId) {
+                clearInterval(taskData.timerId);
             }
-        }
+        });
+
+        // Очищаємо кеш завдань
+        tasks.clear();
+
+        console.log('LimitedTask: Ресурси модуля очищено');
     }
+
+    // Підписуємося на подію виходу зі сторінки
+    window.addEventListener('beforeunload', cleanup);
 
     // Публічний API модуля
     return {

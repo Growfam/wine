@@ -1,20 +1,20 @@
 /**
- * TaskIntegration - оптимізований модуль для інтеграції компонентів системи завдань
- * Покращено:
- * - Правильна послідовність ініціалізації модулів
- * - Вирішення конфліктів з типами нагород
- * - Запобігання дублюванню подій та винагород
- * - Централізоване налаштування взаємодії між модулями
+ * TaskProgressManager - оптимізований модуль для керування прогресом завдань
+ * Перероблено з оригінального TaskIntegration для уникнення конфлікту імен
+ * Відповідає за:
+ * - Відстеження прогресу виконання завдань
+ * - Запобігання дублюванню винагород
+ * - Коректну комунікацію між модулями через події
  */
 
-window.TaskIntegration = (function() {
+window.TaskProgressManager = (function() {
     // Типи винагород
     const REWARD_TYPES = {
         TOKENS: 'tokens',
         COINS: 'coins'
     };
 
-    // Список усіх модулів для ініціалізації в правильному порядку
+    // Список модулів, з якими взаємодіє прогрес
     const modules = [
         { name: 'UI.Animations', object: () => window.UI && window.UI.Animations, state: false, priority: 1 },
         { name: 'UI.Notifications', object: () => window.UI && window.UI.Notifications, state: false, priority: 1 },
@@ -54,14 +54,15 @@ window.TaskIntegration = (function() {
         maxInitAttempts: 3,
         isPageLoaded: false,
         lastRewards: {}, // Зберігаємо останні нагороди, щоб запобігти дублюванню
-        lastRewardTime: {}
+        lastRewardTime: {},
+        userProgress: {} // Локальне сховище для прогресу
     };
 
     // Реєстр подій для уникнення дублювання
     const eventRegistry = {};
 
     /**
-     * Ініціалізація системи інтеграції
+     * Ініціалізація системи керування прогресом
      * @param {Object} options - Налаштування
      */
     function init(options = {}) {
@@ -74,7 +75,7 @@ window.TaskIntegration = (function() {
         state.startTime = performance.now();
 
         // Логуємо початок ініціалізації
-        log('TaskIntegration: Початок ініціалізації оптимізованої системи завдань');
+        log('TaskProgressManager: Початок ініціалізації системи керування прогресом');
 
         // Додаємо слухачі події завантаження сторінки
         document.addEventListener('DOMContentLoaded', () => {
@@ -88,13 +89,18 @@ window.TaskIntegration = (function() {
             initializeModules();
         }
 
+        // Перевірка на наявність TaskIntegration і уникнення конфліктів
+        if (window.TaskIntegration) {
+            log('TaskProgressManager: Виявлено TaskIntegration, налаштовуємо взаємодію');
+        }
+
+        // Завантажуємо збережений прогрес
+        loadSavedProgress();
+
         // Підписуємося на події
         subscribeToEvents();
 
-        // Вирішуємо конфлікти між модулями
-        resolveModuleConflicts();
-
-        // Встановлюємо обробник для сумісності компонентів
+        // Налаштування взаємодії з компонентами
         setupComponentsCompatibility();
 
         // Встановлюємо стан ініціалізації
@@ -110,7 +116,7 @@ window.TaskIntegration = (function() {
         // Збільшуємо лічильник спроб
         state.initAttempts++;
 
-        log(`TaskIntegration: Спроба ініціалізації модулів (${state.initAttempts}/${state.maxInitAttempts})`);
+        log(`TaskProgressManager: Спроба ініціалізації модулів (${state.initAttempts}/${state.maxInitAttempts})`);
 
         // Сортуємо модулі за пріоритетом (нижче число - вищий пріоритет)
         const sortedModules = [...modules].sort((a, b) => a.priority - b.priority);
@@ -124,8 +130,7 @@ window.TaskIntegration = (function() {
         const allInitialized = modules.every(module => module.state);
         const mandatoryInitialized = modules
             .filter(module => [
-                'UI.Animations', 'UI.Notifications', 'TaskProgress',
-                'TaskVerification', 'TaskRewards', 'TaskManager'
+                'TaskProgress', 'TaskVerification', 'TaskRewards', 'TaskManager'
             ].includes(module.name))
             .every(module => module.state);
 
@@ -139,18 +144,18 @@ window.TaskIntegration = (function() {
         // Перевіряємо чи закінчився час очікування
         const elapsedTime = performance.now() - state.startTime;
         if (elapsedTime >= config.timeout) {
-            log('TaskIntegration: Досягнуто ліміт часу ініціалізації. Продовжуємо з доступними модулями.');
+            log('TaskProgressManager: Досягнуто ліміт часу ініціалізації. Продовжуємо з доступними модулями.');
         }
 
         // Відправляємо подію про завершення ініціалізації
-        dispatchEvent('task-system-initialized', {
+        dispatchEvent('task-progress-manager-initialized', {
             modulesInitialized: modules.filter(m => m.state).map(m => m.name),
             missingModules: modules.filter(m => !m.state).map(m => m.name),
             elapsedTime
         });
 
         // Логуємо результат ініціалізації
-        log(`TaskIntegration: Ініціалізація завершена за ${Math.round(elapsedTime)}мс. Ініціалізовано ${modules.filter(m => m.state).length}/${modules.length} модулів.`);
+        log(`TaskProgressManager: Ініціалізація завершена за ${Math.round(elapsedTime)}мс. Ініціалізовано ${modules.filter(m => m.state).length}/${modules.length} модулів.`);
 
         // Виконуємо фінальні налаштування
         if (config.useEnhancedAnimations) {
@@ -159,9 +164,9 @@ window.TaskIntegration = (function() {
 
         // Якщо всі модулі ініціалізовано успішно
         if (allInitialized) {
-            log('TaskIntegration: Всі модулі успішно ініціалізовано');
+            log('TaskProgressManager: Всі модулі успішно ініціалізовано');
         } else {
-            log('TaskIntegration: Деякі модулі не вдалося ініціалізувати', modules.filter(m => !m.state).map(m => m.name));
+            log('TaskProgressManager: Деякі модулі не вдалося ініціалізувати', modules.filter(m => !m.state).map(m => m.name));
         }
     }
 
@@ -186,36 +191,49 @@ window.TaskIntegration = (function() {
             try {
                 moduleObj.init();
                 module.state = true;
-                log(`TaskIntegration: Ініціалізовано модуль ${module.name}`);
+                log(`TaskProgressManager: Ініціалізовано модуль ${module.name}`);
             } catch (error) {
-                log(`TaskIntegration: Помилка при ініціалізації модуля ${module.name}:`, error);
+                log(`TaskProgressManager: Помилка при ініціалізації модуля ${module.name}:`, error);
             }
         } else {
             // Якщо немає методу init, вважаємо що модуль вже ініціалізовано
             module.state = true;
-            log(`TaskIntegration: Модуль ${module.name} не має методу init, вважаємо його ініціалізованим`);
+            log(`TaskProgressManager: Модуль ${module.name} не має методу init, вважаємо його ініціалізованим`);
         }
     }
 
     /**
-     * Вирішення конфліктів між модулями
+     * Завантаження збереженого прогресу користувача
      */
-    function resolveModuleConflicts() {
-        // Вирішення конфлікту між TaskManager та іншими модулями компонентів завдань
-        resolveTaskComponentsConflict();
-
-        // Вирішення конфлікту з типами винагород
-        resolveRewardTypeConflict();
-
-        // Вирішення конфлікту між різними сповіщеннями
-        resolveNotificationsConflict();
-
-        // Виправлення проблем з подіями
-        fixEventDuplicationIssues();
+    function loadSavedProgress() {
+        try {
+            // Спочатку пробуємо отримати з localStorage
+            const savedProgress = localStorage.getItem('winix_task_progress');
+            if (savedProgress) {
+                state.userProgress = JSON.parse(savedProgress);
+                log('TaskProgressManager: Завантажено збережений прогрес користувача');
+            } else {
+                state.userProgress = {};
+            }
+        } catch (error) {
+            log('TaskProgressManager: Помилка при завантаженні збереженого прогресу:', error);
+            state.userProgress = {};
+        }
     }
 
     /**
-     * Вирішення конфлікту з типами винагород
+     * Збереження прогресу користувача
+     */
+    function saveProgress() {
+        try {
+            localStorage.setItem('winix_task_progress', JSON.stringify(state.userProgress));
+        } catch (error) {
+            log('TaskProgressManager: Помилка при збереженні прогресу:', error);
+        }
+    }
+
+    /**
+     * Вирішення конфліктів з типами винагород
      */
     function resolveRewardTypeConflict() {
         // Перевіряємо наявність TaskRewards
@@ -229,190 +247,8 @@ window.TaskIntegration = (function() {
                 window.TaskVerification.REWARD_TYPES = window.TaskRewards.REWARD_TYPES;
             }
 
-            log('TaskIntegration: Синхронізовано типи винагород між модулями');
+            log('TaskProgressManager: Синхронізовано типи винагород між модулями');
         }
-    }
-
-    /**
-     * Вирішення конфлікту між TaskManager та компонентами завдань
-     */
-    function resolveTaskComponentsConflict() {
-        // Перевизначаємо метод startTask у компонентах, щоб вони використовували TaskManager
-        ['SocialTask', 'LimitedTask', 'PartnerTask'].forEach(componentName => {
-            const component = window[componentName];
-            if (!component) return;
-
-            // Зберігаємо оригінальний метод
-            const originalStartTask = component.handleStartTask;
-
-            // Перевизначаємо метод
-            if (originalStartTask && window.TaskManager && window.TaskManager.startTask) {
-                component.handleStartTask = function(task) {
-                    // Використовуємо TaskManager.startTask замість власної реалізації
-                    if (typeof task === 'object' && task.id) {
-                        window.TaskManager.startTask(task.id);
-                    } else if (typeof task === 'string') {
-                        window.TaskManager.startTask(task);
-                    } else {
-                        // Якщо щось пішло не так, викликаємо оригінальний метод
-                        originalStartTask.apply(component, arguments);
-                    }
-                };
-
-                log(`TaskIntegration: Вирішено конфлікт handleStartTask у ${componentName}`);
-            }
-
-            // Так само для методу verifyTask
-            const originalVerifyTask = component.handleVerifyTask;
-
-            if (originalVerifyTask && window.TaskManager && window.TaskManager.verifyTask) {
-                component.handleVerifyTask = function(task) {
-                    // Використовуємо TaskManager.verifyTask замість власної реалізації
-                    if (typeof task === 'object' && task.id) {
-                        window.TaskManager.verifyTask(task.id);
-                    } else if (typeof task === 'string') {
-                        window.TaskManager.verifyTask(task);
-                    } else {
-                        // Якщо щось пішло не так, викликаємо оригінальний метод
-                        originalVerifyTask.apply(component, arguments);
-                    }
-                };
-
-                log(`TaskIntegration: Вирішено конфлікт handleVerifyTask у ${componentName}`);
-            }
-        });
-    }
-
-    /**
-     * Вирішення конфлікту між різними сповіщеннями
-     */
-    function resolveNotificationsConflict() {
-        // Перевіряємо наявність покращеного модуля сповіщень
-        if (window.UI && window.UI.Notifications) {
-            // Перевизначаємо методи showSuccessMessage і showErrorMessage в TaskManager
-            if (window.TaskManager) {
-                // Зберігаємо оригінальні методи
-                const originalShowSuccess = window.TaskManager.showSuccessMessage;
-                const originalShowError = window.TaskManager.showErrorMessage;
-
-                // Перевизначаємо методи
-                window.TaskManager.showSuccessMessage = function(message) {
-                    // Використовуємо покращені сповіщення
-                    window.UI.Notifications.showSuccess(message);
-                };
-
-                window.TaskManager.showErrorMessage = function(message) {
-                    // Використовуємо покращені сповіщення
-                    window.UI.Notifications.showError(message);
-                };
-
-                log('TaskIntegration: Вирішено конфлікт методів сповіщень у TaskManager');
-            }
-
-            // Перевизначаємо методи для DailyBonus
-            if (window.DailyBonus) {
-                // Зберігаємо оригінальні методи
-                const originalShowSuccess = window.DailyBonus.showSuccessMessage;
-                const originalShowError = window.DailyBonus.showErrorMessage;
-
-                // Перевизначаємо методи
-                window.DailyBonus.showSuccessMessage = function(message) {
-                    // Використовуємо покращені сповіщення
-                    window.UI.Notifications.showSuccess(message);
-                };
-
-                window.DailyBonus.showErrorMessage = function(message) {
-                    // Використовуємо покращені сповіщення
-                    window.UI.Notifications.showError(message);
-                };
-
-                log('TaskIntegration: Вирішено конфлікт методів сповіщень у DailyBonus');
-            }
-        }
-    }
-
-    /**
-     * Виправлення проблем з дублюванням подій
-     */
-    function fixEventDuplicationIssues() {
-        if (!config.preventDuplicateEvents) return;
-
-        // Запобігаємо дублюванню подій балансу
-        fixBalanceUpdateEvents();
-
-        // Очищаємо захаращені обробники подій
-        clearEventHandlers();
-    }
-
-    /**
-     * Запобігання дублюванню подій оновлення балансу
-     */
-    function fixBalanceUpdateEvents() {
-        // Перехоплюємо подію 'balance-updated'
-        const originalDispatchEvent = document.dispatchEvent;
-
-        document.dispatchEvent = function(event) {
-            // Якщо це подія оновлення балансу
-            if (event.type === 'balance-updated' && event.detail) {
-                // Отримуємо деталі події
-                const { type, newBalance, source, operationId } = event.detail;
-
-                // Створюємо унікальний ключ для події
-                const eventKey = `${type}_${newBalance}_${Date.now()}`;
-
-                // Перевіряємо чи подія вже оброблена
-                if (eventRegistry[eventKey]) {
-                    log('TaskIntegration: Виявлено дублікат події balance-updated, ігноруємо');
-                    return true; // Імітуємо успішну відправку події, але насправді блокуємо її
-                }
-
-                // Запобігаємо дублюванню нагород
-                if (config.preventRewardDuplication && type &&
-                    newBalance !== undefined && source && source !== 'task_rewards') {
-
-                    // Перевіряємо час з останньої нагороди
-                    const now = Date.now();
-                    const lastTime = state.lastRewardTime[type] || 0;
-
-                    if (now - lastTime < 1000) { // 1 секунда між нагородами одного типу
-                        log(`TaskIntegration: Виявлено занадто часту подію balance-updated для ${type}, ігноруємо`);
-                        return true;
-                    }
-
-                    // Оновлюємо час останньої нагороди
-                    state.lastRewardTime[type] = now;
-
-                    // Перевіряємо, чи це дублікат нагороди
-                    if (state.lastRewards[type] === newBalance) {
-                        log(`TaskIntegration: Виявлено дублікат нагороди для ${type}, ігноруємо`);
-                        return true;
-                    }
-
-                    // Зберігаємо останню нагороду
-                    state.lastRewards[type] = newBalance;
-                }
-
-                // Реєструємо подію, щоб запобігти дублюванню
-                eventRegistry[eventKey] = true;
-
-                // Через деякий час видаляємо подію з реєстру
-                setTimeout(() => {
-                    delete eventRegistry[eventKey];
-                }, 5000);
-            }
-
-            // Передаємо всі інші події оригінальному методу
-            return originalDispatchEvent.call(this, event);
-        };
-
-        log('TaskIntegration: Встановлено перехоплення дублювання подій балансу');
-    }
-
-    /**
-     * Очищення дублікатів обробників подій
-     */
-    function clearEventHandlers() {
-        // На стадії розробки - буде впроваджено при необхідності
     }
 
     /**
@@ -420,52 +256,83 @@ window.TaskIntegration = (function() {
      */
     function setupComponentsCompatibility() {
         // Покращений алгоритм делегування
-        setupCentralizedRewardHandling();
+        setupCentralizedProgressHandling();
+
+        // Вирішення конфлікту з типами винагород
+        resolveRewardTypeConflict();
+
+        // Інтеграція з TaskManager, якщо він доступний
+        integrateWithTaskManager();
     }
 
     /**
-     * Налаштування централізованої обробки винагород
-     * Всі винагороди повинні оброблятися через TaskRewards
+     * Інтеграція з TaskManager
      */
-    function setupCentralizedRewardHandling() {
-        // Перевіряємо наявність TaskRewards
-        if (!window.TaskRewards) return;
+    function integrateWithTaskManager() {
+        if (!window.TaskManager) return;
 
-        // Перевизначаємо функції оновлення балансу в TaskManager
-        if (window.TaskManager && window.TaskManager.updateBalance) {
-            const originalUpdateBalance = window.TaskManager.updateBalance;
-
-            window.TaskManager.updateBalance = function(reward) {
-                // Делегуємо обробку до TaskRewards
-                return window.TaskRewards.updateBalance(reward);
+        // Додаємо метод для отримання прогресу завдань
+        if (!window.TaskManager.getTaskProgress) {
+            window.TaskManager.getTaskProgress = function(taskId) {
+                return getTaskProgress(taskId);
             };
-
-            log('TaskIntegration: Встановлено делегування винагород від TaskManager до TaskRewards');
         }
 
-        // Перевизначаємо функції анімації винагород
-        if (window.TaskManager && window.TaskManager.showRewardAnimation) {
-            const originalShowReward = window.TaskManager.showRewardAnimation;
-
-            window.TaskManager.showRewardAnimation = function(reward) {
-                // Делегуємо анімацію до TaskRewards
-                return window.TaskRewards.showRewardAnimation(reward);
+        // Додаємо метод для оновлення прогресу завдання
+        if (!window.TaskManager.updateTaskProgress) {
+            window.TaskManager.updateTaskProgress = function(taskId, progressData) {
+                updateTaskProgress(taskId, progressData);
             };
-
-            log('TaskIntegration: Встановлено делегування анімації винагород від TaskManager до TaskRewards');
         }
 
-        // Те ж саме для DailyBonus, якщо він є
-        if (window.DailyBonus && window.DailyBonus.processReward) {
-            const originalProcessReward = window.DailyBonus.processReward;
+        log('TaskProgressManager: Інтегровано з TaskManager');
+    }
 
-            window.DailyBonus.processReward = function(reward) {
-                // Делегуємо обробку до TaskRewards
-                return window.TaskRewards.updateBalance(reward);
-            };
+    /**
+     * Налаштування централізованої обробки прогресу
+     */
+    function setupCentralizedProgressHandling() {
+        // Перевіряємо наявність TaskProgress
+        if (!window.TaskProgress) return;
 
-            log('TaskIntegration: Встановлено делегування винагород від DailyBonus до TaskRewards');
+        // Якщо модуль прогресу має власний метод отримання прогресу,
+        // синхронізуємо дані між модулями
+        if (typeof window.TaskProgress.getUserProgress === 'function') {
+            const externalProgress = window.TaskProgress.getUserProgress();
+            if (externalProgress && typeof externalProgress === 'object') {
+                // Об'єднуємо з нашим прогресом
+                Object.assign(state.userProgress, externalProgress);
+                saveProgress();
+            }
         }
+
+        // Перевизначаємо метод оновлення прогресу
+        if (typeof window.TaskProgress.updateTaskProgress === 'function') {
+            const originalUpdateProgress = window.TaskProgress.updateTaskProgress;
+
+            window.TaskProgress.updateTaskProgress = function(taskId, progressData) {
+                // Оновлюємо локальний прогрес
+                updateTaskProgress(taskId, progressData);
+
+                // Викликаємо оригінальний метод
+                return originalUpdateProgress.call(window.TaskProgress, taskId, progressData);
+            };
+        } else {
+            // Якщо метод не існує, додаємо його
+            window.TaskProgress.updateTaskProgress = updateTaskProgress;
+        }
+
+        // Додаємо метод отримання прогресу
+        if (typeof window.TaskProgress.getTaskProgress !== 'function') {
+            window.TaskProgress.getTaskProgress = getTaskProgress;
+        }
+
+        // Додаємо метод отримання всього прогресу
+        if (typeof window.TaskProgress.getUserProgress !== 'function') {
+            window.TaskProgress.getUserProgress = getUserProgress;
+        }
+
+        log('TaskProgressManager: Налаштовано централізоване керування прогресом');
     }
 
     /**
@@ -474,33 +341,42 @@ window.TaskIntegration = (function() {
     function applyEnhancedAnimations() {
         if (!window.UI || !window.UI.Animations) return;
 
+        // Перевіряємо, чи не було вже викликано TaskIntegration
+        if (window.TaskIntegration && window.TaskIntegration.applyEnhancedAnimations) {
+            // Не дублюємо виклик, якщо вже є TaskIntegration
+            return;
+        }
+
         // Викликаємо метод ініціалізації анімацій для всієї сторінки
         window.UI.Animations.initPageAnimations();
 
-        log('TaskIntegration: Застосовано покращені анімації');
-    }
-
-    /**
-     * Виконання чищення при виході зі сторінки
-     */
-    function cleanup() {
-        // Очищення таймерів та інших ресурсів, якщо потрібно
-        if (window.LimitedTask && window.LimitedTask.cleanup) {
-            window.LimitedTask.cleanup();
-        }
-
-        // Очищення інших ресурсів
-        if (window.UI && window.UI.Countdown) {
-            window.UI.Countdown.stopAllCountdowns();
-        }
-
-        log('TaskIntegration: Виконано чищення ресурсів');
+        log('TaskProgressManager: Застосовано покращені анімації');
     }
 
     /**
      * Підписка на події системи
      */
     function subscribeToEvents() {
+        // Перевіряємо, чи вже підписався TaskIntegration
+        if (window.TaskIntegration) {
+            // Якщо так, реєструємо тільки унікальні обробники, які не дублюють функціональність
+            log('TaskProgressManager: Використовуємо обмежену підписку на події для уникнення конфліктів з TaskIntegration');
+
+            // Підписка на подію оновлення прогресу
+            safeEventListener('task-progress-updated', (event) => {
+                // Оновлюємо локальний прогрес
+                if (event.detail && event.detail.taskId && event.detail.progressData) {
+                    const { taskId, progressData } = event.detail;
+                    state.userProgress[taskId] = progressData;
+                    saveProgress();
+                }
+            });
+
+            return;
+        }
+
+        // Якщо TaskIntegration не виявлено, виконуємо повну підписку на події
+
         // Підписка на подію завершення завдання
         safeEventListener('task-completed', (event) => {
             // Показуємо анімацію при завершенні завдання
@@ -514,6 +390,22 @@ window.TaskIntegration = (function() {
                 const key = `task_${taskId}`;
                 state.lastRewards[key] = Date.now();
             }
+
+            // Оновлюємо прогрес
+            if (taskId) {
+                // Отримуємо цільове значення завдання
+                const targetValue = getTaskTargetValue(taskId);
+
+                // Оновлюємо або створюємо запис прогресу
+                state.userProgress[taskId] = {
+                    status: 'completed',
+                    progress_value: targetValue,
+                    completion_date: new Date().toISOString()
+                };
+
+                // Зберігаємо оновлений прогрес
+                saveProgress();
+            }
         });
 
         // Підписка на подію оновлення прогресу
@@ -525,6 +417,13 @@ window.TaskIntegration = (function() {
                     const progress = Math.min(100, Math.floor((progressData.progress_value / getTaskTargetValue(event.detail.taskId)) * 100));
                     window.UI.Animations.showProgressAnimation(event.detail.taskId, progress);
                 }
+            }
+
+            // Оновлюємо локальний прогрес
+            if (event.detail && event.detail.taskId && event.detail.progressData) {
+                const { taskId, progressData } = event.detail;
+                state.userProgress[taskId] = progressData;
+                saveProgress();
             }
         });
 
@@ -539,6 +438,24 @@ window.TaskIntegration = (function() {
                 } else {
                     window.UI.Notifications.showError(result.message || 'Не вдалося перевірити виконання завдання');
                 }
+            }
+
+            // Якщо верифікація успішна, оновлюємо прогрес
+            if (event.detail && event.detail.result && event.detail.result.success && event.detail.taskId) {
+                const { taskId } = event.detail;
+
+                // Отримуємо цільове значення завдання
+                const targetValue = getTaskTargetValue(taskId);
+
+                // Оновлюємо прогрес до завершеного стану
+                state.userProgress[taskId] = {
+                    status: 'completed',
+                    progress_value: targetValue,
+                    completion_date: new Date().toISOString()
+                };
+
+                // Зберігаємо оновлений прогрес
+                saveProgress();
             }
         });
 
@@ -558,10 +475,7 @@ window.TaskIntegration = (function() {
             }
         });
 
-        // Підписка на подію перед виходом зі сторінки
-        window.addEventListener('beforeunload', cleanup);
-
-        log('TaskIntegration: Налаштовано обробники подій');
+        log('TaskProgressManager: Налаштовано обробники подій');
     }
 
     /**
@@ -608,6 +522,14 @@ window.TaskIntegration = (function() {
             return window.TaskVerification.getTaskTargetValue(taskId);
         }
 
+        // Також пробуємо через TaskManager
+        if (window.TaskManager && window.TaskManager.findTaskById) {
+            const task = window.TaskManager.findTaskById(taskId);
+            if (task && task.target_value) {
+                return parseInt(task.target_value) || 1;
+            }
+        }
+
         // Альтернативний пошук через DOM
         const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
         if (!taskElement) return 1;
@@ -620,6 +542,85 @@ window.TaskIntegration = (function() {
 
         // За замовчуванням повертаємо 1
         return 1;
+    }
+
+    /**
+     * Отримання прогресу для конкретного завдання
+     * @param {string} taskId - ID завдання
+     * @returns {Object|null} Прогрес завдання або null, якщо його немає
+     */
+    function getTaskProgress(taskId) {
+        return state.userProgress[taskId] || null;
+    }
+
+    /**
+     * Отримання всього прогресу користувача
+     * @returns {Object} Прогрес користувача
+     */
+    function getUserProgress() {
+        return state.userProgress;
+    }
+
+    /**
+     * Оновлення прогресу завдання
+     * @param {string} taskId - ID завдання
+     * @param {Object} progressData - Дані прогресу
+     */
+    function updateTaskProgress(taskId, progressData) {
+        if (!taskId || !progressData) return;
+
+        // Оновлюємо прогрес у локальному стані
+        state.userProgress[taskId] = progressData;
+
+        // Зберігаємо прогрес
+        saveProgress();
+
+        // Відправляємо подію про оновлення прогресу
+        dispatchEvent('task-progress-updated', {
+            taskId,
+            progressData,
+            source: 'TaskProgressManager'
+        });
+
+        // Якщо завдання виконано, відправляємо відповідну подію
+        if (progressData.status === 'completed') {
+            // Перевіряємо, чи не відправляли нещодавно цю подію
+            const key = `task_${taskId}_completed`;
+            const lastTime = state.lastRewards[key] || 0;
+            const now = Date.now();
+
+            if (!config.preventRewardDuplication || now - lastTime > 5000) {
+                // Якщо пройшло більше 5 секунд або не потрібно запобігати дублюванню
+                state.lastRewards[key] = now;
+
+                dispatchEvent('task-completed', {
+                    taskId,
+                    progressData,
+                    source: 'TaskProgressManager'
+                });
+            }
+        }
+
+        log(`TaskProgressManager: Оновлено прогрес для завдання ${taskId}`);
+    }
+
+    /**
+     * Скидання прогресу для завдання
+     * @param {string} taskId - ID завдання
+     */
+    function resetTaskProgress(taskId) {
+        if (state.userProgress[taskId]) {
+            delete state.userProgress[taskId];
+            saveProgress();
+
+            // Відправляємо подію скидання прогресу
+            dispatchEvent('task-progress-reset', {
+                taskId,
+                timestamp: Date.now()
+            });
+
+            log(`TaskProgressManager: Скинуто прогрес для завдання ${taskId}`);
+        }
     }
 
     /**
@@ -646,33 +647,25 @@ window.TaskIntegration = (function() {
         // Очищаємо зареєстровані обробники подій
         state.eventsRegistered = {};
 
-        log('TaskIntegration: Стан модуля скинуто');
+        log('TaskProgressManager: Стан модуля скинуто');
     }
 
     // Публічний API модуля
     return {
         init,
-        cleanup,
+        getTaskProgress,
+        getUserProgress,
+        updateTaskProgress,
+        resetTaskProgress,
         resetState,
-        getModuleState: (moduleName) => {
-            const module = modules.find(m => m.name === moduleName);
-            return module ? module.state : false;
-        },
-        initModule: (moduleName) => {
-            const module = modules.find(m => m.name === moduleName);
-            if (module) {
-                initializeModule(module);
-                return module.state;
-            }
-            return false;
-        },
-        resolveModuleConflicts
+        getTaskTargetValue,
+        REWARD_TYPES
     };
 })();
 
 // Автоматична ініціалізація модуля при завантаженні скрипту
 document.addEventListener('DOMContentLoaded', () => {
-    if (window.TaskIntegration && !window.TaskIntegration.isInitialized) {
-        window.TaskIntegration.init();
+    if (window.TaskProgressManager && !window.TaskProgressManager.isInitialized) {
+        window.TaskProgressManager.init();
     }
 });
