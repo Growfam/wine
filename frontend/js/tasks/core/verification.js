@@ -1,10 +1,6 @@
 /**
- * TaskVerification - оптимізований модуль для верифікації завдань
- * Покращено:
- * - Точне визначення типу винагороди
- * - Стабільна обробка винагород
- * - Покращена інтеграція з іншими модулями
- * - Захист від дублювання нагород
+ * TaskVerification - модуль для верифікації завдань
+ * Відповідає за перевірку виконання завдань користувачем
  */
 
 window.TaskVerification = (function() {
@@ -65,8 +61,6 @@ window.TaskVerification = (function() {
         verificationAttempts: {},
         // Поточні активні перевірки
         activeVerifications: {},
-        // Реєстр виданих нагород для запобігання дублюванню
-        issuedRewards: {},
         // Чи ініціалізовано модуль
         initialized: false
     };
@@ -78,7 +72,7 @@ window.TaskVerification = (function() {
     function init(options = {}) {
         if (state.initialized) return;
 
-        console.log('TaskVerification: Ініціалізація оптимізованого модуля верифікації');
+        console.log('TaskVerification: Ініціалізація модуля верифікації');
 
         // Оновлюємо конфігурацію
         Object.assign(config, options);
@@ -115,11 +109,6 @@ window.TaskVerification = (function() {
             if (verificationCache[taskId]) {
                 delete verificationCache[taskId];
             }
-
-            // Додаємо завдання до реєстру виданих нагород
-            if (!state.issuedRewards[taskId]) {
-                state.issuedRewards[taskId] = Date.now();
-            }
         });
     }
 
@@ -136,21 +125,6 @@ window.TaskVerification = (function() {
             // Логуємо початок верифікації, якщо включено режим debug
             if (config.debug) {
                 console.log(`TaskVerification: Початок верифікації завдання ${taskId}`);
-            }
-
-            // Перевіряємо, чи не була вже видана нагорода за це завдання
-            if (state.issuedRewards[taskId]) {
-                const timeSinceReward = Date.now() - state.issuedRewards[taskId];
-
-                // Якщо нагорода видана менше ніж 30 секунд тому
-                if (timeSinceReward < 30000) {
-                    hideVerificationLoader(taskId);
-                    return {
-                        success: false,
-                        status: STATUS.FAILURE,
-                        message: 'Ви вже отримали нагороду за це завдання'
-                    };
-                }
             }
 
             // Перевіряємо, чи не перевіряється вже це завдання
@@ -231,13 +205,13 @@ window.TaskVerification = (function() {
                     result = await verifyGenericTask(taskId);
             }
 
-            // Переконуємося, що результат коректний і винагорода правильна
-            if (result.success && result.reward) {
-                result.reward = validateAndNormalizeReward(result.reward, getTaskData(taskId));
-            }
-
             // Приховуємо індикатор завантаження
             hideVerificationLoader(taskId);
+
+            // Нормалізуємо результат і винагороду
+            if (result.success && result.reward) {
+                result.reward = normalizeReward(result.reward, getTaskData(taskId));
+            }
 
             // Оновлюємо кеш
             if (config.useCache) {
@@ -249,11 +223,6 @@ window.TaskVerification = (function() {
 
             // Генеруємо подію про результат перевірки
             dispatchVerificationEvent(taskId, result);
-
-            // Якщо перевірка успішна, додаємо завдання до реєстру виданих нагород
-            if (result.success) {
-                state.issuedRewards[taskId] = Date.now();
-            }
 
             // Логуємо результат, якщо включено режим debug
             if (config.debug) {
@@ -286,56 +255,60 @@ window.TaskVerification = (function() {
     }
 
     /**
-     * Валідація та нормалізація винагороди
-     * @param {Object} reward - Об'єкт винагороди
+     * Нормалізація даних винагороди
+     * @param {Object} reward - Дані винагороди
      * @param {Object} taskData - Дані завдання
-     * @returns {Object} Нормалізована винагорода
+     * @returns {Object} Нормалізовані дані
      */
-    function validateAndNormalizeReward(reward, taskData) {
-        // Якщо винагорода невалідна, створюємо нову
-        if (!reward || typeof reward !== 'object' || typeof reward.amount !== 'number' || !reward.type) {
-            // Спробуємо створити винагороду з даних завдання
-            if (taskData && taskData.reward_type && taskData.reward_amount) {
-                return {
-                    type: normalizeRewardType(taskData.reward_type),
-                    amount: parseFloat(taskData.reward_amount) || 10
-                };
+    function normalizeReward(reward, taskData) {
+        // Якщо винагорода валідна, повертаємо її з правильним типом
+        if (reward && typeof reward === 'object' && reward.amount) {
+            // Перевіряємо і нормалізуємо тип винагороди
+            let rewardType;
+
+            if (reward.type && typeof reward.type === 'string') {
+                const lowerType = reward.type.toLowerCase();
+                rewardType = lowerType.includes('token') || lowerType.includes('winix') ?
+                    REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+            }
+            // Якщо тип не вказаний, але є дані завдання
+            else if (taskData && taskData.reward_type) {
+                const lowerType = taskData.reward_type.toLowerCase();
+                rewardType = lowerType.includes('token') || lowerType.includes('winix') ?
+                    REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+            }
+            // За замовчуванням
+            else {
+                rewardType = REWARD_TYPES.TOKENS;
             }
 
-            // За замовчуванням
+            // Забезпечуємо, що amount є числом
+            const rewardAmount = Math.max(0, parseFloat(reward.amount) || 0);
+
             return {
-                type: REWARD_TYPES.TOKENS,
-                amount: 10
+                type: rewardType,
+                amount: rewardAmount
             };
         }
 
-        // Нормалізуємо існуючий об'єкт винагороди
-        return {
-            type: normalizeRewardType(reward.type),
-            amount: parseFloat(reward.amount) || 10
-        };
-    }
+        // Якщо винагорода невалідна, але є дані завдання
+        if (taskData && taskData.reward_type && taskData.reward_amount) {
+            // Нормалізуємо тип винагороди
+            const lowerType = taskData.reward_type.toLowerCase();
+            const rewardType = lowerType.includes('token') || lowerType.includes('winix') ?
+                REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
 
-    /**
-     * Нормалізація типу винагороди
-     * @param {string} type - Тип винагороди
-     * @returns {string} Нормалізований тип винагороди
-     */
-    function normalizeRewardType(type) {
-        if (!type || typeof type !== 'string') {
-            return REWARD_TYPES.TOKENS; // За замовчуванням
-        }
-
-        const lowerType = type.toLowerCase();
-
-        if (lowerType.includes('token') || lowerType.includes('winix') || lowerType === REWARD_TYPES.TOKENS) {
-            return REWARD_TYPES.TOKENS;
-        } else if (lowerType.includes('coin') || lowerType.includes('жетон') || lowerType === REWARD_TYPES.COINS) {
-            return REWARD_TYPES.COINS;
+            return {
+                type: rewardType,
+                amount: Math.max(0, parseFloat(taskData.reward_amount) || 0)
+            };
         }
 
         // За замовчуванням
-        return REWARD_TYPES.TOKENS;
+        return {
+            type: REWARD_TYPES.TOKENS,
+            amount: 10
+        };
     }
 
     /**
@@ -542,20 +515,6 @@ window.TaskVerification = (function() {
                 // Оновлюємо статус відповіді
                 if (response.success) {
                     response.status = STATUS.SUCCESS;
-
-                    // Переконуємося, що винагорода правильного формату
-                    if (response.reward) {
-                        response.reward = validateAndNormalizeReward(response.reward, getTaskData(taskId));
-                    } else {
-                        // Якщо винагорода не вказана, але перевірка успішна, створюємо її з даних завдання
-                        const taskData = getTaskData(taskId);
-                        if (taskData && taskData.reward_type && taskData.reward_amount) {
-                            response.reward = {
-                                type: normalizeRewardType(taskData.reward_type),
-                                amount: parseFloat(taskData.reward_amount)
-                            };
-                        }
-                    }
                 } else {
                     response.status = STATUS.FAILURE;
                 }
@@ -584,16 +543,6 @@ window.TaskVerification = (function() {
         // Затримка для імітації мережевої затримки
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Отримуємо дані завдання
-        const taskData = getTaskData(taskId);
-        if (!taskData) {
-            return {
-                success: false,
-                status: STATUS.ERROR,
-                message: 'Не вдалося отримати дані завдання'
-            };
-        }
-
         // Отримуємо тип завдання
         const taskType = getTaskType(taskId);
 
@@ -619,10 +568,7 @@ window.TaskVerification = (function() {
 
         if (isSuccess) {
             // Отримуємо винагороду за завдання
-            const reward = validateAndNormalizeReward({
-                type: taskData.reward_type || REWARD_TYPES.TOKENS,
-                amount: parseFloat(taskData.reward_amount) || 10
-            }, taskData);
+            const reward = getTaskReward(taskId);
 
             return {
                 success: true,
@@ -653,7 +599,7 @@ window.TaskVerification = (function() {
      * @returns {Object|null} Дані завдання або null
      */
     function getTaskData(taskId) {
-        // Спочатку пробуємо використати TaskManager
+        // Отримуємо дані з TaskManager
         if (window.TaskManager && window.TaskManager.findTaskById) {
             const task = window.TaskManager.findTaskById(taskId);
             if (task) return task;
@@ -682,14 +628,10 @@ window.TaskVerification = (function() {
             const rewardMatch = rewardText.match(/(\d+)\s+([^\s]+)/);
 
             if (rewardMatch) {
-                const amount = parseInt(rewardMatch[1]);
-                const typeText = rewardMatch[2];
-
-                // Визначаємо тип винагороди
-                const type = normalizeRewardType(typeText);
-
-                task.reward_amount = amount;
-                task.reward_type = type;
+                task.reward_amount = parseInt(rewardMatch[1]);
+                const tokenIndicator = rewardMatch[2].includes('$WINIX') ||
+                                     rewardMatch[2].toLowerCase().includes('token');
+                task.reward_type = tokenIndicator ? REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
             }
         }
 
@@ -697,8 +639,6 @@ window.TaskVerification = (function() {
         const actionButton = taskElement.querySelector('[data-action="start"]');
         if (actionButton && actionButton.dataset.url) {
             task.action_url = actionButton.dataset.url;
-        } else if (actionButton && actionButton.getAttribute('data-url')) {
-            task.action_url = actionButton.getAttribute('data-url');
         }
 
         // Отримуємо кінцеву дату для лімітованих завдань
@@ -706,9 +646,6 @@ window.TaskVerification = (function() {
         if (timerElement && timerElement.dataset.endDate) {
             task.end_date = timerElement.dataset.endDate;
         }
-
-        // Отримуємо target_value
-        task.target_value = parseInt(taskElement.getAttribute('data-target-value')) || 1;
 
         return task;
     }
@@ -739,15 +676,80 @@ window.TaskVerification = (function() {
     }
 
     /**
+     * Отримання винагороди за завдання
+     * @param {string} taskId - ID завдання
+     * @returns {Object} Винагорода
+     */
+    function getTaskReward(taskId) {
+        // Спочатку отримуємо дані завдання
+        const taskData = getTaskData(taskId);
+
+        if (taskData && taskData.reward_type && taskData.reward_amount) {
+            // Нормалізуємо тип винагороди
+            const rewardType = taskData.reward_type === REWARD_TYPES.TOKENS ?
+                REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+
+            return {
+                type: rewardType,
+                amount: Math.max(0, parseFloat(taskData.reward_amount) || 0)
+            };
+        }
+
+        // Шукаємо інформацію в DOM
+        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+        if (!taskElement) {
+            // За замовчуванням
+            return {
+                type: REWARD_TYPES.TOKENS,
+                amount: 10
+            };
+        }
+
+        // Знаходимо елемент з винагородою
+        const rewardElement = taskElement.querySelector('.task-reward');
+        if (!rewardElement) {
+            // За замовчуванням
+            return {
+                type: REWARD_TYPES.TOKENS,
+                amount: 10
+            };
+        }
+
+        // Парсимо текст винагороди
+        const rewardText = rewardElement.textContent;
+        const rewardMatch = rewardText.match(/(\d+)\s+([^\s]+)/);
+
+        if (rewardMatch) {
+            const amount = parseInt(rewardMatch[1]);
+            const typeText = rewardMatch[2];
+
+            // Визначаємо тип винагороди
+            const type = typeText.includes('$WINIX') ||
+                         typeText.toLowerCase().includes('token') ?
+                         REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+
+            return {
+                type,
+                amount: amount || 10
+            };
+        }
+
+        // За замовчуванням
+        return {
+            type: REWARD_TYPES.TOKENS,
+            amount: 10
+        };
+    }
+
+    /**
      * Відправлення події про результат перевірки
      * @param {string} taskId - ID завдання
      * @param {Object} result - Результат перевірки
      */
     function dispatchVerificationEvent(taskId, result) {
-        // Створюємо унікальний ідентифікатор події для запобігання дублюванню
-        const eventId = `verify_${taskId}_${Date.now()}`;
+        // Створюємо унікальний ідентифікатор події
+        const eventId = `verification_${taskId}_${Date.now()}`;
 
-        // Відправляємо подію про результат перевірки
         document.dispatchEvent(new CustomEvent('task-verification-result', {
             detail: {
                 taskId,
@@ -813,10 +815,9 @@ window.TaskVerification = (function() {
 
         const actionElement = taskElement.querySelector('.task-action');
         if (actionElement) {
-            // Зберігаємо оригінальний вміст, якщо він ще не збережений
-            if (!actionElement.hasAttribute('data-original-content')) {
-                actionElement.setAttribute('data-original-content', actionElement.innerHTML);
-            }
+            // Зберігаємо оригінальний вміст
+            const originalContent = actionElement.innerHTML;
+            actionElement.setAttribute('data-original-content', originalContent);
 
             // Замінюємо на лоадер з преміальною анімацією
             actionElement.innerHTML = `
@@ -907,45 +908,17 @@ window.TaskVerification = (function() {
         state.verificationAttempts = {};
     }
 
-    /**
-     * Перевірка, чи було видано винагороду за завдання
-     * @param {string} taskId - ID завдання
-     * @returns {boolean} Чи було видано винагороду
-     */
-    function wasRewardIssued(taskId) {
-        // Перевіряємо, чи є запис про нагороду
-        return !!state.issuedRewards[taskId];
-    }
-
-    /**
-     * Скидання стану модуля
-     */
-    function resetState() {
-        // Скидаємо всі стани
-        state.lastVerificationTime = {};
-        state.verificationAttempts = {};
-        state.activeVerifications = {};
-        state.issuedRewards = {};
-
-        // Очищаємо кеш
-        clearVerificationCache();
-
-        console.log('TaskVerification: Стан модуля скинуто');
-    }
-
     // Публічний API модуля
     return {
         init,
         verifyTask,
         getTaskType,
-        getTaskData,
+        getTaskReward,
         getTaskTargetValue,
-        validateAndNormalizeReward,
+        normalizeReward,
         isVerificationInProgress,
-        wasRewardIssued,
         clearVerificationCache,
         resetVerificationAttempts,
-        resetState,
         STATUS,
         TASK_TYPES,
         REWARD_TYPES
