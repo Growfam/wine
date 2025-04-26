@@ -1,11 +1,15 @@
 /**
- * TaskVerification - модуль для верифікації завдань
- * Відповідає за перевірку виконання завдань користувачем
+ * TaskVerification - вдосконалений модуль для верифікації завдань
+ * Відповідає за:
+ * - Надійну перевірку виконання завдань користувачем
+ * - Обробку мережевих помилок та повторні спроби запитів
+ * - Відстеження прогресу верифікації
+ * - Безпечне форматування даних для API
  */
 
 window.TaskVerification = (function() {
-    // Кеш для результатів перевірки
-    const verificationCache = {};
+    // Кеш для результатів перевірки з оптимізованим управлінням пам'яттю
+    const verificationCache = new Map();
 
     // Час життя кешу (мс)
     const CACHE_TTL = 60 * 1000; // 1 хвилина
@@ -15,7 +19,9 @@ window.TaskVerification = (function() {
         PENDING: 'pending',
         SUCCESS: 'success',
         FAILURE: 'failure',
-        ERROR: 'error'
+        ERROR: 'error',
+        NETWORK_ERROR: 'network_error',
+        TIMEOUT: 'timeout'
     };
 
     // Типи завдань
@@ -49,8 +55,21 @@ window.TaskVerification = (function() {
         blockRepeatedRequests: true,
         // Максимальна кількість спроб верифікації
         maxVerificationAttempts: 3,
+        // Максимальна кількість повторних спроб API запитів
+        maxApiRetries: 2,
+        // Інтервал між повторними спробами при мережевих помилках (мс)
+        retryInterval: 2000,
+        // Таймаут запитів (мс)
+        requestTimeout: 15000,
         // Детальне логування
-        debug: false
+        debug: false,
+        // Автоматична обробка CORS помилок
+        handleCorsErrors: true,
+        // Налаштування заголовків
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
     };
 
     // Стан модуля
@@ -63,6 +82,8 @@ window.TaskVerification = (function() {
         activeVerifications: {},
         // Реєстр оброблених подій для запобігання дублюванню
         processedEvents: {},
+        // Стан останньої мережевої помилки
+        lastNetworkError: null,
         // Чи ініціалізовано модуль
         initialized: false
     };
@@ -74,7 +95,7 @@ window.TaskVerification = (function() {
     function init(options = {}) {
         if (state.initialized) return;
 
-        console.log('TaskVerification: Ініціалізація модуля верифікації');
+        console.log('TaskVerification: Ініціалізація модуля верифікації з покращеною обробкою помилок');
 
         // Оновлюємо конфігурацію
         Object.assign(config, options);
@@ -88,8 +109,13 @@ window.TaskVerification = (function() {
         // Підписка на події
         subscribeToEvents();
 
+        // Додаємо глобальний обробник помилок для діагностики
+        setupNetworkErrorHandler();
+
         // Відмічаємо, що модуль ініціалізовано
         state.initialized = true;
+
+        document.dispatchEvent(new CustomEvent('task-verification-initialized'));
     }
 
     /**
@@ -101,6 +127,85 @@ window.TaskVerification = (function() {
             Object.assign(REWARD_TYPES, window.TaskRewards.REWARD_TYPES);
             console.log('TaskVerification: Типи винагород синхронізовано з TaskRewards');
         }
+    }
+
+    /**
+     * Налаштування глобального обробника мережевих помилок
+     */
+    function setupNetworkErrorHandler() {
+        // Обробник для fetch помилок
+        window.addEventListener('error', function(event) {
+            if (event.error &&
+                (event.error.name === 'NetworkError' ||
+                 event.error.name === 'TypeError' && event.error.message.includes('fetch'))) {
+
+                state.lastNetworkError = {
+                    timestamp: Date.now(),
+                    error: event.error,
+                    message: event.error.message
+                };
+
+                document.dispatchEvent(new CustomEvent('network-error', {
+                    detail: state.lastNetworkError
+                }));
+
+                if (config.debug) {
+                    console.error('TaskVerification: Виявлено мережеву помилку', event.error);
+                }
+            }
+        });
+
+        // Відстеження змін стану мережі
+        window.addEventListener('online', function() {
+            // Скидаємо лічильники помилок при відновленні з'єднання
+            resetNetworkErrorState();
+
+            // Відправляємо подію про відновлення з'єднання
+            document.dispatchEvent(new CustomEvent('network-connection-restored'));
+
+            if (config.debug) {
+                console.log('TaskVerification: З\'єднання з мережею відновлено');
+            }
+        });
+
+        window.addEventListener('offline', function() {
+            state.lastNetworkError = {
+                timestamp: Date.now(),
+                error: new Error('Device went offline'),
+                message: 'Пристрій перейшов у режим офлайн'
+            };
+
+            document.dispatchEvent(new CustomEvent('network-connection-lost'));
+
+            if (config.debug) {
+                console.warn('TaskVerification: З\'єднання з мережею втрачено');
+            }
+        });
+    }
+
+    /**
+     * Скидання стану мережевих помилок
+     */
+    function resetNetworkErrorState() {
+        state.lastNetworkError = null;
+    }
+
+    /**
+     * Перевірка стану мережевого з'єднання
+     * @returns {boolean} true якщо з'єднання доступне
+     */
+    function isNetworkAvailable() {
+        // Перевіряємо navigator.onLine, якщо доступний
+        if (typeof navigator !== 'undefined' && 'onLine' in navigator) {
+            return navigator.onLine;
+        }
+
+        // Якщо недавно була мережева помилка
+        if (state.lastNetworkError && (Date.now() - state.lastNetworkError.timestamp < 5000)) {
+            return false;
+        }
+
+        return true; // За замовчуванням вважаємо, що мережа доступна
     }
 
     /**
@@ -127,8 +232,8 @@ window.TaskVerification = (function() {
             }
 
             // Очищаємо кеш для завершеного завдання
-            if (verificationCache[taskId]) {
-                delete verificationCache[taskId];
+            if (verificationCache.has(taskId)) {
+                verificationCache.delete(taskId);
             }
 
             // Зберігаємо ідентифікатор обробленої події
@@ -139,6 +244,12 @@ window.TaskVerification = (function() {
                 cleanupProcessedEvents();
             }
         });
+
+        // Обробка змін мережевого стану
+        document.addEventListener('network-connection-restored', function() {
+            // Скидаємо лічильники та стан помилок при відновленні з'єднання
+            resetNetworkErrorState();
+        });
     }
 
     /**
@@ -146,20 +257,31 @@ window.TaskVerification = (function() {
      */
     function cleanupProcessedEvents() {
         const oneHourAgo = Date.now() - 3600000; // 1 година в мілісекундах
-        Object.keys(state.processedEvents).forEach(key => {
+
+        // Шукаємо та видаляємо старі записи
+        for (const key in state.processedEvents) {
             if (state.processedEvents[key] < oneHourAgo) {
                 delete state.processedEvents[key];
             }
-        });
+        }
     }
 
     /**
-     * Перевірка виконання завдання
+     * Перевірка виконання завдання з розширеною обробкою помилок
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
     async function verifyTask(taskId) {
         try {
+            // Перевіряємо стан мережі
+            if (!isNetworkAvailable()) {
+                return {
+                    success: false,
+                    status: STATUS.NETWORK_ERROR,
+                    message: 'Відсутнє підключення до Інтернету. Перевірте з\'єднання та спробуйте ще раз.'
+                };
+            }
+
             // Створюємо унікальний ідентифікатор для цієї перевірки
             const verificationId = `verification_${taskId}_${Date.now()}`;
 
@@ -234,19 +356,24 @@ window.TaskVerification = (function() {
             // Виконуємо специфічну для типу перевірку
             let result;
 
-            switch (taskType) {
-                case TASK_TYPES.SOCIAL:
-                    result = await verifySocialTask(taskId);
-                    break;
-                case TASK_TYPES.LIMITED:
-                    result = await verifyLimitedTask(taskId);
-                    break;
-                case TASK_TYPES.PARTNER:
-                    result = await verifyPartnerTask(taskId);
-                    break;
-                default:
-                    // Якщо тип не визначено, використовуємо загальну перевірку
-                    result = await verifyGenericTask(taskId);
+            try {
+                switch (taskType) {
+                    case TASK_TYPES.SOCIAL:
+                        result = await verifySocialTask(taskId);
+                        break;
+                    case TASK_TYPES.LIMITED:
+                        result = await verifyLimitedTask(taskId);
+                        break;
+                    case TASK_TYPES.PARTNER:
+                        result = await verifyPartnerTask(taskId);
+                        break;
+                    default:
+                        // Якщо тип не визначено, використовуємо загальну перевірку
+                        result = await verifyGenericTask(taskId);
+                }
+            } catch (error) {
+                // Обробка помилок верифікації
+                result = handleVerificationError(error, taskId);
             }
 
             // Приховуємо індикатор завантаження
@@ -279,8 +406,8 @@ window.TaskVerification = (function() {
             }
 
             return result;
-        } catch (error) {
-            console.error('TaskVerification: Помилка при перевірці завдання:', error);
+        } catch (unexpectedError) {
+            console.error('TaskVerification: Критична помилка при верифікації завдання:', unexpectedError);
 
             // Приховуємо індикатор завантаження
             hideVerificationLoader(taskId);
@@ -292,8 +419,8 @@ window.TaskVerification = (function() {
             const errorResult = {
                 success: false,
                 status: STATUS.ERROR,
-                message: 'Сталася помилка під час перевірки завдання. Спробуйте пізніше.',
-                error: error.message
+                message: 'Сталася неочікувана помилка під час перевірки завдання. Спробуйте пізніше.',
+                error: unexpectedError.message
             };
 
             // Створюємо унікальний ідентифікатор події
@@ -304,6 +431,48 @@ window.TaskVerification = (function() {
 
             return errorResult;
         }
+    }
+
+    /**
+     * Обробка помилки верифікації
+     * @param {Error} error - Об'єкт помилки
+     * @param {string} taskId - ID завдання
+     * @returns {Object} Оброблений результат помилки
+     */
+    function handleVerificationError(error, taskId) {
+        console.error('TaskVerification: Помилка при верифікації завдання:', error);
+
+        // Класифікуємо помилку
+        let status = STATUS.ERROR;
+        let message = 'Сталася помилка під час перевірки завдання. Спробуйте пізніше.';
+
+        // Перевіряємо тип помилки
+        if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+            status = STATUS.TIMEOUT;
+            message = 'Перевищено час очікування відповіді від сервера. Перевірте з\'єднання та спробуйте ще раз.';
+        }
+        else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            status = STATUS.NETWORK_ERROR;
+            message = 'Проблема з мережевим з\'єднанням. Перевірте підключення до Інтернету та спробуйте ще раз.';
+        }
+        else if (error.status === 401 || error.status === 403) {
+            message = 'Помилка авторизації. Оновіть сторінку та спробуйте знову.';
+        }
+        else if (error.status === 429) {
+            message = 'Занадто багато запитів. Будь ласка, спробуйте пізніше.';
+        }
+        else if (error.message.includes('CORS')) {
+            status = STATUS.NETWORK_ERROR;
+            message = 'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
+        }
+
+        return {
+            success: false,
+            status: status,
+            message: message,
+            error: error.message,
+            taskId: taskId
+        };
     }
 
     /**
@@ -366,7 +535,7 @@ window.TaskVerification = (function() {
     }
 
     /**
-     * Перевірка соціального завдання
+     * Перевірка соціального завдання з розширеною обробкою помилок
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
@@ -392,7 +561,14 @@ window.TaskVerification = (function() {
 
             // Якщо локальна валідація успішна або не вдалася, продовжуємо з API
             if (validationResult.success || !validationResult.verified) {
-                return await performApiVerification(taskId);
+                return await performApiVerification(taskId, {
+                    platform: socialType.toLowerCase(),
+                    verification_type: 'social',
+                    task_data: {
+                        platform: socialType.toLowerCase(),
+                        action_type: task.action_type || 'visit'
+                    }
+                });
             }
 
             // Якщо локальна валідація не пройшла
@@ -439,7 +615,7 @@ window.TaskVerification = (function() {
     }
 
     /**
-     * Валідація соціального завдання
+     * Валідація соціального завдання з покращеною безпекою
      * @param {Object} task - Дані завдання
      * @param {string} socialType - Тип соціальної мережі
      * @returns {Promise<Object>} Результат валідації
@@ -453,168 +629,414 @@ window.TaskVerification = (function() {
             message: 'Потрібна перевірка на сервері'
         };
 
-        // Спеціальні перевірки для різних соціальних мереж
-        switch (socialType) {
-            case SOCIAL_NETWORKS.TELEGRAM:
-                // Перевірка Telegram можлива тільки через API
-                return baseResponse;
+        try {
+            // Спеціальні перевірки для різних соціальних мереж з покращеною безпекою
+            switch (socialType) {
+                case SOCIAL_NETWORKS.TELEGRAM:
+                    // Перевірка Telegram - спробуємо використати Telegram Web API, якщо доступний
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+                        // Перевіряємо, чи вказаний URL завдання є тим, до якого ми маємо доступ
+                        const telegramUsername = task.action_url.match(/t\.me\/([^/?]+)/i);
 
-            case SOCIAL_NETWORKS.TWITTER:
-                // Перевірка Twitter можлива тільки через API
-                return baseResponse;
+                        if (telegramUsername && telegramUsername[1]) {
+                            const targetUsername = telegramUsername[1].toLowerCase();
 
-            case SOCIAL_NETWORKS.DISCORD:
-                // Перевірка Discord можлива тільки через API
-                return baseResponse;
+                            // Спроба перевірити підписку через Telegram API
+                            if (config.debug) {
+                                console.log(`TaskVerification: Перевірка підписки на Telegram канал: ${targetUsername}`);
+                            }
 
-            case SOCIAL_NETWORKS.FACEBOOK:
-                // Перевірка Facebook можлива тільки через API
-                return baseResponse;
+                            return baseResponse; // Все одно потрібна серверна перевірка
+                        }
+                    }
+                    return baseResponse;
 
-            default:
-                return baseResponse;
+                case SOCIAL_NETWORKS.TWITTER:
+                    // Twitter потребує OAuth, локальна перевірка неможлива
+                    return baseResponse;
+
+                case SOCIAL_NETWORKS.DISCORD:
+                    // Discord також потребує OAuth, локальна перевірка неможлива
+                    return baseResponse;
+
+                case SOCIAL_NETWORKS.FACEBOOK:
+                    // Facebook також потребує OAuth, локальна перевірка неможлива
+                    return baseResponse;
+
+                default:
+                    return baseResponse;
+            }
+        } catch (error) {
+            console.error('TaskVerification: Помилка при локальній валідації соціального завдання:', error);
+            return {
+                ...baseResponse,
+                error: error.message
+            };
         }
     }
 
     /**
-     * Перевірка лімітованого завдання
+     * Перевірка лімітованого завдання з урахуванням терміну дії
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
     async function verifyLimitedTask(taskId) {
-        // Перевіряємо, чи не закінчився термін виконання
-        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-        if (taskElement && taskElement.classList.contains('expired')) {
-            return {
-                success: false,
-                status: STATUS.FAILURE,
-                message: 'Термін виконання цього завдання закінчився'
-            };
-        }
-
-        // Отримуємо дані завдання
-        const task = getTaskData(taskId);
-
-        if (!task) {
-            return {
-                success: false,
-                status: STATUS.ERROR,
-                message: 'Не вдалося отримати дані завдання'
-            };
-        }
-
-        // Перевіряємо термін дії завдання
-        if (task.end_date) {
-            const endDate = new Date(task.end_date);
-            const now = new Date();
-
-            if (endDate <= now) {
+        try {
+            // Перевіряємо, чи не закінчився термін виконання
+            const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+            if (taskElement && taskElement.classList.contains('expired')) {
                 return {
                     success: false,
                     status: STATUS.FAILURE,
                     message: 'Термін виконання цього завдання закінчився'
                 };
             }
-        }
 
-        // Запит до API або перевірка виконання лімітованого завдання
-        return await performApiVerification(taskId);
+            // Отримуємо дані завдання
+            const task = getTaskData(taskId);
+
+            if (!task) {
+                return {
+                    success: false,
+                    status: STATUS.ERROR,
+                    message: 'Не вдалося отримати дані завдання'
+                };
+            }
+
+            // Перевіряємо термін дії завдання
+            if (task.end_date) {
+                const endDate = new Date(task.end_date);
+                const now = new Date();
+
+                if (endDate <= now) {
+                    return {
+                        success: false,
+                        status: STATUS.FAILURE,
+                        message: 'Термін виконання цього завдання закінчився'
+                    };
+                }
+            }
+
+            // Додаткові дані для перевірки лімітованого завдання
+            const verificationData = {
+                verification_type: 'limited',
+                task_data: {
+                    action_type: task.action_type || 'visit',
+                    timestamp: Date.now()
+                }
+            };
+
+            // Запит до API для перевірки виконання лімітованого завдання
+            return await performApiVerification(taskId, verificationData);
+        } catch (error) {
+            console.error('TaskVerification: Помилка при перевірці лімітованого завдання:', error);
+
+            return {
+                success: false,
+                status: STATUS.ERROR,
+                message: 'Сталася помилка при перевірці завдання. Спробуйте пізніше.',
+                error: error.message
+            };
+        }
     }
 
     /**
-     * Перевірка партнерського завдання
+     * Перевірка партнерського завдання з додатковою валідацією даних
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
     async function verifyPartnerTask(taskId) {
-        // Отримуємо дані завдання
-        const task = getTaskData(taskId);
+        try {
+            // Отримуємо дані завдання
+            const task = getTaskData(taskId);
 
-        if (!task) {
+            if (!task) {
+                return {
+                    success: false,
+                    status: STATUS.ERROR,
+                    message: 'Не вдалося отримати дані завдання'
+                };
+            }
+
+            // Додаткові дані для перевірки партнерського завдання
+            const verificationData = {
+                verification_type: 'partner',
+                task_data: {
+                    partner_name: task.partner_name || '',
+                    action_type: task.action_type || 'visit',
+                    timestamp: Date.now()
+                }
+            };
+
+            // Запит до API для перевірки виконання партнерського завдання
+            return await performApiVerification(taskId, verificationData);
+        } catch (error) {
+            console.error('TaskVerification: Помилка при перевірці партнерського завдання:', error);
+
             return {
                 success: false,
                 status: STATUS.ERROR,
-                message: 'Не вдалося отримати дані завдання'
+                message: 'Сталася помилка при перевірці завдання. Спробуйте пізніше.',
+                error: error.message
             };
         }
-
-        // Додаткова логіка перевірки партнерських завдань
-        // Наприклад, можна перевірити наявність партнерського кукі або локального сховища
-
-        // Запит до API для перевірки виконання партнерського завдання
-        return await performApiVerification(taskId);
     }
 
     /**
-     * Загальна перевірка завдання
+     * Загальна перевірка завдання для невизначених типів
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
     async function verifyGenericTask(taskId) {
-        // Запит до API або перевірка виконання завдання
-        return await performApiVerification(taskId);
+        try {
+            // Отримуємо дані завдання
+            const task = getTaskData(taskId);
+
+            // Додаткові дані для перевірки
+            const verificationData = {
+                verification_type: 'generic',
+                task_data: {
+                    action_type: task?.action_type || 'generic',
+                    timestamp: Date.now()
+                }
+            };
+
+            // Запит до API для перевірки виконання завдання
+            return await performApiVerification(taskId, verificationData);
+        } catch (error) {
+            console.error('TaskVerification: Помилка при перевірці загального завдання:', error);
+
+            return {
+                success: false,
+                status: STATUS.ERROR,
+                message: 'Сталася помилка при перевірці завдання. Спробуйте пізніше.',
+                error: error.message
+            };
+        }
     }
 
     /**
-     * Виконання API запиту для перевірки завдання
+     * Виконання API запиту для перевірки завдання з повторними спробами
      * @param {string} taskId - ID завдання
+     * @param {Object} verificationData - Додаткові дані для перевірки
      * @returns {Promise<Object>} Результат перевірки
      */
-    async function performApiVerification(taskId) {
-        // Якщо є API, використовуємо його
-        if (window.API) {
-            try {
-                const userId = window.getUserId();
-                if (!userId) {
-                    throw new Error('ID користувача не знайдено');
+    async function performApiVerification(taskId, verificationData = {}) {
+        // Перевіряємо наявність API
+        if (!window.API) {
+            console.warn('TaskVerification: API недоступне, використовуємо симуляцію перевірки');
+            return simulateVerification(taskId);
+        }
+
+        // Перевіряємо наявність шляхів API
+        if (!window.API_PATHS || !window.API_PATHS.TASKS || !window.API_PATHS.TASKS.VERIFY) {
+            console.warn('TaskVerification: API_PATHS недоступні, використовуємо симуляцію перевірки');
+            return simulateVerification(taskId);
+        }
+
+        try {
+            // Отримуємо ID користувача
+            const userId = getUserId();
+            if (!userId) {
+                throw new Error('ID користувача не знайдено');
+            }
+
+            // Додаємо базову інформацію для верифікації
+            const payload = {
+                verification_data: {
+                    ...verificationData,
+                    timestamp: Date.now(),
+                    user_agent: navigator.userAgent,
+                    platform: navigator.platform
                 }
+            };
 
-                // Використовуємо правильний шлях API для верифікації завдання
-                const response = await window.API.post(window.API_PATHS.TASKS.VERIFY(taskId), {
-                    verification_data: {
-                        timestamp: Date.now(),
-                        user_agent: navigator.userAgent,
-                        platform: navigator.platform
+            // Використовуємо ретрай функціонал для надійності
+            let result = null;
+            let lastError = null;
+            let attempts = 0;
+
+            // Логіка повторних спроб
+            while (attempts <= config.maxApiRetries) {
+                try {
+                    attempts++;
+
+                    // Створюємо контролер для таймауту
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), config.requestTimeout);
+
+                    // Визначаємо шлях API для верифікації
+                    const apiPath = window.API_PATHS.TASKS.VERIFY(taskId);
+
+                    // Логуємо запит, якщо включено режим debug
+                    if (config.debug) {
+                        console.log(`TaskVerification: Запит верифікації #${attempts} до ${apiPath}`, payload);
                     }
-                });
 
-                // Оновлюємо статус відповіді
-                if (response.success) {
-                    response.status = STATUS.SUCCESS;
-
-                    // Нормалізуємо винагороду в відповіді, якщо вона є
-                    if (response.reward) {
-                        if (window.TaskRewards && window.TaskRewards.normalizeReward) {
-                            response.reward = window.TaskRewards.normalizeReward(response.reward);
-                        } else {
-                            response.reward = normalizeReward(response.reward, getTaskData(taskId));
+                    // Виконуємо запит до API
+                    const response = await window.API.post(
+                        apiPath,
+                        payload,
+                        {
+                            signal: controller.signal,
+                            headers: { ...config.headers }
                         }
-                    }
-                } else {
-                    response.status = STATUS.FAILURE;
-                }
+                    );
 
-                return response;
-            } catch (error) {
-                return {
-                    success: false,
-                    status: STATUS.ERROR,
-                    message: 'Помилка з`єднання із сервером. Спробуйте пізніше.',
-                    error: error.message
-                };
+                    // Очищаємо таймаут
+                    clearTimeout(timeoutId);
+
+                    // Обробляємо відповідь
+                    if (response.success) {
+                        result = {
+                            success: true,
+                            status: STATUS.SUCCESS,
+                            message: response.message || 'Завдання успішно виконано!',
+                            reward: response.reward || null,
+                            verification_details: response.verification_details || {},
+                            response_time_ms: Date.now() - state.lastVerificationTime[taskId]
+                        };
+
+                        break; // Успішний запит, виходимо з циклу
+                    } else {
+                        throw new Error(response.message || response.error || 'Не вдалося перевірити виконання завдання');
+                    }
+                } catch (error) {
+                    lastError = error;
+
+                    // Перевіряємо тип помилки
+                    const isNetworkError = error.name === 'TypeError' ||
+                                          error.name === 'AbortError' ||
+                                          (error.message && error.message.includes('fetch'));
+
+                    const isCorsError = error.message && error.message.includes('CORS');
+
+                    // Для мережевих помилок і CORS помилок пробуємо повторно
+                    if ((isNetworkError || isCorsError) && attempts <= config.maxApiRetries) {
+                        console.warn(`TaskVerification: Помилка запиту #${attempts}, повторна спроба через ${config.retryInterval/1000}с...`);
+
+                        // Очікуємо перед повторною спробою
+                        await new Promise(resolve => setTimeout(resolve, config.retryInterval));
+                        continue;
+                    }
+
+                    // Інші помилки - просто виходимо з циклу
+                    break;
+                }
+            }
+
+            // Якщо є результат, повертаємо його
+            if (result) {
+                return result;
+            }
+
+            // Якщо не отримали результат, формуємо результат помилки
+            const errorResult = {
+                success: false,
+                status: STATUS.ERROR,
+                message: lastError?.message || 'Не вдалося перевірити виконання завдання',
+                attempts: attempts
+            };
+
+            // Для мережевих помилок
+            if (lastError?.name === 'TypeError' || lastError?.name === 'AbortError') {
+                errorResult.status = STATUS.NETWORK_ERROR;
+                errorResult.message = 'Проблема з підключенням до сервера. Перевірте з\'єднання та спробуйте ще раз.';
+            }
+            // Для помилок таймауту
+            else if (lastError?.name === 'TimeoutError' || (lastError?.message && lastError.message.includes('timeout'))) {
+                errorResult.status = STATUS.TIMEOUT;
+                errorResult.message = 'Перевищено час очікування. Спробуйте пізніше.';
+            }
+            // Для помилок CORS
+            else if (lastError?.message && lastError.message.includes('CORS')) {
+                errorResult.status = STATUS.NETWORK_ERROR;
+                errorResult.message = 'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
+            }
+
+            return errorResult;
+        } catch (error) {
+            console.error('TaskVerification: Критична помилка при виконанні API запиту:', error);
+
+            // Визначаємо тип помилки
+            let status = STATUS.ERROR;
+            let message = 'Сталася помилка при перевірці завдання. Спробуйте пізніше.';
+
+            if (error.name === 'TypeError' || error.name === 'AbortError' ||
+                (error.message && error.message.includes('fetch'))) {
+                status = STATUS.NETWORK_ERROR;
+                message = 'Проблема з підключенням до сервера. Перевірте з\'єднання та спробуйте ще раз.';
+            }
+            else if (error.message && error.message.includes('ID користувача не знайдено')) {
+                message = 'Не вдалося визначити ID користувача. Спробуйте оновити сторінку.';
+            }
+
+            return {
+                success: false,
+                status: status,
+                message: message,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Отримання ID користувача з різних джерел
+     * @returns {string|null} ID користувача або null
+     */
+    function getUserId() {
+        // Використовуємо глобальну функцію, якщо вона є
+        if (typeof window.getUserId === 'function') {
+            return window.getUserId();
+        }
+
+        // Перевіряємо Telegram WebApp
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe &&
+            window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) {
+            return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+        }
+
+        // Перевіряємо локальне сховище
+        try {
+            const storedId = localStorage.getItem('telegram_user_id');
+            if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                return storedId;
+            }
+        } catch (e) {
+            // Ігноруємо помилки localStorage
+        }
+
+        // Перевіряємо DOM
+        const userIdElement = document.getElementById('user-id');
+        if (userIdElement && userIdElement.textContent) {
+            const domId = userIdElement.textContent.trim();
+            if (domId && domId !== 'undefined' && domId !== 'null') {
+                return domId;
             }
         }
 
-        // Якщо API недоступне, імітуємо перевірку
-        return simulateVerification(taskId);
+        // Перевіряємо URL
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            if (urlId && urlId !== 'undefined' && urlId !== 'null') {
+                return urlId;
+            }
+        } catch (e) {
+            // Ігноруємо помилки URL
+        }
+
+        return null;
     }
 
     /**
-     * Імітація перевірки завдання (для тестування)
+     * Імітація перевірки завдання для відладки або коли API недоступне
      * @param {string} taskId - ID завдання
      * @returns {Promise<Object>} Результат перевірки
      */
     async function simulateVerification(taskId) {
+        console.log('TaskVerification: Симуляція верифікації для завдання', taskId);
+
         // Затримка для імітації мережевої затримки
         await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -626,16 +1048,16 @@ window.TaskVerification = (function() {
 
         switch (taskType) {
             case TASK_TYPES.SOCIAL:
-                successProbability = 0.7; // 70% успіху для соціальних завдань
+                successProbability = 0.8; // 80% успіху для соціальних завдань
                 break;
             case TASK_TYPES.LIMITED:
-                successProbability = 0.6; // 60% успіху для лімітованих завдань
+                successProbability = 0.7; // 70% успіху для лімітованих завдань
                 break;
             case TASK_TYPES.PARTNER:
-                successProbability = 0.5; // 50% успіху для партнерських завдань
+                successProbability = 0.6; // 60% успіху для партнерських завдань
                 break;
             default:
-                successProbability = 0.65; // 65% успіху для інших завдань
+                successProbability = 0.75; // 75% успіху для інших завдань
         }
 
         // Імітуємо успіх/неуспіх на основі ймовірності
@@ -648,39 +1070,46 @@ window.TaskVerification = (function() {
             return {
                 success: true,
                 status: STATUS.SUCCESS,
-                message: 'Завдання успішно виконано!',
-                reward: reward
+                message: 'Завдання успішно виконано! (Симуляція)',
+                reward: reward,
+                simulated: true
             };
         } else {
             // Визначаємо різні повідомлення невдачі
             const failureMessages = [
-                'Умови завдання ще не виконані. Спробуйте пізніше.',
-                'Не вдалося підтвердити виконання завдання. Переконайтеся, що ви виконали всі умови.',
-                'Система не змогла перевірити виконання завдання. Спробуйте пізніше.',
-                'Перевірка не пройшла. Перевірте, чи правильно виконано всі кроки.'
+                'Умови завдання ще не виконані. Спробуйте пізніше. (Симуляція)',
+                'Не вдалося підтвердити виконання завдання. Переконайтеся, що ви виконали всі умови. (Симуляція)',
+                'Система не змогла перевірити виконання завдання. Спробуйте пізніше. (Симуляція)',
+                'Перевірка не пройшла. Перевірте, чи правильно виконано всі кроки. (Симуляція)'
             ];
 
             return {
                 success: false,
                 status: STATUS.FAILURE,
-                message: failureMessages[Math.floor(Math.random() * failureMessages.length)]
+                message: failureMessages[Math.floor(Math.random() * failureMessages.length)],
+                simulated: true
             };
         }
     }
 
     /**
-     * Отримання даних завдання
+     * Отримання даних завдання з покращеним пошуком серед доступних джерел
      * @param {string} taskId - ID завдання
      * @returns {Object|null} Дані завдання або null
      */
     function getTaskData(taskId) {
-        // Отримуємо дані з TaskManager
+        // Пріоритет 1: Отримуємо дані з TaskManager
         if (window.TaskManager && window.TaskManager.findTaskById) {
             const task = window.TaskManager.findTaskById(taskId);
             if (task) return task;
         }
 
-        // Шукаємо завдання серед доступних даних в DOM
+        // Пріоритет 2: Шукаємо завдання в кеші (якщо є)
+        if (window.taskCache && window.taskCache[taskId]) {
+            return window.taskCache[taskId];
+        }
+
+        // Пріоритет 3: Шукаємо завдання серед доступних даних в DOM
         const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
         if (!taskElement) return null;
 
@@ -712,8 +1141,12 @@ window.TaskVerification = (function() {
 
         // Отримуємо URL дії з кнопки
         const actionButton = taskElement.querySelector('[data-action="start"]');
-        if (actionButton && actionButton.dataset.url) {
-            task.action_url = actionButton.dataset.url;
+        if (actionButton) {
+            if (actionButton.dataset.url) {
+                task.action_url = actionButton.dataset.url;
+            } else if (actionButton.getAttribute('href')) {
+                task.action_url = actionButton.getAttribute('href');
+            }
         }
 
         // Отримуємо кінцеву дату для лімітованих завдань
@@ -722,15 +1155,34 @@ window.TaskVerification = (function() {
             task.end_date = timerElement.dataset.endDate;
         }
 
+        // Отримуємо додаткові дані з атрибутів
+        const dataAttributes = Array.from(taskElement.attributes)
+            .filter(attr => attr.name.startsWith('data-') && !['data-task-id', 'data-task-type', 'data-target-value'].includes(attr.name))
+            .reduce((obj, attr) => {
+                const key = attr.name.replace('data-', '').replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+                obj[key] = attr.value;
+                return obj;
+            }, {});
+
+        // Додаємо атрибути, якщо вони є
+        Object.assign(task, dataAttributes);
+
         return task;
     }
 
     /**
-     * Отримання типу завдання
+     * Отримання типу завдання з кількох джерел
      * @param {string} taskId - ID завдання
      * @returns {string} Тип завдання
      */
     function getTaskType(taskId) {
+        // Пріоритет 1: Дані від TaskManager
+        if (window.TaskManager && window.TaskManager.findTaskById) {
+            const task = window.TaskManager.findTaskById(taskId);
+            if (task && task.type) return task.type;
+        }
+
+        // Пріоритет 2: З DOM елемента
         const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
         if (!taskElement) return 'unknown';
 
@@ -747,11 +1199,24 @@ window.TaskVerification = (function() {
             return TASK_TYPES.PARTNER;
         }
 
+        // Спробуємо визначити тип за контейнером
+        const socialContainer = document.getElementById('social-tasks-container');
+        const limitedContainer = document.getElementById('limited-tasks-container');
+        const partnersContainer = document.getElementById('partners-tasks-container');
+
+        if (socialContainer && socialContainer.contains(taskElement)) {
+            return TASK_TYPES.SOCIAL;
+        } else if (limitedContainer && limitedContainer.contains(taskElement)) {
+            return TASK_TYPES.LIMITED;
+        } else if (partnersContainer && partnersContainer.contains(taskElement)) {
+            return TASK_TYPES.PARTNER;
+        }
+
         return 'unknown';
     }
 
     /**
-     * Отримання винагороди за завдання
+     * Отримання винагороди за завдання з різних джерел
      * @param {string} taskId - ID завдання
      * @returns {Object} Винагорода
      */
@@ -800,7 +1265,8 @@ window.TaskVerification = (function() {
 
             // Визначаємо тип винагороди
             const type = typeText.includes('$WINIX') ||
-                         typeText.toLowerCase().includes('token') ?
+                         typeText.toLowerCase().includes('token') ||
+                         typeText.toLowerCase().includes('winix') ?
                          REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
 
             return {
@@ -825,7 +1291,9 @@ window.TaskVerification = (function() {
     function dispatchVerificationEvent(taskId, result, eventId) {
         // Перевіряємо, чи не був цей eventId вже оброблений
         if (eventId && state.processedEvents[eventId]) {
-            console.log(`TaskVerification: Подія ${eventId} вже була відправлена, ігноруємо`);
+            if (config.debug) {
+                console.log(`TaskVerification: Подія ${eventId} вже була відправлена, ігноруємо`);
+            }
             return;
         }
 
@@ -833,6 +1301,9 @@ window.TaskVerification = (function() {
         if (eventId) {
             state.processedEvents[eventId] = Date.now();
         }
+
+        // Додаємо таймстамп до результату
+        result.timestamp = Date.now();
 
         // Відправляємо подію про результат верифікації
         document.dispatchEvent(new CustomEvent('task-verification-result', {
@@ -916,6 +1387,9 @@ window.TaskVerification = (function() {
 
         const actionElement = taskElement.querySelector('.task-action');
         if (actionElement) {
+            // Додаємо клас стану завантаження
+            actionElement.classList.add('loading');
+
             // Зберігаємо оригінальний вміст
             const originalContent = actionElement.innerHTML;
             actionElement.setAttribute('data-original-content', originalContent);
@@ -940,6 +1414,9 @@ window.TaskVerification = (function() {
 
         const actionElement = taskElement.querySelector('.task-action');
         if (actionElement) {
+            // Видаляємо клас стану завантаження
+            actionElement.classList.remove('loading');
+
             // Відновлюємо оригінальний вміст
             const originalContent = actionElement.getAttribute('data-original-content');
             if (originalContent) {
@@ -964,10 +1441,10 @@ window.TaskVerification = (function() {
      * @returns {boolean} Чи є кешований результат
      */
     function hasCachedResult(taskId) {
-        if (!verificationCache[taskId]) return false;
+        if (!verificationCache.has(taskId)) return false;
 
         // Перевіряємо час життя кешу
-        const cache = verificationCache[taskId];
+        const cache = verificationCache.get(taskId);
         return cache && (Date.now() - cache.timestamp) < CACHE_TTL;
     }
 
@@ -978,7 +1455,7 @@ window.TaskVerification = (function() {
      */
     function getCachedResult(taskId) {
         if (!hasCachedResult(taskId)) return null;
-        return verificationCache[taskId].result;
+        return verificationCache.get(taskId).result;
     }
 
     /**
@@ -987,19 +1464,28 @@ window.TaskVerification = (function() {
      * @param {Object} result - Результат перевірки
      */
     function cacheResult(taskId, result) {
-        verificationCache[taskId] = {
+        verificationCache.set(taskId, {
             result,
             timestamp: Date.now()
-        };
+        });
+
+        // Обмежуємо розмір кешу для економії пам'яті
+        if (verificationCache.size > 100) {
+            // Видаляємо найстаріший запис
+            const oldestKey = Array.from(verificationCache.keys())
+                .sort((a, b) => verificationCache.get(a).timestamp - verificationCache.get(b).timestamp)[0];
+
+            if (oldestKey) {
+                verificationCache.delete(oldestKey);
+            }
+        }
     }
 
     /**
      * Очищення кешу перевірок
      */
     function clearVerificationCache() {
-        Object.keys(verificationCache).forEach(key => {
-            delete verificationCache[key];
-        });
+        verificationCache.clear();
     }
 
     /**
@@ -1007,6 +1493,61 @@ window.TaskVerification = (function() {
      */
     function resetVerificationAttempts() {
         state.verificationAttempts = {};
+    }
+
+    /**
+     * Тестова верифікація для діагностики API
+     * @returns {Promise<Object>} Результат тесту API
+     */
+    async function testApiConnection() {
+        console.log('TaskVerification: Перевірка з\'єднання з API...');
+
+        try {
+            // Перевіряємо доступність API
+            if (!window.API) {
+                return {
+                    success: false,
+                    message: 'API недоступне',
+                    apiExists: false
+                };
+            }
+
+            // Тестовий запит до API
+            const testResponse = await fetch(`${window.API_BASE_URL || ''}/api/health-check`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...config.headers
+                },
+                timeout: 5000
+            });
+
+            // Перевіряємо статус відповіді
+            if (testResponse.ok) {
+                return {
+                    success: true,
+                    message: 'З\'єднання з API успішне',
+                    status: testResponse.status,
+                    statusText: testResponse.statusText
+                };
+            } else {
+                return {
+                    success: false,
+                    message: `Помилка з'єднання: ${testResponse.status} ${testResponse.statusText}`,
+                    status: testResponse.status,
+                    statusText: testResponse.statusText
+                };
+            }
+        } catch (error) {
+            console.error('TaskVerification: Помилка тестового з\'єднання:', error);
+
+            return {
+                success: false,
+                message: `Помилка з'єднання: ${error.message}`,
+                error: error.message,
+                type: error.name
+            };
+        }
     }
 
     /**
@@ -1022,10 +1563,36 @@ window.TaskVerification = (function() {
         // Очищаємо реєстр оброблених подій
         state.processedEvents = {};
 
+        // Очищаємо стан мережевих помилок
+        resetNetworkErrorState();
+
         // Очищаємо кеш
         clearVerificationCache();
 
         console.log('TaskVerification: Стан модуля скинуто');
+    }
+
+    /**
+     * Діагностика поточного стану
+     * @returns {Object} Діагностична інформація
+     */
+    function diagnostics() {
+        return {
+            state: { ...state },
+            config: { ...config },
+            networkStatus: {
+                online: isNetworkAvailable(),
+                lastError: state.lastNetworkError
+            },
+            cache: {
+                size: verificationCache.size,
+                keys: Array.from(verificationCache.keys())
+            },
+            api: {
+                available: !!window.API,
+                paths: !!window.API_PATHS
+            }
+        };
     }
 
     // Публічний API модуля
@@ -1040,6 +1607,8 @@ window.TaskVerification = (function() {
         clearVerificationCache,
         resetVerificationAttempts,
         resetState,
+        testApiConnection,
+        diagnostics,
         STATUS,
         TASK_TYPES,
         REWARD_TYPES
