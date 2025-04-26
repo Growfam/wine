@@ -564,7 +564,19 @@ window.TaskVerification = (function() {
         // Якщо є API, використовуємо його
         if (window.API) {
             try {
-                const response = await window.API.post(`/quests/tasks/${taskId}/verify`);
+                const userId = window.getUserId();
+                if (!userId) {
+                    throw new Error('ID користувача не знайдено');
+                }
+
+                // Використовуємо правильний шлях API для верифікації завдання
+                const response = await window.API.post(window.API_PATHS.TASKS.VERIFY(taskId), {
+                    verification_data: {
+                        timestamp: Date.now(),
+                        user_agent: navigator.userAgent,
+                        platform: navigator.platform
+                    }
+                });
 
                 // Оновлюємо статус відповіді
                 if (response.success) {
