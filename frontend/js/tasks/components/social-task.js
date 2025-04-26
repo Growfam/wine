@@ -46,6 +46,47 @@ window.SocialTask = (function() {
     let taskStatuses = new Map();
     let pendingAuthResponses = new Map();
 
+    // Індикатор використання мок-даних
+    const mockDataStatus = {
+        authentication: false,
+        verification: false,
+        socialNetworkData: false
+    };
+
+    // Функція для логування використання мок-даних
+    function logMockDataUsage(dataType, reason) {
+        mockDataStatus[dataType] = true;
+        console.warn(`SocialTask: Використання ТЕСТОВИХ даних для [${dataType}]. Причина: ${reason}`);
+
+        // Додаємо детальний запис у консоль розробника
+        if (console.groupCollapsed) {
+            console.groupCollapsed(`%cМОК-ДАНІ SocialTask [${dataType}]`, 'background: #FFF3CD; color: #856404; padding: 2px 5px; border-radius: 3px;');
+            console.info(`Причина: ${reason}`);
+            console.info(`Час: ${new Date().toLocaleTimeString()}`);
+            console.trace('Стек виклику');
+            console.groupEnd();
+        }
+    }
+
+    // Перевірка доступності API
+    function isApiAvailable() {
+        return window.API && typeof window.API.get === 'function' && typeof window.API.post === 'function';
+    }
+
+    // Перевірка, чи є користувач авторизованим
+    function isUserAuthenticated() {
+        // Перевірка через API, якщо доступне
+        if (isApiAvailable() && window.API.isAuthenticated) {
+            return window.API.isAuthenticated();
+        }
+
+        // Перевірка через localStorage або інші маркери авторизації
+        const hasAuthToken = localStorage.getItem('auth_token') || localStorage.getItem('user_token');
+        const hasUserData = localStorage.getItem('user_data');
+
+        return Boolean(hasAuthToken || hasUserData);
+    }
+
     // Кеш для рендерингу для оптимізації
     const renderedTasksCache = new Map();
 
@@ -62,6 +103,11 @@ window.SocialTask = (function() {
         taskStatuses.clear();
         pendingAuthResponses.clear();
         renderedTasksCache.clear();
+
+        // Скидаємо стан використання мок-даних
+        Object.keys(mockDataStatus).forEach(key => {
+            mockDataStatus[key] = false;
+        });
 
         // Завантаження статусів автентифікації з localStorage
         loadAuthStatus();
@@ -83,7 +129,7 @@ window.SocialTask = (function() {
             const savedStatus = localStorage.getItem('social_auth_status');
             if (savedStatus) {
                 authenticationStatus = JSON.parse(savedStatus);
-                console.log('SocialTask: Статуси автентифікації завантажено');
+                console.log('SocialTask: Статуси автентифікації завантажено з localStorage');
             }
         } catch (error) {
             console.warn('SocialTask: Помилка завантаження статусів автентифікації', error);
@@ -327,6 +373,18 @@ window.SocialTask = (function() {
                 return;
             }
 
+            // Якщо API недоступне або користувач не авторизований, використовуємо мок-дані
+            if (!isApiAvailable() || !isUserAuthenticated()) {
+                const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+                logMockDataUsage('authentication', reason);
+
+                // Симулюємо успішну автентифікацію
+                setTimeout(() => {
+                    resolve(true);
+                }, 500);
+                return;
+            }
+
             // Якщо статус уже є і не застарів
             if (authenticationStatus[network] &&
                 authenticationStatus[network].timestamp > Date.now() - 5 * 60 * 1000) {
@@ -345,7 +403,9 @@ window.SocialTask = (function() {
             if (window.TaskVerification && window.TaskVerification.checkSocialAuth) {
                 window.TaskVerification.checkSocialAuth(network);
             } else {
-                // Запасний варіант - просто вважаємо, що автентифікація відбулася
+                // Запасний варіант - використовуємо мок-дані для автентифікації
+                logMockDataUsage('authentication', 'TaskVerification недоступний');
+
                 setTimeout(() => {
                     resolve(true);
 
@@ -371,6 +431,9 @@ window.SocialTask = (function() {
                     if (callbacks.length === 0) {
                         pendingAuthResponses.delete(network);
                     }
+
+                    // Логуємо використання мок-даних через таймаут
+                    logMockDataUsage('authentication', 'Таймаут очікування відповіді');
 
                     // Вирішуємо проміс з негативною відповіддю
                     resolve(false);
@@ -429,13 +492,22 @@ window.SocialTask = (function() {
                 return;
             }
 
-            // Якщо є API, викликаємо його самостійно
-            if (window.API) {
-                const response = await window.API.post(`/quests/tasks/${task.id}/start`);
+            // Якщо є API та користувач авторизований, викликаємо його самостійно
+            if (isApiAvailable() && isUserAuthenticated()) {
+                try {
+                    const response = await window.API.post(`/quests/tasks/${task.id}/start`);
 
-                if (!response.success) {
-                    throw new Error(response.message || 'Помилка при старті завдання');
+                    if (!response.success) {
+                        throw new Error(response.message || 'Помилка при старті завдання');
+                    }
+                } catch (error) {
+                    console.error('SocialTask: Помилка API при старті завдання:', error);
+                    // Продовжуємо виконання, щоб відкрити URL
                 }
+            } else {
+                // Логуємо використання мок-даних для соц. мереж
+                const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+                logMockDataUsage('socialNetworkData', reason);
             }
 
             // Якщо є URL дії, відкриваємо його
@@ -533,66 +605,48 @@ window.SocialTask = (function() {
                 }
             }
 
-            // Якщо є API, викликаємо його самостійно
-            if (window.API) {
-                const response = await window.API.post(`/quests/tasks/${task.id}/verify`);
-
-                // Оновлюємо відображення завдання
-                refreshTaskDisplay(task.id);
-
-                if (response.success) {
-                    // Відображаємо успішне повідомлення
-                    showMessage(response.message || 'Завдання успішно виконано!', 'success');
-
-                    // Якщо є винагорода, показуємо анімацію
-                    if (response.reward) {
-                        showRewardAnimation(response.reward);
-                    }
-
-                    // Оновлюємо статус завдання
-                    taskStatuses.set(task.id, STATUS.COMPLETED);
-                } else {
-                    // Відображаємо помилку
-                    showMessage(response.message || 'Не вдалося перевірити виконання завдання', 'error');
-
-                    // Оновлюємо статус завдання
-                    taskStatuses.set(task.id, STATUS.ERROR);
-                }
-            } else {
-                // Симулюємо запит
-                setTimeout(() => {
-                    // Симулюємо успіх з ймовірністю 80%
-                    const isSuccess = Math.random() < 0.8;
+            // Перевіряємо наявність API та авторизації користувача
+            if (isApiAvailable() && isUserAuthenticated()) {
+                try {
+                    const response = await window.API.post(`/quests/tasks/${task.id}/verify`);
 
                     // Оновлюємо відображення завдання
                     refreshTaskDisplay(task.id);
 
-                    if (isSuccess) {
+                    if (response.success) {
                         // Відображаємо успішне повідомлення
-                        showMessage('Завдання успішно виконано!', 'success');
+                        showMessage(response.message || 'Завдання успішно виконано!', 'success');
 
-                        // Симулюємо винагороду
-                        const reward = {
-                            type: Math.random() < 0.5 ? 'tokens' : 'coins',
-                            amount: Math.floor(Math.random() * 50) + 10
-                        };
-
-                        // Показуємо анімацію винагороди
-                        showRewardAnimation(reward);
+                        // Якщо є винагорода, показуємо анімацію
+                        if (response.reward) {
+                            showRewardAnimation(response.reward);
+                        }
 
                         // Оновлюємо статус завдання
                         taskStatuses.set(task.id, STATUS.COMPLETED);
                     } else {
                         // Відображаємо помилку
-                        showMessage('Не вдалося перевірити виконання завдання', 'error');
+                        showMessage(response.message || 'Не вдалося перевірити виконання завдання', 'error');
 
                         // Оновлюємо статус завдання
                         taskStatuses.set(task.id, STATUS.ERROR);
                     }
+                } catch (error) {
+                    console.error('SocialTask: Помилка API при перевірці завдання:', error);
 
-                    // Оновлюємо статус завдання
-                    updateTaskStatus(task.id);
-                }, 1500);
+                    // Логуємо використання мок-даних для верифікації
+                    logMockDataUsage('verification', 'Помилка API при верифікації');
+
+                    // Виконуємо симуляцію верифікації як запасний варіант
+                    simulateVerification(task);
+                }
+            } else {
+                // Логуємо використання мок-даних для верифікації
+                const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+                logMockDataUsage('verification', reason);
+
+                // Симулюємо верифікацію
+                simulateVerification(task);
             }
         } catch (error) {
             console.error('SocialTask: Помилка при перевірці завдання:', error);
@@ -607,6 +661,47 @@ window.SocialTask = (function() {
             // Оновлюємо відображення завдання
             refreshTaskDisplay(task.id);
         }
+    }
+
+    /**
+     * Симуляція верифікації завдання
+     * @param {Object} task - Дані завдання
+     */
+    function simulateVerification(task) {
+        // Затримка для імітації запиту
+        setTimeout(() => {
+            // Симулюємо успіх з ймовірністю 80%
+            const isSuccess = Math.random() < 0.8;
+
+            // Оновлюємо відображення завдання
+            refreshTaskDisplay(task.id);
+
+            if (isSuccess) {
+                // Відображаємо успішне повідомлення
+                showMessage('Завдання успішно виконано! (Демонстраційний режим)', 'success');
+
+                // Симулюємо винагороду
+                const reward = {
+                    type: Math.random() < 0.5 ? 'tokens' : 'coins',
+                    amount: Math.floor(Math.random() * 50) + 10
+                };
+
+                // Показуємо анімацію винагороди
+                showRewardAnimation(reward);
+
+                // Оновлюємо статус завдання
+                taskStatuses.set(task.id, STATUS.COMPLETED);
+            } else {
+                // Відображаємо помилку
+                showMessage('Не вдалося перевірити виконання завдання (Демонстраційний режим)', 'error');
+
+                // Оновлюємо статус завдання
+                taskStatuses.set(task.id, STATUS.ERROR);
+            }
+
+            // Оновлюємо статус завдання
+            updateTaskStatus(task.id);
+        }, 1500);
     }
 
     /**
@@ -721,6 +816,13 @@ window.SocialTask = (function() {
             taskElement.dataset.network = network;
         }
 
+        // Додаємо індикатор мок-даних, якщо потрібно
+        if ((mockDataStatus.authentication || mockDataStatus.verification || mockDataStatus.socialNetworkData) &&
+            window.TaskManager && window.TaskManager.isApiAvailable &&
+            !window.TaskManager.isApiAvailable()) {
+            taskElement.classList.add('mock-data-mode');
+        }
+
         // Наповнюємо контент завдання з використанням шаблону
         taskElement.innerHTML = `
             <div class="task-header">
@@ -746,6 +848,8 @@ window.SocialTask = (function() {
                    <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>`
                 }
             </div>
+            ${(mockDataStatus.authentication || mockDataStatus.verification || mockDataStatus.socialNetworkData) ? 
+              '<div class="mock-data-badge" title="Використовуються тестові дані">⚠️ Демо</div>' : ''}
         `;
 
         // Налаштовуємо обробники подій
@@ -934,7 +1038,7 @@ window.SocialTask = (function() {
                 } else {
                     progressData = window.TaskManager.userProgress ? window.TaskManager.userProgress[taskId] : null;
                 }
-            } else if (window.API) {
+            } else if (isApiAvailable() && isUserAuthenticated()) {
                 // Робимо запит до API
                 try {
                     const [tasksResponse, progressResponse] = await Promise.all([
@@ -949,7 +1053,13 @@ window.SocialTask = (function() {
                     }
                 } catch (apiError) {
                     console.error('SocialTask: Помилка при отриманні даних з API:', apiError);
+                    logMockDataUsage('socialNetworkData', 'Помилка API при оновленні відображення');
+                    // Продовжуємо використовувати поточні дані завдання
                 }
+            } else {
+                // Логуємо використання мок-даних для соц. мереж
+                const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+                logMockDataUsage('socialNetworkData', `${reason} при оновленні відображення`);
             }
 
             // Якщо дані отримані, оновлюємо елемент
@@ -1214,6 +1324,9 @@ window.SocialTask = (function() {
         handleVerifyTask,
         validateUrl,
         showMessage,
-        checkAuthentication
+        checkAuthentication,
+        // Для діагностики
+        isUsingMockData: (type) => mockDataStatus[type] || false,
+        mockDataStatus
     };
 })();

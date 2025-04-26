@@ -2,13 +2,64 @@
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
  * з виправленням проблем конкуруючих запитів та обробки помилок
- * @version 1.2.0
+ * @version 1.2.2
  */
 
 (function() {
     'use strict';
     let endpoint = ""; // Оголошення глобальної змінної
     console.log("🔌 API: Ініціалізація єдиного API модуля");
+
+    // ======== API-ШЛЯХИ ========
+
+    // Константи API-шляхів для централізованого управління
+    const API_PATHS = {
+        // Завдання
+        TASKS: {
+            ALL: '/quests/tasks',
+            BY_TYPE: (type) => `/quests/tasks/${type}`,
+            SOCIAL: '/quests/tasks/social',
+            LIMITED: '/quests/tasks/limited',
+            PARTNERS: '/quests/tasks/partners',
+            DETAILS: (taskId) => `/quests/tasks/${taskId}/details`,
+            START: (taskId) => `/quests/tasks/${taskId}/start`,
+            VERIFY: (taskId) => `/quests/tasks/${taskId}/verify`,
+            PROGRESS: (taskId) => `/quests/tasks/${taskId}/progress`
+        },
+
+        // Користувацькі шляхи
+        USER: {
+            DATA: (userId) => `/user/${userId}`,
+            BALANCE: (userId) => `/user/${userId}/balance`,
+            TASKS: (userId) => `/user/${userId}/tasks`,
+            PROGRESS: (userId) => `/user/${userId}/progress`,
+            TASK_STATUS: (userId, taskId) => `/user/${userId}/tasks/${taskId}/status`,
+            SETTINGS: (userId) => `/user/${userId}/settings`
+        },
+
+        // Щоденні бонуси
+        DAILY_BONUS: {
+            STATUS: (userId) => `/user/${userId}/daily-bonus`,
+            CLAIM: (userId) => `/user/${userId}/claim-daily-bonus`,
+            STREAK: (userId) => `/user/${userId}/claim-streak-bonus`,
+            HISTORY: (userId) => `/user/${userId}/bonus-history`
+        },
+
+        // Стейкінг
+        STAKING: {
+            DATA: (userId) => `/user/${userId}/staking`,
+            HISTORY: (userId) => `/user/${userId}/staking/history`,
+            CANCEL: (userId, stakingId) => `/user/${userId}/staking/${stakingId}/cancel`
+        },
+
+        // Інші
+        AUTH: {
+            REFRESH_TOKEN: '/auth/refresh-token'
+        },
+
+        // Транзакції
+        TRANSACTIONS: (userId) => `/user/${userId}/transactions`
+    };
 
     // ======== ПРИВАТНІ ЗМІННІ ========
 
@@ -205,42 +256,59 @@
      */
     function getAuthToken() {
         try {
-            // Перевіряємо наявність токену в пам'яті
-            if (_authToken && _authTokenExpiry > Date.now()) {
+            const now = Date.now();
+
+            // 1. Перевіряємо наявність токену в пам'яті
+            if (_authToken && _authTokenExpiry > now) {
                 return _authToken;
             }
 
-            // Спробуємо отримати токен з localStorage
-            const token = localStorage.getItem('auth_token');
+            // 2. Спробуємо отримати токен через StorageUtils, якщо доступний
+            let token = null;
+            let tokenExpiry = 0;
+
+            if (window.StorageUtils) {
+                token = window.StorageUtils.getItem('auth_token');
+                tokenExpiry = parseInt(window.StorageUtils.getItem('auth_token_expiry') || '0');
+            } else {
+                // 3. Спробуємо отримати токен з localStorage
+                token = localStorage.getItem('auth_token');
+                tokenExpiry = parseInt(localStorage.getItem('auth_token_expiry') || '0');
+            }
+
             if (token && typeof token === 'string' && token.length > 5) {
-                // Перевіряємо термін дії, якщо є
-                const expiryStr = localStorage.getItem('auth_token_expiry');
-                if (expiryStr && parseInt(expiryStr) > Date.now()) {
+                if (tokenExpiry > now) {
                     _authToken = token;
-                    _authTokenExpiry = parseInt(expiryStr);
+                    _authTokenExpiry = tokenExpiry;
                     return token;
-                } else if (!expiryStr) {
-                    // Якщо немає інформації про термін дії, все одно повертаємо токен
+                }
+
+                // Токен застарів, але зберігаємо його для запиту оновлення
+                if (!_authToken) {
                     _authToken = token;
-                    return token;
                 }
             }
 
-            // Альтернативні джерела токену
-            // 1. Перевіряємо глобальний об'єкт конфігурації
+            // 4. Альтернативні джерела токену
             if (window.WinixConfig && window.WinixConfig.authToken) {
                 _authToken = window.WinixConfig.authToken;
                 return _authToken;
             }
 
-            // 2. Перевіряємо URL-параметри
+            // 5. Перевіряємо URL-параметри
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlToken = urlParams.get('token') || urlParams.get('auth_token');
                 if (urlToken && urlToken.length > 5) {
                     // Зберігаємо знайдений токен
                     _authToken = urlToken;
-                    localStorage.setItem('auth_token', urlToken);
+
+                    if (window.StorageUtils) {
+                        window.StorageUtils.setItem('auth_token', urlToken);
+                    } else {
+                        localStorage.setItem('auth_token', urlToken);
+                    }
+
                     return urlToken;
                 }
             } catch (e) {
@@ -327,7 +395,7 @@
                 console.log("🔄 API: Початок оновлення токену");
 
                 // Використовуємо rawApiRequest без токену, щоб уникнути рекурсії
-                const response = await fetch(`${API_BASE_URL}/api/auth/refresh-token`, {
+                const response = await fetch(`${API_BASE_URL}/${normalizeEndpoint(API_PATHS.AUTH.REFRESH_TOKEN)}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -359,12 +427,23 @@
                         _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
                     }
 
-                    // Зберігаємо в localStorage
+                    // Зберігаємо в localStorage і використовуємо StorageUtils, якщо доступний
                     try {
-                        localStorage.setItem('auth_token', _authToken);
-                        localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                        if (window.StorageUtils) {
+                            window.StorageUtils.setItem('auth_token', _authToken, {
+                                persist: true,
+                                expires: _authTokenExpiry - Date.now()
+                            });
+                            window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
+                                persist: true,
+                                expires: _authTokenExpiry - Date.now()
+                            });
+                        } else {
+                            localStorage.setItem('auth_token', _authToken);
+                            localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
+                        }
                     } catch (e) {
-                        console.warn("🔌 API: Помилка збереження токену в localStorage:", e);
+                        console.warn("🔌 API: Помилка збереження токену:", e);
                     }
 
                     console.log("✅ API: Токен успішно оновлено");
@@ -797,6 +876,23 @@
                     throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
                 }
 
+                // Спеціальна обробка для 401 (Unauthorized) - спроба оновити токен
+                if (fetchResponse.status === 401) {
+                    console.warn("🔌 API: Помилка авторизації. Спроба оновлення токену...");
+
+                    // Якщо залишились спроби, спробуємо оновити токен і повторити запит
+                    if (retries > 0) {
+                        try {
+                            await refreshToken();
+
+                            // Повторюємо запит з оновленим токеном
+                            return apiRequest(endpoint, method, data, options, retries - 1);
+                        } catch (tokenError) {
+                            console.error("🔌 API: Не вдалося оновити токен:", tokenError);
+                        }
+                    }
+                }
+
                 // Спеціальна обробка для 404 помилок в розіграшах
                 if (fetchResponse.status === 404 && url.includes('raffles')) {
                     // Очищуємо кеш розіграшів, якщо такий є
@@ -1049,7 +1145,7 @@
         }
 
         try {
-            const result = await apiRequest(`user/${id}`, 'GET', null, {
+            const result = await apiRequest(API_PATHS.USER.DATA(id), 'GET', null, {
                 timeout: 5000, // Зменшуємо таймаут для прискорення
                 suppressErrors: isSettingsPage // На сторінці налаштувань не показуємо помилки
             });
@@ -1162,7 +1258,7 @@
 
         // Додаємо параметр для запобігання кешуванню
         const nocache = Date.now();
-        const endpoint = `user/${userId}/balance?nocache=${nocache}`;
+        const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
 
         // Робимо запит до сервера
         const response = await apiRequest(endpoint, 'GET', null, {
@@ -1250,7 +1346,7 @@
             return {status: 'success', data: _stakingCache, source: 'cache'};
         }
 
-        return apiRequest(`user/${userId}/staking`);
+        return apiRequest(API_PATHS.STAKING.DATA(userId));
     }
 
     /**
@@ -1262,7 +1358,7 @@
             throw new Error("ID користувача не знайдено");
         }
 
-        return apiRequest(`user/${userId}/staking/history`);
+        return apiRequest(API_PATHS.STAKING.HISTORY(userId));
     }
 
     /**
@@ -1285,7 +1381,7 @@
             throw new Error("Період стейкінгу може бути 7, 14 або 28 днів");
         }
 
-        return apiRequest(`user/${userId}/staking`, 'POST', {
+        return apiRequest(API_PATHS.STAKING.DATA(userId), 'POST', {
             stakingAmount: parseInt(amount),
             period: period
         });
@@ -1321,7 +1417,7 @@
             }
         }
 
-        return apiRequest(`user/${userId}/staking/${targetStakingId}`, 'PUT', {
+        return apiRequest(`${API_PATHS.STAKING.DATA(userId)}/${targetStakingId}`, 'PUT', {
             additionalAmount: parseInt(amount)
         });
     }
@@ -1367,7 +1463,7 @@
             }
         }
 
-        return apiRequest(`user/${userId}/staking/${targetStakingId}/cancel`, 'POST', {
+        return apiRequest(API_PATHS.STAKING.CANCEL(userId, targetStakingId), 'POST', {
             confirm: true,
             timestamp: Date.now()
         });
@@ -1427,7 +1523,7 @@
 
         // Виконуємо запит до серверу
         try {
-            return await apiRequest(`user/${userId}/transactions?limit=${limit}`, 'GET', null, {
+            return await apiRequest(`${API_PATHS.TRANSACTIONS(userId)}?limit=${limit}`, 'GET', null, {
                 suppressErrors: true
             });
         } catch (error) {
@@ -1452,7 +1548,7 @@
         }
 
         try {
-            return await apiRequest(`user/${userId}/settings`, 'POST', settings);
+            return await apiRequest(API_PATHS.USER.SETTINGS(userId), 'POST', settings);
         } catch (error) {
             console.error("🔌 API: Помилка оновлення налаштувань:", error);
 
@@ -1533,12 +1629,15 @@
 
     // ======== ЕКСПОРТ API ========
 
+    // Експортуємо API шляхи для використання в інших модулях
+    window.API_PATHS = API_PATHS;
+
     // Створюємо публічний API
     window.WinixAPI = {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.0',
+            version: '1.2.2',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1573,6 +1672,9 @@
 
         // Функції транзакцій
         getTransactions,
+
+        // Константи API-шляхів
+        paths: API_PATHS,
 
         // Функції для діагностики та відлагодження
         diagnostics: {
@@ -1616,6 +1718,16 @@
     // Для зворотної сумісності
     window.apiRequest = apiRequest;
     window.getUserId = getUserId;
+
+    // Для зворотної сумісності з модулями, що очікують window.API
+    window.API = {
+        get: function(endpoint, options = {}) {
+            return window.WinixAPI.apiRequest(endpoint, 'GET', null, options);
+        },
+        post: function(endpoint, data = null, options = {}) {
+            return window.WinixAPI.apiRequest(endpoint, 'POST', data, options);
+        }
+    };
 
     // Обробники подій для відновлення з'єднання
     window.addEventListener('online', () => {

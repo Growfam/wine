@@ -10,6 +10,47 @@ window.LimitedTask = (function() {
     // Кеш активних завдань та їх таймерів
     const tasks = new Map();
 
+    // Індикатор використання мок-даних
+    const mockDataStatus = {
+        timerData: false,
+        verification: false,
+        taskData: false
+    };
+
+    // Функція для логування використання мок-даних
+    function logMockDataUsage(dataType, reason) {
+        mockDataStatus[dataType] = true;
+        console.warn(`LimitedTask: Використання ТЕСТОВИХ даних для [${dataType}]. Причина: ${reason}`);
+
+        // Додаємо детальний запис у консоль розробника
+        if (console.groupCollapsed) {
+            console.groupCollapsed(`%cМОК-ДАНІ LimitedTask [${dataType}]`, 'background: #FFF3CD; color: #856404; padding: 2px 5px; border-radius: 3px;');
+            console.info(`Причина: ${reason}`);
+            console.info(`Час: ${new Date().toLocaleTimeString()}`);
+            console.trace('Стек виклику');
+            console.groupEnd();
+        }
+    }
+
+    // Перевірка доступності API
+    function isApiAvailable() {
+        return window.API && typeof window.API.get === 'function' && typeof window.API.post === 'function';
+    }
+
+    // Перевірка, чи є користувач авторизованим
+    function isUserAuthenticated() {
+        // Перевірка через API, якщо доступне
+        if (isApiAvailable() && window.API.isAuthenticated) {
+            return window.API.isAuthenticated();
+        }
+
+        // Перевірка через localStorage або інші маркери авторизації
+        const hasAuthToken = localStorage.getItem('auth_token') || localStorage.getItem('user_token');
+        const hasUserData = localStorage.getItem('user_data');
+
+        return Boolean(hasAuthToken || hasUserData);
+    }
+
     /**
      * Створення елементу лімітованого завдання
      * @param {Object} task - Об'єкт з даними завдання
@@ -48,11 +89,17 @@ window.LimitedTask = (function() {
         taskElement.dataset.taskType = 'limited';
         taskElement.dataset.targetValue = task.target_value.toString();
 
-        // Додаємо клас для завершеного або закінченого терміну
+        // Додаємо класи для завершеного або закінченого терміну
         if (isCompleted) {
             taskElement.classList.add('completed');
         } else if (isExpired) {
             taskElement.classList.add('expired');
+        }
+
+        // Додаємо індикатор мок-даних, якщо потрібно
+        if ((mockDataStatus.timerData || mockDataStatus.verification || mockDataStatus.taskData) &&
+            (!isApiAvailable() || !isUserAuthenticated())) {
+            taskElement.classList.add('mock-data-mode');
         }
 
         // Підготовка HTML для таймера
@@ -103,6 +150,8 @@ window.LimitedTask = (function() {
                    <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>`
                 }
             </div>
+            ${(mockDataStatus.timerData || mockDataStatus.verification || mockDataStatus.taskData) ? 
+              '<div class="mock-data-badge" title="Використовуються тестові дані">⚠️ Демо</div>' : ''}
         `;
 
         // Додаємо обробники подій
@@ -171,6 +220,9 @@ window.LimitedTask = (function() {
             });
         };
 
+        // Перевіряємо наявність модулів таймера
+        let usingMockTimer = false;
+
         // Використовуємо UI.Countdown, якщо доступний
         if (window.UI && window.UI.Countdown) {
             window.UI.Countdown.createCountdown({
@@ -189,8 +241,12 @@ window.LimitedTask = (function() {
                 onComplete: onTimerComplete
             });
         }
-        // Простий запасний варіант
+        // Простий запасний варіант з мок-даними
         else {
+            // Логуємо використання власної реалізації таймера (мок-даних)
+            usingMockTimer = true;
+            logMockDataUsage('timerData', 'Модулі таймера недоступні, використання власної реалізації');
+
             // Парсимо кінцеву дату
             const endDateTime = new Date(endDate);
 
@@ -221,6 +277,14 @@ window.LimitedTask = (function() {
             if (taskData) {
                 taskData.timerId = intervalId;
                 tasks.set(taskId, taskData);
+            }
+        }
+
+        // Додаємо маркер демо-режиму, якщо використовуємо власну реалізацію таймера
+        if (usingMockTimer) {
+            const timerContainer = timerElement.closest('.timer-container');
+            if (timerContainer) {
+                timerContainer.classList.add('mock-timer');
             }
         }
     }
@@ -274,13 +338,22 @@ window.LimitedTask = (function() {
             return;
         }
 
-        // Якщо TaskManager недоступний, відкриваємо посилання самостійно
+        // Перевіряємо доступність API
+        const apiEnabled = isApiAvailable() && isUserAuthenticated();
+
+        // Якщо API недоступне, логуємо використання мок-даних
+        if (!apiEnabled) {
+            const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+            logMockDataUsage('taskData', reason);
+        }
+
+        // Відкриваємо посилання, якщо є
         if (task.action_url) {
             window.open(task.action_url, '_blank');
         }
 
         // Викликаємо API самостійно, якщо доступний
-        if (window.API) {
+        if (apiEnabled) {
             window.API.post(`/quests/tasks/${task.id}/start`)
                 .then(response => {
                     if (response.success) {
@@ -294,7 +367,12 @@ window.LimitedTask = (function() {
                 .catch(error => {
                     console.error('LimitedTask: Помилка при старті завдання:', error);
                     showMessage('Сталася помилка при спробі розпочати завдання', 'error');
+
+                    // Логуємо використання мок-даних при помилці
+                    logMockDataUsage('taskData', 'Помилка API при старті завдання');
                 });
+        } else {
+            showMessage('Завдання розпочато в демонстраційному режимі!', 'success');
         }
     }
 
@@ -323,39 +401,130 @@ window.LimitedTask = (function() {
             }
         }
 
-        // Викликаємо API самостійно, якщо доступний
-        if (window.API) {
-            window.API.post(`/quests/tasks/${task.id}/verify`)
-                .then(response => {
-                    // Оновлюємо відображення завдання
-                    refreshTaskDisplay(task.id);
+        // Перевіряємо доступність API
+        const apiEnabled = isApiAvailable() && isUserAuthenticated();
 
-                    if (response.success) {
-                        // Відображаємо успішне повідомлення
-                        showMessage(response.message || 'Завдання успішно виконано!', 'success');
-
-                        // Якщо є винагорода, показуємо анімацію
-                        if (response.reward) {
-                            showRewardAnimation(response.reward);
-                        }
-
-                        // Анімуємо успішне виконання, якщо доступний модуль анімацій
-                        if (window.UI && window.UI.Animations && window.UI.Animations.animateSuccessfulCompletion) {
-                            window.UI.Animations.animateSuccessfulCompletion(task.id);
-                        }
-                    } else {
-                        // Відображаємо помилку
-                        showMessage(response.message || 'Не вдалося перевірити виконання завдання', 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('LimitedTask: Помилка при перевірці завдання:', error);
-                    showMessage('Сталася помилка при спробі перевірити завдання', 'error');
-
-                    // Оновлюємо відображення завдання
-                    refreshTaskDisplay(task.id);
-                });
+        // Якщо API недоступне, використовуємо режим симуляції
+        if (!apiEnabled) {
+            const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+            logMockDataUsage('verification', reason);
+            simulateVerification(task);
+            return;
         }
+
+        // Викликаємо API самостійно, якщо доступний
+        window.API.post(`/quests/tasks/${task.id}/verify`)
+            .then(response => {
+                // Оновлюємо відображення завдання
+                refreshTaskDisplay(task.id);
+
+                if (response.success) {
+                    // Відображаємо успішне повідомлення
+                    showMessage(response.message || 'Завдання успішно виконано!', 'success');
+
+                    // Якщо є винагорода, показуємо анімацію
+                    if (response.reward) {
+                        showRewardAnimation(response.reward);
+                    }
+
+                    // Анімуємо успішне виконання, якщо доступний модуль анімацій
+                    if (window.UI && window.UI.Animations && window.UI.Animations.animateSuccessfulCompletion) {
+                        window.UI.Animations.animateSuccessfulCompletion(task.id);
+                    }
+                } else {
+                    // Відображаємо помилку
+                    showMessage(response.message || 'Не вдалося перевірити виконання завдання', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('LimitedTask: Помилка при перевірці завдання:', error);
+
+                // Логуємо використання мок-даних при помилці і симулюємо верифікацію
+                logMockDataUsage('verification', 'Помилка API при верифікації');
+                simulateVerification(task);
+            });
+    }
+
+    /**
+     * Симуляція верифікації завдання (для тестового режиму)
+     * @param {Object} task - Дані завдання
+     */
+    function simulateVerification(task) {
+        // Затримка для імітації запиту
+        setTimeout(() => {
+            // Оновлюємо відображення завдання
+            refreshTaskDisplay(task.id);
+
+            // Симулюємо успіх з ймовірністю 80%
+            const isSuccess = Math.random() < 0.8;
+
+            if (isSuccess) {
+                // Відображаємо успішне повідомлення
+                showMessage('Завдання успішно виконано! (Демонстраційний режим)', 'success');
+
+                // Симулюємо винагороду
+                const reward = {
+                    type: Math.random() < 0.5 ? 'tokens' : 'coins',
+                    amount: Math.floor(Math.random() * 50) + 10
+                };
+
+                // Показуємо анімацію винагороди
+                showRewardAnimation(reward);
+
+                // Оновлюємо стан завдання, якщо можливо
+                const taskData = tasks.get(task.id);
+                if (taskData) {
+                    taskData.progress = {
+                        status: 'completed',
+                        progress_value: task.target_value,
+                        completion_date: new Date().toISOString()
+                    };
+                    tasks.set(task.id, taskData);
+
+                    // Оновлюємо відображення завдання
+                    const newTaskElement = create(task, taskData.progress);
+                    const oldElement = document.querySelector(`.task-item[data-task-id="${task.id}"]`);
+                    if (oldElement && oldElement.parentNode) {
+                        oldElement.parentNode.replaceChild(newTaskElement, oldElement);
+                    }
+                }
+            } else {
+                // Відображаємо помилку
+                showMessage('Не вдалося перевірити виконання завдання (Демонстраційний режим)', 'error');
+
+                // Відновлюємо елементи управління
+                const taskElement = document.querySelector(`.task-item[data-task-id="${task.id}"]`);
+                if (taskElement) {
+                    const actionElement = taskElement.querySelector('.task-action');
+                    if (actionElement) {
+                        actionElement.innerHTML = `
+                            <button class="action-button" data-action="start" data-task-id="${task.id}">${task.action_label || 'Виконати'}</button>
+                            <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}">Перевірити</button>
+                        `;
+
+                        // Відновлюємо обробники подій
+                        const startButton = actionElement.querySelector('.action-button[data-action="start"]');
+                        const verifyButton = actionElement.querySelector('.action-button[data-action="verify"]');
+
+                        if (startButton) {
+                            startButton.addEventListener('click', function(event) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handleStartTask(task);
+                            });
+                        }
+
+                        if (verifyButton) {
+                            verifyButton.addEventListener('click', function(event) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handleVerifyTask(task);
+                            });
+                        }
+                    }
+                }
+            }
+        }, 1500);
     }
 
     /**
@@ -379,36 +548,61 @@ window.LimitedTask = (function() {
             taskData.timerId = null;
         }
 
+        // Перевіряємо доступність API
+        const apiEnabled = isApiAvailable() && isUserAuthenticated();
+
+        // Якщо API недоступне, використовуємо локальні дані з невеликими оновленнями
+        if (!apiEnabled) {
+            const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
+            logMockDataUsage('taskData', `${reason} при оновленні відображення`);
+
+            // Оновлюємо відображення з поточними даними
+            const newTaskElement = create(taskData.task, taskData.progress);
+            const oldElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+            if (oldElement && oldElement.parentNode) {
+                oldElement.parentNode.replaceChild(newTaskElement, oldElement);
+            }
+            return;
+        }
+
         // Оновлюємо дані з сервера, якщо доступне API
-        if (window.API) {
-            Promise.all([
-                window.API.get('/quests/tasks/limited'),
-                window.API.get('/quests/user-progress')
-            ])
-            .then(([tasksResponse, progressResponse]) => {
-                if (tasksResponse.success && progressResponse.success) {
-                    const tasks = tasksResponse.data;
-                    const progress = progressResponse.data;
+        Promise.all([
+            window.API.get('/quests/tasks/limited'),
+            window.API.get('/quests/user-progress')
+        ])
+        .then(([tasksResponse, progressResponse]) => {
+            if (tasksResponse.success && progressResponse.success) {
+                const tasks = tasksResponse.data;
+                const progress = progressResponse.data;
 
-                    // Знаходимо потрібне завдання
-                    const task = tasks.find(t => t.id === taskId);
+                // Знаходимо потрібне завдання
+                const task = tasks.find(t => t.id === taskId);
 
-                    if (task) {
-                        // Створюємо новий елемент завдання
-                        const newTaskElement = create(task, progress[taskId]);
+                if (task) {
+                    // Створюємо новий елемент завдання
+                    const newTaskElement = create(task, progress[taskId]);
 
-                        // Замінюємо старий елемент
-                        const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-                        if (taskElement && taskElement.parentNode) {
-                            taskElement.parentNode.replaceChild(newTaskElement, taskElement);
-                        }
+                    // Замінюємо старий елемент
+                    const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+                    if (taskElement && taskElement.parentNode) {
+                        taskElement.parentNode.replaceChild(newTaskElement, taskElement);
                     }
                 }
-            })
-            .catch(error => {
-                console.error('LimitedTask: Помилка при оновленні відображення завдання:', error);
-            });
-        }
+            }
+        })
+        .catch(error => {
+            console.error('LimitedTask: Помилка при оновленні відображення завдання:', error);
+
+            // Логуємо використання мок-даних при помилці
+            logMockDataUsage('taskData', 'Помилка API при оновленні відображення');
+
+            // При помилці використовуємо локальні дані
+            const newTaskElement = create(taskData.task, taskData.progress);
+            const oldElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+            if (oldElement && oldElement.parentNode) {
+                oldElement.parentNode.replaceChild(newTaskElement, oldElement);
+            }
+        });
     }
 
     /**
@@ -442,6 +636,15 @@ window.LimitedTask = (function() {
             animationElement.classList.add('tokens-reward');
         } else {
             animationElement.classList.add('coins-reward');
+        }
+
+        // Додаємо індикатор мок-даних, якщо потрібно
+        if (mockDataStatus.verification) {
+            animationElement.classList.add('mock-reward');
+            const mockBadge = document.createElement('small');
+            mockBadge.className = 'mock-badge';
+            mockBadge.textContent = 'демо';
+            animationElement.appendChild(mockBadge);
         }
 
         // Додаємо до body
@@ -488,9 +691,26 @@ window.LimitedTask = (function() {
                 const currentBalance = parseFloat(userTokensElement.textContent) || 0;
                 userTokensElement.textContent = (currentBalance + reward.amount).toFixed(2);
                 userTokensElement.classList.add('increasing');
+
+                // Додаємо індикатор демо-режиму, якщо потрібно
+                if (mockDataStatus.verification && !userTokensElement.querySelector('.mock-indicator')) {
+                    const mockIndicator = document.createElement('small');
+                    mockIndicator.className = 'mock-indicator';
+                    mockIndicator.textContent = ' (демо)';
+                    userTokensElement.appendChild(mockIndicator);
+                }
+
                 setTimeout(() => {
                     userTokensElement.classList.remove('increasing');
                 }, 2000);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userTokens', (currentBalance + reward.amount).toString());
+                    localStorage.setItem('winix_balance', (currentBalance + reward.amount).toString());
+                } catch (e) {
+                    console.warn('LimitedTask: Помилка збереження балансу в localStorage:', e);
+                }
             }
         } else if (reward.type === 'coins') {
             const userCoinsElement = document.getElementById('user-coins');
@@ -498,9 +718,26 @@ window.LimitedTask = (function() {
                 const currentBalance = parseInt(userCoinsElement.textContent) || 0;
                 userCoinsElement.textContent = currentBalance + reward.amount;
                 userCoinsElement.classList.add('increasing');
+
+                // Додаємо індикатор демо-режиму, якщо потрібно
+                if (mockDataStatus.verification && !userCoinsElement.querySelector('.mock-indicator')) {
+                    const mockIndicator = document.createElement('small');
+                    mockIndicator.className = 'mock-indicator';
+                    mockIndicator.textContent = ' (демо)';
+                    userCoinsElement.appendChild(mockIndicator);
+                }
+
                 setTimeout(() => {
                     userCoinsElement.classList.remove('increasing');
                 }, 2000);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userCoins', (currentBalance + reward.amount).toString());
+                    localStorage.setItem('winix_coins', (currentBalance + reward.amount).toString());
+                } catch (e) {
+                    console.warn('LimitedTask: Помилка збереження балансу в localStorage:', e);
+                }
             }
         }
     }
@@ -562,9 +799,9 @@ window.LimitedTask = (function() {
     }
 
     /**
-     * Очищення всіх таймерів та ресурсів
+     * Скидання стану модуля
      */
-    function cleanup() {
+    function resetState() {
         // Очищаємо всі таймери, створені цим модулем
         tasks.forEach((taskData, taskId) => {
             if (taskData.timerId) {
@@ -575,7 +812,19 @@ window.LimitedTask = (function() {
         // Очищаємо кеш завдань
         tasks.clear();
 
+        // Скидаємо стан використання мок-даних
+        Object.keys(mockDataStatus).forEach(key => {
+            mockDataStatus[key] = false;
+        });
+
         console.log('LimitedTask: Ресурси модуля очищено');
+    }
+
+    /**
+     * Очищення всіх таймерів та ресурсів
+     */
+    function cleanup() {
+        resetState();
     }
 
     // Підписуємося на подію виходу зі сторінки
@@ -587,6 +836,10 @@ window.LimitedTask = (function() {
         refreshTaskDisplay,
         handleStartTask,
         handleVerifyTask,
-        cleanup
+        cleanup,
+        resetState,
+        // Для діагностики
+        isUsingMockData: (type) => mockDataStatus[type] || false,
+        mockDataStatus
     };
 })();
