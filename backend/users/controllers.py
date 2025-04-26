@@ -155,6 +155,38 @@ def get_user_info(telegram_id):
 
 
 @handle_exceptions
+def create_new_user(telegram_id, username, referrer_id=None):
+    """
+    Створення нового користувача.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        username (str): Ім'я користувача
+        referrer_id (str, optional): ID реферала, який запросив користувача
+
+    Returns:
+        dict: Дані створеного користувача
+    """
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Перевіряємо, чи вже існує користувач
+    existing_user = get_user(telegram_id)
+    if existing_user:
+        logger.info(f"Користувач з ID {telegram_id} вже існує")
+        return existing_user
+
+    # Створюємо нового користувача через функцію з supabase_client
+    user = create_user(telegram_id, username, referrer_id)
+
+    if not user:
+        logger.error(f"Помилка створення користувача з ID {telegram_id}")
+        raise ValueError(f"Не вдалося створити користувача з ID {telegram_id}")
+
+    logger.info(f"Успішно створено нового користувача з ID {telegram_id}")
+    return user
+
+
+@handle_exceptions
 def get_user_profile(telegram_id):
     """
     Отримання повного профілю користувача з розширеними даними.
