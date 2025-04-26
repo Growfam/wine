@@ -15,7 +15,7 @@ window.TimeUtils = (function() {
     let masterTimerCount = 0;     // Кількість активних таймерів
 
     // Кеш DOM елементів таймерів
-    const timerElements = new WeakMap();
+    const timerElements = new Map(); // Використовуємо Map замість WeakMap для надійності
 
     // Опції за замовчуванням
     const DEFAULT_OPTIONS = {
@@ -86,12 +86,14 @@ window.TimeUtils = (function() {
      */
     function cleanupTimersForNode(node) {
         // Якщо вузол сам є елементом таймера
-        timerElements.forEach((elementRef, timerId) => {
-            if (node.contains(elementRef) || node === elementRef) {
-                stopCountdown(timerId);
-                timerElements.delete(timerId);
-            }
-        });
+        if (timerElements.size > 0) {
+            timerElements.forEach((elementRef, timerId) => {
+                if (node.contains(elementRef) || node === elementRef) {
+                    stopCountdown(timerId);
+                    timerElements.delete(timerId);
+                }
+            });
+        }
 
         // Додаткова перевірка для всіх вкладених елементів з атрибутом data-timer-id
         if (node.querySelectorAll) {
@@ -110,13 +112,13 @@ window.TimeUtils = (function() {
      */
     function initExistingTimers() {
         // Знаходимо всі елементи з атрибутом data-end-date
-        const timerElements = document.querySelectorAll('[data-end-date]');
+        const existingTimerElements = document.querySelectorAll('[data-end-date]');
 
-        if (timerElements.length > 0) {
-            console.log(`TimeUtils: Знайдено ${timerElements.length} елементів таймерів на сторінці`);
+        if (existingTimerElements.length > 0) {
+            console.log(`TimeUtils: Знайдено ${existingTimerElements.length} елементів таймерів на сторінці`);
 
             // Ініціалізуємо кожен таймер
-            timerElements.forEach(element => {
+            existingTimerElements.forEach(element => {
                 const endDate = element.getAttribute('data-end-date');
                 const format = element.getAttribute('data-format') || 'short';
                 const onComplete = element.getAttribute('data-on-complete');
