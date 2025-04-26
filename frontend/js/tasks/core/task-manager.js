@@ -24,7 +24,8 @@ window.TaskManager = (function() {
         userProgress: false,
         socialTasks: false,
         limitedTasks: false,
-        partnerTasks: false
+        partnerTasks: false,
+        verification: false
     };
 
     // Функція для логування використання мок-даних
@@ -40,6 +41,9 @@ window.TaskManager = (function() {
             console.trace('Стек виклику');
             console.groupEnd();
         }
+
+        // Відображаємо індикатор використання тестових даних
+        addMockDataIndicator();
     }
 
     // Типи винагород
@@ -1684,6 +1688,280 @@ window.TaskManager = (function() {
         console.log('TaskManager: Стан модуля скинуто');
     }
 
+    /**
+     * Додавання видимого індикатора використання тестових даних
+     */
+    function addMockDataIndicator() {
+        // Перевіряємо, чи використовуються тестові дані
+        const isUsingMock = Object.values(mockDataStatus).some(status => status === true);
+
+        // Якщо тестові дані не використовуються, не показуємо індикатор
+        if (!isUsingMock) return;
+
+        // Перевіряємо, чи індикатор вже існує
+        let indicatorElement = document.getElementById('mock-data-indicator');
+
+        if (!indicatorElement) {
+            // Створюємо елемент індикатора
+            indicatorElement = document.createElement('div');
+            indicatorElement.id = 'mock-data-indicator';
+            indicatorElement.className = 'mock-data-indicator';
+
+            // Додаємо стилі для індикатора
+            indicatorElement.style.position = 'fixed';
+            indicatorElement.style.top = '10px';
+            indicatorElement.style.right = '10px';
+            indicatorElement.style.backgroundColor = '#FFF3CD';
+            indicatorElement.style.color = '#856404';
+            indicatorElement.style.padding = '8px 12px';
+            indicatorElement.style.borderRadius = '4px';
+            indicatorElement.style.fontSize = '12px';
+            indicatorElement.style.fontWeight = 'bold';
+            indicatorElement.style.zIndex = '9999';
+            indicatorElement.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+
+            // Додаємо іконку і текст попередження
+            indicatorElement.innerHTML = '⚠️ Демонстраційний режим';
+
+            // Додаємо деталі
+            const detailsElement = document.createElement('div');
+            detailsElement.className = 'mock-data-details';
+            detailsElement.style.marginTop = '5px';
+            detailsElement.style.fontSize = '11px';
+
+            // Формуємо інформацію про типи даних
+            let detailsText = 'Використовуються тестові дані для: ';
+            const mockTypes = Object.keys(mockDataStatus).filter(key => mockDataStatus[key]);
+            detailsText += mockTypes.join(', ');
+            detailsElement.textContent = detailsText;
+
+            indicatorElement.appendChild(detailsElement);
+
+            // Додаємо кнопку закриття
+            const closeButton = document.createElement('span');
+            closeButton.textContent = '✕';
+            closeButton.style.marginLeft = '10px';
+            closeButton.style.cursor = 'pointer';
+            closeButton.style.float = 'right';
+            closeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                indicatorElement.remove();
+            });
+
+            indicatorElement.insertBefore(closeButton, indicatorElement.firstChild);
+
+            // Додаємо в DOM
+            document.body.appendChild(indicatorElement);
+
+            // Анімуємо появу
+            indicatorElement.style.opacity = '0';
+            indicatorElement.style.transition = 'opacity 0.5s ease';
+            setTimeout(() => {
+                indicatorElement.style.opacity = '1';
+            }, 100);
+        } else {
+            // Оновлюємо інформацію в існуючому індикаторі
+            const detailsElement = indicatorElement.querySelector('.mock-data-details');
+            if (detailsElement) {
+                let detailsText = 'Використовуються тестові дані для: ';
+                const mockTypes = Object.keys(mockDataStatus).filter(key => mockDataStatus[key]);
+                detailsText += mockTypes.join(', ');
+                detailsElement.textContent = detailsText;
+            }
+        }
+    }
+
+    /**
+     * Функція тестування з'єднання з бекендом
+     * @returns {Promise<boolean>} Результат тесту з'єднання
+     */
+    async function testBackendConnection() {
+        try {
+            if (!isApiAvailable()) {
+                console.warn('TaskManager: API недоступне, тест з\'єднання неможливий');
+                return false;
+            }
+
+            // Створюємо легкий запит для перевірки API
+            const testEndpoint = 'health-check';
+            const response = await window.API.get(testEndpoint, {
+                timeout: 5000,
+                suppressErrors: true
+            });
+
+            // Відображаємо статус з'єднання
+            if (response && response.success) {
+                console.log('TaskManager: Успішне з\'єднання з бекендом');
+                return true;
+            }
+
+            throw new Error('Сервер не відповідає належним чином');
+        } catch (error) {
+            console.error('TaskManager: Помилка з\'єднання з бекендом:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Діагностика проблем з'єднання з бекендом
+     */
+    async function diagnoseBendEndIssues() {
+        console.group('🔍 TaskManager: Діагностика проблем з\'єднання');
+
+        try {
+            // Перевіряємо доступність API модуля
+            if (!window.API || typeof window.API.get !== 'function') {
+                console.error('❌ API модуль не завантажений або неправильно ініціалізований');
+                logApiModuleStatus();
+                return false;
+            }
+
+            console.log('✅ API модуль доступний');
+
+            // Перевіряємо наявність ID користувача
+            const userId = window.getUserId ? window.getUserId() : null;
+            console.log(`🔑 ID користувача: ${userId || 'не знайдено'}`);
+
+            // Аналізуємо URL API
+            if (window.API_BASE_URL) {
+                console.log(`🌐 API URL: ${window.API_BASE_URL}`);
+            } else if (window.WinixAPI && window.WinixAPI.config) {
+                console.log(`🌐 API URL: ${window.WinixAPI.config.baseUrl}`);
+            } else {
+                console.warn('⚠️ Неможливо визначити URL API');
+            }
+
+            // Тестуємо з'єднання
+            const connectionStatus = await testBackendConnection();
+            console.log(`🔌 Статус з'єднання: ${connectionStatus ? 'успішно' : 'помилка'}`);
+
+            // Додаткова діагностика для WinixAPI
+            if (window.WinixAPI && window.WinixAPI.diagnostics) {
+                try {
+                    const requestStats = window.WinixAPI.diagnostics.getRequestStats();
+                    console.log('📊 Статистика запитів:', requestStats);
+
+                    const connectionState = window.WinixAPI.diagnostics.getConnectionState();
+                    console.log('🔌 Стан з\'єднання:', connectionState);
+
+                    const activeEndpoints = window.WinixAPI.diagnostics.getActiveEndpoints();
+                    console.log('🔄 Активні ендпоінти:', activeEndpoints);
+
+                    const blockedEndpoints = window.WinixAPI.diagnostics.getBlockedEndpoints();
+                    console.log('🚫 Заблоковані ендпоінти:', blockedEndpoints);
+                } catch (e) {
+                    console.error('❌ Помилка доступу до діагностики WinixAPI:', e);
+                }
+            }
+
+            return connectionStatus;
+        } catch (error) {
+            console.error('❌ Критична помилка діагностики:', error);
+            return false;
+        } finally {
+            console.groupEnd();
+        }
+    }
+
+    /**
+     * Діагностика API модуля
+     */
+    function logApiModuleStatus() {
+        console.group('🔍 Діагностика API модуля');
+
+        console.log('📋 Доступність API модулів:');
+        console.log(`- window.API: ${!!window.API}`);
+        console.log(`- window.WinixAPI: ${!!window.WinixAPI}`);
+        console.log(`- window.apiRequest: ${!!window.apiRequest}`);
+        console.log(`- window.API_PATHS: ${!!window.API_PATHS}`);
+
+        if (window.API_PATHS) {
+            console.log('📋 Доступні API шляхи:');
+            Object.keys(window.API_PATHS).forEach(category => {
+                console.log(`- ${category}: ${typeof window.API_PATHS[category]}`);
+            });
+        }
+
+        try {
+            // Перевіряємо чи завантажено скрипт API
+            const apiScript = document.querySelector('script[src*="api.js"]');
+            console.log(`📜 API скрипт: ${apiScript ? 'знайдено' : 'не знайдено'}`);
+
+            // Перевіряємо статус завантаження скриптів
+            const scripts = document.querySelectorAll('script');
+            console.log('📜 Завантажені скрипти:');
+            scripts.forEach(script => {
+                if (script.src && (script.src.includes('api') || script.src.includes('tasks'))) {
+                    console.log(`- ${script.src.split('/').pop()}: ${script.async ? 'async' : ''} ${script.defer ? 'defer' : ''}`);
+                }
+            });
+        } catch (e) {
+            console.error('❌ Помилка при аналізі скриптів:', e);
+        }
+
+        console.groupEnd();
+    }
+
+    /**
+     * Оновлення списку завдань з виправленими помилками
+     */
+    async function refreshTasksWithErrorHandling() {
+        try {
+            // Показуємо індикатор завантаження
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'tasks-loading-indicator';
+            loadingIndicator.innerHTML = `
+                <div class="spinner"></div>
+                <div class="loading-text">Оновлення завдань...</div>
+            `;
+            document.body.appendChild(loadingIndicator);
+
+            // Діагностуємо проблеми з'єднання
+            const connectionOk = await diagnoseBendEndIssues();
+
+            // Якщо з'єднання в порядку, спробуємо оновити завдання
+            if (connectionOk) {
+                // Очищаємо статус використання мок-даних
+                Object.keys(mockDataStatus).forEach(key => {
+                    mockDataStatus[key] = false;
+                });
+
+                // Завантажуємо завдання з сервера
+                await loadTasks();
+            } else {
+                // Якщо з'єднання не в порядку, показуємо повідомлення
+                showErrorMessage('Проблема з\'єднання з сервером. Використовуються демонстраційні дані.');
+
+                // Використовуємо тестові дані
+                socialTasks = getMockSocialTasks();
+                limitedTasks = getMockLimitedTasks();
+                partnerTasks = getMockPartnerTasks();
+
+                // Позначаємо, що використовуються тестові дані
+                mockDataStatus.socialTasks = true;
+                mockDataStatus.limitedTasks = true;
+                mockDataStatus.partnerTasks = true;
+
+                // Відображаємо завдання
+                renderSocialTasks();
+                renderLimitedTasks();
+                renderPartnerTasks();
+
+                // Додаємо видимий індикатор тестових даних
+                addMockDataIndicator();
+            }
+        } catch (error) {
+            console.error('TaskManager: Помилка оновлення завдань:', error);
+            showErrorMessage('Не вдалося оновити завдання. Будь ласка, спробуйте пізніше.');
+        } finally {
+            // Видаляємо індикатор завантаження
+            const loadingIndicator = document.querySelector('.tasks-loading-indicator');
+            if (loadingIndicator) {
+                loadingIndicator.remove();
+            }
+        }
+    }
+
     // Публічний API модуля
     return {
         init,
@@ -1697,8 +1975,12 @@ window.TaskManager = (function() {
         showRewardAnimation,
         normalizeReward,
         resetState,
+        refreshTasksWithErrorHandling,
+        testBackendConnection,
+        diagnoseBendEndIssues,
+        addMockDataIndicator,
         REWARD_TYPES,
-        // Додаємо методи для перевірки використання мок-даних
+        // Методи для перевірки використання мок-даних
         isUsingMockData: (type) => mockDataStatus[type] || false,
         isApiAvailable
     };
