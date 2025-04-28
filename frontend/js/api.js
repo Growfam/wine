@@ -327,28 +327,27 @@
      * @param {string} endpoint - вхідний endpoint
      * @returns {string} нормалізований endpoint
      */
-    function normalizeEndpoint(endpoint) {
-        if (!endpoint) return 'api';
+    // Виправити функцію normalizeEndpoint
+function normalizeEndpoint(endpoint) {
+    if (!endpoint) return 'api';
 
-        // ВИПРАВЛЕННЯ: Покращена нормалізація URL для запобігання помилкам
-        // Видаляємо початковий та кінцевий слеш, якщо вони є
-        let cleanEndpoint = endpoint;
-        if (cleanEndpoint.startsWith('/')) {
-            cleanEndpoint = cleanEndpoint.substring(1);
-        }
-        if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
-            cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
-        }
-
-        // Перевіряємо, чи вже містить endpoint 'api'
-        if (cleanEndpoint.startsWith('api/')) {
-            return cleanEndpoint;
-        } else if (cleanEndpoint.startsWith('api')) {
-            return `api/${cleanEndpoint.substring(3)}`;
-        } else {
-            return `api/${cleanEndpoint}`;
-        }
+    let cleanEndpoint = endpoint;
+    if (cleanEndpoint.startsWith('/')) {
+        cleanEndpoint = cleanEndpoint.substring(1);
     }
+    if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
+        cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
+    }
+
+    // Перевіряємо, чи не починається шлях з 'api/'
+    if (cleanEndpoint.startsWith('api/')) {
+        return cleanEndpoint;
+    } else if (cleanEndpoint.startsWith('api')) {
+        return `api/${cleanEndpoint.substring(3)}`;
+    } else {
+        return `api/${cleanEndpoint}`;
+    }
+}
 
     /**
      * Перевірка валідності UUID
