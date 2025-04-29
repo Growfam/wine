@@ -5,7 +5,7 @@
 import logging
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 
 # Додаємо кореневу папку проекту до шляху
@@ -140,12 +140,19 @@ class TaskService:
                 return []
 
             # Фільтруємо за датою
-            now = datetime.now()
+            # ВИПРАВЛЕННЯ: Використовуємо datetime з часовим поясом UTC
+            now = datetime.now(timezone.utc)
             active_tasks = []
 
             for task_data in response.data:
                 try:
                     task = Task.from_dict(task_data)
+
+                    # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
+                    if task.start_date and not task.start_date.tzinfo:
+                        task.start_date = task.start_date.replace(tzinfo=timezone.utc)
+                    if task.end_date and not task.end_date.tzinfo:
+                        task.end_date = task.end_date.replace(tzinfo=timezone.utc)
 
                     # Перевіряємо дату початку
                     if task.start_date and task.start_date > now:
@@ -249,6 +256,15 @@ class TaskService:
                     logger.error(f"Відсутнє обов'язкове поле: {field}")
                     return None
 
+            # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
+            if 'start_date' in task_data and task_data['start_date'] and isinstance(task_data['start_date'], datetime):
+                if not task_data['start_date'].tzinfo:
+                    task_data['start_date'] = task_data['start_date'].replace(tzinfo=timezone.utc)
+
+            if 'end_date' in task_data and task_data['end_date'] and isinstance(task_data['end_date'], datetime):
+                if not task_data['end_date'].tzinfo:
+                    task_data['end_date'] = task_data['end_date'].replace(tzinfo=timezone.utc)
+
             # Створюємо об'єкт завдання
             task = Task.from_dict(task_data)
 
@@ -284,6 +300,15 @@ class TaskService:
             if not current_task:
                 logger.error(f"Завдання з ID {task_id} не знайдено")
                 return None
+
+            # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
+            if 'start_date' in update_data and update_data['start_date'] and isinstance(update_data['start_date'], datetime):
+                if not update_data['start_date'].tzinfo:
+                    update_data['start_date'] = update_data['start_date'].replace(tzinfo=timezone.utc)
+
+            if 'end_date' in update_data and update_data['end_date'] and isinstance(update_data['end_date'], datetime):
+                if not update_data['end_date'].tzinfo:
+                    update_data['end_date'] = update_data['end_date'].replace(tzinfo=timezone.utc)
 
             # Оновлюємо завдання
             updated_task = current_task.update(update_data)
