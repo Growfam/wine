@@ -53,6 +53,25 @@ def register_quests_routes(app):
         """Отримання детальної інформації про завдання"""
         return controllers.get_task_details(task_id)
 
+    # НОВИЙ ЕНДПОІНТ: Створення завдань
+    @app.route('/api/quests/tasks/create', methods=['POST'])
+    def api_create_task():
+        """Створення нового завдання (тільки для адміністраторів)"""
+        # Перевірка прав адміністратора відбуватиметься в контролері
+        return controllers.create_new_task(request.json)
+
+    # НОВИЙ ЕНДПОІНТ: Оновлення завдання
+    @app.route('/api/quests/tasks/<task_id>/update', methods=['PUT'])
+    def api_update_task(task_id):
+        """Оновлення існуючого завдання (тільки для адміністраторів)"""
+        return controllers.update_existing_task(task_id, request.json)
+
+    # НОВИЙ ЕНДПОІНТ: Видалення завдання
+    @app.route('/api/quests/tasks/<task_id>/delete', methods=['DELETE'])
+    def api_delete_task(task_id):
+        """Видалення завдання (тільки для адміністраторів)"""
+        return controllers.delete_task_by_id(task_id)
+
     # Маршрути для роботи з прогресом завдань
 
     @app.route('/api/user/<telegram_id>/tasks', methods=['GET'])

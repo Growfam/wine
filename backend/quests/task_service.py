@@ -242,6 +242,13 @@ class TaskService:
             Optional[Task]: Створене завдання або None у випадку помилки
         """
         try:
+            # Переконуємось, що обов'язкові поля присутні
+            required_fields = ["title", "description", "task_type", "reward_type", "reward_amount"]
+            for field in required_fields:
+                if field not in task_data:
+                    logger.error(f"Відсутнє обов'язкове поле: {field}")
+                    return None
+
             # Створюємо об'єкт завдання
             task = Task.from_dict(task_data)
 
@@ -407,6 +414,11 @@ class TaskService:
 
             if not task:
                 logger.error(f"Завдання з ID {task_id} не знайдено")
+                return None
+
+            # Валідуємо progress_value
+            if progress_value < 0:
+                logger.error(f"Значення прогресу не може бути від'ємним: {progress_value}")
                 return None
 
             # Отримуємо поточний прогрес

@@ -23,13 +23,155 @@ from quests.verification_service import VerificationService
 from quests.leaderboard_service import LeaderboardService
 from quests.referral_service import ReferralService
 from quests.daily_bonus import DailyBonusService
-from utils.api_helpers import api_success, api_error, api_validation_error, handle_exception, validate_request_data
+from utils.api_helpers import api_success, api_error, api_validation_error, handle_exception, validate_request_data, validate_numeric_field
 from supabase_client import supabase
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+# НОВІ ФУНКЦІЇ ДЛЯ КЕРУВАННЯ ЗАВДАННЯМИ
+
+def create_new_task(data):
+    """
+    Створення нового завдання (тільки для адміністраторів).
+
+    Args:
+        data (dict): Дані нового завдання
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    try:
+        # Перевірка на обов'язкові поля
+        required_fields = [
+            "title", "description", "task_type", "reward_type",
+            "reward_amount", "action_type"
+        ]
+        is_valid, errors = validate_request_data(data, required_fields)
+        if not is_valid:
+            return api_validation_error(errors)
+
+        # Перевірка типу завдання
+        valid_task_types = [TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY]
+        if data.get("task_type") not in valid_task_types:
+            return api_error(message="Невідомий тип завдання", details={"task_type": "Невідомий тип завдання"})
+
+        # Валідація числових полів
+        is_valid, error_msg, reward_amount = validate_numeric_field(
+            data.get("reward_amount"), "reward_amount", min_value=1
+        )
+        if not is_valid:
+            return api_error(message=error_msg)
+
+        # Валідація цільового значення, якщо воно є
+        if "target_value" in data:
+            is_valid, error_msg, target_value = validate_numeric_field(
+                data.get("target_value"), "target_value", min_value=1, integer_only=True
+            )
+            if not is_valid:
+                return api_error(message=error_msg)
+            data["target_value"] = target_value
+
+        # Оновлюємо reward_amount у даних
+        data["reward_amount"] = reward_amount
+
+        # Створюємо завдання через сервіс
+        task = TaskService.create_task(data)
+
+        if not task:
+            return api_error(message="Не вдалося створити завдання")
+
+        return api_success(
+            data={"task": task.to_dict()},
+            message="Завдання успішно створено"
+        )
+
+    except Exception as e:
+        return handle_exception(e, "Помилка створення завдання")
+
+
+def update_existing_task(task_id, data):
+    """
+    Оновлення існуючого завдання (тільки для адміністраторів).
+
+    Args:
+        task_id (str): ID завдання для оновлення
+        data (dict): Дані для оновлення
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    try:
+        # Перевіряємо, чи існує завдання
+        task = TaskService.get_task_by_id(task_id)
+
+        if not task:
+            return api_error(message=f"Завдання з ID {task_id} не знайдено", status_code=404)
+
+        # Валідація числових полів, якщо вони присутні
+        if "reward_amount" in data:
+            is_valid, error_msg, reward_amount = validate_numeric_field(
+                data.get("reward_amount"), "reward_amount", min_value=1
+            )
+            if not is_valid:
+                return api_error(message=error_msg)
+            data["reward_amount"] = reward_amount
+
+        if "target_value" in data:
+            is_valid, error_msg, target_value = validate_numeric_field(
+                data.get("target_value"), "target_value", min_value=1, integer_only=True
+            )
+            if not is_valid:
+                return api_error(message=error_msg)
+            data["target_value"] = target_value
+
+        # Оновлюємо завдання
+        updated_task = TaskService.update_task(task_id, data)
+
+        if not updated_task:
+            return api_error(message="Не вдалося оновити завдання")
+
+        return api_success(
+            data={"task": updated_task.to_dict()},
+            message="Завдання успішно оновлено"
+        )
+
+    except Exception as e:
+        return handle_exception(e, f"Помилка оновлення завдання {task_id}")
+
+
+def delete_task_by_id(task_id):
+    """
+    Видалення завдання (тільки для адміністраторів).
+
+    Args:
+        task_id (str): ID завдання для видалення
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    try:
+        # Перевіряємо, чи існує завдання
+        task = TaskService.get_task_by_id(task_id)
+
+        if not task:
+            return api_error(message=f"Завдання з ID {task_id} не знайдено", status_code=404)
+
+        # Видаляємо завдання
+        deleted = TaskService.delete_task(task_id)
+
+        if not deleted:
+            return api_error(message="Не вдалося видалити завдання")
+
+        return api_success(
+            message=f"Завдання {task_id} успішно видалено"
+        )
+
+    except Exception as e:
+        return handle_exception(e, f"Помилка видалення завдання {task_id}")
 
 
 # Контролери для завдань
@@ -67,7 +209,7 @@ def get_tasks_by_type(task_type):
         valid_types = [TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY]
 
         if task_type not in valid_types:
-            return api_error(message=f"Невідомий тип завдань: {task_type}", status_code=400)
+            return api_error(message=f"Невідомий тип завдань: {task_type}", details={"task_type": "Невідомий тип завдань"})
 
         tasks = TaskService.get_tasks_by_type(task_type)
 
@@ -144,13 +286,13 @@ def start_task(telegram_id, task_id):
 
         # Перевіряємо, чи завдання активне
         if not task.is_active():
-            return api_error(message="Завдання неактивне або термін його виконання минув", status_code=400)
+            return api_error(message="Завдання неактивне або термін його виконання минув")
 
         # Починаємо виконання завдання
         progress = TaskService.start_task(telegram_id, task_id)
 
         if not progress:
-            return api_error(message="Не вдалося розпочати виконання завдання", status_code=500)
+            return api_error(message="Не вдалося розпочати виконання завдання")
 
         return api_success(
             data={"progress": progress.to_dict()},
@@ -181,7 +323,11 @@ def update_task_progress(telegram_id, task_id):
             return api_validation_error(errors)
 
         # Отримуємо значення прогресу
-        progress_value = int(data.get("progress_value", 0))
+        is_valid, error_msg, progress_value = validate_numeric_field(
+            data.get("progress_value"), "progress_value", min_value=0, integer_only=True
+        )
+        if not is_valid:
+            return api_error(message=error_msg)
 
         # Отримуємо дані для верифікації, якщо вони є
         verification_data = data.get("verification_data", {})
@@ -190,7 +336,7 @@ def update_task_progress(telegram_id, task_id):
         updated_progress = TaskService.update_progress(telegram_id, task_id, progress_value, verification_data)
 
         if not updated_progress:
-            return api_error(message="Не вдалося оновити прогрес завдання", status_code=500)
+            return api_error(message="Не вдалося оновити прогрес завдання")
 
         # Перевіряємо, чи завдання виконано
         task_completed = updated_progress.is_completed()
@@ -480,7 +626,7 @@ def claim_daily_bonus(telegram_id, data=None):
         success, error, bonus_data = DailyBonusService.claim_daily_bonus(telegram_id, day)
 
         if not success:
-            return api_error(message=error, status_code=400)
+            return api_error(message=error)
 
         return api_success(
             data=bonus_data,
@@ -505,7 +651,7 @@ def claim_streak_bonus(telegram_id):
         success, error, bonus_data = DailyBonusService.get_streak_bonus(telegram_id)
 
         if not success:
-            return api_error(message=error, status_code=400)
+            return api_error(message=error)
 
         return api_success(
             data=bonus_data,
@@ -575,7 +721,7 @@ def verify_subscription(telegram_id, data=None):
         )
 
         if not success:
-            return api_error(message=error or "Помилка верифікації підписки", status_code=400)
+            return api_error(message=error or "Помилка верифікації підписки")
 
         # Оновлюємо статус соціального завдання
         VerificationService.update_user_social_tasks(telegram_id, platform, True)
@@ -605,8 +751,7 @@ def verify_subscription(telegram_id, data=None):
 
         if transaction_result.get("status") != "success":
             return api_error(
-                message=f"Помилка нарахування винагороди: {transaction_result.get('message', 'Невідома помилка')}",
-                status_code=500
+                message=f"Помилка нарахування винагороди: {transaction_result.get('message', 'Невідома помилка')}"
             )
 
         return api_success(
@@ -772,19 +917,19 @@ def use_referral_code():
 
         # Перевіряємо, чи не намагається користувач використати свій власний код
         if str(referrer_id) == str(referee_id):
-            return api_error(message="Ви не можете використати свій власний реферальний код", status_code=400)
+            return api_error(message="Ви не можете використати свій власний реферальний код")
 
         # Створюємо реферальний запис
         referral = ReferralService.create_referral(referrer_id, referee_id)
 
         if not referral:
-            return api_error(message="Не вдалося створити реферальний запис", status_code=500)
+            return api_error(message="Не вдалося створити реферальний запис")
 
         # Обробляємо винагороду для реферера
         success, error, reward_data = ReferralService.process_referral_reward(referral.id)
 
         if not success:
-            return api_error(message=f"Не вдалося обробити реферальну винагороду: {error}", status_code=500)
+            return api_error(message=f"Не вдалося обробити реферальну винагороду: {error}")
 
         return api_success(
             data={
