@@ -1,7 +1,7 @@
 /**
  * daily-bonus.js - Обробник щоденних бонусів
  * Відповідальний за отримання та управління щоденними бонусами
- * З виправленою обробкою 404 помилок
+ * З виправленою обробкою 404 помилок та правильними URL API
  */
 
 window.DailyBonus = (function() {
@@ -21,12 +21,45 @@ window.DailyBonus = (function() {
         failureCount: 0
     };
 
-    // Шляхи API (правильне формування URL)
+    // Шляхи API (ВИПРАВЛЕНО: додано префікс /api/)
     const API_PATHS = {
-        STATUS: (userId) => `user/${userId}/daily-bonus`,       // Видалено слеш на початку
-        CLAIM: (userId) => `user/${userId}/claim-daily-bonus`,  // Видалено слеш на початку
-        STREAK: (userId) => `user/${userId}/claim-streak-bonus` // Видалено слеш на початку
+        STATUS: (userId) => `api/user/${userId}/daily-bonus`,
+        CLAIM: (userId) => `api/user/${userId}/claim-daily-bonus`,
+        STREAK: (userId) => `api/user/${userId}/claim-streak-bonus`
     };
+
+    /**
+     * Отримання ID користувача
+     * @returns {string|null} ID користувача або null
+     */
+    function getUserId() {
+        // Спроба отримати ID з глобальних змінних
+        if (window.USER_ID) return window.USER_ID;
+        if (window.telegramWebviewProxy && window.telegramWebviewProxy.initDataUnsafe &&
+            window.telegramWebviewProxy.initDataUnsafe.user) {
+            return window.telegramWebviewProxy.initDataUnsafe.user.id;
+        }
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe &&
+            window.Telegram.WebApp.initDataUnsafe.user) {
+            return window.Telegram.WebApp.initDataUnsafe.user.id;
+        }
+
+        // Спроба отримати з localStorage
+        try {
+            const userData = localStorage.getItem('user_data');
+            if (userData) {
+                const parsed = JSON.parse(userData);
+                if (parsed && parsed.telegram_id) {
+                    return parsed.telegram_id;
+                }
+            }
+        } catch (e) {
+            console.warn("Помилка отримання user_data з localStorage:", e);
+        }
+
+        // Повертаємо null, якщо не знайдено
+        return null;
+    }
 
     /**
      * Ініціалізація модуля щоденних бонусів
@@ -126,7 +159,7 @@ window.DailyBonus = (function() {
             // ВИПРАВЛЕНО: Формування правильного шляху API
             const endpoint = API_PATHS.STATUS(userId);
 
-            // ВИПРАВЛЕНО: Додано більше діагностики
+            // Діагностика
             if (config.debug) {
                 console.log(`DailyBonus: Запит даних бонусу для ${userId}, endpoint: ${endpoint}`);
             }
@@ -138,7 +171,7 @@ window.DailyBonus = (function() {
             });
 
             // Успішна відповідь
-            if (response.status === 'success' && response.data) {
+            if (response && response.status === 'success' && response.data) {
                 state.bonusData = response.data;
                 state.lastLoaded = now;
                 state.failureCount = 0;
@@ -154,7 +187,7 @@ window.DailyBonus = (function() {
                 }
 
                 return response.data;
-            } else if (response.status === 'error' && response.httpStatus === 404) {
+            } else if (response && response.status === 'error' && response.httpStatus === 404) {
                 // ВИПРАВЛЕНО: Спеціальна обробка 404 помилки
                 console.warn("DailyBonus: API ендпоінт не знайдено (404), використовуємо симульовані дані");
 
@@ -173,14 +206,14 @@ window.DailyBonus = (function() {
             } else {
                 // Інша помилка від API
                 console.error("DailyBonus: Помилка API", response);
-                throw new Error(response.message || "Невідома помилка API");
+                throw new Error(response && response.message ? response.message : "Невідома помилка API");
             }
         } catch (error) {
             state.failureCount++;
             console.error("DailyBonus: Помилка завантаження даних", error);
 
             // Показуємо повідомлення про помилку, якщо це не 404
-            if (error.httpStatus !== 404 && typeof window.showToast === 'function' && showLoader) {
+            if ((!error.httpStatus || error.httpStatus !== 404) && typeof window.showToast === 'function' && showLoader) {
                 window.showToast("Не вдалося завантажити дані щоденного бонусу. Спробуйте пізніше.", "error");
             }
 
@@ -191,8 +224,10 @@ window.DailyBonus = (function() {
                 // Генеруємо випадкові бонусні дані
                 const fallbackData = generateFallbackData();
 
-                // Повертаємо симульовані дані, але не зберігаємо їх як стан,
-                // щоб при наступному запиті знову спробувати отримати справжні дані
+                // Оновлюємо стан, оскільки API недоступний
+                state.bonusData = fallbackData;
+                state.lastLoaded = now;
+
                 return fallbackData;
             }
 
@@ -236,14 +271,15 @@ window.DailyBonus = (function() {
         }
 
         // Визначаємо суму наступного бонусу (від 20 до 50)
-        const nextBonus = Math.floor(Math.random() * 31) + 20;
+        const nextReward = Math.floor(Math.random() * 31) + 20;
 
         return {
-            day: currentDay,
-            canClaim: !bonusAlreadyClaimed,
-            nextBonus: nextBonus,
-            streakDays: currentDay,
-            lastClaimed: lastClaimedDate.toISOString(),
+            can_claim: !bonusAlreadyClaimed,
+            current_day: currentDay,
+            claimed_days: Array.from({length: currentDay - 1}, (_, i) => i + 1),
+            streak_days: currentDay - 1,
+            next_reward: nextReward,
+            last_claimed_date: lastClaimedDate.toISOString(),
             source: "fallback_data"
         };
     }
@@ -283,8 +319,16 @@ window.DailyBonus = (function() {
             // ВИПРАВЛЕНО: Формування правильного шляху API
             const endpoint = API_PATHS.CLAIM(userId);
 
+            // Діагностика
+            if (config.debug) {
+                console.log(`DailyBonus: Запит на отримання бонусу для ${userId}, endpoint: ${endpoint}`);
+            }
+
+            // Дані для відправки
+            const requestData = state.bonusData ? { day: state.bonusData.current_day } : null;
+
             // Виконуємо запит до API
-            const response = await apiMethod(endpoint, 'POST', null, {
+            const response = await apiMethod(endpoint, 'POST', requestData, {
                 suppressErrors: true
             });
 
@@ -294,14 +338,17 @@ window.DailyBonus = (function() {
             }
 
             // Успішна відповідь
-            if (response.status === 'success' && response.data) {
+            if (response && response.status === 'success' && response.data) {
                 // Оновлюємо стан
-                state.bonusData = {
+                const newBonusData = {
                     ...state.bonusData,
-                    ...response.data,
-                    canClaim: false,
-                    lastClaimed: new Date().toISOString()
+                    can_claim: false,
+                    current_day: response.data.next_day,
+                    streak_days: response.data.streak_days,
+                    last_claimed_date: new Date().toISOString()
                 };
+
+                state.bonusData = newBonusData;
                 state.lastLoaded = Date.now();
 
                 // Оновлюємо кеш
@@ -330,25 +377,43 @@ window.DailyBonus = (function() {
                 }));
 
                 return response.data;
-            } else if (response.status === 'error' && response.httpStatus === 404) {
+            } else if (response && response.status === 'error' && response.httpStatus === 404) {
                 // ВИПРАВЛЕНО: Спеціальна обробка 404 помилки
                 console.warn("DailyBonus: API ендпоінт не знайдено (404), симулюємо отримання бонусу");
 
                 if (config.enableFallback) {
                     // Симулюємо отримання бонусу
                     const reward = Math.floor(Math.random() * 31) + 20; // 20-50 WINIX
+                    const nextDay = state.bonusData && state.bonusData.current_day ?
+                                    (state.bonusData.current_day % 7) + 1 : 2;
+                    const streakDays = state.bonusData && state.bonusData.streak_days ?
+                                      state.bonusData.streak_days + 1 : 1;
 
                     // Оновлюємо стан
-                    if (state.bonusData) {
-                        state.bonusData.canClaim = false;
-                        state.bonusData.lastClaimed = new Date().toISOString();
-                        state.bonusData.day = (state.bonusData.day || 0) + 1;
-                        if (state.bonusData.day > 7) state.bonusData.day = 1;
+                    const newBonusData = {
+                        ...state.bonusData,
+                        can_claim: false,
+                        current_day: nextDay,
+                        streak_days: streakDays,
+                        last_claimed_date: new Date().toISOString()
+                    };
+
+                    state.bonusData = newBonusData;
+                    state.lastLoaded = Date.now();
+
+                    // Оновлюємо кеш
+                    try {
+                        localStorage.setItem('daily_bonus_data', JSON.stringify({
+                            data: state.bonusData,
+                            timestamp: state.lastLoaded
+                        }));
+                    } catch (e) {
+                        console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
                     }
 
                     // Показуємо повідомлення про успіх
                     if (typeof window.showToast === 'function') {
-                        window.showToast(`Щоденний бонус отримано (симуляція): +${reward} WINIX`, "success");
+                        window.showToast(`Щоденний бонус отримано: +${reward} WINIX`, "success");
                     }
 
                     // Оновлюємо баланс користувача
@@ -356,18 +421,29 @@ window.DailyBonus = (function() {
                         window.updateUserBalance(reward);
                     }
 
-                    return {
-                        status: "success",
+                    const resultData = {
+                        success: true,
                         reward: reward,
-                        message: "Щоденний бонус отримано (симуляція)",
+                        new_balance: 0,
+                        previous_balance: 0,
+                        current_day: state.bonusData.current_day - 1,
+                        next_day: nextDay,
+                        streak_days: streakDays,
                         source: "fallback_claim"
                     };
+
+                    // Відправляємо подію про отримання бонусу
+                    document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
+                        detail: resultData
+                    }));
+
+                    return resultData;
                 }
 
                 throw new Error("API ендпоінт для отримання бонусу не знайдено");
             } else {
                 // Інша помилка від API
-                const errorMessage = response.message || "Невідома помилка API";
+                const errorMessage = response && response.message ? response.message : "Невідома помилка API";
                 console.error("DailyBonus: Помилка отримання бонусу", response);
 
                 // Показуємо повідомлення про помилку

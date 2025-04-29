@@ -32,6 +32,40 @@ class TaskService:
     """
 
     @staticmethod
+    def normalize_date(date_obj):
+        """
+        Нормалізує дату, додаючи часовий пояс, якщо він відсутній
+
+        Args:
+            date_obj: Об'єкт datetime для нормалізації
+
+        Returns:
+            Об'єкт datetime з часовим поясом UTC
+        """
+        if date_obj is None:
+            return None
+
+        if isinstance(date_obj, str):
+            try:
+                if 'Z' in date_obj:
+                    date_obj = date_obj.replace('Z', '+00:00')
+                date_obj = datetime.fromisoformat(date_obj)
+            except ValueError:
+                try:
+                    date_obj = datetime.strptime(date_obj, "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    try:
+                        date_obj = datetime.strptime(date_obj, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        logger.error(f"Не вдалося розпізнати формат дати: {date_obj}")
+                        return None
+
+        if isinstance(date_obj, datetime) and not date_obj.tzinfo:
+            date_obj = date_obj.replace(tzinfo=timezone.utc)
+
+        return date_obj
+
+    @staticmethod
     @cached(timeout=300)  # Кешуємо на 5 хвилин
     def get_all_tasks() -> List[Task]:
         """
@@ -50,6 +84,13 @@ class TaskService:
             tasks = []
             for task_data in response.data:
                 try:
+                    # Нормалізуємо дати перед створенням об'єкта
+                    if 'start_date' in task_data and task_data['start_date']:
+                        task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+
+                    if 'end_date' in task_data and task_data['end_date']:
+                        task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+
                     task = Task.from_dict(task_data)
                     tasks.append(task)
                 except Exception as e:
@@ -81,6 +122,14 @@ class TaskService:
                 return None
 
             task_data = response.data[0]
+
+            # Нормалізуємо дати перед створенням об'єкта
+            if 'start_date' in task_data and task_data['start_date']:
+                task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+
+            if 'end_date' in task_data and task_data['end_date']:
+                task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+
             task = Task.from_dict(task_data)
 
             logger.info(f"Отримано завдання: {task}")
@@ -110,6 +159,13 @@ class TaskService:
             tasks = []
             for task_data in response.data:
                 try:
+                    # Нормалізуємо дати перед створенням об'єкта
+                    if 'start_date' in task_data and task_data['start_date']:
+                        task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+
+                    if 'end_date' in task_data and task_data['end_date']:
+                        task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+
                     task = Task.from_dict(task_data)
                     # Перевіряємо, чи завдання активне
                     if task.is_active():
@@ -139,22 +195,22 @@ class TaskService:
                 logger.info("Активні завдання не знайдено")
                 return []
 
-            # Фільтруємо за датою
-            # ВИПРАВЛЕННЯ: Використовуємо datetime з часовим поясом UTC
+            # Використовуємо UTC для поточного часу
             now = datetime.now(timezone.utc)
             active_tasks = []
 
             for task_data in response.data:
                 try:
+                    # Нормалізуємо дати перед створенням об'єкта
+                    if 'start_date' in task_data and task_data['start_date']:
+                        task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+
+                    if 'end_date' in task_data and task_data['end_date']:
+                        task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+
                     task = Task.from_dict(task_data)
 
-                    # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
-                    if task.start_date and not task.start_date.tzinfo:
-                        task.start_date = task.start_date.replace(tzinfo=timezone.utc)
-                    if task.end_date and not task.end_date.tzinfo:
-                        task.end_date = task.end_date.replace(tzinfo=timezone.utc)
-
-                    # Перевіряємо дату початку
+                    # Перевіряємо дату початку (всі дати вже нормалізовані)
                     if task.start_date and task.start_date > now:
                         continue
 
@@ -226,7 +282,7 @@ class TaskService:
                     task_dict['progress'] = {
                         'status': STATUS_NOT_STARTED,
                         'progress_value': 0,
-                        'max_progress': 100,
+                        'max_progress': task.target_value or 100,
                         'progress_percent': 0
                     }
                     available_tasks.append(task_dict)
@@ -256,14 +312,12 @@ class TaskService:
                     logger.error(f"Відсутнє обов'язкове поле: {field}")
                     return None
 
-            # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
-            if 'start_date' in task_data and task_data['start_date'] and isinstance(task_data['start_date'], datetime):
-                if not task_data['start_date'].tzinfo:
-                    task_data['start_date'] = task_data['start_date'].replace(tzinfo=timezone.utc)
+            # Нормалізуємо дати
+            if 'start_date' in task_data and task_data['start_date']:
+                task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
 
-            if 'end_date' in task_data and task_data['end_date'] and isinstance(task_data['end_date'], datetime):
-                if not task_data['end_date'].tzinfo:
-                    task_data['end_date'] = task_data['end_date'].replace(tzinfo=timezone.utc)
+            if 'end_date' in task_data and task_data['end_date']:
+                task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
             # Створюємо об'єкт завдання
             task = Task.from_dict(task_data)
@@ -301,14 +355,12 @@ class TaskService:
                 logger.error(f"Завдання з ID {task_id} не знайдено")
                 return None
 
-            # ВИПРАВЛЕННЯ: Переконуємося, що дати мають часовий пояс
-            if 'start_date' in update_data and update_data['start_date'] and isinstance(update_data['start_date'], datetime):
-                if not update_data['start_date'].tzinfo:
-                    update_data['start_date'] = update_data['start_date'].replace(tzinfo=timezone.utc)
+            # Нормалізуємо дати
+            if 'start_date' in update_data and update_data['start_date']:
+                update_data['start_date'] = TaskService.normalize_date(update_data['start_date'])
 
-            if 'end_date' in update_data and update_data['end_date'] and isinstance(update_data['end_date'], datetime):
-                if not update_data['end_date'].tzinfo:
-                    update_data['end_date'] = update_data['end_date'].replace(tzinfo=timezone.utc)
+            if 'end_date' in update_data and update_data['end_date']:
+                update_data['end_date'] = TaskService.normalize_date(update_data['end_date'])
 
             # Оновлюємо завдання
             updated_task = current_task.update(update_data)
@@ -403,7 +455,7 @@ class TaskService:
                 task_id=task_id,
                 status=STATUS_IN_PROGRESS,
                 progress_value=0,
-                max_progress=task.target_value
+                max_progress=task.target_value if task.target_value is not None else 100
             )
 
             # Зберігаємо в базі даних
@@ -462,7 +514,8 @@ class TaskService:
                 return progress
 
             # Оновлюємо значення прогресу
-            progress.update_progress(progress_value, task.target_value)
+            target_value = task.target_value if task.target_value is not None else 100
+            progress.update_progress(progress_value, target_value)
 
             # Додаємо дані для верифікації, якщо вони є
             if verification_data:
@@ -475,7 +528,7 @@ class TaskService:
                 logger.error("Не вдалося оновити прогрес")
                 return None
 
-            logger.info(f"Оновлено прогрес користувача {telegram_id} для завдання {task_id}: {progress_value}/{task.target_value}")
+            logger.info(f"Оновлено прогрес користувача {telegram_id} для завдання {task_id}: {progress_value}/{target_value}")
 
             # Якщо прогрес досягнув максимуму, викликаємо подію завершення завдання
             if progress.is_completed():
@@ -516,7 +569,7 @@ class TaskService:
             if is_verified:
                 progress.set_status(STATUS_VERIFIED)
             else:
-                progress.set_status("rejected")
+                progress.set_status(STATUS_REJECTED)
 
             # Додаємо коментар до верифікації
             if verification_comment:

@@ -5,7 +5,7 @@
 import logging
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Tuple
 
 # Додаємо кореневу папку проекту до шляху
@@ -30,6 +30,40 @@ class DailyBonusService:
     Сервіс для управління щоденними бонусами.
     Надає методи для отримання, перевірки та видачі щоденних бонусів.
     """
+
+    @staticmethod
+    def normalize_date(date_obj):
+        """
+        Нормалізує дату, додаючи часовий пояс, якщо він відсутній
+
+        Args:
+            date_obj: Об'єкт datetime або рядок для нормалізації
+
+        Returns:
+            Об'єкт datetime з часовим поясом UTC або None
+        """
+        if date_obj is None:
+            return None
+
+        # Якщо дата передана як рядок, перетворюємо на datetime
+        if isinstance(date_obj, str):
+            try:
+                # Обробляємо різні формати
+                if 'Z' in date_obj:
+                    date_obj = date_obj.replace('Z', '+00:00')
+                if date_obj.endswith('+00:00') or 'T' in date_obj:
+                    date_obj = datetime.fromisoformat(date_obj)
+                else:
+                    date_obj = datetime.strptime(date_obj, "%Y-%m-%d %H:%M:%S")
+            except ValueError as e:
+                logger.error(f"Помилка перетворення дати з рядка: {str(e)}")
+                return None
+
+        # Додаємо часовий пояс, якщо його немає
+        if isinstance(date_obj, datetime) and not date_obj.tzinfo:
+            date_obj = date_obj.replace(tzinfo=timezone.utc)
+
+        return date_obj
 
     @staticmethod
     def get_daily_bonus_status(telegram_id: str) -> Dict[str, Any]:
@@ -76,18 +110,16 @@ class DailyBonusService:
 
             if last_claimed_date:
                 try:
-                    # Перетворюємо рядкову дату в об'єкт datetime
-                    if isinstance(last_claimed_date, str):
-                        last_date = datetime.fromisoformat(last_claimed_date.replace("Z", "+00:00"))
-                    else:
-                        last_date = last_claimed_date
+                    # Нормалізуємо дату останнього отримання бонусу
+                    last_date = DailyBonusService.normalize_date(last_claimed_date)
 
-                    # Отримуємо лише дату (без часу)
-                    last_date_day = last_date.date()
-                    today = datetime.now().date()
+                    if last_date:
+                        # Отримуємо лише дату (без часу)
+                        last_date_day = last_date.date()
+                        today = datetime.now(timezone.utc).date()
 
-                    # Бонус можна отримати, якщо остання дата отримання не сьогодні
-                    can_claim = last_date_day < today
+                        # Бонус можна отримати, якщо остання дата отримання не сьогодні
+                        can_claim = last_date_day < today
                 except Exception as e:
                     logger.error(f"Помилка при перевірці дати останнього бонусу: {str(e)}")
 
@@ -97,20 +129,18 @@ class DailyBonusService:
             # Перевіряємо, чи треба скинути стрік
             if last_claimed_date:
                 try:
-                    # Перетворюємо рядкову дату в об'єкт datetime
-                    if isinstance(last_claimed_date, str):
-                        last_date = datetime.fromisoformat(last_claimed_date.replace("Z", "+00:00"))
-                    else:
-                        last_date = last_claimed_date
+                    # Нормалізуємо дату останнього отримання бонусу
+                    last_date = DailyBonusService.normalize_date(last_claimed_date)
 
-                    now = datetime.now()
+                    if last_date:
+                        now = datetime.now(timezone.utc)
 
-                    # Визначаємо різницю в днях
-                    delta = now - last_date
+                        # Визначаємо різницю в днях
+                        delta = now - last_date
 
-                    # Якщо пропущено більше одного дня, стрік скидається
-                    if delta.days > 1:
-                        current_day = 1
+                        # Якщо пропущено більше одного дня, стрік скидається
+                        if delta.days > 1:
+                            current_day = 1
                 except Exception as e:
                     logger.error(f"Помилка при перевірці скидання стріку: {str(e)}")
 
@@ -154,7 +184,7 @@ class DailyBonusService:
             day (int, optional): День у циклі, вказаний клієнтом
 
         Returns:
-            Tuple[bool, Optional[str], Dict[str, Any]]: 
+            Tuple[bool, Optional[str], Dict[str, Any]]:
                 (успіх, повідомлення про помилку, дані бонусу)
         """
         try:
@@ -212,7 +242,7 @@ class DailyBonusService:
 
             # Створюємо оновлений об'єкт щоденних бонусів
             updated_bonuses = {
-                "last_claimed_date": datetime.now().isoformat(),
+                "last_claimed_date": datetime.now(timezone.utc).isoformat(),
                 "claimed_days": claimed_days,
                 "current_day": next_day,
                 "streak_days": streak_days
@@ -276,7 +306,7 @@ class DailyBonusService:
             telegram_id (str): Telegram ID користувача
 
         Returns:
-            Tuple[bool, Optional[str], Dict[str, Any]]: 
+            Tuple[bool, Optional[str], Dict[str, Any]]:
                 (успіх, повідомлення про помилку, дані бонусу)
         """
         try:
@@ -412,6 +442,13 @@ class DailyBonusService:
             bonuses = []
             for bonus_data in response.data:
                 try:
+                    # Нормалізуємо дати
+                    if 'claimed_date' in bonus_data and bonus_data['claimed_date']:
+                        bonus_data['claimed_date'] = DailyBonusService.normalize_date(bonus_data['claimed_date'])
+
+                    if 'created_at' in bonus_data and bonus_data['created_at']:
+                        bonus_data['created_at'] = DailyBonusService.normalize_date(bonus_data['created_at'])
+
                     bonus = DailyBonus.from_dict(bonus_data)
                     bonuses.append(bonus.to_dict())
                 except Exception as e:

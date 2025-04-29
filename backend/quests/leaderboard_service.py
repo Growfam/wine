@@ -73,13 +73,13 @@ class LeaderboardService:
                 leaderboard = []
                 for user in users_response.data:
                     telegram_id = user.get("telegram_id")
+                    if not telegram_id:
+                        continue
 
                     # Рахуємо кількість рефералів
-                    referrals_count_response = supabase.table("winix").select("count").eq("referrer_id",
-                                                                                          str(telegram_id)).execute()
+                    referrals_count_response = supabase.table("referrals").select("count").eq("referrer_id", str(telegram_id)).execute()
 
-                    referrals_count = referrals_count_response.count if hasattr(referrals_count_response,
-                                                                                'count') else 0
+                    referrals_count = referrals_count_response.count if hasattr(referrals_count_response, 'count') else 0
 
                     # Додаємо запис до лідерборду
                     leaderboard.append({
@@ -93,7 +93,11 @@ class LeaderboardService:
                 leaderboard = sorted(leaderboard, key=lambda x: x.get("referrals_count", 0), reverse=True)
 
                 # Застосовуємо ліміт та зміщення
-                leaderboard = leaderboard[offset:offset + limit]
+                if offset < len(leaderboard):
+                    end_index = min(offset + limit, len(leaderboard))
+                    leaderboard = leaderboard[offset:end_index]
+                else:
+                    leaderboard = []
 
                 logger.info(f"Отримано {len(leaderboard)} записів з лідерборду рефералів (запасний метод)")
                 return leaderboard
@@ -162,13 +166,17 @@ class LeaderboardService:
 
                 # Отримуємо дані користувачів
                 user_ids = list(user_tasks.keys())
-                users_response = supabase.table("winix").select("telegram_id,username").in_("telegram_id",
-                                                                                            user_ids).execute()
+                if not user_ids:
+                    return []
+
+                users_response = supabase.table("winix").select("telegram_id,username").in_("telegram_id", user_ids).execute()
 
                 users_dict = {}
                 if users_response.data:
                     for user in users_response.data:
-                        users_dict[user.get("telegram_id")] = user
+                        telegram_id = user.get("telegram_id")
+                        if telegram_id:
+                            users_dict[telegram_id] = user
 
                 # Формуємо лідерборд
                 leaderboard = []
@@ -184,7 +192,11 @@ class LeaderboardService:
                 leaderboard = sorted(leaderboard, key=lambda x: x.get("tasks_completed", 0), reverse=True)
 
                 # Застосовуємо ліміт та зміщення
-                leaderboard = leaderboard[offset:offset + limit]
+                if offset < len(leaderboard):
+                    end_index = min(offset + limit, len(leaderboard))
+                    leaderboard = leaderboard[offset:end_index]
+                else:
+                    leaderboard = []
 
                 logger.info(f"Отримано {len(leaderboard)} записів з лідерборду завдань (запасний метод)")
                 return leaderboard
@@ -238,6 +250,15 @@ class LeaderboardService:
             Dict[str, Any]: Дані про позицію користувача
         """
         try:
+            # Перевіряємо, що telegram_id не є None
+            if not telegram_id:
+                return {
+                    "position": None,
+                    "total": 0,
+                    "telegram_id": str(telegram_id),
+                    "error": "Невалідний telegram_id"
+                }
+
             # Реалізуємо для кожного типу лідерборду
             if leaderboard_type == "referrals":
                 # Отримуємо повний лідерборд
@@ -254,8 +275,7 @@ class LeaderboardService:
                         }
 
                 # Якщо користувача немає в лідерборді, отримуємо його дані окремо
-                user_response = supabase.table("winix").select("referral_code").eq("telegram_id",
-                                                                                   str(telegram_id)).execute()
+                user_response = supabase.table("winix").select("referral_code").eq("telegram_id", str(telegram_id)).execute()
 
                 if not user_response.data or len(user_response.data) == 0:
                     return {
@@ -266,8 +286,7 @@ class LeaderboardService:
                     }
 
                 # Рахуємо кількість рефералів
-                referrals_count_response = supabase.table("winix").select("count").eq("referrer_id",
-                                                                                      str(telegram_id)).execute()
+                referrals_count_response = supabase.table("referrals").select("count").eq("referrer_id", str(telegram_id)).execute()
 
                 referrals_count = referrals_count_response.count if hasattr(referrals_count_response, 'count') else 0
 
@@ -354,5 +373,3 @@ class LeaderboardService:
                 "telegram_id": telegram_id,
                 "error": str(e)
             }
-
-
