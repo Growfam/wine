@@ -354,7 +354,7 @@ window.LimitedTask = (function() {
 
         // Викликаємо API самостійно, якщо доступний
         if (apiEnabled) {
-            window.API.post(`/quests/tasks/${task.id}/start`)
+            window.API.post(`quests/tasks/${task.id}/start`)
                 .then(response => {
                     if (response.success) {
                         // Відображаємо успішне повідомлення
@@ -413,7 +413,7 @@ window.LimitedTask = (function() {
         }
 
         // Викликаємо API самостійно, якщо доступний
-        window.API.post(`/quests/tasks/${task.id}/verify`)
+        window.API.post(`quests/tasks/${task.id}/verify`)
             .then(response => {
                 // Оновлюємо відображення завдання
                 refreshTaskDisplay(task.id);

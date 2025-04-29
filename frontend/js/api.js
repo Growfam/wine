@@ -2,7 +2,7 @@
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
  * з виправленням проблем конкуруючих запитів та обробки помилок
- * @version 1.2.2
+ * @version 1.2.3
  */
 
 (function() {
@@ -16,49 +16,49 @@
     const API_PATHS = {
         // Завдання
         TASKS: {
-            ALL: '/quests/tasks',
-            BY_TYPE: (type) => `/quests/tasks/${type}`,
-            SOCIAL: '/quests/tasks/social',
-            LIMITED: '/quests/tasks/limited',
-            PARTNERS: '/quests/tasks/partners',
-            DETAILS: (taskId) => `/quests/tasks/${taskId}/details`,
-            START: (taskId) => `/quests/tasks/${taskId}/start`,
-            VERIFY: (taskId) => `/quests/tasks/${taskId}/verify`,
-            PROGRESS: (taskId) => `/quests/tasks/${taskId}/progress`
+            ALL: 'quests/tasks',  // Видалено початковий слеш
+            BY_TYPE: (type) => `quests/tasks/${type}`,
+            SOCIAL: 'quests/tasks/social',
+            LIMITED: 'quests/tasks/limited',
+            PARTNERS: 'quests/tasks/partners',
+            DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
+            START: (taskId) => `quests/tasks/${taskId}/start`,
+            VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
+            PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
         },
 
         // Користувацькі шляхи
         USER: {
-            DATA: (userId) => `/user/${userId}`,
-            BALANCE: (userId) => `/user/${userId}/balance`,
-            TASKS: (userId) => `/user/${userId}/tasks`,
-            PROGRESS: (userId) => `/user/${userId}/progress`,
-            TASK_STATUS: (userId, taskId) => `/user/${userId}/tasks/${taskId}/status`,
-            SETTINGS: (userId) => `/user/${userId}/settings`
+            DATA: (userId) => `user/${userId}`,  // Видалено початковий слеш
+            BALANCE: (userId) => `user/${userId}/balance`,
+            TASKS: (userId) => `user/${userId}/tasks`,
+            PROGRESS: (userId) => `user/${userId}/progress`,
+            TASK_STATUS: (userId, taskId) => `user/${userId}/tasks/${taskId}/status`,
+            SETTINGS: (userId) => `user/${userId}/settings`
         },
 
         // Щоденні бонуси
         DAILY_BONUS: {
-            STATUS: (userId) => `/user/${userId}/daily-bonus`,
-            CLAIM: (userId) => `/user/${userId}/claim-daily-bonus`,
-            STREAK: (userId) => `/user/${userId}/claim-streak-bonus`,
-            HISTORY: (userId) => `/user/${userId}/bonus-history`
+            STATUS: (userId) => `user/${userId}/daily-bonus`,
+            CLAIM: (userId) => `user/${userId}/claim-daily-bonus`,
+            STREAK: (userId) => `user/${userId}/claim-streak-bonus`,
+            HISTORY: (userId) => `user/${userId}/bonus-history`
         },
 
         // Стейкінг
         STAKING: {
-            DATA: (userId) => `/user/${userId}/staking`,
-            HISTORY: (userId) => `/user/${userId}/staking/history`,
-            CANCEL: (userId, stakingId) => `/user/${userId}/staking/${stakingId}/cancel`
+            DATA: (userId) => `user/${userId}/staking`,
+            HISTORY: (userId) => `user/${userId}/staking/history`,
+            CANCEL: (userId, stakingId) => `user/${userId}/staking/${stakingId}/cancel`
         },
 
         // Інші
         AUTH: {
-            REFRESH_TOKEN: '/auth/refresh-token'
+            REFRESH_TOKEN: 'auth/refresh-token'
         },
 
         // Транзакції
-        TRANSACTIONS: (userId) => `/user/${userId}/transactions`
+        TRANSACTIONS: (userId) => `user/${userId}/transactions`
     };
 
     // ======== ПРИВАТНІ ЗМІННІ ========
@@ -327,27 +327,27 @@
      * @param {string} endpoint - вхідний endpoint
      * @returns {string} нормалізований endpoint
      */
-    // Виправити функцію normalizeEndpoint
-function normalizeEndpoint(endpoint) {
-    if (!endpoint) return 'api';
+    function normalizeEndpoint(endpoint) {
+        if (!endpoint) return 'api';
 
-    let cleanEndpoint = endpoint;
-    if (cleanEndpoint.startsWith('/')) {
-        cleanEndpoint = cleanEndpoint.substring(1);
-    }
-    if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
-        cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
-    }
+        let cleanEndpoint = endpoint;
+        if (cleanEndpoint.startsWith('/')) {
+            cleanEndpoint = cleanEndpoint.substring(1);
+        }
+        if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
+            cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
+        }
 
-    // Перевіряємо, чи не починається шлях з 'api/'
-    if (cleanEndpoint.startsWith('api/')) {
-        return cleanEndpoint;
-    } else if (cleanEndpoint.startsWith('api')) {
-        return `api/${cleanEndpoint.substring(3)}`;
-    } else {
-        return `api/${cleanEndpoint}`;
+        // Перевіряємо, чи не починається шлях з 'api/'
+        if (cleanEndpoint.startsWith('api/')) {
+            return cleanEndpoint;
+        } else if (cleanEndpoint.startsWith('api')) {
+            // ВИПРАВЛЕНО: Додаємо слеш між 'api' та рештою шляху
+            return `api/${cleanEndpoint.substring(3)}`;
+        } else {
+            return `api/${cleanEndpoint}`;
+        }
     }
-}
 
     /**
      * Перевірка валідності UUID
@@ -1216,118 +1216,118 @@ function normalizeEndpoint(endpoint) {
      * Отримання балансу користувача
      */
     async function getBalance() {
-    const userId = getUserId();
-    if (!userId) {
-        throw new Error("ID користувача не знайдено");
-    }
-
-    // Перевірка чи пристрій онлайн
-    if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
-        console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
-
-        // Повертаємо дані з localStorage
-        return {
-            status: 'success',
-            data: {
-                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                coins: parseInt(localStorage.getItem('userCoins') || '0')
-            },
-            source: 'local_storage_offline'
-        };
-    }
-
-    try {
-        // Перевіряємо наявність запису про останню транзакцію
-        const lastTxData = localStorage.getItem('winix_last_transaction');
-        let lastTx = null;
-
-        if (lastTxData) {
-            try {
-                lastTx = JSON.parse(lastTxData);
-                const txAge = Date.now() - lastTx.timestamp;
-
-                // Логуємо інформацію про недавню транзакцію
-                if (txAge < 120000 && lastTx.confirmed && lastTx.type === 'participation') {
-                    console.log(`🔌 API: Знайдено недавню транзакцію участі, вік: ${Math.round(txAge/1000)}с, баланс: ${lastTx.newBalance}`);
-                }
-            } catch (e) {
-                console.warn("🔌 API: Помилка парсингу даних транзакції:", e);
-            }
+        const userId = getUserId();
+        if (!userId) {
+            throw new Error("ID користувача не знайдено");
         }
 
-        // Додаємо параметр для запобігання кешуванню
-        const nocache = Date.now();
-        const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
+        // Перевірка чи пристрій онлайн
+        if (typeof navigator.onLine !== 'undefined' && !navigator.onLine) {
+            console.warn("🔌 API: Пристрій офлайн, використовуємо кешовані дані балансу");
 
-        // Робимо запит до сервера
-        const response = await apiRequest(endpoint, 'GET', null, {
-            suppressErrors: true,
-            timeout: 5000
-        });
+            // Повертаємо дані з localStorage
+            return {
+                status: 'success',
+                data: {
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_offline'
+            };
+        }
 
-        // Перевіряємо успішність відповіді
-        if (response.status === 'success' && response.data) {
-            const serverBalance = response.data.coins;
+        try {
+            // Перевіряємо наявність запису про останню транзакцію
+            const lastTxData = localStorage.getItem('winix_last_transaction');
+            let lastTx = null;
 
-            // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
-            if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
-                const txAge = Date.now() - lastTx.timestamp;
+            if (lastTxData) {
+                try {
+                    lastTx = JSON.parse(lastTxData);
+                    const txAge = Date.now() - lastTx.timestamp;
 
-                // Якщо транзакція відбулась нещодавно (менше 1 хвилини) і баланси не співпадають
-                if (txAge < 60000 && serverBalance !== lastTx.newBalance) {
-                    console.warn(`🔌 API: Виявлено потенційний конфлікт балансів:
-                        - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
-                        - Сервер повернув: ${serverBalance}`);
+                    // Логуємо інформацію про недавню транзакцію
+                    if (txAge < 120000 && lastTx.confirmed && lastTx.type === 'participation') {
+                        console.log(`🔌 API: Знайдено недавню транзакцію участі, вік: ${Math.round(txAge/1000)}с, баланс: ${lastTx.newBalance}`);
+                    }
+                } catch (e) {
+                    console.warn("🔌 API: Помилка парсингу даних транзакції:", e);
+                }
+            }
 
-                    // Для дуже нових транзакцій (менше 30 секунд) використовуємо локальний баланс
-                    if (txAge < 30000) {
-                        console.log("🔌 API: Використовуємо локальний баланс замість серверного");
+            // Додаємо параметр для запобігання кешуванню
+            const nocache = Date.now();
+            const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
 
-                        // Зберігаємо мітку часу останнього серверного балансу
-                        localStorage.setItem('winix_server_balance_ts', Date.now().toString());
-                        localStorage.setItem('winix_server_balance', serverBalance.toString());
+            // Робимо запит до сервера
+            const response = await apiRequest(endpoint, 'GET', null, {
+                suppressErrors: true,
+                timeout: 5000
+            });
 
-                        // Повертаємо локальний баланс
-                        return {
-                            status: 'success',
-                            data: {
-                                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                                coins: lastTx.newBalance
-                            },
-                            source: 'local_transaction_override',
-                            serverBalance: serverBalance // Додаємо реальний баланс з сервера для діагностики
-                        };
+            // Перевіряємо успішність відповіді
+            if (response.status === 'success' && response.data) {
+                const serverBalance = response.data.coins;
+
+                // ДОДАНО: Перевірка на конфлікт з недавньою транзакцією
+                if (lastTx && lastTx.confirmed && lastTx.type === 'participation') {
+                    const txAge = Date.now() - lastTx.timestamp;
+
+                    // Якщо транзакція відбулась нещодавно (менше 1 хвилини) і баланси не співпадають
+                    if (txAge < 60000 && serverBalance !== lastTx.newBalance) {
+                        console.warn(`🔌 API: Виявлено потенційний конфлікт балансів:
+                            - Локальна транзакція (${Math.round(txAge/1000)}с тому): ${lastTx.newBalance}
+                            - Сервер повернув: ${serverBalance}`);
+
+                        // Для дуже нових транзакцій (менше 30 секунд) використовуємо локальний баланс
+                        if (txAge < 30000) {
+                            console.log("🔌 API: Використовуємо локальний баланс замість серверного");
+
+                            // Зберігаємо мітку часу останнього серверного балансу
+                            localStorage.setItem('winix_server_balance_ts', Date.now().toString());
+                            localStorage.setItem('winix_server_balance', serverBalance.toString());
+
+                            // Повертаємо локальний баланс
+                            return {
+                                status: 'success',
+                                data: {
+                                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                                    coins: lastTx.newBalance
+                                },
+                                source: 'local_transaction_override',
+                                serverBalance: serverBalance // Додаємо реальний баланс з сервера для діагностики
+                            };
+                        }
                     }
                 }
+
+                // Якщо немає конфлікту, повертаємо серверний баланс
+                return response;
             }
 
-            // Якщо немає конфлікту, повертаємо серверний баланс
-            return response;
+            // Якщо відповідь з помилкою, повертаємо локальний баланс
+            return {
+                status: 'success',
+                data: {
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_fallback_after_error'
+            };
+        } catch (error) {
+            console.error("🔌 API: Помилка отримання балансу:", error);
+
+            // Повертаємо дані з localStorage при помилці
+            return {
+                status: 'success',
+                data: {
+                    balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+                    coins: parseInt(localStorage.getItem('userCoins') || '0')
+                },
+                source: 'local_storage_fallback'
+            };
         }
-
-        // Якщо відповідь з помилкою, повертаємо локальний баланс
-        return {
-            status: 'success',
-            data: {
-                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                coins: parseInt(localStorage.getItem('userCoins') || '0')
-            },
-            source: 'local_storage_fallback_after_error'
-        };
-    } catch (error) {
-        console.error("🔌 API: Помилка отримання балансу:", error);
-
-        // Повертаємо дані з localStorage при помилці
-        return {
-            status: 'success',
-            data: {
-                balance: parseFloat(localStorage.getItem('userTokens') || '0'),
-                coins: parseInt(localStorage.getItem('userCoins') || '0')
-            },
-            source: 'local_storage_fallback'
-        };
     }
-}
 
     // ======== ФУНКЦІЇ ДЛЯ СТЕЙКІНГУ ========
 
@@ -1636,7 +1636,7 @@ function normalizeEndpoint(endpoint) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.2',
+            version: '1.2.3',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
