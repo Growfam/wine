@@ -15,9 +15,11 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 # Імпорт моделей та інших залежностей
-from models.task import Task, TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY
 from models.user_progress import UserProgress, STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_VERIFIED
 from supabase_client import supabase, cached
+
+# Визначаємо константу, якщо вона не доступна в моделі
+STATUS_REJECTED = "rejected"
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -66,35 +68,56 @@ class TaskService:
         return date_obj
 
     @staticmethod
+    def execute_query(query):
+        """
+        Виконує запит до бази даних і обробляє помилки
+
+        Args:
+            query: Об'єкт запиту Supabase
+
+        Returns:
+            Результат запиту або None у випадку помилки
+        """
+        try:
+            response = query.execute()
+            return response
+        except Exception as e:
+            logger.error(f"Помилка виконання запиту до бази даних: {str(e)}")
+            return None
+
+    @staticmethod
     @cached(timeout=300)  # Кешуємо на 5 хвилин
-    def get_all_tasks() -> List[Task]:
+    def get_all_tasks() -> List[Dict]:
         """
         Отримує всі завдання з бази даних
 
         Returns:
-            List[Task]: Список всіх завдань
+            List[Dict]: Список всіх завдань у форматі словників
         """
         try:
-            response = supabase.table('tasks').select('*').order('created_at', desc=True).execute()
+            logger.info("Отримання всіх завдань")
+            response = TaskService.execute_query(
+                supabase.table('tasks').select('*').order('created_at', desc=True)
+            )
 
-            if not response.data:
+            if not response or not response.data:
                 logger.info("Завдання не знайдено")
                 return []
 
             tasks = []
             for task_data in response.data:
                 try:
-                    # Нормалізуємо дати перед створенням об'єкта
+                    # Нормалізуємо дати
                     if 'start_date' in task_data and task_data['start_date']:
                         task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
 
                     if 'end_date' in task_data and task_data['end_date']:
                         task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
-                    task = Task.from_dict(task_data)
-                    tasks.append(task)
+                    # Конвертуємо в словник замість створення об'єкта Task
+                    tasks.append(task_data)
                 except Exception as e:
-                    logger.error(f"Помилка при створенні об'єкта завдання: {str(e)}")
+                    logger.error(f"Помилка при обробці даних завдання: {str(e)}")
 
             logger.info(f"Отримано {len(tasks)} завдань")
             return tasks
@@ -104,7 +127,7 @@ class TaskService:
 
     @staticmethod
     @cached(timeout=300)  # Кешуємо на 5 хвилин
-    def get_task_by_id(task_id: str) -> Optional[Task]:
+    def get_task_by_id(task_id: str) -> Optional[Dict]:
         """
         Отримує завдання за ID
 
@@ -112,34 +135,35 @@ class TaskService:
             task_id (str): ID завдання
 
         Returns:
-            Optional[Task]: Знайдене завдання або None
+            Optional[Dict]: Знайдене завдання як словник або None
         """
         try:
-            response = supabase.table('tasks').select('*').eq('id', task_id).execute()
+            logger.info(f"Отримання завдання з ID {task_id}")
+            response = TaskService.execute_query(
+                supabase.table('tasks').select('*').eq('id', task_id)
+            )
 
-            if not response.data or len(response.data) == 0:
+            if not response or not response.data:
                 logger.info(f"Завдання з ID {task_id} не знайдено")
                 return None
 
             task_data = response.data[0]
 
-            # Нормалізуємо дати перед створенням об'єкта
+            # Нормалізуємо дати
             if 'start_date' in task_data and task_data['start_date']:
                 task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
 
             if 'end_date' in task_data and task_data['end_date']:
                 task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
-            task = Task.from_dict(task_data)
-
-            logger.info(f"Отримано завдання: {task}")
-            return task
+            logger.info(f"Отримано завдання: {task_id}")
+            return task_data
         except Exception as e:
             logger.error(f"Помилка при отриманні завдання {task_id}: {str(e)}")
             return None
 
     @staticmethod
-    def get_tasks_by_type(task_type: str) -> List[Task]:
+    def get_tasks_by_type(task_type: str) -> List[Dict]:
         """
         Отримує завдання за типом
 
@@ -147,31 +171,33 @@ class TaskService:
             task_type (str): Тип завдання (social, partner, limited, daily)
 
         Returns:
-            List[Task]: Список завдань вказаного типу
+            List[Dict]: Список завдань вказаного типу
         """
         try:
-            response = supabase.table('tasks').select('*').eq('task_type', task_type).order('created_at', desc=True).execute()
+            logger.info(f"Отримання завдань типу {task_type}")
+            response = TaskService.execute_query(
+                supabase.table('tasks').select('*').eq('task_type', task_type).order('created_at', desc=True)
+            )
 
-            if not response.data:
+            if not response or not response.data:
                 logger.info(f"Завдання типу {task_type} не знайдено")
                 return []
 
             tasks = []
             for task_data in response.data:
                 try:
-                    # Нормалізуємо дати перед створенням об'єкта
+                    # Нормалізуємо дати
                     if 'start_date' in task_data and task_data['start_date']:
                         task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
 
                     if 'end_date' in task_data and task_data['end_date']:
                         task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
-                    task = Task.from_dict(task_data)
                     # Перевіряємо, чи завдання активне
-                    if task.is_active():
-                        tasks.append(task)
+                    if TaskService.is_task_active(task_data):
+                        tasks.append(task_data)
                 except Exception as e:
-                    logger.error(f"Помилка при створенні об'єкта завдання: {str(e)}")
+                    logger.error(f"Помилка при обробці даних завдання: {str(e)}")
 
             logger.info(f"Отримано {len(tasks)} завдань типу {task_type}")
             return tasks
@@ -180,18 +206,48 @@ class TaskService:
             return []
 
     @staticmethod
-    def get_active_tasks() -> List[Task]:
+    def is_task_active(task_data: Dict) -> bool:
+        """
+        Перевіряє, чи завдання активне (за статусом та датами)
+
+        Args:
+            task_data: Дані завдання
+
+        Returns:
+            bool: True, якщо завдання активне
+        """
+        if task_data.get('status') != 'active':
+            return False
+
+        now = datetime.now(timezone.utc)
+
+        # Перевіряємо дату початку
+        start_date = task_data.get('start_date')
+        if start_date and start_date > now:
+            return False
+
+        # Перевіряємо дату завершення
+        end_date = task_data.get('end_date')
+        if end_date and end_date < now:
+            return False
+
+        return True
+
+    @staticmethod
+    def get_active_tasks() -> List[Dict]:
         """
         Отримує всі активні завдання
 
         Returns:
-            List[Task]: Список активних завдань
+            List[Dict]: Список активних завдань
         """
         try:
-            # Спочатку отримуємо всі завдання зі статусом 'active'
-            response = supabase.table('tasks').select('*').eq('status', 'active').execute()
+            logger.info("Отримання активних завдань")
+            response = TaskService.execute_query(
+                supabase.table('tasks').select('*').eq('status', 'active')
+            )
 
-            if not response.data:
+            if not response or not response.data:
                 logger.info("Активні завдання не знайдено")
                 return []
 
@@ -201,26 +257,17 @@ class TaskService:
 
             for task_data in response.data:
                 try:
-                    # Нормалізуємо дати перед створенням об'єкта
+                    # Нормалізуємо дати
                     if 'start_date' in task_data and task_data['start_date']:
                         task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
 
                     if 'end_date' in task_data and task_data['end_date']:
                         task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
-                    task = Task.from_dict(task_data)
-
-                    # Перевіряємо дату початку (всі дати вже нормалізовані)
-                    if task.start_date and task.start_date > now:
-                        continue
-
-                    # Перевіряємо дату завершення
-                    if task.end_date and task.end_date < now:
-                        continue
-
-                    active_tasks.append(task)
+                    if TaskService.is_task_active(task_data):
+                        active_tasks.append(task_data)
                 except Exception as e:
-                    logger.error(f"Помилка при створенні об'єкта завдання: {str(e)}")
+                    logger.error(f"Помилка при обробці даних завдання: {str(e)}")
 
             logger.info(f"Отримано {len(active_tasks)} активних завдань")
             return active_tasks
@@ -229,7 +276,7 @@ class TaskService:
             return []
 
     @staticmethod
-    def get_tasks_for_user(telegram_id: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def get_tasks_for_user(telegram_id: str) -> Tuple[List[Dict], List[Dict]]:
         """
         Отримує завдання для користувача з інформацією про прогрес
 
@@ -240,52 +287,56 @@ class TaskService:
             Tuple[List[Dict], List[Dict]]: Кортеж (доступні завдання, виконані завдання)
         """
         try:
+            logger.info(f"Отримання завдань для користувача {telegram_id}")
             # Отримуємо всі активні завдання
             all_tasks = TaskService.get_active_tasks()
 
             # Отримуємо прогрес користувача
-            progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).execute()
+            progress_response = TaskService.execute_query(
+                supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id))
+            )
 
             # Створюємо словник прогресу для швидкого доступу
             progress_dict = {}
-            if progress_response.data:
+            if progress_response and progress_response.data:
                 for progress_data in progress_response.data:
                     task_id = progress_data.get('task_id')
                     if task_id:
-                        progress_dict[task_id] = UserProgress.from_dict(progress_data)
+                        progress_dict[task_id] = progress_data
 
             # Розділяємо завдання на доступні та виконані
             available_tasks = []
             completed_tasks = []
 
             for task in all_tasks:
-                task_dict = task.to_dict()
+                task_id = task.get('id')
+                task_copy = task.copy()  # Створюємо копію, щоб не змінювати оригінал
 
                 # Додаємо інформацію про прогрес
-                if task.id in progress_dict:
-                    progress = progress_dict[task.id]
-                    progress_info = progress.to_dict()
+                if task_id in progress_dict:
+                    progress = progress_dict[task_id]
+                    progress_info = progress.copy()
 
                     # Видаляємо зайві поля
                     if 'verification_data' in progress_info:
                         del progress_info['verification_data']
 
-                    task_dict['progress'] = progress_info
+                    task_copy['progress'] = progress_info
 
                     # Розділяємо на доступні та виконані
-                    if progress.is_completed():
-                        completed_tasks.append(task_dict)
+                    if progress.get('status') in [STATUS_COMPLETED, STATUS_VERIFIED]:
+                        completed_tasks.append(task_copy)
                     else:
-                        available_tasks.append(task_dict)
+                        available_tasks.append(task_copy)
                 else:
                     # Якщо немає прогресу, створюємо базовий прогрес
-                    task_dict['progress'] = {
+                    task_copy['progress'] = {
                         'status': STATUS_NOT_STARTED,
                         'progress_value': 0,
-                        'max_progress': task.target_value or 100,
+                        'max_progress': task.get('target_value', 100),
                         'progress_percent': 0
                     }
-                    available_tasks.append(task_dict)
+                    available_tasks.append(task_copy)
 
             logger.info(f"Отримано {len(available_tasks)} доступних та {len(completed_tasks)} виконаних завдань для користувача {telegram_id}")
             return available_tasks, completed_tasks
@@ -294,7 +345,7 @@ class TaskService:
             return [], []
 
     @staticmethod
-    def create_task(task_data: Dict[str, Any]) -> Optional[Task]:
+    def create_task(task_data: Dict[str, Any]) -> Optional[Dict]:
         """
         Створює нове завдання
 
@@ -302,9 +353,10 @@ class TaskService:
             task_data (Dict[str, Any]): Дані для створення завдання
 
         Returns:
-            Optional[Task]: Створене завдання або None у випадку помилки
+            Optional[Dict]: Створене завдання або None у випадку помилки
         """
         try:
+            logger.info("Створення нового завдання")
             # Переконуємось, що обов'язкові поля присутні
             required_fields = ["title", "description", "task_type", "reward_type", "reward_amount"]
             for field in required_fields:
@@ -319,24 +371,28 @@ class TaskService:
             if 'end_date' in task_data and task_data['end_date']:
                 task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
 
-            # Створюємо об'єкт завдання
-            task = Task.from_dict(task_data)
+            # Додаємо created_at, якщо не передано
+            if 'created_at' not in task_data:
+                task_data['created_at'] = datetime.now(timezone.utc).isoformat()
 
             # Зберігаємо в базі даних
-            response = supabase.table('tasks').insert(task.to_dict()).execute()
+            response = TaskService.execute_query(
+                supabase.table('tasks').insert(task_data)
+            )
 
-            if not response.data or len(response.data) == 0:
+            if not response or not response.data:
                 logger.error("Не вдалося створити завдання")
                 return None
 
-            logger.info(f"Створено нове завдання: {task}")
-            return task
+            created_task = response.data[0]
+            logger.info(f"Створено нове завдання з ID: {created_task.get('id')}")
+            return created_task
         except Exception as e:
             logger.error(f"Помилка при створенні завдання: {str(e)}")
             return None
 
     @staticmethod
-    def update_task(task_id: str, update_data: Dict[str, Any]) -> Optional[Task]:
+    def update_task(task_id: str, update_data: Dict[str, Any]) -> Optional[Dict]:
         """
         Оновлює існуюче завдання
 
@@ -345,9 +401,10 @@ class TaskService:
             update_data (Dict[str, Any]): Дані для оновлення
 
         Returns:
-            Optional[Task]: Оновлене завдання або None у випадку помилки
+            Optional[Dict]: Оновлене завдання або None у випадку помилки
         """
         try:
+            logger.info(f"Оновлення завдання {task_id}")
             # Отримуємо поточне завдання
             current_task = TaskService.get_task_by_id(task_id)
 
@@ -362,17 +419,20 @@ class TaskService:
             if 'end_date' in update_data and update_data['end_date']:
                 update_data['end_date'] = TaskService.normalize_date(update_data['end_date'])
 
-            # Оновлюємо завдання
-            updated_task = current_task.update(update_data)
+            # Додаємо updated_at
+            update_data['updated_at'] = datetime.now(timezone.utc).isoformat()
 
             # Зберігаємо в базі даних
-            response = supabase.table('tasks').update(updated_task.to_dict()).eq('id', task_id).execute()
+            response = TaskService.execute_query(
+                supabase.table('tasks').update(update_data).eq('id', task_id)
+            )
 
-            if not response.data or len(response.data) == 0:
-                logger.error("Не вдалося оновити завдання")
+            if not response or not response.data:
+                logger.error(f"Не вдалося оновити завдання {task_id}")
                 return None
 
-            logger.info(f"Оновлено завдання: {updated_task}")
+            updated_task = response.data[0]
+            logger.info(f"Оновлено завдання: {task_id}")
             return updated_task
         except Exception as e:
             logger.error(f"Помилка при оновленні завдання {task_id}: {str(e)}")
@@ -390,10 +450,13 @@ class TaskService:
             bool: True якщо видалення успішне, False у випадку помилки
         """
         try:
+            logger.info(f"Видалення завдання {task_id}")
             # Видаляємо з бази даних
-            response = supabase.table('tasks').delete().eq('id', task_id).execute()
+            response = TaskService.execute_query(
+                supabase.table('tasks').delete().eq('id', task_id)
+            )
 
-            if not response.data or len(response.data) == 0:
+            if not response or not response.data:
                 logger.error(f"Не вдалося видалити завдання {task_id}")
                 return False
 
@@ -404,7 +467,7 @@ class TaskService:
             return False
 
     @staticmethod
-    def start_task(telegram_id: str, task_id: str) -> Optional[UserProgress]:
+    def start_task(telegram_id: str, task_id: str) -> Optional[Dict]:
         """
         Починає виконання завдання користувачем
 
@@ -413,9 +476,10 @@ class TaskService:
             task_id (str): ID завдання
 
         Returns:
-            Optional[UserProgress]: Об'єкт прогресу або None у випадку помилки
+            Optional[Dict]: Об'єкт прогресу або None у випадку помилки
         """
         try:
+            logger.info(f"Початок виконання завдання {task_id} користувачем {telegram_id}")
             # Перевіряємо, чи існує завдання
             task = TaskService.get_task_by_id(task_id)
 
@@ -424,47 +488,63 @@ class TaskService:
                 return None
 
             # Перевіряємо, чи завдання активне
-            if not task.is_active():
+            if not TaskService.is_task_active(task):
                 logger.error(f"Завдання з ID {task_id} не активне")
                 return None
 
             # Перевіряємо, чи вже є прогрес для цього завдання
-            progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id).execute()
+            progress_response = TaskService.execute_query(
+                supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id)
+            )
 
-            if progress_response.data and len(progress_response.data) > 0:
+            if progress_response and progress_response.data:
                 # Якщо прогрес вже існує, повертаємо його
-                progress = UserProgress.from_dict(progress_response.data[0])
+                progress = progress_response.data[0]
 
                 # Якщо завдання не розпочато, оновлюємо статус
-                if progress.status == STATUS_NOT_STARTED:
-                    progress.set_status(STATUS_IN_PROGRESS)
+                if progress.get('status') == STATUS_NOT_STARTED:
+                    progress['status'] = STATUS_IN_PROGRESS
+                    progress['start_date'] = datetime.now(timezone.utc).isoformat()
 
                     # Зберігаємо оновлений прогрес
-                    update_response = supabase.table('user_progress').update(progress.to_dict()).eq('id', progress.id).execute()
+                    update_response = TaskService.execute_query(
+                        supabase.table('user_progress').update(progress).eq('id', progress.get('id'))
+                    )
 
-                    if not update_response.data or len(update_response.data) == 0:
+                    if not update_response or not update_response.data:
                         logger.error("Не вдалося оновити прогрес")
                         return None
+
+                    progress = update_response.data[0]
 
                 logger.info(f"Користувач {telegram_id} вже розпочав завдання {task_id}")
                 return progress
 
             # Створюємо новий прогрес
-            progress = UserProgress(
-                telegram_id=telegram_id,
-                task_id=task_id,
-                status=STATUS_IN_PROGRESS,
-                progress_value=0,
-                max_progress=task.target_value if task.target_value is not None else 100
-            )
+            target_value = task.get('target_value', 100)
+            progress_data = {
+                'telegram_id': telegram_id,
+                'task_id': task_id,
+                'status': STATUS_IN_PROGRESS,
+                'progress_value': 0,
+                'max_progress': target_value,
+                'progress_percent': 0,
+                'start_date': datetime.now(timezone.utc).isoformat(),
+                'attempts': 0,
+                'verification_data': {},
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }
 
             # Зберігаємо в базі даних
-            response = supabase.table('user_progress').insert(progress.to_dict()).execute()
+            response = TaskService.execute_query(
+                supabase.table('user_progress').insert(progress_data)
+            )
 
-            if not response.data or len(response.data) == 0:
+            if not response or not response.data:
                 logger.error("Не вдалося створити прогрес")
                 return None
 
+            progress = response.data[0]
             logger.info(f"Користувач {telegram_id} розпочав завдання {task_id}")
             return progress
         except Exception as e:
@@ -472,7 +552,7 @@ class TaskService:
             return None
 
     @staticmethod
-    def update_progress(telegram_id: str, task_id: str, progress_value: int, verification_data: Optional[Dict[str, Any]] = None) -> Optional[UserProgress]:
+    def update_progress(telegram_id: str, task_id: str, progress_value: int, verification_data: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
         """
         Оновлює прогрес виконання завдання користувачем
 
@@ -483,9 +563,10 @@ class TaskService:
             verification_data (Dict[str, Any], optional): Дані для верифікації
 
         Returns:
-            Optional[UserProgress]: Оновлений об'єкт прогресу або None у випадку помилки
+            Optional[Dict]: Оновлений об'єкт прогресу або None у випадку помилки
         """
         try:
+            logger.info(f"Оновлення прогресу для завдання {task_id} користувачем {telegram_id}")
             # Отримуємо завдання
             task = TaskService.get_task_by_id(task_id)
 
@@ -499,49 +580,65 @@ class TaskService:
                 return None
 
             # Отримуємо поточний прогрес
-            progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id).execute()
+            progress_response = TaskService.execute_query(
+                supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id)
+            )
 
-            if not progress_response.data:
+            if not progress_response or not progress_response.data:
                 # Якщо прогресу немає, створюємо новий
                 return TaskService.start_task(telegram_id, task_id)
 
             # Оновлюємо прогрес
-            progress = UserProgress.from_dict(progress_response.data[0])
+            progress = progress_response.data[0]
 
             # Якщо завдання вже виконано, не оновлюємо прогрес
-            if progress.is_completed():
+            if progress.get('status') in [STATUS_COMPLETED, STATUS_VERIFIED]:
                 logger.info(f"Завдання {task_id} вже виконано користувачем {telegram_id}")
                 return progress
 
             # Оновлюємо значення прогресу
-            target_value = task.target_value if task.target_value is not None else 100
-            progress.update_progress(progress_value, target_value)
+            target_value = task.get('target_value', 100)
+            progress['progress_value'] = progress_value
+            progress['progress_percent'] = min(100, int((progress_value / target_value) * 100))
+            progress['last_updated'] = datetime.now(timezone.utc).isoformat()
+
+            # Якщо прогрес досяг максимуму, змінюємо статус
+            if progress_value >= target_value:
+                progress['status'] = STATUS_COMPLETED
+                progress['completion_date'] = datetime.now(timezone.utc).isoformat()
 
             # Додаємо дані для верифікації, якщо вони є
             if verification_data:
-                progress.add_verification_data(verification_data)
+                existing_data = progress.get('verification_data', {})
+                if not existing_data:
+                    existing_data = {}
+                existing_data.update(verification_data)
+                progress['verification_data'] = existing_data
 
             # Зберігаємо оновлений прогрес
-            update_response = supabase.table('user_progress').update(progress.to_dict()).eq('id', progress.id).execute()
+            update_response = TaskService.execute_query(
+                supabase.table('user_progress').update(progress).eq('id', progress.get('id'))
+            )
 
-            if not update_response.data or len(update_response.data) == 0:
+            if not update_response or not update_response.data:
                 logger.error("Не вдалося оновити прогрес")
                 return None
 
+            updated_progress = update_response.data[0]
             logger.info(f"Оновлено прогрес користувача {telegram_id} для завдання {task_id}: {progress_value}/{target_value}")
 
             # Якщо прогрес досягнув максимуму, викликаємо подію завершення завдання
-            if progress.is_completed():
+            if updated_progress.get('status') == STATUS_COMPLETED:
                 logger.info(f"Користувач {telegram_id} виконав завдання {task_id}")
                 # Тут можна додати логіку для відправки події
 
-            return progress
+            return updated_progress
         except Exception as e:
             logger.error(f"Помилка при оновленні прогресу для завдання {task_id} користувачем {telegram_id}: {str(e)}")
             return None
 
     @staticmethod
-    def verify_task(telegram_id: str, task_id: str, is_verified: bool, verification_comment: Optional[str] = None) -> Optional[UserProgress]:
+    def verify_task(telegram_id: str, task_id: str, is_verified: bool, verification_comment: Optional[str] = None) -> Optional[Dict]:
         """
         Підтверджує або відхиляє виконання завдання
 
@@ -552,33 +649,42 @@ class TaskService:
             verification_comment (str, optional): Коментар до верифікації
 
         Returns:
-            Optional[UserProgress]: Оновлений об'єкт прогресу або None у випадку помилки
+            Optional[Dict]: Оновлений об'єкт прогресу або None у випадку помилки
         """
         try:
+            logger.info(f"Верифікація завдання {task_id} для користувача {telegram_id}")
             # Отримуємо поточний прогрес
-            progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id).execute()
+            progress_response = TaskService.execute_query(
+                supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id)
+            )
 
-            if not progress_response.data:
+            if not progress_response or not progress_response.data:
                 logger.error(f"Прогрес для завдання {task_id} користувача {telegram_id} не знайдено")
                 return None
 
             # Оновлюємо прогрес
-            progress = UserProgress.from_dict(progress_response.data[0])
+            progress = progress_response.data[0]
 
             # Оновлюємо статус
             if is_verified:
-                progress.set_status(STATUS_VERIFIED)
+                progress['status'] = STATUS_VERIFIED
             else:
-                progress.set_status("rejected")
+                progress['status'] = STATUS_REJECTED
 
             # Додаємо коментар до верифікації
             if verification_comment:
-                progress.add_verification_data({"verification_comment": verification_comment})
+                verification_data = progress.get('verification_data', {})
+                if not verification_data:
+                    verification_data = {}
+                verification_data['verification_comment'] = verification_comment
+                progress['verification_data'] = verification_data
 
             # Зберігаємо оновлений прогрес
-            update_response = supabase.table('user_progress').update(progress.to_dict()).eq('id', progress.id).execute()
+            update_response = TaskService.execute_query(
+                supabase.table('user_progress').update(progress).eq('id', progress.get('id'))
+            )
 
-            if not update_response.data or len(update_response.data) == 0:
+            if not update_response or not update_response.data:
                 logger.error("Не вдалося оновити прогрес")
                 return None
 
@@ -587,13 +693,13 @@ class TaskService:
             else:
                 logger.info(f"Завдання {task_id} відхилено для користувача {telegram_id}")
 
-            return progress
+            return update_response.data[0]
         except Exception as e:
             logger.error(f"Помилка при верифікації завдання {task_id} для користувача {telegram_id}: {str(e)}")
             return None
 
     @staticmethod
-    def get_user_progress(telegram_id: str, task_id: Optional[str] = None) -> List[UserProgress]:
+    def get_user_progress(telegram_id: str, task_id: Optional[str] = None) -> List[Dict]:
         """
         Отримує прогрес користувача для одного або всіх завдань
 
@@ -602,28 +708,24 @@ class TaskService:
             task_id (str, optional): ID завдання (якщо потрібно отримати прогрес для конкретного завдання)
 
         Returns:
-            List[UserProgress]: Список об'єктів прогресу
+            List[Dict]: Список об'єктів прогресу
         """
         try:
+            logger.info(f"Отримання прогресу для користувача {telegram_id}")
+            # Формуємо запит
             query = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id))
 
             if task_id:
                 query = query.eq('task_id', task_id)
 
-            response = query.execute()
+            # Виконуємо запит
+            response = TaskService.execute_query(query)
 
-            if not response.data:
+            if not response or not response.data:
                 logger.info(f"Прогрес для користувача {telegram_id} не знайдено")
                 return []
 
-            progress_list = []
-            for progress_data in response.data:
-                try:
-                    progress = UserProgress.from_dict(progress_data)
-                    progress_list.append(progress)
-                except Exception as e:
-                    logger.error(f"Помилка при створенні об'єкта прогресу: {str(e)}")
-
+            progress_list = response.data
             logger.info(f"Отримано {len(progress_list)} записів прогресу для користувача {telegram_id}")
             return progress_list
         except Exception as e:
@@ -631,7 +733,7 @@ class TaskService:
             return []
 
     @staticmethod
-    def get_single_progress(telegram_id: str, task_id: str) -> Optional[UserProgress]:
+    def get_single_progress(telegram_id: str, task_id: str) -> Optional[Dict]:
         """
         Отримує прогрес користувача для конкретного завдання
 
@@ -640,9 +742,10 @@ class TaskService:
             task_id (str): ID завдання
 
         Returns:
-            Optional[UserProgress]: Об'єкт прогресу або None, якщо прогрес не знайдено
+            Optional[Dict]: Об'єкт прогресу або None, якщо прогрес не знайдено
         """
         try:
+            logger.info(f"Отримання прогресу для завдання {task_id} користувача {telegram_id}")
             progress_list = TaskService.get_user_progress(telegram_id, task_id)
 
             if not progress_list:
