@@ -2,8 +2,9 @@
 Модуль для реєстрації маршрутів API для завдань та бонусів.
 Визначає всі API ендпойнти для системи завдань WINIX.
 """
-from flask import request
+from flask import request, jsonify
 import logging
+from datetime import datetime
 from . import controllers
 
 # Налаштування логування
@@ -20,6 +21,17 @@ def register_quests_routes(app):
         app: Екземпляр Flask-додатку
     """
     logger.info("Реєстрація маршрутів API для завдань та бонусів")
+
+    # Ендпоінт для перевірки доступності API
+    @app.route('/api/ping', methods=['GET'])
+    def api_ping():
+        """Простий ендпоінт для перевірки доступності API"""
+        return jsonify({
+            "status": "success",
+            "message": "API доступний",
+            "timestamp": datetime.now().isoformat(),
+            "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
 
     # Маршрути для отримання завдань
 
