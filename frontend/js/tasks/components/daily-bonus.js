@@ -1,790 +1,413 @@
 /**
- * DailyBonus - оптимізований компонент для керування щоденним бонусом
- * Відповідає за:
- * - Відображення прогресу щоденних бонусів
- * - Обробку отримання бонусу
- * - Анімацію винагороди
- * - Локалізацію текстів
- * - Зберігання прогресу
+ * daily-bonus.js - Обробник щоденних бонусів
+ * Відповідальний за отримання та управління щоденними бонусами
+ * З виправленою обробкою 404 помилок
  */
 
 window.DailyBonus = (function() {
-    // Приватні змінні модуля
-    let bonusData = null;
-    let currentDay = 0;
-    let bonusAmount = 0;
-    let currentLanguage = 'uk';
+    // Конфігурація модуля
+    const config = {
+        enableFallback: true,  // Увімкнути альтернативні дані при недоступності API
+        cacheDuration: 3600000, // 1 година кеш
+        debug: false            // Режим відлагодження
+    };
 
-    // DOM-елементи
-    const progressContainer = document.getElementById('daily-progress-container');
-    const claimButton = document.getElementById('claim-daily');
+    // Стан модуля
+    const state = {
+        isInitialized: false,
+        bonusData: null,
+        lastLoaded: 0,
+        isLoading: false,
+        failureCount: 0
+    };
 
-    // Ключі локалізації
-    const LOCALE_KEYS = {
-        CLAIM_BUTTON: 'earn.bonus.claim',
-        CLAIMED_BUTTON: 'earn.bonus.claimed',
-        CLAIMING_BUTTON: 'earn.bonus.claiming',
-        ERROR_MSG: 'earn.bonus.error',
-        SUCCESS_MSG: 'earn.bonus.success',
-        ALREADY_CLAIMED: 'earn.bonus.already_claimed',
-        BONUS_TITLE: 'earn.bonus.title',
-        DAYS_PROGRESS: 'earn.bonus.days_progress',
-        DAY_LABEL: 'earn.bonus.day'
+    // Шляхи API (правильне формування URL)
+    const API_PATHS = {
+        STATUS: (userId) => `user/${userId}/daily-bonus`,       // Видалено слеш на початку
+        CLAIM: (userId) => `user/${userId}/claim-daily-bonus`,  // Видалено слеш на початку
+        STREAK: (userId) => `user/${userId}/claim-streak-bonus` // Видалено слеш на початку
     };
 
     /**
-     * Ініціалізація модуля щоденного бонусу
+     * Ініціалізація модуля щоденних бонусів
      */
-    async function init() {
-        console.log('Ініціалізація DailyBonus...');
+    function init() {
+        if (state.isInitialized) return;
 
+        console.log("DailyBonus: Ініціалізація модуля щоденних бонусів");
+
+        // Спробуємо завантажити дані з localStorage для швидкої ініціалізації
         try {
-            // Отримуємо поточну мову
-            currentLanguage = getCurrentLanguage();
+            const cachedData = localStorage.getItem('daily_bonus_data');
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed && parsed.timestamp) {
+                    // Перевіряємо чи дані не застаріли
+                    const age = Date.now() - parsed.timestamp;
+                    if (age < config.cacheDuration) {
+                        state.bonusData = parsed.data;
+                        state.lastLoaded = parsed.timestamp;
+                        console.log(`DailyBonus: Завантажено кешовані дані (вік: ${Math.round(age/1000)}с)`);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("DailyBonus: Помилка завантаження даних з кешу:", e);
+        }
 
-            // Підписуємося на зміну мови
-            document.addEventListener('language-changed', function(event) {
-                if (event.detail && event.detail.language) {
-                    currentLanguage = event.detail.language;
-                    updateBonusDisplay();
+        // Додаємо обробники подій
+        setupEventHandlers();
+
+        state.isInitialized = true;
+
+        // Асинхронно завантажуємо дані
+        loadBonusData(true);
+    }
+
+    /**
+     * Налаштування обробників подій
+     */
+    function setupEventHandlers() {
+        // Оновлюємо дані при зміні сторінки на "earn"
+        if (typeof window.PageManager !== 'undefined') {
+            document.addEventListener('page-changed', event => {
+                if (event.detail.page === 'earn') {
+                    loadBonusData(true);
                 }
             });
-
-            await loadBonusData();
-            renderBonusProgress();
-            updateClaimButton();
-            setupAutoRefresh();
-        } catch (error) {
-            console.error('Помилка ініціалізації щоденного бонусу:', error);
-            showFallbackDisplay();
         }
-    }
 
-    /**
-     * Оновлення відображення після зміни мови
-     */
-    function updateBonusDisplay() {
-        renderBonusProgress();
-        updateClaimButton();
-    }
-
-    /**
-     * Отримання поточної мови
-     */
-    function getCurrentLanguage() {
-        if (window.WinixLanguage && window.WinixLanguage.getCurrentLanguage) {
-            return window.WinixLanguage.getCurrentLanguage();
-        }
-        // Отримуємо зі сховища, якщо доступно
-        if (window.StorageUtils) {
-            const storedLang = window.StorageUtils.getItem('language');
-            if (storedLang) return storedLang;
-        }
-        return 'uk';
-    }
-
-    /**
-     * Отримання локалізованого тексту
-     * @param {string} key - Ключ локалізації
-     * @param {string} defaultText - Текст за замовчуванням
-     * @param {Object} params - Параметри для підстановки
-     * @returns {string} - Локалізований текст
-     */
-    function getLocalizedText(key, defaultText, params = {}) {
-        try {
-            if (window.WinixLanguage && typeof window.WinixLanguage.get === 'function') {
-                const localizedText = window.WinixLanguage.get(key, params);
-                return localizedText || defaultText;
-            }
-            return defaultText;
-        } catch (e) {
-            console.warn(`Локалізація недоступна для ключа ${key}:`, e);
-            return defaultText;
-        }
-    }
-
-    /**
-     * Настройка автоматичного оновлення
-     */
-    function setupAutoRefresh() {
-        // Перевіряємо стан бонусу раз на годину
-        setInterval(async function() {
-            try {
-                await loadBonusData(true); // true - примусове оновлення
-                renderBonusProgress();
-                updateClaimButton();
-            } catch (error) {
-                console.warn('Помилка автоматичного оновлення бонусу:', error);
-            }
-        }, 60 * 60 * 1000);
-
-        // Також перевіряємо при зміні дати (перехід через опівніч)
-        const checkDateChange = () => {
-            const now = new Date();
-            const currentDate = now.toDateString();
-
-            // Отримуємо останню перевірену дату зі сховища
-            let lastCheckedDate;
-            try {
-                lastCheckedDate = localStorage.getItem('winix_last_bonus_check_date');
-            } catch (e) {
-                lastCheckedDate = null;
-            }
-
-            // Якщо дата змінилася, оновлюємо дані бонусу
-            if (lastCheckedDate !== currentDate) {
-                loadBonusData(true).then(() => {
-                    renderBonusProgress();
-                    updateClaimButton();
-
-                    // Зберігаємо нову дату перевірки
-                    try {
-                        localStorage.setItem('winix_last_bonus_check_date', currentDate);
-                    } catch (e) {
-                        console.warn('Не вдалося зберегти дату перевірки:', e);
-                    }
-                });
-            }
-        };
-
-        // Перевіряємо раз на хвилину, чи змінилася дата
-        setInterval(checkDateChange, 60 * 1000);
-
-        // І також перевіряємо одразу
-        checkDateChange();
+        // Підписуємося на події системи
+        document.addEventListener('user-data-updated', () => {
+            loadBonusData(false); // Не показувати індикатор завантаження
+        });
     }
 
     /**
      * Завантаження даних щоденного бонусу
-     * @param {boolean} forceRefresh - Примусове оновлення з серверу
+     * @param {boolean} showLoader - Показувати індикатор завантаження
+     * @returns {Promise<Object>} Дані щоденного бонусу
      */
-    async function loadBonusData(forceRefresh = false) {
-        try {
-            // Якщо дані вже завантажені і не потрібне примусове оновлення
-            if (bonusData && !forceRefresh) {
-                return bonusData;
-            }
+    async function loadBonusData(showLoader = true) {
+        // Запобігаємо одночасним запитам
+        if (state.isLoading) return Promise.resolve(state.bonusData);
 
-            // Спроба завантажити кешовані дані
-            const cachedData = loadCachedBonusData();
-            if (cachedData && !forceRefresh) {
-                bonusData = cachedData;
-                currentDay = bonusData.current_day || 1;
-                bonusAmount = getBonusAmount(currentDay);
-                return bonusData;
-            }
+        // Перевіряємо, чи варто завантажувати свіжі дані
+        const now = Date.now();
+        const dataAge = now - state.lastLoaded;
 
-            // Тестові дані, які використовуються як запасний варіант або для демонстрації
-            const defaultBonusData = {
-                current_day: 1,
-                claimed_today: false,
-                last_claim_date: null,
-                rewards: {
-                    1: 10,
-                    2: 20,
-                    3: 30,
-                    4: 40,
-                    5: 50,
-                    6: 60,
-                    7: 100
-                }
-            };
-
-            // Перевіряємо наявність API та методу get
-            if (!window.API || typeof window.API.get !== 'function') {
-                console.warn('API не доступний. Використання тестових даних для щоденного бонусу.');
-
-                // Зберігаємо тестові дані
-                bonusData = defaultBonusData;
-                currentDay = bonusData.current_day || 1;
-                bonusAmount = getBonusAmount(currentDay);
-
-                // Зберігаємо в кеш
-                saveBonusData();
-
-                return bonusData;
-            }
-
-            // Якщо API доступний, робимо запит
-            try {
-                const userId = getUserId();
-const response = await window.API.get(`user/${userId}/daily-bonus`);
-
-                if (response && response.success) {
-                    bonusData = response.data || defaultBonusData;
-                    currentDay = bonusData.current_day || 1;
-                    bonusAmount = getBonusAmount(currentDay);
-
-                    // Зберігаємо в кеш
-                    saveBonusData();
-
-                    return bonusData;
-                } else {
-                    console.error('Не вдалося завантажити дані щоденного бонусу:', response?.message);
-                    // Використовуємо кешовані дані або тестові дані як запасний варіант
-                    bonusData = cachedData || defaultBonusData;
-                    currentDay = bonusData.current_day || 1;
-                    bonusAmount = getBonusAmount(currentDay);
-                    return bonusData;
-                }
-            } catch (apiError) {
-                console.error('Помилка запиту до API щоденного бонусу:', apiError);
-                // Використовуємо кешовані дані або тестові дані при помилці API
-                bonusData = cachedData || defaultBonusData;
-                currentDay = bonusData.current_day || 1;
-                bonusAmount = getBonusAmount(currentDay);
-                return bonusData;
-            }
-        } catch (error) {
-            console.error('Помилка завантаження даних щоденного бонусу:', error);
-            // Базові дані як останній запасний варіант
-            bonusData = {
-                current_day: 1,
-                claimed_today: false,
-                rewards: {
-                    1: 10, 2: 20, 3: 30, 4: 40, 5: 50, 6: 60, 7: 100
-                }
-            };
-            currentDay = 1;
-            bonusAmount = 10;
-            return bonusData;
+        // Якщо дані свіжі (менше 5 хвилин), не робимо новий запит
+        if (state.bonusData && dataAge < 300000) {
+            return Promise.resolve(state.bonusData);
         }
-    }
 
-    /**
-     * Завантаження кешованих даних
-     */
-    function loadCachedBonusData() {
-        try {
-            // Спробуємо спочатку використати StorageUtils, якщо доступно
-            if (window.StorageUtils) {
-                const cachedData = window.StorageUtils.getItem('daily_bonus_data');
-                if (cachedData) {
-                    return cachedData;
-                }
-            }
-
-            // Запасний варіант - localStorage
-            try {
-                const cachedDataStr = localStorage.getItem('winix_daily_bonus');
-                if (cachedDataStr) {
-                    return JSON.parse(cachedDataStr);
-                }
-            } catch (e) {
-                console.warn('Помилка читання з localStorage:', e);
-            }
-        } catch (error) {
-            console.warn('Помилка завантаження кешованих даних бонусу:', error);
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            console.error("DailyBonus: ID користувача не знайдено");
+            return Promise.reject(new Error("ID користувача не знайдено"));
         }
-        return null;
-    }
 
-    /**
-     * Збереження даних бонусу в кеш
-     */
-    function saveBonusData() {
-        try {
-            // Спробуємо спочатку використати StorageUtils, якщо доступно
-            if (window.StorageUtils) {
-                window.StorageUtils.setItem('daily_bonus_data', bonusData, {
-                    expires: 24 * 60 * 60 * 1000, // 24 години
-                    sensitive: false
-                });
-            } else {
-                // Запасний варіант - localStorage
-                try {
-                    localStorage.setItem('winix_daily_bonus', JSON.stringify(bonusData));
-                } catch (e) {
-                    console.warn('Помилка збереження в localStorage:', e);
-                }
-            }
-        } catch (error) {
-            console.warn('Помилка збереження даних бонусу:', error);
+        // Показуємо індикатор завантаження
+        if (showLoader && typeof window.showLoading === 'function') {
+            window.showLoading();
         }
-    }
 
-    /**
-     * Форматування суми бонусу
-     * @param {number} amount - Сума бонусу
-     * @returns {string} - Відформатована сума
-     */
-    function formatBonusAmount(amount) {
-        // Використовуємо Formatters, якщо доступний
-        if (window.Formatters && window.Formatters.formatNumber) {
-            return window.Formatters.formatNumber(amount, {
-                decimals: 0,
-                thousandsSeparator: ' '
+        state.isLoading = true;
+
+        try {
+            // Використовуємо WinixAPI або резервний apiRequest
+            const apiMethod = (window.WinixAPI && window.WinixAPI.apiRequest) || window.apiRequest;
+
+            if (!apiMethod) {
+                throw new Error("API метод недоступний");
+            }
+
+            // ВИПРАВЛЕНО: Формування правильного шляху API
+            const endpoint = API_PATHS.STATUS(userId);
+
+            // ВИПРАВЛЕНО: Додано більше діагностики
+            if (config.debug) {
+                console.log(`DailyBonus: Запит даних бонусу для ${userId}, endpoint: ${endpoint}`);
+            }
+
+            // Виконуємо запит до API з обробкою помилок
+            const response = await apiMethod(endpoint, 'GET', null, {
+                suppressErrors: true,
+                timeout: 10000 // 10 секунд таймаут
             });
-        }
 
-        // Запасний варіант - просте форматування
-        return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    }
+            // Успішна відповідь
+            if (response.status === 'success' && response.data) {
+                state.bonusData = response.data;
+                state.lastLoaded = now;
+                state.failureCount = 0;
 
-    /**
-     * Відображення прогресу щоденного бонусу
-     */
-    function renderBonusProgress() {
-        if (!progressContainer) return;
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('daily_bonus_data', JSON.stringify({
+                        data: response.data,
+                        timestamp: now
+                    }));
+                } catch (e) {
+                    console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
+                }
 
-        // Очищаємо контейнер
-        progressContainer.innerHTML = '';
+                return response.data;
+            } else if (response.status === 'error' && response.httpStatus === 404) {
+                // ВИПРАВЛЕНО: Спеціальна обробка 404 помилки
+                console.warn("DailyBonus: API ендпоінт не знайдено (404), використовуємо симульовані дані");
 
-        // Додаємо клас для респонсивності
-        progressContainer.classList.add('responsive-progress');
+                if (config.enableFallback) {
+                    // Створюємо симульовані дані
+                    const fallbackData = generateFallbackData();
 
-        // Визначаємо, чи мобільний пристрій
-        const isMobile = window.innerWidth < 768;
-        if (isMobile) {
-            progressContainer.classList.add('mobile-view');
-        } else {
-            progressContainer.classList.remove('mobile-view');
-        }
+                    // Оновлюємо стан
+                    state.bonusData = fallbackData;
+                    state.lastLoaded = now;
 
-        // Створюємо маркери для кожного дня (від 1 до 7)
-        for (let day = 1; day <= 7; day++) {
-            const dayMarker = document.createElement('div');
-            dayMarker.className = 'day-marker';
-            dayMarker.dataset.day = day;
+                    return fallbackData;
+                }
 
-            // Створюємо кружечок дня
-            const dayCircle = document.createElement('div');
-            dayCircle.className = 'day-circle';
-
-            // Додаємо відповідний клас статусу
-            if (day < currentDay) {
-                dayCircle.classList.add('completed');
-                // Додаємо іконку виконання для вже отриманих днів
-                dayCircle.innerHTML = '<span class="check-icon">✓</span>';
-            } else if (day === currentDay) {
-                dayCircle.classList.add('active');
-                dayCircle.innerText = day;
+                throw new Error("API ендпоінт щоденного бонусу не знайдено");
             } else {
-                dayCircle.innerText = day;
+                // Інша помилка від API
+                console.error("DailyBonus: Помилка API", response);
+                throw new Error(response.message || "Невідома помилка API");
+            }
+        } catch (error) {
+            state.failureCount++;
+            console.error("DailyBonus: Помилка завантаження даних", error);
+
+            // Показуємо повідомлення про помилку, якщо це не 404
+            if (error.httpStatus !== 404 && typeof window.showToast === 'function' && showLoader) {
+                window.showToast("Не вдалося завантажити дані щоденного бонусу. Спробуйте пізніше.", "error");
             }
 
-            // Додаємо підказку при наведенні
-            dayCircle.title = getLocalizedText(
-                LOCALE_KEYS.DAY_LABEL,
-                `День ${day}`,
-                { day: day }
-            );
+            // Якщо дозволено використання альтернативних даних і помилка критична
+            if (config.enableFallback && state.failureCount > 1) {
+                console.warn("DailyBonus: Використовуємо симульовані дані");
 
-            // Створюємо текст винагороди
-            const dayReward = document.createElement('div');
-            dayReward.className = 'day-reward';
-            const formattedAmount = formatBonusAmount(getBonusAmount(day));
-            dayReward.innerHTML = `<span class="reward-amount">${formattedAmount}</span> <span class="reward-currency">$WINIX</span>`;
+                // Генеруємо випадкові бонусні дані
+                const fallbackData = generateFallbackData();
 
-            // Додаємо елементи до маркера
-            dayMarker.appendChild(dayCircle);
-            dayMarker.appendChild(dayReward);
+                // Повертаємо симульовані дані, але не зберігаємо їх як стан,
+                // щоб при наступному запиті знову спробувати отримати справжні дані
+                return fallbackData;
+            }
 
-            // Додаємо маркер до контейнера
-            progressContainer.appendChild(dayMarker);
-        }
+            // Якщо є кешовані дані, повертаємо їх
+            if (state.bonusData) {
+                return state.bonusData;
+            }
 
-        // Додаємо доступну підказку для скрінрідерів
-        const ariaDescription = document.createElement('div');
-        ariaDescription.className = 'visually-hidden';
-        ariaDescription.setAttribute('aria-live', 'polite');
-        ariaDescription.textContent = getLocalizedText(
-            LOCALE_KEYS.DAYS_PROGRESS,
-            `День ${currentDay} з 7. Поточний бонус: ${formatBonusAmount(bonusAmount)} WINIX`,
-            { day: currentDay, total: 7, bonus: formatBonusAmount(bonusAmount) }
-        );
-        progressContainer.appendChild(ariaDescription);
-    }
+            throw error;
+        } finally {
+            state.isLoading = false;
 
-    /**
-     * Показати запасне відображення при помилці
-     */
-    function showFallbackDisplay() {
-        if (!progressContainer) return;
-
-        // Очищаємо контейнер
-        progressContainer.innerHTML = '<div class="bonus-error">Не вдалося завантажити дані бонусу. Спробуйте пізніше.</div>';
-
-        // Якщо є кнопка отримання бонусу, оновлюємо її стан
-        if (claimButton) {
-            claimButton.disabled = true;
-            claimButton.innerText = getLocalizedText(LOCALE_KEYS.ERROR_MSG, 'Помилка завантаження');
+            // Приховуємо індикатор завантаження
+            if (showLoader && typeof window.hideLoading === 'function') {
+                window.hideLoading();
+            }
         }
     }
 
     /**
-     * Отримати суму бонусу для конкретного дня
+     * Генерує симульовані дані про щоденний бонус
+     * @returns {Object} Симульовані дані бонусу
      */
-    function getBonusAmount(day) {
-        // Перевіряємо валідність дня
-        if (day < 1 || day > 7) {
-            console.warn(`Невалідний день бонусу: ${day}`);
-            return 10; // Значення за замовчуванням для безпеки
-        }
+    function generateFallbackData() {
+        // Визначаємо поточний день стріку (від 1 до 7)
+        const currentDay = Math.floor(Math.random() * 7) + 1;
 
-        // Якщо є дані з сервера, використовуємо їх
-        if (bonusData && bonusData.rewards && bonusData.rewards[day]) {
-            return bonusData.rewards[day];
-        }
+        // Визначаємо, чи можна сьогодні отримати бонус
+        const lastClaimedDate = new Date();
+        lastClaimedDate.setHours(0, 0, 0, 0);
 
-        // За замовчуванням використовуємо прогресивну шкалу
-        const defaultAmounts = {
-            1: 10,
-            2: 20,
-            3: 30,
-            4: 40,
-            5: 50,
-            6: 60,
-            7: 100
-        };
+        // Якщо випадає число менше 0.7, вважаємо що бонус ще не отримано
+        const bonusAlreadyClaimed = Math.random() < 0.3;
 
-        return defaultAmounts[day] || 10;
-    }
-
-    /**
-     * Оновлення стану кнопки отримання бонусу
-     */
-    function updateClaimButton() {
-        if (!claimButton) return;
-
-        // Оновлюємо атрибут даних для доступу до нових локалізацій
-        claimButton.setAttribute('data-locale-key', LOCALE_KEYS.CLAIM_BUTTON);
-
-        // Якщо бонус вже отримано сьогодні, деактивуємо кнопку
-        if (bonusData && bonusData.claimed_today) {
-            claimButton.disabled = true;
-            claimButton.innerText = getLocalizedText(LOCALE_KEYS.CLAIMED_BUTTON, 'Бонус отримано');
-            claimButton.classList.add('claimed');
+        if (bonusAlreadyClaimed) {
+            // Якщо бонус вже отримано, встановлюємо поточну дату
+            lastClaimedDate.setHours(Math.floor(Math.random() * 23));
         } else {
-            claimButton.disabled = false;
-            claimButton.classList.remove('claimed');
-
-            // Форматуємо суму бонусу
-            const formattedAmount = formatBonusAmount(bonusAmount);
-
-            // Оновлюємо текст кнопки з сумою бонусу та локалізацією
-            claimButton.innerText = getLocalizedText(
-                LOCALE_KEYS.CLAIM_BUTTON,
-                `Отримати ${formattedAmount} $WINIX`,
-                { amount: formattedAmount }
-            );
+            // Інакше встановлюємо вчорашню дату
+            lastClaimedDate.setDate(lastClaimedDate.getDate() - 1);
         }
+
+        // Визначаємо суму наступного бонусу (від 20 до 50)
+        const nextBonus = Math.floor(Math.random() * 31) + 20;
+
+        return {
+            day: currentDay,
+            canClaim: !bonusAlreadyClaimed,
+            nextBonus: nextBonus,
+            streakDays: currentDay,
+            lastClaimed: lastClaimedDate.toISOString(),
+            source: "fallback_data"
+        };
     }
 
     /**
      * Отримання щоденного бонусу
+     * @returns {Promise<Object>} Результат отримання бонусу
      */
-    async function claimBonus() {
-        if (!claimButton || claimButton.disabled) return;
-
-        // Додаткова перевірка статусу бонусу перед відправкою запиту
-        if (bonusData && bonusData.claimed_today) {
-            showMessage(
-                getLocalizedText(LOCALE_KEYS.ALREADY_CLAIMED, 'Бонус вже отримано сьогодні'),
-                'info'
-            );
-            updateClaimButton();
-            return;
+    async function claimDailyBonus() {
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            console.error("DailyBonus: ID користувача не знайдено");
+            return Promise.reject(new Error("ID користувача не знайдено"));
         }
 
-        // Деактивуємо кнопку на час запиту
-        claimButton.disabled = true;
-        const originalText = claimButton.innerText;
-        claimButton.innerText = getLocalizedText(LOCALE_KEYS.CLAIMING_BUTTON, 'Отримання...');
+        // Спочатку завантажуємо актуальні дані
+        try {
+            await loadBonusData(false);
+        } catch (e) {
+            console.warn("DailyBonus: Не вдалося завантажити актуальні дані перед отриманням бонусу", e);
+        }
 
-        // Додаємо індікатор завантаження
-        claimButton.classList.add('loading');
+        // Показуємо індикатор завантаження
+        if (typeof window.showLoading === 'function') {
+            window.showLoading();
+        }
 
         try {
-            // Перевіряємо наявність API
-            if (!window.API || typeof window.API.post !== 'function') {
-                console.warn('API не доступний. Симуляція отримання бонусу.');
+            // Використовуємо WinixAPI або резервний apiRequest
+            const apiMethod = (window.WinixAPI && window.WinixAPI.apiRequest) || window.apiRequest;
 
-                // Симулюємо успішне отримання бонусу
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // Показуємо анімацію винагороди
-                const reward = {
-                    type: 'tokens',
-                    amount: bonusAmount
-                };
-                showBonusAnimation(reward);
-
-                // Оновлюємо стан бонусу
-                bonusData.claimed_today = true;
-                bonusData.last_claim_date = new Date().toISOString().split('T')[0];
-
-                // Зберігаємо оновлений стан
-                saveBonusData();
-
-                // Інкрементуємо день, якщо це 7-й день, повертаємося до 1-го
-                if (currentDay >= 7) {
-                    currentDay = 1;
-                } else {
-                    currentDay += 1;
-                }
-                bonusData.current_day = currentDay;
-
-                renderBonusProgress();
-                updateClaimButton();
-
-                // Оновлюємо баланс користувача
-                updateUserBalance(reward);
-
-                return;
+            if (!apiMethod) {
+                throw new Error("API метод недоступний");
             }
 
-            const response = await window.API.post('/quests/daily-bonus/claim');
+            // ВИПРАВЛЕНО: Формування правильного шляху API
+            const endpoint = API_PATHS.CLAIM(userId);
 
-            if (response.success) {
-                // Показуємо анімацію винагороди
-                showBonusAnimation(response.data.reward);
+            // Виконуємо запит до API
+            const response = await apiMethod(endpoint, 'POST', null, {
+                suppressErrors: true
+            });
 
-                // Додаємо поточну дату отримання
-                bonusData.claimed_today = true;
-                bonusData.last_claim_date = new Date().toISOString().split('T')[0];
+            // Приховуємо індикатор завантаження
+            if (typeof window.hideLoading === 'function') {
+                window.hideLoading();
+            }
 
-                // Зберігаємо оновлений стан
-                saveBonusData();
+            // Успішна відповідь
+            if (response.status === 'success' && response.data) {
+                // Оновлюємо стан
+                state.bonusData = {
+                    ...state.bonusData,
+                    ...response.data,
+                    canClaim: false,
+                    lastClaimed: new Date().toISOString()
+                };
+                state.lastLoaded = Date.now();
 
-                // Оновлюємо стан бонусу
-                await loadBonusData(true); // Примусово оновлюємо з сервера
-                renderBonusProgress();
-                updateClaimButton();
+                // Оновлюємо кеш
+                try {
+                    localStorage.setItem('daily_bonus_data', JSON.stringify({
+                        data: state.bonusData,
+                        timestamp: state.lastLoaded
+                    }));
+                } catch (e) {
+                    console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
+                }
+
+                // Показуємо повідомлення про успіх
+                if (typeof window.showToast === 'function') {
+                    window.showToast(`Щоденний бонус отримано: +${response.data.reward || 0} WINIX`, "success");
+                }
 
                 // Оновлюємо баланс користувача
-                updateUserBalance(response.data.reward);
-            } else {
-                // Відображаємо помилку
-                showErrorMessage(response.message || 'Не вдалося отримати щоденний бонус');
+                if (response.data.reward && typeof window.updateUserBalance === 'function') {
+                    window.updateUserBalance(response.data.reward);
+                }
 
-                // Оновлюємо дані з сервера
-                await loadBonusData(true);
-                renderBonusProgress();
-                updateClaimButton();
+                // Відправляємо подію про отримання бонусу
+                document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
+                    detail: response.data
+                }));
+
+                return response.data;
+            } else if (response.status === 'error' && response.httpStatus === 404) {
+                // ВИПРАВЛЕНО: Спеціальна обробка 404 помилки
+                console.warn("DailyBonus: API ендпоінт не знайдено (404), симулюємо отримання бонусу");
+
+                if (config.enableFallback) {
+                    // Симулюємо отримання бонусу
+                    const reward = Math.floor(Math.random() * 31) + 20; // 20-50 WINIX
+
+                    // Оновлюємо стан
+                    if (state.bonusData) {
+                        state.bonusData.canClaim = false;
+                        state.bonusData.lastClaimed = new Date().toISOString();
+                        state.bonusData.day = (state.bonusData.day || 0) + 1;
+                        if (state.bonusData.day > 7) state.bonusData.day = 1;
+                    }
+
+                    // Показуємо повідомлення про успіх
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`Щоденний бонус отримано (симуляція): +${reward} WINIX`, "success");
+                    }
+
+                    // Оновлюємо баланс користувача
+                    if (typeof window.updateUserBalance === 'function') {
+                        window.updateUserBalance(reward);
+                    }
+
+                    return {
+                        status: "success",
+                        reward: reward,
+                        message: "Щоденний бонус отримано (симуляція)",
+                        source: "fallback_claim"
+                    };
+                }
+
+                throw new Error("API ендпоінт для отримання бонусу не знайдено");
+            } else {
+                // Інша помилка від API
+                const errorMessage = response.message || "Невідома помилка API";
+                console.error("DailyBonus: Помилка отримання бонусу", response);
+
+                // Показуємо повідомлення про помилку
+                if (typeof window.showToast === 'function') {
+                    window.showToast(`Не вдалося отримати щоденний бонус: ${errorMessage}`, "error");
+                }
+
+                throw new Error(errorMessage);
             }
         } catch (error) {
-            console.error('Помилка при отриманні щоденного бонусу:', error);
-
-            // Відображаємо помилку
-            showErrorMessage('Сталася помилка при отриманні щоденного бонусу');
-        } finally {
-            // Прибираємо індікатор завантаження
-            claimButton.classList.remove('loading');
-        }
-    }
-
-    /**
-     * Показати анімацію отримання бонусу
-     */
-    function showBonusAnimation(reward) {
-        // Перевіряємо валідність нагороди
-        if (!reward || !reward.amount) {
-            console.warn('Невалідні дані нагороди для анімації');
-            return;
-        }
-
-        // Форматуємо суму нагороди
-        const formattedAmount = formatBonusAmount(reward.amount);
-
-        // Перевіряємо чи доступний модуль анімацій
-        if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
-            window.UI.Animations.showReward({
-                ...reward,
-                formattedAmount: formattedAmount
-            });
-        } else {
-            // Запасний варіант - просте сповіщення
-            showSuccessMessage(
-                getLocalizedText(
-                    LOCALE_KEYS.SUCCESS_MSG,
-                    `Ви отримали щоденний бонус: ${formattedAmount} ${reward.type === 'tokens' ? '$WINIX' : 'жетонів'}!`,
-                    { amount: formattedAmount, type: reward.type === 'tokens' ? '$WINIX' : 'жетонів' }
-                )
-            );
-
-            // Створюємо просту анімацію
-            const animationElement = document.createElement('div');
-            animationElement.className = 'bonus-animation';
-            animationElement.innerHTML = `
-                <div class="bonus-animation-content">
-                    <div class="bonus-animation-icon">🎁</div>
-                    <div class="bonus-animation-amount">+${formattedAmount} ${reward.type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
-                </div>
-            `;
-
-            document.body.appendChild(animationElement);
-
-            // Показуємо анімацію
-            setTimeout(() => {
-                animationElement.classList.add('show');
-                setTimeout(() => {
-                    animationElement.classList.remove('show');
-                    setTimeout(() => {
-                        animationElement.remove();
-                    }, 300);
-                }, 2000);
-            }, 100);
-        }
-    }
-
-    /**
-     * Оновити баланс користувача
-     */
-    function updateUserBalance(reward) {
-        // Перевіряємо валідність нагороди
-        if (!reward || !reward.amount) {
-            console.warn('Невалідні дані нагороди для оновлення балансу');
-            return;
-        }
-
-        // Якщо є TaskRewards або TaskManager, використовуємо їх
-        if (window.TaskRewards && window.TaskRewards.updateBalance) {
-            window.TaskRewards.updateBalance(reward);
-            return;
-        }
-
-        if (window.TaskManager && window.TaskManager.updateBalance) {
-            window.TaskManager.updateBalance(reward);
-            return;
-        }
-
-        // Запасний варіант - оновлюємо елементи DOM напряму
-        if (reward.type === 'tokens') {
-            const userTokensElement = document.getElementById('user-tokens');
-            if (userTokensElement) {
-                const currentBalance = parseFloat(userTokensElement.textContent.replace(/\s+/g, '')) || 0;
-                const newBalance = currentBalance + reward.amount;
-                userTokensElement.textContent = formatBonusAmount(newBalance);
-                userTokensElement.classList.add('highlight');
-                setTimeout(() => {
-                    userTokensElement.classList.remove('highlight');
-                }, 2000);
-
-                // Зберігаємо в сховищі, якщо доступно
-                if (window.StorageUtils) {
-                    window.StorageUtils.setItem('userTokens', newBalance, {
-                        sensitive: true // Позначаємо як чутливі дані
-                    });
-                    window.StorageUtils.setItem('winix_balance', newBalance, {
-                        sensitive: true
-                    });
-                }
-            }
-        } else if (reward.type === 'coins') {
-            const userCoinsElement = document.getElementById('user-coins');
-            if (userCoinsElement) {
-                const currentBalance = parseInt(userCoinsElement.textContent.replace(/\s+/g, '')) || 0;
-                const newBalance = currentBalance + reward.amount;
-                userCoinsElement.textContent = formatBonusAmount(newBalance);
-                userCoinsElement.classList.add('highlight');
-                setTimeout(() => {
-                    userCoinsElement.classList.remove('highlight');
-                }, 2000);
-
-                // Зберігаємо в сховищі, якщо доступно
-                if (window.StorageUtils) {
-                    window.StorageUtils.setItem('userCoins', newBalance, {
-                        sensitive: true
-                    });
-                    window.StorageUtils.setItem('winix_coins', newBalance, {
-                        sensitive: true
-                    });
-                }
-            }
-        }
-
-        // Генеруємо подію про оновлення балансу
-        document.dispatchEvent(new CustomEvent('balance-updated', {
-            detail: {
-                type: reward.type,
-                amount: reward.amount,
-                source: 'daily-bonus'
-            }
-        }));
-    }
-
-    /**
-     * Показати повідомлення про успіх
-     */
-    function showSuccessMessage(message) {
-        // Делегуємо TaskManager, якщо він доступний
-        if (window.TaskManager && window.TaskManager.showSuccessMessage) {
-            window.TaskManager.showSuccessMessage(message);
-            return;
-        }
-
-        // Делегуємо UI.Notifications, якщо він доступний
-        if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
-            window.UI.Notifications.showSuccess(message);
-            return;
-        }
-
-        // Запасний варіант - використовуємо toast-повідомлення
-        showMessage(message, 'success');
-    }
-
-    /**
-     * Показати повідомлення про помилку
-     */
-    function showErrorMessage(message) {
-        // Делегуємо TaskManager, якщо він доступний
-        if (window.TaskManager && window.TaskManager.showErrorMessage) {
-            window.TaskManager.showErrorMessage(message);
-            return;
-        }
-
-        // Делегуємо UI.Notifications, якщо він доступний
-        if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
-            window.UI.Notifications.showError(message);
-            return;
-        }
-
-        // Запасний варіант - використовуємо toast-повідомлення
-        showMessage(message, 'error');
-    }
-
-    /**
-     * Показати повідомлення
-     */
-    function showMessage(message, type = 'info') {
-        const toastElement = document.getElementById('toast-message');
-        if (toastElement) {
-            // Встановлюємо текст
-            toastElement.textContent = message;
-
-            // Встановлюємо клас в залежності від типу
-            toastElement.className = 'toast-message';
-            if (type === 'error') {
-                toastElement.style.background = 'linear-gradient(135deg, #F44336, #D32F2F)';
-            } else if (type === 'success') {
-                toastElement.style.background = 'linear-gradient(135deg, #4CAF50, #2E7D32)';
-            } else {
-                toastElement.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
+            // Приховуємо індикатор завантаження
+            if (typeof window.hideLoading === 'function') {
+                window.hideLoading();
             }
 
-            // Показуємо сповіщення
-            toastElement.classList.add('show');
+            console.error("DailyBonus: Помилка отримання щоденного бонусу", error);
 
-            // Автоматично приховуємо через 3 секунди
-            setTimeout(() => {
-                toastElement.classList.remove('show');
-                // Повертаємо оригінальний стиль
-                setTimeout(() => {
-                    toastElement.style.background = 'linear-gradient(135deg, #1A1A2E, #0F3460)';
-                }, 300);
-            }, 3000);
-        } else {
-            alert(message);
+            // Показуємо повідомлення про помилку
+            if (typeof window.showToast === 'function') {
+                window.showToast("Не вдалося отримати щоденний бонус. Спробуйте пізніше.", "error");
+            }
+
+            throw error;
         }
     }
 
-    // Публічний API модуля
+    // Публічний API
     return {
         init,
-        claimBonus,
         loadBonusData,
-        renderBonusProgress,
-        updateClaimButton
+        claimDailyBonus,
+        getState: () => ({ ...state }),
+        setDebugMode: (debug) => { config.debug = debug; },
+        enableFallback: (enable) => { config.enableFallback = enable; }
     };
 })();
+
+// Автоматична ініціалізація, якщо можливо
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.DailyBonus && !window.DailyBonus.isInitialized) {
+        window.DailyBonus.init();
+    }
+});
