@@ -138,45 +138,96 @@ def setup_request_handlers(app):
 
 def register_api_routes(app):
     """Реєстрація всіх API маршрутів"""
-    # Реєстрація маршрутів для розіграшів окремо для кращого контролю помилок
+    # Функція для логування результату реєстрації маршрутів
+    def log_registration_result(name, success, error=None):
+        if success:
+            logger.info(f"✅ Маршрути {name} успішно зареєстровано")
+        else:
+            logger.error(f"❌ Помилка реєстрації маршрутів {name}: {error}")
+            if error:
+                logger.error(traceback.format_exc())
+
+    # Реєстрація маршрутів розіграшів
     try:
         from raffles.routes import register_raffles_routes
         success = register_raffles_routes(app)
-        if success:
-            logger.info("✅ Маршрути розіграшів успішно зареєстровано")
-        else:
-            logger.error("❌ Помилка реєстрації маршрутів розіграшів")
+        log_registration_result("розіграшів", success)
     except Exception as e:
-        logger.error(f"❌ Критична помилка реєстрації маршрутів розіграшів: {str(e)}")
-        logger.error(traceback.format_exc())
+        log_registration_result("розіграшів", False, str(e))
 
+    # Реєстрація маршрутів авторизації
     try:
-        # Імпорт функцій реєстрації маршрутів
         from auth.routes import register_auth_routes
-        from users.routes import register_user_routes
-        from wallet.routes import register_wallet_routes
-        from transactions.routes import register_transactions_routes
-        from quests.routes import register_quests_routes
-        from referrals.routes import register_referrals_routes
-        from badges.routes import register_badges_routes
-        from admin.routes import register_admin_routes
-        from stats.routes import register_stats_routes
-
-        # Реєстрація API маршрутів
         register_auth_routes(app)
-        register_user_routes(app)
-        register_wallet_routes(app)
-        register_transactions_routes(app)
-        register_quests_routes(app)
-        register_referrals_routes(app)
-        register_badges_routes(app)
-        register_admin_routes(app)
-        register_stats_routes(app)
-
-        logger.info("API маршрути зареєстровано")
+        log_registration_result("авторизації", True)
     except Exception as e:
-        logger.error(f"Помилка реєстрації API маршрутів: {str(e)}")
-        traceback.print_exc()
+        log_registration_result("авторизації", False, str(e))
+
+    # Реєстрація маршрутів користувачів
+    try:
+        from users.routes import register_user_routes
+        register_user_routes(app)
+        log_registration_result("користувачів", True)
+    except Exception as e:
+        log_registration_result("користувачів", False, str(e))
+
+    # Реєстрація маршрутів гаманця
+    try:
+        from wallet.routes import register_wallet_routes
+        register_wallet_routes(app)
+        log_registration_result("гаманця", True)
+    except Exception as e:
+        log_registration_result("гаманця", False, str(e))
+
+    # Реєстрація маршрутів транзакцій
+    try:
+        from transactions.routes import register_transactions_routes
+        register_transactions_routes(app)
+        log_registration_result("транзакцій", True)
+    except Exception as e:
+        log_registration_result("транзакцій", False, str(e))
+
+    # Реєстрація маршрутів завдань
+    try:
+        from quests.routes import register_quests_routes
+        register_quests_routes(app)
+        log_registration_result("завдань", True)
+    except Exception as e:
+        log_registration_result("завдань", False, str(e))
+
+    # Реєстрація маршрутів рефералів
+    try:
+        from referrals.routes import register_referrals_routes
+        register_referrals_routes(app)
+        log_registration_result("рефералів", True)
+    except Exception as e:
+        log_registration_result("рефералів", False, str(e))
+
+    # Реєстрація маршрутів бейджів
+    try:
+        from badges.routes import register_badges_routes
+        register_badges_routes(app)
+        log_registration_result("бейджів", True)
+    except Exception as e:
+        log_registration_result("бейджів", False, str(e))
+
+    # Реєстрація маршрутів адміністратора
+    try:
+        from admin.routes import register_admin_routes
+        register_admin_routes(app)
+        log_registration_result("адміністратора", True)
+    except Exception as e:
+        log_registration_result("адміністратора", False, str(e))
+
+    # Реєстрація маршрутів статистики
+    try:
+        from stats.routes import register_stats_routes
+        register_stats_routes(app)
+        log_registration_result("статистики", True)
+    except Exception as e:
+        log_registration_result("статистики", False, str(e))
+
+    logger.info("Реєстрація API маршрутів завершена")
 
 
 def register_utility_routes(app):
