@@ -441,6 +441,42 @@ window.UI.Animations = (function() {
     }
 
     /**
+     * Ініціалізація анімацій на сторінці
+     * ДОДАНО: Функція, яка була відсутня і спричиняла помилку
+     */
+    function initPageAnimations() {
+        console.log('UI.Animations: Ініціалізація анімацій сторінки');
+
+        // Якщо анімації не ініціалізовані, спочатку ініціалізуємо модуль
+        if (!state.initialized) {
+            init();
+        }
+
+        // Знаходимо всі елементи з анімаціями
+        const animatedElements = document.querySelectorAll('[data-animation]');
+
+        // Застосовуємо анімації до елементів
+        animatedElements.forEach(element => {
+            const animationType = element.dataset.animation;
+            if (animationType) {
+                element.classList.add(`animate-${animationType}`);
+            }
+        });
+
+        // Додаємо анімації до прогрес-барів
+        const progressBars = document.querySelectorAll('.progress-fill');
+        progressBars.forEach(bar => {
+            if (bar.parentElement && bar.parentElement.dataset && bar.parentElement.dataset.taskId) {
+                const progress = parseFloat(bar.style.width) || 0;
+                showProgressAnimation(bar.parentElement.dataset.taskId, progress);
+            }
+        });
+
+        console.log('UI.Animations: Анімації сторінки ініціалізовано');
+        return true;
+    }
+
+    /**
      * Показати преміальну анімацію отримання винагороди
      * @param {Object} reward - Об'єкт винагороди {amount: число, type: 'tokens'|'coins'}
      * @param {Object} options - Додаткові параметри
@@ -882,5 +918,6 @@ window.UI.Animations = (function() {
         playSound,
         animateSuccessfulCompletion,
         createPremiumConfetti,
+        initPageAnimations, // ДОДАНО: Публічний доступ до нової функції
     };
 })();
