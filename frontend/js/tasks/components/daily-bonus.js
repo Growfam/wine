@@ -208,7 +208,7 @@ window.DailyBonus = (function() {
             // Якщо API доступний, робимо запит
             try {
                 const userId = getUserId();
-const response = await window.API.get(`/user/${userId}/daily-bonus`);
+const response = await window.API.get(`user/${userId}/daily-bonus`);
 
                 if (response && response.success) {
                     bonusData = response.data || defaultBonusData;

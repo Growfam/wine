@@ -495,7 +495,7 @@ window.SocialTask = (function() {
             // Якщо є API та користувач авторизований, викликаємо його самостійно
             if (isApiAvailable() && isUserAuthenticated()) {
                 try {
-                    const response = await window.API.post(`/quests/tasks/${task.id}/start`);
+                    const response = await window.API.post(`quests/tasks/${task.id}/start`)
 
                     if (!response.success) {
                         throw new Error(response.message || 'Помилка при старті завдання');
@@ -608,7 +608,7 @@ window.SocialTask = (function() {
             // Перевіряємо наявність API та авторизації користувача
             if (isApiAvailable() && isUserAuthenticated()) {
                 try {
-                    const response = await window.API.post(`/quests/tasks/${task.id}/verify`);
+                    const response = await window.API.post(`quests/tasks/${task.id}/verify`)
 
                     // Оновлюємо відображення завдання
                     refreshTaskDisplay(task.id);
