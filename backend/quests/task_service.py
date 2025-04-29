@@ -501,7 +501,7 @@ class TaskService:
             # Отримуємо поточний прогрес
             progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id).execute()
 
-            if not progress_response.data or len(progress_response.data) == 0:
+            if not progress_response.data:
                 # Якщо прогресу немає, створюємо новий
                 return TaskService.start_task(telegram_id, task_id)
 
@@ -558,7 +558,7 @@ class TaskService:
             # Отримуємо поточний прогрес
             progress_response = supabase.table('user_progress').select('*').eq('telegram_id', str(telegram_id)).eq('task_id', task_id).execute()
 
-            if not progress_response.data or len(progress_response.data) == 0:
+            if not progress_response.data:
                 logger.error(f"Прогрес для завдання {task_id} користувача {telegram_id} не знайдено")
                 return None
 
@@ -569,7 +569,7 @@ class TaskService:
             if is_verified:
                 progress.set_status(STATUS_VERIFIED)
             else:
-                progress.set_status(STATUS_REJECTED)
+                progress.set_status("rejected")
 
             # Додаємо коментар до верифікації
             if verification_comment:
