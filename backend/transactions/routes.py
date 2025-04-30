@@ -3,7 +3,8 @@ from . import controllers
 
 
 def register_transactions_routes(app):
-    @app.route('/api/user/<telegram_id>/transactions', methods=['GET'])
+    # ВИПРАВЛЕНО: Додано унікальний endpoint для уникнення конфлікту
+    @app.route('/api/user/<telegram_id>/transactions', methods=['GET'], endpoint='transactions_get_user_transactions')
     def api_get_user_transactions(telegram_id):
         """Отримання транзакцій користувача"""
         # Перевіряємо, чи є обмеження по кількості та тип транзакцій

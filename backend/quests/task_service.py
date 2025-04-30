@@ -175,34 +175,86 @@ class TaskService:
         """
         try:
             logger.info(f"Отримання завдань типу {task_type}")
-            response = TaskService.execute_query(
-                supabase.table('tasks').select('*').eq('task_type', task_type).order('created_at', desc=True)
-            )
 
-            if not response or not response.data:
+            # Додаткова перевірка вхідних даних
+            if not task_type or not isinstance(task_type, str):
+                logger.error(f"Отримано невірний тип завдання: {task_type}")
+                return []
+
+            # Перевірка підключення до Supabase
+            if not supabase:
+                logger.error("Supabase клієнт не ініціалізовано")
+                return []
+
+            # Формуємо запит
+            query = supabase.table('tasks').select('*').eq('task_type', task_type).order('created_at', desc=True)
+
+            # Виконуємо запит з обробкою винятків
+            try:
+                response = TaskService.execute_query(query)
+            except Exception as query_error:
+                logger.error(f"Помилка виконання запиту до бази даних: {str(query_error)}")
+                logger.exception(query_error)
+                return []
+
+            # Перевіряємо відповідь
+            if not response or not hasattr(response, 'data'):
+                logger.warning(f"Отримано неповну або некоректну відповідь від Supabase")
+                return []
+
+            if not response.data:
                 logger.info(f"Завдання типу {task_type} не знайдено")
                 return []
 
+            # Обробляємо отримані дані
             tasks = []
             for task_data in response.data:
                 try:
-                    # Нормалізуємо дати
-                    if 'start_date' in task_data and task_data['start_date']:
-                        task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+                    # Перевіряємо, що task_data є словником
+                    if not isinstance(task_data, dict):
+                        logger.warning(f"Некоректний формат даних завдання: {type(task_data)}")
+                        continue
 
-                    if 'end_date' in task_data and task_data['end_date']:
-                        task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+                    # Копіюємо дані для безпечної модифікації
+                    task_copy = task_data.copy()
 
-                    # Перевіряємо, чи завдання активне
-                    if TaskService.is_task_active(task_data):
-                        tasks.append(task_data)
-                except Exception as e:
-                    logger.error(f"Помилка при обробці даних завдання: {str(e)}")
+                    # Нормалізуємо дати з обробкою помилок
+                    if 'start_date' in task_copy and task_copy['start_date']:
+                        try:
+                            task_copy['start_date'] = TaskService.normalize_date(task_copy['start_date'])
+                        except Exception as date_error:
+                            logger.warning(f"Помилка нормалізації start_date: {date_error}")
+                            task_copy['start_date'] = None
 
-            logger.info(f"Отримано {len(tasks)} завдань типу {task_type}")
+                    if 'end_date' in task_copy and task_copy['end_date']:
+                        try:
+                            task_copy['end_date'] = TaskService.normalize_date(task_copy['end_date'])
+                        except Exception as date_error:
+                            logger.warning(f"Помилка нормалізації end_date: {date_error}")
+                            task_copy['end_date'] = None
+
+                    # Перевіряємо активність завдання
+                    is_active = True
+                    try:
+                        is_active = TaskService.is_task_active(task_copy)
+                    except Exception as active_error:
+                        logger.warning(f"Помилка перевірки активності: {active_error}")
+                        is_active = True  # За замовчуванням вважаємо активним
+
+                    # Додаємо активне завдання до списку
+                    if is_active:
+                        tasks.append(task_copy)
+                except Exception as task_error:
+                    logger.error(f"Помилка при обробці даних завдання: {str(task_error)}")
+                    logger.exception(task_error)
+                    continue  # Пропускаємо це завдання і продовжуємо обробку
+
+            logger.info(f"Успішно отримано {len(tasks)} завдань типу {task_type}")
             return tasks
+
         except Exception as e:
-            logger.error(f"Помилка при отриманні завдань типу {task_type}: {str(e)}")
+            logger.error(f"Критична помилка при отриманні завдань типу {task_type}: {str(e)}")
+            logger.exception(e)
             return []
 
     @staticmethod
