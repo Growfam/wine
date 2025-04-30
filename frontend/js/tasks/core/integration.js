@@ -26,15 +26,15 @@ window.TaskIntegration = (function() {
     // Конфігурація модуля з розширеними налаштуваннями
     const config = {
         enableLogging: true,
-        detailedLogging: false, // Розширене логування для діагностики
+        detailedLogging: true, // Включаємо розширене логування для діагностики
         maxInitAttempts: 3,
-        initTimeout: 10000, // 10 секунд максимум на ініціалізацію
+        initTimeout: 15000, // Збільшуємо таймаут до 15 секунд
         autoResolveConflicts: true, // Автоматично вирішувати конфлікти
         preferredManager: 'TaskProgressManager', // 'TaskProgressManager' або 'TaskManager' - який модуль має пріоритет
-        safeMode: false, // Режим підвищеної надійності (повільніше, але надійніше)
+        safeMode: true, // Вмикаємо режим підвищеної надійності
         autoRetryOnFailure: true, // Автоматично повторювати ініціалізацію при помилках
         monitorDomMutations: true, // Відстежувати зміни DOM для динамічного оновлення
-        fallbackUserMode: true    // ВИПРАВЛЕНО: Режим роботи з невідомим ID користувача
+        fallbackUserMode: true    // Режим роботи з невідомим ID користувача
     };
 
     // Зберігаємо залежності модулів з пріоритетами
@@ -164,6 +164,11 @@ window.TaskIntegration = (function() {
 
         log('TaskIntegration: Початок ініціалізації модулів системи завдань');
 
+        // ДОДАНО: Діагностичне повідомлення про API_PATHS
+        if (config.detailedLogging) {
+            logAPIPathsStatus();
+        }
+
         // Налаштування обробників помилок для відстеження проблем
         setupErrorHandlers();
 
@@ -175,6 +180,44 @@ window.TaskIntegration = (function() {
             document.addEventListener('DOMContentLoaded', startInitializationProcess);
         } else {
             startInitializationProcess();
+        }
+    }
+
+    /**
+     * Перевірка і виведення статусу API_PATHS
+     */
+    function logAPIPathsStatus() {
+        log('TaskIntegration: Перевірка API_PATHS...');
+
+        if (!window.API_PATHS) {
+            logError('API_PATHS не знайдено! Завдання не зможуть бути завантажені.');
+            return;
+        }
+
+        // Перевіряємо ключові шляхи для завдань
+        if (!window.API_PATHS.TASKS) {
+            logError('API_PATHS.TASKS не знайдено!');
+            return;
+        }
+
+        const requiredPaths = ['SOCIAL', 'LIMITED', 'PARTNER'];
+        const missingPaths = [];
+
+        for (const path of requiredPaths) {
+            if (!window.API_PATHS.TASKS[path]) {
+                missingPaths.push(path);
+            }
+        }
+
+        if (missingPaths.length > 0) {
+            logError(`Відсутні необхідні шляхи API: ${missingPaths.join(', ')}`);
+        } else {
+            log('TaskIntegration: Всі необхідні API шляхи знайдено.');
+
+            // Виводимо шляхи для підтвердження
+            log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
+            log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
+            log(`PARTNER: ${window.API_PATHS.TASKS.PARTNER}`);
         }
     }
 

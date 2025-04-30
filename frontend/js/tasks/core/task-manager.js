@@ -1,5 +1,6 @@
 /**
- * ДІАГНОСТИЧНА ВЕРСІЯ TaskManager з додатковим логуванням
+ * TaskManager - Модуль для управління завданнями
+ * Виправлена версія з кращою діагностикою
  */
 
 window.TaskManager = (function() {
@@ -174,7 +175,8 @@ window.TaskManager = (function() {
             // Логуємо URL-шляхи які використовуються
             console.log('🔍 ДІАГНОСТИКА: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
             console.log('🔍 ДІАГНОСТИКА: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
-            console.log('🔍 ДІАГНОСТИКА: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNERS);
+            // ВИПРАВЛЕНО: Використовуємо PARTNER замість PARTNERS
+            console.log('🔍 ДІАГНОСТИКА: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
 
             try {
                 // Спробуємо завантажити соціальні завдання і побачити що відбувається
@@ -293,8 +295,9 @@ window.TaskManager = (function() {
                 }
 
                 try {
+                    // ВИПРАВЛЕНО: Використовуємо API_PATHS.TASKS.PARTNER замість API_PATHS.TASKS.PARTNERS
                     console.log('🔍 ДІАГНОСТИКА: Запит партнерських завдань...');
-                    const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNERS);
+                    const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
                     console.log('🔍 ДІАГНОСТИКА: Відповідь на запит партнерських завдань:', partnerResponse);
 
                     // Така ж обробка як і для соціальних завдань, але скорочена для компактності
@@ -627,7 +630,8 @@ window.TaskManager = (function() {
         console.log('API_PATHS.TASKS:', window.API_PATHS.TASKS);
 
         // Перевіряємо шляхи до завдань
-        const paths = ['SOCIAL', 'LIMITED', 'PARTNERS'];
+        // ВИПРАВЛЕНО: Змінено PARTNERS на PARTNER
+        const paths = ['SOCIAL', 'LIMITED', 'PARTNER'];
         paths.forEach(path => {
             if (window.API_PATHS.TASKS[path]) {
                 console.log(`API_PATHS.TASKS.${path}:`, window.API_PATHS.TASKS[path]);

@@ -20,7 +20,8 @@
             BY_TYPE: (type) => `quests/tasks/${type}`,
             SOCIAL: 'quests/tasks/social',
             LIMITED: 'quests/tasks/limited',
-            PARTNERS: 'quests/tasks/partners',
+            // ВИПРАВЛЕНО: Змінено з "partners" на "partner" для узгодження з бекендом
+            PARTNER: 'quests/tasks/partner',
             DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
             START: (taskId) => `quests/tasks/${taskId}/start`,
             VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
@@ -323,40 +324,41 @@
     }
 
     /**
- * Нормалізація API endpoint для уникнення проблем з URL
- * @param {string} endpoint - вхідний endpoint
- * @returns {string} нормалізований endpoint
- */
-function normalizeEndpoint(endpoint) {
-    if (!endpoint) return 'api';
+     * Нормалізація API endpoint для уникнення проблем з URL
+     * @param {string} endpoint - вхідний endpoint
+     * @returns {string} нормалізований endpoint
+     */
+    function normalizeEndpoint(endpoint) {
+        if (!endpoint) return 'api';
 
-    // ВИПРАВЛЕНО: Повністю переписана функція для коректного формування URL
-    let cleanEndpoint = endpoint;
+        // ВИПРАВЛЕНО: Повністю переписана функція для коректного формування URL
+        let cleanEndpoint = endpoint;
 
-    // Видаляємо слеш на початку, якщо він є
-    if (cleanEndpoint.startsWith('/')) {
-        cleanEndpoint = cleanEndpoint.substring(1);
+        // Видаляємо слеш на початку, якщо він є
+        if (cleanEndpoint.startsWith('/')) {
+            cleanEndpoint = cleanEndpoint.substring(1);
+        }
+
+        // Видаляємо слеш в кінці, якщо він є
+        if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
+            cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
+        }
+
+        // Перевіряємо, чи починається шлях з 'api/'
+        if (cleanEndpoint.startsWith('api/')) {
+            return cleanEndpoint;
+        } else if (cleanEndpoint === 'api') {
+            // Якщо це просто 'api', повертаємо без змін
+            return cleanEndpoint;
+        } else if (cleanEndpoint.startsWith('api')) {
+            // Якщо починається з 'api' але без слешу після
+            return `api/${cleanEndpoint.substring(3)}`;
+        } else {
+            // В усіх інших випадках додаємо 'api/' на початок
+            return `api/${cleanEndpoint}`;
+        }
     }
 
-    // Видаляємо слеш в кінці, якщо він є
-    if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
-        cleanEndpoint = cleanEndpoint.substring(0, cleanEndpoint.length - 1);
-    }
-
-    // Перевіряємо, чи починається шлях з 'api/'
-    if (cleanEndpoint.startsWith('api/')) {
-        return cleanEndpoint;
-    } else if (cleanEndpoint === 'api') {
-        // Якщо це просто 'api', повертаємо без змін
-        return cleanEndpoint;
-    } else if (cleanEndpoint.startsWith('api')) {
-        // Якщо починається з 'api' але без слешу після
-        return `api/${cleanEndpoint.substring(3)}`;
-    } else {
-        // В усіх інших випадках додаємо 'api/' на початок
-        return `api/${cleanEndpoint}`;
-    }
-}
     /**
      * Перевірка валідності UUID
      * @param {string} id - ID для перевірки
