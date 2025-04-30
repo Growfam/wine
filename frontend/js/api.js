@@ -2,7 +2,7 @@
  * api.js - Єдиний модуль для всіх API-запитів WINIX
  * Оптимізована версія: централізоване управління запитами та кешуванням
  * з виправленням проблем конкуруючих запитів та обробки помилок
- * @version 1.2.3
+ * @version 1.2.5
  */
 
 (function() {
@@ -90,7 +90,7 @@
     })();
 
     // Режим відлагодження
-    let _debugMode = false;
+    let _debugMode = true; // ВИПРАВЛЕНО: Включено режим відлагодження
 
     // Кешовані дані користувача
     let _userCache = null;
@@ -324,20 +324,43 @@
     }
 
     /**
+     * ВИПРАВЛЕНО: Безпечна перевірка, чи містить рядок певний підрядок
+     * @param {string|undefined} str - Рядок для перевірки
+     * @param {string} substring - Підрядок, який шукаємо
+     * @returns {boolean} Результат перевірки
+     */
+    function safeIncludes(str, substring) {
+        // Безпечна перевірка includes з обробкою undefined
+        if (!str || typeof str !== 'string') return false;
+        return str.includes(substring);
+    }
+
+    /**
      * Нормалізація API endpoint для уникнення проблем з URL
      * @param {string} endpoint - вхідний endpoint
      * @returns {string} нормалізований endpoint
      */
     function normalizeEndpoint(endpoint) {
+        // ВИПРАВЛЕНО: Додаємо захист від undefined
         if (!endpoint) return 'api';
 
-        // ВИПРАВЛЕНО: Повністю переписана функція для коректного формування URL
-        let cleanEndpoint = endpoint;
+        // Перевіряємо, чи endpoint є функцією і викликаємо її, якщо це так
+        if (typeof endpoint === 'function') {
+            try {
+                endpoint = endpoint();
+                // Якщо функція повернула undefined або null
+                if (!endpoint) return 'api';
+            } catch (e) {
+                console.error("🔌 API: Помилка виклику endpoint функції:", e);
+                return 'api';
+            }
+        }
+
+        // Перетворюємо endpoint на рядок, якщо це ще не рядок
+        endpoint = String(endpoint);
 
         // Видаляємо слеш на початку, якщо він є
-        if (cleanEndpoint.startsWith('/')) {
-            cleanEndpoint = cleanEndpoint.substring(1);
-        }
+        let cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
 
         // Видаляємо слеш в кінці, якщо він є
         if (cleanEndpoint.endsWith('/') && cleanEndpoint.length > 1) {
@@ -555,7 +578,7 @@
             // Додаємо тіло запиту для POST/PUT/PATCH
             if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
                 // Перевірка та коригування raffle_id для запитів участі в розіграші
-                if (url.includes('participate-raffle') && data) {
+                if (safeIncludes(url, 'participate-raffle') && data) {
                     // Переконатися, що raffle_id - валідний рядок
                     if (data.raffle_id) {
                         // Перевірка формату UUID та конвертація
@@ -591,7 +614,7 @@
             }
 
             // Спеціальна обробка для 404 помилок в розіграшах
-            if (response.status === 404 && url.includes('raffles')) {
+            if (response.status === 404 && safeIncludes(url, 'raffles')) {
                 // Очищуємо кеш розіграшів, якщо такий є
                 if (window.WinixRaffles && window.WinixRaffles.participation) {
                     window.WinixRaffles.participation.clearInvalidRaffleIds();
@@ -611,7 +634,7 @@
                 const retryAfter = response.headers.get('Retry-After') || 30; // 30 секунд за замовчуванням
 
                 // Визначаємо ендпоінт для блокування
-                const endpointForBlocking = Object.keys(REQUEST_THROTTLE).find(key => url.includes(key)) || 'default';
+                const endpointForBlocking = Object.keys(REQUEST_THROTTLE).find(key => safeIncludes(url, key)) || 'default';
 
                 // Викликаємо функцію обробки rate limit
                 handleRateLimiting(endpointForBlocking, parseInt(retryAfter));
@@ -645,7 +668,7 @@
      */
     function getThrottleTime(endpoint) {
         for (const key in REQUEST_THROTTLE) {
-            if (endpoint.includes(key)) {
+            if (safeIncludes(endpoint, key)) {
                 return REQUEST_THROTTLE[key];
             }
         }
@@ -690,10 +713,13 @@
      * @returns {boolean} Результат перевірки
      */
     function isEndpointBlocked(endpoint) {
+        // ВИПРАВЛЕНО: Захист від undefined для endpoint
+        if (!endpoint) return false;
+
         // Перевіряємо чи є блокування для цього ендпоінту або для глобальних запитів
         const isBlocked = Object.keys(_blockedEndpoints).some(key => {
             // Якщо це прямий збіг або глобальне блокування "default"
-            if ((endpoint.includes(key) || key === 'default') &&
+            if ((safeIncludes(endpoint, key) || key === 'default') &&
                 _blockedEndpoints[key].until > Date.now()) {
                 return true;
             }
@@ -714,11 +740,26 @@
  */
 async function apiRequest(endpoint, method = 'GET', data = null, options = {}, retries = 2) {
     try {
+        // ВИПРАВЛЕНО: Захист від undefined endpoint
+        if (!endpoint) {
+            console.error("🔌 API: endpoint є undefined або null");
+            return Promise.reject({
+                status: 'error',
+                message: 'Не вказано endpoint для запиту',
+                code: 'missing_endpoint'
+            });
+        }
+
+        // Логування при відлагодженні
+        if (_debugMode) {
+            console.log(`🔌 API: Початок запиту ${method} до ${endpoint}`);
+        }
+
         // Перевірка глобального блокування через rate limit
         if (!options.bypassThrottle && isEndpointBlocked(endpoint)) {
             // Визначаємо час очікування до розблокування
             const blockedKey = Object.keys(_blockedEndpoints).find(key =>
-                endpoint.includes(key) || key === 'default');
+                safeIncludes(endpoint, key) || key === 'default');
 
             if (blockedKey) {
                 const waitTime = Math.ceil((_blockedEndpoints[blockedKey].until - Date.now()) / 1000);
@@ -737,7 +778,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
     console.warn(`API: API недоступний, використовуємо fallback режим для ${endpoint}`);
 
     // Для критичних ендпоінтів повертаємо альтернативні дані
-    if (endpoint.includes('daily-bonus')) {
+    if (safeIncludes(endpoint, 'daily-bonus')) {
         return {
             status: 'success',
             data: {/* Ваші fallback дані */},
@@ -747,7 +788,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
 }
 
         // Перевірка невалідних ID розіграшів у URL
-        if (endpoint.includes('raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
+        if (safeIncludes(endpoint, 'raffles/') && !endpoint.endsWith('raffles') && !endpoint.endsWith('raffles/')) {
             const raffleIdMatch = endpoint.match(/raffles\/([^/?]+)/i);
             if (raffleIdMatch && raffleIdMatch[1]) {
                 const raffleId = raffleIdMatch[1];
@@ -763,7 +804,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         }
 
         // Перевірка даних для участі в розіграші чи запиту деталей розіграшу
-        if ((endpoint.includes('participate-raffle') || endpoint.includes('raffles/')) && data && data.raffle_id) {
+        if ((safeIncludes(endpoint, 'participate-raffle') || safeIncludes(endpoint, 'raffles/')) && data && data.raffle_id) {
             // Перевіряємо формат UUID
             if (typeof data.raffle_id !== 'string') {
                 data.raffle_id = String(data.raffle_id);
@@ -784,7 +825,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         let url;
 
         // Переконуємося, що URL формується коректно
-        if (endpoint.startsWith('http')) {
+        if (safeIncludes(endpoint, 'http')) {
             // Endpoint вже є повним URL - використовуємо як є
             url = endpoint;
         } else {
@@ -792,7 +833,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             const normalizedEndpoint = normalizeEndpoint(endpoint);
 
             // Забезпечуємо, що до URL не додаються неправильні параметри
-            const hasQuery = normalizedEndpoint.includes('?');
+            const hasQuery = safeIncludes(normalizedEndpoint, '?');
 
             // ВИПРАВЛЕНО: Додаємо кешобрейкер до URL (параметр t=timestamp)
             const timestamp = Date.now();
@@ -842,7 +883,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         // Додаємо тіло запиту для POST/PUT/PATCH
         if (data && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
             // Перевірка та коригування raffle_id для запитів участі в розіграші
-            if (url.includes('participate-raffle') && data) {
+            if (safeIncludes(url, 'participate-raffle') && data) {
                 // Переконатися, що raffle_id - валідний рядок
                 if (data.raffle_id) {
                     // Перевірка формату UUID та конвертація
@@ -866,13 +907,13 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
 
         // ВИПРАВЛЕНО: Додаємо кілька спроб для тестування доступності API перед запитом
         // Це допоможе виявити проблеми з API до запиту
-        if (url.includes('/api/ping') || url.includes('/daily-bonus')) {
+        if (safeIncludes(url, '/api/ping') || safeIncludes(url, '/daily-bonus')) {
             // Додатковий вивід діагностики для проблемних ендпоінтів
             console.log(`🔍 API: Тестування доступності для ендпоінту: ${url}`);
         }
 
         // НОВЕ: Перевірка паралельних запитів для критичних ендпоінтів
-        if (!options.allowParallel && endpoint.includes('participate-raffle')) {
+        if (!options.allowParallel && safeIncludes(endpoint, 'participate-raffle')) {
             // Якщо ендпоінт вже активний, відхиляємо запит
             if (_activeEndpoints.has(endpoint)) {
                 return Promise.reject({
@@ -901,7 +942,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             }
 
             // ВИПРАВЛЕНО: Виводимо більше інформації для відлагодження
-            if (_debugMode || url.includes('/api/ping') || url.includes('/daily-bonus')) {
+            if (_debugMode || safeIncludes(url, '/api/ping') || safeIncludes(url, '/daily-bonus')) {
                 console.log(`📡 API: Запит [${method}] ${url}`);
             }
 
@@ -929,7 +970,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                 const retryAfter = fetchResponse.headers.get('Retry-After') || 30; // секунд
 
                 // Викликаємо функцію блокування ендпоінту
-                const endpointKey = Object.keys(REQUEST_THROTTLE).find(key => endpoint.includes(key)) || 'default';
+                const endpointKey = Object.keys(REQUEST_THROTTLE).find(key => safeIncludes(endpoint, key)) || 'default';
                 handleRateLimiting(endpointKey, parseInt(retryAfter));
 
                 throw new Error(`Занадто багато запитів. Спробуйте через ${retryAfter} секунд.`);
@@ -955,11 +996,11 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             // ВИПРАВЛЕНО: Покращена обробка 404 помилок
             if (fetchResponse.status === 404) {
                 // Спеціальна обробка для щоденних бонусів
-                if (url.includes('daily-bonus')) {
+                if (safeIncludes(url, 'daily-bonus')) {
                     console.warn(`⚠️ API: Ендпоінт щоденного бонусу недоступний: ${url}`);
 
                     // ДОДАНО: Повернення симульованих даних для щоденного бонусу
-                    if (endpoint.includes('status') || endpoint.includes('claim')) {
+                    if (safeIncludes(endpoint, 'status') || safeIncludes(endpoint, 'claim')) {
                         return {
                             status: "success",
                             data: {
@@ -975,7 +1016,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                 }
 
                 // Спеціальна обробка для API ping
-                if (url.includes('/api/ping')) {
+                if (safeIncludes(url, '/api/ping')) {
                     console.warn(`⚠️ API: Ping ендпоінт недоступний: ${url}`);
                     return {
                         status: "error",
@@ -985,7 +1026,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
                 }
 
                 // Спеціальна обробка для розіграшів
-                if (url.includes('raffles')) {
+                if (safeIncludes(url, 'raffles')) {
                     // Очищуємо кеш розіграшів, якщо такий є
                     if (window.WinixRaffles && window.WinixRaffles.participation) {
                         window.WinixRaffles.participation.clearInvalidRaffleIds();
@@ -1072,7 +1113,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
             // Для помилок, пов'язаних з мережею, спробуємо ще раз
             const isNetworkError = error.name === 'AbortError' ||
                                    error.name === 'TypeError' ||
-                                   (error.message && error.message.includes('NetworkError'));
+                                   (error.message && safeIncludes(error.message, 'NetworkError'));
 
             if (isNetworkError) {
                 // Збільшуємо лічильник невдалих спроб
@@ -1112,7 +1153,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         }
 
         // НОВИЙ КОД: Аналізуємо помилку на "raffle_not_found"
-        if (error.message && error.message.includes('raffle_not_found') ||
+        if (error.message && safeIncludes(error.message, 'raffle_not_found') ||
             (error.response && error.response.code === 'raffle_not_found')) {
 
             console.error(`❌ API: Помилка розіграшу не знайдено:`, error.message);
@@ -1738,7 +1779,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '1.2.3',
+            version: '1.2.5',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -1757,6 +1798,7 @@ if (window.APIConnectivity && !window.APIConnectivity.isAPIAvailable()) {
         forceCleanupRequests,
         reconnect,
         isValidUUID,
+        safeIncludes,
 
         // Функції користувача
         getUserData,

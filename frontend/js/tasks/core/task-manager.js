@@ -1,6 +1,7 @@
 /**
  * TaskManager - Модуль для управління завданнями
  * Виправлена версія з кращою діагностикою
+ * @version 1.1.0
  */
 
 window.TaskManager = (function() {
@@ -39,6 +40,17 @@ window.TaskManager = (function() {
         retryInterval: 1500,
         showTechnicalDetails: true
     };
+
+    /**
+     * Безпечна перевірка includes з обробкою undefined
+     * @param {string|undefined} str - Рядок для перевірки
+     * @param {string} substring - Підрядок для пошуку
+     * @returns {boolean} Результат
+     */
+    function safeIncludes(str, substring) {
+        if (!str || typeof str !== 'string') return false;
+        return str.includes(substring);
+    }
 
     /**
      * Ініціалізація TaskManager
@@ -370,9 +382,9 @@ window.TaskManager = (function() {
             // Нормалізуємо тип винагороди
             if (normalizedTask.reward_type) {
                 const lowerType = normalizedTask.reward_type.toLowerCase();
-                if (lowerType.includes('token') || lowerType.includes('winix')) {
+                if (safeIncludes(lowerType, 'token') || safeIncludes(lowerType, 'winix')) {
                     normalizedTask.reward_type = REWARD_TYPES.TOKENS;
-                } else if (lowerType.includes('coin') || lowerType.includes('жетон')) {
+                } else if (safeIncludes(lowerType, 'coin') || safeIncludes(lowerType, 'жетон')) {
                     normalizedTask.reward_type = REWARD_TYPES.COINS;
                 }
             } else {
