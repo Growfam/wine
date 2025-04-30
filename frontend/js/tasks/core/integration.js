@@ -33,7 +33,8 @@ window.TaskIntegration = (function() {
         preferredManager: 'TaskProgressManager', // 'TaskProgressManager' або 'TaskManager' - який модуль має пріоритет
         safeMode: false, // Режим підвищеної надійності (повільніше, але надійніше)
         autoRetryOnFailure: true, // Автоматично повторювати ініціалізацію при помилках
-        monitorDomMutations: true // Відстежувати зміни DOM для динамічного оновлення
+        monitorDomMutations: true, // Відстежувати зміни DOM для динамічного оновлення
+        fallbackUserMode: true    // ВИПРАВЛЕНО: Режим роботи з невідомим ID користувача
     };
 
     // Зберігаємо залежності модулів з пріоритетами
@@ -77,6 +78,72 @@ window.TaskIntegration = (function() {
 
     // Зберігаємо оригінальні реалізації функцій для відновлення при конфліктах
     const originalImplementations = {};
+
+    /**
+     * Безпечне отримання ID користувача з обробкою помилок
+     * @returns {Object} Результат отримання ID користувача
+     */
+    function safeGetUserId() {
+        try {
+            // Спробуємо отримати ID користувача через звичайну функцію getUserId
+            if (typeof window.getUserId === 'function') {
+                const userId = window.getUserId();
+                if (userId) {
+                    return { success: true, userId: userId };
+                }
+            }
+
+            // Спробуємо знайти ID в localStorage
+            try {
+                const storedId = localStorage.getItem('telegram_user_id');
+                if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                    return { success: true, userId: storedId, source: 'localStorage' };
+                }
+            } catch (e) {
+                // Ігноруємо помилки localStorage
+            }
+
+            // Спробуємо отримати з DOM
+            try {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement && userIdElement.textContent) {
+                    const userId = userIdElement.textContent.trim();
+                    if (userId) {
+                        return { success: true, userId: userId, source: 'DOM' };
+                    }
+                }
+            } catch (e) {
+                // Ігноруємо помилки DOM
+            }
+
+            // Спробуємо отримати з URL-параметрів
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const id = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+                if (id) {
+                    return { success: true, userId: id, source: 'URL' };
+                }
+            } catch (e) {
+                // Ігноруємо помилки URL
+            }
+
+            // Не знайдено ID користувача
+            return {
+                success: false,
+                error: 'ID користувача не знайдено',
+                fallbackAvailable: config.fallbackUserMode,
+                requiresAuth: true
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message || 'Помилка отримання ID користувача',
+                originalError: error,
+                fallbackAvailable: config.fallbackUserMode,
+                requiresAuth: true
+            };
+        }
+    }
 
     /**
      * Ініціалізація системи інтеграції з розширеною діагностикою
@@ -149,8 +216,29 @@ window.TaskIntegration = (function() {
             };
         }
 
-        // Відстежуємо помилки промісів
+        // ВИПРАВЛЕНО: Покращений обробник неопрацьованих промісів
         window.addEventListener('unhandledrejection', function(event) {
+            // Якщо помилка пов'язана з ID користувача
+            if (event.reason && (event.reason.message === 'ID користувача не знайдено' ||
+                event.reason.message === 'Error: ID користувача не знайдено')) {
+
+                // Запобігаємо поширенню помилки в консоль
+                event.preventDefault();
+
+                logError('Оброблено помилку з ID користувача:', event.reason.message);
+
+                // Відправляємо подію про помилку авторизації
+                document.dispatchEvent(new CustomEvent('auth-required', {
+                    detail: {
+                        message: 'Для доступу до цієї функції необхідно авторизуватися',
+                        source: event.reason.stack || 'unknown'
+                    }
+                }));
+
+                return;
+            }
+
+            // Обробка інших помилок у модулях завдань
             if (event.reason && event.reason.stack &&
                 (event.reason.stack.includes('task-manager') || event.reason.stack.includes('tasks/core'))) {
 
@@ -562,6 +650,9 @@ window.TaskIntegration = (function() {
                 resolveManagerConflicts();
             }
 
+            // Виправляємо проблеми з отриманням ID користувача у всіх модулях
+            fixUserIdIssues();
+
             // Відправляємо подію про успішну ініціалізацію
             document.dispatchEvent(new CustomEvent('task-system-initialized', {
                 detail: {
@@ -600,6 +691,48 @@ window.TaskIntegration = (function() {
                     }
                 }));
             }
+        }
+    }
+
+    /**
+     * ВИПРАВЛЕНО: Виправляє проблеми з ID користувача у всіх модулях
+     */
+    function fixUserIdIssues() {
+        try {
+            // Виправляємо функцію connectToExternalService, якщо вона існує
+            if (typeof window.connectToExternalService === 'function') {
+                const originalConnectFn = window.connectToExternalService;
+                window.connectToExternalService = async function(serviceType) {
+                    try {
+                        // Використовуємо безпечне отримання ID
+                        const userIdResult = safeGetUserId();
+                        if (!userIdResult.success) {
+                            return {
+                                status: 'error',
+                                message: 'Необхідно авторизуватися для підключення до зовнішнього сервісу',
+                                code: 'NO_USER_ID'
+                            };
+                        }
+
+                        // Викликаємо оригінальну функцію з отриманим ID
+                        return await originalConnectFn(serviceType);
+                    } catch (error) {
+                        // Не даємо помилці пробитися назовні
+                        console.error('Integration: Помилка підключення до зовнішнього сервісу:', error);
+                        return {
+                            status: 'error',
+                            message: 'Помилка підключення: ' + (error.message || 'Невідома помилка'),
+                            code: 'CONNECTION_ERROR'
+                        };
+                    }
+                };
+                log('TaskIntegration: Виправлено функцію connectToExternalService');
+            }
+
+            // Можливі інші виправлення для інших функцій, які викликають помилки з ID...
+
+        } catch (error) {
+            logError('Помилка при виправленні проблем з ID користувача:', error);
         }
     }
 
@@ -649,7 +782,9 @@ window.TaskIntegration = (function() {
                 detected: state.taskProgressManagerStatus === 'ready' && state.taskManagerStatus === 'ready',
                 resolved: state.conflictResolutionApplied
             },
-            apiStatus: checkApiAvailability()
+            apiStatus: checkApiAvailability(),
+            // ДОДАНО: Перевірка ID користувача
+            userIdCheck: safeGetUserId()
         };
 
         // Додаємо інформацію про доступні компоненти та їх версії
@@ -824,6 +959,8 @@ window.TaskIntegration = (function() {
             initialized: state.initialized,
             failedModules: [...state.failedModules],
             initTime: state.initEndTime - state.initStartTime
-        })
+        }),
+        // ДОДАНО: Додали нову функцію для безпечного отримання ID користувача
+        safeGetUserId
     };
 })();

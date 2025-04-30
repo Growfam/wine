@@ -2,6 +2,7 @@
  * daily-bonus.js - Обробник щоденних бонусів
  * Відповідальний за отримання та управління щоденними бонусами
  * З виправленою обробкою 404 помилок та правильними URL API
+ * ВИПРАВЛЕНО: покращена обробка відсутнього ID користувача
  */
 
 window.DailyBonus = (function() {
@@ -9,7 +10,8 @@ window.DailyBonus = (function() {
     const config = {
         enableFallback: true,  // Увімкнути альтернативні дані при недоступності API
         cacheDuration: 3600000, // 1 година кеш
-        debug: false            // Режим відлагодження
+        debug: false,          // Режим відлагодження
+        allowDemoMode: true    // Дозволити демо-режим при відсутності ID користувача
     };
 
     // Стан модуля
@@ -18,7 +20,9 @@ window.DailyBonus = (function() {
         bonusData: null,
         lastLoaded: 0,
         isLoading: false,
-        failureCount: 0
+        failureCount: 0,
+        userId: null,
+        demoMode: false        // Прапорець демо-режиму
     };
 
     // Шляхи API (ВИПРАВЛЕНО: додано префікс /api/)
@@ -29,35 +33,175 @@ window.DailyBonus = (function() {
     };
 
     /**
-     * Отримання ID користувача
+     * Отримання ID користувача з різних джерел
+     * ВИПРАВЛЕНО: додаткові методи отримання ID та логування при невдачі
      * @returns {string|null} ID користувача або null
      */
     function getUserId() {
-        // Спроба отримати ID з глобальних змінних
-        if (window.USER_ID) return window.USER_ID;
-        if (window.telegramWebviewProxy && window.telegramWebviewProxy.initDataUnsafe &&
-            window.telegramWebviewProxy.initDataUnsafe.user) {
-            return window.telegramWebviewProxy.initDataUnsafe.user.id;
-        }
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe &&
-            window.Telegram.WebApp.initDataUnsafe.user) {
-            return window.Telegram.WebApp.initDataUnsafe.user.id;
+        // Перевіряємо, чи ID вже кешовано
+        if (state.userId) {
+            return state.userId;
         }
 
-        // Спроба отримати з localStorage
-        try {
-            const userData = localStorage.getItem('user_data');
-            if (userData) {
-                const parsed = JSON.parse(userData);
-                if (parsed && parsed.telegram_id) {
-                    return parsed.telegram_id;
+        // Функція для перевірки валідності ID
+        function isValidId(id) {
+            return id &&
+                typeof id === 'string' &&
+                id !== 'undefined' &&
+                id !== 'null' &&
+                id.length > 3;
+        }
+
+        // Масив функцій для отримання ID з різних джерел
+        const idProviders = [
+            // 1. Глобальна змінна USER_ID
+            () => {
+                if (window.USER_ID) {
+                    if (config.debug) console.log("DailyBonus: ID користувача отримано з window.USER_ID");
+                    return window.USER_ID;
                 }
+                return null;
+            },
+
+            // 2. Telegram WebApp
+            () => {
+                if (window.Telegram && window.Telegram.WebApp &&
+                    window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user) {
+                    const id = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                    if (config.debug) console.log("DailyBonus: ID користувача отримано з Telegram WebApp");
+                    return id;
+                }
+                return null;
+            },
+
+            // 3. Telegram WebView Proxy
+            () => {
+                if (window.telegramWebviewProxy &&
+                    window.telegramWebviewProxy.initDataUnsafe &&
+                    window.telegramWebviewProxy.initDataUnsafe.user) {
+                    const id = window.telegramWebviewProxy.initDataUnsafe.user.id.toString();
+                    if (config.debug) console.log("DailyBonus: ID користувача отримано з telegramWebviewProxy");
+                    return id;
+                }
+                return null;
+            },
+
+            // 4. User data з localStorage
+            () => {
+                try {
+                    const userData = localStorage.getItem('user_data');
+                    if (userData) {
+                        const parsed = JSON.parse(userData);
+                        if (parsed && parsed.telegram_id) {
+                            if (config.debug) console.log("DailyBonus: ID користувача отримано з user_data в localStorage");
+                            return parsed.telegram_id.toString();
+                        }
+                    }
+                } catch (e) {}
+                return null;
+            },
+
+            // 5. Telegram ID з localStorage
+            () => {
+                try {
+                    const id = localStorage.getItem('telegram_user_id');
+                    if (isValidId(id)) {
+                        if (config.debug) console.log("DailyBonus: ID користувача отримано з telegram_user_id в localStorage");
+                        return id;
+                    }
+                } catch (e) {}
+                return null;
+            },
+
+            // 6. DOM-елемент user-id
+            () => {
+                const userIdElement = document.getElementById('user-id');
+                if (userIdElement && userIdElement.textContent) {
+                    const id = userIdElement.textContent.trim();
+                    if (isValidId(id)) {
+                        if (config.debug) console.log("DailyBonus: ID користувача отримано з DOM-елемента");
+                        return id;
+                    }
+                }
+                return null;
+            },
+
+            // 7. URL-параметри
+            () => {
+                try {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const id = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+                    if (isValidId(id)) {
+                        if (config.debug) console.log("DailyBonus: ID користувача отримано з URL-параметрів");
+                        return id;
+                    }
+                } catch (e) {}
+                return null;
+            },
+
+            // 8. Глобальна функція getUserId
+            () => {
+                if (window.getUserId && typeof window.getUserId === 'function') {
+                    try {
+                        const id = window.getUserId();
+                        if (isValidId(id)) {
+                            if (config.debug) console.log("DailyBonus: ID користувача отримано через window.getUserId()");
+                            return id;
+                        }
+                    } catch (e) {}
+                }
+                return null;
+            },
+
+            // 9. Метод API, якщо доступний
+            () => {
+                if (window.WinixAPI && window.WinixAPI.getUserId) {
+                    try {
+                        const id = window.WinixAPI.getUserId();
+                        if (isValidId(id)) {
+                            if (config.debug) console.log("DailyBonus: ID користувача отримано через WinixAPI.getUserId()");
+                            return id;
+                        }
+                    } catch (e) {}
+                }
+                return null;
             }
-        } catch (e) {
-            console.warn("Помилка отримання user_data з localStorage:", e);
+        ];
+
+        // Перебираємо всі джерела, поки не знайдемо ID
+        for (const provider of idProviders) {
+            try {
+                const id = provider();
+                if (isValidId(id)) {
+                    // Кешуємо ID для майбутніх викликів
+                    state.userId = id;
+
+                    // Спробуємо зберегти ID в localStorage для інших модулів
+                    try {
+                        localStorage.setItem('telegram_user_id', id);
+                    } catch (e) {}
+
+                    return id;
+                }
+            } catch (e) {
+                // Ігноруємо помилки при спробі отримати ID
+            }
         }
 
-        // Повертаємо null, якщо не знайдено
+        // ID не знайдено в жодному джерелі
+        if (config.debug) {
+            console.warn("DailyBonus: ID користувача не знайдено в жодному джерелі");
+        }
+
+        // Активуємо демо-режим, якщо налаштування дозволяють
+        if (config.allowDemoMode) {
+            state.demoMode = true;
+            if (config.debug) {
+                console.log("DailyBonus: Активовано демо-режим через відсутність ID користувача");
+            }
+        }
+
         return null;
     }
 
@@ -68,6 +212,26 @@ window.DailyBonus = (function() {
         if (state.isInitialized) return;
 
         console.log("DailyBonus: Ініціалізація модуля щоденних бонусів");
+
+        // Намагаємось отримати ID користувача
+        const userId = getUserId();
+
+        // Якщо ID не знайдено, але демо-режим дозволено
+        if (!userId && state.demoMode) {
+            console.log("DailyBonus: Ініціалізація в демо-режимі через відсутність ID користувача");
+
+            // Генеруємо демо-дані та оновлюємо стан
+            state.bonusData = generateFallbackData();
+            state.lastLoaded = Date.now();
+
+            // Встановлюємо прапорець ініціалізації та відображаємо демо-інтерфейс
+            state.isInitialized = true;
+            renderBonusUI();
+
+            // Додаємо обробник кнопки для демо-режиму
+            setupDemoModeHandler();
+            return;
+        }
 
         // Спробуємо завантажити дані з localStorage для швидкої ініціалізації
         try {
@@ -98,6 +262,44 @@ window.DailyBonus = (function() {
     }
 
     /**
+     * Налаштування обробника для демо-режиму
+     * ВИПРАВЛЕНО: доданий новий метод для демо-режиму
+     */
+    function setupDemoModeHandler() {
+        // Знаходимо кнопку отримання бонусу
+        const claimButton = document.getElementById('claim-daily');
+        if (claimButton) {
+            // Додаємо обробник кліку для демо-режиму
+            claimButton.addEventListener('click', function(event) {
+                // Зупиняємо стандартне опрацювання події
+                event.preventDefault();
+
+                // Показуємо повідомлення про демо-режим
+                if (typeof window.showToast === 'function') {
+                    window.showToast("Демо-режим. Для отримання реальних бонусів необхідно увійти.", "warning");
+                } else {
+                    alert("Демо-режим. Для отримання реальних бонусів необхідно увійти.");
+                }
+
+                // Симулюємо анімацію отримання бонусу
+                if (typeof window.TaskRewards === 'object' &&
+                    typeof window.TaskRewards.showRewardAnimation === 'function') {
+                    window.TaskRewards.showRewardAnimation({
+                        type: 'tokens',
+                        amount: 25
+                    });
+                }
+            });
+
+            // Змінюємо текст кнопки
+            claimButton.textContent = 'Демо-режим';
+
+            // Додаємо спеціальний клас для стилізації
+            claimButton.classList.add('demo-mode');
+        }
+    }
+
+    /**
      * Налаштування обробників подій
      */
     function setupEventHandlers() {
@@ -118,6 +320,7 @@ window.DailyBonus = (function() {
 
     /**
      * Завантаження даних щоденного бонусу
+     * ВИПРАВЛЕНО: покращена обробка відсутнього ID користувача
      * @param {boolean} showLoader - Показувати індикатор завантаження
      * @returns {Promise<Object>} Дані щоденного бонусу
      */
@@ -137,6 +340,16 @@ window.DailyBonus = (function() {
         // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
+            // ВИПРАВЛЕНО: повертаємо дані демо-режиму замість помилки
+            if (state.demoMode) {
+                const demoData = generateFallbackData();
+                state.bonusData = demoData;
+                state.lastLoaded = now;
+                renderBonusUI(); // Оновлюємо UI з демо-даними
+                return Promise.resolve(demoData);
+            }
+
+            // Якщо демо-режим вимкнено, повертаємо помилку
             console.error("DailyBonus: ID користувача не знайдено");
             return Promise.reject(new Error("ID користувача не знайдено"));
         }
@@ -186,6 +399,9 @@ window.DailyBonus = (function() {
                     console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
                 }
 
+                // Оновлюємо інтерфейс
+                renderBonusUI();
+
                 return response.data;
             } else if (response && response.status === 'error' && response.httpStatus === 404) {
                 // ВИПРАВЛЕНО: Спеціальна обробка 404 помилки
@@ -198,6 +414,9 @@ window.DailyBonus = (function() {
                     // Оновлюємо стан
                     state.bonusData = fallbackData;
                     state.lastLoaded = now;
+
+                    // Оновлюємо інтерфейс
+                    renderBonusUI();
 
                     return fallbackData;
                 }
@@ -227,6 +446,9 @@ window.DailyBonus = (function() {
                 // Оновлюємо стан, оскільки API недоступний
                 state.bonusData = fallbackData;
                 state.lastLoaded = now;
+
+                // Оновлюємо інтерфейс
+                renderBonusUI();
 
                 return fallbackData;
             }
@@ -285,14 +507,121 @@ window.DailyBonus = (function() {
     }
 
     /**
+     * Відображення інтерфейсу бонусів
+     * ВИПРАВЛЕНО: новий метод для оновлення UI
+     */
+    function renderBonusUI() {
+        if (!state.bonusData) return;
+
+        // Знаходимо контейнер прогресу
+        const progressContainer = document.getElementById('daily-progress-container');
+        if (!progressContainer) return;
+
+        // Очищаємо контейнер
+        progressContainer.innerHTML = '';
+
+        // Визначаємо максимальну кількість днів (за замовчуванням 7)
+        const MAX_DAYS = 7;
+
+        // Отримуємо поточний день та вже отримані дні
+        const currentDay = state.bonusData.current_day || 1;
+        const claimedDays = state.bonusData.claimed_days || [];
+        const canClaim = state.bonusData.can_claim !== false;
+
+        // Створюємо елементи для кожного дня
+        for (let day = 1; day <= MAX_DAYS; day++) {
+            const dayElement = document.createElement('div');
+            dayElement.className = 'daily-day';
+
+            // Визначаємо статус дня
+            if (claimedDays.includes(day)) {
+                dayElement.classList.add('claimed');
+            } else if (day === currentDay && canClaim) {
+                dayElement.classList.add('current');
+            }
+
+            // Якщо це демо-режим, додаємо спеціальний клас
+            if (state.demoMode) {
+                dayElement.classList.add('demo-mode');
+            }
+
+            // Створюємо елемент номеру дня
+            const dayNumber = document.createElement('div');
+            dayNumber.className = 'day-number';
+            dayNumber.textContent = day;
+            dayElement.appendChild(dayNumber);
+
+            // Створюємо елемент винагороди
+            const bonusAmount = document.createElement('div');
+            bonusAmount.className = 'bonus-amount';
+            bonusAmount.textContent = `${day * 10} WINIX`;
+            dayElement.appendChild(bonusAmount);
+
+            // Додаємо елемент дня до контейнера
+            progressContainer.appendChild(dayElement);
+        }
+
+        // Оновлюємо стан кнопки отримання бонусу
+        updateClaimButton();
+    }
+
+    /**
+     * Оновлення стану кнопки отримання бонусу
+     * ВИПРАВЛЕНО: новий метод для оновлення кнопки
+     */
+    function updateClaimButton() {
+        const claimButton = document.getElementById('claim-daily');
+        if (!claimButton) return;
+
+        // Якщо це демо-режим, кнопка вже налаштована
+        if (state.demoMode) return;
+
+        // Визначаємо, чи можна отримати бонус
+        const canClaim = state.bonusData && state.bonusData.can_claim !== false;
+
+        // Оновлюємо стан кнопки
+        if (canClaim) {
+            claimButton.disabled = false;
+            claimButton.textContent = 'Отримати бонус';
+        } else {
+            claimButton.disabled = true;
+            claimButton.textContent = 'Вже отримано';
+        }
+    }
+
+    /**
      * Отримання щоденного бонусу
+     * ВИПРАВЛЕНО: покращена обробка відсутнього ID користувача
      * @returns {Promise<Object>} Результат отримання бонусу
      */
     async function claimDailyBonus() {
+        // Якщо це демо-режим, показуємо повідомлення і завершуємо
+        if (state.demoMode) {
+            if (typeof window.showToast === 'function') {
+                window.showToast("Демо-режим. Для отримання реальних бонусів необхідно увійти.", "warning");
+            } else {
+                alert("Демо-режим. Для отримання реальних бонусів необхідно увійти.");
+            }
+            return Promise.resolve({
+                status: 'success',
+                data: {
+                    reward: 25,
+                    source: 'demo_mode'
+                },
+                message: 'Демо-режим активний'
+            });
+        }
+
         // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
             console.error("DailyBonus: ID користувача не знайдено");
+
+            // Показуємо повідомлення про помилку
+            if (typeof window.showToast === 'function') {
+                window.showToast("Неможливо отримати бонус: ви не авторизовані", "error");
+            }
+
             return Promise.reject(new Error("ID користувача не знайдено"));
         }
 
@@ -361,6 +690,9 @@ window.DailyBonus = (function() {
                     console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
                 }
 
+                // Оновлюємо інтерфейс
+                renderBonusUI();
+
                 // Показуємо повідомлення про успіх
                 if (typeof window.showToast === 'function') {
                     window.showToast(`Щоденний бонус отримано: +${response.data.reward || 0} WINIX`, "success");
@@ -410,6 +742,9 @@ window.DailyBonus = (function() {
                     } catch (e) {
                         console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
                     }
+
+                    // Оновлюємо інтерфейс
+                    renderBonusUI();
 
                     // Показуємо повідомлення про успіх
                     if (typeof window.showToast === 'function') {
@@ -475,9 +810,11 @@ window.DailyBonus = (function() {
         init,
         loadBonusData,
         claimDailyBonus,
+        renderBonusUI,
         getState: () => ({ ...state }),
         setDebugMode: (debug) => { config.debug = debug; },
-        enableFallback: (enable) => { config.enableFallback = enable; }
+        enableFallback: (enable) => { config.enableFallback = enable; },
+        allowDemoMode: (allow) => { config.allowDemoMode = allow; }
     };
 })();
 
