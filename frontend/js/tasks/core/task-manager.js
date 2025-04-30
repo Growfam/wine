@@ -4,12 +4,6 @@
  * - Координацію між всіма модулями системи завдань
  * - Завантаження та відображення завдань
  * - Обробку взаємодії користувача з завданнями
- *
- * Виправлено:
- * - Коректне делегування оновлення балансу до TaskRewards
- * - Узгоджена обробка типів винагород
- * - Безпечна асинхронна взаємодія між компонентами
- * - Покращена обробка помилок з API та мережевими запитами
  */
 
 window.TaskManager = (function() {
@@ -18,33 +12,6 @@ window.TaskManager = (function() {
     let limitedTasks = [];
     let partnerTasks = [];
     let userProgress = {};
-
-    // Індикатор використання мок-даних
-    const mockDataStatus = {
-        userProgress: false,
-        socialTasks: false,
-        limitedTasks: false,
-        partnerTasks: false,
-        verification: false
-    };
-
-    // Функція для логування використання мок-даних
-    function logMockDataUsage(dataType, reason) {
-        mockDataStatus[dataType] = true;
-        console.warn(`TaskManager: Використання ТЕСТОВИХ даних для [${dataType}]. Причина: ${reason}`);
-
-        // Додаємо детальний запис у консоль розробника
-        if (console.groupCollapsed) {
-            console.groupCollapsed(`%cМОК-ДАНІ [${dataType}]`, 'background: #FFF3CD; color: #856404; padding: 2px 5px; border-radius: 3px;');
-            console.info(`Причина: ${reason}`);
-            console.info(`Час: ${new Date().toLocaleTimeString()}`);
-            console.trace('Стек виклику');
-            console.groupEnd();
-        }
-
-        // Відображаємо індикатор використання тестових даних
-        addMockDataIndicator();
-    }
 
     // Типи винагород
     const REWARD_TYPES = {
@@ -248,14 +215,11 @@ window.TaskManager = (function() {
     function init() {
         console.log('TaskManager: Ініціалізація оптимізованого модуля TaskManager...');
 
-        // Скидаємо стан використання мок-даних при ініціалізації
-        Object.keys(mockDataStatus).forEach(key => {
-            mockDataStatus[key] = false;
-        });
-
         // Перевіряємо доступність API
         if (!isApiAvailable()) {
-            console.warn('TaskManager: API недоступне. Буде використано тестові дані для всіх типів завдань');
+            console.warn('TaskManager: API недоступне. Перевірте підключення до сервера.');
+            showErrorMessage('API недоступне. Перевірте підключення до сервера.');
+            return;
         }
 
         // Знаходимо необхідні DOM-елементи
@@ -439,8 +403,8 @@ window.TaskManager = (function() {
             return await retryableApiCall(
                 async () => {
                     const response = await window.API.get(window.API_PATHS.USER.PROGRESS(userId));
-                    if (!response.success && response.error) {
-                        throw new Error(response.error);
+                    if (!response.status === 'success') {
+                        throw new Error(response.message || 'Помилка при отриманні прогресу користувача');
                     }
                     userProgress = response.data || {};
                     return userProgress;
@@ -460,7 +424,7 @@ window.TaskManager = (function() {
                 const savedProgress = localStorage.getItem('winix_task_progress');
                 if (savedProgress) {
                     userProgress = JSON.parse(savedProgress);
-                    logMockDataUsage('userProgress', 'Завантажено з localStorage через помилку API');
+                    console.log('TaskManager: Завантажено прогрес з localStorage');
                     return userProgress;
                 }
             } catch (localStorageError) {
@@ -469,7 +433,6 @@ window.TaskManager = (function() {
 
             // Якщо нічого не вдалося, використовуємо пустий об'єкт
             userProgress = {};
-            logMockDataUsage('userProgress', 'Використання пустого об\'єкту через помилки з API та localStorage');
 
             // Якщо помилка критична, повідомляємо користувача
             if (classifiedError.type === 'authentication_error') {
@@ -501,6 +464,17 @@ window.TaskManager = (function() {
             }
 
             try {
+                // Показуємо індикатор завантаження в контейнерах
+                if (domElements.socialTasksContainer) {
+                    domElements.socialTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                }
+                if (domElements.limitedTasksContainer) {
+                    domElements.limitedTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                }
+                if (domElements.partnersTasksContainer) {
+                    domElements.partnersTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                }
+
                 // Виконуємо паралельні запити для швидшого завантаження
                 const [socialResponse, limitedResponse, partnerResponse] = await Promise.all([
                     retryableApiCall(
@@ -517,41 +491,57 @@ window.TaskManager = (function() {
                     )
                 ]);
 
+                // Відлагодження: Виводимо формат відповіді
+                console.log('TaskManager: Формат відповіді API:', {
+                    social: socialResponse,
+                    limited: limitedResponse,
+                    partner: partnerResponse
+                });
+
+                // ВИПРАВЛЕНО: Змінена перевірка успішності та шлях до даних
                 // Зберігаємо дані та відображаємо завдання
-                if (socialResponse.success) {
-                    socialTasks = normalizeTasksData(socialResponse.data || []);
+                if (socialResponse.status === 'success') {
+                    // ВИПРАВЛЕНО: Отримуємо завдання з data.tasks
+                    socialTasks = normalizeTasksData(socialResponse.data?.tasks || []);
                     renderSocialTasks();
-                } else if (socialResponse.error) {
-                    console.warn(`TaskManager: Помилка завантаження соціальних завдань: ${socialResponse.error}`);
-                    // Використовуємо мок-дані при помилці
-                    socialTasks = getMockSocialTasks();
-                    logMockDataUsage('socialTasks', `Помилка API: ${socialResponse.error}`);
-                    renderSocialTasks();
+                } else {
+                    console.warn(`TaskManager: Помилка завантаження соціальних завдань: ${socialResponse.message || 'Невідома помилка'}`);
+                    // Показуємо повідомлення про помилку
+                    if (domElements.socialTasksContainer) {
+                        domElements.socialTasksContainer.innerHTML =
+                            '<div class="error-message">Не вдалося завантажити завдання. Спробуйте пізніше.</div>';
+                    }
                 }
 
-                if (limitedResponse.success) {
-                    limitedTasks = normalizeTasksData(limitedResponse.data || []);
+                // ВИПРАВЛЕНО: Змінена перевірка успішності та шлях до даних
+                if (limitedResponse.status === 'success') {
+                    // ВИПРАВЛЕНО: Отримуємо завдання з data.tasks
+                    limitedTasks = normalizeTasksData(limitedResponse.data?.tasks || []);
                     renderLimitedTasks();
-                } else if (limitedResponse.error) {
-                    console.warn(`TaskManager: Помилка завантаження лімітованих завдань: ${limitedResponse.error}`);
-                    // Використовуємо мок-дані при помилці
-                    limitedTasks = getMockLimitedTasks();
-                    logMockDataUsage('limitedTasks', `Помилка API: ${limitedResponse.error}`);
-                    renderLimitedTasks();
+                } else {
+                    console.warn(`TaskManager: Помилка завантаження лімітованих завдань: ${limitedResponse.message || 'Невідома помилка'}`);
+                    // Показуємо повідомлення про помилку
+                    if (domElements.limitedTasksContainer) {
+                        domElements.limitedTasksContainer.innerHTML =
+                            '<div class="error-message">Не вдалося завантажити лімітовані завдання. Спробуйте пізніше.</div>';
+                    }
                 }
 
-                if (partnerResponse.success) {
-                    partnerTasks = normalizeTasksData(partnerResponse.data || []);
+                // ВИПРАВЛЕНО: Змінена перевірка успішності та шлях до даних
+                if (partnerResponse.status === 'success') {
+                    // ВИПРАВЛЕНО: Отримуємо завдання з data.tasks
+                    partnerTasks = normalizeTasksData(partnerResponse.data?.tasks || []);
                     renderPartnerTasks();
-                } else if (partnerResponse.error) {
-                    console.warn(`TaskManager: Помилка завантаження партнерських завдань: ${partnerResponse.error}`);
-                    // Використовуємо мок-дані при помилці
-                    partnerTasks = getMockPartnerTasks();
-                    logMockDataUsage('partnerTasks', `Помилка API: ${partnerResponse.error}`);
-                    renderPartnerTasks();
+                } else {
+                    console.warn(`TaskManager: Помилка завантаження партнерських завдань: ${partnerResponse.message || 'Невідома помилка'}`);
+                    // Показуємо повідомлення про помилку
+                    if (domElements.partnersTasksContainer) {
+                        domElements.partnersTasksContainer.innerHTML =
+                            '<div class="error-message">Не вдалося завантажити партнерські завдання. Спробуйте пізніше.</div>';
+                    }
                 }
             } catch (error) {
-                throw error; // Пробрасываем ошибку для обработки в блоке catch
+                throw error; // Передаємо помилку у верхній блок catch
             } finally {
                 operationStatus.tasksLoading = false;
             }
@@ -563,54 +553,24 @@ window.TaskManager = (function() {
                 details: classifiedError.details
             });
 
-            // Визначаємо причину використання мок-даних
-            let mockReason = 'Невідома помилка';
-
-            if (classifiedError.type === 'network_error') {
-                mockReason = 'Проблема з мережевим з\'єднанням';
-            } else if (classifiedError.type === 'timeout') {
-                mockReason = 'Перевищено час очікування відповіді від сервера';
-            } else if (classifiedError.type === 'server_error') {
-                mockReason = 'Помилка на сервері';
-            } else if (classifiedError.type === 'authentication_error') {
-                mockReason = 'Користувач не авторизований';
-            } else if (error.message === 'API_NOT_AVAILABLE') {
-                mockReason = 'API недоступне';
-            }
-
-            // Використовуємо тестові дані у випадку помилки
-            socialTasks = getMockSocialTasks();
-            limitedTasks = getMockLimitedTasks();
-            partnerTasks = getMockPartnerTasks();
-
-            // Логуємо використання мок-даних
-            logMockDataUsage('socialTasks', mockReason);
-            logMockDataUsage('limitedTasks', mockReason);
-            logMockDataUsage('partnerTasks', mockReason);
-
-            // Відображаємо завдання
-            renderSocialTasks();
-            renderLimitedTasks();
-            renderPartnerTasks();
-
             // Показуємо інформативне повідомлення про помилку
             let errorMessage = 'Не вдалося завантажити завдання. ';
 
             switch (classifiedError.type) {
                 case 'network_error':
-                    errorMessage += 'Перевірте підключення до Інтернету. Відображаються демонстраційні дані.';
+                    errorMessage += 'Перевірте підключення до Інтернету.';
                     break;
                 case 'timeout':
-                    errorMessage += 'Сервер не відповідає. Відображаються демонстраційні дані.';
+                    errorMessage += 'Сервер не відповідає. Спробуйте пізніше.';
                     break;
                 case 'server_error':
-                    errorMessage += 'Сервер тимчасово недоступний. Відображаються демонстраційні дані.';
+                    errorMessage += 'Сервер тимчасово недоступний. Спробуйте пізніше.';
                     break;
                 case 'authentication_error':
-                    errorMessage += 'Необхідно авторизуватися. Відображаються демонстраційні дані.';
+                    errorMessage += 'Необхідно авторизуватися.';
                     break;
                 default:
-                    errorMessage += 'Використовуються демонстраційні дані.';
+                    errorMessage += 'Спробуйте пізніше або зверніться до підтримки.';
             }
 
             // Додаємо технічні деталі в режимі розробки
@@ -619,6 +579,18 @@ window.TaskManager = (function() {
             }
 
             showErrorMessage(errorMessage);
+
+            // Показуємо повідомлення про помилку в контейнерах завдань
+            const errorHtml = `<div class="error-message">${errorMessage}</div>`;
+            if (domElements.socialTasksContainer) {
+                domElements.socialTasksContainer.innerHTML = errorHtml;
+            }
+            if (domElements.limitedTasksContainer) {
+                domElements.limitedTasksContainer.innerHTML = errorHtml;
+            }
+            if (domElements.partnersTasksContainer) {
+                domElements.partnersTasksContainer.innerHTML = errorHtml;
+            }
 
             operationStatus.tasksLoading = false;
         }
@@ -664,123 +636,6 @@ window.TaskManager = (function() {
     }
 
     /**
-     * Отримання тестових соціальних завдань
-     */
-    function getMockSocialTasks() {
-        return [
-            {
-                id: 'social_telegram',
-                title: 'Підписатися на Telegram',
-                description: 'Підпишіться на наш офіційний Telegram канал для отримання останніх новин та оновлень',
-                type: 'social',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 10,
-                target_value: 1,
-                action_type: 'visit',
-                action_url: 'https://t.me/winix_official',
-                action_label: 'Підписатися'
-            },
-            {
-                id: 'social_twitter',
-                title: 'Підписатися на Twitter',
-                description: 'Підпишіться на наш Twitter акаунт та будьте в курсі останніх новин',
-                type: 'social',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 15,
-                target_value: 1,
-                action_type: 'visit',
-                action_url: 'https://twitter.com/winix_official',
-                action_label: 'Підписатися'
-            },
-            {
-                id: 'social_discord',
-                title: 'Приєднатися до Discord',
-                description: 'Приєднайтеся до нашої спільноти в Discord, спілкуйтеся з іншими учасниками та отримуйте підтримку',
-                type: 'social',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 15,
-                target_value: 1,
-                action_type: 'visit',
-                action_url: 'https://discord.gg/winix',
-                action_label: 'Приєднатися'
-            },
-            {
-                id: 'social_share',
-                title: 'Поділитися з друзями',
-                description: 'Розкажіть друзям про WINIX у соціальних мережах',
-                type: 'social',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 20,
-                target_value: 1,
-                action_type: 'share',
-                action_label: 'Поділитися'
-            }
-        ];
-    }
-
-    /**
-     * Отримання тестових лімітованих завдань
-     */
-    function getMockLimitedTasks() {
-        // Створюємо кінцеву дату через 3 дні
-        const endDate1 = new Date();
-        endDate1.setDate(endDate1.getDate() + 3);
-
-        // Створюємо кінцеву дату через 5 днів
-        const endDate2 = new Date();
-        endDate2.setDate(endDate2.getDate() + 5);
-
-        return [
-            {
-                id: 'limited_vote',
-                title: 'Проголосувати за проект',
-                description: 'Проголосуйте за WINIX на платформі CoinVote для підтримки проекту',
-                type: 'limited',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 30,
-                target_value: 1,
-                action_type: 'visit',
-                action_url: 'https://coinvote.cc/winix',
-                action_label: 'Проголосувати',
-                end_date: endDate1.toISOString()
-            },
-            {
-                id: 'limited_game',
-                title: 'Зіграти в мініГРУ',
-                description: 'Зіграйте в нашу мініГру та отримайте бонус за досягнення 1000 очок',
-                type: 'limited',
-                reward_type: REWARD_TYPES.COINS,
-                reward_amount: 50,
-                target_value: 1,
-                action_type: 'play',
-                action_label: 'Грати',
-                end_date: endDate2.toISOString()
-            }
-        ];
-    }
-
-    /**
-     * Отримання тестових партнерських завдань
-     */
-    function getMockPartnerTasks() {
-        return [
-            {
-                id: 'partner_exchange',
-                title: 'Зареєструватися на біржі',
-                description: 'Зареєструйтеся на нашій партнерській біржі та отримайте бонус',
-                type: 'partner',
-                reward_type: REWARD_TYPES.TOKENS,
-                reward_amount: 100,
-                target_value: 1,
-                action_type: 'register',
-                action_url: 'https://exchange.example.com/ref=winix',
-                action_label: 'Зареєструватися',
-                partner_name: 'CryptoExchange'
-            }
-        ];
-    }
-
-    /**
      * Відображення соціальних завдань
      */
     function renderSocialTasks() {
@@ -792,14 +647,6 @@ window.TaskManager = (function() {
         if (socialTasks.length === 0) {
             domElements.socialTasksContainer.innerHTML = '<div class="no-tasks" data-lang-key="earn.no_tasks">Немає доступних завдань</div>';
             return;
-        }
-
-        // Додаємо індикатор, якщо використовуються мок-дані
-        if (mockDataStatus.socialTasks && errorHandlingConfig.showTechnicalDetails) {
-            const mockIndicator = document.createElement('div');
-            mockIndicator.className = 'mock-data-indicator';
-            mockIndicator.innerHTML = '⚠️ Демонстраційні дані';
-            domElements.socialTasksContainer.appendChild(mockIndicator);
         }
 
         // Відображаємо кожне завдання
@@ -829,14 +676,6 @@ window.TaskManager = (function() {
             return;
         }
 
-        // Додаємо індикатор, якщо використовуються мок-дані
-        if (mockDataStatus.limitedTasks && errorHandlingConfig.showTechnicalDetails) {
-            const mockIndicator = document.createElement('div');
-            mockIndicator.className = 'mock-data-indicator';
-            mockIndicator.innerHTML = '⚠️ Демонстраційні дані';
-            domElements.limitedTasksContainer.appendChild(mockIndicator);
-        }
-
         // Відображаємо кожне завдання
         limitedTasks.forEach(task => {
             // Перевіряємо наявність компонента для лімітованих завдань
@@ -862,14 +701,6 @@ window.TaskManager = (function() {
         if (partnerTasks.length === 0) {
             domElements.partnersTasksContainer.innerHTML = '<div class="task-item"><div class="task-header"><div class="task-title" data-lang-key="earn.expect_partners_title">Очікуйте на партнерські пропозиції</div></div><div class="task-description" data-lang-key="earn.expect_partners">Партнерські завдання будуть доступні найближчим часом. Слідкуйте за оновленнями!</div></div>';
             return;
-        }
-
-        // Додаємо індикатор, якщо використовуються мок-дані
-        if (mockDataStatus.partnerTasks && errorHandlingConfig.showTechnicalDetails) {
-            const mockIndicator = document.createElement('div');
-            mockIndicator.className = 'mock-data-indicator';
-            mockIndicator.innerHTML = '⚠️ Демонстраційні дані';
-            domElements.partnersTasksContainer.appendChild(mockIndicator);
         }
 
         // Відображаємо кожне завдання
@@ -1021,8 +852,8 @@ window.TaskManager = (function() {
                         'запуску завдання'
                     );
 
-                    if (!response.success) {
-                        throw new Error(response.message || response.error || 'Не вдалося розпочати завдання');
+                    if (response.status !== 'success') {
+                        throw new Error(response.message || 'Не вдалося розпочати завдання');
                     }
 
                     // Якщо це завдання з URL, відкриваємо відповідне посилання
@@ -1177,7 +1008,7 @@ window.TaskManager = (function() {
                             // Оновлюємо стан відображення
                             refreshTaskDisplay(taskId);
 
-                            if (response.success) {
+                            if (response.status === 'success') {
                                 showSuccessMessage(response.message || 'Завдання успішно виконано!');
 
                                 // Якщо є винагорода, обробляємо її
@@ -1187,7 +1018,7 @@ window.TaskManager = (function() {
                                 }
                             } else {
                                 // Отримуємо конкретну причину відмови від API
-                                const errorMessage = response.message || response.error || 'Не вдалося перевірити виконання завдання';
+                                const errorMessage = response.message || 'Не вдалося перевірити виконання завдання';
                                 showErrorMessage(errorMessage);
                             }
                         } catch (error) {
@@ -1215,19 +1046,14 @@ window.TaskManager = (function() {
 
                             showErrorMessage(errorMessage);
                             console.error('TaskManager: Помилка перевірки завдання через API:', classifiedError);
-
-                            // Повідомляємо про перехід на тестову верифікацію
-                            if (!isUserAuthenticated()) {
-                                console.warn('TaskManager: Користувач не авторизований. Переходимо до симуляції верифікації');
-                                logMockDataUsage('verification', 'Користувач не авторизований');
-                                simulateVerification(taskId);
-                            }
                         }
                     } else {
-                        // Якщо немає ні модуля верифікації, ні API, імітуємо перевірку
-                        let reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
-                        logMockDataUsage('verification', reason);
-                        simulateVerification(taskId);
+                        // Якщо немає ні модуля верифікації, ні API - показуємо повідомлення
+                        let errorMessage = !isApiAvailable()
+                            ? 'API недоступне для перевірки завдання.'
+                            : 'Для перевірки завдання необхідно авторизуватися.';
+
+                        showErrorMessage(errorMessage);
                     }
                 }
             } finally {
@@ -1340,73 +1166,6 @@ window.TaskManager = (function() {
         // Якщо немає модуля винагород, обробляємо вручну
         showRewardAnimation(reward);
         updateBalance(reward);
-    }
-
-    /**
-     * Імітація перевірки завдання (для тестування)
-     */
-    function simulateVerification(taskId) {
-        // Логуємо використання мок-даних для верифікації
-        if (!mockDataStatus.verification) {
-            logMockDataUsage('verification', 'Використання симуляції для перевірки завдання');
-        }
-
-        // Затримка для імітації запиту
-        setTimeout(() => {
-            // Знаходимо завдання
-            const task = findTaskById(taskId);
-            if (!task) {
-                showErrorMessage('Завдання не знайдено. Спробуйте оновити сторінку.');
-                return;
-            }
-
-            // Імітуємо успіх з ймовірністю 70%
-            const isSuccess = Math.random() < 0.7;
-
-            if (isSuccess) {
-                // Ініціалізуємо прогрес, якщо його ще немає
-                if (!userProgress[taskId]) {
-                    userProgress[taskId] = {
-                        status: 'in_progress',
-                        progress_value: 0,
-                        start_date: new Date().toISOString()
-                    };
-                }
-
-                // Оновлюємо прогрес
-                userProgress[taskId].status = 'completed';
-                userProgress[taskId].progress_value = task.target_value;
-                userProgress[taskId].completion_date = new Date().toISOString();
-
-                // Оновлюємо відображення
-                refreshTaskDisplay(taskId);
-
-                // Показуємо повідомлення про успіх
-                showSuccessMessage('Завдання успішно виконано! (Демонстраційний режим)');
-
-                // Створюємо і опрацьовуємо винагороду
-                const reward = {
-                    type: normalizeRewardType(task.reward_type),
-                    amount: parseFloat(task.reward_amount)
-                };
-
-                processReward(taskId, reward);
-            } else {
-                // Оновлюємо відображення
-                refreshTaskDisplay(taskId);
-
-                // Імітуємо різні повідомлення про помилки для більшої реалістичності
-                const errorMessages = [
-                    'Умови завдання ще не виконані. Переконайтеся, що ви зробили усі необхідні дії.',
-                    'Не вдалося підтвердити виконання завдання. Спробуйте ще раз.',
-                    'Система не виявила виконання всіх умов. Перевірте, чи правильно виконано всі кроки.',
-                    'Перевірка не підтвердила виконання завдання. Будь ласка, спробуйте пізніше.'
-                ];
-
-                const randomMessage = errorMessages[Math.floor(Math.random() * errorMessages.length)];
-                showErrorMessage(`${randomMessage} (Демонстраційний режим)`);
-            }
-        }, 1000);
     }
 
     /**
@@ -1680,95 +1439,7 @@ window.TaskManager = (function() {
         operationStatus.lastVerificationTime = {};
         operationStatus.lastOperationId = null;
 
-        // Скидаємо стан використання мок-даних
-        Object.keys(mockDataStatus).forEach(key => {
-            mockDataStatus[key] = false;
-        });
-
         console.log('TaskManager: Стан модуля скинуто');
-    }
-
-    /**
-     * Додавання видимого індикатора використання тестових даних
-     */
-    function addMockDataIndicator() {
-        // Перевіряємо, чи використовуються тестові дані
-        const isUsingMock = Object.values(mockDataStatus).some(status => status === true);
-
-        // Якщо тестові дані не використовуються, не показуємо індикатор
-        if (!isUsingMock) return;
-
-        // Перевіряємо, чи індикатор вже існує
-        let indicatorElement = document.getElementById('mock-data-indicator');
-
-        if (!indicatorElement) {
-            // Створюємо елемент індикатора
-            indicatorElement = document.createElement('div');
-            indicatorElement.id = 'mock-data-indicator';
-            indicatorElement.className = 'mock-data-indicator';
-
-            // Додаємо стилі для індикатора
-            indicatorElement.style.position = 'fixed';
-            indicatorElement.style.top = '10px';
-            indicatorElement.style.right = '10px';
-            indicatorElement.style.backgroundColor = '#FFF3CD';
-            indicatorElement.style.color = '#856404';
-            indicatorElement.style.padding = '8px 12px';
-            indicatorElement.style.borderRadius = '4px';
-            indicatorElement.style.fontSize = '12px';
-            indicatorElement.style.fontWeight = 'bold';
-            indicatorElement.style.zIndex = '9999';
-            indicatorElement.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-
-            // Додаємо іконку і текст попередження
-            indicatorElement.innerHTML = '⚠️ Демонстраційний режим';
-
-            // Додаємо деталі
-            const detailsElement = document.createElement('div');
-            detailsElement.className = 'mock-data-details';
-            detailsElement.style.marginTop = '5px';
-            detailsElement.style.fontSize = '11px';
-
-            // Формуємо інформацію про типи даних
-            let detailsText = 'Використовуються тестові дані для: ';
-            const mockTypes = Object.keys(mockDataStatus).filter(key => mockDataStatus[key]);
-            detailsText += mockTypes.join(', ');
-            detailsElement.textContent = detailsText;
-
-            indicatorElement.appendChild(detailsElement);
-
-            // Додаємо кнопку закриття
-            const closeButton = document.createElement('span');
-            closeButton.textContent = '✕';
-            closeButton.style.marginLeft = '10px';
-            closeButton.style.cursor = 'pointer';
-            closeButton.style.float = 'right';
-            closeButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                indicatorElement.remove();
-            });
-
-            indicatorElement.insertBefore(closeButton, indicatorElement.firstChild);
-
-            // Додаємо в DOM
-            document.body.appendChild(indicatorElement);
-
-            // Анімуємо появу
-            indicatorElement.style.opacity = '0';
-            indicatorElement.style.transition = 'opacity 0.5s ease';
-            setTimeout(() => {
-                indicatorElement.style.opacity = '1';
-            }, 100);
-        } else {
-            // Оновлюємо інформацію в існуючому індикаторі
-            const detailsElement = indicatorElement.querySelector('.mock-data-details');
-            if (detailsElement) {
-                let detailsText = 'Використовуються тестові дані для: ';
-                const mockTypes = Object.keys(mockDataStatus).filter(key => mockDataStatus[key]);
-                detailsText += mockTypes.join(', ');
-                detailsElement.textContent = detailsText;
-            }
-        }
     }
 
     /**
@@ -1790,7 +1461,7 @@ window.TaskManager = (function() {
             });
 
             // Відображаємо статус з'єднання
-            if (response && response.success) {
+            if (response && response.status === 'success') {
                 console.log('TaskManager: Успішне з\'єднання з бекендом');
                 return true;
             }
@@ -1921,34 +1592,11 @@ window.TaskManager = (function() {
 
             // Якщо з'єднання в порядку, спробуємо оновити завдання
             if (connectionOk) {
-                // Очищаємо статус використання мок-даних
-                Object.keys(mockDataStatus).forEach(key => {
-                    mockDataStatus[key] = false;
-                });
-
                 // Завантажуємо завдання з сервера
                 await loadTasks();
             } else {
                 // Якщо з'єднання не в порядку, показуємо повідомлення
-                showErrorMessage('Проблема з\'єднання з сервером. Використовуються демонстраційні дані.');
-
-                // Використовуємо тестові дані
-                socialTasks = getMockSocialTasks();
-                limitedTasks = getMockLimitedTasks();
-                partnerTasks = getMockPartnerTasks();
-
-                // Позначаємо, що використовуються тестові дані
-                mockDataStatus.socialTasks = true;
-                mockDataStatus.limitedTasks = true;
-                mockDataStatus.partnerTasks = true;
-
-                // Відображаємо завдання
-                renderSocialTasks();
-                renderLimitedTasks();
-                renderPartnerTasks();
-
-                // Додаємо видимий індикатор тестових даних
-                addMockDataIndicator();
+                showErrorMessage('Проблема з\'єднання з сервером. Спробуйте пізніше.');
             }
         } catch (error) {
             console.error('TaskManager: Помилка оновлення завдань:', error);
@@ -1978,10 +1626,7 @@ window.TaskManager = (function() {
         refreshTasksWithErrorHandling,
         testBackendConnection,
         diagnoseBendEndIssues,
-        addMockDataIndicator,
         REWARD_TYPES,
-        // Методи для перевірки використання мок-даних
-        isUsingMockData: (type) => mockDataStatus[type] || false,
         isApiAvailable
     };
 })();
