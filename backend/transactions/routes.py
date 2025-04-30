@@ -3,7 +3,9 @@ from . import controllers
 
 
 def register_transactions_routes(app):
-    # ВИПРАВЛЕНО: Додано унікальний endpoint для уникнення конфлікту
+    # Перевіряємо, чи вже є ці ендпоінти
+    existing_endpoints = [rule.endpoint for rule in app.url_map.iter_rules()]
+
     @app.route('/api/user/<telegram_id>/transactions', methods=['GET'], endpoint='transactions_get_user_transactions')
     def api_get_user_transactions(telegram_id):
         """Отримання транзакцій користувача"""
@@ -74,11 +76,14 @@ def register_transactions_routes(app):
                 "message": str(e)
             }), 500
 
-    # Додаємо маршрути для seed phrase, які раніше були у функції register_seed_phrase_routes
-    @app.route('/api/user/<telegram_id>/password', methods=['POST'])
-    def api_update_user_password(telegram_id):
-        """Оновлення пароля користувача"""
-        return controllers.update_user_password(telegram_id, request.json)
+    # Додаємо маршрути для seed phrase з перевіркою на існування
+    if 'api_update_user_password' not in existing_endpoints:
+        @app.route('/api/user/<telegram_id>/password', methods=['POST'], endpoint='transactions_update_user_password')
+        def api_update_user_password(telegram_id):
+            """Оновлення пароля користувача"""
+            return controllers.update_user_password(telegram_id, request.json)
+    else:
+        print("Маршрут /api/user/<telegram_id>/password вже зареєстровано")
 
     @app.route('/api/user/<telegram_id>/verify-password', methods=['POST'])
     def api_verify_user_password(telegram_id):
@@ -101,3 +106,5 @@ def register_transactions_routes(app):
 
         # Якщо пароль вірний, повертаємо seed-фразу
         return controllers.get_user_seed_phrase(telegram_id, show_password_protected=False)
+
+    return True
