@@ -8,7 +8,8 @@ def register_badges_routes(app):
         """Отримання інформації про доступні бейджі користувача"""
         return controllers.get_available_badges(telegram_id)
 
-    @app.route('/api/user/<telegram_id>/claim-badge-reward', methods=['POST'])
+    # ВИПРАВЛЕНО: Додано унікальний endpoint для уникнення конфлікту
+    @app.route('/api/user/<telegram_id>/claim-badge-reward', methods=['POST'], endpoint='badges_claim_badge_reward')
     def api_claim_badge_reward(telegram_id):
         """Отримання нагороди за бейдж"""
         data = request.json

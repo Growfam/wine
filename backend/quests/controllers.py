@@ -208,16 +208,55 @@ def get_tasks_by_type(task_type):
         # Перевіряємо, чи тип завдань валідний
         valid_types = [TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY]
 
+        # Додаткова валідація типу завдання
+        if task_type is None:
+            return api_error(message=f"Тип завдань не вказано", details={"task_type": "Тип завдань не вказано"})
+
         if task_type not in valid_types:
-            return api_error(message=f"Невідомий тип завдань: {task_type}", details={"task_type": "Невідомий тип завдань"})
+            return api_error(message=f"Невідомий тип завдань: {task_type}",
+                             details={"task_type": "Невідомий тип завдань"})
 
-        tasks = TaskService.get_tasks_by_type(task_type)
+        # Логування для відстеження
+        logger.info(f"Запит на отримання завдань типу {task_type}")
 
-        # Конвертуємо у формат API
-        tasks_data = [task.to_dict() for task in tasks]
+        try:
+            # Отримуємо завдання через сервіс
+            tasks = TaskService.get_tasks_by_type(task_type)
 
-        return api_success(data={"tasks": tasks_data}, message=f"Завдання типу {task_type} успішно отримано")
+            # Логування для відстеження
+            logger.info(f"Отримано {len(tasks)} завдань типу {task_type} від сервісу")
+
+            # Безпечне перетворення до формату API
+            tasks_data = []
+            for task in tasks:
+                try:
+                    # Перевіряємо формат даних
+                    if hasattr(task, 'to_dict') and callable(getattr(task, 'to_dict')):
+                        # Якщо це об'єкт з методом to_dict()
+                        task_dict = task.to_dict()
+                        tasks_data.append(task_dict)
+                    elif isinstance(task, dict):
+                        # Якщо це вже словник
+                        tasks_data.append(task)
+                    else:
+                        # Логування проблеми
+                        logger.warning(f"Пропускаємо завдання невідомого формату: {type(task)}")
+                        continue
+                except Exception as conversion_error:
+                    logger.error(f"Помилка перетворення завдання: {str(conversion_error)}")
+                    continue
+
+            # Формуємо відповідь
+            return api_success(data={"tasks": tasks_data}, message=f"Завдання типу {task_type} успішно отримано")
+
+        except Exception as service_error:
+            logger.error(f"Помилка TaskService: {str(service_error)}")
+            return api_error(message=f"Помилка отримання завдань типу {task_type} через сервіс",
+                             details={"error": str(service_error)})
+
     except Exception as e:
+        logger.error(f"Критична помилка при отриманні завдань типу {task_type}: {str(e)}")
+        logger.exception(e)  # Повний стек помилки для відлагодження
         return handle_exception(e, f"Помилка отримання завдань типу {task_type}")
 
 
