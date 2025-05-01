@@ -62,7 +62,7 @@ window.TaskVerification = (function() {
         // Таймаут запитів (мс)
         requestTimeout: 15000,
         // Детальне логування
-        debug: false,
+        debug: true,
         // Автоматична обробка CORS помилок
         handleCorsErrors: true,
         // Налаштування заголовків
@@ -829,7 +829,7 @@ window.TaskVerification = (function() {
         }
 
         // Перевіряємо наявність шляхів API
-        if (!window.API_PATHS || !window.API_PATHS.TASKS || !window.API_PATHS.TASKS.VERIFY) {
+        if (!window.API_PATHS || !window.API_PATHS.TASKS) {
             console.warn('TaskVerification: API_PATHS недоступні, використовуємо симуляцію перевірки');
             return simulateVerification(taskId);
         }
@@ -865,10 +865,12 @@ window.TaskVerification = (function() {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), config.requestTimeout);
 
-                    // Визначаємо шлях API для верифікації
-                    const apiPath = window.API_PATHS.TASKS.VERIFY(taskId);
+                    // ВИПРАВЛЕНО: Використовуємо правильний формат URL для верифікації
+                    // Оригінальний код використовував window.API_PATHS.TASKS.VERIFY(taskId)
+                    // Новий код використовує прямий URL відповідно до API документації
+                    const apiPath = `/api/user/${userId}/tasks/${taskId}/verify`;
 
-                    // Логуємо запит, якщо включено режим debug
+                    // Логуємо запит для діагностики
                     if (config.debug) {
                         console.log(`TaskVerification: Запит верифікації #${attempts} до ${apiPath}`, payload);
                     }
@@ -886,14 +888,19 @@ window.TaskVerification = (function() {
                     // Очищаємо таймаут
                     clearTimeout(timeoutId);
 
+                    // Логуємо відповідь для діагностики
+                    if (config.debug) {
+                        console.log(`TaskVerification: Відповідь на запит #${attempts}:`, response);
+                    }
+
                     // Обробляємо відповідь
-                    if (response.success) {
+                    if (response.status === 'success') {
                         result = {
                             success: true,
                             status: STATUS.SUCCESS,
                             message: response.message || 'Завдання успішно виконано!',
-                            reward: response.reward || null,
-                            verification_details: response.verification_details || {},
+                            reward: response.data?.reward || null,
+                            verification_details: response.data?.verification || {},
                             response_time_ms: Date.now() - state.lastVerificationTime[taskId]
                         };
 
