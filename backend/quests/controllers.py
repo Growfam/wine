@@ -6,8 +6,8 @@ import logging
 import sys
 import os
 from flask import jsonify, request, g
-from typing import Dict, Any, Optional, Tuple
-from datetime import datetime
+from typing import Dict, Any, Optional, Tuple, List, Union
+from datetime import datetime, timezone
 
 # Додаємо кореневу папку проекту до шляху
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -271,6 +271,11 @@ def get_tasks_for_user(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_tasks_for_user: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         available_tasks, completed_tasks = TaskService.get_tasks_for_user(telegram_id)
 
         return api_success(
@@ -281,6 +286,7 @@ def get_tasks_for_user(telegram_id):
             message="Завдання для користувача успішно отримано"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання завдань для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання завдань для користувача {telegram_id}")
 
 
@@ -295,6 +301,11 @@ def get_task_details(task_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація task_id
+        if not task_id or not isinstance(task_id, str):
+            logger.error(f"get_task_details: Недійсний task_id: {task_id}")
+            return api_error(message="Недійсний ID завдання", status_code=400)
+
         task = TaskService.get_task_by_id(task_id)
 
         if not task:
@@ -302,6 +313,7 @@ def get_task_details(task_id):
 
         return api_success(data={"task": task.to_dict()}, message="Деталі завдання успішно отримано")
     except Exception as e:
+        logger.exception(f"Помилка отримання деталей завдання {task_id}")
         return handle_exception(e, f"Помилка отримання деталей завдання {task_id}")
 
 
@@ -317,6 +329,15 @@ def start_task(telegram_id, task_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація параметрів
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"start_task: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        if not task_id or not isinstance(task_id, str):
+            logger.error(f"start_task: Недійсний task_id: {task_id}")
+            return api_error(message="Недійсний ID завдання", status_code=400)
+
         # Отримуємо дані завдання
         task = TaskService.get_task_by_id(task_id)
 
@@ -325,19 +346,20 @@ def start_task(telegram_id, task_id):
 
         # Перевіряємо, чи завдання активне
         if not task.is_active():
-            return api_error(message="Завдання неактивне або термін його виконання минув")
+            return api_error(message="Завдання неактивне або термін його виконання минув", status_code=400)
 
         # Починаємо виконання завдання
         progress = TaskService.start_task(telegram_id, task_id)
 
         if not progress:
-            return api_error(message="Не вдалося розпочати виконання завдання")
+            return api_error(message="Не вдалося розпочати виконання завдання", status_code=500)
 
         return api_success(
             data={"progress": progress.to_dict()},
             message="Виконання завдання успішно розпочато"
         )
     except Exception as e:
+        logger.exception(f"Помилка початку виконання завдання {task_id} для {telegram_id}")
         return handle_exception(e, f"Помилка початку виконання завдання {task_id}")
 
 
@@ -353,6 +375,15 @@ def update_task_progress(telegram_id, task_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація параметрів
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"update_task_progress: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        if not task_id or not isinstance(task_id, str):
+            logger.error(f"update_task_progress: Недійсний task_id: {task_id}")
+            return api_error(message="Недійсний ID завдання", status_code=400)
+
         # Отримуємо дані запиту
         data = request.json or {}
 
@@ -366,7 +397,7 @@ def update_task_progress(telegram_id, task_id):
             data.get("progress_value"), "progress_value", min_value=0, integer_only=True
         )
         if not is_valid:
-            return api_error(message=error_msg)
+            return api_error(message=error_msg, status_code=400)
 
         # Отримуємо дані для верифікації, якщо вони є
         verification_data = data.get("verification_data", {})
@@ -375,7 +406,7 @@ def update_task_progress(telegram_id, task_id):
         updated_progress = TaskService.update_progress(telegram_id, task_id, progress_value, verification_data)
 
         if not updated_progress:
-            return api_error(message="Не вдалося оновити прогрес завдання")
+            return api_error(message="Не вдалося оновити прогрес завдання", status_code=500)
 
         # Перевіряємо, чи завдання виконано
         task_completed = updated_progress.is_completed()
@@ -416,6 +447,7 @@ def update_task_progress(telegram_id, task_id):
 
         return api_success(data=response_data, message=message)
     except Exception as e:
+        logger.exception(f"Помилка оновлення прогресу завдання {task_id} для {telegram_id}")
         return handle_exception(e, f"Помилка оновлення прогресу завдання {task_id}")
 
 
@@ -431,6 +463,15 @@ def verify_task(telegram_id, task_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація параметрів
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"verify_task: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        if not task_id or not isinstance(task_id, str):
+            logger.error(f"verify_task: Недійсний task_id: {task_id}")
+            return api_error(message="Недійсний ID завдання", status_code=400)
+
         # Отримуємо дані запиту
         data = request.json or {}
 
@@ -441,6 +482,8 @@ def verify_task(telegram_id, task_id):
 
         # Отримуємо дані для верифікації
         verification_data = data.get("verification_data", {})
+        if not verification_data or not isinstance(verification_data, dict):
+            return api_error(message="Недійсні дані верифікації", status_code=400)
 
         # Отримуємо завдання
         task = TaskService.get_task_by_id(task_id)
@@ -535,6 +578,7 @@ def verify_task(telegram_id, task_id):
                 status_code=400
             )
     except Exception as e:
+        logger.exception(f"Помилка верифікації завдання {task_id} для {telegram_id}")
         return handle_exception(e, f"Помилка верифікації завдання {task_id}")
 
 
@@ -549,6 +593,11 @@ def get_user_progress(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_user_progress: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         progress_list = TaskService.get_user_progress(telegram_id)
 
         # Конвертуємо у формат API
@@ -570,6 +619,7 @@ def get_user_progress(telegram_id):
             message="Прогрес користувача успішно отримано"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання прогресу для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання прогресу для користувача {telegram_id}")
 
 
@@ -585,6 +635,15 @@ def get_task_status(telegram_id, task_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація параметрів
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_task_status: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        if not task_id or not isinstance(task_id, str):
+            logger.error(f"get_task_status: Недійсний task_id: {task_id}")
+            return api_error(message="Недійсний ID завдання", status_code=400)
+
         # Отримуємо завдання
         task = TaskService.get_task_by_id(task_id)
 
@@ -615,12 +674,13 @@ def get_task_status(telegram_id, task_id):
             message="Статус завдання успішно отримано"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання статусу завдання {task_id} для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання статусу завдання {task_id} для користувача {telegram_id}")
 
 
 # Контролери для щоденних бонусів
 
-def get_daily_bonus_status(telegram_id):
+def get_daily_bonus_status(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Отримання статусу щоденного бонусу.
 
@@ -631,17 +691,35 @@ def get_daily_bonus_status(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_daily_bonus_status: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        # Логування запиту
+        logger.info(f"get_daily_bonus_status: Запит статусу щоденного бонусу для користувача {telegram_id}")
+
+        # Отримуємо статус бонусу через сервіс
         bonus_status = DailyBonusService.get_daily_bonus_status(telegram_id)
 
+        # Перевіряємо наявність помилки
+        if "error" in bonus_status:
+            error_message = bonus_status.pop("error")
+            if "не знайдено" in error_message.lower():
+                return api_error(message=error_message, status_code=404)
+            return api_error(message=error_message, status_code=400)
+
+        # Повертаємо успішну відповідь
         return api_success(
             data=bonus_status,
             message="Статус щоденного бонусу успішно отримано"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання статусу щоденного бонусу для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання статусу щоденного бонусу для користувача {telegram_id}")
 
 
-def claim_daily_bonus(telegram_id, data=None):
+def claim_daily_bonus(telegram_id: str, data: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Any], int]:
     """
     Отримання щоденного бонусу.
 
@@ -653,28 +731,62 @@ def claim_daily_bonus(telegram_id, data=None):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"claim_daily_bonus: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         # Отримуємо дані запиту
         if data is None:
             data = request.json or {}
 
+        # Логування запиту з рівнем безпеки
+        logger.info(f"claim_daily_bonus: Запит на отримання щоденного бонусу для користувача {telegram_id}")
+
         # Отримуємо день, якщо він вказаний
-        day = data.get("day")
+        day = None
+        if 'day' in data:
+            try:
+                day = int(data['day'])
+                # Валідація дня
+                if day < 1 or day > 7:
+                    return api_error(message=f"Недійсний день циклу. Має бути від 1 до 7, отримано: {day}", status_code=400)
+            except (ValueError, TypeError):
+                return api_error(message=f"Недійсний формат дня. Має бути ціле число, отримано: {data['day']}", status_code=400)
+
+        # Додаємо запис для аудиту
+        logger.info(f"claim_daily_bonus: Початок процесу отримання бонусу для користувача {telegram_id}, день: {day}")
 
         # Видаємо бонус
         success, error, bonus_data = DailyBonusService.claim_daily_bonus(telegram_id, day)
 
+        # Перевіряємо результат
         if not success:
-            return api_error(message=error)
+            logger.warning(f"claim_daily_bonus: Помилка видачі бонусу для {telegram_id}: {error}")
 
+            # Визначаємо код статусу залежно від помилки
+            status_code = 400
+            if error and ("не знайдено" in error.lower() or "не існує" in error.lower()):
+                status_code = 404
+            elif error and "вже отримано" in error.lower():
+                status_code = 409  # Conflict
+
+            return api_error(message=error, status_code=status_code)
+
+        # Логуємо успішне отримання бонусу
+        logger.info(f"claim_daily_bonus: Користувач {telegram_id} успішно отримав щоденний бонус: +{bonus_data.get('reward', 0)} WINIX")
+
+        # Повертаємо успішну відповідь
         return api_success(
             data=bonus_data,
             message=f"Щоденний бонус отримано: +{bonus_data.get('reward', 0)} WINIX"
         )
     except Exception as e:
+        logger.exception(f"Критична помилка отримання щоденного бонусу для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання щоденного бонусу для користувача {telegram_id}")
 
 
-def claim_streak_bonus(telegram_id):
+def claim_streak_bonus(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Отримання бонусу за стрік щоденних входів.
 
@@ -685,21 +797,44 @@ def claim_streak_bonus(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"claim_streak_bonus: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        # Логування запиту
+        logger.info(f"claim_streak_bonus: Запит на отримання бонусу за стрік для користувача {telegram_id}")
+
         # Видаємо бонус за стрік
         success, error, bonus_data = DailyBonusService.get_streak_bonus(telegram_id)
 
+        # Перевіряємо результат
         if not success:
-            return api_error(message=error)
+            logger.warning(f"claim_streak_bonus: Помилка видачі бонусу за стрік для {telegram_id}: {error}")
 
+            # Визначаємо код статусу залежно від помилки
+            status_code = 400
+            if error and ("не знайдено" in error.lower() or "не існує" in error.lower()):
+                status_code = 404
+            elif error and "вже отримано" in error.lower():
+                status_code = 409  # Conflict
+
+            return api_error(message=error, status_code=status_code)
+
+        # Логуємо успішне отримання бонусу за стрік
+        logger.info(f"claim_streak_bonus: Користувач {telegram_id} успішно отримав бонус за стрік: +{bonus_data.get('reward', 0)} WINIX")
+
+        # Повертаємо успішну відповідь
         return api_success(
             data=bonus_data,
             message=f"Бонус за стрік отримано: +{bonus_data.get('reward', 0)} WINIX"
         )
     except Exception as e:
+        logger.exception(f"Критична помилка отримання бонусу за стрік для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання бонусу за стрік для користувача {telegram_id}")
 
 
-def get_bonus_history(telegram_id):
+def get_bonus_history(telegram_id: str) -> Tuple[Dict[str, Any], int]:
     """
     Отримання історії щоденних бонусів.
 
@@ -710,18 +845,42 @@ def get_bonus_history(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
-        # Отримуємо параметри пагінації
-        limit = request.args.get('limit', 10, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_bonus_history: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
+        # Отримуємо параметри пагінації та валідуємо їх
+        try:
+            limit = request.args.get('limit', 10, type=int)
+            offset = request.args.get('offset', 0, type=int)
+
+            # Валідація параметрів
+            if limit < 1 or limit > 100:
+                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
+            if offset < 0:
+                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
+        except ValueError:
+            return api_error(message="Некоректні параметри пагінації", status_code=400)
+
+        # Логування запиту
+        logger.info(f"get_bonus_history: Запит історії бонусів для користувача {telegram_id}, limit={limit}, offset={offset}")
 
         # Отримуємо історію бонусів
         bonus_history = DailyBonusService.get_bonus_history(telegram_id, limit, offset)
 
+        # Перевіряємо наявність помилки
+        if "error" in bonus_history:
+            error_message = bonus_history.pop("error")
+            return api_error(message=error_message, status_code=400)
+
+        # Повертаємо успішну відповідь
         return api_success(
             data=bonus_history,
             message="Історія бонусів успішно отримана"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання історії бонусів для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання історії бонусів для користувача {telegram_id}")
 
 
@@ -739,6 +898,11 @@ def verify_subscription(telegram_id, data=None):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"verify_subscription: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         # Отримуємо дані запиту
         if data is None:
             data = request.json or {}
@@ -750,6 +914,9 @@ def verify_subscription(telegram_id, data=None):
 
         # Отримуємо платформу та додаткові дані
         platform = data.get("platform", "").lower()
+        if not platform:
+            return api_error(message="Платформа не вказана", status_code=400)
+
         username = data.get("username", "")
         proof_url = data.get("proof_url", "")
 
@@ -759,7 +926,7 @@ def verify_subscription(telegram_id, data=None):
         )
 
         if not success:
-            return api_error(message=error or "Помилка верифікації підписки")
+            return api_error(message=error or "Помилка верифікації підписки", status_code=400)
 
         # Оновлюємо статус соціального завдання
         VerificationService.update_user_social_tasks(telegram_id, platform, True)
@@ -789,7 +956,8 @@ def verify_subscription(telegram_id, data=None):
 
         if transaction_result.get("status") != "success":
             return api_error(
-                message=f"Помилка нарахування винагороди: {transaction_result.get('message', 'Невідома помилка')}"
+                message=f"Помилка нарахування винагороди: {transaction_result.get('message', 'Невідома помилка')}",
+                status_code=500
             )
 
         return api_success(
@@ -802,6 +970,7 @@ def verify_subscription(telegram_id, data=None):
             message=f"Підписку підтверджено! Отримано {reward_amount} WINIX"
         )
     except Exception as e:
+        logger.exception(f"Помилка верифікації підписки для користувача {telegram_id}")
         return handle_exception(e, f"Помилка верифікації підписки для користувача {telegram_id}")
 
 
@@ -816,8 +985,17 @@ def get_referrals_leaderboard():
     """
     try:
         # Отримуємо параметри пагінації
-        limit = request.args.get('limit', 10, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        try:
+            limit = request.args.get('limit', 10, type=int)
+            offset = request.args.get('offset', 0, type=int)
+
+            # Валідація параметрів
+            if limit < 1 or limit > 100:
+                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
+            if offset < 0:
+                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
+        except ValueError:
+            return api_error(message="Некоректні параметри пагінації", status_code=400)
 
         # Отримуємо лідерборд
         leaderboard = LeaderboardService.get_referrals_leaderboard(limit, offset)
@@ -827,6 +1005,7 @@ def get_referrals_leaderboard():
             message="Лідерборд рефералів успішно отримано"
         )
     except Exception as e:
+        logger.exception("Помилка отримання лідерборду рефералів")
         return handle_exception(e, "Помилка отримання лідерборду рефералів")
 
 
@@ -839,9 +1018,20 @@ def get_tasks_leaderboard():
     """
     try:
         # Отримуємо параметри пагінації
-        limit = request.args.get('limit', 10, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        days = request.args.get('days', 30, type=int)
+        try:
+            limit = request.args.get('limit', 10, type=int)
+            offset = request.args.get('offset', 0, type=int)
+            days = request.args.get('days', 30, type=int)
+
+            # Валідація параметрів
+            if limit < 1 or limit > 100:
+                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
+            if offset < 0:
+                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
+            if days < 1 or days > 365:
+                return api_error(message="Параметр days має бути від 1 до 365", status_code=400)
+        except ValueError:
+            return api_error(message="Некоректні параметри пагінації", status_code=400)
 
         # Отримуємо лідерборд
         leaderboard = LeaderboardService.get_tasks_leaderboard(limit, offset, days)
@@ -851,6 +1041,7 @@ def get_tasks_leaderboard():
             message="Лідерборд завдань успішно отримано"
         )
     except Exception as e:
+        logger.exception("Помилка отримання лідерборду завдань")
         return handle_exception(e, "Помилка отримання лідерборду завдань")
 
 
@@ -865,8 +1056,19 @@ def get_user_leaderboard_position(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_user_leaderboard_position: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         # Отримуємо тип лідерборду
         leaderboard_type = request.args.get('type', 'referrals')
+
+        # Валідація типу лідерборду
+        valid_types = ['referrals', 'tasks']
+        if leaderboard_type not in valid_types:
+            return api_error(message=f"Недійсний тип лідерборду. Допустимі типи: {', '.join(valid_types)}",
+                            status_code=400)
 
         # Отримуємо позицію
         position_data = LeaderboardService.get_user_position(telegram_id, leaderboard_type)
@@ -876,6 +1078,7 @@ def get_user_leaderboard_position(telegram_id):
             message=f"Позиція користувача в лідерборді {leaderboard_type} успішно отримана"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання позиції користувача {telegram_id} в лідерборді")
         return handle_exception(e, f"Помилка отримання позиції користувача {telegram_id} в лідерборді")
 
 
@@ -892,6 +1095,11 @@ def get_referral_code(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_referral_code: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         referral_code = ReferralService.get_user_referral_code(telegram_id)
 
         if not referral_code:
@@ -902,6 +1110,7 @@ def get_referral_code(telegram_id):
             message="Реферальний код успішно отримано"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання реферального коду для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання реферального коду для користувача {telegram_id}")
 
 
@@ -916,6 +1125,11 @@ def get_user_referrals(telegram_id):
         tuple: (відповідь API, код статусу)
     """
     try:
+        # Валідація telegram_id
+        if not telegram_id or not isinstance(telegram_id, str):
+            logger.error(f"get_user_referrals: Недійсний telegram_id: {telegram_id}")
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         referrals_data = ReferralService.get_user_referrals(telegram_id)
 
         return api_success(
@@ -923,6 +1137,7 @@ def get_user_referrals(telegram_id):
             message="Інформація про рефералів успішно отримана"
         )
     except Exception as e:
+        logger.exception(f"Помилка отримання інформації про рефералів для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання інформації про рефералів для користувача {telegram_id}")
 
 
@@ -945,6 +1160,13 @@ def use_referral_code():
         referral_code = data.get("referral_code", "")
         referee_id = data.get("telegram_id", "")
 
+        # Валідація параметрів
+        if not referral_code or not isinstance(referral_code, str):
+            return api_error(message="Недійсний реферальний код", status_code=400)
+
+        if not referee_id or not isinstance(referee_id, str):
+            return api_error(message="Недійсний ID користувача", status_code=400)
+
         # Отримуємо користувача за реферальним кодом
         referrer = ReferralService.get_user_by_referral_code(referral_code)
 
@@ -955,19 +1177,19 @@ def use_referral_code():
 
         # Перевіряємо, чи не намагається користувач використати свій власний код
         if str(referrer_id) == str(referee_id):
-            return api_error(message="Ви не можете використати свій власний реферальний код")
+            return api_error(message="Ви не можете використати свій власний реферальний код", status_code=400)
 
         # Створюємо реферальний запис
         referral = ReferralService.create_referral(referrer_id, referee_id)
 
         if not referral:
-            return api_error(message="Не вдалося створити реферальний запис")
+            return api_error(message="Не вдалося створити реферальний запис", status_code=500)
 
         # Обробляємо винагороду для реферера
         success, error, reward_data = ReferralService.process_referral_reward(referral.id)
 
         if not success:
-            return api_error(message=f"Не вдалося обробити реферальну винагороду: {error}")
+            return api_error(message=f"Не вдалося обробити реферальну винагороду: {error}", status_code=500)
 
         return api_success(
             data={
@@ -981,4 +1203,5 @@ def use_referral_code():
             message="Реферальний код успішно використано"
         )
     except Exception as e:
+        logger.exception("Помилка використання реферального коду")
         return handle_exception(e, "Помилка використання реферального коду")

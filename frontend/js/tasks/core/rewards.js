@@ -1,9 +1,10 @@
 /**
- * Rewards - модуль для управління винагородами
+ * TaskRewards - модуль для управління винагородами
  * Відповідає за:
  * - Нарахування винагород за виконані завдання
  * - Анімацію отримання винагород
  * - Оновлення балансу користувача
+ * - Запобігання дублюванню операцій з балансом
  */
 
 window.TaskRewards = (function() {
@@ -15,7 +16,13 @@ window.TaskRewards = (function() {
     const rewardHistory = [];
 
     // Реєстр оброблених винагород для запобігання дублюванню
-    const processedRewards = {};
+    const processedRewards = new Map();
+
+    // Часовий проміжок для дедуплікації винагород (мс)
+    const DEDUPLICATION_WINDOW = 10000; // 10 секунд
+
+    // Блокування паралельних операцій
+    const pendingOperations = new Set();
 
     // Константи типів винагород (уніфіковані з іншими модулями)
     const REWARD_TYPES = {
@@ -23,17 +30,44 @@ window.TaskRewards = (function() {
         COINS: 'coins'
     };
 
+    // Конфігурація
+    const config = {
+        debug: false,
+        minRewardAmount: 1,
+        maxRewardAmount: 1000000,
+        defaultRewardAmount: 10,
+        syncWithLocalStorage: true,
+        preventDuplicateRewards: true,
+        throttleAnimations: true
+    };
+
     /**
      * Ініціалізація модуля винагород
+     * @param {Object} options - Налаштування модуля
      */
-    function init() {
+    function init(options = {}) {
         console.log('TaskRewards: Ініціалізація модуля винагород');
+
+        // Застосовуємо передані опції
+        if (options && typeof options === 'object') {
+            Object.keys(options).forEach(key => {
+                if (key in config) {
+                    config[key] = options[key];
+                }
+            });
+        }
 
         // Завантажуємо початковий баланс
         loadBalance();
 
         // Підписуємося на події
         subscribeToEvents();
+
+        // Очищаємо старі записи оброблених винагород
+        cleanupProcessedRewards();
+
+        // Запускаємо періодичне очищення
+        setInterval(cleanupProcessedRewards, 3600000); // раз на годину
     }
 
     /**
@@ -48,6 +82,123 @@ window.TaskRewards = (function() {
 
         // Подія завершення завдання (для надійного отримання винагород)
         document.addEventListener('task-completed', handleTaskCompleted);
+
+        // Подія отримання щоденного бонусу
+        document.addEventListener('daily-bonus-claimed', handleDailyBonusClaimed);
+
+        // Подія отримання бонусу за стрік
+        document.addEventListener('streak-bonus-claimed', handleStreakBonusClaimed);
+
+        // Подія зміни даних користувача
+        document.addEventListener('user-data-updated', () => {
+            loadBalance();
+        });
+
+        // Синхронізація між вкладками (для localStorage)
+        if (config.syncWithLocalStorage) {
+            window.addEventListener('storage', handleStorageChange);
+        }
+    }
+
+    /**
+     * Обробка змін у localStorage (синхронізація між вкладками)
+     * @param {StorageEvent} event - Подія сховища
+     */
+    function handleStorageChange(event) {
+        // Перевіряємо чи подія стосується балансів
+        if (event.key === 'userTokens' || event.key === 'winix_balance') {
+            try {
+                const newValue = parseFloat(event.newValue);
+                if (!isNaN(newValue) && newValue !== tokenBalance) {
+                    tokenBalance = newValue;
+                    updateTokenBalance(tokenBalance, false);
+
+                    if (config.debug) {
+                        console.log(`TaskRewards: Синхронізовано баланс токенів між вкладками: ${tokenBalance}`);
+                    }
+                }
+            } catch (e) {
+                console.warn('TaskRewards: Помилка синхронізації балансу токенів між вкладками:', e);
+            }
+        } else if (event.key === 'userCoins' || event.key === 'winix_coins') {
+            try {
+                const newValue = parseInt(event.newValue);
+                if (!isNaN(newValue) && newValue !== coinsBalance) {
+                    coinsBalance = newValue;
+                    updateCoinsBalance(coinsBalance, false);
+
+                    if (config.debug) {
+                        console.log(`TaskRewards: Синхронізовано баланс жетонів між вкладками: ${coinsBalance}`);
+                    }
+                }
+            } catch (e) {
+                console.warn('TaskRewards: Помилка синхронізації балансу жетонів між вкладками:', e);
+            }
+        }
+    }
+
+    /**
+     * Обробник події отримання щоденного бонусу
+     * @param {CustomEvent} event - Подія отримання щоденного бонусу
+     */
+    function handleDailyBonusClaimed(event) {
+        const { reward, eventId } = event.detail;
+
+        // Перевіряємо на дублювання обробки події
+        if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Подія отримання щоденного бонусу ${eventId} вже була оброблена, ігноруємо`);
+            }
+            return;
+        }
+
+        // Якщо є винагорода, обробляємо її
+        if (reward) {
+            if (config.debug) {
+                console.log(`TaskRewards: Отримано щоденний бонус: ${reward} WINIX`);
+            }
+
+            // Нормалізуємо винагороду
+            const normalizedReward = {
+                type: REWARD_TYPES.TOKENS,
+                amount: parseFloat(reward)
+            };
+
+            // Обробляємо винагороду
+            processReward('daily_bonus', normalizedReward, eventId);
+        }
+    }
+
+    /**
+     * Обробник події отримання бонусу за стрік
+     * @param {CustomEvent} event - Подія отримання бонусу за стрік
+     */
+    function handleStreakBonusClaimed(event) {
+        const { reward, eventId } = event.detail;
+
+        // Перевіряємо на дублювання обробки події
+        if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Подія отримання бонусу за стрік ${eventId} вже була оброблена, ігноруємо`);
+            }
+            return;
+        }
+
+        // Якщо є винагорода, обробляємо її
+        if (reward) {
+            if (config.debug) {
+                console.log(`TaskRewards: Отримано бонус за стрік: ${reward} WINIX`);
+            }
+
+            // Нормалізуємо винагороду
+            const normalizedReward = {
+                type: REWARD_TYPES.TOKENS,
+                amount: parseFloat(reward)
+            };
+
+            // Обробляємо винагороду
+            processReward('streak_bonus', normalizedReward, eventId);
+        }
     }
 
     /**
@@ -58,21 +209,55 @@ window.TaskRewards = (function() {
         const tokenElement = document.getElementById('user-tokens');
         const coinsElement = document.getElementById('user-coins');
 
+        let tokensLoaded = false;
+        let coinsLoaded = false;
+
         if (tokenElement) {
-            tokenBalance = parseFloat(tokenElement.textContent) || 0;
-        } else {
-            // Спробуємо з localStorage
-            tokenBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+            try {
+                const newValue = parseFloat(tokenElement.textContent) || 0;
+                tokenBalance = newValue;
+                tokensLoaded = true;
+            } catch (e) {
+                console.warn('TaskRewards: Помилка отримання балансу токенів з DOM:', e);
+            }
         }
 
         if (coinsElement) {
-            coinsBalance = parseInt(coinsElement.textContent) || 0;
-        } else {
-            // Спробуємо з localStorage
-            coinsBalance = parseInt(localStorage.getItem('userCoins') || '0');
+            try {
+                const newValue = parseInt(coinsElement.textContent) || 0;
+                coinsBalance = newValue;
+                coinsLoaded = true;
+            } catch (e) {
+                console.warn('TaskRewards: Помилка отримання балансу жетонів з DOM:', e);
+            }
         }
 
-        console.log(`TaskRewards: Початковий баланс завантажено - Токени: ${tokenBalance}, Жетони: ${coinsBalance}`);
+        // Якщо не вдалося отримати з DOM, спробуємо з localStorage
+        if (!tokensLoaded) {
+            try {
+                const storedTokens = localStorage.getItem('userTokens') || localStorage.getItem('winix_balance');
+                if (storedTokens) {
+                    tokenBalance = parseFloat(storedTokens) || 0;
+                }
+            } catch (e) {
+                console.warn('TaskRewards: Помилка отримання балансу токенів з localStorage:', e);
+            }
+        }
+
+        if (!coinsLoaded) {
+            try {
+                const storedCoins = localStorage.getItem('userCoins') || localStorage.getItem('winix_coins');
+                if (storedCoins) {
+                    coinsBalance = parseInt(storedCoins) || 0;
+                }
+            } catch (e) {
+                console.warn('TaskRewards: Помилка отримання балансу жетонів з localStorage:', e);
+            }
+        }
+
+        if (config.debug) {
+            console.log(`TaskRewards: Початковий баланс завантажено - Токени: ${tokenBalance}, Жетони: ${coinsBalance}`);
+        }
     }
 
     /**
@@ -83,24 +268,25 @@ window.TaskRewards = (function() {
         const { taskId, result, eventId } = event.detail;
 
         // Перевіряємо на дублювання обробки події
-        if (eventId && processedRewards[eventId]) {
-            console.log(`TaskRewards: Подія верифікації ${eventId} вже була оброблена, ігноруємо`);
+        if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Подія верифікації ${eventId} вже була оброблена, ігноруємо`);
+            }
             return;
         }
 
         // Якщо перевірка успішна і є винагорода
         if (result && result.success && result.reward) {
-            console.log(`TaskRewards: Отримано результат верифікації для завдання ${taskId}`, result.reward);
+            if (config.debug) {
+                console.log(`TaskRewards: Отримано результат верифікації для завдання ${taskId}`, result.reward);
+            }
 
             // Обробляємо винагороду
             processReward(taskId, result.reward, eventId);
 
             // Зберігаємо ідентифікатор обробленої події
             if (eventId) {
-                processedRewards[eventId] = Date.now();
-
-                // Очищення старих записів (старіших за 1 годину)
-                cleanupProcessedRewards();
+                markRewardAsProcessed(eventId);
             }
         }
     }
@@ -113,21 +299,25 @@ window.TaskRewards = (function() {
         const { taskId, reward, eventId } = event.detail;
 
         // Перевіряємо на дублювання обробки події
-        if (eventId && processedRewards[eventId]) {
-            console.log(`TaskRewards: Подія завершення завдання ${eventId} вже була оброблена, ігноруємо`);
+        if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Подія завершення завдання ${eventId} вже була оброблена, ігноруємо`);
+            }
             return;
         }
 
         // Якщо є винагорода, обробляємо її
         if (reward) {
-            console.log(`TaskRewards: Отримано винагороду за завершення завдання ${taskId}`, reward);
+            if (config.debug) {
+                console.log(`TaskRewards: Отримано винагороду за завершення завдання ${taskId}`, reward);
+            }
 
             // Обробляємо винагороду
             processReward(taskId, reward, eventId);
 
             // Зберігаємо ідентифікатор обробленої події
             if (eventId) {
-                processedRewards[eventId] = Date.now();
+                markRewardAsProcessed(eventId);
             }
         }
     }
@@ -145,36 +335,69 @@ window.TaskRewards = (function() {
         }
 
         // Перевіряємо на дублювання операцій
-        if (operationId && processedRewards[operationId]) {
-            console.log(`TaskRewards: Операція ${operationId} вже була оброблена, ігноруємо`);
+        if (config.preventDuplicateRewards && operationId && isRewardProcessed(operationId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Операція ${operationId} вже була оброблена, ігноруємо`);
+            }
             return;
         }
 
         // Оновлюємо локальний баланс, тільки якщо тип чітко вказаний
         if (type === REWARD_TYPES.TOKENS) {
             tokenBalance = newBalance;
-            console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
+            if (config.debug) {
+                console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
+            }
+            updateTokenBalance(tokenBalance, false);
         } else if (type === REWARD_TYPES.COINS) {
             coinsBalance = newBalance;
-            console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
+            if (config.debug) {
+                console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
+            }
+            updateCoinsBalance(coinsBalance, false);
         }
 
         // Зберігаємо ідентифікатор обробленої операції
         if (operationId) {
-            processedRewards[operationId] = Date.now();
+            markRewardAsProcessed(operationId);
         }
+    }
+
+    /**
+     * Перевірка, чи нагорода вже була оброблена
+     * @param {string} id - Ідентифікатор операції
+     * @returns {boolean} True, якщо нагорода вже була оброблена
+     */
+    function isRewardProcessed(id) {
+        return processedRewards.has(id) &&
+               (Date.now() - processedRewards.get(id)) < DEDUPLICATION_WINDOW;
+    }
+
+    /**
+     * Позначення нагороди як обробленої
+     * @param {string} id - Ідентифікатор операції
+     */
+    function markRewardAsProcessed(id) {
+        processedRewards.set(id, Date.now());
     }
 
     /**
      * Очищення застарілих записів оброблених винагород
      */
     function cleanupProcessedRewards() {
-        const oneHourAgo = Date.now() - 3600000; // 1 година в мілісекундах
-        Object.keys(processedRewards).forEach(key => {
-            if (processedRewards[key] < oneHourAgo) {
-                delete processedRewards[key];
+        const cutoffTime = Date.now() - DEDUPLICATION_WINDOW;
+        let cleanedCount = 0;
+
+        for (const [id, timestamp] of processedRewards.entries()) {
+            if (timestamp < cutoffTime) {
+                processedRewards.delete(id);
+                cleanedCount++;
             }
-        });
+        }
+
+        if (config.debug && cleanedCount > 0) {
+            console.log(`TaskRewards: Очищено ${cleanedCount} застарілих записів оброблених винагород`);
+        }
     }
 
     /**
@@ -188,7 +411,7 @@ window.TaskRewards = (function() {
             console.warn('TaskRewards: Отримано невалідну винагороду, використовуємо значення за замовчуванням');
             return {
                 type: REWARD_TYPES.TOKENS,
-                amount: 10
+                amount: config.defaultRewardAmount
             };
         }
 
@@ -204,15 +427,16 @@ window.TaskRewards = (function() {
         }
 
         // Перевірка та нормалізація суми
-        const rewardAmount = Math.max(0, parseFloat(reward.amount) || 0);
+        let rewardAmount = parseFloat(reward.amount);
 
-        if (rewardAmount <= 0) {
-            console.warn('TaskRewards: Винагорода з нульовою або від\'ємною сумою, використовуємо значення за замовчуванням');
-            return {
-                type: rewardType,
-                amount: 10
-            };
+        // Перевіряємо чи сума є числом
+        if (isNaN(rewardAmount)) {
+            console.warn('TaskRewards: Невалідна сума винагороди, використовуємо значення за замовчуванням');
+            rewardAmount = config.defaultRewardAmount;
         }
+
+        // Обмежуємо суму в допустимих межах
+        rewardAmount = Math.max(config.minRewardAmount, Math.min(config.maxRewardAmount, rewardAmount));
 
         return {
             type: rewardType,
@@ -227,31 +451,56 @@ window.TaskRewards = (function() {
      * @param {string} [operationId] - Унікальний ідентифікатор операції
      */
     function processReward(taskId, reward, operationId) {
+        // Перевіряємо чи не виконується інша операція для цього завдання
+        if (pendingOperations.has(taskId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Інша операція для ${taskId} вже виконується, ставимо в чергу`);
+            }
+
+            // Відкладаємо обробку
+            setTimeout(() => processReward(taskId, reward, operationId), 500);
+            return;
+        }
+
         // Створюємо унікальний ідентифікатор, якщо не переданий
         const uniqueId = operationId || `reward_${taskId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
         // Перевіряємо, чи не була ця винагорода вже оброблена
-        if (processedRewards[uniqueId]) {
-            console.log(`TaskRewards: Винагорода з ID ${uniqueId} вже була оброблена, ігноруємо`);
+        if (config.preventDuplicateRewards && isRewardProcessed(uniqueId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Винагорода з ID ${uniqueId} вже була оброблена, ігноруємо`);
+            }
             return;
         }
 
-        // Нормалізуємо винагороду
-        const normalizedReward = normalizeReward(reward);
+        // Встановлюємо прапорець блокування
+        pendingOperations.add(taskId);
 
-        // Додаємо винагороду до історії
-        addToRewardHistory(taskId, normalizedReward, uniqueId);
+        try {
+            // Нормалізуємо винагороду
+            const normalizedReward = normalizeReward(reward);
 
-        // Оновлюємо баланс
-        updateBalance(normalizedReward, uniqueId);
+            // Додаємо винагороду до історії
+            addToRewardHistory(taskId, normalizedReward, uniqueId);
 
-        // Показуємо анімацію винагороди
-        showRewardAnimation(normalizedReward);
+            // Оновлюємо баланс
+            updateBalance(normalizedReward, uniqueId);
 
-        // Зберігаємо ідентифікатор обробленої винагороди
-        processedRewards[uniqueId] = Date.now();
+            // Показуємо анімацію винагороди
+            showRewardAnimation(normalizedReward);
 
-        console.log(`TaskRewards: Оброблено винагороду для завдання ${taskId} з ID ${uniqueId}`, normalizedReward);
+            // Зберігаємо ідентифікатор обробленої винагороди
+            markRewardAsProcessed(uniqueId);
+
+            if (config.debug) {
+                console.log(`TaskRewards: Оброблено винагороду для завдання ${taskId} з ID ${uniqueId}`, normalizedReward);
+            }
+        } catch (error) {
+            console.error(`TaskRewards: Помилка обробки винагороди для ${taskId}:`, error);
+        } finally {
+            // Знімаємо прапорець блокування
+            pendingOperations.delete(taskId);
+        }
     }
 
     /**
@@ -261,21 +510,33 @@ window.TaskRewards = (function() {
      * @param {string} operationId - Унікальний ідентифікатор операції
      */
     function addToRewardHistory(taskId, reward, operationId) {
-        rewardHistory.push({
+        const historyEntry = {
             taskId,
             reward,
             operationId,
             timestamp: Date.now()
-        });
+        };
+
+        rewardHistory.push(historyEntry);
+
+        // Обмежуємо розмір історії
+        if (rewardHistory.length > 100) {
+            rewardHistory.shift(); // Видаляємо найстаріший запис
+        }
 
         // Зберігаємо історію в localStorage
         try {
-            // Обмежуємо кількість записів до 50
+            // Обмежуємо кількість записів до 50 для localStorage
             const historyToSave = rewardHistory.slice(-50);
             localStorage.setItem('winix_reward_history', JSON.stringify(historyToSave));
         } catch (error) {
             console.warn('TaskRewards: Помилка збереження історії винагород:', error);
         }
+
+        // Відправляємо подію добавлення винагороди
+        document.dispatchEvent(new CustomEvent('reward-added', {
+            detail: { ...historyEntry }
+        }));
     }
 
     /**
@@ -288,8 +549,10 @@ window.TaskRewards = (function() {
         const uniqueId = operationId || `balance_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
         // Перевіряємо, чи не була ця операція вже оброблена
-        if (processedRewards[uniqueId]) {
-            console.log(`TaskRewards: Операція оновлення балансу ${uniqueId} вже була оброблена, ігноруємо`);
+        if (config.preventDuplicateRewards && isRewardProcessed(uniqueId)) {
+            if (config.debug) {
+                console.log(`TaskRewards: Операція оновлення балансу ${uniqueId} вже була оброблена, ігноруємо`);
+            }
             return;
         }
 
@@ -315,10 +578,16 @@ window.TaskRewards = (function() {
             updateTokenBalance(tokenBalance, true);
 
             // Зберігаємо баланс в localStorage
-            localStorage.setItem('userTokens', tokenBalance.toString());
-            localStorage.setItem('winix_balance', tokenBalance.toString());
+            try {
+                localStorage.setItem('userTokens', tokenBalance.toString());
+                localStorage.setItem('winix_balance', tokenBalance.toString());
+            } catch (e) {
+                console.warn('TaskRewards: Помилка збереження балансу токенів в localStorage:', e);
+            }
 
-            console.log(`TaskRewards: Оновлено баланс токенів: +${rewardAmount}, новий баланс: ${tokenBalance}`);
+            if (config.debug) {
+                console.log(`TaskRewards: Оновлено баланс токенів: +${rewardAmount}, новий баланс: ${tokenBalance}`);
+            }
 
             // Відправляємо подію оновлення балансу
             document.dispatchEvent(new CustomEvent('balance-updated', {
@@ -328,7 +597,8 @@ window.TaskRewards = (function() {
                     reward: normalizedReward,
                     type: rewardType,
                     source: 'task_rewards',
-                    operationId: uniqueId
+                    operationId: uniqueId,
+                    change: rewardAmount
                 }
             }));
         } else {
@@ -338,10 +608,16 @@ window.TaskRewards = (function() {
             updateCoinsBalance(coinsBalance, true);
 
             // Зберігаємо баланс в localStorage
-            localStorage.setItem('userCoins', coinsBalance.toString());
-            localStorage.setItem('winix_coins', coinsBalance.toString());
+            try {
+                localStorage.setItem('userCoins', coinsBalance.toString());
+                localStorage.setItem('winix_coins', coinsBalance.toString());
+            } catch (e) {
+                console.warn('TaskRewards: Помилка збереження балансу жетонів в localStorage:', e);
+            }
 
-            console.log(`TaskRewards: Оновлено баланс жетонів: +${rewardAmount}, новий баланс: ${coinsBalance}`);
+            if (config.debug) {
+                console.log(`TaskRewards: Оновлено баланс жетонів: +${rewardAmount}, новий баланс: ${coinsBalance}`);
+            }
 
             // Відправляємо подію оновлення балансу
             document.dispatchEvent(new CustomEvent('balance-updated', {
@@ -351,13 +627,14 @@ window.TaskRewards = (function() {
                     reward: normalizedReward,
                     type: rewardType,
                     source: 'task_rewards',
-                    operationId: uniqueId
+                    operationId: uniqueId,
+                    change: rewardAmount
                 }
             }));
         }
 
         // Зберігаємо ідентифікатор обробленої операції
-        processedRewards[uniqueId] = Date.now();
+        markRewardAsProcessed(uniqueId);
     }
 
     /**
@@ -373,7 +650,7 @@ window.TaskRewards = (function() {
         const oldBalance = parseFloat(tokenElement.textContent) || 0;
 
         // Встановлюємо нове значення
-        tokenElement.textContent = newBalance.toFixed(2);
+        tokenElement.textContent = parseFloat(newBalance).toFixed(2);
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
@@ -405,7 +682,7 @@ window.TaskRewards = (function() {
         const oldBalance = parseInt(coinsElement.textContent) || 0;
 
         // Встановлюємо нове значення
-        coinsElement.textContent = newBalance;
+        coinsElement.textContent = parseInt(newBalance).toString();
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
@@ -424,6 +701,10 @@ window.TaskRewards = (function() {
         }
     }
 
+    // Останній час відображення анімації для уникнення спаму
+    let lastAnimationTime = 0;
+    let pendingAnimations = [];
+
     /**
      * Показати анімацію отримання винагороди
      * @param {Object} reward - Дані винагороди
@@ -436,18 +717,47 @@ window.TaskRewards = (function() {
         const rewardType = normalizedReward.type;
         const rewardAmount = normalizedReward.amount;
 
-        // Якщо є модуль анімацій, використовуємо його
-        if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
-            // Переконуємося, що передаємо коректну винагороду
-            window.UI.Animations.showReward({
-                type: rewardType,
-                amount: rewardAmount
-            });
+        // Перевіряємо, чи потрібно затримати анімацію
+        const now = Date.now();
+        if (config.throttleAnimations && now - lastAnimationTime < 1000) {
+            // Додаємо анімацію в чергу
+            pendingAnimations.push(normalizedReward);
+
+            // Якщо черга ще не опрацьовується, запускаємо процес
+            if (pendingAnimations.length === 1) {
+                setTimeout(processPendingAnimations, 1000 - (now - lastAnimationTime));
+            }
+
             return;
+        }
+
+        // Оновлюємо час останньої анімації
+        lastAnimationTime = now;
+
+        // Якщо є модуль анімацій, використовуємо його
+        if (window.UI && window.UI.Animations && typeof window.UI.Animations.showReward === 'function') {
+            try {
+                // Переконуємося, що передаємо коректну винагороду
+                window.UI.Animations.showReward({
+                    type: rewardType,
+                    amount: rewardAmount
+                });
+                return;
+            } catch (error) {
+                console.warn('TaskRewards: Помилка показу анімації через UI.Animations:', error);
+            }
         }
 
         // Інакше робимо просту анімацію
         const displayType = rewardType === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів';
+
+        // Створюємо елемент анімації, якщо він ще не існує
+        let animationContainer = document.querySelector('.rewards-animation-container');
+        if (!animationContainer) {
+            animationContainer = document.createElement('div');
+            animationContainer.className = 'rewards-animation-container';
+            document.body.appendChild(animationContainer);
+        }
 
         // Створюємо елемент анімації
         const animationElement = document.createElement('div');
@@ -461,8 +771,8 @@ window.TaskRewards = (function() {
             animationElement.classList.add('coins-reward');
         }
 
-        // Додаємо елемент до body
-        document.body.appendChild(animationElement);
+        // Додаємо елемент до контейнера
+        animationContainer.appendChild(animationElement);
 
         // Запускаємо анімацію
         setTimeout(() => {
@@ -473,9 +783,32 @@ window.TaskRewards = (function() {
                 animationElement.classList.remove('show');
                 setTimeout(() => {
                     animationElement.remove();
+
+                    // Видаляємо контейнер, якщо він порожній
+                    if (animationContainer.children.length === 0) {
+                        animationContainer.remove();
+                    }
                 }, 300);
             }, 2000);
         }, 100);
+    }
+
+    /**
+     * Обробка черги анімацій
+     */
+    function processPendingAnimations() {
+        if (pendingAnimations.length === 0) return;
+
+        // Отримуємо наступну анімацію
+        const nextAnimation = pendingAnimations.shift();
+
+        // Показуємо анімацію
+        showRewardAnimation(nextAnimation);
+
+        // Плануємо обробку наступної анімації
+        if (pendingAnimations.length > 0) {
+            setTimeout(processPendingAnimations, 1000);
+        }
     }
 
     /**
@@ -484,6 +817,80 @@ window.TaskRewards = (function() {
      */
     function getRewardHistory() {
         return [...rewardHistory];
+    }
+
+    /**
+     * Отримання поточного балансу
+     * @param {string} type - Тип балансу ('tokens' або 'coins')
+     * @returns {number} Поточний баланс
+     */
+    function getBalance(type) {
+        if (type === REWARD_TYPES.TOKENS) {
+            return tokenBalance;
+        } else if (type === REWARD_TYPES.COINS) {
+            return coinsBalance;
+        }
+        return 0;
+    }
+
+    /**
+     * Встановлення нового значення балансу
+     * @param {string} type - Тип балансу ('tokens' або 'coins')
+     * @param {number} amount - Нове значення
+     * @param {boolean} animate - Чи анімувати зміну
+     * @returns {boolean} Успішність операції
+     */
+    function setBalance(type, amount, animate = false) {
+        try {
+            // Перевіряємо тип
+            if (type !== REWARD_TYPES.TOKENS && type !== REWARD_TYPES.COINS) {
+                console.error(`TaskRewards: Невідомий тип балансу: ${type}`);
+                return false;
+            }
+
+            // Перевіряємо значення
+            const newValue = parseFloat(amount);
+            if (isNaN(newValue) || newValue < 0) {
+                console.error(`TaskRewards: Невалідне значення балансу: ${amount}`);
+                return false;
+            }
+
+            // Оновлюємо баланс
+            if (type === REWARD_TYPES.TOKENS) {
+                tokenBalance = newValue;
+                updateTokenBalance(tokenBalance, animate);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userTokens', tokenBalance.toString());
+                    localStorage.setItem('winix_balance', tokenBalance.toString());
+                } catch (e) {}
+            } else {
+                coinsBalance = newValue;
+                updateCoinsBalance(coinsBalance, animate);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userCoins', coinsBalance.toString());
+                    localStorage.setItem('winix_coins', coinsBalance.toString());
+                } catch (e) {}
+            }
+
+            // Відправляємо подію
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    newBalance: type === REWARD_TYPES.TOKENS ? tokenBalance : coinsBalance,
+                    type: type,
+                    source: 'task_rewards_set',
+                    operationId: `set_balance_${Date.now()}`
+                }
+            }));
+
+            return true;
+        } catch (error) {
+            console.error('TaskRewards: Помилка встановлення балансу:', error);
+            return false;
+        }
     }
 
     /**
@@ -518,15 +925,45 @@ window.TaskRewards = (function() {
     }
 
     /**
+     * Оновлення конфігурації
+     * @param {Object} newConfig - Нові налаштування
+     */
+    function updateConfig(newConfig) {
+        if (!newConfig || typeof newConfig !== 'object') return;
+
+        Object.keys(newConfig).forEach(key => {
+            if (key in config) {
+                config[key] = newConfig[key];
+
+                if (config.debug) {
+                    console.log(`TaskRewards: Оновлено конфігурацію: ${key} = ${newConfig[key]}`);
+                }
+            }
+        });
+    }
+
+    /**
      * Скидання стану модуля (для тестування)
      */
     function resetState() {
         // Очищаємо реєстр оброблених винагород
-        Object.keys(processedRewards).forEach(key => {
-            delete processedRewards[key];
-        });
+        processedRewards.clear();
 
-        console.log('TaskRewards: Стан модуля скинуто');
+        // Очищаємо історію винагород
+        rewardHistory.length = 0;
+
+        // Очищаємо список блокувань
+        pendingOperations.clear();
+
+        // Очищаємо чергу анімацій
+        pendingAnimations.length = 0;
+
+        // Оновлюємо баланси з DOM
+        loadBalance();
+
+        if (config.debug) {
+            console.log('TaskRewards: Стан модуля скинуто');
+        }
     }
 
     // Публічний API модуля
@@ -538,6 +975,16 @@ window.TaskRewards = (function() {
         addReward,
         normalizeReward,
         resetState,
+        getBalance,
+        setBalance,
+        updateConfig,
         REWARD_TYPES
     };
 })();
+
+// Ініціалізуємо модуль при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.TaskRewards) {
+        window.TaskRewards.init();
+    }
+});

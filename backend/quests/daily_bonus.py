@@ -6,7 +6,10 @@ import logging
 import sys
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, Union
+from contextlib import contextmanager
+import threading
+import json
 
 # Додаємо кореневу папку проекту до шляху
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,12 +20,19 @@ if parent_dir not in sys.path:
 # Імпорт моделей та інших залежностей
 from models.daily_bonus import DailyBonus, BONUS_TYPE_DAILY, BONUS_TYPE_STREAK, DEFAULT_CYCLE_DAYS
 from utils.transaction_helpers import execute_balance_transaction
-from supabase_client import supabase
+from supabase_client import supabase, execute_transaction
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Семафор для блокування одночасних запитів на отримання бонусу
+claim_lock = threading.Lock()
+
+# Кеш для блокування повторних запитів від одного користувача
+user_claim_locks = {}
+user_claim_lock = threading.Lock()
 
 
 class DailyBonusService:
@@ -32,7 +42,7 @@ class DailyBonusService:
     """
 
     @staticmethod
-    def normalize_date(date_obj):
+    def normalize_date(date_obj: Optional[Union[datetime, str]]) -> Optional[datetime]:
         """
         Нормалізує дату, додаючи часовий пояс, якщо він відсутній
 
@@ -45,25 +55,64 @@ class DailyBonusService:
         if date_obj is None:
             return None
 
-        # Якщо дата передана як рядок, перетворюємо на datetime
-        if isinstance(date_obj, str):
-            try:
-                # Обробляємо різні формати
-                if 'Z' in date_obj:
-                    date_obj = date_obj.replace('Z', '+00:00')
-                if date_obj.endswith('+00:00') or 'T' in date_obj:
-                    date_obj = datetime.fromisoformat(date_obj)
-                else:
-                    date_obj = datetime.strptime(date_obj, "%Y-%m-%d %H:%M:%S")
-            except ValueError as e:
-                logger.error(f"Помилка перетворення дати з рядка: {str(e)}")
-                return None
+        try:
+            # Якщо дата передана як рядок, перетворюємо на datetime
+            if isinstance(date_obj, str):
+                return DailyBonus.parse_date(date_obj)
 
-        # Додаємо часовий пояс, якщо його немає
-        if isinstance(date_obj, datetime) and not date_obj.tzinfo:
-            date_obj = date_obj.replace(tzinfo=timezone.utc)
+            # Якщо це вже datetime
+            if isinstance(date_obj, datetime):
+                # Додаємо часовий пояс, якщо його немає
+                if not date_obj.tzinfo:
+                    return date_obj.replace(tzinfo=timezone.utc)
+                return date_obj
 
-        return date_obj
+            # Інші випадки
+            logger.warning(f"normalize_date: Неочікуваний тип даних: {type(date_obj)}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Помилка нормалізації дати: {str(e)}")
+            return None
+
+    @staticmethod
+    def _acquire_user_claim_lock(telegram_id: str) -> bool:
+        """
+        Отримує блокування для користувача для запобігання одночасним запитам
+        на отримання бонусу від одного користувача.
+
+        Args:
+            telegram_id (str): Telegram ID користувача
+
+        Returns:
+            bool: True, якщо блокування отримано, False якщо користувач вже має активне блокування
+        """
+        with user_claim_lock:
+            if telegram_id in user_claim_locks:
+                # Перевіряємо, чи не застаріле блокування (старше 5 хвилин)
+                lock_time = user_claim_locks.get(telegram_id, 0)
+                if datetime.now().timestamp() - lock_time < 300:  # 5 хвилин
+                    # Блокування ще активне
+                    logger.warning(f"Користувач {telegram_id} вже має активне блокування на отримання бонусу")
+                    return False
+
+            # Створюємо нове блокування
+            user_claim_locks[telegram_id] = datetime.now().timestamp()
+            logger.info(f"Створено блокування для користувача {telegram_id}")
+            return True
+
+    @staticmethod
+    def _release_user_claim_lock(telegram_id: str) -> None:
+        """
+        Звільняє блокування користувача
+
+        Args:
+            telegram_id (str): Telegram ID користувача
+        """
+        with user_claim_lock:
+            if telegram_id in user_claim_locks:
+                del user_claim_locks[telegram_id]
+                logger.info(f"Звільнено блокування для користувача {telegram_id}")
 
     @staticmethod
     def get_daily_bonus_status(telegram_id: str) -> Dict[str, Any]:
@@ -77,6 +126,21 @@ class DailyBonusService:
             Dict[str, Any]: Статус щоденного бонусу
         """
         try:
+            # Перевіряємо валідність telegram_id
+            if not telegram_id or not isinstance(telegram_id, str):
+                logger.error(f"get_daily_bonus_status: Недійсний telegram_id: {telegram_id}")
+                return {
+                    "can_claim": False,
+                    "current_day": 1,
+                    "claimed_days": [],
+                    "streak_days": 0,
+                    "next_reward": 10,
+                    "error": "Недійсний ID користувача"
+                }
+
+            # Логуємо початок операції
+            logger.info(f"get_daily_bonus_status: Запит статусу бонусу для користувача {telegram_id}")
+
             # Отримуємо користувача
             user_response = supabase.table("winix").select("daily_bonuses").eq("telegram_id",
                                                                                str(telegram_id)).execute()
@@ -93,7 +157,8 @@ class DailyBonusService:
                 }
 
             # Отримуємо дані щоденних бонусів
-            daily_bonuses = user_response.data[0].get("daily_bonuses", {})
+            user_data = user_response.data[0]
+            daily_bonuses = user_data.get("daily_bonuses", {})
 
             # Якщо немає даних про щоденні бонуси, створюємо базову структуру
             if not daily_bonuses:
@@ -103,6 +168,14 @@ class DailyBonusService:
                     "current_day": 1,
                     "streak_days": 0
                 }
+
+            # Перевіряємо наявність всіх необхідних полів
+            daily_bonuses = {
+                "last_claimed_date": daily_bonuses.get("last_claimed_date", None),
+                "claimed_days": daily_bonuses.get("claimed_days", []),
+                "current_day": daily_bonuses.get("current_day", 1),
+                "streak_days": daily_bonuses.get("streak_days", 0)
+            }
 
             # Перевіряємо, чи можна отримати бонус сьогодні
             can_claim = True
@@ -120,6 +193,9 @@ class DailyBonusService:
 
                         # Бонус можна отримати, якщо остання дата отримання не сьогодні
                         can_claim = last_date_day < today
+
+                        # Логуємо інформацію про перевірку можливості отримати бонус
+                        logger.info(f"get_daily_bonus_status: Користувач {telegram_id}, остання дата бонусу: {last_date_day}, сьогодні: {today}, можна отримати: {can_claim}")
                 except Exception as e:
                     logger.error(f"Помилка при перевірці дати останнього бонусу: {str(e)}")
 
@@ -133,13 +209,9 @@ class DailyBonusService:
                     last_date = DailyBonusService.normalize_date(last_claimed_date)
 
                     if last_date:
-                        now = datetime.now(timezone.utc)
-
-                        # Визначаємо різницю в днях
-                        delta = now - last_date
-
-                        # Якщо пропущено більше одного дня, стрік скидається
-                        if delta.days > 1:
+                        # Перевіряємо чи потрібно скинути стрік
+                        if DailyBonus.check_streak_reset(last_date):
+                            logger.info(f"get_daily_bonus_status: Скидання стріку для користувача {telegram_id}, останній бонус: {last_date}")
                             current_day = 1
                 except Exception as e:
                     logger.error(f"Помилка при перевірці скидання стріку: {str(e)}")
@@ -161,7 +233,7 @@ class DailyBonusService:
             }
 
             logger.info(
-                f"Отримано статус щоденного бонусу для користувача {telegram_id}: поточний день {current_day}, можна отримати: {can_claim}")
+                f"Отримано статус щоденного бонусу для користувача {telegram_id}: поточний день {current_day}, можна отримати: {can_claim}, наступна винагорода: {reward_amount}")
             return result
         except Exception as e:
             logger.error(f"Помилка при отриманні статусу щоденного бонусу для користувача {telegram_id}: {str(e)}")
@@ -187,115 +259,145 @@ class DailyBonusService:
             Tuple[bool, Optional[str], Dict[str, Any]]:
                 (успіх, повідомлення про помилку, дані бонусу)
         """
+        if not DailyBonusService._acquire_user_claim_lock(telegram_id):
+            return False, "Запит на отримання бонусу вже в обробці, спробуйте через кілька секунд", {}
+
         try:
-            # Отримуємо статус щоденного бонусу
-            bonus_status = DailyBonusService.get_daily_bonus_status(telegram_id)
+            # Перевіряємо валідність telegram_id
+            if not telegram_id or not isinstance(telegram_id, str):
+                logger.error(f"claim_daily_bonus: Недійсний telegram_id: {telegram_id}")
+                return False, "Недійсний ID користувача", {}
 
-            # Перевіряємо, чи можна отримати бонус
-            if not bonus_status.get("can_claim", False):
-                return False, "Бонус вже отримано сьогодні", bonus_status
+            # Перевіряємо валідність параметра day
+            if day is not None and (not isinstance(day, int) or day < 1 or day > DEFAULT_CYCLE_DAYS):
+                logger.error(f"claim_daily_bonus: Недійсний параметр day: {day}")
+                return False, f"Недійсний день циклу. Повинен бути від 1 до {DEFAULT_CYCLE_DAYS}", {}
 
-            # Отримуємо поточний день у циклі
-            current_day = bonus_status.get("current_day", 1)
+            # Глобальне блокування для запобігання race conditions
+            with claim_lock:
+                # Отримуємо статус щоденного бонусу
+                bonus_status = DailyBonusService.get_daily_bonus_status(telegram_id)
 
-            # Перевіряємо, чи день співпадає з вказаним клієнтом (якщо вказано)
-            if day is not None and day != current_day:
-                return False, f"Неправильний день! Очікувався день {current_day}, отримано {day}", bonus_status
+                # Перевіряємо, чи можна отримати бонус
+                if not bonus_status.get("can_claim", False):
+                    logger.warning(f"claim_daily_bonus: Користувач {telegram_id} вже отримав бонус сьогодні")
+                    return False, "Бонус вже отримано сьогодні", bonus_status
 
-            # Отримуємо користувача для оновлення
-            user_response = supabase.table("winix").select("balance,daily_bonuses").eq("telegram_id",
-                                                                                       str(telegram_id)).execute()
+                # Отримуємо поточний день у циклі
+                current_day = bonus_status.get("current_day", 1)
 
-            if not user_response.data or len(user_response.data) == 0:
-                logger.warning(f"Користувача {telegram_id} не знайдено")
-                return False, "Користувача не знайдено", bonus_status
+                # Перевіряємо, чи день співпадає з вказаним клієнтом (якщо вказано)
+                if day is not None and day != current_day:
+                    logger.warning(f"claim_daily_bonus: Неправильний день для користувача {telegram_id}. Очікувалось: {current_day}, отримано: {day}")
+                    return False, f"Неправильний день! Очікувався день {current_day}, отримано {day}", bonus_status
 
-            user_data = user_response.data[0]
+                # Отримуємо користувача для оновлення
+                user_response = supabase.table("winix").select("balance,daily_bonuses").eq("telegram_id",
+                                                                                        str(telegram_id)).execute()
 
-            # Отримуємо поточний баланс та дані бонусів
-            current_balance = float(user_data.get("balance", 0))
-            daily_bonuses = user_data.get("daily_bonuses", {})
+                if not user_response.data or len(user_response.data) == 0:
+                    logger.warning(f"Користувача {telegram_id} не знайдено")
+                    return False, "Користувача не знайдено", bonus_status
 
-            if not daily_bonuses:
-                daily_bonuses = {
-                    "last_claimed_date": None,
-                    "claimed_days": [],
-                    "current_day": 1,
-                    "streak_days": 0
+                user_data = user_response.data[0]
+
+                # Отримуємо поточний баланс та дані бонусів
+                current_balance = float(user_data.get("balance", 0))
+                daily_bonuses = user_data.get("daily_bonuses", {})
+
+                if not daily_bonuses:
+                    daily_bonuses = {
+                        "last_claimed_date": None,
+                        "claimed_days": [],
+                        "current_day": 1,
+                        "streak_days": 0
+                    }
+
+                # Розраховуємо суму винагороди
+                reward_amount = DailyBonus.calculate_daily_bonus_amount(current_day)
+
+                # Визначаємо новий баланс
+                new_balance = current_balance + reward_amount
+
+                # Оновлюємо дані щоденних бонусів
+                claimed_days = daily_bonuses.get("claimed_days", [])
+                claimed_days.append(current_day)
+
+                # Визначаємо наступний день у циклі
+                next_day = DailyBonus.get_next_day_in_cycle(current_day)
+
+                # Оновлюємо кількість днів у стріку
+                streak_days = daily_bonuses.get("streak_days", 0) + 1
+
+                # Створюємо оновлений об'єкт щоденних бонусів
+                updated_bonuses = {
+                    "last_claimed_date": datetime.now(timezone.utc).isoformat(),
+                    "claimed_days": claimed_days,
+                    "current_day": next_day,
+                    "streak_days": streak_days
                 }
 
-            # Розраховуємо суму винагороди
-            reward_amount = DailyBonus.calculate_daily_bonus_amount(current_day)
+                # Виконуємо транзакцію через транзакційний контекст
+                logger.info(f"claim_daily_bonus: Початок транзакції для користувача {telegram_id}")
+                try:
+                    with execute_transaction() as txn:
+                        # Оновлюємо дані в базі
+                        update_response = txn.table("winix").update({
+                            "balance": new_balance,
+                            "daily_bonuses": updated_bonuses,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }).eq("telegram_id", str(telegram_id)).execute()
 
-            # Визначаємо новий баланс
-            new_balance = current_balance + reward_amount
+                        if not update_response.data or len(update_response.data) == 0:
+                            logger.error(f"Не вдалося оновити дані користувача {telegram_id}")
+                            raise Exception("Не вдалося оновити дані користувача")
 
-            # Оновлюємо дані щоденних бонусів
-            claimed_days = daily_bonuses.get("claimed_days", [])
-            claimed_days.append(current_day)
+                        # Створюємо транзакцію для нарахування винагороди
+                        transaction_data = {
+                            "telegram_id": telegram_id,
+                            "type": "daily_bonus",
+                            "amount": reward_amount,
+                            "description": f"Щоденний бонус (День {current_day})",
+                            "status": "completed",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "previous_balance": current_balance
+                        }
+                        txn.table("transactions").insert(transaction_data).execute()
 
-            # Визначаємо наступний день у циклі
-            next_day = DailyBonus.get_next_day_in_cycle(current_day)
+                        # Створюємо запис у таблиці daily_bonuses для історії та статистики
+                        bonus = DailyBonus(
+                            telegram_id=telegram_id,
+                            bonus_type=BONUS_TYPE_DAILY,
+                            amount=reward_amount,
+                            day_in_cycle=current_day
+                        )
+                        txn.table("daily_bonuses").insert(bonus.to_dict()).execute()
 
-            # Оновлюємо кількість днів у стріку
-            streak_days = daily_bonuses.get("streak_days", 0) + 1
+                        logger.info(f"claim_daily_bonus: Транзакція успішно завершена для користувача {telegram_id}")
+                except Exception as e:
+                    logger.error(f"claim_daily_bonus: Помилка транзакції для користувача {telegram_id}: {str(e)}")
+                    raise e
 
-            # Створюємо оновлений об'єкт щоденних бонусів
-            updated_bonuses = {
-                "last_claimed_date": datetime.now(timezone.utc).isoformat(),
-                "claimed_days": claimed_days,
-                "current_day": next_day,
-                "streak_days": streak_days
-            }
+                # Формуємо результат
+                result = {
+                    "success": True,
+                    "reward": reward_amount,
+                    "new_balance": new_balance,
+                    "previous_balance": current_balance,
+                    "current_day": current_day,
+                    "next_day": next_day,
+                    "streak_days": streak_days
+                }
 
-            # Виконуємо транзакцію для нарахування винагороди
-            transaction_result = execute_balance_transaction(
-                telegram_id=telegram_id,
-                amount=reward_amount,
-                type_name="daily_bonus",
-                description=f"Щоденний бонус (День {current_day})"
-            )
-
-            if transaction_result.get("status") != "success":
-                logger.error(f"Помилка виконання транзакції: {transaction_result.get('message', 'Невідома помилка')}")
-                return False, f"Помилка нарахування бонусу: {transaction_result.get('message', 'Невідома помилка')}", transaction_result
-
-            # Оновлюємо дані в базі
-            update_response = supabase.table("winix").update({
-                "balance": new_balance,
-                "daily_bonuses": updated_bonuses
-            }).eq("telegram_id", str(telegram_id)).execute()
-
-            if not update_response.data or len(update_response.data) == 0:
-                logger.error(f"Не вдалося оновити дані користувача {telegram_id}")
-                return False, "Не вдалося оновити дані користувача", transaction_result
-
-            # Створюємо запис у таблиці daily_bonuses для історії та статистики
-            bonus = DailyBonus(
-                telegram_id=telegram_id,
-                bonus_type=BONUS_TYPE_DAILY,
-                amount=reward_amount,
-                day_in_cycle=current_day
-            )
-
-            bonus_response = supabase.table("daily_bonuses").insert(bonus.to_dict()).execute()
-
-            # Формуємо результат
-            result = {
-                "success": True,
-                "reward": reward_amount,
-                "new_balance": new_balance,
-                "previous_balance": current_balance,
-                "current_day": current_day,
-                "next_day": next_day,
-                "streak_days": streak_days
-            }
-
-            logger.info(f"Видано щоденний бонус користувачу {telegram_id}: {reward_amount} WINIX, день {current_day}")
-            return True, None, result
+                logger.info(f"Видано щоденний бонус користувачу {telegram_id}: {reward_amount} WINIX, день {current_day}")
+                return True, None, result
         except Exception as e:
             logger.error(f"Помилка при видачі щоденного бонусу користувачу {telegram_id}: {str(e)}")
             return False, f"Внутрішня помилка: {str(e)}", {}
+        finally:
+            # Звільняємо блокування для цього користувача
+            DailyBonusService._release_user_claim_lock(telegram_id)
 
     @staticmethod
     def get_streak_bonus(telegram_id: str) -> Tuple[bool, Optional[str], Dict[str, Any]]:
@@ -309,7 +411,15 @@ class DailyBonusService:
             Tuple[bool, Optional[str], Dict[str, Any]]:
                 (успіх, повідомлення про помилку, дані бонусу)
         """
+        if not DailyBonusService._acquire_user_claim_lock(telegram_id):
+            return False, "Запит на отримання бонусу вже в обробці, спробуйте через кілька секунд", {}
+
         try:
+            # Перевіряємо валідність telegram_id
+            if not telegram_id or not isinstance(telegram_id, str):
+                logger.error(f"get_streak_bonus: Недійсний telegram_id: {telegram_id}")
+                return False, "Недійсний ID користувача", {}
+
             # Отримуємо статус щоденних бонусів
             bonus_status = DailyBonusService.get_daily_bonus_status(telegram_id)
 
@@ -319,11 +429,12 @@ class DailyBonusService:
             # Перевіряємо, чи достатньо днів для бонусу
             # Наприклад, бонус видається за кожні 7 днів у стріку
             if streak_days < 7 or streak_days % 7 != 0:
+                logger.warning(f"get_streak_bonus: Недостатньо днів у стріку для користувача {telegram_id}: {streak_days}/7")
                 return False, f"Недостатньо днів у стріку для отримання бонусу: {streak_days}/7", bonus_status
 
             # Отримуємо користувача
             user_response = supabase.table("winix").select("balance,daily_bonuses").eq("telegram_id",
-                                                                                       str(telegram_id)).execute()
+                                                                                    str(telegram_id)).execute()
 
             if not user_response.data or len(user_response.data) == 0:
                 logger.warning(f"Користувача {telegram_id} не знайдено")
@@ -335,10 +446,15 @@ class DailyBonusService:
             current_balance = float(user_data.get("balance", 0))
             daily_bonuses = user_data.get("daily_bonuses", {})
 
+            if not daily_bonuses:
+                logger.warning(f"get_streak_bonus: У користувача {telegram_id} відсутні дані щоденних бонусів")
+                return False, "Дані щоденних бонусів відсутні", bonus_status
+
             # Перевіряємо, чи не було вже отримано бонус за поточний стрік
             last_streak_bonus = daily_bonuses.get("last_streak_bonus", 0)
 
             if last_streak_bonus >= streak_days:
+                logger.warning(f"get_streak_bonus: Користувач {telegram_id} вже отримав бонус за стрік {streak_days} днів")
                 return False, f"Бонус за стрік {streak_days} днів вже отримано", bonus_status
 
             # Розраховуємо суму бонусу за стрік
@@ -352,37 +468,47 @@ class DailyBonusService:
             # Оновлюємо інформацію про останній отриманий бонус за стрік
             daily_bonuses["last_streak_bonus"] = streak_days
 
-            # Виконуємо транзакцію для нарахування винагороди
-            transaction_result = execute_balance_transaction(
-                telegram_id=telegram_id,
-                amount=bonus_amount,
-                type_name="streak_bonus",
-                description=f"Бонус за стрік {streak_days} днів"
-            )
+            # Виконуємо транзакцію через транзакційний контекст
+            logger.info(f"get_streak_bonus: Початок транзакції для користувача {telegram_id}")
+            try:
+                with execute_transaction() as txn:
+                    # Оновлюємо дані в базі
+                    update_response = txn.table("winix").update({
+                        "balance": new_balance,
+                        "daily_bonuses": daily_bonuses,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("telegram_id", str(telegram_id)).execute()
 
-            if transaction_result.get("status") != "success":
-                logger.error(f"Помилка виконання транзакції: {transaction_result.get('message', 'Невідома помилка')}")
-                return False, f"Помилка нарахування бонусу: {transaction_result.get('message', 'Невідома помилка')}", transaction_result
+                    if not update_response.data or len(update_response.data) == 0:
+                        logger.error(f"Не вдалося оновити дані користувача {telegram_id}")
+                        raise Exception("Не вдалося оновити дані користувача")
 
-            # Оновлюємо дані в базі
-            update_response = supabase.table("winix").update({
-                "balance": new_balance,
-                "daily_bonuses": daily_bonuses
-            }).eq("telegram_id", str(telegram_id)).execute()
+                    # Створюємо транзакцію для нарахування винагороди
+                    transaction_data = {
+                        "telegram_id": telegram_id,
+                        "type": "streak_bonus",
+                        "amount": bonus_amount,
+                        "description": f"Бонус за стрік {streak_days} днів",
+                        "status": "completed",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "previous_balance": current_balance
+                    }
+                    txn.table("transactions").insert(transaction_data).execute()
 
-            if not update_response.data or len(update_response.data) == 0:
-                logger.error(f"Не вдалося оновити дані користувача {telegram_id}")
-                return False, "Не вдалося оновити дані користувача", transaction_result
+                    # Створюємо запис у таблиці daily_bonuses для історії та статистики
+                    bonus = DailyBonus(
+                        telegram_id=telegram_id,
+                        bonus_type=BONUS_TYPE_STREAK,
+                        amount=bonus_amount,
+                        day_in_cycle=0  # Для бонусів за стрік встановлюємо 0
+                    )
+                    txn.table("daily_bonuses").insert(bonus.to_dict()).execute()
 
-            # Створюємо запис у таблиці daily_bonuses для історії та статистики
-            bonus = DailyBonus(
-                telegram_id=telegram_id,
-                bonus_type=BONUS_TYPE_STREAK,
-                amount=bonus_amount,
-                day_in_cycle=0  # Для бонусів за стрік встановлюємо 0
-            )
-
-            bonus_response = supabase.table("daily_bonuses").insert(bonus.to_dict()).execute()
+                    logger.info(f"get_streak_bonus: Транзакція успішно завершена для користувача {telegram_id}")
+            except Exception as e:
+                logger.error(f"get_streak_bonus: Помилка транзакції для користувача {telegram_id}: {str(e)}")
+                raise e
 
             # Формуємо результат
             result = {
@@ -400,6 +526,9 @@ class DailyBonusService:
         except Exception as e:
             logger.error(f"Помилка при видачі бонусу за стрік користувачу {telegram_id}: {str(e)}")
             return False, f"Внутрішня помилка: {str(e)}", {}
+        finally:
+            # Звільняємо блокування для цього користувача
+            DailyBonusService._release_user_claim_lock(telegram_id)
 
     @staticmethod
     def get_bonus_history(telegram_id: str, limit: int = 10, offset: int = 0) -> Dict[str, Any]:
@@ -415,6 +544,23 @@ class DailyBonusService:
             Dict[str, Any]: Історія щоденних бонусів
         """
         try:
+            # Перевіряємо валідність telegram_id
+            if not telegram_id or not isinstance(telegram_id, str):
+                logger.error(f"get_bonus_history: Недійсний telegram_id: {telegram_id}")
+                return {
+                    "items": [],
+                    "pagination": {
+                        "total": 0,
+                        "limit": limit,
+                        "offset": offset
+                    },
+                    "error": "Недійсний ID користувача"
+                }
+
+            # Перевіряємо ліміт і зміщення
+            limit = max(1, min(100, limit))  # Обмежуємо ліміт від 1 до 100
+            offset = max(0, offset)  # Зміщення повинно бути невід'ємним
+
             # Отримуємо записи бонусів
             response = supabase.table("daily_bonuses") \
                 .select("*") \
@@ -457,10 +603,18 @@ class DailyBonusService:
             result["items"] = bonuses
 
             # Отримуємо загальну кількість записів
-            count_response = supabase.table("daily_bonuses").select("count").eq("telegram_id",
-                                                                                str(telegram_id)).execute()
+            count_response = supabase.table("daily_bonuses") \
+                .select("id", count="exact") \
+                .eq("telegram_id", str(telegram_id)) \
+                .execute()
 
-            total_count = count_response.count if hasattr(count_response, 'count') else len(bonuses)
+            # Правильно отримуємо загальну кількість записів
+            total_count = 0
+            if hasattr(count_response, 'count'):
+                total_count = count_response.count
+            elif hasattr(count_response, 'data'):
+                total_count = len(bonuses) + offset
+
             result["pagination"]["total"] = total_count
 
             logger.info(f"Отримано {len(bonuses)} записів з історії бонусів для користувача {telegram_id}")
