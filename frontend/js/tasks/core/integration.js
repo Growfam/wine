@@ -200,7 +200,7 @@ window.TaskIntegration = (function() {
             return;
         }
 
-        const requiredPaths = ['SOCIAL', 'LIMITED', 'PARTNER'];
+        const requiredPaths = ['SOCIAL', 'LIMITED', 'PARTNERS'];
         const missingPaths = [];
 
         for (const path of requiredPaths) {
@@ -215,9 +215,9 @@ window.TaskIntegration = (function() {
             log('TaskIntegration: Всі необхідні API шляхи знайдено.');
 
             // Виводимо шляхи для підтвердження
-            log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
-            log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
-            log(`PARTNER: ${window.API_PATHS.TASKS.PARTNER}`);
+log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
+log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
+log(`PARTNERS: ${window.API_PATHS.TASKS.PARTNERS}`);
         }
     }
 
