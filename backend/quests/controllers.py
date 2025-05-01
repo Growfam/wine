@@ -387,22 +387,20 @@ def update_task_progress(telegram_id, task_id):
             task = TaskService.get_task_by_id(task_id)
 
             if task:
-                # Перевіряємо тип верифікації
-                if task.verification_type == "auto":
-                    # Автоматично нараховуємо винагороду
-                    success, error, reward_data = VerificationService.process_reward(telegram_id, task,
-                                                                                     updated_progress)
-                    if success:
-                        reward_result = {
-                            "reward_claimed": True,
-                            "reward_amount": task.reward_amount,
-                            "reward_type": task.reward_type
-                        }
-                    else:
-                        reward_result = {
-                            "reward_claimed": False,
-                            "error": error
-                        }
+                # ВИПРАВЛЕНО: Видалено перевірку task.verification_type == "auto"
+                # Автоматично нараховуємо винагороду для всіх типів завдань
+                success, error, reward_data = VerificationService.process_reward(telegram_id, task, updated_progress)
+                if success:
+                    reward_result = {
+                        "reward_claimed": True,
+                        "reward_amount": task.reward_amount,
+                        "reward_type": task.reward_type
+                    }
+                else:
+                    reward_result = {
+                        "reward_claimed": False,
+                        "error": error
+                    }
 
         response_data = {
             "progress": updated_progress.to_dict(),
@@ -500,6 +498,7 @@ def verify_task(telegram_id, task_id):
             # Нараховуємо винагороду, якщо вона ще не була видана
             reward_result = {}
             if completed_progress and not completed_progress.reward_claimed:
+                # ВИПРАВЛЕНО: Нараховуємо винагороду для всіх типів завдань, незалежно від verification_type
                 success, error, reward_data = VerificationService.process_reward(telegram_id, task, completed_progress)
                 if success:
                     reward_result = {
