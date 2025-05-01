@@ -1,9 +1,10 @@
 """
 Модель для щоденних бонусів у системі WINIX.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import logging
+from typing import Optional, Union, Dict, Any
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -17,6 +18,12 @@ BONUS_TYPE_SPECIAL = "special"  # Спеціальний бонус
 
 # Стандартний цикл щоденних бонусів - 7 днів
 DEFAULT_CYCLE_DAYS = 7
+
+# Мінімальний проміжок часу між отриманням бонусів у секундах
+MIN_CLAIM_INTERVAL_SECONDS = 60  # 1 хвилина для запобігання дублюванню
+
+# Мінімальна сума бонусу
+MIN_BONUS_AMOUNT = 5.0
 
 
 class DailyBonus:
@@ -35,12 +42,12 @@ class DailyBonus:
 
     def __init__(
             self,
-            telegram_id,
-            bonus_type=BONUS_TYPE_DAILY,
-            amount=10.0,
-            day_in_cycle=1,
-            claimed_date=None,
-            id=None
+            telegram_id: str,
+            bonus_type: str = BONUS_TYPE_DAILY,
+            amount: float = 10.0,
+            day_in_cycle: int = 1,
+            claimed_date: Optional[datetime] = None,
+            id: Optional[str] = None
     ):
         """
         Ініціалізація нового запису щоденного бонусу
@@ -60,11 +67,16 @@ class DailyBonus:
         self.day_in_cycle = int(day_in_cycle)
 
         # Встановлення дат
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         self.claimed_date = claimed_date if claimed_date else now
+
+        # Перевірка наявності часового поясу
+        if self.claimed_date and not self.claimed_date.tzinfo:
+            self.claimed_date = self.claimed_date.replace(tzinfo=timezone.utc)
+
         self.created_at = now
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """
         Повертає словникове представлення щоденного бонусу
 
@@ -82,7 +94,7 @@ class DailyBonus:
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: Dict[str, Any]) -> 'DailyBonus':
         """
         Створює об'єкт щоденного бонусу зі словника
 
@@ -92,6 +104,9 @@ class DailyBonus:
         Returns:
             DailyBonus: Об'єкт щоденного бонусу
         """
+        if not data:
+            raise ValueError("Не вдалося створити бонус з пустих даних")
+
         bonus = cls(
             telegram_id=data.get("telegram_id", ""),
             bonus_type=data.get("bonus_type", BONUS_TYPE_DAILY),
@@ -102,21 +117,93 @@ class DailyBonus:
 
         # Обробка дат
         if "claimed_date" in data and data["claimed_date"]:
-            if isinstance(data["claimed_date"], str):
-                bonus.claimed_date = datetime.fromisoformat(data["claimed_date"].replace("Z", "+00:00"))
-            else:
-                bonus.claimed_date = data["claimed_date"]
+            try:
+                if isinstance(data["claimed_date"], str):
+                    claimed_date = cls.parse_date(data["claimed_date"])
+                    bonus.claimed_date = claimed_date
+                else:
+                    bonus.claimed_date = data["claimed_date"]
+
+                # Перевірка наявності часового поясу
+                if bonus.claimed_date and not bonus.claimed_date.tzinfo:
+                    bonus.claimed_date = bonus.claimed_date.replace(tzinfo=timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка обробки claimed_date: {e}")
+                bonus.claimed_date = datetime.now(timezone.utc)
 
         if "created_at" in data and data["created_at"]:
-            if isinstance(data["created_at"], str):
-                bonus.created_at = datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
-            else:
-                bonus.created_at = data["created_at"]
+            try:
+                if isinstance(data["created_at"], str):
+                    created_at = cls.parse_date(data["created_at"])
+                    bonus.created_at = created_at
+                else:
+                    bonus.created_at = data["created_at"]
+
+                # Перевірка наявності часового поясу
+                if bonus.created_at and not bonus.created_at.tzinfo:
+                    bonus.created_at = bonus.created_at.replace(tzinfo=timezone.utc)
+            except Exception as e:
+                logger.error(f"Помилка обробки created_at: {e}")
+                bonus.created_at = datetime.now(timezone.utc)
 
         return bonus
 
     @staticmethod
-    def calculate_daily_bonus_amount(day_in_cycle):
+    def parse_date(date_string: str) -> datetime:
+        """
+        Парсить рядок дати у об'єкт datetime з підтримкою різних форматів
+
+        Args:
+            date_string (str): Рядок з датою
+
+        Returns:
+            datetime: Об'єкт datetime з часовим поясом UTC
+        """
+        date_formats = [
+            # ISO формат з Z
+            "%Y-%m-%dT%H:%M:%SZ",
+            # ISO формат з мілісекундами та Z
+            "%Y-%m-%dT%H:%M:%S.%fZ",
+            # ISO формат з явним часовим поясом
+            "%Y-%m-%dT%H:%M:%S%z",
+            # ISO формат з мілісекундами та явним часовим поясом
+            "%Y-%m-%dT%H:%M:%S.%f%z",
+            # Простий формат без часу
+            "%Y-%m-%d",
+            # Формат з часом
+            "%Y-%m-%d %H:%M:%S",
+            # Формат з часом та мілісекундами
+            "%Y-%m-%d %H:%M:%S.%f"
+        ]
+
+        # Замінюємо Z на +00:00 для сумісності
+        if date_string.endswith('Z'):
+            date_string = date_string[:-1] + "+00:00"
+
+        # Спробуємо спочатку використати стандартний метод fromisoformat
+        try:
+            dt = datetime.fromisoformat(date_string)
+            if not dt.tzinfo:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            pass
+
+        # Пробуємо різні формати
+        for fmt in date_formats:
+            try:
+                dt = datetime.strptime(date_string, fmt)
+                if not dt.tzinfo:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+            except ValueError:
+                continue
+
+        # Якщо жоден формат не підійшов, викидаємо помилку
+        raise ValueError(f"Неможливо розпізнати формат дати: {date_string}")
+
+    @staticmethod
+    def calculate_daily_bonus_amount(day_in_cycle: int) -> float:
         """
         Розраховує розмір щоденного бонусу залежно від дня циклу
 
@@ -126,17 +213,21 @@ class DailyBonus:
         Returns:
             float: Розмір бонусу
         """
+        # Нормалізуємо день у циклі
+        day = max(1, min(day_in_cycle, DEFAULT_CYCLE_DAYS))
+
         # Базова формула: день * 10
-        base_bonus = day_in_cycle * 10.0
+        base_bonus = day * 10.0
 
         # Додатковий бонус для останнього дня циклу
-        if day_in_cycle == DEFAULT_CYCLE_DAYS:
+        if day == DEFAULT_CYCLE_DAYS:
             base_bonus += 20.0  # Додатковий бонус за завершення циклу
 
-        return base_bonus
+        # Забезпечуємо мінімальну суму бонусу
+        return max(MIN_BONUS_AMOUNT, base_bonus)
 
     @staticmethod
-    def get_next_day_in_cycle(current_day):
+    def get_next_day_in_cycle(current_day: int) -> int:
         """
         Визначає наступний день у циклі щоденних бонусів
 
@@ -146,13 +237,16 @@ class DailyBonus:
         Returns:
             int: Наступний день циклу
         """
-        next_day = current_day + 1
+        # Нормалізуємо поточний день
+        normalized_day = max(1, min(current_day, DEFAULT_CYCLE_DAYS))
+
+        next_day = normalized_day + 1
         if next_day > DEFAULT_CYCLE_DAYS:
             next_day = 1
         return next_day
 
     @staticmethod
-    def check_streak_reset(last_claimed_date):
+    def check_streak_reset(last_claimed_date: Optional[datetime]) -> bool:
         """
         Перевіряє, чи треба скинути стрік щоденних бонусів
 
@@ -165,16 +259,23 @@ class DailyBonus:
         if not last_claimed_date:
             return False
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
+
+        # Перевіряємо, чи last_claimed_date має часовий пояс
+        if not last_claimed_date.tzinfo:
+            last_claimed_date = last_claimed_date.replace(tzinfo=timezone.utc)
 
         # Визначаємо різницю в днях
-        delta = now - last_claimed_date
+        # Порівнюємо по даті (без часу)
+        last_date_day = last_claimed_date.date()
+        today = now.date()
+        yesterday = (now - timedelta(days=1)).date()
 
-        # Якщо пропущено більше одного дня, стрік скидається
-        return delta.days > 1
+        # Якщо остання дата не вчора і не сьогодні, стрік скидається
+        return last_date_day < yesterday
 
     @staticmethod
-    def can_claim_today(last_claimed_date):
+    def can_claim_today(last_claimed_date: Optional[datetime]) -> bool:
         """
         Перевіряє, чи можна отримати бонус сьогодні
 
@@ -187,20 +288,28 @@ class DailyBonus:
         if not last_claimed_date:
             return True
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
+
+        # Перевіряємо, чи last_claimed_date має часовий пояс
+        if not last_claimed_date.tzinfo:
+            last_claimed_date = last_claimed_date.replace(tzinfo=timezone.utc)
 
         # Порівнюємо дату (без часу)
         last_date_day = last_claimed_date.date()
         today = now.date()
 
-        # Бонус можна отримати, якщо остання дата отримання не сьогодні
-        return last_date_day < today
+        # Також перевіряємо мінімальний часовий інтервал для запобігання дублюванню
+        time_diff_seconds = (now - last_claimed_date).total_seconds()
 
-    def __str__(self):
+        # Якщо остання дата отримання не сьогодні і пройшов мінімальний інтервал
+        return (last_date_day < today) and (time_diff_seconds >= MIN_CLAIM_INTERVAL_SECONDS)
+
+    def __str__(self) -> str:
         """
         Повертає рядкове представлення щоденного бонусу
 
         Returns:
             str: Рядкове представлення щоденного бонусу
         """
-        return f"DailyBonus(user={self.telegram_id}, day={self.day_in_cycle}, amount={self.amount}, claimed={self.claimed_date.strftime('%Y-%m-%d')})"
+        claimed_date_str = self.claimed_date.strftime('%Y-%m-%d %H:%M:%S') if self.claimed_date else "Не отримано"
+        return f"DailyBonus(id={self.id}, user={self.telegram_id}, day={self.day_in_cycle}, amount={self.amount}, claimed={claimed_date_str})"
