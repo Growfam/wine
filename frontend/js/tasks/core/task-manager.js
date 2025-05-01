@@ -309,8 +309,8 @@ window.TaskManager = (function() {
                 try {
                     // ВИПРАВЛЕНО: Використовуємо API_PATHS.TASKS.PARTNER замість API_PATHS.TASKS.PARTNERS
                     console.log('🔍 ДІАГНОСТИКА: Запит партнерських завдань...');
-const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNERS);
-console.log('🔍 ДІАГНОСТИКА: Відповідь на запит партнерських завдань:', partnerResponse);
+                    const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
+                    console.log('🔍 ДІАГНОСТИКА: Відповідь на запит партнерських завдань:', partnerResponse);
 
                     // Така ж обробка як і для соціальних завдань, але скорочена для компактності
                     let partnerTasksData = [];
