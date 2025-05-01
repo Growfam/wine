@@ -15,18 +15,18 @@
     // Константи API-шляхів для централізованого управління
     const API_PATHS = {
         // Завдання
-        TASKS: {
-            ALL: 'quests/tasks',  // Видалено початковий слеш
-            BY_TYPE: (type) => `quests/tasks/${type}`,
-            SOCIAL: 'quests/tasks/social',
-            LIMITED: 'quests/tasks/limited',
-            // ВИПРАВЛЕНО: Змінено з "partners" на "partner" для узгодження з бекендом
-            PARTNER: 'quests/tasks/partner',
-            DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
-            START: (taskId) => `quests/tasks/${taskId}/start`,
-            VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
-            PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
-        },
+       TASKS: {
+        ALL: 'quests/tasks',  // Видалено початковий слеш
+        BY_TYPE: (type) => `quests/tasks/${type}`,
+        SOCIAL: 'quests/tasks/social',
+        LIMITED: 'quests/tasks/limited',
+        // ВИПРАВЛЕНО: Повернено назад з "partner" на "partners" для узгодження з бекендом
+        PARTNERS: 'quests/tasks/partners',
+        DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
+        START: (taskId) => `quests/tasks/${taskId}/start`,
+        VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
+        PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
+    },
 
         // Користувацькі шляхи
         USER: {

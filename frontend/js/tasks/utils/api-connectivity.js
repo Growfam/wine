@@ -21,7 +21,8 @@ window.APIConnectivity = (function() {
         criticalEndpoints: [
             'api/ping',
             'api/user/{userId}',
-            'api/user/{userId}/daily-bonus'
+            'api/user/{userId}/daily-bonus',
+            'api/quests/tasks/partners'
         ],
         // Інтервал перевірки API у мілісекундах
         checkIntervalTime: 60000, // 1 хвилина

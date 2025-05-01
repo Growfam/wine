@@ -309,10 +309,16 @@
                 return Promise.resolve(window.WinixAuth.currentUser);
             }
 
-            // Якщо немає кешованих даних, але виклик занадто частий
-            if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
-                return Promise.reject(new Error("Занадто частий виклик init"));
-            }
+           // Якщо немає кешованих даних, але виклик занадто частий
+if ((now - _lastRequestTime) < MIN_REQUEST_INTERVAL / 3) {
+    const userId = getUserIdFromAllSources();
+    return {
+        telegram_id: userId || 'unknown',
+        balance: parseFloat(localStorage.getItem('userTokens') || '0'),
+        coins: parseInt(localStorage.getItem('userCoins') || '0'),
+        source: 'throttled_init'
+    };
+}
 
             // Інакше дозволяємо продовжити з оновленням часу запиту
         }
