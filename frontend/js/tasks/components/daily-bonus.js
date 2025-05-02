@@ -1,6 +1,6 @@
 /**
  * WINIX - Щоденний бонус (30-денний цикл)
- * Версія: 2.0.0
+ * Версія: 2.0.1
  *
  * Модуль для управління щоденними бонусами в системі WINIX
  * Забезпечує 30-денний цикл бонусів з прогресивною системою винагород та жетонами
@@ -10,7 +10,7 @@ window.DailyBonus = (function() {
     // Конфігурація модуля
     const config = {
         cacheDuration: 300000,      // 5 хвилин кеш
-        debug: false,               // Режим відлагодження
+        debug: true,                // Режим відлагодження (увімкнено для діагностики)
         apiTimeout: 10000,          // 10 секунд таймаут для запитів
         maxRetries: 1,              // Максимальна кількість повторних спроб
         retryDelay: 1000,           // Затримка між повторними спробами (мс)
@@ -128,6 +128,8 @@ window.DailyBonus = (function() {
     function init() {
         if (state.isInitialized) return;
 
+        console.log("DailyBonus: Початок ініціалізації модуля");
+
         // Кешування DOM-елементів для швидшого доступу
         state.containerElement = document.getElementById('daily-bonus-container');
         state.claimButtonElement = document.getElementById('claim-daily');
@@ -138,6 +140,8 @@ window.DailyBonus = (function() {
             console.warn("DailyBonus: Не знайдено контейнер для щоденних бонусів");
             return;
         }
+
+        console.log("DailyBonus: DOM-елементи знайдено");
 
         // Додаємо інформаційну кнопку, якщо її ще немає
         if (!document.getElementById('daily-bonus-info')) {
@@ -175,6 +179,8 @@ window.DailyBonus = (function() {
             return;
         }
 
+        console.log(`DailyBonus: ID користувача отримано: ${userId}`);
+
         // Спробуємо завантажити дані з localStorage для швидкої ініціалізації
         try {
             const cachedData = localStorage.getItem('daily_bonus_data');
@@ -188,6 +194,7 @@ window.DailyBonus = (function() {
                         state.lastLoaded = parsed.timestamp;
 
                         // Відразу оновлюємо інтерфейс
+                        console.log("DailyBonus: Дані завантажені з кешу");
                         renderBonusUI();
                     }
                 }
@@ -205,10 +212,12 @@ window.DailyBonus = (function() {
 
             // Додаємо новий обробник
             state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
+            console.log("DailyBonus: Додано обробник кнопки отримання бонусу");
         }
 
         // Оновлюємо стан ініціалізації
         state.isInitialized = true;
+        console.log("DailyBonus: Модуль ініціалізовано");
 
         // Асинхронно завантажуємо дані з серверу
         loadBonusData(true);
@@ -218,6 +227,7 @@ window.DailyBonus = (function() {
      * Створення кнопки інформації (і) та модального вікна
      */
     function createInfoButton() {
+        console.log("DailyBonus: Створення кнопки інформації");
         // Створюємо кнопку інформації, якщо вона ще не існує
         if (state.containerElement && !document.getElementById('daily-bonus-info')) {
             // Знаходимо елемент заголовку
@@ -240,19 +250,21 @@ window.DailyBonus = (function() {
                 newTitle.className = 'category-title';
                 newTitle.textContent = titleText;
 
-                // Створюємо кнопку інформації
+                // Створюємо кнопку інформації з виправленим стилем
                 const infoButton = document.createElement('button');
                 infoButton.id = 'daily-bonus-info';
                 infoButton.className = 'info-button';
                 infoButton.textContent = 'і';
                 infoButton.style.width = '24px';
                 infoButton.style.height = '24px';
-                infoButton.style.borderRadius = '50%';
+                infoButton.style.borderRadius = '50%';  // Забезпечує круглу форму
                 infoButton.style.border = '1px solid rgba(78, 181, 247, 0.3)';
                 infoButton.style.background = 'rgba(78, 181, 247, 0.1)';
                 infoButton.style.color = 'white';
                 infoButton.style.cursor = 'pointer';
-                infoButton.style.display = 'flex';
+                infoButton.style.position = 'relative';  // Для коректного позиціонування
+                infoButton.style.top = '-3px';  // Зміщуємо трохи вгору
+                infoButton.style.display = 'inline-flex';  // Важливо для центрування тексту
                 infoButton.style.alignItems = 'center';
                 infoButton.style.justifyContent = 'center';
                 infoButton.style.fontSize = '14px';
@@ -282,6 +294,7 @@ window.DailyBonus = (function() {
 
                 // Додаємо обробник подій для кнопки інформації
                 infoButton.addEventListener('click', showInfoModal);
+                console.log("DailyBonus: Кнопка інформації створена");
             }
 
             // Створюємо модальне вікно для відображення інформації
@@ -388,6 +401,8 @@ window.DailyBonus = (function() {
                         modal.style.display = 'none';
                     }
                 });
+
+                console.log("DailyBonus: Модальне вікно створено");
             }
         }
     }
@@ -396,13 +411,17 @@ window.DailyBonus = (function() {
      * Показати модальне вікно з інформацією про щоденні бонуси
      */
     function showInfoModal() {
-        if (!state.infoModalElement) return;
+        if (!state.infoModalElement) {
+            console.warn("DailyBonus: Модальне вікно не знайдено");
+            return;
+        }
 
         // Оновлюємо вміст модального вікна перед показом
         updateInfoModalContent();
 
         // Показуємо модальне вікно
         state.infoModalElement.style.display = 'block';
+        console.log("DailyBonus: Модальне вікно показано");
     }
 
     /**
@@ -411,7 +430,10 @@ window.DailyBonus = (function() {
     function updateInfoModalContent() {
         // Отримуємо контейнер для вмісту
         const contentContainer = document.getElementById('daily-bonus-modal-content');
-        if (!contentContainer) return;
+        if (!contentContainer) {
+            console.warn("DailyBonus: Контейнер вмісту модального вікна не знайдено");
+            return;
+        }
 
         // Отримуємо дані про бонуси
         const bonusData = state.bonusData;
@@ -616,6 +638,7 @@ window.DailyBonus = (function() {
 
         // Оновлюємо вміст контейнера
         contentContainer.innerHTML = html;
+        console.log("DailyBonus: Вміст модального вікна оновлено");
     }
 
     /**
@@ -692,6 +715,8 @@ window.DailyBonus = (function() {
         // Формуємо повний URL
         const url = getApiUrl(endpoint);
 
+        console.log(`DailyBonus: Виконуємо запит ${method} до ${url}`, data);
+
         // Налаштування запиту
         const options = {
             method,
@@ -740,6 +765,8 @@ window.DailyBonus = (function() {
 
             // Парсимо відповідь
             const responseData = await response.json();
+
+            console.log("DailyBonus: Отримано відповідь:", responseData);
 
             // Перевіряємо відповідь на успіх
             if (responseData.status === 'success') {
@@ -790,6 +817,7 @@ window.DailyBonus = (function() {
         }
 
         state.isLoading = true;
+        console.log("DailyBonus: Починаємо завантаження даних бонусу");
 
         try {
             // Формуємо шлях API
@@ -814,23 +842,48 @@ window.DailyBonus = (function() {
                 console.warn("DailyBonus: Помилка збереження даних в кеш:", e);
             }
 
+            // Перевіряємо наявність необхідних полів
+            if (!response.data.all_rewards) {
+                console.warn("DailyBonus: У відповіді відсутній масив all_rewards, використовуємо значення за замовчуванням");
+                // Використовуємо масив за замовчуванням
+                state.bonusData.all_rewards = config.defaultRewards;
+            }
+
+            if (!response.data.token_rewards) {
+                console.warn("DailyBonus: У відповіді відсутній об'єкт token_rewards, використовуємо значення за замовчуванням");
+                // Використовуємо об'єкт за замовчуванням
+                state.bonusData.token_rewards = config.tokenDays;
+            }
+
             // Оновлюємо інтерфейс
             renderBonusUI();
+            console.log("DailyBonus: Дані успішно завантажено");
 
             return response.data;
         } catch (error) {
             state.lastError = error.message;
             console.error("DailyBonus: Помилка завантаження даних:", error.message);
 
+            // Створюємо резервну структуру даних у випадку помилки
+            if (!state.bonusData) {
+                state.bonusData = {
+                    can_claim: false,
+                    current_day: 1,
+                    claimed_days: [],
+                    streak_days: 0,
+                    all_rewards: config.defaultRewards,
+                    token_rewards: config.tokenDays,
+                    cycle_days: config.cycleDays
+                };
+            }
+
             // Показуємо повідомлення про помилку
             if (typeof window.showToast === 'function' && showLoader) {
                 window.showToast("Не вдалося завантажити дані щоденного бонусу. Спробуйте пізніше.", "error");
             }
 
-            // Якщо є кешовані дані, повертаємо їх
-            if (state.bonusData) {
-                return state.bonusData;
-            }
+            // Показуємо резервний інтерфейс у випадку помилки
+            renderBackupUI();
 
             throw error;
         } finally {
@@ -844,109 +897,170 @@ window.DailyBonus = (function() {
     }
 
     /**
-     * Відображення інтерфейсу бонусів
+     * Відображення резервного інтерфейсу у випадку помилки
      */
-    function renderBonusUI() {
-        if (!state.bonusData || !state.progressContainerElement) return;
+    function renderBackupUI() {
+        if (!state.progressContainerElement) return;
 
         // Очищаємо контейнер прогресу
         state.progressContainerElement.innerHTML = '';
 
-        // Визначаємо максимальну кількість днів (за замовчуванням 7)
-        const MAX_DAYS_VISIBLE = config.visibleDays;
+        // Додаємо повідомлення про помилку
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'error-message';
+        errorMessage.style.padding = '15px';
+        errorMessage.style.background = 'rgba(244, 67, 54, 0.1)';
+        errorMessage.style.border = '1px solid rgba(244, 67, 54, 0.3)';
+        errorMessage.style.borderRadius = '10px';
+        errorMessage.style.color = 'white';
+        errorMessage.style.textAlign = 'center';
+        errorMessage.style.marginBottom = '10px';
+        errorMessage.textContent = 'Помилка завантаження даних. Спробуйте пізніше.';
 
-        // Отримуємо поточний день та вже отримані дні
-        const currentDay = state.bonusData.current_day || 1;
-        const claimedDays = state.bonusData.claimed_days || [];
-        const canClaim = state.bonusData.can_claim !== false;
+        // Додаємо кнопку повторного завантаження
+        const retryButton = document.createElement('button');
+        retryButton.textContent = 'Спробувати знову';
+        retryButton.style.marginTop = '10px';
+        retryButton.style.padding = '8px 20px';
+        retryButton.style.background = 'rgba(78, 181, 247, 0.2)';
+        retryButton.style.border = '1px solid rgba(78, 181, 247, 0.4)';
+        retryButton.style.borderRadius = '20px';
+        retryButton.style.color = 'white';
+        retryButton.style.cursor = 'pointer';
+        retryButton.addEventListener('click', () => loadBonusData(true));
 
-        // Визначаємо таблицю винагород
-        let rewards = config.defaultRewards;
-        if (state.bonusData.all_rewards && Array.isArray(state.bonusData.all_rewards)) {
-            rewards = state.bonusData.all_rewards;
-        }
-
-        // Визначаємо дні з жетонами
-        let tokenRewards = config.tokenDays;
-        if (state.bonusData.token_rewards && typeof state.bonusData.token_rewards === 'object') {
-            tokenRewards = state.bonusData.token_rewards;
-        }
-
-        // Визначаємо, які дні будуть відображатися у вікні прогресу
-        // Починаємо з поточного дня як крайнього лівого
-        let startDay = currentDay;
-        let endDay = Math.min(currentDay + MAX_DAYS_VISIBLE - 1, config.cycleDays);
-
-        // Якщо днів менше, ніж MAX_DAYS_VISIBLE, додаємо дні зліва
-        if (endDay - startDay + 1 < MAX_DAYS_VISIBLE) {
-            startDay = Math.max(1, endDay - MAX_DAYS_VISIBLE + 1);
-        }
-
-        // Створюємо елементи для кожного дня
-        for (let day = startDay; day <= endDay; day++) {
-            // Визначаємо суму винагороди для цього дня
-            const rewardAmount = rewards[day - 1] || day * 10;
-
-            // Перевіряємо, чи є жетони в цей день
-            const hasToken = tokenRewards[day] > 0;
-            const tokenAmount = tokenRewards[day] || 0;
-
-            // Створюємо маркер дня
-            const dayMarker = document.createElement('div');
-            dayMarker.className = 'day-marker';
-
-            // Створюємо коло дня
-            const dayCircle = document.createElement('div');
-            dayCircle.className = 'day-circle';
-
-            // Визначаємо стан дня
-            if (claimedDays.includes(day)) {
-                dayCircle.classList.add('completed');
-            } else if (day === currentDay && canClaim) {
-                dayCircle.classList.add('active');
-            }
-
-            // Встановлюємо вміст
-            dayCircle.textContent = day;
-
-            // Додаємо позначку жетона, якщо є
-            if (hasToken) {
-                const tokenBadge = document.createElement('div');
-                tokenBadge.className = 'token-badge';
-                tokenBadge.textContent = tokenAmount;
-                tokenBadge.style.position = 'absolute';
-                tokenBadge.style.top = '-5px';
-                tokenBadge.style.right = '-5px';
-                tokenBadge.style.background = 'linear-gradient(135deg, #FFD700, #FFA000)';
-                tokenBadge.style.borderRadius = '50%';
-                tokenBadge.style.width = '18px';
-                tokenBadge.style.height = '18px';
-                tokenBadge.style.display = 'flex';
-                tokenBadge.style.alignItems = 'center';
-                tokenBadge.style.justifyContent = 'center';
-                tokenBadge.style.fontSize = '10px';
-                tokenBadge.style.fontWeight = 'bold';
-                tokenBadge.style.color = 'black';
-                tokenBadge.style.boxShadow = '0 0 5px rgba(255, 215, 0, 0.7)';
-
-                dayCircle.style.position = 'relative';
-                dayCircle.appendChild(tokenBadge);
-            }
-
-            dayMarker.appendChild(dayCircle);
-
-            // Додаємо винагороду
-            const dayReward = document.createElement('div');
-            dayReward.className = 'day-reward';
-            dayReward.textContent = `${rewardAmount} WINIX`;
-            dayMarker.appendChild(dayReward);
-
-            // Додаємо маркер до контейнера
-            state.progressContainerElement.appendChild(dayMarker);
-        }
+        errorMessage.appendChild(retryButton);
+        state.progressContainerElement.appendChild(errorMessage);
 
         // Оновлюємо стан кнопки отримання бонусу
-        updateClaimButton();
+        if (state.claimButtonElement) {
+            state.claimButtonElement.disabled = true;
+            state.claimButtonElement.textContent = 'Недоступно';
+        }
+    }
+
+    /**
+     * Відображення інтерфейсу бонусів
+     */
+    function renderBonusUI() {
+        try {
+            if (!state.bonusData || !state.progressContainerElement) {
+                console.error("DailyBonus: Недостатньо даних для відображення інтерфейсу", {
+                    bonusData: !!state.bonusData,
+                    progressContainer: !!state.progressContainerElement
+                });
+                renderBackupUI();
+                return;
+            }
+
+            // Очищаємо контейнер прогресу
+            state.progressContainerElement.innerHTML = '';
+
+            // Визначаємо максимальну кількість днів (за замовчуванням 7)
+            const MAX_DAYS_VISIBLE = config.visibleDays;
+
+            // Отримуємо поточний день та вже отримані дні
+            const currentDay = state.bonusData.current_day || 1;
+            const claimedDays = state.bonusData.claimed_days || [];
+            const canClaim = state.bonusData.can_claim !== false;
+
+            // Визначаємо таблицю винагород
+            let rewards = config.defaultRewards;
+            if (state.bonusData.all_rewards && Array.isArray(state.bonusData.all_rewards)) {
+                rewards = state.bonusData.all_rewards;
+            }
+
+            // Визначаємо дні з жетонами
+            let tokenRewards = config.tokenDays;
+            if (state.bonusData.token_rewards && typeof state.bonusData.token_rewards === 'object') {
+                tokenRewards = state.bonusData.token_rewards;
+            }
+
+            // Визначаємо, які дні будуть відображатися у вікні прогресу
+            // Починаємо з поточного дня як крайнього лівого
+            let startDay = currentDay;
+            let endDay = Math.min(currentDay + MAX_DAYS_VISIBLE - 1, config.cycleDays);
+
+            // Якщо днів менше, ніж MAX_DAYS_VISIBLE, додаємо дні зліва
+            if (endDay - startDay + 1 < MAX_DAYS_VISIBLE) {
+                startDay = Math.max(1, endDay - MAX_DAYS_VISIBLE + 1);
+            }
+
+            console.log(`DailyBonus: Відображення днів від ${startDay} до ${endDay}`);
+
+            // Створюємо елементи для кожного дня
+            for (let day = startDay; day <= endDay; day++) {
+                // Визначаємо суму винагороди для цього дня
+                const rewardAmount = rewards[day - 1] || day * 10;
+
+                // Перевіряємо, чи є жетони в цей день
+                const hasToken = tokenRewards[day] > 0;
+                const tokenAmount = tokenRewards[day] || 0;
+
+                // Створюємо маркер дня
+                const dayMarker = document.createElement('div');
+                dayMarker.className = 'day-marker';
+
+                // Створюємо коло дня
+                const dayCircle = document.createElement('div');
+                dayCircle.className = 'day-circle';
+
+                // Визначаємо стан дня
+                if (claimedDays.includes(day)) {
+                    dayCircle.classList.add('completed');
+                } else if (day === currentDay && canClaim) {
+                    dayCircle.classList.add('active');
+                }
+
+                // Встановлюємо вміст
+                dayCircle.textContent = day;
+
+                // Додаємо позначку жетона, якщо є
+                if (hasToken) {
+                    const tokenBadge = document.createElement('div');
+                    tokenBadge.className = 'token-badge';
+                    tokenBadge.textContent = tokenAmount;
+                    tokenBadge.style.position = 'absolute';
+                    tokenBadge.style.top = '-5px';
+                    tokenBadge.style.right = '-5px';
+                    tokenBadge.style.background = 'linear-gradient(135deg, #FFD700, #FFA000)';
+                    tokenBadge.style.borderRadius = '50%';
+                    tokenBadge.style.width = '18px';
+                    tokenBadge.style.height = '18px';
+                    tokenBadge.style.display = 'flex';
+                    tokenBadge.style.alignItems = 'center';
+                    tokenBadge.style.justifyContent = 'center';
+                    tokenBadge.style.fontSize = '10px';
+                    tokenBadge.style.fontWeight = 'bold';
+                    tokenBadge.style.color = 'black';
+                    tokenBadge.style.boxShadow = '0 0 5px rgba(255, 215, 0, 0.7)';
+
+                    dayCircle.style.position = 'relative';
+                    dayCircle.appendChild(tokenBadge);
+                }
+
+                dayMarker.appendChild(dayCircle);
+
+                // Додаємо винагороду
+                const dayReward = document.createElement('div');
+                dayReward.className = 'day-reward';
+                dayReward.textContent = `${rewardAmount} WINIX`;
+                dayMarker.appendChild(dayReward);
+
+                // Додаємо маркер до контейнера
+                state.progressContainerElement.appendChild(dayMarker);
+            }
+
+            // Оновлюємо стан кнопки отримання бонусу
+            updateClaimButton();
+
+            console.log("DailyBonus: Інтерфейс успішно відображено");
+        } catch (error) {
+            console.error("DailyBonus: Помилка відображення інтерфейсу:", error);
+
+            // Резервне відображення у випадку помилки
+            renderBackupUI();
+        }
     }
 
     /**
@@ -1117,6 +1231,7 @@ window.DailyBonus = (function() {
                     detail: response.data
                 }));
 
+                console.log("DailyBonus: Бонус успішно отримано:", response.data);
                 return response.data;
             } else {
                 throw new Error(response.message || "Неочікувана відповідь сервера");
@@ -1241,6 +1356,7 @@ window.DailyBonus = (function() {
         state.bonusData = null;
         state.lastLoaded = 0;
         localStorage.removeItem('daily_bonus_data');
+        console.log("DailyBonus: Кеш скинуто");
     }
 
     // Публічний API
