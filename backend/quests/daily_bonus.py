@@ -18,7 +18,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 # Імпорт моделей та інших залежностей
-from models.daily_bonus import DailyBonus, BONUS_TYPE_DAILY, BONUS_TYPE_STREAK, DEFAULT_CYCLE_DAYS
+from models.daily_bonus import DailyBonus, BONUS_TYPE_DAILY, BONUS_TYPE_STREAK, BONUS_TYPE_TOKEN, DEFAULT_CYCLE_DAYS, TOKEN_REWARD_DAYS
 from utils.transaction_helpers import execute_balance_transaction
 from supabase_client import supabase, execute_transaction
 
@@ -152,7 +152,7 @@ class DailyBonusService:
                     "current_day": 1,
                     "claimed_days": [],
                     "streak_days": 0,
-                    "next_reward": 10,
+                    "next_reward": 35,  # Перший день - 35 WINIX
                     "error": "Користувача не знайдено"
                 }
 
@@ -166,7 +166,8 @@ class DailyBonusService:
                     "last_claimed_date": None,
                     "claimed_days": [],
                     "current_day": 1,
-                    "streak_days": 0
+                    "streak_days": 0,
+                    "token_rewards": {}  # Історія отриманих жетонів
                 }
 
             # Перевіряємо наявність всіх необхідних полів
@@ -174,7 +175,8 @@ class DailyBonusService:
                 "last_claimed_date": daily_bonuses.get("last_claimed_date", None),
                 "claimed_days": daily_bonuses.get("claimed_days", []),
                 "current_day": daily_bonuses.get("current_day", 1),
-                "streak_days": daily_bonuses.get("streak_days", 0)
+                "streak_days": daily_bonuses.get("streak_days", 0),
+                "token_rewards": daily_bonuses.get("token_rewards", {})
             }
 
             # Перевіряємо, чи можна отримати бонус сьогодні
@@ -219,6 +221,9 @@ class DailyBonusService:
             # Розраховуємо суму винагороди для поточного дня
             reward_amount = DailyBonus.calculate_daily_bonus_amount(current_day)
 
+            # Перевіряємо чи буде жетон у цей день
+            token_amount = DailyBonus.get_token_reward_amount(current_day)
+
             # Отримуємо загальну кількість днів у стріку
             streak_days = daily_bonuses.get("streak_days", 0)
 
@@ -229,11 +234,15 @@ class DailyBonusService:
                 "claimed_days": daily_bonuses.get("claimed_days", []),
                 "streak_days": streak_days,
                 "next_reward": reward_amount,
-                "last_claimed_date": last_claimed_date
+                "token_amount": token_amount,
+                "last_claimed_date": last_claimed_date,
+                "all_rewards": DailyBonus.DAILY_BONUS_REWARDS,  # Додаємо всю таблицю винагород
+                "token_rewards": TOKEN_REWARD_DAYS,  # Додаємо інформацію про дні з жетонами
+                "cycle_days": DEFAULT_CYCLE_DAYS  # Додаємо кількість днів у циклі
             }
 
             logger.info(
-                f"Отримано статус щоденного бонусу для користувача {telegram_id}: поточний день {current_day}, можна отримати: {can_claim}, наступна винагорода: {reward_amount}")
+                f"Отримано статус щоденного бонусу для користувача {telegram_id}: поточний день {current_day}, можна отримати: {can_claim}, наступна винагорода: {reward_amount}, жетонів: {token_amount}")
             return result
         except Exception as e:
             logger.error(f"Помилка при отриманні статусу щоденного бонусу для користувача {telegram_id}: {str(e)}")
@@ -242,7 +251,7 @@ class DailyBonusService:
                 "current_day": 1,
                 "claimed_days": [],
                 "streak_days": 0,
-                "next_reward": 10,
+                "next_reward": 35,
                 "error": str(e)
             }
 
@@ -292,7 +301,7 @@ class DailyBonusService:
                     return False, f"Неправильний день! Очікувався день {current_day}, отримано {day}", bonus_status
 
                 # Отримуємо користувача для оновлення
-                user_response = supabase.table("winix").select("balance,daily_bonuses").eq("telegram_id",
+                user_response = supabase.table("winix").select("balance,coins,daily_bonuses").eq("telegram_id",
                                                                                         str(telegram_id)).execute()
 
                 if not user_response.data or len(user_response.data) == 0:
@@ -303,6 +312,7 @@ class DailyBonusService:
 
                 # Отримуємо поточний баланс та дані бонусів
                 current_balance = float(user_data.get("balance", 0))
+                current_coins = int(user_data.get("coins", 0))
                 daily_bonuses = user_data.get("daily_bonuses", {})
 
                 if not daily_bonuses:
@@ -310,18 +320,31 @@ class DailyBonusService:
                         "last_claimed_date": None,
                         "claimed_days": [],
                         "current_day": 1,
-                        "streak_days": 0
+                        "streak_days": 0,
+                        "token_rewards": {}
                     }
 
                 # Розраховуємо суму винагороди
                 reward_amount = DailyBonus.calculate_daily_bonus_amount(current_day)
 
+                # Перевіряємо, чи потрібно видати жетони
+                token_amount = DailyBonus.get_token_reward_amount(current_day)
+
                 # Визначаємо новий баланс
                 new_balance = current_balance + reward_amount
+                new_coins = current_coins
+
+                if token_amount > 0:
+                    new_coins += token_amount
 
                 # Оновлюємо дані щоденних бонусів
                 claimed_days = daily_bonuses.get("claimed_days", [])
                 claimed_days.append(current_day)
+
+                # Зберігаємо інформацію про отримані жетони
+                token_rewards = daily_bonuses.get("token_rewards", {})
+                if token_amount > 0:
+                    token_rewards[str(current_day)] = token_amount
 
                 # Визначаємо наступний день у циклі
                 next_day = DailyBonus.get_next_day_in_cycle(current_day)
@@ -329,12 +352,27 @@ class DailyBonusService:
                 # Оновлюємо кількість днів у стріку
                 streak_days = daily_bonuses.get("streak_days", 0) + 1
 
+                # Перевіряємо, чи завершено цикл (30/30 днів)
+                cycle_completed = False
+                completion_bonus = None
+
+                if next_day == 1 and current_day == DEFAULT_CYCLE_DAYS:
+                    cycle_completed = True
+                    completion_bonus = DailyBonus.get_cycle_completion_bonus()
+
+                    # Додаємо бонус за завершення циклу
+                    if completion_bonus:
+                        new_balance += completion_bonus["amount"]
+                        new_coins += completion_bonus["tokens"]
+
                 # Створюємо оновлений об'єкт щоденних бонусів
                 updated_bonuses = {
                     "last_claimed_date": datetime.now(timezone.utc).isoformat(),
                     "claimed_days": claimed_days,
                     "current_day": next_day,
-                    "streak_days": streak_days
+                    "streak_days": streak_days,
+                    "token_rewards": token_rewards,
+                    "last_cycle_completed": cycle_completed
                 }
 
                 # Виконуємо транзакцію через транзакційний контекст
@@ -344,6 +382,7 @@ class DailyBonusService:
                         # Оновлюємо дані в базі
                         update_response = txn.table("winix").update({
                             "balance": new_balance,
+                            "coins": new_coins,
                             "daily_bonuses": updated_bonuses,
                             "updated_at": datetime.now(timezone.utc).isoformat()
                         }).eq("telegram_id", str(telegram_id)).execute()
@@ -352,7 +391,7 @@ class DailyBonusService:
                             logger.error(f"Не вдалося оновити дані користувача {telegram_id}")
                             raise Exception("Не вдалося оновити дані користувача")
 
-                        # Створюємо транзакцію для нарахування винагороди
+                        # Створюємо транзакцію для нарахування винагороди WINIX
                         transaction_data = {
                             "telegram_id": telegram_id,
                             "type": "daily_bonus",
@@ -370,9 +409,70 @@ class DailyBonusService:
                             telegram_id=telegram_id,
                             bonus_type=BONUS_TYPE_DAILY,
                             amount=reward_amount,
-                            day_in_cycle=current_day
+                            day_in_cycle=current_day,
+                            token_amount=token_amount
                         )
                         txn.table("daily_bonuses").insert(bonus.to_dict()).execute()
+
+                        # Якщо отримано жетони, також додаємо транзакцію для них
+                        if token_amount > 0:
+                            token_transaction_data = {
+                                "telegram_id": telegram_id,
+                                "type": "token_reward",
+                                "amount": token_amount,
+                                "description": f"Жетони за щоденний бонус (День {current_day})",
+                                "status": "completed",
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "updated_at": datetime.now(timezone.utc).isoformat(),
+                                "previous_coins": current_coins
+                            }
+                            txn.table("token_transactions").insert(token_transaction_data).execute()
+
+                            # Додаємо запис про отримання жетонів
+                            token_bonus = DailyBonus(
+                                telegram_id=telegram_id,
+                                bonus_type=BONUS_TYPE_TOKEN,
+                                amount=0,  # Сума WINIX - 0
+                                token_amount=token_amount,
+                                day_in_cycle=current_day
+                            )
+                            txn.table("daily_bonuses").insert(token_bonus.to_dict()).execute()
+
+                        # Якщо завершено цикл, додаємо транзакцію для бонусу за завершення
+                        if cycle_completed and completion_bonus:
+                            completion_transaction_data = {
+                                "telegram_id": telegram_id,
+                                "type": "cycle_completion_bonus",
+                                "amount": completion_bonus["amount"],
+                                "description": f"Бонус за завершення циклу 30/30 днів",
+                                "status": "completed",
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "updated_at": datetime.now(timezone.utc).isoformat(),
+                                "previous_balance": current_balance + reward_amount  # після отримання щоденного бонусу
+                            }
+                            txn.table("transactions").insert(completion_transaction_data).execute()
+
+                            # Додаємо запис про транзакцію жетонів за завершення циклу
+                            token_completion_data = {
+                                "telegram_id": telegram_id,
+                                "type": "cycle_completion_tokens",
+                                "amount": completion_bonus["tokens"],
+                                "description": f"Жетони за завершення циклу 30/30 днів",
+                                "status": "completed",
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                                "updated_at": datetime.now(timezone.utc).isoformat(),
+                                "previous_coins": current_coins + token_amount  # після отримання щоденних жетонів
+                            }
+                            txn.table("token_transactions").insert(token_completion_data).execute()
+
+                            # Додаємо інформацію про бейдж до профілю користувача
+                            if "badge" in completion_bonus:
+                                badges = user_data.get("badges", [])
+                                if completion_bonus["badge"] not in badges:
+                                    badges.append(completion_bonus["badge"])
+                                    txn.table("winix").update({
+                                        "badges": badges
+                                    }).eq("telegram_id", str(telegram_id)).execute()
 
                         logger.info(f"claim_daily_bonus: Транзакція успішно завершена для користувача {telegram_id}")
                 except Exception as e:
@@ -383,14 +483,22 @@ class DailyBonusService:
                 result = {
                     "success": True,
                     "reward": reward_amount,
+                    "token_amount": token_amount,
                     "new_balance": new_balance,
+                    "new_coins": new_coins,
                     "previous_balance": current_balance,
+                    "previous_coins": current_coins,
                     "current_day": current_day,
                     "next_day": next_day,
-                    "streak_days": streak_days
+                    "streak_days": streak_days,
+                    "cycle_completed": cycle_completed
                 }
 
-                logger.info(f"Видано щоденний бонус користувачу {telegram_id}: {reward_amount} WINIX, день {current_day}")
+                # Додаємо інформацію про бонус завершення циклу, якщо він отриманий
+                if cycle_completed and completion_bonus:
+                    result["completion_bonus"] = completion_bonus
+
+                logger.info(f"Видано щоденний бонус користувачу {telegram_id}: {reward_amount} WINIX, {token_amount} жетонів, день {current_day}")
                 return True, None, result
         except Exception as e:
             logger.error(f"Помилка при видачі щоденного бонусу користувачу {telegram_id}: {str(e)}")
