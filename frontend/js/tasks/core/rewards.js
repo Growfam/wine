@@ -142,7 +142,8 @@ window.TaskRewards = (function() {
      * @param {CustomEvent} event - Подія отримання щоденного бонусу
      */
     function handleDailyBonusClaimed(event) {
-        const { reward, eventId } = event.detail;
+        const data = event.detail;
+        const { reward, token_amount, eventId } = data;
 
         // Перевіряємо на дублювання обробки події
         if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
@@ -152,7 +153,7 @@ window.TaskRewards = (function() {
             return;
         }
 
-        // Якщо є винагорода, обробляємо її
+        // Якщо є винагорода WINIX, обробляємо її
         if (reward) {
             if (config.debug) {
                 console.log(`TaskRewards: Отримано щоденний бонус: ${reward} WINIX`);
@@ -165,7 +166,46 @@ window.TaskRewards = (function() {
             };
 
             // Обробляємо винагороду
-            processReward('daily_bonus', normalizedReward, eventId);
+            processReward('daily_bonus', normalizedReward, eventId || `daily_bonus_${Date.now()}`);
+        }
+
+        // Якщо є винагорода у вигляді жетонів, обробляємо її
+        if (token_amount && token_amount > 0) {
+            if (config.debug) {
+                console.log(`TaskRewards: Отримано жетони: ${token_amount}`);
+            }
+
+            // Нормалізуємо винагороду
+            const normalizedTokenReward = {
+                type: REWARD_TYPES.COINS,
+                amount: parseInt(token_amount)
+            };
+
+            // Обробляємо винагороду
+            processReward('daily_bonus_tokens', normalizedTokenReward, eventId ? `${eventId}_tokens` : `daily_bonus_tokens_${Date.now()}`);
+        }
+
+        // Перевіряємо наявність бонусу за завершення циклу
+        if (data.cycle_completed && data.completion_bonus) {
+            // Обробляємо бонус WINIX за завершення циклу
+            if (data.completion_bonus.amount) {
+                const completionReward = {
+                    type: REWARD_TYPES.TOKENS,
+                    amount: parseFloat(data.completion_bonus.amount)
+                };
+
+                processReward('cycle_completion', completionReward, `cycle_completion_${Date.now()}`);
+            }
+
+            // Обробляємо бонус жетонів за завершення циклу
+            if (data.completion_bonus.tokens) {
+                const completionTokens = {
+                    type: REWARD_TYPES.COINS,
+                    amount: parseInt(data.completion_bonus.tokens)
+                };
+
+                processReward('cycle_completion_tokens', completionTokens, `cycle_completion_tokens_${Date.now()}`);
+            }
         }
     }
 

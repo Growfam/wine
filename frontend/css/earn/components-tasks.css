@@ -1,4 +1,7 @@
-/* Оптимізовані стилі для щоденного бонусу */
+/* Стилі для щоденного бонусу - 30-денний цикл
+ * Оптимізовано для мобільних пристроїв
+ * Підтримує відображення токенів і прогресивної винагороди
+ */
 
 /* Контейнер щоденного бонусу */
 .daily-bonus {
@@ -51,6 +54,201 @@
 
 .daily-bonus-bar:hover::after {
     opacity: 1;
+}
+
+/* Обгортка заголовку з кнопкою інформації */
+.title-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+}
+
+/* Кнопка інформації */
+.info-button {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(78, 181, 247, 0.3);
+    background: rgba(78, 181, 247, 0.1);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.info-button:hover {
+    background: rgba(78, 181, 247, 0.3);
+    transform: scale(1.1);
+}
+
+/* Модальне вікно з інформацією */
+.daily-bonus-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: fadeIn 0.3s ease;
+}
+
+.daily-bonus-modal-content {
+    position: relative;
+    background-color: rgba(30, 39, 70, 0.95);
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 0 20px rgba(0, 201, 167, 0.3);
+    max-height: 80vh;
+    overflow: auto;
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    animation: scaleIn 0.3s ease;
+}
+
+.daily-bonus-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Анімації для модального вікна */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Стилізація скроллбару для модального вікна */
+.daily-bonus-modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.daily-bonus-modal-content::-webkit-scrollbar-track {
+    background: rgba(30, 39, 70, 0.5);
+    border-radius: 10px;
+}
+
+.daily-bonus-modal-content::-webkit-scrollbar-thumb {
+    background: rgba(78, 181, 247, 0.5);
+    border-radius: 10px;
+}
+
+/* Стилі для таблиці винагород в модальному вікні */
+.modal-rewards-table {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.rewards-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.reward-day {
+    background: rgba(30, 39, 70, 0.7);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    position: relative;
+    border: 1px solid rgba(78, 181, 247, 0.2);
+}
+
+.reward-day.claimed {
+    background: rgba(0, 201, 167, 0.2);
+    border: 1px solid rgba(0, 201, 167, 0.4);
+}
+
+.reward-day.current {
+    background: rgba(78, 181, 247, 0.2);
+    border: 1px solid rgba(78, 181, 247, 0.4);
+    box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
+}
+
+.day-number {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: white;
+}
+
+.day-reward {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.token-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(135deg, #FFD700, #FFA000);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: black;
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+}
+
+.summary-box {
+    background: rgba(30, 39, 70, 0.7);
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 20px;
+    border: 1px solid rgba(78, 181, 247, 0.2);
+}
+
+.summary-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: white;
+    text-align: center;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.completion-bonus {
+    background: rgba(0, 201, 167, 0.1);
+    border: 1px solid rgba(0, 201, 167, 0.3);
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.completion-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: rgba(0, 201, 167, 0.9);
+    text-align: center;
 }
 
 /* Контейнер денного прогресу */
@@ -186,6 +384,34 @@
     color: rgba(0, 201, 167, 0.9);
 }
 
+/* Стиль для мітки жетона на день */
+.token-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: linear-gradient(135deg, #FFD700, #FFA000);
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: black;
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+    animation: glow-token 2s infinite alternate;
+}
+
+@keyframes glow-token {
+    0% {
+        box-shadow: 0 0 3px rgba(255, 215, 0, 0.7);
+    }
+    100% {
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.9);
+    }
+}
+
 /* З'єднувальні лінії між кружечками */
 .day-marker:not(:last-child)::after {
     content: '';
@@ -304,6 +530,38 @@
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
+/* Анімація при отриманні бонусу */
+.reward-animation {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg, #4eb5f7, #00C9A7);
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 1rem 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 0 1.25rem rgba(0, 201, 167, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.reward-animation.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.reward-animation.tokens-reward {
+    background: linear-gradient(135deg, #4eb5f7, #00C9A7);
+}
+
+.reward-animation.coins-reward {
+    background: linear-gradient(135deg, #FFD700, #FFA000);
+    color: #000;
+}
+
 /* Адаптивні стилі для мобільних пристроїв */
 @media (max-width: 450px) {
     .day-circle {
@@ -325,6 +583,10 @@
         padding: 1rem 0.5rem;
         min-height: 5.5rem;
     }
+
+    .rewards-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 /* Для дуже малих екранів */
@@ -342,5 +604,9 @@
     .claim-button {
         width: 100%;
         font-size: 0.8125rem; /* 13px */
+    }
+
+    .rewards-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
 }

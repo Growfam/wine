@@ -4,7 +4,8 @@
 from datetime import datetime, timedelta, timezone
 import uuid
 import logging
-from typing import Optional, Union, Dict, Any
+import random
+from typing import Optional, Union, Dict, Any, List, Tuple
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
@@ -15,15 +16,43 @@ logger = logging.getLogger(__name__)
 BONUS_TYPE_DAILY = "daily"  # Щоденний бонус
 BONUS_TYPE_STREAK = "streak"  # Бонус за серію
 BONUS_TYPE_SPECIAL = "special"  # Спеціальний бонус
+BONUS_TYPE_TOKEN = "token"  # Бонус у вигляді жетону
 
-# Стандартний цикл щоденних бонусів - 7 днів
-DEFAULT_CYCLE_DAYS = 7
+# Стандартний цикл щоденних бонусів - 30 днів
+DEFAULT_CYCLE_DAYS = 30
 
 # Мінімальний проміжок часу між отриманням бонусів у секундах
 MIN_CLAIM_INTERVAL_SECONDS = 60  # 1 хвилина для запобігання дублюванню
 
 # Мінімальна сума бонусу
 MIN_BONUS_AMOUNT = 5.0
+
+# Винагороди за кожен день циклу (індекс 0 = день 1)
+DAILY_BONUS_REWARDS = [
+    35, 45, 55, 65, 75, 85, 100, 115, 130, 145,
+    165, 185, 205, 230, 255, 285, 315, 345, 375, 405,
+    445, 485, 525, 570, 615, 665, 715, 800, 950, 1200
+]
+
+# Дні з винагородою у вигляді жетонів (індекс 0 = день 1)
+TOKEN_REWARD_DAYS = {
+    3: 1,   # День 3: 1 жетон
+    7: 1,   # День 7: 1 жетон
+    10: 1,  # День 10: 1 жетон
+    14: 2,  # День 14: 2 жетони
+    17: 1,  # День 17: 1 жетон
+    21: 3,  # День 21: 3 жетони
+    24: 2,  # День 24: 2 жетони
+    28: 3,  # День 28: 3 жетони
+    30: 3   # День 30: 3 жетони
+}
+
+# Бонус за повне проходження циклу
+COMPLETION_BONUS = {
+    "amount": 3000,  # Додаткова винагорода
+    "tokens": 5,     # Додаткові жетони
+    "badge": "Залізна дисципліна"  # Унікальний значок
+}
 
 
 class DailyBonus:
@@ -35,7 +64,8 @@ class DailyBonus:
         telegram_id (str): Telegram ID користувача
         bonus_type (str): Тип бонусу
         amount (float): Розмір винагороди
-        day_in_cycle (int): День у циклі бонусів (1-7)
+        day_in_cycle (int): День у циклі бонусів (1-30)
+        token_amount (int): Кількість отриманих жетонів (якщо є)
         claimed_date (datetime): Дата отримання бонусу
         created_at (datetime): Дата створення запису
     """
@@ -46,6 +76,7 @@ class DailyBonus:
             bonus_type: str = BONUS_TYPE_DAILY,
             amount: float = 10.0,
             day_in_cycle: int = 1,
+            token_amount: int = 0,
             claimed_date: Optional[datetime] = None,
             id: Optional[str] = None
     ):
@@ -56,7 +87,8 @@ class DailyBonus:
             telegram_id (str): Telegram ID користувача
             bonus_type (str, optional): Тип бонусу
             amount (float, optional): Розмір винагороди
-            day_in_cycle (int, optional): День у циклі бонусів (1-7)
+            day_in_cycle (int, optional): День у циклі бонусів (1-30)
+            token_amount (int, optional): Кількість отриманих жетонів
             claimed_date (datetime, optional): Дата отримання бонусу
             id (str, optional): Унікальний ідентифікатор запису
         """
@@ -65,6 +97,7 @@ class DailyBonus:
         self.bonus_type = bonus_type
         self.amount = float(amount)
         self.day_in_cycle = int(day_in_cycle)
+        self.token_amount = int(token_amount) if token_amount else 0
 
         # Встановлення дат
         now = datetime.now(timezone.utc)
@@ -89,6 +122,7 @@ class DailyBonus:
             "bonus_type": self.bonus_type,
             "amount": self.amount,
             "day_in_cycle": self.day_in_cycle,
+            "token_amount": self.token_amount,
             "claimed_date": self.claimed_date.isoformat() if self.claimed_date else None,
             "created_at": self.created_at.isoformat()
         }
@@ -112,6 +146,7 @@ class DailyBonus:
             bonus_type=data.get("bonus_type", BONUS_TYPE_DAILY),
             amount=data.get("amount", 10.0),
             day_in_cycle=data.get("day_in_cycle", 1),
+            token_amount=data.get("token_amount", 0),
             id=data.get("id")
         )
 
@@ -208,7 +243,7 @@ class DailyBonus:
         Розраховує розмір щоденного бонусу залежно від дня циклу
 
         Args:
-            day_in_cycle (int): День у циклі (1-7)
+            day_in_cycle (int): День у циклі (1-30)
 
         Returns:
             float: Розмір бонусу
@@ -216,15 +251,22 @@ class DailyBonus:
         # Нормалізуємо день у циклі
         day = max(1, min(day_in_cycle, DEFAULT_CYCLE_DAYS))
 
-        # Базова формула: день * 10
-        base_bonus = day * 10.0
+        # Використовуємо заздалегідь визначену таблицю винагород
+        # Індекси в масиві починаються з 0, тому віднімаємо 1 від номера дня
+        return float(DAILY_BONUS_REWARDS[day - 1])
 
-        # Додатковий бонус для останнього дня циклу
-        if day == DEFAULT_CYCLE_DAYS:
-            base_bonus += 20.0  # Додатковий бонус за завершення циклу
+    @staticmethod
+    def get_token_reward_amount(day_in_cycle: int) -> int:
+        """
+        Повертає кількість жетонів для вказаного дня циклу
 
-        # Забезпечуємо мінімальну суму бонусу
-        return max(MIN_BONUS_AMOUNT, base_bonus)
+        Args:
+            day_in_cycle (int): День у циклі (1-30)
+
+        Returns:
+            int: Кількість жетонів або 0, якщо в цей день жетони не видаються
+        """
+        return TOKEN_REWARD_DAYS.get(day_in_cycle, 0)
 
     @staticmethod
     def get_next_day_in_cycle(current_day: int) -> int:
@@ -304,6 +346,16 @@ class DailyBonus:
         # Якщо остання дата отримання не сьогодні і пройшов мінімальний інтервал
         return (last_date_day < today) and (time_diff_seconds >= MIN_CLAIM_INTERVAL_SECONDS)
 
+    @staticmethod
+    def get_cycle_completion_bonus() -> Dict[str, Any]:
+        """
+        Повертає бонус за повне проходження циклу (30/30 днів)
+
+        Returns:
+            Dict[str, Any]: Словник з даними бонусу за проходження
+        """
+        return COMPLETION_BONUS
+
     def __str__(self) -> str:
         """
         Повертає рядкове представлення щоденного бонусу
@@ -312,4 +364,4 @@ class DailyBonus:
             str: Рядкове представлення щоденного бонусу
         """
         claimed_date_str = self.claimed_date.strftime('%Y-%m-%d %H:%M:%S') if self.claimed_date else "Не отримано"
-        return f"DailyBonus(id={self.id}, user={self.telegram_id}, day={self.day_in_cycle}, amount={self.amount}, claimed={claimed_date_str})"
+        return f"DailyBonus(id={self.id}, user={self.telegram_id}, day={self.day_in_cycle}, amount={self.amount}, token_amount={self.token_amount}, claimed={claimed_date_str})"

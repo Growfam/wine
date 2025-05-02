@@ -12,6 +12,8 @@ window.UI.Animations = (function() {
         enabled: true,                // Чи включені анімації
         adaptiveMode: true,           // Адаптація під потужність пристрою
         rewardDuration: 2500,         // Тривалість анімації нагороди (мс)
+        bonusTokenDuration: 3000,     // Тривалість анімації для жетонів бонусу (мс)
+        cycleCompletionDuration: 4000, // Тривалість анімації для бонусу завершення циклу (мс)
         confettiCount: {              // Кількість частинок для різних пристроїв
             low: 20,
             medium: 40,
@@ -19,6 +21,9 @@ window.UI.Animations = (function() {
         },
         particleColors: [             // Кольори частинок
             '#4EB5F7', '#00C9A7', '#AD6EE5', '#FFD700', '#52C0BD'
+        ],
+        specialDayColors: [           // Кольори для особливих днів (з жетонами)
+            '#FFD700', '#FFA500', '#FF8C00'
         ]
     };
 
@@ -198,6 +203,20 @@ window.UI.Animations = (function() {
                 transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s;
             }
             
+            /* Спеціальна іконка для жетонів */
+            .premium-reward-icon.token-icon {
+                background: linear-gradient(135deg, #FFD700, #FFA500);
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+                animation: token-icon-pulse 2s infinite ease-in-out;
+            }
+            
+            /* Спеціальна іконка для завершення циклу */
+            .premium-reward-icon.cycle-completion-icon {
+                background: linear-gradient(135deg, #FFD700, #00C9A7, #4eb5f7);
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+                animation: completion-icon-pulse 2s infinite ease-in-out;
+            }
+            
             .premium-reward-card.show .premium-reward-icon {
                 transform: scale(1);
             }
@@ -223,6 +242,15 @@ window.UI.Animations = (function() {
                 z-index: -1;
                 border-radius: 50%;
                 filter: blur(15px);
+            }
+            
+            .premium-reward-icon.token-icon::after {
+                background: radial-gradient(rgba(255, 215, 0, 0.3), transparent 70%);
+            }
+            
+            .premium-reward-icon.cycle-completion-icon::after {
+                background: radial-gradient(rgba(255, 215, 0, 0.4), transparent 80%);
+                animation: rotate-glow 10s linear infinite;
             }
             
             /* Частинки всередині іконки */
@@ -265,6 +293,44 @@ window.UI.Animations = (function() {
                 transform: scale(1);
             }
             
+            /* Стилі для мультивинагороди (день + жетони) */
+            .premium-multi-rewards {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .premium-multi-reward-item {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                transform: scale(0);
+                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+            
+            .premium-reward-card.show .premium-multi-reward-item {
+                transform: scale(1);
+            }
+            
+            .premium-multi-reward-item:nth-child(1) {
+                transition-delay: 0.3s;
+            }
+            
+            .premium-multi-reward-item:nth-child(2) {
+                transition-delay: 0.5s;
+            }
+            
+            .premium-multi-reward-item:nth-child(3) {
+                transition-delay: 0.7s;
+            }
+            
+            .premium-multi-reward-item .premium-reward-amount {
+                margin: 0;
+                font-size: 28px;
+            }
+            
             /* Іконка валюти біля суми */
             .premium-reward-currency-icon {
                 width: 24px;
@@ -304,6 +370,12 @@ window.UI.Animations = (function() {
                 box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 201, 167, 0.2) inset;
             }
             
+            /* Золота кнопка для особливих подій */
+            .premium-reward-button.gold-button {
+                background: linear-gradient(90deg, #FFD700, #FFA500);
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(255, 215, 0, 0.2) inset;
+            }
+            
             .premium-reward-card.show .premium-reward-button {
                 transform: translateY(0);
                 opacity: 1;
@@ -312,6 +384,10 @@ window.UI.Animations = (function() {
             .premium-reward-button:hover {
                 transform: translateY(-3px);
                 box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 201, 167, 0.5);
+            }
+            
+            .premium-reward-button.gold-button:hover {
+                box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(255, 215, 0, 0.5);
             }
             
             .premium-reward-button:active {
@@ -346,6 +422,11 @@ window.UI.Animations = (function() {
                 transition-delay: 0.3s;
             }
             
+            /* Золоті декорації для особливих подій */
+            .premium-reward-decoration.gold-decoration {
+                background: radial-gradient(rgba(255, 215, 0, 0.1), transparent);
+            }
+            
             .premium-reward-card.show .premium-reward-decoration {
                 transform: scale(1);
             }
@@ -372,6 +453,31 @@ window.UI.Animations = (function() {
                 transform-origin: center;
             }
             
+            /* Значок для виконання всього циклу */
+            .premium-completion-badge {
+                position: absolute;
+                top: -15px;
+                right: -15px;
+                width: 50px;
+                height: 50px;
+                background: linear-gradient(135deg, #FFD700, #FFA500);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #1A1A2E;
+                font-weight: bold;
+                font-size: 14px;
+                transform: scale(0);
+                transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s;
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+                z-index: 10;
+            }
+            
+            .premium-reward-card.show .premium-completion-badge {
+                transform: scale(1);
+            }
+            
             /* Анімація для частинок всередині іконки */
             @keyframes particle-float {
                 0% { transform: translateY(0) rotate(0deg); }
@@ -383,6 +489,27 @@ window.UI.Animations = (function() {
                 0% { box-shadow: 0 0 20px rgba(0, 201, 167, 0.5); }
                 50% { box-shadow: 0 0 30px rgba(0, 201, 167, 0.8), 0 0 50px rgba(0, 201, 167, 0.4); }
                 100% { box-shadow: 0 0 20px rgba(0, 201, 167, 0.5); }
+            }
+            
+            /* Анімація пульсації для жетонів */
+            @keyframes token-icon-pulse {
+                0% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+                50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 50px rgba(255, 215, 0, 0.4); }
+                100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+            }
+            
+            /* Анімація пульсації для завершення циклу */
+            @keyframes completion-icon-pulse {
+                0% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+                30% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 50px rgba(255, 215, 0, 0.4); }
+                60% { box-shadow: 0 0 30px rgba(0, 201, 167, 0.8), 0 0 50px rgba(0, 201, 167, 0.4); }
+                100% { box-shadow: 0 0 20px rgba(78, 181, 247, 0.5); }
+            }
+            
+            /* Обертання світіння */
+            @keyframes rotate-glow {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
             }
             
             /* Адаптивний дизайн */
@@ -405,6 +532,10 @@ window.UI.Animations = (function() {
                     font-size: 30px;
                 }
                 
+                .premium-multi-reward-item .premium-reward-amount {
+                    font-size: 24px;
+                }
+                
                 .premium-reward-type {
                     font-size: 16px;
                 }
@@ -412,6 +543,12 @@ window.UI.Animations = (function() {
                 .premium-reward-button {
                     padding: 10px 25px;
                     font-size: 15px;
+                }
+                
+                .premium-completion-badge {
+                    width: 40px;
+                    height: 40px;
+                    font-size: 12px;
                 }
             }
         `;
@@ -431,6 +568,25 @@ window.UI.Animations = (function() {
             }
         });
 
+        // Обробник для щоденних бонусів
+        document.addEventListener('daily-bonus-claimed', function(event) {
+            if (event.detail) {
+                const { token_amount, cycle_completed } = event.detail;
+
+                // Якщо отримано жетони, відтворюємо спеціальну анімацію
+                if (token_amount && token_amount > 0) {
+                    // Це буде викликано автоматично через TaskRewards
+                }
+
+                // Якщо завершено цикл, відтворюємо спеціальну анімацію
+                if (cycle_completed && event.detail.completion_bonus) {
+                    setTimeout(() => {
+                        showCycleCompletionAnimation(event.detail.completion_bonus);
+                    }, 3000); // Затримка, щоб основна анімація винагороди вже завершилась
+                }
+            }
+        });
+
         // Обробник зміни розміру вікна для адаптації анімацій
         window.addEventListener('resize', debounce(function() {
             // Адаптуємо анімації під новий розмір
@@ -442,7 +598,6 @@ window.UI.Animations = (function() {
 
     /**
      * Ініціалізація анімацій на сторінці
-     * ДОДАНО: Функція, яка була відсутня і спричиняла помилку
      */
     function initPageAnimations() {
         console.log('UI.Animations: Ініціалізація анімацій сторінки');
@@ -488,6 +643,7 @@ window.UI.Animations = (function() {
             showConfetti: true,
             autoClose: true,
             onClose: null,
+            specialDay: false,         // Чи є це особливий день (з жетонами)
             ...options
         };
 
@@ -498,9 +654,14 @@ window.UI.Animations = (function() {
         // Визначаємо іконку в залежності від типу
         const iconType = reward.type === 'tokens' ? 'token' : 'coin';
 
+        // Задаємо тривалість анімації залежно від типу винагороди
+        if (reward.type === 'coins' && settings.specialDay) {
+            settings.duration = config.bonusTokenDuration;
+        }
+
         // Показуємо конфетті, якщо це включено
         if (settings.showConfetti) {
-            createPremiumConfetti();
+            createPremiumConfetti(settings.specialDay);
         }
 
         // Створюємо контейнер для анімації
@@ -515,14 +676,20 @@ window.UI.Animations = (function() {
         const card = document.createElement('div');
         card.className = 'premium-reward-card';
 
+        // Визначаємо іконку залежно від типу винагороди
+        let iconClass = '';
+        if (reward.type === 'coins' && settings.specialDay) {
+            iconClass = 'token-icon';
+        }
+
         // Наповнюємо картку контентом
         card.innerHTML = `
-            <div class="premium-reward-decoration premium-reward-decoration-1"></div>
-            <div class="premium-reward-decoration premium-reward-decoration-2"></div>
+            <div class="premium-reward-decoration ${settings.specialDay ? 'gold-decoration' : ''} premium-reward-decoration-1"></div>
+            <div class="premium-reward-decoration ${settings.specialDay ? 'gold-decoration' : ''} premium-reward-decoration-2"></div>
             
-            <div class="premium-reward-title">Вітаємо!</div>
+            <div class="premium-reward-title">${settings.specialDay ? 'Особливий день!' : 'Вітаємо!'}</div>
             
-            <div class="premium-reward-icon">
+            <div class="premium-reward-icon ${iconClass}">
                 <div class="premium-reward-icon-inner" data-icon-type="${iconType}"></div>
                 <div class="premium-reward-particles"></div>
             </div>
@@ -533,7 +700,7 @@ window.UI.Animations = (function() {
             
             <div class="premium-reward-type">Ви отримали ${rewardType}</div>
             
-            <button class="premium-reward-button">Чудово!</button>
+            <button class="premium-reward-button ${settings.specialDay ? 'gold-button' : ''}">Чудово!</button>
         `;
 
         // Додаємо частинки всередині іконки
@@ -547,6 +714,12 @@ window.UI.Animations = (function() {
             particle.style.top = `${Math.random() * 100}%`;
             particle.style.animationDelay = `${Math.random() * 2}s`;
 
+            // Встановлюємо колір частинок для особливих днів
+            if (settings.specialDay) {
+                const colorIndex = Math.floor(Math.random() * config.specialDayColors.length);
+                particle.style.backgroundColor = config.specialDayColors[colorIndex];
+            }
+
             particlesContainer.appendChild(particle);
         }
 
@@ -556,7 +729,7 @@ window.UI.Animations = (function() {
         document.body.appendChild(container);
 
         // Відтворюємо звук успіху
-        playSound('success');
+        playSound(settings.specialDay ? 'special' : 'success');
 
         // Показуємо анімацію з невеликою затримкою
         setTimeout(() => {
@@ -604,9 +777,140 @@ window.UI.Animations = (function() {
     }
 
     /**
-     * Створення преміальних конфетті для анімації
+     * Показати анімацію бонусу за завершення 30-денного циклу
+     * @param {Object} bonusData - Дані про бонус {amount: число, tokens: число, badge: рядок}
      */
-    function createPremiumConfetti() {
+    function showCycleCompletionAnimation(bonusData) {
+        // Параметри анімації
+        const settings = {
+            duration: config.cycleCompletionDuration,
+            showConfetti: true,
+            autoClose: true,
+        };
+
+        // Показуємо золоте конфетті
+        if (settings.showConfetti) {
+            createPremiumConfetti(true, 1.5); // Збільшена інтенсивність
+        }
+
+        // Створюємо контейнер для анімації
+        const container = document.createElement('div');
+        container.className = 'premium-reward-container';
+
+        // Створюємо затемнений фон
+        const overlay = document.createElement('div');
+        overlay.className = 'premium-reward-overlay';
+
+        // Створюємо картку винагороди
+        const card = document.createElement('div');
+        card.className = 'premium-reward-card';
+
+        // Створюємо значок для завершення циклу
+        const completionBadge = document.createElement('div');
+        completionBadge.className = 'premium-completion-badge';
+        completionBadge.textContent = '30/30';
+
+        // Наповнюємо картку контентом
+        card.innerHTML = `
+            <div class="premium-reward-decoration gold-decoration premium-reward-decoration-1"></div>
+            <div class="premium-reward-decoration gold-decoration premium-reward-decoration-2"></div>
+            
+            <div class="premium-reward-title">Цикл завершено!</div>
+            
+            <div class="premium-reward-icon cycle-completion-icon">
+                <div class="premium-reward-icon-inner" data-icon-type="token"></div>
+                <div class="premium-reward-particles"></div>
+            </div>
+            
+            <div class="premium-multi-rewards">
+                <div class="premium-multi-reward-item">
+                    <div class="premium-reward-amount">
+                        +${bonusData.amount} <span class="premium-reward-currency-icon" data-icon-type="token-small"></span>
+                    </div>
+                </div>
+                <div class="premium-multi-reward-item">
+                    <div class="premium-reward-amount">
+                        +${bonusData.tokens} <span class="premium-reward-currency-icon" data-icon-type="coin-small"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="premium-reward-type">Ви завершили 30-денний цикл і отримали бонус!</div>
+            <div class="premium-reward-type">Значок: "${bonusData.badge}"</div>
+            
+            <button class="premium-reward-button gold-button">Чудово!</button>
+        `;
+
+        // Додаємо частинки всередині іконки
+        const particlesContainer = card.querySelector('.premium-reward-particles');
+        for (let i = 0; i < 15; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'premium-reward-particle';
+
+            // Встановлюємо випадкову позицію та затримку
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.top = `${Math.random() * 100}%`;
+            particle.style.animationDelay = `${Math.random() * 2}s`;
+
+            // Встановлюємо колір частинок для особливих днів
+            const colorIndex = Math.floor(Math.random() * config.specialDayColors.length);
+            particle.style.backgroundColor = config.specialDayColors[colorIndex];
+
+            particlesContainer.appendChild(particle);
+        }
+
+        // Збираємо все разом
+        card.appendChild(completionBadge);
+        container.appendChild(overlay);
+        container.appendChild(card);
+        document.body.appendChild(container);
+
+        // Відтворюємо звук успіху
+        playSound('special');
+
+        // Показуємо анімацію з невеликою затримкою
+        setTimeout(() => {
+            overlay.classList.add('show');
+            card.classList.add('show');
+        }, 100);
+
+        // Додаємо обробник для кнопки
+        const button = card.querySelector('.premium-reward-button');
+        button.addEventListener('click', () => {
+            closeAnimation();
+        });
+
+        // Автоматично закриваємо через вказаний час
+        if (settings.autoClose) {
+            state.timers.cycleCompletionClose = setTimeout(() => {
+                closeAnimation();
+            }, settings.duration);
+        }
+
+        // Функція закриття анімації
+        function closeAnimation() {
+            // Очищаємо таймер, якщо він існує
+            if (state.timers.cycleCompletionClose) {
+                clearTimeout(state.timers.cycleCompletionClose);
+            }
+
+            // Приховуємо елементи
+            overlay.classList.remove('show');
+            card.classList.remove('show');
+
+            // Видаляємо контейнер після завершення анімації
+            setTimeout(() => {
+                container.remove();
+            }, 500);
+        }
+    }
+
+    /**
+     * Створення преміальних конфетті для анімації
+     * @param {boolean} isSpecial - Чи є це особливий день (для золотих конфетті)
+     * @param {number} intensityMultiplier - Множник для кількості конфетті
+     */
+    function createPremiumConfetti(isSpecial = false, intensityMultiplier = 1) {
         // Визначаємо кількість конфетті в залежності від продуктивності
         let confettiCount;
         switch (state.devicePerformance) {
@@ -620,10 +924,16 @@ window.UI.Animations = (function() {
                 confettiCount = config.confettiCount.high;
         }
 
+        // Застосовуємо множник інтенсивності
+        confettiCount = Math.round(confettiCount * intensityMultiplier);
+
         // Створюємо контейнер для конфетті
         const container = document.createElement('div');
         container.className = 'premium-confetti-container';
         document.body.appendChild(container);
+
+        // Кольори конфетті залежно від типу події
+        const colors = isSpecial ? config.specialDayColors : config.particleColors;
 
         // Створюємо конфетті
         for (let i = 0; i < confettiCount; i++) {
@@ -647,7 +957,7 @@ window.UI.Animations = (function() {
             confetti.style.height = `${size}px`;
 
             // Випадковий колір
-            const color = config.particleColors[Math.floor(Math.random() * config.particleColors.length)];
+            const color = colors[Math.floor(Math.random() * colors.length)];
             confetti.style.backgroundColor = color;
             confetti.style.boxShadow = `0 0 6px ${color}`;
 
@@ -827,7 +1137,7 @@ window.UI.Animations = (function() {
 
     /**
      * Відтворення звукового ефекту
-     * @param {string} type - Тип звуку ('success', 'error', 'click')
+     * @param {string} type - Тип звуку ('success', 'error', 'click', 'special')
      */
     function playSound(type) {
         // Перевіряємо налаштування звуку користувача
@@ -846,6 +1156,9 @@ window.UI.Animations = (function() {
                 break;
             case 'click':
                 soundUrl = 'assets/sounds/click.mp3';
+                break;
+            case 'special':
+                soundUrl = 'assets/sounds/special.mp3';
                 break;
             default:
                 return;
@@ -907,6 +1220,61 @@ window.UI.Animations = (function() {
         };
     }
 
+    /**
+     * Анімація для дня з жетонами у щоденному бонусі
+     * @param {HTMLElement} dayElement - Елемент дня
+     */
+    function animateTokenDay(dayElement) {
+        if (!dayElement) return;
+
+        // Додаємо класи для анімації
+        dayElement.classList.add('token-day-pulse');
+
+        // Створюємо ефект світіння
+        const glow = document.createElement('div');
+        glow.className = 'token-day-glow';
+        glow.style.position = 'absolute';
+        glow.style.top = '0';
+        glow.style.left = '0';
+        glow.style.width = '100%';
+        glow.style.height = '100%';
+        glow.style.borderRadius = 'inherit';
+        glow.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
+        glow.style.animation = 'token-day-pulse 2s infinite ease-in-out';
+        glow.style.zIndex = '-1';
+
+        // Додаємо стилі для анімації, якщо вони ще не додані
+        if (!document.getElementById('token-day-animation-styles')) {
+            const style = document.createElement('style');
+            style.id = 'token-day-animation-styles';
+            style.textContent = `
+                @keyframes token-day-pulse {
+                    0% { opacity: 0.5; transform: scale(0.95); }
+                    50% { opacity: 1; transform: scale(1.05); }
+                    100% { opacity: 0.5; transform: scale(0.95); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Якщо у елемента є стилі position: relative, додаємо ефект
+        const position = window.getComputedStyle(dayElement).position;
+        if (position === 'static') {
+            dayElement.style.position = 'relative';
+        }
+
+        dayElement.appendChild(glow);
+
+        // Відтворюємо звук
+        playSound('click');
+
+        // Видаляємо ефект через 3 секунди
+        setTimeout(() => {
+            dayElement.classList.remove('token-day-pulse');
+            glow.remove();
+        }, 3000);
+    }
+
     // Ініціалізуємо модуль при завантаженні
     document.addEventListener('DOMContentLoaded', init);
 
@@ -918,6 +1286,8 @@ window.UI.Animations = (function() {
         playSound,
         animateSuccessfulCompletion,
         createPremiumConfetti,
-        initPageAnimations, // ДОДАНО: Публічний доступ до нової функції
+        initPageAnimations,
+        showCycleCompletionAnimation,
+        animateTokenDay
     };
 })();
