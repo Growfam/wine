@@ -1,41 +1,41 @@
 /**
- * daily-bonus.js - Обробник щоденних бонусів
- * Відповідальний за отримання та управління щоденними бонусами
- * Оптимізовано для стабільної роботи з API та консистентного досвіду користувача
+ * Оптимізований модуль щоденних бонусів
+ * Спрощена логіка та покращена продуктивність
  */
 
 window.DailyBonus = (function() {
-    // Конфігурація модуля
+    // Спрощена конфігурація модуля
     const config = {
-        cacheDuration: 300000,   // 5 хвилин кеш
-        debug: false,            // Режим відлагодження
-        apiTimeout: 15000,       // 15 секунд таймаут для запитів
-        maxRetryAttempts: 2,     // Максимальна кількість повторних спроб
-        retryDelay: 1000         // Затримка між повторними спробами (мс)
+        cacheDuration: 300000,  // 5 хвилин кеш
+        debug: false,           // Режим відлагодження
+        apiTimeout: 10000,      // 10 секунд таймаут для запитів
+        maxRetries: 1,          // Максимальна кількість повторних спроб
+        retryDelay: 1000        // Затримка між повторними спробами (мс)
     };
 
-    // Стан модуля
+    // Спрощений стан модуля
     const state = {
         isInitialized: false,
         bonusData: null,
         lastLoaded: 0,
         isLoading: false,
-        failureCount: 0,
         userId: null,
-        pendingOperation: false,  // Прапорець очікування результату операції
-        lastError: null           // Останнє повідомлення про помилку
+        pendingOperation: false, // Прапорець очікування результату операції
+        lastError: null,         // Останнє повідомлення про помилку
+        containerElement: null,  // Кешований DOM-елемент контейнера
+        claimButtonElement: null, // Кешований DOM-елемент кнопки
+        progressContainerElement: null // Кешований DOM-елемент для прогресу
     };
 
     // Шляхи API
     const API_PATHS = {
         STATUS: (userId) => `api/user/${userId}/daily-bonus`,
-        CLAIM: (userId) => `api/user/${userId}/claim-daily-bonus`,
-        STREAK: (userId) => `api/user/${userId}/claim-streak-bonus`
+        CLAIM: (userId) => `api/user/${userId}/claim-daily-bonus`
     };
 
     /**
-     * Отримання ID користувача з різних джерел
-     * @returns {string|null} ID користувача або null
+     * Спрощена функція для отримання ID користувача
+     * Зосереджена на найбільш надійних джерелах
      */
     function getUserId() {
         // Перевіряємо, чи ID вже кешовано
@@ -43,153 +43,63 @@ window.DailyBonus = (function() {
             return state.userId;
         }
 
-        // Функція для перевірки валідності ID
-        function isValidId(id) {
-            return id &&
-                  typeof id === 'string' &&
-                  id !== 'undefined' &&
-                  id !== 'null' &&
-                  id.length > 3;
-        }
-
-        // Масив функцій для отримання ID з різних джерел
-        const idProviders = [
+        // Спрощений список джерел для отримання ID
+        const sources = [
             // 1. Глобальна змінна USER_ID
-            () => {
-                if (window.USER_ID) {
-                    if (config.debug) console.log("DailyBonus: ID користувача отримано з window.USER_ID");
-                    return window.USER_ID;
-                }
-                return null;
-            },
+            () => window.USER_ID,
 
             // 2. Telegram WebApp
             () => {
-                if (window.Telegram && window.Telegram.WebApp &&
-                    window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user) {
-                    const id = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                    if (config.debug) console.log("DailyBonus: ID користувача отримано з Telegram WebApp");
-                    return id;
+                if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                    return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
                 }
                 return null;
             },
 
-            // 3. Telegram WebView Proxy
-            () => {
-                if (window.telegramWebviewProxy &&
-                    window.telegramWebviewProxy.initDataUnsafe &&
-                    window.telegramWebviewProxy.initDataUnsafe.user) {
-                    const id = window.telegramWebviewProxy.initDataUnsafe.user.id.toString();
-                    if (config.debug) console.log("DailyBonus: ID користувача отримано з telegramWebviewProxy");
-                    return id;
-                }
-                return null;
-            },
-
-            // 4. User data з localStorage
+            // 3. User data з localStorage
             () => {
                 try {
                     const userData = localStorage.getItem('user_data');
                     if (userData) {
                         const parsed = JSON.parse(userData);
-                        if (parsed && parsed.telegram_id) {
-                            if (config.debug) console.log("DailyBonus: ID користувача отримано з user_data в localStorage");
+                        if (parsed?.telegram_id) {
                             return parsed.telegram_id.toString();
                         }
                     }
-                } catch (e) {}
-                return null;
-            },
-
-            // 5. Telegram ID з localStorage
-            () => {
-                try {
-                    const id = localStorage.getItem('telegram_user_id');
-                    if (isValidId(id)) {
-                        if (config.debug) console.log("DailyBonus: ID користувача отримано з telegram_user_id в localStorage");
-                        return id;
-                    }
-                } catch (e) {}
-                return null;
-            },
-
-            // 6. DOM-елемент user-id
-            () => {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement && userIdElement.textContent) {
-                    const id = userIdElement.textContent.trim();
-                    if (isValidId(id)) {
-                        if (config.debug) console.log("DailyBonus: ID користувача отримано з DOM-елемента");
-                        return id;
-                    }
+                    return localStorage.getItem('telegram_user_id');
+                } catch (e) {
+                    return null;
                 }
-                return null;
             },
 
-            // 7. URL-параметри
-            () => {
-                try {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const id = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-                    if (isValidId(id)) {
-                        if (config.debug) console.log("DailyBonus: ID користувача отримано з URL-параметрів");
-                        return id;
-                    }
-                } catch (e) {}
-                return null;
-            },
+            // 4. DOM-елемент user-id
+            () => document.getElementById('user-id')?.textContent?.trim(),
 
-            // 8. Глобальна функція getUserId
+            // 5. URL-параметри
             () => {
-                if (window.getUserId && typeof window.getUserId === 'function') {
-                    try {
-                        const id = window.getUserId();
-                        if (isValidId(id)) {
-                            if (config.debug) console.log("DailyBonus: ID користувача отримано через window.getUserId()");
-                            return id;
-                        }
-                    } catch (e) {}
-                }
-                return null;
-            },
-
-            // 9. Метод API, якщо доступний
-            () => {
-                if (window.WinixAPI && window.WinixAPI.getUserId) {
-                    try {
-                        const id = window.WinixAPI.getUserId();
-                        if (isValidId(id)) {
-                            if (config.debug) console.log("DailyBonus: ID користувача отримано через WinixAPI.getUserId()");
-                            return id;
-                        }
-                    } catch (e) {}
-                }
-                return null;
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
             }
         ];
 
         // Перебираємо всі джерела, поки не знайдемо ID
-        for (const provider of idProviders) {
+        for (const getIdFunc of sources) {
             try {
-                const id = provider();
-                if (isValidId(id)) {
+                const id = getIdFunc();
+                if (id && typeof id === 'string' && id !== 'undefined' && id !== 'null' && id.length > 3) {
                     // Кешуємо ID для майбутніх викликів
                     state.userId = id;
 
-                    // Спробуємо зберегти ID в localStorage для інших модулів
+                    // Зберігаємо в localStorage для інших модулів
                     try {
                         localStorage.setItem('telegram_user_id', id);
                     } catch (e) {}
 
                     return id;
                 }
-            } catch (e) {
-                // Ігноруємо помилки при спробі отримати ID
-            }
+            } catch (e) {}
         }
 
-        // ID не знайдено в жодному джерелі
         if (config.debug) {
             console.warn("DailyBonus: ID користувача не знайдено в жодному джерелі");
         }
@@ -203,45 +113,43 @@ window.DailyBonus = (function() {
     function init() {
         if (state.isInitialized) return;
 
-        console.log("DailyBonus: Ініціалізація модуля щоденних бонусів");
+        // Кешування DOM-елементів для швидшого доступу
+        state.containerElement = document.getElementById('daily-bonus-container');
+        state.claimButtonElement = document.getElementById('claim-daily');
+        state.progressContainerElement = document.getElementById('daily-progress-container');
 
-        // Намагаємось отримати ID користувача
+        // Якщо елементи не знайдено, вихід
+        if (!state.containerElement) {
+            console.warn("DailyBonus: Не знайдено контейнер для щоденних бонусів");
+            return;
+        }
+
+        // Перевірка наявності ID користувача
         const userId = getUserId();
-
-        // Якщо ID не знайдено, показуємо повідомлення
         if (!userId) {
             console.warn("DailyBonus: Не вдалося отримати ID користувача. Система бонусів недоступна.");
 
-            // Приховуємо контейнер з бонусами або показуємо повідомлення про необхідність авторизації
-            const bonusContainer = document.getElementById('daily-bonus-container');
-            if (bonusContainer) {
-                // Можна або приховати, або показати повідомлення
-                // bonusContainer.style.display = 'none';
+            // Показуємо повідомлення про необхідність авторизації
+            state.containerElement.innerHTML = `
+                <div class="category-title">Щоденний бонус</div>
+                <div class="auth-required-message">
+                    <p>Для отримання щоденних бонусів необхідно авторизуватися</p>
+                    <button class="auth-button">Увійти</button>
+                </div>
+            `;
 
-                // Альтернативно, показуємо повідомлення про необхідність авторизації
-                bonusContainer.innerHTML = `
-                    <div class="category-title">Щоденний бонус</div>
-                    <div class="auth-required-message">
-                        <p>Для отримання щоденних бонусів необхідно авторизуватися</p>
-                        <button class="auth-button">Увійти</button>
-                    </div>
-                `;
-
-                // Додаємо обробник для кнопки авторизації, якщо вона є
-                const authButton = bonusContainer.querySelector('.auth-button');
-                if (authButton) {
-                    authButton.addEventListener('click', function() {
-                        // Викликаємо функцію авторизації, якщо вона доступна
-                        if (window.auth && typeof window.auth.login === 'function') {
-                            window.auth.login();
-                        } else if (typeof loginWithTelegram === 'function') {
-                            loginWithTelegram();
-                        } else {
-                            // Якщо специфічних функцій немає, перенаправляємо на сторінку входу
-                            window.location.href = '/login';
-                        }
-                    });
-                }
+            // Додаємо обробник для кнопки авторизації
+            const authButton = state.containerElement.querySelector('.auth-button');
+            if (authButton) {
+                authButton.addEventListener('click', function() {
+                    if (window.auth && typeof window.auth.login === 'function') {
+                        window.auth.login();
+                    } else if (typeof loginWithTelegram === 'function') {
+                        loginWithTelegram();
+                    } else {
+                        window.location.href = '/login';
+                    }
+                });
             }
 
             return;
@@ -258,7 +166,9 @@ window.DailyBonus = (function() {
                     if (age < config.cacheDuration) {
                         state.bonusData = parsed.data;
                         state.lastLoaded = parsed.timestamp;
-                        console.log(`DailyBonus: Завантажено кешовані дані (вік: ${Math.round(age/1000)}с)`);
+
+                        // Відразу оновлюємо інтерфейс
+                        renderBonusUI();
                     }
                 }
             }
@@ -266,59 +176,22 @@ window.DailyBonus = (function() {
             console.warn("DailyBonus: Помилка завантаження даних з кешу:", e);
         }
 
-        // Додаємо обробники подій
-        setupEventHandlers();
+        // Додаємо обробник подій для кнопки отримання бонусу
+        if (state.claimButtonElement) {
+            // Видаляємо старі обробники, щоб уникнути дублювання
+            const newClaimButton = state.claimButtonElement.cloneNode(true);
+            state.claimButtonElement.parentNode.replaceChild(newClaimButton, state.claimButtonElement);
+            state.claimButtonElement = newClaimButton;
 
+            // Додаємо новий обробник
+            state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
+        }
+
+        // Оновлюємо стан ініціалізації
         state.isInitialized = true;
 
-        // Асинхронно завантажуємо дані
+        // Асинхронно завантажуємо дані з серверу
         loadBonusData(true);
-    }
-
-    /**
-     * Налаштування обробників подій
-     */
-    function setupEventHandlers() {
-        // Знаходимо кнопку отримання бонусу
-        const claimButton = document.getElementById('claim-daily');
-        if (claimButton) {
-            // Додаємо обробник кліку
-            claimButton.addEventListener('click', handleClaimButtonClick);
-        }
-
-        // Оновлюємо дані при зміні сторінки на "earn"
-        if (typeof window.PageManager !== 'undefined') {
-            document.addEventListener('page-changed', event => {
-                if (event.detail.page === 'earn') {
-                    loadBonusData(true);
-                }
-            });
-        }
-
-        // Підписуємося на події системи
-        document.addEventListener('user-data-updated', () => {
-            loadBonusData(false); // Не показувати індикатор завантаження
-        });
-
-        // Синхронізація між вкладками
-        window.addEventListener('storage', (event) => {
-            if (event.key === 'daily_bonus_data') {
-                try {
-                    const newData = JSON.parse(event.newValue);
-                    if (newData && newData.timestamp && newData.userId === getUserId()) {
-                        // Оновлюємо дані, якщо вони новіші за поточні
-                        if (!state.lastLoaded || newData.timestamp > state.lastLoaded) {
-                            state.bonusData = newData.data;
-                            state.lastLoaded = newData.timestamp;
-                            renderBonusUI();
-                            console.log("DailyBonus: Дані синхронізовано з іншої вкладки");
-                        }
-                    }
-                } catch (e) {
-                    console.warn("DailyBonus: Помилка синхронізації даних між вкладками:", e);
-                }
-            }
-        });
     }
 
     /**
@@ -343,6 +216,11 @@ window.DailyBonus = (function() {
                 if (state.bonusData && state.bonusData.can_claim) {
                     claimDailyBonus();
                 }
+            }).catch(error => {
+                console.error("DailyBonus: Помилка при завантаженні даних:", error);
+                if (typeof window.showToast === 'function') {
+                    window.showToast("Помилка завантаження даних. Спробуйте пізніше.", "error");
+                }
             });
             return;
         }
@@ -366,7 +244,7 @@ window.DailyBonus = (function() {
      */
     function getApiUrl(endpoint) {
         // Спочатку перевіряємо налаштування в window.WinixAPI
-        if (window.WinixAPI && window.WinixAPI.config && window.WinixAPI.config.baseUrl) {
+        if (window.WinixAPI?.config?.baseUrl) {
             return `${window.WinixAPI.config.baseUrl}/${endpoint}`;
         }
 
@@ -380,108 +258,80 @@ window.DailyBonus = (function() {
     }
 
     /**
-     * Виконання запиту до API з повторними спробами
+     * Виконання запиту до API з обробкою помилок
      * @param {string} endpoint - Шлях до API ендпоінту
      * @param {string} method - HTTP метод (GET, POST, тощо)
      * @param {Object} data - Дані для відправки
      * @returns {Promise<Object>} Результат запиту
      */
-    async function fetchWithRetry(endpoint, method = 'GET', data = null) {
-        let attempt = 0;
-        let lastError = null;
+    async function fetchApi(endpoint, method = 'GET', data = null) {
+        // Формуємо повний URL
+        const url = getApiUrl(endpoint);
 
-        while (attempt < config.maxRetryAttempts) {
-            try {
-                // Збільшуємо лічильник спроб
-                attempt++;
-
-                // Формуємо повний URL
-                const url = getApiUrl(endpoint);
-
-                // Налаштування запиту
-                const options = {
-                    method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    timeout: config.apiTimeout
-                };
-
-                // Додаємо тіло запиту для методів POST/PUT
-                if (data && (method === 'POST' || method === 'PUT')) {
-                    options.body = JSON.stringify(data);
-                }
-
-                if (config.debug) {
-                    console.log(`DailyBonus: Запит до API (спроба ${attempt}/${config.maxRetryAttempts}): ${method} ${url}`);
-                    if (data) console.log("DailyBonus: Дані запиту:", data);
-                }
-
-                // Створюємо AbortController для контролю таймауту
-                const controller = new AbortController();
-                options.signal = controller.signal;
-
-                // Встановлюємо таймаут
-                const timeoutId = setTimeout(() => controller.abort(), config.apiTimeout);
-
-                // Виконуємо запит
-                const response = await fetch(url, options);
-
-                // Очищаємо таймаут
-                clearTimeout(timeoutId);
-
-                // Перевіряємо статус відповіді
-                if (!response.ok) {
-                    let errorData = null;
-                    try {
-                        errorData = await response.json();
-                    } catch (e) {
-                        // Якщо не можемо розпарсити відповідь, використовуємо статус-текст
-                        errorData = { message: response.statusText };
-                    }
-
-                    // Формуємо деталізоване повідомлення про помилку
-                    const errorMessage = errorData && errorData.message
-                        ? errorData.message
-                        : `Помилка запиту: ${response.status} ${response.statusText}`;
-
-                    throw new Error(errorMessage);
-                }
-
-                // Парсимо відповідь
-                const responseData = await response.json();
-
-                // Перевіряємо відповідь на успіх
-                if (responseData.status === 'success') {
-                    return responseData;
-                } else {
-                    throw new Error(responseData.message || 'Невідома помилка API');
-                }
-            } catch (error) {
-                lastError = error;
-
-                // Перевіряємо чи це помилка таймауту
-                const isTimeoutError = error.name === 'AbortError' ||
-                                      error.message.includes('timeout') ||
-                                      error.message.includes('abort');
-
-                // Логуємо помилку
-                console.error(`DailyBonus: Помилка запиту (спроба ${attempt}/${config.maxRetryAttempts}):`,
-                             isTimeoutError ? 'Таймаут запиту' : error.message);
-
-                // Якщо це остання спроба, вибиваємо помилку
-                if (attempt >= config.maxRetryAttempts) {
-                    break;
-                }
-
-                // Зачекаємо перед наступною спробою
-                await new Promise(resolve => setTimeout(resolve, config.retryDelay));
+        // Налаштування запиту
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
+        };
+
+        // Додаємо тіло запиту для методів POST/PUT
+        if (data && (method === 'POST' || method === 'PUT')) {
+            options.body = JSON.stringify(data);
         }
 
-        // Якщо всі спроби невдалі, викидаємо останню помилку
-        throw lastError;
+        // Перевірка чи доступно Fetch API
+        if (typeof fetch !== 'function') {
+            throw new Error('Fetch API недоступне в цьому браузері');
+        }
+
+        try {
+            // Створюємо AbortController для контролю таймауту
+            const controller = new AbortController();
+            options.signal = controller.signal;
+
+            // Встановлюємо таймаут
+            const timeoutId = setTimeout(() => controller.abort(), config.apiTimeout);
+
+            // Виконуємо запит
+            const response = await fetch(url, options);
+
+            // Очищаємо таймаут
+            clearTimeout(timeoutId);
+
+            // Перевіряємо статус відповіді
+            if (!response.ok) {
+                // Спробуємо отримати деталі помилки з відповіді
+                let errorMsg;
+                try {
+                    const errorData = await response.json();
+                    errorMsg = errorData.message || `Помилка запиту: ${response.status} ${response.statusText}`;
+                } catch {
+                    errorMsg = `Помилка запиту: ${response.status} ${response.statusText}`;
+                }
+                throw new Error(errorMsg);
+            }
+
+            // Парсимо відповідь
+            const responseData = await response.json();
+
+            // Перевіряємо відповідь на успіх
+            if (responseData.status === 'success') {
+                return responseData;
+            } else {
+                throw new Error(responseData.message || 'Невідома помилка API');
+            }
+        } catch (error) {
+            // Спеціальна обробка помилки таймауту
+            if (error.name === 'AbortError') {
+                throw new Error('Перевищено час очікування відповіді від сервера');
+            }
+
+            // Якщо це виконується повторна спроба, генеруємо більш детальне повідомлення
+            throw error;
+        }
     }
 
     /**
@@ -489,7 +339,7 @@ window.DailyBonus = (function() {
      * @param {boolean} showLoader - Показувати індикатор завантаження
      * @returns {Promise<Object>} Дані щоденного бонусу
      */
-    async function loadBonusData(showLoader = true) {
+    async function loadBonusData(showLoader = false) {
         // Запобігаємо одночасним запитам
         if (state.isLoading) return Promise.resolve(state.bonusData);
 
@@ -497,7 +347,7 @@ window.DailyBonus = (function() {
         const now = Date.now();
         const dataAge = now - state.lastLoaded;
 
-        // Якщо дані свіжі (менше 5 хвилин), не робимо новий запит
+        // Якщо дані свіжі (менше часу кешування), не робимо новий запит
         if (state.bonusData && dataAge < config.cacheDuration) {
             return Promise.resolve(state.bonusData);
         }
@@ -505,9 +355,9 @@ window.DailyBonus = (function() {
         // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
-            console.error("DailyBonus: ID користувача не знайдено");
-            state.lastError = "ID користувача не знайдено";
-            return Promise.reject(new Error("ID користувача не знайдено"));
+            const error = new Error("ID користувача не знайдено");
+            state.lastError = error.message;
+            return Promise.reject(error);
         }
 
         // Показуємо індикатор завантаження
@@ -521,18 +371,12 @@ window.DailyBonus = (function() {
             // Формуємо шлях API
             const endpoint = API_PATHS.STATUS(userId);
 
-            // Діагностика
-            if (config.debug) {
-                console.log(`DailyBonus: Запит даних бонусу для ${userId}, endpoint: ${endpoint}`);
-            }
-
-            // Виконуємо запит до API з повторними спробами
-            const response = await fetchWithRetry(endpoint, 'GET');
+            // Виконуємо запит до API
+            const response = await fetchApi(endpoint, 'GET');
 
             // Оновлюємо стан
             state.bonusData = response.data;
             state.lastLoaded = now;
-            state.failureCount = 0;
             state.lastError = null;
 
             // Зберігаємо в localStorage
@@ -551,9 +395,8 @@ window.DailyBonus = (function() {
 
             return response.data;
         } catch (error) {
-            state.failureCount++;
             state.lastError = error.message;
-            console.error("DailyBonus: Помилка завантаження даних", error);
+            console.error("DailyBonus: Помилка завантаження даних:", error.message);
 
             // Показуємо повідомлення про помилку
             if (typeof window.showToast === 'function' && showLoader) {
@@ -580,14 +423,10 @@ window.DailyBonus = (function() {
      * Відображення інтерфейсу бонусів
      */
     function renderBonusUI() {
-        if (!state.bonusData) return;
+        if (!state.bonusData || !state.progressContainerElement) return;
 
-        // Знаходимо контейнер прогресу
-        const progressContainer = document.getElementById('daily-progress-container');
-        if (!progressContainer) return;
-
-        // Очищаємо контейнер
-        progressContainer.innerHTML = '';
+        // Очищаємо контейнер прогресу
+        state.progressContainerElement.innerHTML = '';
 
         // Визначаємо максимальну кількість днів (за замовчуванням 7)
         const MAX_DAYS = 7;
@@ -599,30 +438,33 @@ window.DailyBonus = (function() {
 
         // Створюємо елементи для кожного дня
         for (let day = 1; day <= MAX_DAYS; day++) {
-            const dayElement = document.createElement('div');
-            dayElement.className = 'daily-day';
+            // Створюємо маркер дня
+            const dayMarker = document.createElement('div');
+            dayMarker.className = 'day-marker';
 
-            // Визначаємо статус дня
+            // Створюємо коло дня
+            const dayCircle = document.createElement('div');
+            dayCircle.className = 'day-circle';
+
+            // Визначаємо стан дня
             if (claimedDays.includes(day)) {
-                dayElement.classList.add('claimed');
+                dayCircle.classList.add('completed');
             } else if (day === currentDay && canClaim) {
-                dayElement.classList.add('current');
+                dayCircle.classList.add('active');
             }
 
-            // Створюємо елемент номеру дня
-            const dayNumber = document.createElement('div');
-            dayNumber.className = 'day-number';
-            dayNumber.textContent = day;
-            dayElement.appendChild(dayNumber);
+            // Встановлюємо вміст
+            dayCircle.textContent = day;
+            dayMarker.appendChild(dayCircle);
 
-            // Створюємо елемент винагороди
-            const bonusAmount = document.createElement('div');
-            bonusAmount.className = 'bonus-amount';
-            bonusAmount.textContent = `${day * 10} WINIX`;
-            dayElement.appendChild(bonusAmount);
+            // Додаємо винагороду
+            const dayReward = document.createElement('div');
+            dayReward.className = 'day-reward';
+            dayReward.textContent = `${day * 10} WINIX`;
+            dayMarker.appendChild(dayReward);
 
-            // Додаємо елемент дня до контейнера
-            progressContainer.appendChild(dayElement);
+            // Додаємо маркер до контейнера
+            state.progressContainerElement.appendChild(dayMarker);
         }
 
         // Оновлюємо стан кнопки отримання бонусу
@@ -633,13 +475,12 @@ window.DailyBonus = (function() {
      * Оновлення стану кнопки отримання бонусу
      */
     function updateClaimButton() {
-        const claimButton = document.getElementById('claim-daily');
-        if (!claimButton) return;
+        if (!state.claimButtonElement) return;
 
         // Перевіряємо чи є дані про бонус
         if (!state.bonusData) {
-            claimButton.disabled = true;
-            claimButton.textContent = 'Завантаження...';
+            state.claimButtonElement.disabled = true;
+            state.claimButtonElement.textContent = 'Завантаження...';
             return;
         }
 
@@ -648,13 +489,13 @@ window.DailyBonus = (function() {
 
         // Оновлюємо стан кнопки
         if (canClaim) {
-            claimButton.disabled = false;
-            claimButton.textContent = 'Отримати бонус';
-            claimButton.classList.remove('disabled');
+            state.claimButtonElement.disabled = false;
+            state.claimButtonElement.textContent = 'Отримати бонус';
+            state.claimButtonElement.classList.remove('disabled');
         } else {
-            claimButton.disabled = true;
-            claimButton.textContent = 'Вже отримано';
-            claimButton.classList.add('disabled');
+            state.claimButtonElement.disabled = true;
+            state.claimButtonElement.textContent = 'Вже отримано';
+            state.claimButtonElement.classList.add('disabled');
         }
     }
 
@@ -665,32 +506,23 @@ window.DailyBonus = (function() {
     async function claimDailyBonus() {
         // Перевіряємо чи не виконується вже інша операція
         if (state.pendingOperation) {
-            console.warn("DailyBonus: Інша операція вже виконується");
+            if (typeof window.showToast === 'function') {
+                window.showToast("Запит вже обробляється, зачекайте...", "info");
+            }
             return Promise.reject(new Error("Операція вже виконується"));
         }
 
         // Отримуємо ID користувача
         const userId = getUserId();
         if (!userId) {
-            console.error("DailyBonus: ID користувача не знайдено");
-
-            // Показуємо повідомлення про помилку
             if (typeof window.showToast === 'function') {
                 window.showToast("Неможливо отримати бонус: ви не авторизовані", "error");
             }
-
             return Promise.reject(new Error("ID користувача не знайдено"));
         }
 
         // Встановлюємо прапорець очікування
         state.pendingOperation = true;
-
-        // Спочатку завантажуємо актуальні дані
-        try {
-            await loadBonusData(false);
-        } catch (e) {
-            console.warn("DailyBonus: Не вдалося завантажити актуальні дані перед отриманням бонусу", e);
-        }
 
         // Показуємо індикатор завантаження
         if (typeof window.showLoading === 'function') {
@@ -700,49 +532,34 @@ window.DailyBonus = (function() {
         try {
             // Перевіряємо можливість отримання бонусу
             if (state.bonusData && !state.bonusData.can_claim) {
-                console.warn("DailyBonus: Бонус вже отримано сьогодні");
-
-                // Показуємо повідомлення про неможливість отримання бонусу
                 if (typeof window.showToast === 'function') {
                     window.showToast("Ви вже отримали бонус сьогодні", "info");
                 }
-
                 return Promise.reject(new Error("Бонус вже отримано сьогодні"));
             }
 
             // Формуємо шлях API
             const endpoint = API_PATHS.CLAIM(userId);
 
-            // Діагностика
-            if (config.debug) {
-                console.log(`DailyBonus: Запит на отримання бонусу для ${userId}, endpoint: ${endpoint}`);
-            }
-
             // Дані для відправки
             const requestData = state.bonusData ? { day: state.bonusData.current_day } : null;
 
             // Виконуємо запит до API
-            const response = await fetchWithRetry(endpoint, 'POST', requestData);
-
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
+            const response = await fetchApi(endpoint, 'POST', requestData);
 
             // Оновлюємо стан
             if (response && response.status === 'success' && response.data) {
                 // Оновлюємо бонусні дані
-                const newBonusData = {
+                state.bonusData = {
                     ...state.bonusData,
                     can_claim: false,
                     current_day: response.data.next_day,
+                    claimed_days: [...(state.bonusData.claimed_days || []), state.bonusData.current_day],
                     streak_days: response.data.streak_days,
                     last_claimed_date: new Date().toISOString()
                 };
 
-                state.bonusData = newBonusData;
                 state.lastLoaded = Date.now();
-                state.lastError = null;
 
                 // Оновлюємо кеш
                 try {
@@ -763,40 +580,17 @@ window.DailyBonus = (function() {
                     window.showToast(`Щоденний бонус отримано: +${response.data.reward || 0} WINIX`, "success");
                 }
 
+                // Оновлюємо баланс користувача
+                if (response.data.reward) {
+                    updateUserBalance(response.data.reward);
+                }
+
                 // Показуємо анімацію винагороди
-                if (response.data.reward && typeof window.TaskRewards !== 'undefined' &&
-                    typeof window.TaskRewards.showRewardAnimation === 'function') {
-                    window.TaskRewards.showRewardAnimation({
+                if (response.data.reward && window.UI?.Animations?.showReward) {
+                    window.UI.Animations.showReward({
                         type: 'tokens',
                         amount: response.data.reward
                     });
-                }
-
-                // Оновлюємо баланс користувача
-                if (response.data.reward) {
-                    // Через TaskRewards
-                    if (window.TaskRewards && typeof window.TaskRewards.updateBalance === 'function') {
-                        window.TaskRewards.updateBalance({
-                            type: 'tokens',
-                            amount: response.data.reward
-                        });
-                    }
-                    // Через глобальну функцію
-                    else if (typeof window.updateUserBalance === 'function') {
-                        window.updateUserBalance(response.data.reward);
-                    }
-                    // Напряму оновлюємо DOM
-                    else {
-                        const tokenElement = document.getElementById('user-tokens');
-                        if (tokenElement) {
-                            const currentBalance = parseFloat(tokenElement.textContent) || 0;
-                            tokenElement.textContent = (currentBalance + response.data.reward).toFixed(2);
-                            tokenElement.classList.add('increasing');
-                            setTimeout(() => {
-                                tokenElement.classList.remove('increasing');
-                            }, 1500);
-                        }
-                    }
                 }
 
                 // Відправляємо подію про отримання бонусу
@@ -806,17 +600,10 @@ window.DailyBonus = (function() {
 
                 return response.data;
             } else {
-                // Неочікувана відповідь
                 throw new Error(response.message || "Неочікувана відповідь сервера");
             }
         } catch (error) {
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            console.error("DailyBonus: Помилка отримання щоденного бонусу", error);
-            state.lastError = error.message;
+            console.error("DailyBonus: Помилка отримання щоденного бонусу:", error.message);
 
             // Показуємо повідомлення про помилку
             if (typeof window.showToast === 'function') {
@@ -827,172 +614,75 @@ window.DailyBonus = (function() {
         } finally {
             // Знімаємо прапорець очікування
             state.pendingOperation = false;
+
+            // Приховуємо індикатор завантаження
+            if (typeof window.hideLoading === 'function') {
+                window.hideLoading();
+            }
         }
     }
 
     /**
-     * Отримання бонусу за стрік
-     * @returns {Promise<Object>} Результат отримання бонусу
+     * Оновлення балансу користувача
+     * @param {number} amount - Кількість токенів
      */
-    async function claimStreakBonus() {
-        // Перевіряємо чи не виконується вже інша операція
-        if (state.pendingOperation) {
-            console.warn("DailyBonus: Інша операція вже виконується");
-            return Promise.reject(new Error("Операція вже виконується"));
+    function updateUserBalance(amount) {
+        // Через TaskRewards
+        if (window.TaskRewards?.updateBalance) {
+            window.TaskRewards.updateBalance({
+                type: 'tokens',
+                amount: amount
+            });
+            return;
         }
 
-        // Отримуємо ID користувача
-        const userId = getUserId();
-        if (!userId) {
-            console.error("DailyBonus: ID користувача не знайдено");
-
-            // Показуємо повідомлення про помилку
-            if (typeof window.showToast === 'function') {
-                window.showToast("Неможливо отримати бонус: ви не авторизовані", "error");
-            }
-
-            return Promise.reject(new Error("ID користувача не знайдено"));
+        // Через глобальну функцію
+        if (typeof window.updateUserBalance === 'function') {
+            window.updateUserBalance(amount);
+            return;
         }
 
-        // Встановлюємо прапорець очікування
-        state.pendingOperation = true;
-
-        // Показуємо індикатор завантаження
-        if (typeof window.showLoading === 'function') {
-            window.showLoading();
+        // Напряму оновлюємо DOM
+        const tokenElement = document.getElementById('user-tokens');
+        if (tokenElement) {
+            const currentBalance = parseFloat(tokenElement.textContent) || 0;
+            tokenElement.textContent = (currentBalance + amount).toFixed(2);
+            tokenElement.classList.add('increasing');
+            setTimeout(() => {
+                tokenElement.classList.remove('increasing');
+            }, 1500);
         }
 
+        // Зберігаємо в localStorage
         try {
-            // Формуємо шлях API
-            const endpoint = API_PATHS.STREAK(userId);
-
-            // Діагностика
-            if (config.debug) {
-                console.log(`DailyBonus: Запит на отримання бонусу за стрік для ${userId}, endpoint: ${endpoint}`);
-            }
-
-            // Виконуємо запит до API
-            const response = await fetchWithRetry(endpoint, 'POST');
-
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            // Оновлюємо стан
-            if (response && response.status === 'success' && response.data) {
-                // Оновлюємо дані бонусу
-                state.lastLoaded = Date.now();
-                state.lastError = null;
-
-                // Оновлюємо UI після оновлення даних
-                loadBonusData(false);
-
-                // Показуємо повідомлення про успіх
-                if (typeof window.showToast === 'function') {
-                    window.showToast(`Бонус за стрік отримано: +${response.data.reward || 0} WINIX`, "success");
-                }
-
-                // Показуємо анімацію винагороди
-                if (response.data.reward && typeof window.TaskRewards !== 'undefined' &&
-                    typeof window.TaskRewards.showRewardAnimation === 'function') {
-                    window.TaskRewards.showRewardAnimation({
-                        type: 'tokens',
-                        amount: response.data.reward
-                    });
-                }
-
-                // Оновлюємо баланс користувача
-                if (response.data.reward) {
-                    // Через TaskRewards
-                    if (window.TaskRewards && typeof window.TaskRewards.updateBalance === 'function') {
-                        window.TaskRewards.updateBalance({
-                            type: 'tokens',
-                            amount: response.data.reward
-                        });
-                    }
-                    // Через глобальну функцію
-                    else if (typeof window.updateUserBalance === 'function') {
-                        window.updateUserBalance(response.data.reward);
-                    }
-                    // Напряму оновлюємо DOM
-                    else {
-                        const tokenElement = document.getElementById('user-tokens');
-                        if (tokenElement) {
-                            const currentBalance = parseFloat(tokenElement.textContent) || 0;
-                            tokenElement.textContent = (currentBalance + response.data.reward).toFixed(2);
-                            tokenElement.classList.add('increasing');
-                            setTimeout(() => {
-                                tokenElement.classList.remove('increasing');
-                            }, 1500);
-                        }
-                    }
-                }
-
-                // Відправляємо подію про отримання бонусу за стрік
-                document.dispatchEvent(new CustomEvent('streak-bonus-claimed', {
-                    detail: response.data
-                }));
-
-                return response.data;
-            } else {
-                // Неочікувана відповідь
-                throw new Error(response.message || "Неочікувана відповідь сервера");
-            }
-        } catch (error) {
-            // Приховуємо індикатор завантаження
-            if (typeof window.hideLoading === 'function') {
-                window.hideLoading();
-            }
-
-            console.error("DailyBonus: Помилка отримання бонусу за стрік", error);
-            state.lastError = error.message;
-
-            // Показуємо повідомлення про помилку
-            if (typeof window.showToast === 'function') {
-                const errorMsg = error.message || "Не вдалося отримати бонус за стрік. Спробуйте пізніше.";
-                window.showToast(errorMsg, "error");
-            }
-
-            throw error;
-        } finally {
-            // Знімаємо прапорець очікування
-            state.pendingOperation = false;
-        }
+            const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
+            localStorage.setItem('userTokens', (currentBalance + amount).toString());
+            localStorage.setItem('winix_balance', (currentBalance + amount).toString());
+        } catch (e) {}
     }
 
     /**
-     * Перевірка можливості отримати бонус за стрік
-     * @returns {boolean} True, якщо можна отримати бонус за стрік
+     * Отримання стану
+     * @returns {Object} Поточний стан модуля
      */
-    function canClaimStreakBonus() {
-        // Перевіряємо наявність даних
-        if (!state.bonusData) return false;
-
-        // Отримуємо кількість днів стріку
-        const streakDays = state.bonusData.streak_days || 0;
-
-        // Перевіряємо умову для бонусу (сім днів)
-        return streakDays >= 7 && streakDays % 7 === 0;
+    function getState() {
+        return {
+            isInitialized: state.isInitialized,
+            bonusData: state.bonusData,
+            lastLoaded: state.lastLoaded,
+            isLoading: state.isLoading,
+            pendingOperation: state.pendingOperation,
+            lastError: state.lastError
+        };
     }
 
     /**
-     * Оновлення конфігурації модуля
-     * @param {Object} newConfig - Нові налаштування
+     * Скидання кешу
      */
-    function updateConfig(newConfig) {
-        if (!newConfig || typeof newConfig !== 'object') return;
-
-        // Оновлюємо тільки допустимі параметри
-        const allowedParams = ['cacheDuration', 'debug', 'apiTimeout', 'maxRetryAttempts', 'retryDelay'];
-
-        for (const param of allowedParams) {
-            if (param in newConfig) {
-                config[param] = newConfig[param];
-            }
-        }
-
-        console.log("DailyBonus: Конфігурацію оновлено", config);
+    function resetCache() {
+        state.bonusData = null;
+        state.lastLoaded = 0;
+        localStorage.removeItem('daily_bonus_data');
     }
 
     // Публічний API
@@ -1000,23 +690,18 @@ window.DailyBonus = (function() {
         init,
         loadBonusData,
         claimDailyBonus,
-        claimStreakBonus,
-        canClaimStreakBonus,
         renderBonusUI,
-        updateConfig,
-        getState: () => ({ ...state }),
-        resetCache: () => {
-            state.bonusData = null;
-            state.lastLoaded = 0;
-            localStorage.removeItem('daily_bonus_data');
-            console.log("DailyBonus: Кеш скинуто");
-        }
+        getState,
+        resetCache
     };
 })();
 
 // Автоматична ініціалізація, якщо можливо
 document.addEventListener('DOMContentLoaded', function() {
-    if (window.DailyBonus && !window.DailyBonus.isInitialized) {
-        window.DailyBonus.init();
-    }
+    // Відкладена ініціалізація для уникнення блокування рендерингу сторінки
+    setTimeout(function() {
+        if (window.DailyBonus && !window.DailyBonus.isInitialized) {
+            window.DailyBonus.init();
+        }
+    }, 100);
 });
