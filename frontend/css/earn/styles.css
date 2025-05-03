@@ -462,3 +462,14 @@ html, body {
         width: 95%;
     }
 }
+
+.toast-message.success {
+    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    color: white;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.toast-message.success::after {
+    content: '✓';
+    color: white;
+}
