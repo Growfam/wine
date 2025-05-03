@@ -1,10 +1,18 @@
 /**
  * TaskRewards - модуль для управління винагородами
+ * Версія: 1.1.0
+ *
  * Відповідає за:
  * - Нарахування винагород за виконані завдання
  * - Анімацію отримання винагород
  * - Оновлення балансу користувача
  * - Запобігання дублюванню операцій з балансом
+ *
+ * ВИПРАВЛЕННЯ:
+ * - Прискорене оновлення балансу без затримок
+ * - Оптимізовані анімації для запобігання зависань
+ * - Покращена синхронізація між модулями
+ * - Виправлено баг з відображенням балансів
  */
 
 window.TaskRewards = (function() {
@@ -19,7 +27,7 @@ window.TaskRewards = (function() {
     const processedRewards = new Map();
 
     // Часовий проміжок для дедуплікації винагород (мс)
-    const DEDUPLICATION_WINDOW = 10000; // 10 секунд
+    const DEDUPLICATION_WINDOW = 5000; // 5 секунд
 
     // Блокування паралельних операцій
     const pendingOperations = new Set();
@@ -38,7 +46,27 @@ window.TaskRewards = (function() {
         defaultRewardAmount: 10,
         syncWithLocalStorage: true,
         preventDuplicateRewards: true,
-        throttleAnimations: true
+        throttleAnimations: true,
+        useDirectDomUpdates: true,     // Використовувати пряме оновлення DOM (швидше)
+        animationDebounce: 300,        // Мінімальний час між анімаціями (мс)
+        batchUpdates: true,            // Групувати оновлення балансу (ефективніше)
+        balanceUpdateInterval: 100,    // Інтервал групування оновлень (мс)
+        prioritizeVisualFeedback: true // Спочатку оновлювати DOM, потім інші операції
+    };
+
+    // Дані для пакетного оновлення балансу
+    const batchUpdateData = {
+        tokens: 0,
+        coins: 0,
+        lastUpdate: 0,
+        updateTimer: null
+    };
+
+    // Історія анімацій для запобігання зависань
+    const animationHistory = {
+        lastAnimation: 0,
+        queue: [],
+        isProcessing: false
     };
 
     /**
@@ -68,6 +96,9 @@ window.TaskRewards = (function() {
 
         // Запускаємо періодичне очищення
         setInterval(cleanupProcessedRewards, 3600000); // раз на годину
+
+        // Встановлюємо тестовий прапорець для перевірки ініціалізації
+        window._taskRewardsInitialized = true;
     }
 
     /**
@@ -97,6 +128,11 @@ window.TaskRewards = (function() {
         // Синхронізація між вкладками (для localStorage)
         if (config.syncWithLocalStorage) {
             window.addEventListener('storage', handleStorageChange);
+        }
+
+        // Додаємо обробку завершення завантаження сторінки
+        if (document.readyState !== 'complete') {
+            window.addEventListener('load', loadBalance);
         }
     }
 
@@ -143,7 +179,7 @@ window.TaskRewards = (function() {
      */
     function handleDailyBonusClaimed(event) {
         const data = event.detail;
-        const { reward, token_amount, eventId } = data;
+        const { reward, token_amount, eventId, new_balance, new_coins } = data;
 
         // Перевіряємо на дублювання обробки події
         if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
@@ -162,7 +198,8 @@ window.TaskRewards = (function() {
             // Нормалізуємо винагороду
             const normalizedReward = {
                 type: REWARD_TYPES.TOKENS,
-                amount: parseFloat(reward)
+                amount: parseFloat(reward),
+                newBalance: new_balance
             };
 
             // Обробляємо винагороду
@@ -178,7 +215,8 @@ window.TaskRewards = (function() {
             // Нормалізуємо винагороду
             const normalizedTokenReward = {
                 type: REWARD_TYPES.COINS,
-                amount: parseInt(token_amount)
+                amount: parseInt(token_amount),
+                newBalance: new_coins
             };
 
             // Обробляємо винагороду
@@ -214,7 +252,7 @@ window.TaskRewards = (function() {
      * @param {CustomEvent} event - Подія отримання бонусу за стрік
      */
     function handleStreakBonusClaimed(event) {
-        const { reward, eventId } = event.detail;
+        const { reward, eventId, new_balance } = event.detail;
 
         // Перевіряємо на дублювання обробки події
         if (config.preventDuplicateRewards && eventId && isRewardProcessed(eventId)) {
@@ -233,7 +271,8 @@ window.TaskRewards = (function() {
             // Нормалізуємо винагороду
             const normalizedReward = {
                 type: REWARD_TYPES.TOKENS,
-                amount: parseFloat(reward)
+                amount: parseFloat(reward),
+                newBalance: new_balance
             };
 
             // Обробляємо винагороду
@@ -293,6 +332,25 @@ window.TaskRewards = (function() {
             } catch (e) {
                 console.warn('TaskRewards: Помилка отримання балансу жетонів з localStorage:', e);
             }
+        }
+
+        // Синхронізуємо значення між DOM і localStorage
+        if (tokensLoaded && config.syncWithLocalStorage) {
+            try {
+                localStorage.setItem('userTokens', tokenBalance.toString());
+                localStorage.setItem('winix_balance', tokenBalance.toString());
+            } catch (e) {}
+        } else if (!tokensLoaded && tokenBalance > 0 && config.useDirectDomUpdates) {
+            updateTokenBalance(tokenBalance, false);
+        }
+
+        if (coinsLoaded && config.syncWithLocalStorage) {
+            try {
+                localStorage.setItem('userCoins', coinsBalance.toString());
+                localStorage.setItem('winix_coins', coinsBalance.toString());
+            } catch (e) {}
+        } else if (!coinsLoaded && coinsBalance > 0 && config.useDirectDomUpdates) {
+            updateCoinsBalance(coinsBalance, false);
         }
 
         if (config.debug) {
@@ -369,7 +427,7 @@ window.TaskRewards = (function() {
     function handleBalanceUpdate(event) {
         const { newBalance, type, source, operationId } = event.detail;
 
-        // Ігноруємо власні події
+        // Ігноруємо власні події, щоб уникнути циклічних оновлень
         if (source === 'task_rewards') {
             return;
         }
@@ -384,17 +442,23 @@ window.TaskRewards = (function() {
 
         // Оновлюємо локальний баланс, тільки якщо тип чітко вказаний
         if (type === REWARD_TYPES.TOKENS) {
-            tokenBalance = newBalance;
-            if (config.debug) {
-                console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
+            // Оновлюємо тільки якщо значення змінилося
+            if (newBalance !== undefined && newBalance !== tokenBalance) {
+                tokenBalance = newBalance;
+                if (config.debug) {
+                    console.log(`TaskRewards: Оновлено баланс токенів із зовнішньої події: ${tokenBalance}`);
+                }
+                updateTokenBalance(tokenBalance, false);
             }
-            updateTokenBalance(tokenBalance, false);
         } else if (type === REWARD_TYPES.COINS) {
-            coinsBalance = newBalance;
-            if (config.debug) {
-                console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
+            // Оновлюємо тільки якщо значення змінилося
+            if (newBalance !== undefined && newBalance !== coinsBalance) {
+                coinsBalance = newBalance;
+                if (config.debug) {
+                    console.log(`TaskRewards: Оновлено баланс жетонів із зовнішньої події: ${coinsBalance}`);
+                }
+                updateCoinsBalance(coinsBalance, false);
             }
-            updateCoinsBalance(coinsBalance, false);
         }
 
         // Зберігаємо ідентифікатор обробленої операції
@@ -478,10 +542,18 @@ window.TaskRewards = (function() {
         // Обмежуємо суму в допустимих межах
         rewardAmount = Math.max(config.minRewardAmount, Math.min(config.maxRewardAmount, rewardAmount));
 
-        return {
+        // Готуємо результат з усіма даними
+        const result = {
             type: rewardType,
             amount: rewardAmount
         };
+
+        // Додаємо новий загальний баланс, якщо він є
+        if ('newBalance' in reward && reward.newBalance !== null && !isNaN(reward.newBalance)) {
+            result.newBalance = parseFloat(reward.newBalance);
+        }
+
+        return result;
     }
 
     /**
@@ -497,8 +569,8 @@ window.TaskRewards = (function() {
                 console.log(`TaskRewards: Інша операція для ${taskId} вже виконується, ставимо в чергу`);
             }
 
-            // Відкладаємо обробку
-            setTimeout(() => processReward(taskId, reward, operationId), 500);
+            // Відкладаємо обробку з короткою затримкою
+            setTimeout(() => processReward(taskId, reward, operationId), 100);
             return;
         }
 
@@ -523,11 +595,11 @@ window.TaskRewards = (function() {
             // Додаємо винагороду до історії
             addToRewardHistory(taskId, normalizedReward, uniqueId);
 
-            // Оновлюємо баланс
+            // Оновлюємо баланс негайно
             updateBalance(normalizedReward, uniqueId);
 
-            // Показуємо анімацію винагороди
-            showRewardAnimation(normalizedReward);
+            // Показуємо анімацію винагороди з дебаунсингом
+            scheduleRewardAnimation(normalizedReward);
 
             // Зберігаємо ідентифікатор обробленої винагороди
             markRewardAsProcessed(uniqueId);
@@ -580,6 +652,101 @@ window.TaskRewards = (function() {
     }
 
     /**
+     * Відправка події оновлення балансу для синхронізації
+     * @param {string} type - Тип балансу
+     * @param {number} oldBalance - Старий баланс
+     * @param {number} newBalance - Новий баланс
+     * @param {number} change - Зміна балансу
+     * @param {string} uniqueId - Унікальний ідентифікатор операції
+     */
+    function dispatchBalanceUpdateEvent(type, oldBalance, newBalance, change, uniqueId) {
+        // Відправляємо подію оновлення балансу для синхронізації з іншими модулями
+        document.dispatchEvent(new CustomEvent('balance-updated', {
+            detail: {
+                oldBalance: oldBalance,
+                newBalance: newBalance,
+                type: type,
+                source: 'task_rewards',
+                operationId: uniqueId,
+                change: change
+            }
+        }));
+    }
+
+    /**
+     * Планування пакетного оновлення балансу
+     */
+    function scheduleBatchUpdate() {
+        // Отримуємо поточний час
+        const now = Date.now();
+
+        // Якщо вже заплановано оновлення, просто вийдемо
+        if (batchUpdateData.updateTimer !== null) {
+            return;
+        }
+
+        // Обчислюємо час до наступного оновлення
+        const timeToUpdate = Math.max(0, config.balanceUpdateInterval - (now - batchUpdateData.lastUpdate));
+
+        // Плануємо оновлення
+        batchUpdateData.updateTimer = setTimeout(() => {
+            // Оновлюємо баланси
+            if (batchUpdateData.tokens !== 0) {
+                const oldBalance = tokenBalance;
+                tokenBalance += batchUpdateData.tokens;
+                updateTokenBalance(tokenBalance, true);
+
+                // Зберігаємо баланс в localStorage
+                try {
+                    localStorage.setItem('userTokens', tokenBalance.toString());
+                    localStorage.setItem('winix_balance', tokenBalance.toString());
+                } catch (e) {}
+
+                // Відправляємо подію
+                dispatchBalanceUpdateEvent(
+                    REWARD_TYPES.TOKENS,
+                    oldBalance,
+                    tokenBalance,
+                    batchUpdateData.tokens,
+                    `batch_update_tokens_${now}`
+                );
+
+                // Скидаємо накопичену зміну
+                batchUpdateData.tokens = 0;
+            }
+
+            if (batchUpdateData.coins !== 0) {
+                const oldBalance = coinsBalance;
+                coinsBalance += batchUpdateData.coins;
+                updateCoinsBalance(coinsBalance, true);
+
+                // Зберігаємо баланс в localStorage
+                try {
+                    localStorage.setItem('userCoins', coinsBalance.toString());
+                    localStorage.setItem('winix_coins', coinsBalance.toString());
+                } catch (e) {}
+
+                // Відправляємо подію
+                dispatchBalanceUpdateEvent(
+                    REWARD_TYPES.COINS,
+                    oldBalance,
+                    coinsBalance,
+                    batchUpdateData.coins,
+                    `batch_update_coins_${now}`
+                );
+
+                // Скидаємо накопичену зміну
+                batchUpdateData.coins = 0;
+            }
+
+            // Оновлюємо час останнього оновлення
+            batchUpdateData.lastUpdate = now;
+            batchUpdateData.updateTimer = null;
+
+        }, timeToUpdate);
+    }
+
+    /**
      * Оновлення балансу
      * @param {Object} reward - Дані винагороди
      * @param {string} [operationId] - Унікальний ідентифікатор операції
@@ -610,67 +777,138 @@ window.TaskRewards = (function() {
             return;
         }
 
-        // Визначаємо, який баланс оновлювати
-        if (rewardType === REWARD_TYPES.TOKENS) {
-            // Оновлюємо токени
-            const oldBalance = tokenBalance;
-            tokenBalance += rewardAmount;
-            updateTokenBalance(tokenBalance, true);
+        // Якщо використовуємо батчинг для оновлень, додаємо до накопиченої суми
+        if (config.batchUpdates) {
+            if (rewardType === REWARD_TYPES.TOKENS) {
+                // Якщо переданий конкретний новий баланс, використовуємо його напряму
+                if ('newBalance' in normalizedReward && normalizedReward.newBalance !== null) {
+                    const oldBalance = tokenBalance;
+                    tokenBalance = normalizedReward.newBalance;
 
-            // Зберігаємо баланс в localStorage
-            try {
-                localStorage.setItem('userTokens', tokenBalance.toString());
-                localStorage.setItem('winix_balance', tokenBalance.toString());
-            } catch (e) {
-                console.warn('TaskRewards: Помилка збереження балансу токенів в localStorage:', e);
-            }
+                    // Оновлюємо інтерфейс
+                    updateTokenBalance(tokenBalance, true);
 
-            if (config.debug) {
-                console.log(`TaskRewards: Оновлено баланс токенів: +${rewardAmount}, новий баланс: ${tokenBalance}`);
-            }
+                    // Зберігаємо в localStorage
+                    try {
+                        localStorage.setItem('userTokens', tokenBalance.toString());
+                        localStorage.setItem('winix_balance', tokenBalance.toString());
+                    } catch (e) {}
 
-            // Відправляємо подію оновлення балансу
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    oldBalance: oldBalance,
-                    newBalance: tokenBalance,
-                    reward: normalizedReward,
-                    type: rewardType,
-                    source: 'task_rewards',
-                    operationId: uniqueId,
-                    change: rewardAmount
+                    // Відправляємо подію оновлення балансу для синхронізації
+                    dispatchBalanceUpdateEvent(
+                        rewardType,
+                        oldBalance,
+                        tokenBalance,
+                        tokenBalance - oldBalance,
+                        uniqueId
+                    );
+                } else {
+                    // В іншому випадку накопичуємо зміни
+                    batchUpdateData.tokens += rewardAmount;
+
+                    // ВАЖЛИВЕ РІШЕННЯ: Оновлюємо DOM негайно для візуального зворотного зв'язку
+                    if (config.prioritizeVisualFeedback) {
+                        const newBalance = tokenBalance + batchUpdateData.tokens;
+                        updateTokenBalance(newBalance, true);
+                    }
+
+                    // Плануємо оновлення
+                    scheduleBatchUpdate();
                 }
-            }));
+            } else if (rewardType === REWARD_TYPES.COINS) {
+                // Якщо переданий конкретний новий баланс, використовуємо його напряму
+                if ('newBalance' in normalizedReward && normalizedReward.newBalance !== null) {
+                    const oldBalance = coinsBalance;
+                    coinsBalance = normalizedReward.newBalance;
+
+                    // Оновлюємо інтерфейс
+                    updateCoinsBalance(coinsBalance, true);
+
+                    // Зберігаємо в localStorage
+                    try {
+                        localStorage.setItem('userCoins', coinsBalance.toString());
+                        localStorage.setItem('winix_coins', coinsBalance.toString());
+                    } catch (e) {}
+
+                    // Відправляємо подію оновлення балансу для синхронізації
+                    dispatchBalanceUpdateEvent(
+                        rewardType,
+                        oldBalance,
+                        coinsBalance,
+                        coinsBalance - oldBalance,
+                        uniqueId
+                    );
+                } else {
+                    // В іншому випадку накопичуємо зміни
+                    batchUpdateData.coins += rewardAmount;
+
+                    // ВАЖЛИВЕ РІШЕННЯ: Оновлюємо DOM негайно для візуального зворотного зв'язку
+                    if (config.prioritizeVisualFeedback) {
+                        const newBalance = coinsBalance + batchUpdateData.coins;
+                        updateCoinsBalance(newBalance, true);
+                    }
+
+                    // Плануємо оновлення
+                    scheduleBatchUpdate();
+                }
+            }
         } else {
-            // Оновлюємо жетони
-            const oldBalance = coinsBalance;
-            coinsBalance += rewardAmount;
-            updateCoinsBalance(coinsBalance, true);
+            // Не використовуємо батчинг, оновлюємо балансу відразу
+            if (rewardType === REWARD_TYPES.TOKENS) {
+                // Якщо переданий конкретний новий баланс, використовуємо його напряму
+                const oldBalance = tokenBalance;
 
-            // Зберігаємо баланс в localStorage
-            try {
-                localStorage.setItem('userCoins', coinsBalance.toString());
-                localStorage.setItem('winix_coins', coinsBalance.toString());
-            } catch (e) {
-                console.warn('TaskRewards: Помилка збереження балансу жетонів в localStorage:', e);
-            }
-
-            if (config.debug) {
-                console.log(`TaskRewards: Оновлено баланс жетонів: +${rewardAmount}, новий баланс: ${coinsBalance}`);
-            }
-
-            // Відправляємо подію оновлення балансу
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    oldBalance: oldBalance,
-                    newBalance: coinsBalance,
-                    reward: normalizedReward,
-                    type: rewardType,
-                    source: 'task_rewards',
-                    operationId: uniqueId,
-                    change: rewardAmount
+                if ('newBalance' in normalizedReward && normalizedReward.newBalance !== null) {
+                    tokenBalance = normalizedReward.newBalance;
+                } else {
+                    tokenBalance += rewardAmount;
                 }
-            }));
+
+                // Оновлюємо інтерфейс
+                updateTokenBalance(tokenBalance, true);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userTokens', tokenBalance.toString());
+                    localStorage.setItem('winix_balance', tokenBalance.toString());
+                } catch (e) {}
+
+                // Відправляємо подію оновлення балансу для синхронізації
+                dispatchBalanceUpdateEvent(
+                    rewardType,
+                    oldBalance,
+                    tokenBalance,
+                    tokenBalance - oldBalance,
+                    uniqueId
+                );
+            } else if (rewardType === REWARD_TYPES.COINS) {
+                // Якщо переданий конкретний новий баланс, використовуємо його напряму
+                const oldBalance = coinsBalance;
+
+                if ('newBalance' in normalizedReward && normalizedReward.newBalance !== null) {
+                    coinsBalance = normalizedReward.newBalance;
+                } else {
+                    coinsBalance += rewardAmount;
+                }
+
+                // Оновлюємо інтерфейс
+                updateCoinsBalance(coinsBalance, true);
+
+                // Зберігаємо в localStorage
+                try {
+                    localStorage.setItem('userCoins', coinsBalance.toString());
+                    localStorage.setItem('winix_coins', coinsBalance.toString());
+                } catch (e) {}
+
+                // Відправляємо подію оновлення балансу для синхронізації
+                dispatchBalanceUpdateEvent(
+                    rewardType,
+                    oldBalance,
+                    coinsBalance,
+                    coinsBalance - oldBalance,
+                    uniqueId
+                );
+            }
         }
 
         // Зберігаємо ідентифікатор обробленої операції
@@ -689,23 +927,36 @@ window.TaskRewards = (function() {
         // Отримуємо поточне значення
         const oldBalance = parseFloat(tokenElement.textContent) || 0;
 
-        // Встановлюємо нове значення
+        // Якщо значення не змінилося, не оновлюємо DOM щоб уникнути зайвих перемальовувань
+        if (Math.abs(oldBalance - newBalance) < 0.01) {
+            return;
+        }
+
+        // Встановлюємо нове значення з обмеженою точністю для економії пам'яті
         tokenElement.textContent = parseFloat(newBalance).toFixed(2);
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
             if (newBalance > oldBalance) {
+                // Видаляємо попередні класи анімації перед додаванням нових
                 tokenElement.classList.remove('decreasing');
-                tokenElement.classList.add('increasing');
+                // Використовуємо requestAnimationFrame для сумісності з GPU
+                requestAnimationFrame(() => {
+                    tokenElement.classList.add('increasing');
+                    // Видаляємо клас анімації через 1.5 сек
+                    setTimeout(() => {
+                        tokenElement.classList.remove('increasing');
+                    }, 1500);
+                });
             } else if (newBalance < oldBalance) {
                 tokenElement.classList.remove('increasing');
-                tokenElement.classList.add('decreasing');
+                requestAnimationFrame(() => {
+                    tokenElement.classList.add('decreasing');
+                    setTimeout(() => {
+                        tokenElement.classList.remove('decreasing');
+                    }, 1500);
+                });
             }
-
-            // Видаляємо класи анімації через 1.5 сек
-            setTimeout(() => {
-                tokenElement.classList.remove('increasing', 'decreasing');
-            }, 1500);
         }
     }
 
@@ -721,58 +972,105 @@ window.TaskRewards = (function() {
         // Отримуємо поточне значення
         const oldBalance = parseInt(coinsElement.textContent) || 0;
 
+        // Якщо значення не змінилося, не оновлюємо DOM щоб уникнути зайвих перемальовувань
+        if (oldBalance === newBalance) {
+            return;
+        }
+
         // Встановлюємо нове значення
         coinsElement.textContent = parseInt(newBalance).toString();
 
         // Додаємо анімацію, якщо потрібно
         if (animate) {
             if (newBalance > oldBalance) {
+                // Видаляємо попередні класи анімації перед додаванням нових
                 coinsElement.classList.remove('decreasing');
-                coinsElement.classList.add('increasing');
+                requestAnimationFrame(() => {
+                    coinsElement.classList.add('increasing');
+                    // Видаляємо клас анімації через 1.5 сек
+                    setTimeout(() => {
+                        coinsElement.classList.remove('increasing');
+                    }, 1500);
+                });
             } else if (newBalance < oldBalance) {
                 coinsElement.classList.remove('increasing');
-                coinsElement.classList.add('decreasing');
+                requestAnimationFrame(() => {
+                    coinsElement.classList.add('decreasing');
+                    setTimeout(() => {
+                        coinsElement.classList.remove('decreasing');
+                    }, 1500);
+                });
             }
-
-            // Видаляємо класи анімації через 1.5 сек
-            setTimeout(() => {
-                coinsElement.classList.remove('increasing', 'decreasing');
-            }, 1500);
         }
     }
 
-    // Останній час відображення анімації для уникнення спаму
-    let lastAnimationTime = 0;
-    let pendingAnimations = [];
+    /**
+     * Планування показу анімації винагороди з дебаунсингом
+     * @param {Object} reward - Нормалізована винагорода
+     */
+    function scheduleRewardAnimation(reward) {
+        // Додаємо анімацію в чергу
+        animationHistory.queue.push(reward);
+
+        // Якщо зараз не обробляється черга, запускаємо процес
+        if (!animationHistory.isProcessing) {
+            processAnimationQueue();
+        }
+    }
+
+    /**
+     * Обробка черги анімацій з дебаунсингом
+     */
+    function processAnimationQueue() {
+        // Встановлюємо прапорець обробки
+        animationHistory.isProcessing = true;
+
+        // Перевіряємо наявність анімацій в черзі
+        if (animationHistory.queue.length === 0) {
+            animationHistory.isProcessing = false;
+            return;
+        }
+
+        // Отримуємо поточний час
+        const now = Date.now();
+
+        // Перевіряємо, чи минув мінімальний інтервал між анімаціями
+        if (now - animationHistory.lastAnimation < config.animationDebounce) {
+            // Якщо ні, плануємо обробку через необхідний інтервал
+            const waitTime = config.animationDebounce - (now - animationHistory.lastAnimation);
+            setTimeout(processAnimationQueue, waitTime);
+            return;
+        }
+
+        // Отримуємо наступну анімацію з черги
+        const nextReward = animationHistory.queue.shift();
+
+        // Показуємо анімацію
+        if (nextReward) {
+            showRewardAnimation(nextReward);
+
+            // Оновлюємо час останньої анімації
+            animationHistory.lastAnimation = now;
+
+            // Плануємо обробку наступної анімації
+            setTimeout(processAnimationQueue, config.animationDebounce);
+        } else {
+            // Якщо черга порожня, скидаємо прапорець обробки
+            animationHistory.isProcessing = false;
+        }
+    }
 
     /**
      * Показати анімацію отримання винагороди
      * @param {Object} reward - Дані винагороди
      */
     function showRewardAnimation(reward) {
-        // Нормалізуємо винагороду
-        const normalizedReward = normalizeReward(reward);
+        // Перевіряємо наявість даних винагороди
+        if (!reward) return;
 
         // Визначаємо тип винагороди
-        const rewardType = normalizedReward.type;
-        const rewardAmount = normalizedReward.amount;
-
-        // Перевіряємо, чи потрібно затримати анімацію
-        const now = Date.now();
-        if (config.throttleAnimations && now - lastAnimationTime < 1000) {
-            // Додаємо анімацію в чергу
-            pendingAnimations.push(normalizedReward);
-
-            // Якщо черга ще не опрацьовується, запускаємо процес
-            if (pendingAnimations.length === 1) {
-                setTimeout(processPendingAnimations, 1000 - (now - lastAnimationTime));
-            }
-
-            return;
-        }
-
-        // Оновлюємо час останньої анімації
-        lastAnimationTime = now;
+        const rewardType = reward.type;
+        const rewardAmount = reward.amount;
 
         // Якщо є модуль анімацій, використовуємо його
         if (window.UI && window.UI.Animations && typeof window.UI.Animations.showReward === 'function') {
@@ -796,6 +1094,14 @@ window.TaskRewards = (function() {
         if (!animationContainer) {
             animationContainer = document.createElement('div');
             animationContainer.className = 'rewards-animation-container';
+            animationContainer.style.position = 'fixed';
+            animationContainer.style.top = '0';
+            animationContainer.style.left = '0';
+            animationContainer.style.width = '100%';
+            animationContainer.style.height = '100%';
+            animationContainer.style.pointerEvents = 'none';
+            animationContainer.style.zIndex = '9999';
+            animationContainer.style.overflow = 'hidden';
             document.body.appendChild(animationContainer);
         }
 
@@ -803,52 +1109,58 @@ window.TaskRewards = (function() {
         const animationElement = document.createElement('div');
         animationElement.className = 'reward-animation';
         animationElement.textContent = `+${rewardAmount} ${displayType}`;
+        animationElement.style.position = 'fixed';
+        animationElement.style.top = '50%';
+        animationElement.style.left = '50%';
+        animationElement.style.transform = 'translate(-50%, -50%) scale(0)';
+        animationElement.style.padding = '1rem 1.5rem';
+        animationElement.style.borderRadius = '1rem';
+        animationElement.style.fontWeight = 'bold';
+        animationElement.style.fontSize = '1.5rem';
+        animationElement.style.zIndex = '1000';
+        animationElement.style.opacity = '0';
+        animationElement.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        animationElement.style.willChange = 'transform, opacity';
 
         // Додаємо класи залежно від типу винагороди
         if (rewardType === REWARD_TYPES.TOKENS) {
             animationElement.classList.add('tokens-reward');
+            animationElement.style.background = 'linear-gradient(135deg, #4eb5f7, #00C9A7)';
+            animationElement.style.color = 'white';
+            animationElement.style.boxShadow = '0 0 1.25rem rgba(0, 201, 167, 0.5)';
         } else {
             animationElement.classList.add('coins-reward');
+            animationElement.style.background = 'linear-gradient(135deg, #FFD700, #FFA000)';
+            animationElement.style.color = '#000';
+            animationElement.style.boxShadow = '0 0 1.25rem rgba(255, 215, 0, 0.5)';
         }
 
         // Додаємо елемент до контейнера
         animationContainer.appendChild(animationElement);
 
         // Запускаємо анімацію
-        setTimeout(() => {
-            animationElement.classList.add('show');
-
-            // Видаляємо елемент через 2 секунди
+        requestAnimationFrame(() => {
+            // Показуємо анімацію
             setTimeout(() => {
-                animationElement.classList.remove('show');
+                animationElement.style.transform = 'translate(-50%, -50%) scale(1)';
+                animationElement.style.opacity = '1';
+
+                // Видаляємо елемент через 2 секунди
                 setTimeout(() => {
-                    animationElement.remove();
+                    animationElement.style.transform = 'translate(-50%, -50%) scale(0.8)';
+                    animationElement.style.opacity = '0';
 
-                    // Видаляємо контейнер, якщо він порожній
-                    if (animationContainer.children.length === 0) {
-                        animationContainer.remove();
-                    }
-                }, 300);
-            }, 2000);
-        }, 100);
-    }
+                    setTimeout(() => {
+                        animationElement.remove();
 
-    /**
-     * Обробка черги анімацій
-     */
-    function processPendingAnimations() {
-        if (pendingAnimations.length === 0) return;
-
-        // Отримуємо наступну анімацію
-        const nextAnimation = pendingAnimations.shift();
-
-        // Показуємо анімацію
-        showRewardAnimation(nextAnimation);
-
-        // Плануємо обробку наступної анімації
-        if (pendingAnimations.length > 0) {
-            setTimeout(processPendingAnimations, 1000);
-        }
+                        // Видаляємо контейнер, якщо він порожній
+                        if (animationContainer.children.length === 0) {
+                            animationContainer.remove();
+                        }
+                    }, 300);
+                }, 2000);
+            }, 10);
+        });
     }
 
     /**
@@ -895,9 +1207,15 @@ window.TaskRewards = (function() {
                 return false;
             }
 
+            // Створюємо унікальний ID для операції
+            const operationId = `set_balance_${type}_${Date.now()}`;
+
             // Оновлюємо баланс
             if (type === REWARD_TYPES.TOKENS) {
+                const oldBalance = tokenBalance;
                 tokenBalance = newValue;
+
+                // Оновлюємо відображення
                 updateTokenBalance(tokenBalance, animate);
 
                 // Зберігаємо в localStorage
@@ -905,8 +1223,29 @@ window.TaskRewards = (function() {
                     localStorage.setItem('userTokens', tokenBalance.toString());
                     localStorage.setItem('winix_balance', tokenBalance.toString());
                 } catch (e) {}
+
+                // Скидаємо накопичені зміни батчингу
+                if (config.batchUpdates) {
+                    batchUpdateData.tokens = 0;
+                    if (batchUpdateData.updateTimer !== null) {
+                        clearTimeout(batchUpdateData.updateTimer);
+                        batchUpdateData.updateTimer = null;
+                    }
+                }
+
+                // Відправляємо подію
+                dispatchBalanceUpdateEvent(
+                    type,
+                    oldBalance,
+                    tokenBalance,
+                    tokenBalance - oldBalance,
+                    operationId
+                );
             } else {
+                const oldBalance = coinsBalance;
                 coinsBalance = newValue;
+
+                // Оновлюємо відображення
                 updateCoinsBalance(coinsBalance, animate);
 
                 // Зберігаємо в localStorage
@@ -914,17 +1253,28 @@ window.TaskRewards = (function() {
                     localStorage.setItem('userCoins', coinsBalance.toString());
                     localStorage.setItem('winix_coins', coinsBalance.toString());
                 } catch (e) {}
+
+                // Скидаємо накопичені зміни батчингу
+                if (config.batchUpdates) {
+                    batchUpdateData.coins = 0;
+                    if (batchUpdateData.updateTimer !== null) {
+                        clearTimeout(batchUpdateData.updateTimer);
+                        batchUpdateData.updateTimer = null;
+                    }
+                }
+
+                // Відправляємо подію
+                dispatchBalanceUpdateEvent(
+                    type,
+                    oldBalance,
+                    coinsBalance,
+                    coinsBalance - oldBalance,
+                    operationId
+                );
             }
 
-            // Відправляємо подію
-            document.dispatchEvent(new CustomEvent('balance-updated', {
-                detail: {
-                    newBalance: type === REWARD_TYPES.TOKENS ? tokenBalance : coinsBalance,
-                    type: type,
-                    source: 'task_rewards_set',
-                    operationId: `set_balance_${Date.now()}`
-                }
-            }));
+            // Зберігаємо ID операції в реєстрі
+            markRewardAsProcessed(operationId);
 
             return true;
         } catch (error) {
@@ -996,7 +1346,16 @@ window.TaskRewards = (function() {
         pendingOperations.clear();
 
         // Очищаємо чергу анімацій
-        pendingAnimations.length = 0;
+        animationHistory.queue.length = 0;
+        animationHistory.isProcessing = false;
+
+        // Скидаємо дані для батчингу
+        batchUpdateData.tokens = 0;
+        batchUpdateData.coins = 0;
+        if (batchUpdateData.updateTimer !== null) {
+            clearTimeout(batchUpdateData.updateTimer);
+            batchUpdateData.updateTimer = null;
+        }
 
         // Оновлюємо баланси з DOM
         loadBalance();

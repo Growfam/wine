@@ -1,16 +1,22 @@
 /**
  * WINIX - Щоденний бонус (30-денний цикл)
- * Версія: 2.0.1
+ * Версія: 2.0.2
  *
  * Модуль для управління щоденними бонусами в системі WINIX
  * Забезпечує 30-денний цикл бонусів з прогресивною системою винагород та жетонами
+ *
+ * ВИПРАВЛЕННЯ:
+ * - Прискорене оновлення балансу без затримок
+ * - Оптимізовані анімації для запобігання зависань
+ * - Покращена сумісність з іншими модулями
+ * - Виправлено стилізацію інформаційної кнопки
  */
 
 window.DailyBonus = (function() {
     // Конфігурація модуля
     const config = {
         cacheDuration: 300000,      // 5 хвилин кеш
-        debug: true,                // Режим відлагодження (увімкнено для діагностики)
+        debug: false,               // Режим відлагодження
         apiTimeout: 10000,          // 10 секунд таймаут для запитів
         maxRetries: 1,              // Максимальна кількість повторних спроб
         retryDelay: 1000,           // Затримка між повторними спробами (мс)
@@ -23,7 +29,10 @@ window.DailyBonus = (function() {
         ],
         tokenDays: {                // Дні з жетонами (номер дня: кількість)
             3: 1, 7: 1, 10: 1, 14: 2, 17: 1, 21: 3, 24: 2, 28: 3, 30: 3
-        }
+        },
+        useDirectDomUpdates: true,  // Використовувати прямі оновлення DOM для балансу
+        animationDebounce: 100,     // Мінімальний інтервал між анімаціями (мс)
+        cleanupModals: true         // Очищати модальні вікна при закритті для звільнення пам'яті
     };
 
     // Стан модуля
@@ -39,7 +48,14 @@ window.DailyBonus = (function() {
         claimButtonElement: null,       // Кешований DOM-елемент кнопки
         progressContainerElement: null, // Кешований DOM-елемент для прогресу
         infoButtonElement: null,        // Кнопка інформації
-        infoModalElement: null          // Модальне вікно з інформацією
+        infoModalElement: null,         // Модальне вікно з інформацією
+        lastAnimationTime: 0,           // Час останньої анімації для дебаунсингу
+        isModalVisible: false,          // Прапорець видимості модального вікна
+        lastBalanceUpdate: {            // Останнє оновлення балансу
+            tokens: null,
+            coins: null,
+            timestamp: 0
+        }
     };
 
     // Шляхи API
@@ -215,6 +231,13 @@ window.DailyBonus = (function() {
             console.log("DailyBonus: Додано обробник кнопки отримання бонусу");
         }
 
+        // Додаємо обробник для закриття модального вікна при натисканні Escape
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && state.isModalVisible) {
+                hideInfoModal();
+            }
+        });
+
         // Оновлюємо стан ініціалізації
         state.isInitialized = true;
         console.log("DailyBonus: Модуль ініціалізовано");
@@ -237,10 +260,6 @@ window.DailyBonus = (function() {
                 // Створюємо обгортку для заголовку та кнопки
                 const titleWrapper = document.createElement('div');
                 titleWrapper.className = 'title-wrapper';
-                titleWrapper.style.display = 'flex';
-                titleWrapper.style.alignItems = 'center';
-                titleWrapper.style.justifyContent = 'center';
-                titleWrapper.style.gap = '10px';
 
                 // Отримуємо поточний текст заголовку
                 const titleText = titleElement.textContent || 'Щоденний бонус';
@@ -255,32 +274,7 @@ window.DailyBonus = (function() {
                 infoButton.id = 'daily-bonus-info';
                 infoButton.className = 'info-button';
                 infoButton.textContent = 'і';
-                infoButton.style.width = '24px';
-                infoButton.style.height = '24px';
-                infoButton.style.borderRadius = '50%';  // Забезпечує круглу форму
-                infoButton.style.border = '1px solid rgba(78, 181, 247, 0.3)';
-                infoButton.style.background = 'rgba(78, 181, 247, 0.1)';
-                infoButton.style.color = 'white';
-                infoButton.style.cursor = 'pointer';
-                infoButton.style.position = 'relative';  // Для коректного позиціонування
-                infoButton.style.top = '-3px';  // Зміщуємо трохи вгору
-                infoButton.style.display = 'inline-flex';  // Важливо для центрування тексту
-                infoButton.style.alignItems = 'center';
-                infoButton.style.justifyContent = 'center';
-                infoButton.style.fontSize = '14px';
-                infoButton.style.fontWeight = 'bold';
-                infoButton.style.transition = 'all 0.3s ease';
-
-                // Додаємо ефект при наведенні
-                infoButton.onmouseover = function() {
-                    this.style.background = 'rgba(78, 181, 247, 0.3)';
-                    this.style.transform = 'scale(1.1)';
-                };
-
-                infoButton.onmouseout = function() {
-                    this.style.background = 'rgba(78, 181, 247, 0.1)';
-                    this.style.transform = 'scale(1)';
-                };
+                infoButton.setAttribute('aria-label', 'Інформація про щоденний бонус');
 
                 // Додаємо елементи до обгортки
                 titleWrapper.appendChild(newTitle);
@@ -302,56 +296,27 @@ window.DailyBonus = (function() {
                 const modal = document.createElement('div');
                 modal.id = 'daily-bonus-modal';
                 modal.className = 'daily-bonus-modal';
-                modal.style.display = 'none';
-                modal.style.position = 'fixed';
-                modal.style.zIndex = '1000';
-                modal.style.left = '0';
-                modal.style.top = '0';
-                modal.style.width = '100%';
-                modal.style.height = '100%';
-                modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-                modal.style.animation = 'fadeIn 0.3s ease';
+                modal.setAttribute('role', 'dialog');
+                modal.setAttribute('aria-labelledby', 'modal-title');
+                modal.setAttribute('aria-modal', 'true');
 
                 // Створюємо контент модального вікна
                 const modalContent = document.createElement('div');
                 modalContent.className = 'daily-bonus-modal-content';
-                modalContent.style.position = 'relative';
-                modalContent.style.backgroundColor = 'rgba(30, 39, 70, 0.95)';
-                modalContent.style.margin = '10% auto';
-                modalContent.style.padding = '20px';
-                modalContent.style.borderRadius = '15px';
-                modalContent.style.width = '90%';
-                modalContent.style.maxWidth = '500px';
-                modalContent.style.boxShadow = '0 0 20px rgba(0, 201, 167, 0.3)';
-                modalContent.style.maxHeight = '80vh';
-                modalContent.style.overflow = 'auto';
-                modalContent.style.border = '1px solid rgba(78, 181, 247, 0.2)';
-                modalContent.style.animation = 'scaleIn 0.3s ease';
 
                 // Створюємо кнопку закриття
-                const closeButton = document.createElement('span');
+                const closeButton = document.createElement('button');
                 closeButton.className = 'daily-bonus-modal-close';
                 closeButton.innerHTML = '&times;';
-                closeButton.style.position = 'absolute';
-                closeButton.style.top = '10px';
-                closeButton.style.right = '15px';
-                closeButton.style.color = 'white';
-                closeButton.style.fontSize = '28px';
-                closeButton.style.fontWeight = 'bold';
-                closeButton.style.cursor = 'pointer';
+                closeButton.setAttribute('aria-label', 'Закрити');
 
                 // Додаємо обробник для закриття модального вікна
-                closeButton.addEventListener('click', function() {
-                    modal.style.display = 'none';
-                });
+                closeButton.addEventListener('click', hideInfoModal);
 
                 // Створюємо заголовок модального вікна
                 const modalTitle = document.createElement('h3');
+                modalTitle.id = 'modal-title';
                 modalTitle.textContent = 'Календар щоденних бонусів';
-                modalTitle.style.textAlign = 'center';
-                modalTitle.style.marginBottom = '20px';
-                modalTitle.style.fontSize = '20px';
-                modalTitle.style.color = 'white';
 
                 // Створюємо контейнер для вмісту
                 const modalBodyContent = document.createElement('div');
@@ -367,40 +332,15 @@ window.DailyBonus = (function() {
                 // Додаємо модальне вікно до body
                 document.body.appendChild(modal);
 
-                // Додаємо стилі анімацій
-                const style = document.createElement('style');
-                style.textContent = `
-                    @keyframes fadeIn {
-                        from { opacity: 0; }
-                        to { opacity: 1; }
+                // Додаємо обробник для закриття по кліку поза модальним вікном
+                modal.addEventListener('click', function(event) {
+                    if (event.target === modal) {
+                        hideInfoModal();
                     }
-                    @keyframes scaleIn {
-                        from { transform: scale(0.8); opacity: 0; }
-                        to { transform: scale(1); opacity: 1; }
-                    }
-                    .daily-bonus-modal-content::-webkit-scrollbar {
-                        width: 6px;
-                    }
-                    .daily-bonus-modal-content::-webkit-scrollbar-track {
-                        background: rgba(30, 39, 70, 0.5);
-                        border-radius: 10px;
-                    }
-                    .daily-bonus-modal-content::-webkit-scrollbar-thumb {
-                        background: rgba(78, 181, 247, 0.5);
-                        border-radius: 10px;
-                    }
-                `;
-                document.head.appendChild(style);
+                });
 
                 // Зберігаємо посилання на модальне вікно
                 state.infoModalElement = modal;
-
-                // Закривати модальне вікно при кліку поза його межами
-                window.addEventListener('click', function(event) {
-                    if (event.target === modal) {
-                        modal.style.display = 'none';
-                    }
-                });
 
                 console.log("DailyBonus: Модальне вікно створено");
             }
@@ -419,9 +359,48 @@ window.DailyBonus = (function() {
         // Оновлюємо вміст модального вікна перед показом
         updateInfoModalContent();
 
-        // Показуємо модальне вікно
+        // Показуємо модальне вікно з анімацією
         state.infoModalElement.style.display = 'block';
+        state.isModalVisible = true;
+
+        // Додаємо клас для анімації
+        setTimeout(() => {
+            state.infoModalElement.classList.add('visible');
+        }, 10);
+
+        // Блокуємо прокрутку основного контенту
+        document.body.style.overflow = 'hidden';
+
         console.log("DailyBonus: Модальне вікно показано");
+    }
+
+    /**
+     * Приховати модальне вікно
+     */
+    function hideInfoModal() {
+        if (!state.infoModalElement || !state.isModalVisible) return;
+
+        // Прибираємо клас для анімації
+        state.infoModalElement.classList.remove('visible');
+
+        // Чекаємо завершення анімації
+        setTimeout(() => {
+            state.infoModalElement.style.display = 'none';
+            state.isModalVisible = false;
+
+            // Розблоковуємо прокрутку основного контенту
+            document.body.style.overflow = '';
+
+            // Очищаємо вміст модального вікна для звільнення пам'яті
+            if (config.cleanupModals) {
+                const contentContainer = document.getElementById('daily-bonus-modal-content');
+                if (contentContainer) {
+                    contentContainer.innerHTML = '';
+                }
+            }
+        }, 300);
+
+        console.log("DailyBonus: Модальне вікно приховано");
     }
 
     /**
@@ -440,98 +419,6 @@ window.DailyBonus = (function() {
 
         // Генеруємо HTML для таблиці винагород
         let html = '<div class="modal-rewards-table">';
-
-        // Стилі для таблиці
-        html += `
-            <style>
-                .modal-rewards-table {
-                    width: 100%;
-                    margin-bottom: 20px;
-                }
-                .rewards-grid {
-                    display: grid;
-                    grid-template-columns: repeat(5, 1fr);
-                    gap: 10px;
-                    margin-bottom: 20px;
-                }
-                .reward-day {
-                    background: rgba(30, 39, 70, 0.7);
-                    border-radius: 10px;
-                    padding: 10px;
-                    text-align: center;
-                    position: relative;
-                    border: 1px solid rgba(78, 181, 247, 0.2);
-                }
-                .reward-day.claimed {
-                    background: rgba(0, 201, 167, 0.2);
-                    border: 1px solid rgba(0, 201, 167, 0.4);
-                }
-                .reward-day.current {
-                    background: rgba(78, 181, 247, 0.2);
-                    border: 1px solid rgba(78, 181, 247, 0.4);
-                    box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
-                }
-                .day-number {
-                    font-size: 16px;
-                    font-weight: bold;
-                    margin-bottom: 5px;
-                    color: white;
-                }
-                .day-reward {
-                    font-size: 14px;
-                    color: rgba(255, 255, 255, 0.8);
-                }
-                .token-badge {
-                    position: absolute;
-                    top: -8px;
-                    right: -8px;
-                    background: linear-gradient(135deg, #FFD700, #FFA000);
-                    border-radius: 50%;
-                    width: 22px;
-                    height: 22px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
-                    font-weight: bold;
-                    color: black;
-                    box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
-                }
-                .summary-box {
-                    background: rgba(30, 39, 70, 0.7);
-                    border-radius: 10px;
-                    padding: 15px;
-                    margin-top: 20px;
-                    border: 1px solid rgba(78, 181, 247, 0.2);
-                }
-                .summary-title {
-                    font-size: 16px;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                    color: white;
-                    text-align: center;
-                }
-                .summary-item {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 5px;
-                }
-                .completion-bonus {
-                    background: rgba(0, 201, 167, 0.1);
-                    border: 1px solid rgba(0, 201, 167, 0.3);
-                    border-radius: 10px;
-                    padding: 15px;
-                    margin-top: 20px;
-                }
-                .completion-title {
-                    font-size: 16px;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                    color: rgba(0, 201, 167, 0.9);
-                    text-align: center;
-                }
-            </style>
-        `;
 
         // Створюємо сітку для відображення днів
         html += '<div class="rewards-grid">';
@@ -657,17 +544,28 @@ window.DailyBonus = (function() {
             return;
         }
 
+        // Візуальний зворотній зв'язок - зміна стану кнопки
+        if (state.claimButtonElement) {
+            state.claimButtonElement.classList.add('processing');
+            state.claimButtonElement.disabled = true;
+        }
+
         // Перевіряємо наявність даних бонусу
         if (!state.bonusData) {
             loadBonusData(true).then(() => {
                 if (state.bonusData && state.bonusData.can_claim) {
                     claimDailyBonus();
+                } else {
+                    // Відновлюємо стан кнопки
+                    restoreButtonState();
                 }
             }).catch(error => {
                 console.error("DailyBonus: Помилка при завантаженні даних:", error);
                 if (typeof window.showToast === 'function') {
                     window.showToast("Помилка завантаження даних. Спробуйте пізніше.", "error");
                 }
+                // Відновлюємо стан кнопки
+                restoreButtonState();
             });
             return;
         }
@@ -677,11 +575,26 @@ window.DailyBonus = (function() {
             if (typeof window.showToast === 'function') {
                 window.showToast("Ви вже отримали бонус сьогодні", "info");
             }
+            // Відновлюємо стан кнопки
+            restoreButtonState();
             return;
         }
 
         // Запускаємо процес отримання бонусу
-        claimDailyBonus();
+        claimDailyBonus().finally(() => {
+            // Відновлюємо стан кнопки в будь-якому випадку
+            restoreButtonState();
+        });
+    }
+
+    /**
+     * Відновлення стану кнопки після операції
+     */
+    function restoreButtonState() {
+        if (state.claimButtonElement) {
+            state.claimButtonElement.classList.remove('processing');
+            state.claimButtonElement.disabled = false;
+        }
     }
 
     /**
@@ -908,25 +821,12 @@ window.DailyBonus = (function() {
         // Додаємо повідомлення про помилку
         const errorMessage = document.createElement('div');
         errorMessage.className = 'error-message';
-        errorMessage.style.padding = '15px';
-        errorMessage.style.background = 'rgba(244, 67, 54, 0.1)';
-        errorMessage.style.border = '1px solid rgba(244, 67, 54, 0.3)';
-        errorMessage.style.borderRadius = '10px';
-        errorMessage.style.color = 'white';
-        errorMessage.style.textAlign = 'center';
-        errorMessage.style.marginBottom = '10px';
         errorMessage.textContent = 'Помилка завантаження даних. Спробуйте пізніше.';
 
         // Додаємо кнопку повторного завантаження
         const retryButton = document.createElement('button');
         retryButton.textContent = 'Спробувати знову';
-        retryButton.style.marginTop = '10px';
-        retryButton.style.padding = '8px 20px';
-        retryButton.style.background = 'rgba(78, 181, 247, 0.2)';
-        retryButton.style.border = '1px solid rgba(78, 181, 247, 0.4)';
-        retryButton.style.borderRadius = '20px';
-        retryButton.style.color = 'white';
-        retryButton.style.cursor = 'pointer';
+        retryButton.className = 'retry-button';
         retryButton.addEventListener('click', () => loadBonusData(true));
 
         errorMessage.appendChild(retryButton);
@@ -988,6 +888,9 @@ window.DailyBonus = (function() {
 
             console.log(`DailyBonus: Відображення днів від ${startDay} до ${endDay}`);
 
+            // Фрагмент для оптимізації рендерингу
+            const fragment = document.createDocumentFragment();
+
             // Створюємо елементи для кожного дня
             for (let day = startDay; day <= endDay; day++) {
                 // Визначаємо суму винагороди для цього дня
@@ -1020,22 +923,6 @@ window.DailyBonus = (function() {
                     const tokenBadge = document.createElement('div');
                     tokenBadge.className = 'token-badge';
                     tokenBadge.textContent = tokenAmount;
-                    tokenBadge.style.position = 'absolute';
-                    tokenBadge.style.top = '-5px';
-                    tokenBadge.style.right = '-5px';
-                    tokenBadge.style.background = 'linear-gradient(135deg, #FFD700, #FFA000)';
-                    tokenBadge.style.borderRadius = '50%';
-                    tokenBadge.style.width = '18px';
-                    tokenBadge.style.height = '18px';
-                    tokenBadge.style.display = 'flex';
-                    tokenBadge.style.alignItems = 'center';
-                    tokenBadge.style.justifyContent = 'center';
-                    tokenBadge.style.fontSize = '10px';
-                    tokenBadge.style.fontWeight = 'bold';
-                    tokenBadge.style.color = 'black';
-                    tokenBadge.style.boxShadow = '0 0 5px rgba(255, 215, 0, 0.7)';
-
-                    dayCircle.style.position = 'relative';
                     dayCircle.appendChild(tokenBadge);
                 }
 
@@ -1047,9 +934,12 @@ window.DailyBonus = (function() {
                 dayReward.textContent = `${rewardAmount} WINIX`;
                 dayMarker.appendChild(dayReward);
 
-                // Додаємо маркер до контейнера
-                state.progressContainerElement.appendChild(dayMarker);
+                // Додаємо маркер до фрагменту
+                fragment.appendChild(dayMarker);
             }
+
+            // Додаємо фрагмент до контейнера за один раз
+            state.progressContainerElement.appendChild(fragment);
 
             // Оновлюємо стан кнопки отримання бонусу
             updateClaimButton();
@@ -1198,33 +1088,35 @@ window.DailyBonus = (function() {
                     window.showToast(rewardMessage, "success");
                 }
 
-                // Оновлюємо баланс користувача
+                // Оновлюємо баланс користувача негайно
                 if (response.data.reward) {
-                    updateUserBalance(response.data.reward);
+                    updateUserBalance(response.data.reward, response.data.new_balance);
                 }
 
                 // Оновлюємо баланс жетонів, якщо вони отримані
                 if (response.data.token_amount > 0) {
-                    updateUserCoins(response.data.token_amount);
+                    updateUserCoins(response.data.token_amount, response.data.new_coins);
                 }
 
-                // Показуємо анімацію винагороди
-                if (response.data.reward && window.UI?.Animations?.showReward) {
-                    window.UI.Animations.showReward({
-                        type: 'tokens',
-                        amount: response.data.reward
-                    });
+                // Показуємо анімацію винагороди із затримкою для запобігання зависанню
+                setTimeout(() => {
+                    if (response.data.reward && window.UI?.Animations?.showReward) {
+                        window.UI.Animations.showReward({
+                            type: 'tokens',
+                            amount: response.data.reward
+                        });
 
-                    // Якщо отримано жетони, показуємо анімацію для них
-                    if (response.data.token_amount > 0) {
-                        setTimeout(() => {
-                            window.UI.Animations.showReward({
-                                type: 'coins',
-                                amount: response.data.token_amount
-                            });
-                        }, 1500); // Затримка для послідовного відображення анімацій
+                        // Якщо отримано жетони, показуємо анімацію для них з додатковою затримкою
+                        if (response.data.token_amount > 0) {
+                            setTimeout(() => {
+                                window.UI.Animations.showReward({
+                                    type: 'coins',
+                                    amount: response.data.token_amount
+                                });
+                            }, 1500); // Затримка для послідовного відображення анімацій
+                        }
                     }
-                }
+                }, 100);
 
                 // Відправляємо подію про отримання бонусу
                 document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
@@ -1257,81 +1149,105 @@ window.DailyBonus = (function() {
     }
 
     /**
-     * Оновлення балансу токенів користувача
+     * Оновлення балансу токенів користувача з оптимізаціями
      * @param {number} amount - Кількість токенів
+     * @param {number} newTotalBalance - Новий загальний баланс (якщо відомий)
      */
-    function updateUserBalance(amount) {
-        // Через TaskRewards
+    function updateUserBalance(amount, newTotalBalance = null) {
+        // Виконуємо пряме оновлення DOM для миттєвого зворотного зв'язку
+        if (config.useDirectDomUpdates) {
+            const tokenElement = document.getElementById('user-tokens');
+            if (tokenElement) {
+                const currentBalance = parseFloat(tokenElement.textContent) || 0;
+
+                // Якщо переданий новий загальний баланс, використовуємо його
+                // інакше обчислюємо на основі поточного значення
+                let newBalance = typeof newTotalBalance === 'number' ?
+                    newTotalBalance : (currentBalance + amount);
+
+                // Перевіряємо, чи баланс змінився, щоб не викликати зайвий reflow
+                if (currentBalance !== newBalance) {
+                    tokenElement.textContent = newBalance.toFixed(2);
+                    tokenElement.classList.add('increasing');
+
+                    // Видаляємо клас анімації через затримку для закінчення анімації
+                    setTimeout(() => {
+                        tokenElement.classList.remove('increasing');
+                    }, 1500);
+
+                    // Оновлюємо локальний кеш балансу
+                    try {
+                        localStorage.setItem('userTokens', newBalance.toString());
+                        localStorage.setItem('winix_balance', newBalance.toString());
+                    } catch (e) {}
+
+                    console.log(`DailyBonus: Баланс токенів оновлено на ${amount}, новий баланс: ${newBalance}`);
+                }
+            }
+        }
+
+        // Також оновлюємо через TaskRewards для синхронізації з рештою системи
         if (window.TaskRewards?.updateBalance) {
             window.TaskRewards.updateBalance({
                 type: 'tokens',
-                amount: amount
+                amount: amount,
+                newBalance: newTotalBalance
             });
-            return;
+        } else if (typeof window.updateUserBalance === 'function') {
+            // Через глобальну функцію, якщо доступна
+            window.updateUserBalance(amount, newTotalBalance);
         }
-
-        // Через глобальну функцію
-        if (typeof window.updateUserBalance === 'function') {
-            window.updateUserBalance(amount);
-            return;
-        }
-
-        // Напряму оновлюємо DOM
-        const tokenElement = document.getElementById('user-tokens');
-        if (tokenElement) {
-            const currentBalance = parseFloat(tokenElement.textContent) || 0;
-            tokenElement.textContent = (currentBalance + amount).toFixed(2);
-            tokenElement.classList.add('increasing');
-            setTimeout(() => {
-                tokenElement.classList.remove('increasing');
-            }, 1500);
-        }
-
-        // Зберігаємо в localStorage
-        try {
-            const currentBalance = parseFloat(localStorage.getItem('userTokens') || '0');
-            localStorage.setItem('userTokens', (currentBalance + amount).toString());
-            localStorage.setItem('winix_balance', (currentBalance + amount).toString());
-        } catch (e) {}
     }
 
     /**
-     * Оновлення балансу жетонів користувача
+     * Оновлення балансу жетонів користувача з оптимізаціями
      * @param {number} amount - Кількість жетонів
+     * @param {number} newTotalCoins - Новий загальний баланс жетонів (якщо відомий)
      */
-    function updateUserCoins(amount) {
-        // Через TaskRewards
+    function updateUserCoins(amount, newTotalCoins = null) {
+        // Виконуємо пряме оновлення DOM для миттєвого зворотного зв'язку
+        if (config.useDirectDomUpdates) {
+            const coinsElement = document.getElementById('user-coins');
+            if (coinsElement) {
+                const currentCoins = parseInt(coinsElement.textContent) || 0;
+
+                // Якщо переданий новий загальний баланс, використовуємо його
+                // інакше обчислюємо на основі поточного значення
+                let newCoins = typeof newTotalCoins === 'number' ?
+                    newTotalCoins : (currentCoins + amount);
+
+                // Перевіряємо, чи баланс змінився, щоб не викликати зайвий reflow
+                if (currentCoins !== newCoins) {
+                    coinsElement.textContent = newCoins.toString();
+                    coinsElement.classList.add('increasing');
+
+                    // Видаляємо клас анімації через затримку для закінчення анімації
+                    setTimeout(() => {
+                        coinsElement.classList.remove('increasing');
+                    }, 1500);
+
+                    // Оновлюємо локальний кеш балансу
+                    try {
+                        localStorage.setItem('userCoins', newCoins.toString());
+                        localStorage.setItem('winix_coins', newCoins.toString());
+                    } catch (e) {}
+
+                    console.log(`DailyBonus: Баланс жетонів оновлено на ${amount}, новий баланс: ${newCoins}`);
+                }
+            }
+        }
+
+        // Також оновлюємо через TaskRewards для синхронізації з рештою системи
         if (window.TaskRewards?.updateBalance) {
             window.TaskRewards.updateBalance({
                 type: 'coins',
-                amount: amount
+                amount: amount,
+                newBalance: newTotalCoins
             });
-            return;
+        } else if (typeof window.updateUserCoins === 'function') {
+            // Через глобальну функцію, якщо доступна
+            window.updateUserCoins(amount, newTotalCoins);
         }
-
-        // Через глобальну функцію
-        if (typeof window.updateUserCoins === 'function') {
-            window.updateUserCoins(amount);
-            return;
-        }
-
-        // Напряму оновлюємо DOM
-        const coinsElement = document.getElementById('user-coins');
-        if (coinsElement) {
-            const currentCoins = parseInt(coinsElement.textContent) || 0;
-            coinsElement.textContent = (currentCoins + amount).toString();
-            coinsElement.classList.add('increasing');
-            setTimeout(() => {
-                coinsElement.classList.remove('increasing');
-            }, 1500);
-        }
-
-        // Зберігаємо в localStorage
-        try {
-            const currentCoins = parseInt(localStorage.getItem('userCoins') || '0');
-            localStorage.setItem('userCoins', (currentCoins + amount).toString());
-            localStorage.setItem('winix_coins', (currentCoins + amount).toString());
-        } catch (e) {}
     }
 
     /**
@@ -1367,7 +1283,10 @@ window.DailyBonus = (function() {
         renderBonusUI,
         getState,
         resetCache,
-        showInfoModal
+        showInfoModal,
+        hideInfoModal,
+        updateUserBalance,
+        updateUserCoins
     };
 })();
 
