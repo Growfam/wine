@@ -673,39 +673,6 @@
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-/* Анімація при отриманні бонусу - ВИПРАВЛЕНО: оптимізована анімація */
-.reward-animation {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0);
-    background: linear-gradient(135deg, #4eb5f7, #00C9A7);
-    color: white;
-    font-size: 1.5rem;
-    font-weight: bold;
-    padding: 1rem 1.5rem;
-    border-radius: 1rem;
-    box-shadow: 0 0 1.25rem rgba(0, 201, 167, 0.5);
-    z-index: 1000;
-    opacity: 0;
-    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    will-change: transform, opacity;
-}
-
-.reward-animation.show {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-}
-
-.reward-animation.tokens-reward {
-    background: linear-gradient(135deg, #4eb5f7, #00C9A7);
-}
-
-.reward-animation.coins-reward {
-    background: linear-gradient(135deg, #FFD700, #FFA000);
-    color: #000;
-}
-
 /* Стилі для повідомлення про помилку і кнопки повторної спроби */
 .error-message {
     padding: 15px;
