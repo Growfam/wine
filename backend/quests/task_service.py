@@ -258,6 +258,50 @@ class TaskService:
             return []
 
     @staticmethod
+    def get_referral_tasks() -> List[Dict]:
+        """
+        Отримує реферальні завдання (соціальні завдання з тегом referral)
+
+        Returns:
+            List[Dict]: Список реферальних завдань
+        """
+        try:
+            logger.info("Отримання реферальних завдань")
+
+            # Спочатку отримуємо всі соціальні завдання
+            response = TaskService.execute_query(
+                supabase.table('tasks')
+                .select('*')
+                .eq('task_type', 'social')
+                .order('created_at', desc=True)
+            )
+
+            if not response or not response.data:
+                logger.info("Реферальні завдання не знайдено")
+                return []
+
+            # Фільтруємо тільки ті, що мають тег referral
+            referral_tasks = []
+            for task_data in response.data:
+                if 'tags' in task_data and task_data['tags']:
+                    if isinstance(task_data['tags'], list) and 'referral' in task_data['tags']:
+                        # Нормалізуємо дати
+                        if 'start_date' in task_data and task_data['start_date']:
+                            task_data['start_date'] = TaskService.normalize_date(task_data['start_date'])
+                        if 'end_date' in task_data and task_data['end_date']:
+                            task_data['end_date'] = TaskService.normalize_date(task_data['end_date'])
+
+                        # Перевіряємо активність завдання
+                        if TaskService.is_task_active(task_data):
+                            referral_tasks.append(task_data)
+
+            logger.info(f"Отримано {len(referral_tasks)} реферальних завдань")
+            return referral_tasks
+        except Exception as e:
+            logger.error(f"Помилка при отриманні реферальних завдань: {str(e)}")
+            return []
+
+    @staticmethod
     def is_task_active(task_data: Dict) -> bool:
         """
         Перевіряє, чи завдання активне (за статусом та датами)

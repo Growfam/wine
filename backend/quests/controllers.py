@@ -16,7 +16,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 # Імпорт моделей та сервісів
-from models.task import Task, TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY
+from models.task import Task, TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY, TASK_TAG_REFERRAL
 from models.user_progress import UserProgress, STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_VERIFIED
 from quests.task_service import TaskService
 from quests.verification_service import VerificationService
@@ -258,6 +258,28 @@ def get_tasks_by_type(task_type):
         logger.error(f"Критична помилка при отриманні завдань типу {task_type}: {str(e)}")
         logger.exception(e)  # Повний стек помилки для відлагодження
         return handle_exception(e, f"Помилка отримання завдань типу {task_type}")
+
+
+def get_referral_tasks():
+    """
+    Отримання реферальних завдань.
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    try:
+        logger.info("Запит на отримання реферальних завдань")
+
+        # Отримуємо реферальні завдання через сервіс
+        tasks = TaskService.get_referral_tasks()
+
+        # Конвертуємо у формат API
+        tasks_data = [task for task in tasks]
+
+        return api_success(data={"tasks": tasks_data}, message="Реферальні завдання успішно отримано")
+    except Exception as e:
+        logger.error(f"Помилка отримання реферальних завдань: {str(e)}")
+        return handle_exception(e, "Помилка отримання реферальних завдань")
 
 
 def get_tasks_for_user(telegram_id):

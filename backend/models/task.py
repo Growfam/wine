@@ -39,6 +39,9 @@ ACTION_TYPE_INSTALL = "install"  # Встановити додаток
 ACTION_TYPE_SIGNUP = "signup"  # Зареєструватися
 ACTION_TYPE_CUSTOM = "custom"  # Кастомна дія
 
+# Константа для реферальних завдань
+TASK_TAG_REFERRAL = "referral"  # Тег для реферальних завдань
+
 
 class Task:
     """
