@@ -9,6 +9,7 @@ window.TaskManager = (function() {
     let socialTasks = [];
     let limitedTasks = [];
     let partnerTasks = [];
+    let referralTasks = [];
     let userProgress = {};
 
     // Типи винагород
@@ -30,6 +31,7 @@ window.TaskManager = (function() {
         socialTasksContainer: null,
         limitedTasksContainer: null,
         partnersTasksContainer: null,
+        referralTasksContainer: null,
         tabButtons: null,
         contentSections: null
     };
@@ -88,6 +90,7 @@ window.TaskManager = (function() {
         domElements.socialTasksContainer = document.getElementById('social-tasks-container');
         domElements.limitedTasksContainer = document.getElementById('limited-tasks-container');
         domElements.partnersTasksContainer = document.getElementById('partners-tasks-container');
+        domElements.referralTasksContainer = document.getElementById('referral-tasks-container');
         domElements.tabButtons = document.querySelectorAll('.tab');
         domElements.contentSections = document.querySelectorAll('.content-section');
 
@@ -95,6 +98,7 @@ window.TaskManager = (function() {
         console.log('socialTasksContainer =', domElements.socialTasksContainer ? 'знайдено' : 'не знайдено');
         console.log('limitedTasksContainer =', domElements.limitedTasksContainer ? 'знайдено' : 'не знайдено');
         console.log('partnersTasksContainer =', domElements.partnersTasksContainer ? 'знайдено' : 'не знайдено');
+        console.log('referralTasksContainer =', domElements.referralTasksContainer ? 'знайдено' : 'не знайдено');
     }
 
     /**
@@ -183,159 +187,66 @@ window.TaskManager = (function() {
             if (domElements.partnersTasksContainer) {
                 domElements.partnersTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
             }
+            if (domElements.referralTasksContainer) {
+                domElements.referralTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+            }
 
             // Логуємо URL-шляхи які використовуються
             console.log('🔍 ДІАГНОСТИКА: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
             console.log('🔍 ДІАГНОСТИКА: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
-            // ВИПРАВЛЕНО: Використовуємо PARTNER замість PARTNERS
             console.log('🔍 ДІАГНОСТИКА: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
+            console.log('🔍 ДІАГНОСТИКА: URL для реферальних завдань =', window.API_PATHS.TASKS.REFERRAL);
 
             try {
-                // Спробуємо завантажити соціальні завдання і побачити що відбувається
+                // Спробуємо завантажити соціальні завдання
                 console.log('🔍 ДІАГНОСТИКА: Запит соціальних завдань...');
                 const socialResponse = await window.API.get(window.API_PATHS.TASKS.SOCIAL);
-                console.log('🔍 ДІАГНОСТИКА: Відповідь на запит соціальних завдань:', socialResponse);
 
-                // Перевіряємо структуру відповіді
-                if (socialResponse) {
-                    console.log('🔍 ДІАГНОСТИКА: Тип відповіді:', typeof socialResponse);
-                    console.log('🔍 ДІАГНОСТИКА: Ключі у відповіді:', Object.keys(socialResponse));
+                let socialTasksData = extractTasksFromResponse(socialResponse);
 
-                    if (socialResponse.status) {
-                        console.log('🔍 ДІАГНОСТИКА: Значення status:', socialResponse.status);
-                    }
+                if (socialTasksData.length > 0) {
+                    // Розділяємо соціальні й реферальні завдання
+                    const { regular, referral } = splitSocialTasks(socialTasksData);
+                    socialTasks = regular;
+                    referralTasks = referral;
 
-                    if (socialResponse.data) {
-                        console.log('🔍 ДІАГНОСТИКА: Тип data:', typeof socialResponse.data);
-                        console.log('🔍 ДІАГНОСТИКА: Ключі в data:', Object.keys(socialResponse.data));
-
-                        if (socialResponse.data.tasks) {
-                            console.log('🔍 ДІАГНОСТИКА: data.tasks є масивом:', Array.isArray(socialResponse.data.tasks));
-                            console.log('🔍 ДІАГНОСТИКА: Кількість завдань:', socialResponse.data.tasks.length);
-
-                            // Перевіряємо перше завдання (якщо є)
-                            if (socialResponse.data.tasks.length > 0) {
-                                console.log('🔍 ДІАГНОСТИКА: Приклад першого завдання:', socialResponse.data.tasks[0]);
-                            }
-                        } else {
-                            console.log('🔍 ДІАГНОСТИКА: Поле data.tasks відсутнє');
-                            // Можливо структура інша - перевіримо вміст data
-                            console.log('🔍 ДІАГНОСТИКА: Вміст data:', socialResponse.data);
-                        }
-                    }
-
-                    // РІЗНІ ВАРІАНТИ ОБРОБКИ - спробуємо всі можливі варіанти структури
-                    let tasksData = [];
-
-                    // Варіант 1: правильна структура { status: 'success', data: { tasks: [...] } }
-                    if (socialResponse.status === 'success' && socialResponse.data && socialResponse.data.tasks) {
-                        console.log('🔍 ДІАГНОСТИКА: Використовуємо структуру data.tasks');
-                        tasksData = socialResponse.data.tasks;
-                    }
-                    // Варіант 2: структура { status: 'success', data: [...] }
-                    else if (socialResponse.status === 'success' && socialResponse.data && Array.isArray(socialResponse.data)) {
-                        console.log('🔍 ДІАГНОСТИКА: Використовуємо структуру data як масив');
-                        tasksData = socialResponse.data;
-                    }
-                    // Варіант 3: структура { success: true, data: [...] }
-                    else if (socialResponse.success && socialResponse.data) {
-                        console.log('🔍 ДІАГНОСТИКА: Використовуємо success замість status');
-                        if (Array.isArray(socialResponse.data)) {
-                            tasksData = socialResponse.data;
-                        } else if (socialResponse.data.tasks) {
-                            tasksData = socialResponse.data.tasks;
-                        }
-                    }
-                    // Варіант 4: масив безпосередньо у відповіді
-                    else if (Array.isArray(socialResponse)) {
-                        console.log('🔍 ДІАГНОСТИКА: Відповідь є масивом безпосередньо');
-                        tasksData = socialResponse;
-                    }
-                    // Варіант 5: { tasks: [...] }
-                    else if (socialResponse.tasks && Array.isArray(socialResponse.tasks)) {
-                        console.log('🔍 ДІАГНОСТИКА: Використовуємо tasks в корені відповіді');
-                        tasksData = socialResponse.tasks;
-                    }
-
-                    console.log('🔍 ДІАГНОСТИКА: Знайдено завдань:', tasksData.length);
-
-                    if (tasksData.length > 0) {
-                        console.log('🔍 ДІАГНОСТИКА: Завдання успішно отримані!');
-                        socialTasks = normalizeTasksData(tasksData);
-                        renderSocialTasks();
-                    } else {
-                        console.log('🔍 ДІАГНОСТИКА: Завдання не знайдені після всіх спроб');
-                        if (domElements.socialTasksContainer) {
-                            domElements.socialTasksContainer.innerHTML =
-                                '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
-                        }
-                    }
+                    renderSocialTasks();
+                    renderReferralTasks();
                 } else {
-                    console.log('🔍 ДІАГНОСТИКА: Відповідь socialResponse є null або undefined');
+                    if (domElements.socialTasksContainer) {
+                        domElements.socialTasksContainer.innerHTML =
+                            '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
+                    }
+                    if (domElements.referralTasksContainer) {
+                        domElements.referralTasksContainer.innerHTML =
+                            '<div class="no-tasks">Реферальні завдання не знайдені.</div>';
+                    }
                 }
 
-                // Пробуємо завантажити інші типи завдань
-                try {
-                    console.log('🔍 ДІАГНОСТИКА: Запит лімітованих завдань...');
-                    const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
-                    console.log('🔍 ДІАГНОСТИКА: Відповідь на запит лімітованих завдань:', limitedResponse);
+                // Завантажуємо лімітовані завдання
+                console.log('🔍 ДІАГНОСТИКА: Запит лімітованих завдань...');
+                const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
+                let limitedTasksData = extractTasksFromResponse(limitedResponse);
 
-                    // Така ж обробка як і для соціальних завдань, але скорочена для компактності
-                    let limitedTasksData = [];
-                    if (limitedResponse.status === 'success' && limitedResponse.data && limitedResponse.data.tasks) {
-                        limitedTasksData = limitedResponse.data.tasks;
-                    } else if (limitedResponse.status === 'success' && limitedResponse.data && Array.isArray(limitedResponse.data)) {
-                        limitedTasksData = limitedResponse.data;
-                    } else if (limitedResponse.success && limitedResponse.data) {
-                        limitedTasksData = Array.isArray(limitedResponse.data) ? limitedResponse.data :
-                            (limitedResponse.data.tasks || []);
-                    } else if (Array.isArray(limitedResponse)) {
-                        limitedTasksData = limitedResponse;
-                    } else if (limitedResponse.tasks && Array.isArray(limitedResponse.tasks)) {
-                        limitedTasksData = limitedResponse.tasks;
-                    }
-
-                    if (limitedTasksData.length > 0) {
-                        limitedTasks = normalizeTasksData(limitedTasksData);
-                        renderLimitedTasks();
-                    } else if (domElements.limitedTasksContainer) {
-                        domElements.limitedTasksContainer.innerHTML =
-                            '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
-                    }
-                } catch (limitedError) {
-                    console.error('🔍 ДІАГНОСТИКА: Помилка при завантаженні лімітованих завдань:', limitedError);
+                if (limitedTasksData.length > 0) {
+                    limitedTasks = normalizeTasksData(limitedTasksData);
+                    renderLimitedTasks();
+                } else if (domElements.limitedTasksContainer) {
+                    domElements.limitedTasksContainer.innerHTML =
+                        '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
                 }
 
-                try {
-                    // ВИПРАВЛЕНО: Використовуємо API_PATHS.TASKS.PARTNER замість API_PATHS.TASKS.PARTNERS
-                    console.log('🔍 ДІАГНОСТИКА: Запит партнерських завдань...');
-                    const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
-                    console.log('🔍 ДІАГНОСТИКА: Відповідь на запит партнерських завдань:', partnerResponse);
+                // Завантажуємо партнерські завдання
+                console.log('🔍 ДІАГНОСТИКА: Запит партнерських завдань...');
+                const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
+                let partnerTasksData = extractTasksFromResponse(partnerResponse);
 
-                    // Така ж обробка як і для соціальних завдань, але скорочена для компактності
-                    let partnerTasksData = [];
-                    if (partnerResponse.status === 'success' && partnerResponse.data && partnerResponse.data.tasks) {
-                        partnerTasksData = partnerResponse.data.tasks;
-                    } else if (partnerResponse.status === 'success' && partnerResponse.data && Array.isArray(partnerResponse.data)) {
-                        partnerTasksData = partnerResponse.data;
-                    } else if (partnerResponse.success && partnerResponse.data) {
-                        partnerTasksData = Array.isArray(partnerResponse.data) ? partnerResponse.data :
-                            (partnerResponse.data.tasks || []);
-                    } else if (Array.isArray(partnerResponse)) {
-                        partnerTasksData = partnerResponse;
-                    } else if (partnerResponse.tasks && Array.isArray(partnerResponse.tasks)) {
-                        partnerTasksData = partnerResponse.tasks;
-                    }
-
-                    if (partnerTasksData.length > 0) {
-                        partnerTasks = normalizeTasksData(partnerTasksData);
-                        renderPartnerTasks();
-                    } else if (domElements.partnersTasksContainer) {
-                        domElements.partnersTasksContainer.innerHTML =
-                            '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
-                    }
-                } catch (partnerError) {
-                    console.error('🔍 ДІАГНОСТИКА: Помилка при завантаженні партнерських завдань:', partnerError);
+                if (partnerTasksData.length > 0) {
+                    partnerTasks = normalizeTasksData(partnerTasksData);
+                    renderPartnerTasks();
+                } else if (domElements.partnersTasksContainer) {
+                    domElements.partnersTasksContainer.innerHTML =
+                        '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
                 }
 
             } catch (error) {
@@ -357,6 +268,47 @@ window.TaskManager = (function() {
             operationStatus.tasksLoading = false;
             console.log('🔍 ДІАГНОСТИКА: Завершено спробу завантаження завдань');
         }
+    }
+
+    /**
+     * Допоміжна функція для витягування завдань з відповіді
+     */
+    function extractTasksFromResponse(response) {
+        let tasksData = [];
+
+        if (response.status === 'success' && response.data && response.data.tasks) {
+            tasksData = response.data.tasks;
+        } else if (response.status === 'success' && response.data && Array.isArray(response.data)) {
+            tasksData = response.data;
+        } else if (response.success && response.data) {
+            tasksData = Array.isArray(response.data) ? response.data :
+                (response.data.tasks || []);
+        } else if (Array.isArray(response)) {
+            tasksData = response;
+        } else if (response.tasks && Array.isArray(response.tasks)) {
+            tasksData = response.tasks;
+        }
+
+        return tasksData;
+    }
+
+    /**
+     * Розділення соціальних завдань на звичайні та реферальні
+     */
+    function splitSocialTasks(tasks) {
+        const regular = [];
+        const referral = [];
+
+        tasks.forEach(task => {
+            if (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) {
+                referral.push(task);
+            } else {
+                regular.push(task);
+            }
+        });
+
+        console.log('🔍 ДІАГНОСТИКА: Розділення завдань - звичайні:', regular.length, 'реферальні:', referral.length);
+        return { regular, referral };
     }
 
     /**
@@ -422,19 +374,45 @@ window.TaskManager = (function() {
 
         // Відображаємо кожне завдання
         socialTasks.forEach(task => {
-            // Перевіряємо наявність компонента для соціальних завдань
             if (window.SocialTask && window.SocialTask.create) {
-                console.log('🔍 ДІАГНОСТИКА: Використовуємо SocialTask.create для завдання', task.id);
                 const taskElement = window.SocialTask.create(task, userProgress[task.id]);
                 domElements.socialTasksContainer.appendChild(taskElement);
             } else {
-                console.log('🔍 ДІАГНОСТИКА: Використовуємо createBasicTaskElement для завдання', task.id);
-                // Запасний варіант, якщо компонент не знайдено
+                // Запасний варіант
                 domElements.socialTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
             }
         });
+    }
 
-        console.log('🔍 ДІАГНОСТИКА: Соціальні завдання успішно відображені');
+    /**
+     * Відображення реферальних завдань
+     */
+    function renderReferralTasks() {
+        console.log('🔍 ДІАГНОСТИКА: Відображення реферальних завдань, кількість:', referralTasks.length);
+
+        if (!domElements.referralTasksContainer) {
+            console.warn('🔍 ДІАГНОСТИКА: Контейнер для реферальних завдань не знайдено');
+            return;
+        }
+
+        // Очищаємо контейнер
+        domElements.referralTasksContainer.innerHTML = '';
+
+        if (referralTasks.length === 0) {
+            domElements.referralTasksContainer.innerHTML = '<div class="no-tasks">Немає доступних реферальних завдань</div>';
+            return;
+        }
+
+        // Відображаємо кожне завдання
+        referralTasks.forEach(task => {
+            if (window.SocialTask && window.SocialTask.create) {
+                const taskElement = window.SocialTask.create(task, userProgress[task.id]);
+                domElements.referralTasksContainer.appendChild(taskElement);
+            } else {
+                // Запасний варіант
+                domElements.referralTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
+            }
+        });
     }
 
     /**
@@ -458,17 +436,14 @@ window.TaskManager = (function() {
 
         // Відображаємо кожне завдання
         limitedTasks.forEach(task => {
-            // Перевіряємо наявність компонента для лімітованих завдань
             if (window.LimitedTask && window.LimitedTask.create) {
                 const taskElement = window.LimitedTask.create(task, userProgress[task.id]);
                 domElements.limitedTasksContainer.appendChild(taskElement);
             } else {
-                // Запасний варіант, якщо компонент не знайдено
+                // Запасний варіант
                 domElements.limitedTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id], true);
             }
         });
-
-        console.log('🔍 ДІАГНОСТИКА: Лімітовані завдання успішно відображені');
     }
 
     /**
@@ -492,17 +467,14 @@ window.TaskManager = (function() {
 
         // Відображаємо кожне завдання
         partnerTasks.forEach(task => {
-            // Перевіряємо наявність компонента для партнерських завдань
             if (window.PartnerTask && window.PartnerTask.create) {
                 const taskElement = window.PartnerTask.create(task, userProgress[task.id]);
                 domElements.partnersTasksContainer.appendChild(taskElement);
             } else {
-                // Запасний варіант, якщо компонент не знайдено
+                // Запасний варіант
                 domElements.partnersTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
             }
         });
-
-        console.log('🔍 ДІАГНОСТИКА: Партнерські завдання успішно відображені');
     }
 
     /**
@@ -642,8 +614,7 @@ window.TaskManager = (function() {
         console.log('API_PATHS.TASKS:', window.API_PATHS.TASKS);
 
         // Перевіряємо шляхи до завдань
-        // ВИПРАВЛЕНО: Змінено PARTNERS на PARTNER
-        const paths = ['SOCIAL', 'LIMITED', 'PARTNER'];
+        const paths = ['SOCIAL', 'LIMITED', 'PARTNER', 'REFERRAL'];
         paths.forEach(path => {
             if (window.API_PATHS.TASKS[path]) {
                 console.log(`API_PATHS.TASKS.${path}:`, window.API_PATHS.TASKS[path]);
@@ -674,6 +645,7 @@ window.TaskManager = (function() {
         renderSocialTasks,
         renderLimitedTasks,
         renderPartnerTasks,
+        renderReferralTasks,
         diagnoseApiPaths,
         showErrorMessage
     };
