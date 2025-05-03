@@ -179,5 +179,10 @@ def register_quests_routes(app):
         """Використання реферального коду"""
         return controllers.use_referral_code()
 
+    @app.route('/api/quests/tasks/referral', methods=['GET'])
+    def api_get_referral_tasks():
+        """Отримання реферальних завдань"""
+        return controllers.get_referral_tasks()
+
     logger.info("Маршрути API для завдань та бонусів успішно зареєстровано")
     return True
