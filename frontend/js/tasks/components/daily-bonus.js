@@ -1098,25 +1098,31 @@ window.DailyBonus = (function() {
                     updateUserCoins(response.data.token_amount, response.data.new_coins);
                 }
 
-                // Показуємо анімацію винагороди із затримкою для запобігання зависанню
-                setTimeout(() => {
-                    if (response.data.reward && window.UI?.Animations?.showReward) {
-                        window.UI.Animations.showReward({
-                            type: 'tokens',
-                            amount: response.data.reward
-                        });
-
-                        // Якщо отримано жетони, показуємо анімацію для них з додатковою затримкою
-                        if (response.data.token_amount > 0) {
-                            setTimeout(() => {
-                                window.UI.Animations.showReward({
-                                    type: 'coins',
-                                    amount: response.data.token_amount
-                                });
-                            }, 1500); // Затримка для послідовного відображення анімацій
+                // Показуємо анімацію винагороди
+                if (response.data.reward && window.UI?.Animations?.showReward) {
+                    window.UI.Animations.showReward({
+                        type: 'tokens',
+                        amount: response.data.reward,
+                        callback: () => {
+                            // Анімація токенів завершена
+                            console.log("DailyBonus: Анімація токенів завершена");
                         }
+                    });
+
+                    // Якщо отримано жетони, показуємо анімацію для них з затримкою
+                    if (response.data.token_amount > 0) {
+                        setTimeout(() => {
+                            window.UI.Animations.showReward({
+                                type: 'coins',
+                                amount: response.data.token_amount,
+                                callback: () => {
+                                    // Анімація жетонів завершена
+                                    console.log("DailyBonus: Анімація жетонів завершена");
+                                }
+                            });
+                        }, 1500); // Затримка для послідовного відображення анімацій
                     }
-                }, 100);
+                }
 
                 // Відправляємо подію про отримання бонусу
                 document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
@@ -1186,16 +1192,24 @@ window.DailyBonus = (function() {
             }
         }
 
-        // Також оновлюємо через TaskRewards для синхронізації з рештою системи
-        if (window.TaskRewards?.updateBalance) {
-            window.TaskRewards.updateBalance({
-                type: 'tokens',
-                amount: amount,
-                newBalance: newTotalBalance
-            });
-        } else if (typeof window.updateUserBalance === 'function') {
-            // Через глобальну функцію, якщо доступна
-            window.updateUserBalance(amount, newTotalBalance);
+        // Використовуємо setBalance для миттєвого оновлення
+        if (newTotalBalance !== null) {
+            if (window.TaskRewards?.setBalance) {
+                window.TaskRewards.setBalance('tokens', newTotalBalance, true);
+            }
+
+            // Також оновлюємо через Core для повної синхронізації
+            if (window.WinixCore?.updateLocalBalance) {
+                window.WinixCore.updateLocalBalance(newTotalBalance, 'daily-bonus', true);
+            }
+        } else {
+            // Якщо новий баланс невідомий, оновлюємо на значення
+            if (window.TaskRewards?.updateBalance) {
+                window.TaskRewards.updateBalance({
+                    type: 'tokens',
+                    amount: amount
+                });
+            }
         }
     }
 
@@ -1237,16 +1251,24 @@ window.DailyBonus = (function() {
             }
         }
 
-        // Також оновлюємо через TaskRewards для синхронізації з рештою системи
-        if (window.TaskRewards?.updateBalance) {
-            window.TaskRewards.updateBalance({
-                type: 'coins',
-                amount: amount,
-                newBalance: newTotalCoins
-            });
-        } else if (typeof window.updateUserCoins === 'function') {
-            // Через глобальну функцію, якщо доступна
-            window.updateUserCoins(amount, newTotalCoins);
+        // Використовуємо setBalance для миттєвого оновлення
+        if (newTotalCoins !== null) {
+            if (window.TaskRewards?.setBalance) {
+                window.TaskRewards.setBalance('coins', newTotalCoins, true);
+            }
+
+            // Також оновлюємо через Core для повної синхронізації
+            if (window.WinixCore?.updateLocalBalance) {
+                window.WinixCore.updateLocalBalance(newTotalCoins, 'daily-bonus', true);
+            }
+        } else {
+            // Якщо новий баланс невідомий, оновлюємо на значення
+            if (window.TaskRewards?.updateBalance) {
+                window.TaskRewards.updateBalance({
+                    type: 'coins',
+                    amount: amount
+                });
+            }
         }
     }
 
