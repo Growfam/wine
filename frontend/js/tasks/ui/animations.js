@@ -644,6 +644,7 @@ window.UI.Animations = (function() {
             autoClose: true,
             onClose: null,
             specialDay: false,         // Чи є це особливий день (з жетонами)
+            id: `reward_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, // Унікальний ID
             ...options
         };
 
@@ -748,16 +749,19 @@ window.UI.Animations = (function() {
 
         // Автоматично закриваємо через вказаний час
         if (settings.autoClose) {
-            state.timers.rewardClose = setTimeout(() => {
+            const timerId = `reward_${settings.id}`;
+            state.timers[timerId] = setTimeout(() => {
                 closeRewardAnimation();
             }, settings.duration);
         }
 
         // Функція закриття анімації
         function closeRewardAnimation() {
-            // Очищаємо таймер, якщо він існує
-            if (state.timers.rewardClose) {
-                clearTimeout(state.timers.rewardClose);
+            // Очищаємо таймер з унікальним ID
+            const timerId = `reward_${settings.id}`;
+            if (state.timers[timerId]) {
+                clearTimeout(state.timers[timerId]);
+                delete state.timers[timerId];
             }
 
             // Приховуємо елементи
@@ -775,6 +779,7 @@ window.UI.Animations = (function() {
             }, 500);
         }
     }
+
 /**
  * Показ анімації для щоденного бонусу
  * @param {number} winixAmount - Кількість WINIX
@@ -842,6 +847,7 @@ function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, completi
         }
     }
 }
+
     /**
      * Показати анімацію бонусу за завершення 30-денного циклу
      * @param {Object} bonusData - Дані про бонус {amount: число, tokens: число, badge: рядок}
@@ -852,6 +858,7 @@ function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, completi
             duration: config.cycleCompletionDuration,
             showConfetti: true,
             autoClose: true,
+            id: `cycle_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` // Унікальний ID
         };
 
         // Показуємо золоте конфетті
@@ -948,16 +955,19 @@ function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, completi
 
         // Автоматично закриваємо через вказаний час
         if (settings.autoClose) {
-            state.timers.cycleCompletionClose = setTimeout(() => {
+            const timerId = `cycle_${settings.id}`;
+            state.timers[timerId] = setTimeout(() => {
                 closeAnimation();
             }, settings.duration);
         }
 
         // Функція закриття анімації
         function closeAnimation() {
-            // Очищаємо таймер, якщо він існує
-            if (state.timers.cycleCompletionClose) {
-                clearTimeout(state.timers.cycleCompletionClose);
+            // Очищаємо таймер з унікальним ID
+            const timerId = `cycle_${settings.id}`;
+            if (state.timers[timerId]) {
+                clearTimeout(state.timers[timerId]);
+                delete state.timers[timerId];
             }
 
             // Приховуємо елементи
