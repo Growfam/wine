@@ -14,7 +14,8 @@ window.SocialTask = (function() {
         LOADING: 'loading',
         COMPLETED: 'completed',
         ERROR: 'error',
-        IN_PROGRESS: 'in_progress'
+        IN_PROGRESS: 'in_progress',
+        READY_TO_VERIFY: 'ready_to_verify' // Додаємо новий стан для відображення кнопки перевірки
     };
 
     const AUTH_STATUS = {
@@ -540,8 +541,8 @@ window.SocialTask = (function() {
                 }
             }
 
-            // Оновлюємо статус завдання
-            taskStatuses.set(task.id, STATUS.IN_PROGRESS);
+            // ВИПРАВЛЕНО: Оновлюємо статус на READY_TO_VERIFY замість IN_PROGRESS
+            taskStatuses.set(task.id, STATUS.READY_TO_VERIFY);
             updateTaskStatus(task.id);
 
             // Відображаємо успішне повідомлення
@@ -715,7 +716,7 @@ window.SocialTask = (function() {
         if (!taskElement || !status) return;
 
         // Оновлюємо класи елемента відповідно до статусу
-        taskElement.classList.remove('loading', 'completed', 'error', 'in-progress');
+        taskElement.classList.remove('loading', 'completed', 'error', 'in-progress', 'ready-to-verify');
 
         switch (status) {
             case STATUS.LOADING:
@@ -730,9 +731,12 @@ window.SocialTask = (function() {
             case STATUS.IN_PROGRESS:
                 taskElement.classList.add('in-progress');
                 break;
+            case STATUS.READY_TO_VERIFY:
+                taskElement.classList.add('ready-to-verify');
+                break;
         }
 
-        // Оновлюємо відображення елементів управління
+        // ВИПРАВЛЕНО: Оновлюємо відображення кнопок залежно від статусу
         const actionElement = taskElement.querySelector('.task-action');
         if (actionElement) {
             // Якщо завдання виконано, показуємо лише мітку "Виконано"
@@ -742,13 +746,6 @@ window.SocialTask = (function() {
             // Якщо елемент завантажується, показуємо індикатор завантаження
             else if (status === STATUS.LOADING) {
                 if (!actionElement.querySelector('.loading-indicator')) {
-                    const originalContent = actionElement.getAttribute('data-original-content');
-
-                    if (originalContent) {
-                        // Запам'ятовуємо оригінальний вміст
-                        actionElement.setAttribute('data-original-content', originalContent);
-                    }
-
                     actionElement.innerHTML = `
                         <div class="loading-indicator">
                             <div class="spinner"></div>
@@ -757,17 +754,21 @@ window.SocialTask = (function() {
                     `;
                 }
             }
-            // В інших випадках відновлюємо оригінальний вміст
+            // ВИПРАВЛЕНО: Якщо готове до перевірки, показуємо тільки кнопку "Перевірити"
+            else if (status === STATUS.READY_TO_VERIFY) {
+                actionElement.innerHTML = `
+                    <button class="action-button verify-button" data-action="verify" data-task-id="${taskId}" data-lang-key="earn.verify">Перевірити</button>
+                `;
+                // Відновлюємо обробники подій
+                setupTaskEventListeners(taskElement, taskId);
+            }
+            // В інших випадках показуємо кнопку "Виконати"
             else {
-                const originalContent = actionElement.getAttribute('data-original-content');
-
-                if (originalContent) {
-                    actionElement.innerHTML = originalContent;
-                    actionElement.removeAttribute('data-original-content');
-
-                    // Відновлюємо обробники подій
-                    setupTaskEventListeners(taskElement, taskId);
-                }
+                actionElement.innerHTML = `
+                    <button class="action-button" data-action="start" data-task-id="${taskId}" data-lang-key="earn.start">Виконати</button>
+                `;
+                // Відновлюємо обробники подій
+                setupTaskEventListeners(taskElement, taskId);
             }
         }
     }
@@ -801,6 +802,21 @@ window.SocialTask = (function() {
             ? Math.min(100, Math.round((progressValue / task.target_value) * 100))
             : 0;
 
+        // ВИПРАВЛЕНО: Визначаємо початковий статус задачі
+        let initialStatus = STATUS.IDLE;
+        if (progress) {
+            switch (progress.status) {
+                case 'completed':
+                    initialStatus = STATUS.COMPLETED;
+                    break;
+                case 'started':
+                    initialStatus = STATUS.READY_TO_VERIFY;  // Після стартту показуємо кнопку перевірки
+                    break;
+                default:
+                    initialStatus = STATUS.IDLE;
+            }
+        }
+
         // Визначаємо тип соціальної мережі (якщо є)
         const networkMatch = task.action_url ? task.action_url.match(/\/\/(www\.)?([^\/]+)/) : null;
         const network = networkMatch ? detectNetwork(networkMatch[2]) : null;
@@ -823,6 +839,16 @@ window.SocialTask = (function() {
             taskElement.classList.add('mock-data-mode');
         }
 
+        // ВИПРАВЛЕНО: Відображення кнопок залежно від статусу
+        let buttonHtml = '';
+        if (isCompleted) {
+            buttonHtml = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
+        } else if (initialStatus === STATUS.READY_TO_VERIFY) {
+            buttonHtml = `<button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>`;
+        } else {
+            buttonHtml = `<button class="action-button" data-action="start" data-task-id="${task.id}" data-lang-key="earn.${task.action_type || 'start'}">${task.action_label || 'Виконати'}</button>`;
+        }
+
         // Наповнюємо контент завдання з використанням шаблону
         taskElement.innerHTML = `
             <div class="task-header">
@@ -842,11 +868,7 @@ window.SocialTask = (function() {
                </div>` : ''
             }
             <div class="task-action">
-                ${isCompleted ? 
-                  '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>' : 
-                  `<button class="action-button" data-action="start" data-task-id="${task.id}" data-lang-key="earn.${task.action_type || 'start'}">${task.action_label || 'Виконати'}</button>
-                   <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>`
-                }
+                ${buttonHtml}
             </div>
             ${(mockDataStatus.authentication || mockDataStatus.verification || mockDataStatus.socialNetworkData) ? 
               '<div class="mock-data-badge" title="Використовуються тестові дані">⚠️ Демо</div>' : ''}
@@ -862,7 +884,7 @@ window.SocialTask = (function() {
         renderedTasksCache.set(cacheKey, taskElement.cloneNode(true));
 
         // Запам'ятовуємо поточний статус завдання
-        taskStatuses.set(task.id, isCompleted ? STATUS.COMPLETED : STATUS.IDLE);
+        taskStatuses.set(task.id, initialStatus);
 
         return taskElement;
     }
@@ -1252,14 +1274,14 @@ window.SocialTask = (function() {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
 
-        // Встановлюємо іконку залежно від типу
+        // ВИПРАВЛЕНО: Використовуємо SVG іконки з winix-icons.css
         let iconHTML = '';
         if (type === 'error') {
-            iconHTML = '<span class="toast-icon">❌</span>';
+            iconHTML = '<span class="premium-notification-icon icon-error"></span>';
         } else if (type === 'success') {
-            iconHTML = '<span class="toast-icon">✅</span>';
+            iconHTML = '<span class="premium-notification-icon icon-success"></span>';
         } else {
-            iconHTML = '<span class="toast-icon">ℹ️</span>';
+            iconHTML = '<span class="premium-notification-icon icon-info"></span>';
         }
 
         // Наповнюємо вміст
