@@ -16,17 +16,17 @@
     const API_PATHS = {
         // Завдання
        TASKS: {
-        ALL: 'quests/tasks',  // Видалено початковий слеш
-        BY_TYPE: (type) => `quests/tasks/${type}`,
-        SOCIAL: 'quests/tasks/social',
-        LIMITED: 'quests/tasks/limited',
-        // ВИПРАВЛЕНО: Повернено назад з "partner" на "partners" для узгодження з бекендом
-        PARTNERS: 'quests/tasks/partners',
-        DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
-        START: (taskId) => `quests/tasks/${taskId}/start`,
-        VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
-        PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
-    },
+            ALL: 'quests/tasks',
+            BY_TYPE: (type) => `quests/tasks/${type}`,
+            SOCIAL: 'quests/tasks/social',
+            LIMITED: 'quests/tasks/limited',
+            PARTNER: 'quests/tasks/partner',  // ВИПРАВЛЕНО: без s на кінці
+            REFERRAL: 'quests/tasks/referral',  // ДОДАНО: реферальні завдання
+            DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
+            START: (taskId) => `quests/tasks/${taskId}/start`,
+            VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
+            PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
+        },
 
         // Користувацькі шляхи
         USER: {
