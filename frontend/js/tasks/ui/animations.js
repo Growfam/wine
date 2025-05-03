@@ -775,7 +775,73 @@ window.UI.Animations = (function() {
             }, 500);
         }
     }
+/**
+ * Показ анімації для щоденного бонусу
+ * @param {number} winixAmount - Кількість WINIX
+ * @param {number} tokenAmount - Кількість жетонів
+ * @param {boolean} cycleCompleted - Чи завершений цикл
+ * @param {Object} completionBonus - Бонус за завершення циклу
+ */
+function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, completionBonus) {
+    // Якщо цикл завершено, спочатку показуємо звичайний бонус
+    if (cycleCompleted && completionBonus) {
+        // Спочатку показуємо основний бонус
+        showReward({
+            type: 'tokens',
+            amount: winixAmount
+        }, {
+            duration: config.rewardDuration,
+            autoClose: true,
+            showConfetti: true
+        });
 
+        // Якщо є жетони, показуємо з затримкою
+        if (tokenAmount > 0) {
+            setTimeout(() => {
+                showReward({
+                    type: 'coins',
+                    amount: tokenAmount
+                }, {
+                    duration: config.bonusTokenDuration,
+                    autoClose: true,
+                    showConfetti: true,
+                    specialDay: true
+                });
+            }, 1500);
+        }
+
+        // Потім з затримкою показуємо бонус за завершення
+        setTimeout(() => {
+            showCycleCompletionAnimation(completionBonus);
+        }, tokenAmount > 0 ? 3500 : 2000);
+    } else {
+        // Для звичайного щоденного бонусу
+        const settings = {
+            duration: tokenAmount ? config.bonusTokenDuration : config.rewardDuration,
+            autoClose: true,
+            showConfetti: true
+        };
+
+        // Показуємо WINIX нагороду
+        showReward({
+            type: 'tokens',
+            amount: winixAmount
+        }, settings);
+
+        // Якщо є жетони, показуємо з затримкою
+        if (tokenAmount > 0) {
+            setTimeout(() => {
+                showReward({
+                    type: 'coins',
+                    amount: tokenAmount
+                }, {
+                    ...settings,
+                    specialDay: true
+                });
+            }, 1500);
+        }
+    }
+}
     /**
      * Показати анімацію бонусу за завершення 30-денного циклу
      * @param {Object} bonusData - Дані про бонус {amount: число, tokens: число, badge: рядок}
@@ -1288,6 +1354,8 @@ window.UI.Animations = (function() {
         createPremiumConfetti,
         initPageAnimations,
         showCycleCompletionAnimation,
+        showDailyBonusReward,
         animateTokenDay
+
     };
 })();

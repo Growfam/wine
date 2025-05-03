@@ -1098,31 +1098,15 @@ window.DailyBonus = (function() {
                     updateUserCoins(response.data.token_amount, response.data.new_coins);
                 }
 
-                // Показуємо анімацію винагороди
-                if (response.data.reward && window.UI?.Animations?.showReward) {
-                    window.UI.Animations.showReward({
-                        type: 'tokens',
-                        amount: response.data.reward,
-                        callback: () => {
-                            // Анімація токенів завершена
-                            console.log("DailyBonus: Анімація токенів завершена");
-                        }
-                    });
-
-                    // Якщо отримано жетони, показуємо анімацію для них з затримкою
-                    if (response.data.token_amount > 0) {
-                        setTimeout(() => {
-                            window.UI.Animations.showReward({
-                                type: 'coins',
-                                amount: response.data.token_amount,
-                                callback: () => {
-                                    // Анімація жетонів завершена
-                                    console.log("DailyBonus: Анімація жетонів завершена");
-                                }
-                            });
-                        }, 1500); // Затримка для послідовного відображення анімацій
-                    }
-                }
+                // Показуємо анімацію винагороди через спеціальний метод
+if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
+    window.UI.Animations.showDailyBonusReward(
+        response.data.reward,
+        response.data.token_amount,
+        response.data.cycle_completed,
+        response.data.completion_bonus
+    );
+}
 
                 // Відправляємо подію про отримання бонусу
                 document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
