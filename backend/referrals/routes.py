@@ -3,7 +3,7 @@ from . import controllers
 
 def register_referrals_routes(app):
     @app.route('/api/user/<telegram_id>/referral-tasks', methods=['GET'])
-    def api_get_referral_tasks(telegram_id):
+    def api_get_user_referral_tasks(telegram_id):  # ЗМІНЕНО ім'я функції
         """Отримання статусу реферальних завдань"""
         return controllers.get_referral_tasks(telegram_id)
 
