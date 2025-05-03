@@ -1084,9 +1084,23 @@ window.DailyBonus = (function() {
                 }
 
                 // Показуємо повідомлення про успіх
-                if (typeof window.showToast === 'function') {
-                    window.showToast(rewardMessage, "success");
-                }
+                if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
+    window.UI.Notifications.showSuccess(rewardMessage);
+} else if (typeof window.showToast === 'function') {
+    // Використовуйте кастомну реалізацію toast для успіху
+    const toastElement = document.getElementById('toast-message');
+    if (toastElement) {
+        toastElement.textContent = rewardMessage;
+        toastElement.className = 'toast-message success show';
+
+        setTimeout(() => {
+            toastElement.classList.remove('show');
+            setTimeout(() => {
+                toastElement.className = 'toast-message';
+            }, 300);
+        }, 3000);
+    }
+}
 
                 // Оновлюємо баланс користувача негайно
                 if (response.data.reward) {
