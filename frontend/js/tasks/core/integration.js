@@ -200,7 +200,8 @@ window.TaskIntegration = (function() {
             return;
         }
 
-        const requiredPaths = ['SOCIAL', 'LIMITED', 'PARTNERS'];
+        // ВИПРАВЛЕНО: Змінено PARTNERS на PARTNER
+        const requiredPaths = ['SOCIAL', 'LIMITED', 'PARTNER'];
         const missingPaths = [];
 
         for (const path of requiredPaths) {
@@ -209,15 +210,25 @@ window.TaskIntegration = (function() {
             }
         }
 
+        // ВИПРАВЛЕНО: Додана перевірка REFERRAL шляху
+        if (!window.API_PATHS.TASKS.REFERRAL) {
+            log('TaskIntegration: Шлях REFERRAL не знайдено, реферальні завдання отримуються через SOCIAL');
+        }
+
         if (missingPaths.length > 0) {
             logError(`Відсутні необхідні шляхи API: ${missingPaths.join(', ')}`);
         } else {
             log('TaskIntegration: Всі необхідні API шляхи знайдено.');
 
-            // Виводимо шляхи для підтвердження
-log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
-log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
-log(`PARTNERS: ${window.API_PATHS.TASKS.PARTNERS}`);
+            // Виводимо шляхи для підтвердження - ВИПРАВЛЕНО: PARTNERS на PARTNER
+            log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
+            log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
+            log(`PARTNER: ${window.API_PATHS.TASKS.PARTNER}`);
+
+            // Перевіряємо і виводимо REFERRAL, якщо є
+            if (window.API_PATHS.TASKS.REFERRAL) {
+                log(`REFERRAL: ${window.API_PATHS.TASKS.REFERRAL}`);
+            }
         }
     }
 
