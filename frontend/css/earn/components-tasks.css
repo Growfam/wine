@@ -767,4 +767,30 @@
     .rewards-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
+    /* ВИПРАВЛЕНО: Додані стилі для нового стану ready-to-verify */
+    .task-item.ready-to-verify {
+        border-left: 3px solid #4eb5f7;
+    }
+
+    /* Приховання кнопок в залежності від статусу */
+    .task-item.ready-to-verify .action-button[data-action="start"] {
+        display: none;
+    }
+
+    .task-item:not(.ready-to-verify) .action-button[data-action="verify"] {
+        display: none;
+    }
+
+    .task-item .task-action {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    /* Стилі для повідомлення про необхідність авторизації */
+    .auth-required-message {
+        background: rgba(30, 39, 70, 0.4);
+    }
 }

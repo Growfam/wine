@@ -522,6 +522,11 @@ window.TaskProgressManager = (function() {
             }
         });
 
+        // ВИПРАВЛЕНО: Додаємо слухача для події готовності до перевірки
+        safeEventListener('task-ready-to-verify', (event) => {
+            log('TaskProgressManager: Завдання готове до перевірки', event.detail);
+        });
+
         // Підписка на подію результату верифікації
         safeEventListener('task-verification-result', (event) => {
             // Показуємо повідомлення про результат верифікації
@@ -820,24 +825,37 @@ window.TaskProgressManager = (function() {
                 id: operationKey
             });
 
-            // Якщо завдання виконано, відправляємо відповідну подію
-            if (progressData.status === 'completed') {
-                // Перевіряємо, чи не відправляли нещодавно цю подію
-                const key = `task_${taskId}_completed`;
-                const lastTime = state.lastRewards[key] || 0;
-                const now = Date.now();
+            // ВИПРАВЛЕНО: Обробка всіх статусів, включаючи ready_to_verify
+            switch (progressData.status) {
+                case 'completed':
+                    // Перевіряємо, чи не відправляли нещодавно цю подію
+                    const key = `task_${taskId}_completed`;
+                    const lastTime = state.lastRewards[key] || 0;
+                    const now = Date.now();
 
-                if (!config.preventRewardDuplication || now - lastTime > config.rewardDeduplicationWindow) {
-                    // Якщо пройшло достатньо часу або не потрібно запобігати дублюванню
-                    state.lastRewards[key] = now;
+                    if (!config.preventRewardDuplication || now - lastTime > config.rewardDeduplicationWindow) {
+                        // Якщо пройшло достатньо часу або не потрібно запобігати дублюванню
+                        state.lastRewards[key] = now;
 
-                    dispatchEvent('task-completed', {
+                        dispatchEvent('task-completed', {
+                            taskId,
+                            progressData,
+                            source: 'TaskProgressManager',
+                            id: `complete_${taskId}_${now}`
+                        });
+                    }
+                    break;
+
+                case 'started':
+                case 'ready_to_verify':
+                    // Відправляємо подію про готовність до перевірки
+                    dispatchEvent('task-ready-to-verify', {
                         taskId,
                         progressData,
                         source: 'TaskProgressManager',
-                        id: `complete_${taskId}_${now}`
+                        id: `ready_${taskId}_${Date.now()}`
                     });
-                }
+                    break;
             }
 
             log(`TaskProgressManager: Оновлено прогрес для завдання ${taskId}`);
