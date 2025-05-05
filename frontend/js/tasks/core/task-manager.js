@@ -246,6 +246,9 @@ window.TaskManager = (function() {
         // Завантаження завдань
         loadTasks();
 
+        ensureBonusButtonVisible();
+
+
         // Встановлюємо флаг ініціалізації
         initialized = true;
         console.log('TaskManager: Ініціалізацію завершено');
@@ -718,40 +721,85 @@ window.TaskManager = (function() {
     /**
      * Видалення кнопок "Запросити друзів"
      */
-    function removeInviteButtons() {
-        // Шукаємо всі елементи, які можуть бути кнопками запрошення
-        const selectors = [
-            'button.invite-friends-button',
-            '.action-button[data-action="invite"]',
-            'button[data-lang-key="earn.invite_friends"]',
-            '.invite-friends-button',
-            '.referral-button',
-            'a.invite-button',
-            'a[href*="invite"]',
-            'button[onclick*="invite"]',
-            'button.claim-button',
-            '[data-lang-key="earn.invite_friends"]'
-        ];
+    /**
+ * Видалення кнопок "Запросити друзів"
+ */
+function removeInviteButtons() {
+    console.log('TaskManager: Початок видалення кнопок запрошення друзів');
 
-        // Приховуємо знайдені кнопки
-        selectors.forEach(selector => {
-            document.querySelectorAll(selector).forEach(el => {
-                el.style.display = 'none';
-            });
-        });
+    // Шукаємо всі елементи, які можуть бути кнопками запрошення
+    const selectors = [
+        'button.invite-friends-button',
+        '.action-button[data-action="invite"]',
+        'button[data-lang-key="earn.invite_friends"]',
+        '.invite-friends-button',
+        '.referral-button',
+        'a.invite-button',
+        'a[href*="invite"]',
+        'button[onclick*="invite"]',
+        // 'button.claim-button', <!-- РЯДОК ВИДАЛЕНО -->
+        '[data-lang-key="earn.invite_friends"]'
+    ];
 
-        // Шукаємо за текстом
-        document.querySelectorAll('button, a').forEach(el => {
-            const text = el.textContent.toLowerCase();
-            if (text.includes('запросити друзів') ||
-                text.includes('invite friends') ||
-                text.includes('запросити')) {
-                el.style.display = 'none';
+    // Приховуємо знайдені кнопки з додатковою перевіркою
+    selectors.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => {
+            // Перевіряємо, чи це не кнопка щоденного бонусу
+            if (el.id === 'claim-daily' || el.closest('#daily-bonus-container')) {
+                console.log('TaskManager: Знайдено кнопку бонусу, залишаємо її видимою:', el);
+                return; // Пропускаємо цей елемент
             }
-        });
 
-        console.log('TaskManager: Кнопки запрошення друзів приховано');
+            // Додаткова перевірка на текст, щоб не приховати важливі кнопки
+            const buttonText = el.textContent.toLowerCase().trim();
+            if (buttonText === 'отримати бонус' || buttonText === 'отримати' ||
+                buttonText.includes('claim') || buttonText.includes('bonus')) {
+                console.log('TaskManager: Знайдено кнопку бонусу за текстом, залишаємо її видимою:', el);
+                return; // Пропускаємо цей елемент
+            }
+
+            // Приховуємо кнопку запрошення
+            el.style.display = 'none';
+        });
+    });
+
+    // Додаткова перевірка для явного показу кнопки отримання бонусу
+    const bonusButton = document.getElementById('claim-daily');
+    if (bonusButton) {
+        bonusButton.style.display = 'block';
+        console.log('TaskManager: Явно встановлено видимість для кнопки бонусу');
     }
+
+    console.log('TaskManager: Кнопки запрошення друзів приховано');
+}
+
+/**
+ * Додаткова функція для гарантованого відображення кнопки бонусу
+ * Додайте цей виклик наприкінці функції init() у task-manager.js
+ */
+function ensureBonusButtonVisible() {
+    // Перевіряємо наявність кнопки бонусу кожні 500мс протягом 5 секунд
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    const checkInterval = setInterval(() => {
+        const bonusButton = document.getElementById('claim-daily');
+        if (bonusButton) {
+            // Кнопка знайдена, переконуємося, що вона видима
+            bonusButton.style.display = 'block';
+            console.log('TaskManager: Кнопка бонусу знайдена і зроблена видимою');
+            clearInterval(checkInterval);
+        } else {
+            attempts++;
+            console.log(`TaskManager: Кнопка бонусу не знайдена, спроба ${attempts}/${maxAttempts}`);
+
+            if (attempts >= maxAttempts) {
+                console.warn('TaskManager: Кнопка бонусу не знайдена після всіх спроб');
+                clearInterval(checkInterval);
+            }
+        }
+    }, 500);
+}
 
     /**
      * Налаштування спостереження за DOM для видалення кнопок при динамічному рендерингу

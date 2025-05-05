@@ -536,7 +536,7 @@
     height: 100%;
     border-radius: 50%;
     background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), transparent 70%);
-    opacity: 0.6;
+    opacity:.6;
 }
 
 /* Ефект при наведенні */
@@ -1335,12 +1335,15 @@
     font-weight: 700;
     color: white;
 }
+
 /* Преміальний стиль для кнопок Підписатися */
 .action-button[data-lang-key="earn.subscribe"],
 button.action-button[data-lang-key="earn.subscribe"],
 .action-button[data-action="subscribe"],
-button[data-action="subscribe"] {
-    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+button[data-action="subscribe"],
+.subscribe-button,
+button:has(span[data-lang-key="earn.subscribe"]) {
+    background: linear-gradient(135deg, #4eb5f7, #00C9A7);
     border-radius: 1.5rem;
     padding: 0.75rem 1.5rem;
     font-weight: bold;
@@ -1352,13 +1355,46 @@ button[data-action="subscribe"] {
     letter-spacing: 0.5px;
     position: relative;
     overflow: hidden;
+    margin-top: 5px;
+    animation: subscribe-pulse 3s infinite alternate;
 }
 
-/* Стилі для ефекту наведення */
+/* Преміальне кільце світіння */
+.action-button[data-lang-key="earn.subscribe"]::after,
+button.action-button[data-lang-key="earn.subscribe"]::after,
+.action-button[data-action="subscribe"]::after,
+button[data-action="subscribe"]::after,
+.subscribe-button::after,
+button:has(span[data-lang-key="earn.subscribe"])::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 1.6rem;
+    background: linear-gradient(135deg, #4eb5f7, #00C9A7, #4eb5f7);
+    background-size: 200% 200%;
+    animation: border-rotate 6s linear infinite;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* Ефект світіння при наведенні */
+.action-button[data-lang-key="earn.subscribe"]:hover::after,
+button.action-button[data-lang-key="earn.subscribe"]:hover::after,
+.action-button[data-action="subscribe"]:hover::after,
+button[data-action="subscribe"]:hover::after,
+.subscribe-button:hover::after,
+button:has(span[data-lang-key="earn.subscribe"]):hover::after {
+    opacity: 1;
+}
+
+/* Стилі для ефекту наведення - світла лінія, що переміщується */
 .action-button[data-lang-key="earn.subscribe"]::before,
 button.action-button[data-lang-key="earn.subscribe"]::before,
 .action-button[data-action="subscribe"]::before,
-button[data-action="subscribe"]::before {
+button[data-action="subscribe"]::before,
+.subscribe-button::before,
+button:has(span[data-lang-key="earn.subscribe"])::before {
     content: '';
     position: absolute;
     top: 0;
@@ -1367,27 +1403,42 @@ button[data-action="subscribe"]::before {
     height: 100%;
     background: linear-gradient(45deg,
         rgba(255, 255, 255, 0) 0%,
-        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0.4) 50%,
         rgba(255, 255, 255, 0) 100%);
     transform: translateX(-100%) skewX(-15deg);
     transition: transform 0.5s ease;
 }
 
-/* Анімація при наведенні */
+/* Анімація переміщення світлої лінії при наведенні */
 .action-button[data-lang-key="earn.subscribe"]:hover::before,
 button.action-button[data-lang-key="earn.subscribe"]:hover::before,
 .action-button[data-action="subscribe"]:hover::before,
-button[data-action="subscribe"]:hover::before {
+button[data-action="subscribe"]:hover::before,
+.subscribe-button:hover::before,
+button:has(span[data-lang-key="earn.subscribe"]):hover::before {
     transform: translateX(100%) skewX(-15deg);
 }
 
-/* Ефект при наведенні */
+/* Ефект підняття при наведенні */
 .action-button[data-lang-key="earn.subscribe"]:hover,
 button.action-button[data-lang-key="earn.subscribe"]:hover,
 .action-button[data-action="subscribe"]:hover,
-button[data-action="subscribe"]:hover {
+button[data-action="subscribe"]:hover,
+.subscribe-button:hover,
+button:has(span[data-lang-key="earn.subscribe"]):hover {
     transform: translateY(-5px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(78, 181, 247, 0.5);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4), 0 0 25px rgba(78, 181, 247, 0.6);
+}
+
+/* Ефект при активації (натисканні) */
+.action-button[data-lang-key="earn.subscribe"]:active,
+button.action-button[data-lang-key="earn.subscribe"]:active,
+.action-button[data-action="subscribe"]:active,
+button[data-action="subscribe"]:active,
+.subscribe-button:active,
+button:has(span[data-lang-key="earn.subscribe"]):active {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 201, 167, 0.4);
 }
 
 /* Додаткові селектори для кнопок з текстом "Підписатися" */
@@ -1395,4 +1446,56 @@ button.action-button span[data-lang-key="earn.subscribe"],
 .action-button span[data-lang-key="earn.subscribe"] {
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    font-weight: bold;
+}
+
+/* Анімації для преміальних ефектів */
+@keyframes subscribe-pulse {
+    0% {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(78, 181, 247, 0.3);
+    }
+    50% {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 25px rgba(0, 201, 167, 0.5);
+    }
+    100% {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(78, 181, 247, 0.3);
+    }
+}
+
+@keyframes border-rotate {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 200%; }
+}
+
+/* Адаптивні стилі для малих екранів */
+@media (max-width: 420px) {
+    .action-button[data-lang-key="earn.subscribe"],
+    button.action-button[data-lang-key="earn.subscribe"],
+    .action-button[data-action="subscribe"],
+    button[data-action="subscribe"],
+    .subscribe-button,
+    button:has(span[data-lang-key="earn.subscribe"]) {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Підтримка режиму зменшеної анімації (accessibility) */
+@media (prefers-reduced-motion: reduce) {
+    .action-button[data-lang-key="earn.subscribe"],
+    button.action-button[data-lang-key="earn.subscribe"],
+    .action-button[data-action="subscribe"],
+    button[data-action="subscribe"],
+    .subscribe-button,
+    button:has(span[data-lang-key="earn.subscribe"]) {
+        animation: none;
+    }
+
+    @keyframes subscribe-pulse {
+        0%, 100% { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3); }
+    }
+
+    @keyframes border-rotate {
+        0%, 100% { background-position: 0% 0%; }
+    }
 }
