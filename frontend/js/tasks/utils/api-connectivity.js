@@ -1,6 +1,7 @@
 /**
  * API Connectivity Helpers - Набір функцій для забезпечення стабільного з'єднання з API
- * Оптимізована версія зі спрощеною обробкою помилок та без надмірних механізмів CORS
+ * Оптимізована версія з покращеною обробкою часових міток
+ * @version 1.1.0
  */
 
 window.APIConnectivity = (function() {
@@ -11,8 +12,8 @@ window.APIConnectivity = (function() {
         lastCheck: 0,
         failedEndpoints: {},
         successfulEndpoints: {},
-        pendingRequests: new Map(), // Зберігаємо активні запити для запобігання дублюванню
-        requestHistory: {}          // Історія успішних запитів для аналізу
+        pendingRequests: new Map(),
+        requestHistory: {}
     };
 
     // Конфігурація
@@ -168,9 +169,6 @@ window.APIConnectivity = (function() {
 
         state.lastCheck = now;
 
-        // Отримуємо ID користувача для перевірки
-        const userId = getUserId();
-
         try {
             // Виконуємо простий запит до API
             const pingUrl = getApiUrl('api/ping');
@@ -258,11 +256,6 @@ window.APIConnectivity = (function() {
             return window.WinixAPI.config.baseUrl.replace(/\/$/, '');
         }
 
-        // Потім перевіряємо глобальну змінну
-        if (window.API_BASE_URL) {
-            return window.API_BASE_URL.replace(/\/$/, '');
-        }
-
         // Якщо нічого не знайдено, використовуємо поточний домен
         return window.location.origin;
     }
@@ -285,6 +278,26 @@ window.APIConnectivity = (function() {
      * @returns {string|null} ID користувача або null
      */
     function getUserId() {
+        // Використовуємо глобальний метод getUserId, якщо доступний
+        if (window.getUserId && typeof window.getUserId === 'function') {
+            try {
+                const id = window.getUserId();
+                if (id) return id;
+            } catch (e) {
+                console.warn("APIConnectivity: Помилка при виклику window.getUserId:", e);
+            }
+        }
+
+        // Використовуємо WinixAPI.getUserId, якщо доступний
+        if (window.WinixAPI && window.WinixAPI.getUserId) {
+            try {
+                const id = window.WinixAPI.getUserId();
+                if (id) return id;
+            } catch (e) {
+                console.warn("APIConnectivity: Помилка при виклику WinixAPI.getUserId:", e);
+            }
+        }
+
         // Функція для перевірки валідності ID
         function isValidId(id) {
             return id &&
@@ -294,86 +307,52 @@ window.APIConnectivity = (function() {
                   id.length > 3;
         }
 
-        // Масив функцій для отримання ID з різних джерел
-        const idProviders = [
-            // 1. Глобальна змінна USER_ID
-            () => window.USER_ID,
-
-            // 2. Telegram WebApp
-            () => {
-                if (window.Telegram && window.Telegram.WebApp &&
-                    window.Telegram.WebApp.initDataUnsafe &&
-                    window.Telegram.WebApp.initDataUnsafe.user) {
-                    return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                }
-                return null;
-            },
-
-            // 3. User data з localStorage
-            () => {
-                try {
-                    const userData = localStorage.getItem('user_data');
-                    if (userData) {
-                        const parsed = JSON.parse(userData);
-                        if (parsed && parsed.telegram_id) {
-                            return parsed.telegram_id.toString();
-                        }
-                    }
-                } catch (e) {}
-                return null;
-            },
-
-            // 4. Telegram ID з localStorage
-            () => {
-                try {
-                    return localStorage.getItem('telegram_user_id');
-                } catch (e) {}
-                return null;
-            },
-
-            // 5. DOM-елемент user-id
-            () => {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement && userIdElement.textContent) {
-                    return userIdElement.textContent.trim();
-                }
-                return null;
-            },
-
-            // 6. URL-параметри
-            () => {
-                try {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    return urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-                } catch (e) {}
-                return null;
-            },
-
-            // 7. WinixAPI, якщо доступний
-            () => {
-                if (window.WinixAPI && window.WinixAPI.getUserId) {
-                    try {
-                        return window.WinixAPI.getUserId();
-                    } catch (e) {}
-                }
-                return null;
+        // Перевіряємо локальне сховище
+        try {
+            const localId = localStorage.getItem('telegram_user_id');
+            if (isValidId(localId)) {
+                return localId;
             }
-        ];
+        } catch (e) {}
 
-        // Перебираємо всі джерела, поки не знайдемо валідний ID
-        for (const provider of idProviders) {
-            try {
-                const id = provider();
-                if (isValidId(id)) {
-                    return id;
-                }
-            } catch (e) {
-                // Ігноруємо помилки при спробі отримати ID
+        // Перевіряємо URL параметри
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            if (isValidId(urlId)) {
+                return urlId;
             }
-        }
+        } catch (e) {}
 
         // ID не знайдено в жодному джерелі
         return null;
+    }
+
+    /**
+     * Перетворення дати в UTC формат ISO 8601 для API запитів
+     * @param {Date} date - Дата для форматування
+     * @returns {string} Дата в форматі ISO 8601 з UTC
+     */
+    function formatDateToUTC(date) {
+        if (!date) date = new Date();
+        return date.toISOString();
+    }
+
+    /**
+     * Парсинг рядка ISO 8601 до об'єкту Date
+     * @param {string} dateString - Рядок дати у форматі ISO 8601
+     * @returns {Date} Об'єкт Date
+     */
+    function parseISODate(dateString) {
+        if (!dateString) return null;
+
+        try {
+            // Для стандартних ISO рядків
+            return new Date(dateString);
+        } catch (e) {
+            console.warn(`APIConnectivity: Помилка парсингу дати: ${dateString}`, e);
+            return null;
+        }
     }
 
     /**
@@ -473,7 +452,25 @@ window.APIConnectivity = (function() {
 
                     // Додаємо тіло запиту для методів POST/PUT
                     if (requestOptions.data && (requestOptions.method === 'POST' || requestOptions.method === 'PUT')) {
-                        fetchOptions.body = JSON.stringify(requestOptions.data);
+                        // Підготовлюємо дані з правильним форматом дат
+                        const preparedData = typeof requestOptions.data === 'object' ? { ...requestOptions.data } : requestOptions.data;
+
+                        // Перетворюємо всі дати в ISO формат UTC
+                        if (typeof preparedData === 'object' && preparedData !== null) {
+                            Object.keys(preparedData).forEach(key => {
+                                if (preparedData[key] instanceof Date) {
+                                    preparedData[key] = formatDateToUTC(preparedData[key]);
+                                }
+                            });
+                        }
+
+                        fetchOptions.body = JSON.stringify(preparedData);
+                    }
+
+                    // Додаємо ID користувача в заголовок, якщо він є
+                    const userId = getUserId();
+                    if (userId) {
+                        fetchOptions.headers['X-Telegram-User-Id'] = userId;
                     }
 
                     // Створюємо AbortController для контролю таймауту
@@ -482,12 +479,6 @@ window.APIConnectivity = (function() {
 
                     // Встановлюємо таймаут
                     const timeoutId = setTimeout(() => controller.abort(), requestOptions.timeout);
-
-                    // Додаємо ID користувача в заголовок, якщо він є
-                    const userId = getUserId();
-                    if (userId) {
-                        fetchOptions.headers['X-Telegram-User-Id'] = userId;
-                    }
 
                     // Виконуємо запит
                     const response = await fetch(url, fetchOptions);
@@ -501,6 +492,11 @@ window.APIConnectivity = (function() {
                     // Для JSON-відповідей
                     if (response.headers.get('content-type')?.includes('application/json')) {
                         responseData = await response.json();
+
+                        // Обробляємо дати в форматі ISO 8601
+                        if (responseData && typeof responseData === 'object') {
+                            processISODates(responseData);
+                        }
                     } else {
                         // Для інших типів відповідей
                         responseData = {
@@ -610,6 +606,32 @@ window.APIConnectivity = (function() {
     }
 
     /**
+     * Рекурсивна обробка дат в ISO форматі у відповіді
+     * @param {Object} obj - Об'єкт для обробки
+     */
+    function processISODates(obj) {
+        if (!obj || typeof obj !== 'object') return;
+
+        // ISO 8601 регулярний вираз для розпізнавання дат
+        const isoDateRegex = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/;
+
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const value = obj[key];
+
+                // Перевіряємо чи це дата в форматі ISO
+                if (typeof value === 'string' && isoDateRegex.test(value)) {
+                    // Перетворюємо рядок на об'єкт Date
+                    obj[key] = parseISODate(value);
+                } else if (value && typeof value === 'object') {
+                    // Рекурсивно обробляємо вкладені об'єкти
+                    processISODates(value);
+                }
+            }
+        }
+    }
+
+    /**
      * Очищення кешу відповідей
      * @param {string} [endpoint] - Опціонально, конкретний ендпоінт для очищення
      * @returns {number} Кількість видалених записів
@@ -697,6 +719,8 @@ window.APIConnectivity = (function() {
         clearResponseCache,
         getRequestStats,
         updateConfig,
+        formatDateToUTC,
+        parseISODate,
 
         // Безпосередній доступ до стану
         isAPIAvailable: () => state.apiAvailable,
