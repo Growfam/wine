@@ -3,13 +3,13 @@
 /* Анімації для відображення балансу */
 #user-tokens.increasing,
 #user-coins.increasing {
-    animation: balance-increase 1.5s ease-out;
+    animation: balance-increase 1.8s cubic-bezier(0.215, 0.61, 0.355, 1);
     color: #4caf50;
 }
 
 #user-tokens.decreasing,
 #user-coins.decreasing {
-    animation: balance-decrease 1.5s ease-out;
+    animation: balance-decrease 1.8s cubic-bezier(0.215, 0.61, 0.355, 1);
     color: #f44336;
 }
 
@@ -18,7 +18,11 @@
         transform: scale(1);
         text-shadow: 0 0 0 rgba(76, 175, 80, 0);
     }
-    50% {
+    30% {
+        transform: scale(1.2);
+        text-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+    }
+    70% {
         transform: scale(1.2);
         text-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
     }
@@ -34,7 +38,11 @@
         transform: scale(1);
         text-shadow: 0 0 0 rgba(244, 67, 54, 0);
     }
-    50% {
+    30% {
+        transform: scale(1.2);
+        text-shadow: 0 0 15px rgba(244, 67, 54, 0.8);
+    }
+    70% {
         transform: scale(1.2);
         text-shadow: 0 0 15px rgba(244, 67, 54, 0.8);
     }
@@ -45,14 +53,15 @@
     }
 }
 
-/* Анімації для задівоннь */
+/* Анімації для завдань */
 .task-item {
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    will-change: transform, box-shadow;
 }
 
 .task-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);
 }
 
 .task-item.completed {
@@ -67,7 +76,8 @@
 .action-button {
     position: relative;
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: transform, box-shadow;
 }
 
 .action-button:after {
@@ -101,6 +111,36 @@
         opacity: 0;
         transform: scale(40, 40);
     }
+}
+
+/* Преміум-ефект для кнопок */
+.action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    transition: transform 0.5s ease;
+    transform: translateX(-100%) skewX(-15deg);
+}
+
+.action-button:hover::before {
+    transform: translateX(100%) skewX(-15deg);
+}
+
+.action-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.action-button:active {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* Анімації для винагород */
@@ -152,22 +192,26 @@
 
 /* Анімація для прогрес-бару */
 .progress-fill {
-    transition: width 0.5s ease-in-out;
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: width;
 }
 
 .progress-fill.pulse {
-    animation: pulse-progress 1s infinite;
+    animation: pulse-progress 1.5s infinite;
 }
 
 @keyframes pulse-progress {
     0% {
         opacity: 1;
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
     }
     50% {
-        opacity: 0.7;
+        opacity: 0.8;
+        box-shadow: 0 0 12px rgba(0, 201, 167, 0.6);
     }
     100% {
         opacity: 1;
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
     }
 }
 
@@ -184,10 +228,11 @@
 .spinner {
     width: 1.5rem;
     height: 1.5rem;
-    border: 3px solid rgba(255, 255, 255, 0.3);
+    border: 3px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     border-top-color: #4eb5f7;
     animation: spin 1s linear infinite;
+    will-change: transform;
 }
 
 @keyframes spin {
@@ -207,12 +252,15 @@
 @keyframes timer-pulse {
     0% {
         color: #FFD700;
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
     }
     50% {
         color: #FFA500;
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
     }
     100% {
         color: #FFD700;
+        text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
     }
 }
 
@@ -224,23 +272,27 @@
 @keyframes expired-pulse {
     0% {
         opacity: 0.5;
+        transform: scale(0.95);
     }
     50% {
         opacity: 1;
+        transform: scale(1.05);
     }
     100% {
         opacity: 0.5;
+        transform: scale(0.95);
     }
 }
 
 /* Анімації для щоденного бонусу */
 .daily-bonus-bar {
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    will-change: transform, box-shadow;
 }
 
 .daily-bonus-bar:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
 }
 
 .claim-button:not(:disabled) {
@@ -249,26 +301,28 @@
 
 @keyframes claim-button-glow {
     0% {
-        box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 201, 167, 0.2) inset;
     }
     100% {
-        box-shadow: 0 0 15px rgba(0, 201, 167, 0.7);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 201, 167, 0.5), 0 0 0 1px rgba(0, 201, 167, 0.4) inset;
     }
 }
 
 /* Анімації для ховання та показу елементів */
 .fade-in {
-    animation: fade-in 0.3s ease forwards;
+    animation: fade-in 0.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    will-change: opacity, transform;
 }
 
 .fade-out {
-    animation: fade-out 0.3s ease forwards;
+    animation: fade-out 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    will-change: opacity, transform;
 }
 
 @keyframes fade-in {
     0% {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(15px);
     }
     100% {
         opacity: 1;
@@ -283,7 +337,7 @@
     }
     100% {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(15px);
     }
 }
 
@@ -298,15 +352,17 @@
     padding: 12px 24px;
     border-radius: 12px;
     z-index: 1000;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(78, 181, 247, 0.2);
     border: 1px solid rgba(78, 181, 247, 0.2);
     opacity: 0;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
     font-size: 15px;
     display: flex;
     align-items: center;
     max-width: 350px;
     width: 90%;
+    backdrop-filter: blur(8px);
+    will-change: transform, opacity;
 }
 
 .toast-message.show {
@@ -315,27 +371,66 @@
 }
 
 .toast-message.success {
-    background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.9), rgba(46, 125, 50, 0.9));
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3), 0 0 15px rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.3);
 }
 
 .toast-message.error {
-    background: linear-gradient(135deg, #F44336, #D32F2F);
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.9), rgba(211, 47, 47, 0.9));
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3), 0 0 15px rgba(244, 67, 54, 0.3);
+    border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
 /* Відображення нових елементів лідерської дошки */
 .leaderboard-item.new-entry {
-    animation: new-entry 0.5s ease-out;
+    animation: new-entry 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes new-entry {
     0% {
-        transform: translateX(-10px);
+        transform: translateX(-20px);
         opacity: 0;
     }
     100% {
         transform: translateX(0);
         opacity: 1;
     }
+}
+
+/* Покращена анімація для елементів завдань */
+@keyframes fadeInTask {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.task-item {
+    animation: fadeInTask 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+/* Анімація успішного виконання завдання */
+@keyframes success-pulse {
+    0% {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(0, 201, 167, 0.6), 0 0 0 1px rgba(0, 201, 167, 0.5) inset;
+    }
+    100% {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+    }
+}
+
+.task-item.success-pulse {
+    animation: success-pulse 1s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 /* Адаптивні стилі для мобільних пристроїв */
@@ -348,6 +443,7 @@
     .toast-message {
         padding: 10px 20px;
         font-size: 14px;
+        max-width: 90%;
     }
 }
 
@@ -355,5 +451,15 @@
     .reward-animation {
         font-size: 1.125rem;
         padding: 0.625rem 1rem;
+        max-width: 85%;
     }
-}a
+}
+
+/* Оптимізації для швидкодії */
+.task-item,
+.leaderboard-item,
+.daily-bonus-bar,
+.action-button,
+.progress-fill {
+    will-change: transform, opacity, box-shadow;
+}
