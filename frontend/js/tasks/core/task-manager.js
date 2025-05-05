@@ -750,52 +750,56 @@ window.TaskManager = (function() {
         document.head.appendChild(style);
     }
 
-    function setupUIRules() {
-  // Створюємо конфігурацію елементів UI
-  const uiRules = {
-    // Елементи, які потрібно сховати
-    hide: [
-      { selector: 'button.invite-friends-button', exceptions: ['#claim-daily'] },
-      { selector: '.action-button[data-action="invite"]' },
-      { selector: 'button[data-lang-key="earn.invite_friends"]',
-        exceptContaining: ['отримати бонус', 'claim', 'bonus'] }
-    ],
-    // Елементи, які завжди повинні бути видимі
-    show: [
-      { selector: '#claim-daily' }
-    ]
-  };
+    /**
+     * Видалення кнопок "Запросити друзів"
+     */
+    function removeInviteButtons() {
+        console.log('TaskManager: Початок видалення кнопок запрошення друзів');
 
-  // Застосовуємо правила
-  applyUIRules(uiRules);
+        // Шукаємо всі елементи, які можуть бути кнопками запрошення
+        const selectors = [
+            'button.invite-friends-button',
+            '.action-button[data-action="invite"]',
+            'button[data-lang-key="earn.invite_friends"]',
+            '.invite-friends-button',
+            '.referral-button',
+            'a.invite-button',
+            'a[href*="invite"]',
+            'button[onclick*="invite"]',
+            '[data-lang-key="earn.invite_friends"]'
+        ];
 
-  // Спостерігаємо за змінами DOM
-  if (window.MutationObserver) {
-    const observer = new MutationObserver(() => applyUIRules(uiRules));
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-}
+        // Приховуємо знайдені кнопки з додатковою перевіркою
+        selectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                // Перевіряємо, чи це не кнопка щоденного бонусу
+                if (el.id === 'claim-daily' || el.closest('#daily-bonus-container')) {
+                    console.log('TaskManager: Знайдено кнопку бонусу, залишаємо її видимою:', el);
+                    return; // Пропускаємо цей елемент
+                }
 
-function applyUIRules(rules) {
-  // Сховати елементи
-  rules.hide.forEach(rule => {
-    document.querySelectorAll(rule.selector).forEach(el => {
-      // Перевірка винятків
-      if (rule.exceptions && rule.exceptions.some(exc => el.matches(exc))) return;
-      if (rule.exceptContaining && el.textContent &&
-          rule.exceptContaining.some(text => el.textContent.toLowerCase().includes(text))) return;
+                // Додаткова перевірка на текст, щоб не приховати важливі кнопки
+                const buttonText = el.textContent.toLowerCase().trim();
+                if (buttonText === 'отримати бонус' || buttonText === 'отримати' ||
+                    buttonText.includes('claim') || buttonText.includes('bonus')) {
+                    console.log('TaskManager: Знайдено кнопку бонусу за текстом, залишаємо її видимою:', el);
+                    return; // Пропускаємо цей елемент
+                }
 
-      el.style.display = 'none';
-    });
-  });
+                // Приховуємо кнопку запрошення
+                el.style.display = 'none';
+            });
+        });
 
-  // Показати елементи
-  rules.show.forEach(rule => {
-    document.querySelectorAll(rule.selector).forEach(el => {
-      el.style.display = 'block';
-    });
-  });
-}
+        // Додаткова перевірка для явного показу кнопки отримання бонусу
+        const bonusButton = document.getElementById('claim-daily');
+        if (bonusButton) {
+            bonusButton.style.display = 'block';
+            console.log('TaskManager: Явно встановлено видимість для кнопки бонусу');
+        }
+
+        console.log('TaskManager: Кнопки запрошення друзів приховано');
+    }
 
     /**
      * Додаткова функція для гарантованого відображення кнопки бонусу
@@ -822,6 +826,34 @@ function applyUIRules(rules) {
                 }
             }
         }, 500);
+    }
+
+    /**
+     * Налаштування спостереження за DOM для видалення кнопок при динамічному рендерингу
+     */
+    function setupButtonObserver() {
+        if (!window.MutationObserver) return;
+
+        const observer = new MutationObserver(mutations => {
+            let shouldRemove = false;
+
+            mutations.forEach(mutation => {
+                if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                    shouldRemove = true;
+                }
+            });
+
+            if (shouldRemove) {
+                removeInviteButtons();
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('TaskManager: Налаштовано спостереження за DOM');
     }
 
     /**
@@ -2183,144 +2215,140 @@ function applyUIRules(rules) {
      * @param {string} taskId - ID завдання
      */
     async function verifyTask(taskId) {
-    console.log('TaskManager: Перевірка виконання завдання:', taskId);
+        console.log('TaskManager: Перевірка виконання завдання:', taskId);
 
-    try {
-        // Запобігаємо повторним запитам для одного завдання
-        if (operationStatus.verificationInProgress[taskId]) {
-            console.log('TaskManager: Перевірка вже виконується для завдання', taskId);
-            return false;
-        }
-
-        operationStatus.verificationInProgress[taskId] = true;
-
-        // Перевіряємо наявність ID користувача
-        const userId = safeGetUserId();
-        if (!userId) {
-            throw new Error('ID користувача не знайдено');
-        }
-
-        // Знаходимо кнопку та додаємо клас завантаження
-        const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
-        if (button) {
-            button.disabled = true;
-            button.textContent = 'Перевірка...';
-
-            if (animationConfig.enabled) {
-                button.style.opacity = '0.7';
-
-                // Додаємо анімацію завантаження
-                const loadingElement = document.createElement('div');
-                loadingElement.style.position = 'absolute';
-                loadingElement.style.top = '50%';
-                loadingElement.style.left = '50%';
-                loadingElement.style.transform = 'translate(-50%, -50%)';
-                loadingElement.style.width = '20px';
-                loadingElement.style.height = '20px';
-                loadingElement.style.border = '2px solid rgba(255, 255, 255, 0.3)';
-                loadingElement.style.borderTop = '2px solid white';
-                loadingElement.style.borderRadius = '50%';
-                loadingElement.style.animation = 'spin 1s linear infinite';
-
-                button.appendChild(loadingElement);
+        try {
+            // Запобігаємо повторним запитам для одного завдання
+            if (operationStatus.verificationInProgress[taskId]) {
+                console.log('TaskManager: Перевірка вже виконується для завдання', taskId);
+                return false;
             }
-        }
 
-        // Використовуємо ErrorHandler для виконання запиту з обробкою помилок
-        const response = await ErrorHandler.executeWithRetry(
-            async () => window.API.post(`quests/tasks/${taskId}/verify`),
-            {
-                maxRetries: 2,
-                shouldRetry: (error) => {
-                    const errorType = ErrorHandler.classifyError(error);
-                    return errorType === ErrorHandler.ERROR_TYPES.NETWORK ||
-                           errorType === ErrorHandler.ERROR_TYPES.TIMEOUT;
+            operationStatus.verificationInProgress[taskId] = true;
+
+            // Перевіряємо наявність ID користувача
+            const userId = safeGetUserId();
+            if (!userId) {
+                console.error('TaskManager: ID користувача не знайдено, неможливо перевірити завдання');
+                showErrorMessage('Для перевірки завдання необхідно авторизуватися');
+                operationStatus.verificationInProgress[taskId] = false;
+                return false;
+            }
+
+            // Знаходимо кнопку та додаємо клас завантаження
+            const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Перевірка...';
+
+                if (animationConfig.enabled) {
+                    button.style.opacity = '0.7';
+
+                    // Додаємо анімацію завантаження
+                    const loadingElement = document.createElement('div');
+                    loadingElement.style.position = 'absolute';
+                    loadingElement.style.top = '50%';
+                    loadingElement.style.left = '50%';
+                    loadingElement.style.transform = 'translate(-50%, -50%)';
+                    loadingElement.style.width = '20px';
+                    loadingElement.style.height = '20px';
+                    loadingElement.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+                    loadingElement.style.borderTop = '2px solid white';
+                    loadingElement.style.borderRadius = '50%';
+                    loadingElement.style.animation = 'spin 1s linear infinite';
+
+                    button.appendChild(loadingElement);
                 }
             }
-        );
 
-        if (response.status === 'success' || response.success) {
-            // Оновлюємо прогрес
-            updateProgressAfterSuccess(taskId, response);
+            // Виконуємо запит до API
+            const response = await window.API.post(`quests/tasks/${taskId}/verify`);
 
-            // Оновлюємо відображення з анімацією
-            const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-            if (taskElement && animationConfig.enabled && !animationConfig.useReducedMotion) {
-                // Додаємо клас для анімації успіху
-                taskElement.classList.add('success-pulse');
+            if (response.status === 'success' || response.success) {
+                console.log('TaskManager: Завдання успішно перевірено:', taskId);
 
-                // Створюємо ефект частинок для наочності
-                createCompletionParticles(taskElement);
+                // Оновлюємо прогрес
+                if (response.data && response.data.progress) {
+                    userProgress[taskId] = response.data.progress;
+                } else if (response.progress) {
+                    userProgress[taskId] = response.progress;
+                } else {
+                    // Встановлюємо прогрес як завершений
+                    userProgress[taskId] = userProgress[taskId] || {};
+                    userProgress[taskId].status = 'completed';
+                    userProgress[taskId].progress_value = userProgress[taskId].target_value || 1;
+                }
 
-                // Через 1 секунду оновлюємо відображення
-                setTimeout(() => {
-                    taskElement.classList.remove('success-pulse');
+                // Оновлюємо відображення з анімацією
+                const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+                if (taskElement && animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    // Додаємо клас для анімації успіху
+                    taskElement.classList.add('success-pulse');
+
+                    // Створюємо ефект частинок для наочності
+                    createCompletionParticles(taskElement);
+
+                    // Через 1 секунду оновлюємо відображення
+                    setTimeout(() => {
+                        taskElement.classList.remove('success-pulse');
+                        refreshTaskDisplay(taskId);
+                    }, 1000);
+                } else {
+                    // Оновлюємо без анімації
                     refreshTaskDisplay(taskId);
-                }, 1000);
+                }
+
+                // Показуємо повідомлення про успіх з використанням UI.Notifications, якщо доступно
+                if (window.UI && window.UI.Notifications && typeof window.UI.Notifications.showSuccess === 'function') {
+                    window.UI.Notifications.showSuccess(response.message || 'Завдання успішно виконано!');
+                } else {
+                    showSuccessMessage(response.message || 'Завдання успішно виконано!');
+                }
+
+                // Якщо є винагорода, оновлюємо баланс
+                if (response.data && response.data.reward) {
+                    updateBalance(response.data.reward);
+                } else if (response.reward) {
+                    updateBalance(response.reward);
+                }
+
+                // Запам'ятовуємо час останньої перевірки
+                operationStatus.lastVerificationTime[taskId] = Date.now();
+
+                operationStatus.verificationInProgress[taskId] = false;
+                return true;
             } else {
-                // Оновлюємо без анімації
-                refreshTaskDisplay(taskId);
+                console.error('TaskManager: Помилка перевірки завдання:', response.message || 'Невідома помилка');
+
+                // Відновлюємо кнопку
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Перевірити';
+                    button.style.opacity = '1';
+                }
+
+                // Показуємо повідомлення про помилку
+                showErrorMessage(response.message || 'Помилка перевірки завдання');
+
+                operationStatus.verificationInProgress[taskId] = false;
+                return false;
+            }
+        } catch (error) {
+            console.error('TaskManager: Помилка перевірки завдання:', error);
+
+            // Відновлюємо кнопку, якщо вона є
+            const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Перевірити';
+                button.style.opacity = '1';
             }
 
-            // Показуємо повідомлення про успіх
-            showSuccessMessage(response.message || 'Завдання успішно виконано!');
-
-            // Якщо є винагорода, оновлюємо баланс
-            updateReward(response);
-
-            // Запам'ятовуємо час останньої перевірки
-            operationStatus.lastVerificationTime[taskId] = Date.now();
+            showErrorMessage('Не вдалося перевірити завдання: ' + error.message);
             operationStatus.verificationInProgress[taskId] = false;
-            return true;
-        } else {
-            throw new Error(response.message || 'Помилка перевірки завдання');
+            return false;
         }
-    } catch (error) {
-        // Відновлюємо кнопку, якщо вона є
-        resetButton(taskId);
-
-        // Обробляємо помилку за допомогою ErrorHandler
-        const errorResult = ErrorHandler.handleError(error, { taskId });
-
-        // Показуємо повідомлення про помилку
-        showErrorMessage(errorResult.message);
-
-        operationStatus.verificationInProgress[taskId] = false;
-        return false;
     }
-}
-
-// Допоміжні функції для розділення логіки
-function resetButton(taskId) {
-    const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
-    if (button) {
-        button.disabled = false;
-        button.textContent = 'Перевірити';
-        button.style.opacity = '1';
-    }
-}
-
-function updateProgressAfterSuccess(taskId, response) {
-    // Оновлюємо прогрес
-    if (response.data && response.data.progress) {
-        userProgress[taskId] = response.data.progress;
-    } else if (response.progress) {
-        userProgress[taskId] = response.progress;
-    } else {
-        // Встановлюємо прогрес як завершений
-        userProgress[taskId] = userProgress[taskId] || {};
-        userProgress[taskId].status = 'completed';
-        userProgress[taskId].progress_value = userProgress[taskId].target_value || 1;
-    }
-}
-
-function updateReward(response) {
-    if (response.data && response.data.reward) {
-        updateBalance(response.data.reward);
-    } else if (response.reward) {
-        updateBalance(response.reward);
-    }
-}
 
     /**
      * Оновлення балансу користувача
