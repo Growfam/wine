@@ -355,3 +355,64 @@
     background: linear-gradient(135deg, rgba(244, 67, 54, 0.85), rgba(30, 39, 70, 0.95));
     border: 1px solid rgba(244, 67, 54, 0.3);
 }
+
+/* Приховуємо всі кнопки "Запросити друзів" - виправлений код без :contains */
+button.invite-friends-button,
+.action-button[data-action="invite"],
+button[data-lang-key="earn.invite_friends"],
+.invite-friends-button,
+.referral-button,
+a.invite-button,
+a[href*="invite"],
+button[onclick*="invite"],
+[data-lang-key="earn.invite_friends"] {
+    display: none !important;
+}
+
+/* Спеціальні селектори для кнопок "Запросити друзів" */
+button.claim-button {
+    display: none !important;
+}
+
+/* Покращені стилі для реферальних завдань */
+.task-item[data-task-type="referral"] {
+    background: linear-gradient(135deg, rgba(26, 32, 58, 0.85), rgba(13, 20, 46, 0.9));
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2),
+                inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Покращення стилів для прогрес-бару в реферальних завданнях */
+.task-progress .progress-bar-container {
+    height: 12px;
+    background: rgba(20, 30, 60, 0.4);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.task-progress .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 201, 167, 0.4);
+    transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Анімація для прогрес-бару при заповненні */
+.progress-fill.complete {
+    animation: progress-complete-pulse 2s infinite;
+}
+
+@keyframes progress-complete-pulse {
+    0% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(0, 201, 167, 0.7);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.4);
+    }
+}
