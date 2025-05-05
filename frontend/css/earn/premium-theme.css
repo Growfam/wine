@@ -1,5 +1,5 @@
 /* WINIX Premium Theme - Стильний, сучасний інтерфейс для системи завдань
- * Версія: 1.0
+ * Версія: 2.1
  * Сумісність: мобільні пристрої, планшети, десктоп
  * Додає преміальні ефекти, анімації та покращену юзабіліті
  */
@@ -82,12 +82,14 @@ body {
     background-size: cover;
     filter: brightness(0.5);
     z-index: -1;
-    animation: backgroundShift 15s infinite linear;
+    animation: backgroundShift 20s infinite alternate ease-in-out;
 }
 
 @keyframes backgroundShift {
     0% { background-position: 0% 0%; }
-    50% { background-position: 10% 10%; }
+    25% { background-position: 2% 2%; }
+    50% { background-position: 5% 0%; }
+    75% { background-position: 2% -2%; }
     100% { background-position: 0% 0%; }
 }
 
@@ -143,7 +145,7 @@ body {
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: var(--gradient-accent);
+    background: linear-gradient(135deg, #2D6EB6, #52C0BD);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -155,6 +157,7 @@ body {
     transition: var(--transition-medium);
     position: relative;
     overflow: hidden;
+    will-change: transform, box-shadow;
 }
 
 .profile-avatar:hover {
@@ -195,6 +198,7 @@ body {
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
     border: var(--border-width) solid rgba(78, 181, 247, 0.1);
     transition: var(--transition-medium);
+    will-change: transform, box-shadow;
 }
 
 .jeton-balance:hover, .winix-balance:hover {
@@ -225,6 +229,7 @@ body {
     backdrop-filter: blur(5px);
     transition: var(--transition-medium);
     transform: translateY(0);
+    will-change: transform, box-shadow;
 }
 
 .category-card:hover {
@@ -267,6 +272,7 @@ body {
     transform: translateZ(0);
     position: relative;
     overflow: hidden;
+    will-change: transform, box-shadow;
 }
 
 .task-item::before {
@@ -307,10 +313,11 @@ body {
 /* Опис завдання */
 .task-description {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
     margin-bottom: 12px;
     position: relative;
     z-index: 1;
+    line-height: 1.5;
 }
 
 /* Преміальні кнопки дій */
@@ -328,6 +335,7 @@ body {
     position: relative;
     overflow: hidden;
     z-index: 1;
+    will-change: transform, box-shadow;
 }
 
 .action-button::before {
@@ -376,6 +384,7 @@ body {
     border-radius: 5px;
     transition: width 0.5s ease-out;
     box-shadow: 0 0 8px rgba(0, 201, 167, 0.3);
+    will-change: width;
 }
 
 .progress-fill.complete {
@@ -410,6 +419,7 @@ body {
     border: var(--border-width) solid rgba(78, 181, 247, 0.1);
     overflow: hidden;
     transition: var(--transition-medium);
+    will-change: transform, box-shadow;
 }
 
 .daily-bonus-bar:hover {
@@ -452,6 +462,7 @@ body {
     color: black;
     box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
     animation: token-badge-glow 2s infinite alternate;
+    will-change: box-shadow;
 }
 
 @keyframes token-badge-glow {
@@ -488,6 +499,7 @@ body {
     transition: var(--transition-medium);
     position: relative;
     overflow: hidden;
+    will-change: transform, box-shadow;
 }
 
 .leaderboard-item::before {
@@ -525,6 +537,7 @@ body {
     font-weight: bold;
     margin-right: 15px;
     background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    color: white;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
 }
 
@@ -553,7 +566,7 @@ body {
 
 .referral-count {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .user-reward {
@@ -709,4 +722,51 @@ button[onclick*="invite"],
     .referral-count {
         font-size: 11px;
     }
+}
+
+/* Покращений контраст для реферальних завдань */
+.task-item[data-task-type="referral"] {
+    background: linear-gradient(135deg, rgba(26, 32, 58, 0.85), rgba(13, 20, 46, 0.9));
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2),
+                inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.task-item[data-task-type="referral"] .task-title {
+    color: #4eb5f7; /* Яскраво-синій для кращого контрасту */
+    text-shadow: 0 0 8px rgba(78, 181, 247, 0.3);
+}
+
+.task-item[data-task-type="referral"] .task-description {
+    color: rgba(255, 255, 255, 0.9); /* Світліший текст для кращого контрасту */
+}
+
+.task-item[data-task-type="referral"] .progress-text {
+    color: rgba(255, 255, 255, 0.8); /* Світліший текст для кращого контрасту */
+}
+
+.task-item[data-task-type="referral"] .progress-bar-container {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(78, 181, 247, 0.1);
+}
+
+.task-item[data-task-type="referral"] .progress-fill {
+    background: linear-gradient(90deg, #4eb5f7, #2196F3);
+    box-shadow: 0 0 10px rgba(78, 181, 247, 0.5);
+}
+
+.task-item[data-task-type="referral"] .action-button {
+    background: linear-gradient(90deg, #4eb5f7, #2979FF);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(78, 181, 247, 0.2) inset;
+}
+
+.task-item[data-task-type="referral"] .action-button:hover {
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(78, 181, 247, 0.4) inset;
+}
+
+.task-item[data-task-type="referral"] .completed-label {
+    background: rgba(0, 201, 167, 0.2);
+    color: #00C9A7;
+    border: 1px solid rgba(0, 201, 167, 0.4);
+    box-shadow: 0 0 15px rgba(0, 201, 167, 0.2);
 }
