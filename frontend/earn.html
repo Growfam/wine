@@ -50,6 +50,26 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* ВИПРАВЛЕНО: Додано критичні стилі для вкладок і контентних секцій */
+        .content-section {
+            display: none !important;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .content-section.active {
+            display: block !important;
+            opacity: 1;
+        }
+        .tab {
+            position: relative;
+            cursor: pointer;
+        }
+        .tab.active {
+            background: linear-gradient(135deg, #4eb5f7, #00C9A7) !important;
+            color: white !important;
+            font-weight: bold;
+        }
     </style>
 
     <!-- Підключення основних стилів -->
@@ -158,7 +178,7 @@
         <!-- Перемикач категорій завдань -->
         <div class="tabs">
             <div class="tab active" data-tab="social" data-lang-key="earn.social_networks">Соціальні</div>
-            <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Лімітовані</div>
+            <div class="tab" data-tab="limited" data-lang-key="earn.limited_tasks">Обмежені за часом</div>
             <div class="tab" data-tab="partners" data-lang-key="earn.partners_tasks">Партнерські</div>
         </div>
 
@@ -393,9 +413,82 @@
 
             // Запускаємо ініціалізатори
             setTimeout(runInitializers, 100);
+
+            // ВИПРАВЛЕНО: Додано власну просту логіку для перемикання вкладок, якщо TaskManager не ініціалізується
+            setupBasicTabSwitching();
         });
 
-        // Додаємо обробник для швидкого відображення сторінки
+        // ВИПРАВЛЕНО: Додано базову функцію для перемикання вкладок як запасний варіант
+        function setupBasicTabSwitching() {
+            const tabs = document.querySelectorAll('.tab');
+            const contentSections = document.querySelectorAll('.content-section');
+
+            // Додаємо обробник для кожної вкладки
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabType = this.getAttribute('data-tab');
+                    const targetSection = document.getElementById(`${tabType}-content`);
+
+                    // Якщо обрана вкладка вже активна, нічого не робимо
+                    if (this.classList.contains('active')) {
+                        return;
+                    }
+
+                    // Видаляємо активний клас з усіх вкладок
+                    tabs.forEach(t => t.classList.remove('active'));
+
+                    // Додаємо активний клас поточній вкладці
+                    this.classList.add('active');
+
+                    // Приховуємо всі секції контенту з анімацією
+                    contentSections.forEach(section => {
+                        section.style.opacity = '0';
+
+                        // Через невелику затримку ховаємо секцію повністю
+                        setTimeout(() => {
+                            section.classList.remove('active');
+                            section.style.display = 'none';
+                        }, 200);
+                    });
+
+                    // Через затримку показуємо потрібну секцію
+                    setTimeout(() => {
+                        if (targetSection) {
+                            targetSection.style.display = 'block';
+
+                            // Примусове перемальовування перед анімацією
+                            targetSection.offsetHeight;
+
+                            targetSection.classList.add('active');
+                            targetSection.style.opacity = '1';
+
+                            // Зберігаємо вибір користувача
+                            try {
+                                localStorage.setItem('active_tasks_tab', tabType);
+                            } catch (e) {
+                                console.warn('Помилка збереження вкладки:', e);
+                            }
+                        }
+                    }, 250);
+                });
+            });
+
+            // Відновлюємо вибір користувача при завантаженні
+            try {
+                const savedTab = localStorage.getItem('active_tasks_tab');
+                if (savedTab) {
+                    const tab = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+                    if (tab) {
+                        // Затримка для кращої стабільності
+                        setTimeout(() => tab.click(), 500);
+                    }
+                }
+            } catch (e) {
+                console.warn('Помилка відновлення вкладки:', e);
+            }
+        }
+
+        // Обробка події завантаження сторінки
         window.addEventListener('load', function() {
             console.log('All resources loaded');
 

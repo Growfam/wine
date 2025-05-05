@@ -1,7 +1,7 @@
 /*
 * WINIX Premium Theme - styles.css
 * Повністю оновлений головний файл стилів для сторінки завдань
-* Версія 2.1 - Premium Edition покращена
+* Версія 2.2 - Premium Edition з виправленнями для вкладок
 */
 
 /* Основні змінні для теми */
@@ -323,6 +323,7 @@ body {
         transparent 100%);
 }
 
+/* ВИПРАВЛЕННЯ: Поліпшені стилі для вкладок з чіткішою видимістю активної вкладки */
 .tab {
     flex: 1;
     text-align: center;
@@ -332,13 +333,14 @@ body {
     color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     border-radius: 0.9375rem; /* 15px */
-    transition: var(--default-transition);
+    transition: all 0.3s ease;
     letter-spacing: 0.01rem;
     position: relative;
     overflow: hidden;
     z-index: 1;
     white-space: nowrap;
     min-width: 70px;
+    /* Виправлено: видалено background */
 }
 
 .tab::before {
@@ -360,12 +362,25 @@ body {
     transform: translateY(0);
 }
 
+/* ВИПРАВЛЕНО: Чітко відділено стилі активної вкладки від неактивних */
 .tab.active {
-    background: var(--accent-gradient);
-    color: white;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3); /* 0 4px 8px */
-    transform: translateY(-1px);
-    font-weight: bold;
+    background: linear-gradient(135deg, #4eb5f7, #00C9A7) !important;
+    color: white !important;
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3) !important; /* 0 4px 8px */
+    transform: translateY(-1px) !important;
+    font-weight: bold !important;
+    z-index: 2 !important; /* Вищий z-index для активної вкладки */
+}
+
+/* ВИПРАВЛЕНО: Окремі стилі для активної та неактивної вкладок */
+.tab:not(.active) {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.tab:not(.active):hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1) !important;
 }
 
 .tab.active::after {
@@ -457,11 +472,13 @@ body {
     border-radius: 0.0625rem; /* 1px */
 }
 
-/* Стилі для секцій контенту */
+/* ВИПРАВЛЕНО: Покращені стилі для секцій контенту */
 .content-section {
     width: 100%;
-    display: none;
+    display: none !important;
     animation: fadeIn 0.3s ease-out;
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
 }
 
 @keyframes fadeIn {
@@ -469,8 +486,10 @@ body {
     to { opacity: 1; }
 }
 
+/* ВИПРАВЛЕНО: Покращений стиль для активної секції */
 .content-section.active {
-    display: block;
+    display: block !important;
+    opacity: 1;
 }
 
 /* Стилі для спливаючих підказок */
@@ -860,6 +879,40 @@ html, body {
     color: white;
     font-weight: bold;
 }
+
+/* Додаткові стилі для кращого перемикання вкладок */
+.tab {
+    position: relative;
+    overflow: visible !important;
+}
+
+.tab::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: white;
+    transform: translateX(-50%);
+    transition: width 0.3s ease;
+}
+
+.tab.active::after {
+    width: 50%;
+}
+
+/* Преміальна анімація для переходу між вкладками */
+@keyframes tabTransition {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+.content-section.active {
+    animation: tabTransition 0.4s ease forwards;
+}
+
+/* ВИПРАВЛЕНО: Фіксований стиль шапки для кращої видимості на всіх пристроях */
 .header {
     background: linear-gradient(135deg, rgba(26, 32, 58, 0.95), rgba(15, 23, 42, 0.95));
     backdrop-filter: blur(10px);

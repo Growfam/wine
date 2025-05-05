@@ -26,10 +26,6 @@ window.UI.Animations = (function() {
         specialDayColors: [           // Кольори для особливих днів (з жетонами)
             '#FFD700', '#FFA500', '#FF8C00', '#FFC107'
         ],
-        soundEffects: {               // Гучність звукових ефектів
-            volume: 0.4,
-            enabled: true
-        },
         animationTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)' // Покращена функція анімації
     };
 
@@ -39,8 +35,6 @@ window.UI.Animations = (function() {
         devicePerformance: 'high',      // Продуктивність пристрою
         animationsInProgress: 0,        // Кількість анімацій в процесі
         timers: {},                     // Збереження таймерів
-        soundsLoaded: false,            // Чи завантажено звуки
-        soundInstances: {},             // Об'єкти звуків
         lastAnimationTime: 0,           // Час останньої анімації для запобігання перекриття
         enableHighQualityEffects: true  // Чи включені високоякісні ефекти
     };
@@ -63,11 +57,6 @@ window.UI.Animations = (function() {
 
         // Додаємо стилі для преміальних анімацій
         injectAnimationStyles();
-
-        // Попередньо завантажуємо звуки, якщо увімкнено
-        if (config.soundEffects.enabled) {
-            preloadSounds();
-        }
 
         // Налаштування обробників подій
         setupEventHandlers();
@@ -722,69 +711,6 @@ window.UI.Animations = (function() {
     }
 
     /**
-     * Попереднє завантаження звуків для кращої продуктивності
-     */
-    function preloadSounds() {
-        try {
-            // Перевіряємо, чи звуки вже завантажені
-            if (state.soundsLoaded) return;
-
-            // Перевіряємо, чи звуки загалом вимкнено користувачем
-            const soundsEnabled = localStorage.getItem('sounds_enabled') !== 'false';
-            if (!soundsEnabled) {
-                config.soundEffects.enabled = false;
-                return;
-            }
-
-            // Завантажуємо звуки для різних типів подій
-            const soundsToLoad = {
-                success: 'assets/sounds/success.mp3',
-                error: 'assets/sounds/error.mp3',
-                click: 'assets/sounds/click.mp3',
-                special: 'assets/sounds/special.mp3',
-                reward: 'assets/sounds/reward.mp3',
-                complete: 'assets/sounds/complete.mp3'
-            };
-
-            // Функція для завантаження одного звуку
-            const loadSound = (type, url) => {
-                const audio = new Audio();
-
-                // Встановлюємо ідентифікатор для налагодження
-                audio.dataset.soundType = type;
-
-                // Встановлюємо корисні властивості та події
-                audio.preload = 'auto';
-                audio.volume = config.soundEffects.volume;
-
-                // Зберігаємо у стані
-                state.soundInstances[type] = audio;
-
-                // Завантажуємо
-                audio.src = url;
-
-                // Додаємо обробник помилки
-                audio.onerror = () => {
-                    console.warn(`UI.Animations: Не вдалося завантажити звук: ${type} (${url})`);
-                    delete state.soundInstances[type];
-                };
-            };
-
-            // Завантажуємо всі звуки
-            Object.entries(soundsToLoad).forEach(([type, url]) => {
-                loadSound(type, url);
-            });
-
-            // Встановлюємо флаг завантаження
-            state.soundsLoaded = true;
-            console.log('UI.Animations: Звуки попередньо завантажені');
-        } catch (e) {
-            console.warn('UI.Animations: Помилка завантаження звуків:', e);
-            state.soundsLoaded = false;
-        }
-    }
-
-    /**
      * Налаштування обробників подій
      */
     function setupEventHandlers() {
@@ -1007,9 +933,6 @@ window.UI.Animations = (function() {
         container.appendChild(card);
         document.body.appendChild(container);
 
-        // Відтворюємо звук успіху
-        playSound(settings.specialDay ? 'special' : 'success');
-
         // Показуємо анімацію з невеликою затримкою
         setTimeout(() => {
             overlay.classList.add('show');
@@ -1020,9 +943,6 @@ window.UI.Animations = (function() {
         const button = card.querySelector('.premium-reward-button');
         button.addEventListener('click', () => {
             closeRewardAnimation();
-
-            // Додаємо ефект натискання кнопки
-            playSound('click');
         });
 
         // Оновлюємо баланс користувача
@@ -1246,9 +1166,6 @@ window.UI.Animations = (function() {
         container.appendChild(card);
         document.body.appendChild(container);
 
-        // Відтворюємо звук успіху (спеціальний звук для завершення)
-        playSound('complete');
-
         // Показуємо анімацію з невеликою затримкою
         setTimeout(() => {
             overlay.classList.add('show');
@@ -1259,7 +1176,6 @@ window.UI.Animations = (function() {
         const button = card.querySelector('.premium-reward-button');
         button.addEventListener('click', () => {
             closeAnimation();
-            playSound('click');
         });
 
         // Автоматично закриваємо через вказаний час
@@ -1508,9 +1424,6 @@ window.UI.Animations = (function() {
         // Додаємо ефект частинок навколо завдання
         createTaskConfetti(taskElement);
 
-        // Відтворюємо звук успіху
-        playSound('success');
-
         // Видаляємо класи анімації через 2 секунди
         setTimeout(() => {
             taskElement.classList.remove('success-pulse');
@@ -1604,76 +1517,6 @@ window.UI.Animations = (function() {
     }
 
     /**
-     * Відтворення звукового ефекту
-     * @param {string} type - Тип звуку ('success', 'error', 'click', 'special', 'reward', 'complete')
-     */
-    function playSound(type) {
-        // Перевіряємо налаштування звуку користувача
-        if (!config.soundEffects.enabled) return;
-
-        // Перевіряємо локальні налаштування звуку
-        const soundsEnabled = localStorage.getItem('sounds_enabled') !== 'false';
-        if (!soundsEnabled) return;
-
-        try {
-            // Якщо звуки завантажено, використовуємо їх
-            if (state.soundsLoaded && state.soundInstances[type]) {
-                const audio = state.soundInstances[type];
-
-                // Скидаємо поточне відтворення, якщо є
-                audio.pause();
-                audio.currentTime = 0;
-
-                // Відтворюємо звук
-                audio.volume = config.soundEffects.volume;
-                audio.play().catch(error => {
-                    console.warn('UI.Animations: Не вдалося відтворити звук:', error);
-                });
-
-                return;
-            }
-
-            // Якщо звуки не завантажено, використовуємо базові url
-            let soundUrl;
-
-            // Визначаємо URL звуку
-            switch (type) {
-                case 'success':
-                    soundUrl = 'assets/sounds/success.mp3';
-                    break;
-                case 'error':
-                    soundUrl = 'assets/sounds/error.mp3';
-                    break;
-                case 'click':
-                    soundUrl = 'assets/sounds/click.mp3';
-                    break;
-                case 'special':
-                    soundUrl = 'assets/sounds/special.mp3';
-                    break;
-                case 'reward':
-                    soundUrl = 'assets/sounds/reward.mp3';
-                    break;
-                case 'complete':
-                    soundUrl = 'assets/sounds/complete.mp3';
-                    break;
-                default:
-                    soundUrl = 'assets/sounds/click.mp3';
-            }
-
-            // Створюємо аудіо елемент
-            const audio = new Audio(soundUrl);
-            audio.volume = config.soundEffects.volume;
-
-            // Відтворюємо звук
-            audio.play().catch(error => {
-                console.warn('UI.Animations: Не вдалося відтворити звук:', error);
-            });
-        } catch (e) {
-            console.warn('UI.Animations: Помилка відтворення звуку:', e);
-        }
-    }
-
-    /**
      * Показати анімацію прогресу для завдання
      * @param {string} taskId - ID завдання
      * @param {number} progress - Значення прогресу (0-100)
@@ -1701,7 +1544,6 @@ window.UI.Animations = (function() {
                 // Якщо прогрес більше 95%, додаємо ефект світіння для завершення
                 if (progress > 95) {
                     progressBar.classList.add('glow');
-                    playSound('click');
                 } else {
                     progressBar.classList.remove('glow');
                 }
@@ -1709,9 +1551,6 @@ window.UI.Animations = (function() {
 
             // Якщо прогрес досяг 100%, виконуємо додаткову анімацію
             if (progress >= 100 && currentWidth < 100) {
-                // Відтворюємо звук завершення
-                playSound('success');
-
                 // Додаємо клас до батьківського елемента
                 setTimeout(() => {
                     taskElement.classList.add('completed');
@@ -1778,9 +1617,6 @@ window.UI.Animations = (function() {
         }
 
         dayElement.appendChild(glow);
-
-        // Відтворюємо звук
-        playSound('click');
 
         // Видаляємо ефект через 3 секунди
         setTimeout(() => {
@@ -1860,7 +1696,6 @@ window.UI.Animations = (function() {
         init,
         showReward,
         showProgressAnimation,
-        playSound,
         animateSuccessfulCompletion,
         createPremiumConfetti,
         initPageAnimations,
