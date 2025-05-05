@@ -437,6 +437,14 @@
                 }
             }
         }, true);
+        document.addEventListener('DOMContentLoaded', function() {
+    // Стилізація кнопок з текстом "Підписатися"
+    document.querySelectorAll('button, .action-button').forEach(button => {
+        if (button.textContent.includes('Підписатися')) {
+            button.classList.add('subscribe-button');
+        }
+    });
+});
     </script>
 </body>
 </html>

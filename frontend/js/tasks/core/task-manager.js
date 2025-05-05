@@ -954,79 +954,86 @@ window.TaskManager = (function() {
     /**
      * Налаштування перемикачів вкладок
      */
-    function setupTabSwitching() {
-        if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
-            console.warn('TaskManager: Кнопки вкладок не знайдено');
-            return;
-        }
-
-        domElements.tabButtons.forEach(button => {
-            // Перевіряємо, чи кнопка вже ініціалізована
-            if (button.getAttribute('data-initialized') === 'true') {
-                return;
-            }
-
-            // Позначаємо кнопку як ініціалізовану
-            button.setAttribute('data-initialized', 'true');
-
-            button.addEventListener('click', function() {
-                // Знімаємо активний клас з усіх вкладок
-                domElements.tabButtons.forEach(btn => btn.classList.remove('active'));
-
-                // Додаємо активний клас поточній вкладці
-                this.classList.add('active');
-
-                // Ховаємо всі секції контенту
-                if (domElements.contentSections) {
-                    domElements.contentSections.forEach(section => section.classList.remove('active'));
-                }
-
-                // Показуємо відповідну секцію
-                const tabType = this.dataset.tab;
-                const targetSection = document.getElementById(`${tabType}-content`);
-                if (targetSection) {
-                    targetSection.classList.add('active');
-
-                    // Додаємо плавну анімацію для контенту
-                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
-                        // Знаходимо всі завдання в цій секції та анімуємо їх
-                        const taskItems = targetSection.querySelectorAll('.task-item');
-                        taskItems.forEach((item, index) => {
-                            item.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
-                            item.classList.add('show');
-                        });
-
-                        // Аналогічно для елементів лідерської дошки
-                        const leaderboardItems = targetSection.querySelectorAll('.leaderboard-item');
-                        leaderboardItems.forEach((item, index) => {
-                            item.style.transitionDelay = `${index * animationConfig.leaderboardAppearDelay}ms`;
-                            item.classList.add('show');
-                        });
-                    }
-                }
-
-                // Зберігаємо активну вкладку в localStorage
-                try {
-                    localStorage.setItem('active_tasks_tab', tabType);
-                } catch (e) {
-                    console.warn('TaskManager: Помилка збереження вкладки в localStorage:', e.message);
-                }
-            });
-        });
-
-        // Відновлюємо активну вкладку з localStorage
-        try {
-            const savedTab = localStorage.getItem('active_tasks_tab');
-            if (savedTab) {
-                const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
-                if (savedTabButton) {
-                    savedTabButton.click();
-                }
-            }
-        } catch (e) {
-            console.warn('TaskManager: Помилка відновлення вкладки з localStorage:', e.message);
-        }
+function setupTabSwitching() {
+    if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
+        console.warn('TaskManager: Кнопки вкладок не знайдено');
+        return;
     }
+
+    domElements.tabButtons.forEach(button => {
+        // Видаляємо атрибут initialized для перестворення обробників
+        button.removeAttribute('data-initialized');
+
+        // Клонуємо кнопку для видалення старих обробників
+        const newButton = button.cloneNode(true);
+        if (button.parentNode) {
+            button.parentNode.replaceChild(newButton, button);
+        }
+
+        newButton.addEventListener('click', function() {
+            // Знімаємо активний клас з усіх вкладок
+            domElements.tabButtons.forEach(btn => btn.classList.remove('active'));
+
+            // Додаємо активний клас поточній вкладці
+            this.classList.add('active');
+
+            // Ховаємо всі секції контенту
+            if (domElements.contentSections) {
+                domElements.contentSections.forEach(section => {
+                    section.classList.remove('active');
+                    section.style.display = 'none'; // Явне приховування
+                });
+            }
+
+            // Показуємо відповідну секцію
+            const tabType = this.dataset.tab;
+            const targetSection = document.getElementById(`${tabType}-content`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+                targetSection.style.display = 'block'; // Явне відображення
+
+                // Примусове оновлення вмісту при переключенні
+                if (tabType === 'social') {
+                    setTimeout(() => {
+                        renderSocialTasks();
+                        renderReferralTasks();
+                    }, 100);
+                } else if (tabType === 'limited') {
+                    setTimeout(() => {
+                        renderLimitedTasks();
+                    }, 100);
+                } else if (tabType === 'partners') {
+                    setTimeout(() => {
+                        renderPartnerTasks();
+                    }, 100);
+                }
+            }
+
+            // Зберігаємо активну вкладку в localStorage
+            try {
+                localStorage.setItem('active_tasks_tab', tabType);
+            } catch (e) {
+                console.warn('TaskManager: Помилка збереження вкладки в localStorage:', e.message);
+            }
+        });
+    });
+
+    // Відновлюємо активну вкладку з localStorage
+    try {
+        const savedTab = localStorage.getItem('active_tasks_tab');
+        if (savedTab) {
+            const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+            if (savedTabButton) {
+                // Використовуємо таймаут для правильного відображення
+                setTimeout(() => {
+                    savedTabButton.click();
+                }, 200);
+            }
+        }
+    } catch (e) {
+        console.warn('TaskManager: Помилка відновлення вкладки з localStorage:', e.message);
+    }
+}
 
     /**
      * Перевірка доступності API
