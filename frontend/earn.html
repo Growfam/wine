@@ -273,8 +273,8 @@
     <script src="js/auth.js" defer></script>
     <script src="js/language.js" defer></script>
 
-    <!-- Основний скрипт (без defer для швидкого запуску) -->
-    <script src="js/core.js"></script>
+    <!-- Основний скрипт (змінено на defer для правильного порядку) -->
+    <script src="js/core.js" defer></script>
 
     <!-- Підключення утиліт (з defer для паралельного завантаження) -->
     <script src="js/tasks/utils/formatters.js" defer></script>
@@ -307,6 +307,19 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM Content Loaded');
 
+            // Діагностична перевірка системи
+            window.diagnoseSystemState = function() {
+                console.group('Діагностика системи');
+                console.log('DOM готовий:', document.readyState);
+                console.log('API доступний:', !!window.API);
+                console.log('API_PATHS доступний:', !!window.API_PATHS);
+                console.log('TaskManager доступний:', !!window.TaskManager);
+                console.log('SocialTask доступний:', !!window.SocialTask);
+                console.log('TaskIntegration доступний:', !!window.TaskIntegration);
+                console.log('Core доступний:', !!window.WinixCore);
+                console.groupEnd();
+            };
+
             // Прихований індикатор завантаження через 3 секунди
             // якщо сторінка завантажилась швидше
             setTimeout(function() {
@@ -334,6 +347,13 @@
                     }
                     return false;
                 },
+                function checkAndInitTaskIntegration() {
+                    if (window.TaskIntegration) {
+                        window.TaskIntegration.init();
+                        return true;
+                    }
+                    return false;
+                },
                 function checkAndInitTaskManager() {
                     if (window.TaskManager) {
                         window.TaskManager.init();
@@ -356,6 +376,9 @@
                 } else {
                     // Всі компоненти ініціалізовано
                     console.log('All components initialized successfully');
+
+                    // Запускаємо діагностику
+                    diagnoseSystemState();
 
                     // Приховуємо індикатор завантаження
                     const loadingIndicator = document.getElementById('initial-loading');

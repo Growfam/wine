@@ -105,11 +105,19 @@ window.TaskIntegration = (function() {
 
             // Спробуємо отримати з DOM
             try {
-                const userIdElement = document.getElementById('user-id');
-                if (userIdElement && userIdElement.textContent) {
-                    const userId = userIdElement.textContent.trim();
-                    if (userId) {
-                        return { success: true, userId: userId, source: 'DOM' };
+                // Шукаємо в усіх можливих місцях
+                const possibleElements = [
+                    document.getElementById('user-id'),
+                    document.getElementById('header-user-id'),
+                    document.querySelector('[data-user-id]')
+                ];
+
+                for (const element of possibleElements) {
+                    if (element && element.textContent) {
+                        const userId = element.textContent.trim();
+                        if (userId) {
+                            return { success: true, userId: userId, source: 'DOM' };
+                        }
                     }
                 }
             } catch (e) {
@@ -125,6 +133,22 @@ window.TaskIntegration = (function() {
                 }
             } catch (e) {
                 // Ігноруємо помилки URL
+            }
+
+            // Спробуємо отримати з Telegram WebApp
+            try {
+                if (window.Telegram && window.Telegram.WebApp &&
+                    window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user &&
+                    window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                    const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                    if (telegramId) {
+                        return { success: true, userId: telegramId, source: 'TelegramWebApp' };
+                    }
+                }
+            } catch (e) {
+                // Ігноруємо помилки Telegram WebApp
             }
 
             // Не знайдено ID користувача
@@ -164,6 +188,9 @@ window.TaskIntegration = (function() {
 
         log('TaskIntegration: Початок ініціалізації модулів системи завдань');
 
+        // ДОДАНО: Діагностичне повідомлення про стан системи
+        diagnoseSystemState();
+
         // ДОДАНО: Діагностичне повідомлення про API_PATHS
         if (config.detailedLogging) {
             logAPIPathsStatus();
@@ -184,19 +211,58 @@ window.TaskIntegration = (function() {
     }
 
     /**
+     * ДОДАНО: Діагностика поточного стану системи
+     */
+    function diagnoseSystemState() {
+        log('TaskIntegration: Діагностика стану системи...');
+        log('document.readyState =', document.readyState);
+        log('window.API доступний?', !!window.API);
+        log('window.API_PATHS доступний?', !!window.API_PATHS);
+        log('window.TaskManager доступний?', !!window.TaskManager);
+        log('window.TaskProgressManager доступний?', !!window.TaskProgressManager);
+        log('window.SocialTask доступний?', !!window.SocialTask);
+
+        // Перевіряємо ID користувача
+        const userIdResult = safeGetUserId();
+        log('Результат отримання ID користувача:', userIdResult);
+
+        // Перевіряємо наявність критичних модулів
+        criticalModules.forEach(moduleName => {
+            log(`Модуль ${moduleName} доступний?`, !!window[moduleName]);
+        });
+    }
+
+    /**
      * Перевірка і виведення статусу API_PATHS
      */
     function logAPIPathsStatus() {
         log('TaskIntegration: Перевірка API_PATHS...');
 
         if (!window.API_PATHS) {
-            logError('API_PATHS не знайдено! Завдання не зможуть бути завантажені.');
+            logError('API_PATHS не знайдено! Створюємо базову структуру.');
+
+            // ДОДАНО: Створення базової структури API_PATHS, якщо вона відсутня
+            window.API_PATHS = {
+                TASKS: {
+                    SOCIAL: 'quests/tasks/social',
+                    LIMITED: 'quests/tasks/limited',
+                    PARTNER: 'quests/tasks/partner',
+                    REFERRAL: 'quests/tasks/referral'
+                }
+            };
+
             return;
         }
 
         // Перевіряємо ключові шляхи для завдань
         if (!window.API_PATHS.TASKS) {
-            logError('API_PATHS.TASKS не знайдено!');
+            logError('API_PATHS.TASKS не знайдено! Створюємо базову структуру.');
+            window.API_PATHS.TASKS = {
+                SOCIAL: 'quests/tasks/social',
+                LIMITED: 'quests/tasks/limited',
+                PARTNER: 'quests/tasks/partner',
+                REFERRAL: 'quests/tasks/referral'
+            };
             return;
         }
 
@@ -207,28 +273,28 @@ window.TaskIntegration = (function() {
         for (const path of requiredPaths) {
             if (!window.API_PATHS.TASKS[path]) {
                 missingPaths.push(path);
+                // ДОДАНО: Автоматичне створення відсутніх шляхів
+                window.API_PATHS.TASKS[path] = `quests/tasks/${path.toLowerCase()}`;
+                log(`Створено відсутній шлях API_PATHS.TASKS.${path} = ${window.API_PATHS.TASKS[path]}`);
             }
         }
 
         // ВИПРАВЛЕНО: Додана перевірка REFERRAL шляху
         if (!window.API_PATHS.TASKS.REFERRAL) {
-            log('TaskIntegration: Шлях REFERRAL не знайдено, реферальні завдання отримуються через SOCIAL');
+            log('TaskIntegration: Шлях REFERRAL не знайдено, використовуємо SOCIAL');
+            window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
         }
 
         if (missingPaths.length > 0) {
-            logError(`Відсутні необхідні шляхи API: ${missingPaths.join(', ')}`);
+            logError(`Відсутні необхідні шляхи API були створені: ${missingPaths.join(', ')}`);
         } else {
             log('TaskIntegration: Всі необхідні API шляхи знайдено.');
 
-            // Виводимо шляхи для підтвердження - ВИПРАВЛЕНО: PARTNERS на PARTNER
+            // Виводимо шляхи для підтвердження
             log(`SOCIAL: ${window.API_PATHS.TASKS.SOCIAL}`);
             log(`LIMITED: ${window.API_PATHS.TASKS.LIMITED}`);
             log(`PARTNER: ${window.API_PATHS.TASKS.PARTNER}`);
-
-            // Перевіряємо і виводимо REFERRAL, якщо є
-            if (window.API_PATHS.TASKS.REFERRAL) {
-                log(`REFERRAL: ${window.API_PATHS.TASKS.REFERRAL}`);
-            }
+            log(`REFERRAL: ${window.API_PATHS.TASKS.REFERRAL}`);
         }
     }
 
@@ -273,21 +339,44 @@ window.TaskIntegration = (function() {
         // ВИПРАВЛЕНО: Покращений обробник неопрацьованих промісів
         window.addEventListener('unhandledrejection', function(event) {
             // Якщо помилка пов'язана з ID користувача
-            if (event.reason && (event.reason.message === 'ID користувача не знайдено' ||
-                event.reason.message === 'Error: ID користувача не знайдено')) {
-
+            if (event.reason && (
+                (typeof event.reason.message === 'string' &&
+                (event.reason.message.includes('ID користувача не знайдено') ||
+                 event.reason.message.includes('User ID not found')))
+            )) {
                 // Запобігаємо поширенню помилки в консоль
                 event.preventDefault();
 
                 logError('Оброблено помилку з ID користувача:', event.reason.message);
 
-                // Відправляємо подію про помилку авторизації
-                document.dispatchEvent(new CustomEvent('auth-required', {
-                    detail: {
-                        message: 'Для доступу до цієї функції необхідно авторизуватися',
-                        source: event.reason.stack || 'unknown'
+                // ДОДАНО: Заповнення ID користувача, якщо можливо
+                const userIdResult = safeGetUserId();
+                if (userIdResult.success) {
+                    log(`Знайдено ID користувача: ${userIdResult.userId} (джерело: ${userIdResult.source})`);
+
+                    // Зберігаємо в localStorage для майбутнього використання
+                    try {
+                        localStorage.setItem('telegram_user_id', userIdResult.userId);
+                    } catch (e) {
+                        // Ігноруємо помилки localStorage
                     }
-                }));
+
+                    // Відправляємо подію про оновлення ID користувача
+                    document.dispatchEvent(new CustomEvent('user-id-updated', {
+                        detail: {
+                            userId: userIdResult.userId,
+                            source: userIdResult.source
+                        }
+                    }));
+                } else {
+                    // Відправляємо подію про помилку авторизації
+                    document.dispatchEvent(new CustomEvent('auth-required', {
+                        detail: {
+                            message: 'Для доступу до цієї функції необхідно авторизуватися',
+                            source: event.reason.stack || 'unknown'
+                        }
+                    }));
+                }
 
                 return;
             }
@@ -404,6 +493,17 @@ window.TaskIntegration = (function() {
                 log('TaskIntegration: Налаштовано делегування updateTaskProgress між модулями');
             }
 
+            // ДОДАНО: Делегування getTaskProgress, якщо метод не існує
+            if (typeof window.TaskManager.getTaskProgress !== 'function' &&
+                typeof window.TaskProgressManager.getTaskProgress === 'function') {
+
+                window.TaskManager.getTaskProgress = function(taskId) {
+                    return window.TaskProgressManager.getTaskProgress(taskId);
+                };
+
+                log('TaskIntegration: Додано делегування getTaskProgress від TaskManager до TaskProgressManager');
+            }
+
             // Узгодження даних завдань між модулями
             synchronizeTaskData();
         }
@@ -441,6 +541,14 @@ window.TaskIntegration = (function() {
             };
 
             log('TaskIntegration: Метод getTaskProgress пропагований з TaskProgressManager до TaskManager');
+        }
+
+        // ДОДАНО: Синхронізуємо userProgress об'єкт
+        if (window.TaskProgressManager && window.TaskProgressManager.userProgress &&
+            window.TaskManager && !window.TaskManager.userProgress) {
+
+            window.TaskManager.userProgress = window.TaskProgressManager.userProgress;
+            log('TaskIntegration: Об\'єкт userProgress синхронізовано з TaskProgressManager до TaskManager');
         }
     }
 
@@ -707,6 +815,9 @@ window.TaskIntegration = (function() {
             // Виправляємо проблеми з отриманням ID користувача у всіх модулях
             fixUserIdIssues();
 
+            // Виправляємо API_PATHS, якщо з ними є проблеми
+            fixApiPathsIfNeeded();
+
             // Відправляємо подію про успішну ініціалізацію
             document.dispatchEvent(new CustomEvent('task-system-initialized', {
                 detail: {
@@ -749,10 +860,75 @@ window.TaskIntegration = (function() {
     }
 
     /**
+     * ДОДАНО: Виправлення проблем з API_PATHS якщо потрібно
+     */
+    function fixApiPathsIfNeeded() {
+        try {
+            // Перевіряємо наявність API_PATHS
+            if (!window.API_PATHS) {
+                log('TaskIntegration: Створення API_PATHS...');
+                window.API_PATHS = {
+                    TASKS: {
+                        SOCIAL: 'quests/tasks/social',
+                        LIMITED: 'quests/tasks/limited',
+                        PARTNER: 'quests/tasks/partner',
+                        REFERRAL: 'quests/tasks/referral'
+                    }
+                };
+                return;
+            }
+
+            // Перевіряємо наявність API_PATHS.TASKS
+            if (!window.API_PATHS.TASKS) {
+                log('TaskIntegration: Створення API_PATHS.TASKS...');
+                window.API_PATHS.TASKS = {
+                    SOCIAL: 'quests/tasks/social',
+                    LIMITED: 'quests/tasks/limited',
+                    PARTNER: 'quests/tasks/partner',
+                    REFERRAL: 'quests/tasks/referral'
+                };
+                return;
+            }
+
+            // Перевіряємо наявність REFERRAL шляху
+            if (!window.API_PATHS.TASKS.REFERRAL) {
+                log('TaskIntegration: Створення REFERRAL шляху...');
+                window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
+            }
+
+            // Виправляємо PARTNERS на PARTNER, якщо потрібно
+            if (window.API_PATHS.TASKS.PARTNERS && !window.API_PATHS.TASKS.PARTNER) {
+                log('TaskIntegration: Виправлення PARTNERS на PARTNER...');
+                window.API_PATHS.TASKS.PARTNER = window.API_PATHS.TASKS.PARTNERS;
+            }
+        } catch (error) {
+            logError('Помилка виправлення API_PATHS:', error);
+        }
+    }
+
+    /**
      * ВИПРАВЛЕНО: Виправляє проблеми з ID користувача у всіх модулях
      */
     function fixUserIdIssues() {
         try {
+            // Перевіряємо, чи є функція getUserId
+            if (typeof window.getUserId !== 'function') {
+                log('TaskIntegration: Створення глобальної функції getUserId...');
+
+                // Створюємо функцію getUserId
+                window.getUserId = function() {
+                    const userIdResult = safeGetUserId();
+                    if (!userIdResult.success) {
+                        if (config.fallbackUserMode) {
+                            log('TaskIntegration: Повертаємо тимчасовий ID для режиму fallback');
+                            return 'temp_user_' + Math.random().toString(36).substring(2, 9);
+                        }
+                        return null;
+                    }
+                    return userIdResult.userId;
+                };
+            }
+
             // Виправляємо функцію connectToExternalService, якщо вона існує
             if (typeof window.connectToExternalService === 'function') {
                 const originalConnectFn = window.connectToExternalService;
@@ -995,10 +1171,12 @@ window.TaskIntegration = (function() {
     }
 
     // Ініціалізуємо модуль при завантаженні скрипту, якщо вказано в конфігурації
+    // ДОДАНО: Перевірка готовності DOM та відкладена ініціалізація
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        init();
+        // Невелика затримка для завершення завантаження інших скриптів
+        setTimeout(init, 100);
     }
 
     // Публічний API
@@ -1015,6 +1193,8 @@ window.TaskIntegration = (function() {
             initTime: state.initEndTime - state.initStartTime
         }),
         // ДОДАНО: Додали нову функцію для безпечного отримання ID користувача
-        safeGetUserId
+        safeGetUserId,
+        // ДОДАНО: Доступ до функції fixApiPathsIfNeeded
+        fixApiPathsIfNeeded
     };
 })();

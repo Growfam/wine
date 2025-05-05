@@ -46,6 +46,7 @@ window.SocialTask = (function() {
     let taskDomElements = new Map();
     let taskStatuses = new Map();
     let pendingAuthResponses = new Map();
+    let moduleInitialized = false;
 
     // Індикатор використання мок-даних
     const mockDataStatus = {
@@ -81,6 +82,12 @@ window.SocialTask = (function() {
             return window.API.isAuthenticated();
         }
 
+        // Перевірка через TaskIntegration, якщо доступний
+        if (window.TaskIntegration && window.TaskIntegration.safeGetUserId) {
+            const result = window.TaskIntegration.safeGetUserId();
+            return result.success;
+        }
+
         // Перевірка через localStorage або інші маркери авторизації
         const hasAuthToken = localStorage.getItem('auth_token') || localStorage.getItem('user_token');
         const hasUserData = localStorage.getItem('user_data');
@@ -92,34 +99,139 @@ window.SocialTask = (function() {
     const renderedTasksCache = new Map();
 
     /**
+     * Безпечне отримання ID користувача
+     * @returns {string|null} ID користувача або null
+     */
+    function safeGetUserId() {
+        try {
+            // Спочатку спробуємо отримати ID через TaskIntegration
+            if (window.TaskIntegration && window.TaskIntegration.safeGetUserId) {
+                const result = window.TaskIntegration.safeGetUserId();
+                if (result.success) {
+                    return result.userId;
+                }
+            }
+
+            // Потім через window.getUserId, якщо функція доступна
+            if (typeof window.getUserId === 'function') {
+                const userId = window.getUserId();
+                if (userId) {
+                    return userId;
+                }
+            }
+
+            // Спробуємо отримати з localStorage
+            const storedId = localStorage.getItem('telegram_user_id');
+            if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                return storedId;
+            }
+
+            // Спробуємо отримати з DOM
+            const userIdElement = document.getElementById('user-id');
+            if (userIdElement && userIdElement.textContent) {
+                return userIdElement.textContent.trim();
+            }
+
+            // Не знайдено ID
+            return null;
+        } catch (error) {
+            console.error('SocialTask: Помилка отримання ID користувача:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Перевірка готовності DOM
+     * @returns {boolean} Чи готовий DOM
+     */
+    function isDomReady() {
+        return document.readyState === 'complete' || document.readyState === 'interactive';
+    }
+
+    /**
      * Ініціалізація модуля
      */
     function init() {
-        // Очистка змінних при ініціалізації
-        authenticationStatus = {};
-        taskRenderers.clear();
-        renderQueue = [];
-        isRendering = false;
-        taskDomElements.clear();
-        taskStatuses.clear();
-        pendingAuthResponses.clear();
-        renderedTasksCache.clear();
+        console.log('SocialTask: Початок ініціалізації модуля');
 
-        // Скидаємо стан використання мок-даних
-        Object.keys(mockDataStatus).forEach(key => {
-            mockDataStatus[key] = false;
-        });
+        // Перевіряємо, чи модуль вже ініціалізовано
+        if (moduleInitialized) {
+            console.log('SocialTask: Модуль вже ініціалізовано');
+            return;
+        }
 
-        // Завантаження статусів автентифікації з localStorage
-        loadAuthStatus();
+        // Перевіряємо готовність DOM
+        if (!isDomReady()) {
+            console.log('SocialTask: DOM ще не готовий, відкладаємо ініціалізацію');
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(init, 100);
+            });
+            return;
+        }
 
-        // Запуск віртуалізованого рендерингу
-        setupVirtualizedRendering();
+        // Виконуємо діагностику перед ініціалізацією
+        diagnoseEnvironment();
 
-        // Слухачі подій для обробки комунікації з соціальними мережами
-        setupEventListeners();
+        try {
+            // Очистка змінних при ініціалізації
+            authenticationStatus = {};
+            taskRenderers.clear();
+            renderQueue = [];
+            isRendering = false;
+            taskDomElements.clear();
+            taskStatuses.clear();
+            pendingAuthResponses.clear();
+            renderedTasksCache.clear();
 
-        console.log('SocialTask: Модуль соціальних завдань ініціалізовано');
+            // Скидаємо стан використання мок-даних
+            Object.keys(mockDataStatus).forEach(key => {
+                mockDataStatus[key] = false;
+            });
+
+            // Завантаження статусів автентифікації з localStorage
+            loadAuthStatus();
+
+            // Запуск віртуалізованого рендерингу
+            setupVirtualizedRendering();
+
+            // Слухачі подій для обробки комунікації з соціальними мережами
+            setupEventListeners();
+
+            // Позначаємо, що модуль ініціалізовано
+            moduleInitialized = true;
+
+            console.log('SocialTask: Модуль соціальних завдань ініціалізовано');
+
+            // Відправляємо подію про готовність модуля
+            document.dispatchEvent(new CustomEvent('social-task-ready', {
+                detail: { timestamp: Date.now() }
+            }));
+        } catch (error) {
+            console.error('SocialTask: Помилка ініціалізації модуля:', error);
+            // Спробуємо ще раз через деякий час, якщо виникла помилка
+            setTimeout(function() {
+                if (!moduleInitialized) {
+                    console.log('SocialTask: Повторна спроба ініціалізації після помилки');
+                    init();
+                }
+            }, 1000);
+        }
+    }
+
+    /**
+     * Діагностика середовища перед ініціалізацією
+     */
+    function diagnoseEnvironment() {
+        console.log('SocialTask: Діагностика середовища перед ініціалізацією');
+        console.log('document.readyState =', document.readyState);
+        console.log('window.API доступний?', !!window.API);
+        console.log('window.TaskManager доступний?', !!window.TaskManager);
+        console.log('window.TaskProgressManager доступний?', !!window.TaskProgressManager);
+        console.log('window.TaskIntegration доступний?', !!window.TaskIntegration);
+
+        // Перевіряємо ID користувача
+        const userId = safeGetUserId();
+        console.log('ID користувача доступний?', !!userId);
     }
 
     /**
@@ -204,6 +316,21 @@ window.SocialTask = (function() {
         // Реагуємо на події від TaskManager
         document.addEventListener('task-completed', handleTaskCompleted);
         document.addEventListener('auth-status-updated', handleAuthStatusUpdated);
+
+        // ДОДАНО: Слухаємо подію оновлення ID користувача
+        document.addEventListener('user-id-updated', handleUserIdUpdated);
+    }
+
+    /**
+     * ДОДАНО: Обробка події оновлення ID користувача
+     */
+    function handleUserIdUpdated(event) {
+        if (event.detail && event.detail.userId) {
+            console.log('SocialTask: Отримано оновлення ID користувача:', event.detail.userId);
+
+            // Оновлюємо відображення завдань
+            refreshAllTasks();
+        }
     }
 
     /**
@@ -374,6 +501,18 @@ window.SocialTask = (function() {
                 return;
             }
 
+            // Перевіряємо наявність ID користувача
+            const userId = safeGetUserId();
+            if (!userId) {
+                console.warn('SocialTask: ID користувача не знайдено при перевірці автентифікації');
+
+                // Якщо немає ID користувача і не в режимі мок-даних, неможливо автентифікуватися
+                if (!mockDataStatus.authentication) {
+                    resolve(false);
+                    return;
+                }
+            }
+
             // Якщо API недоступне або користувач не авторизований, використовуємо мок-дані
             if (!isApiAvailable() || !isUserAuthenticated()) {
                 const reason = !isApiAvailable() ? 'API недоступне' : 'Користувач не авторизований';
@@ -473,6 +612,26 @@ window.SocialTask = (function() {
             taskStatuses.set(task.id, STATUS.LOADING);
             updateTaskStatus(task.id);
 
+            // Перевіряємо ID користувача
+            const userId = safeGetUserId();
+            if (!userId && !mockDataStatus.authentication) {
+                // Якщо ID немає, і не в режимі мок-даних, показуємо повідомлення
+                showMessage('Необхідно авторизуватися для виконання завдання', 'error');
+
+                // Відправляємо подію про необхідність авторизації
+                document.dispatchEvent(new CustomEvent('auth-required', {
+                    detail: {
+                        message: 'Для доступу до завдань необхідно авторизуватися',
+                        taskId: task.id
+                    }
+                }));
+
+                // Оновлюємо статус на помилку
+                taskStatuses.set(task.id, STATUS.ERROR);
+                updateTaskStatus(task.id);
+                return;
+            }
+
             // Перевіряємо, чи потрібна автентифікація
             if (task.network) {
                 const isAuthenticated = await checkAuthentication(task.network);
@@ -568,6 +727,26 @@ window.SocialTask = (function() {
         try {
             if (!task) {
                 console.error('SocialTask: Неправильний об\'єкт завдання');
+                return;
+            }
+
+            // Перевіряємо ID користувача
+            const userId = safeGetUserId();
+            if (!userId && !mockDataStatus.verification) {
+                // Якщо ID немає, і не в режимі мок-даних, показуємо повідомлення
+                showMessage('Необхідно авторизуватися для перевірки завдання', 'error');
+
+                // Відправляємо подію про необхідність авторизації
+                document.dispatchEvent(new CustomEvent('auth-required', {
+                    detail: {
+                        message: 'Для доступу до завдань необхідно авторизуватися',
+                        taskId: task.id
+                    }
+                }));
+
+                // Оновлюємо статус на помилку
+                taskStatuses.set(task.id, STATUS.ERROR);
+                updateTaskStatus(task.id);
                 return;
             }
 
@@ -780,6 +959,12 @@ window.SocialTask = (function() {
      * @returns {HTMLElement} - DOM елемент завдання
      */
     function create(task, progress = null) {
+        // Перевіряємо наявність необхідних полів в завданні
+        if (!task || !task.id) {
+            console.error('SocialTask: Неможливо створити завдання без ID');
+            return document.createElement('div');
+        }
+
         // Перевіряємо, чи є кеш для цього завдання
         const cacheKey = `${task.id}-${progress ? progress.status : 'null'}-${progress ? progress.progress_value : 0}`;
 
@@ -810,7 +995,7 @@ window.SocialTask = (function() {
                     initialStatus = STATUS.COMPLETED;
                     break;
                 case 'started':
-                    initialStatus = STATUS.READY_TO_VERIFY;  // Після стартту показуємо кнопку перевірки
+                    initialStatus = STATUS.READY_TO_VERIFY;  // Після старту показуємо кнопку перевірки
                     break;
                 default:
                     initialStatus = STATUS.IDLE;
@@ -830,6 +1015,11 @@ window.SocialTask = (function() {
         // Додаємо інформацію про соціальну мережу, якщо є
         if (network) {
             taskElement.dataset.network = network;
+        }
+
+        // Додаємо дані action_url, якщо є
+        if (task.action_url) {
+            taskElement.dataset.actionUrl = task.action_url;
         }
 
         // Додаємо індикатор мок-даних, якщо потрібно
@@ -933,19 +1123,18 @@ window.SocialTask = (function() {
 
             if (!task) {
                 // Шукаємо завдання за його ID у списку завдань
-                const container = document.getElementById('social-tasks-container');
+                const container = taskElement.closest('.task-container') ||
+                                 document.getElementById('social-tasks-container') ||
+                                 document.getElementById('referral-tasks-container');
+
                 if (container) {
-                    const taskElements = container.querySelectorAll(`.task-item[data-task-id="${taskId}"]`);
-                    if (taskElements.length > 0) {
-                        // Знайшли елемент, пробуємо отримати дані з атрибутів
-                        const taskElement = taskElements[0];
-                        task = {
-                            id: taskId,
-                            type: 'social',
-                            action_url: taskElement.getAttribute('data-action-url') || '',
-                            network: taskElement.getAttribute('data-network') || null
-                        };
-                    }
+                    // Знайшли елемент, пробуємо отримати дані з атрибутів
+                    task = {
+                        id: taskId,
+                        type: 'social',
+                        action_url: taskElement.dataset.actionUrl || '',
+                        network: taskElement.dataset.network || null
+                    };
                 }
             }
 
@@ -1090,7 +1279,9 @@ window.SocialTask = (function() {
                 const newTaskElement = create(taskData, progressData);
 
                 // Замінюємо старий елемент
-                taskElement.parentNode.replaceChild(newTaskElement, taskElement);
+                if (taskElement.parentNode) {
+                    taskElement.parentNode.replaceChild(newTaskElement, taskElement);
+                }
 
                 // Оновлюємо посилання в мапі
                 taskDomElements.set(taskId, newTaskElement);
@@ -1197,6 +1388,16 @@ window.SocialTask = (function() {
         // Якщо є TaskRewards, використовуємо його
         if (window.TaskRewards && window.TaskRewards.updateBalance) {
             window.TaskRewards.updateBalance(reward);
+            return;
+        }
+
+        // Якщо є WinixCore, використовуємо його
+        if (window.WinixCore && window.WinixCore.updateLocalBalance) {
+            window.WinixCore.updateLocalBalance(
+                reward.type === 'coins' ? reward.amount : 0,
+                'SocialTask',
+                true
+            );
             return;
         }
 
@@ -1336,6 +1537,37 @@ window.SocialTask = (function() {
         return div.innerHTML;
     }
 
+    /**
+     * Діагностична функція для перевірки стану компонента
+     * @returns {Object} - Об'єкт з діагностичною інформацією
+     */
+    function diagnostics() {
+        return {
+            initialized: moduleInitialized,
+            tasksRegistered: taskDomElements.size,
+            mockDataStatus,
+            taskStatuses: Array.from(taskStatuses.entries()).reduce((acc, [id, status]) => {
+                acc[id] = status;
+                return acc;
+            }, {}),
+            renderQueueLength: renderQueue.length,
+            authStatus: authenticationStatus,
+            userId: safeGetUserId(),
+            domReady: isDomReady()
+        };
+    }
+
+    // ДОДАНО: Відкладена ініціалізація при завантаженні сторінки
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            // Відкладаємо ініціалізацію, щоб дати час іншим модулям завантажитися
+            setTimeout(init, 100);
+        });
+    } else {
+        // Якщо DOM вже завантажено, ініціалізуємо з невеликою затримкою
+        setTimeout(init, 100);
+    }
+
     // Публічний API модуля
     return {
         init,
@@ -1349,6 +1581,7 @@ window.SocialTask = (function() {
         checkAuthentication,
         // Для діагностики
         isUsingMockData: (type) => mockDataStatus[type] || false,
-        mockDataStatus
+        mockDataStatus,
+        diagnostics
     };
 })();

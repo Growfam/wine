@@ -1,7 +1,7 @@
 /**
  * core.js - Вдосконалена базова функціональність WINIX
  * Оптимізована версія з покращеною продуктивністю, стабільністю та розширеною діагностикою
- * @version 2.1.0
+ * @version 2.1.1
  */
 
 (function() {
@@ -63,7 +63,11 @@
             lastOfflineTime: 0,
             reconnectionAttempts: 0,
             pingResults: []
-        }
+        },
+
+        // Стан ініціалізації залежних модулів
+        dependenciesInitialized: false,
+        initAttempts: 0
     };
 
     // Конфігурація
@@ -102,7 +106,13 @@
         diagnosticsInterval: 60000, // 1 хвилина
 
         // Чи показувати технічні деталі повідомлень про помилки
-        showTechnicalErrorDetails: false
+        showTechnicalErrorDetails: false,
+
+        // Максимальна кількість спроб ініціалізації
+        maxInitAttempts: 5,
+
+        // Інтервал між спробами ініціалізації
+        initRetryInterval: 500
     };
 
     // ======== УТИЛІТИ ========
@@ -755,7 +765,7 @@
                     };
 
                     // Додаємо ID користувача, якщо він є
-                    const userId = getUserId();
+                    const userId = safeGetUserId();
                     if (userId) {
                         headers['X-Telegram-User-Id'] = userId;
                     }
@@ -909,6 +919,104 @@
     // ======== ФУНКЦІЇ КОРИСТУВАЧА ========
 
     /**
+     * Безпечне отримання ID користувача
+     * @returns {string|null} Безпечно отриманий ID користувача або null при помилці
+     */
+    function safeGetUserId() {
+        try {
+            // 1. З API модуля
+            if (hasApiModule()) {
+                try {
+                    const apiId = window.WinixAPI.getUserId();
+                    if (apiId && apiId !== 'undefined' && apiId !== 'null') {
+                        return apiId;
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Core: Помилка отримання ID через API:", e);
+                }
+            }
+
+            // 2. З localStorage
+            try {
+                const storedId = getFromStorage('telegram_user_id');
+                if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+                    return storedId;
+                }
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка отримання ID зі сховища:", e);
+            }
+
+            // 3. З DOM
+            try {
+                // Спочатку перевіряємо елемент в хедері
+                const headerUserIdElement = getElement('#header-user-id');
+                if (headerUserIdElement && headerUserIdElement.textContent) {
+                    const id = headerUserIdElement.textContent.trim();
+                    if (id && id !== 'undefined' && id !== 'null') {
+                        saveToStorage('telegram_user_id', id);
+                        return id;
+                    }
+                }
+
+                // Потім перевіряємо прихований елемент
+                const userIdElement = getElement('#user-id');
+                if (userIdElement && userIdElement.textContent) {
+                    const id = userIdElement.textContent.trim();
+                    if (id && id !== 'undefined' && id !== 'null') {
+                        saveToStorage('telegram_user_id', id);
+                        return id;
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка отримання ID з DOM:", e);
+            }
+
+            // 4. З URL
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+                if (urlId && urlId !== 'undefined' && urlId !== 'null') {
+                    saveToStorage('telegram_user_id', urlId);
+                    return urlId;
+                }
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка отримання ID з URL:", e);
+            }
+
+            // 5. З Telegram WebApp
+            try {
+                if (window.Telegram && window.Telegram.WebApp &&
+                    window.Telegram.WebApp.initDataUnsafe &&
+                    window.Telegram.WebApp.initDataUnsafe.user &&
+                    window.Telegram.WebApp.initDataUnsafe.user.id) {
+
+                    const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                    if (telegramId) {
+                        saveToStorage('telegram_user_id', telegramId);
+                        return telegramId;
+                    }
+                }
+            } catch (e) {
+                console.warn("⚠️ Core: Помилка отримання ID з Telegram WebApp:", e);
+            }
+
+            // ID не знайдено - повертаємо null
+            return null;
+        } catch (error) {
+            console.error("❌ Core: Загальна помилка при отриманні ID:", error);
+            return null;
+        }
+    }
+
+    /**
+     * Старий метод отримання ID користувача (для сумісності)
+     * @returns {string|null} ID користувача або null
+     */
+    function getUserId() {
+        return safeGetUserId();
+    }
+
+    /**
      * Отримання даних користувача
      * @param {boolean} forceRefresh - Примусово оновити
      * @returns {Promise<Object>} Дані користувача
@@ -931,7 +1039,7 @@
             }
 
             // Створюємо мінімальні дані користувача з localStorage
-            const userId = getUserId();
+            const userId = safeGetUserId();
             _userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(getFromStorage('userTokens', '0')),
@@ -983,7 +1091,7 @@
 
         try {
             // Формуємо запит
-            const userId = getUserId();
+            const userId = safeGetUserId();
             if (!userId) {
                 throw new Error('ID користувача не знайдено');
             }
@@ -1062,7 +1170,7 @@
             }
 
             // Створюємо мінімальні дані користувача
-            const userId = getUserId();
+            const userId = safeGetUserId();
             _userData = {
                 telegram_id: userId || 'unknown',
                 balance: parseFloat(getFromStorage('userTokens', '0')),
@@ -1075,103 +1183,17 @@
     }
 
     /**
-     * Отримання ID користувача
-     * @returns {string|null} ID користувача або null
-     */
-    function getUserId() {
-        // Перевіряємо різні джерела ID користувача в порядку пріоритету
-
-        // 1. З API модуля
-        if (hasApiModule()) {
-            try {
-                const apiId = window.WinixAPI.getUserId();
-                if (apiId && apiId !== 'undefined' && apiId !== 'null') {
-                    return apiId;
-                }
-            } catch (e) {
-                console.warn("⚠️ Core: Помилка отримання ID через API:", e);
-            }
-        }
-
-        // 2. З localStorage
-        try {
-            const storedId = getFromStorage('telegram_user_id');
-            if (storedId && storedId !== 'undefined' && storedId !== 'null') {
-                return storedId;
-            }
-        } catch (e) {
-            console.warn("⚠️ Core: Помилка отримання ID зі сховища:", e);
-        }
-
-        // 3. З DOM
-        try {
-            // Спочатку перевіряємо елемент в хедері
-            const headerUserIdElement = getElement('#header-user-id');
-            if (headerUserIdElement && headerUserIdElement.textContent) {
-                const id = headerUserIdElement.textContent.trim();
-                if (id && id !== 'undefined' && id !== 'null') {
-                    saveToStorage('telegram_user_id', id);
-                    return id;
-                }
-            }
-
-            // Потім перевіряємо прихований елемент
-            const userIdElement = getElement('#user-id');
-            if (userIdElement && userIdElement.textContent) {
-                const id = userIdElement.textContent.trim();
-                if (id && id !== 'undefined' && id !== 'null') {
-                    saveToStorage('telegram_user_id', id);
-                    return id;
-                }
-            }
-        } catch (e) {
-            console.warn("⚠️ Core: Помилка отримання ID з DOM:", e);
-        }
-
-        // 4. З URL
-        try {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlId = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-            if (urlId && urlId !== 'undefined' && urlId !== 'null') {
-                saveToStorage('telegram_user_id', urlId);
-                return urlId;
-            }
-        } catch (e) {
-            console.warn("⚠️ Core: Помилка отримання ID з URL:", e);
-        }
-
-        // 5. З Telegram WebApp
-        try {
-            if (window.Telegram && window.Telegram.WebApp &&
-                window.Telegram.WebApp.initDataUnsafe &&
-                window.Telegram.WebApp.initDataUnsafe.user &&
-                window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-                const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                if (telegramId) {
-                    saveToStorage('telegram_user_id', telegramId);
-                    return telegramId;
-                }
-            }
-        } catch (e) {
-            console.warn("⚠️ Core: Помилка отримання ID з Telegram WebApp:", e);
-        }
-
-        return null;
-    }
-
-    /**
      * Оновлення відображення користувача
      */
     function updateUserDisplay() {
         try {
             // Отримуємо дані користувача
             const userData = _userData || {};
-            const userId = userData.telegram_id || getUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
+            const userId = userData.telegram_id || safeGetUserId() || getFromStorage('telegram_user_id', 'Unknown ID');
             const username = userData.username || getFromStorage('username', 'User');
 
             // Оновлюємо ID користувача
-            const userIdElement = getElement('#header-user-id');
+            const userIdElement = getElement('#header-user-id') || getElement('#user-id');
             if (userIdElement && userIdElement.textContent !== userId) {
                 userIdElement.textContent = userId;
             }
@@ -1498,7 +1520,7 @@
 
         try {
             // Отримуємо ID користувача
-            const userId = getUserId();
+            const userId = safeGetUserId();
             if (!userId) {
                 throw new Error('ID користувача не знайдено');
             }
@@ -1736,7 +1758,7 @@
             console.log('🔄 Перевірка доступності API ендпоінтів...');
 
             // Отримуємо ID користувача
-            const userId = getUserId();
+            const userId = safeGetUserId();
 
             if (userId) {
                 // Список ендпоінтів для перевірки
@@ -2167,6 +2189,69 @@
         }
     }
 
+    /**
+     * Перевірка і ініціалізація залежних модулів
+     * @param {boolean} force - Примусова перевірка
+     */
+    function checkDependencies(force = false) {
+        // Якщо залежності вже перевірені і не потрібно примусово перевіряти
+        if (_state.dependenciesInitialized && !force) {
+            return;
+        }
+
+        console.log("🔄 Core: Перевірка залежних модулів");
+
+        // Список залежних модулів для перевірки
+        const requiredModules = [
+            'TaskManager',
+            'SocialTask',
+            'TaskProgressManager',
+            'TaskIntegration'
+        ];
+
+        let allModulesAvailable = true;
+        const missingModules = [];
+
+        // Перевіряємо наявність кожного модуля
+        for (const module of requiredModules) {
+            if (typeof window[module] === 'undefined') {
+                allModulesAvailable = false;
+                missingModules.push(module);
+            }
+        }
+
+        if (allModulesAvailable) {
+            _state.dependenciesInitialized = true;
+            console.log("✅ Core: Всі залежні модулі доступні");
+
+            // Ініціалізуємо TaskIntegration, якщо він є і не ініціалізований
+            if (window.TaskIntegration && !window.TaskIntegration.isInitialized()) {
+                console.log("🔄 Core: Ініціалізація TaskIntegration");
+                window.TaskIntegration.init();
+            }
+        } else {
+            console.warn("⚠️ Core: Деякі залежні модулі відсутні:", missingModules);
+
+            // Збільшуємо лічильник спроб
+            _state.initAttempts++;
+
+            // Якщо не перевищено максимальну кількість спроб, запускаємо повторну перевірку
+            if (_state.initAttempts < _config.maxInitAttempts) {
+                console.log(`🔄 Core: Спроба ${_state.initAttempts}/${_config.maxInitAttempts} перевірки залежних модулів`);
+
+                // Запускаємо повторну перевірку через заданий інтервал
+                setTimeout(() => {
+                    checkDependencies();
+                }, _config.initRetryInterval);
+            } else {
+                console.error("❌ Core: Перевищено максимальну кількість спроб перевірки залежних модулів");
+
+                // Показуємо повідомлення користувачу
+                showErrorMessage('Не вдалося завантажити всі необхідні модулі. Спробуйте перезавантажити сторінку.', 'error');
+            }
+        }
+    }
+
     // ======== ІНІЦІАЛІЗАЦІЯ ========
 
     /**
@@ -2193,6 +2278,37 @@
                 _config.apiBaseUrl = savedApiUrl;
                 console.log(`🔄 Core: Використовуємо збережений API URL: ${savedApiUrl}`);
             }
+
+            // Покращений обробник неопрацьованих промісів
+            window.addEventListener('unhandledrejection', function(event) {
+                // Виявлення помилок пов'язаних з ID користувача
+                if (event.reason && (
+                    (event.reason.message && (event.reason.message.includes('ID користувача не знайдено') ||
+                                           event.reason.message.includes('user ID not found'))) ||
+                    (event.reason.stack && event.reason.stack.includes('getUserId'))
+                )) {
+                    // Запобігаємо поширенню помилки в консоль
+                    event.preventDefault();
+
+                    console.warn('⚠️ Core: Оброблено помилку з ID користувача:', event.reason.message);
+
+                    // Відправляємо подію про помилку авторизації
+                    document.dispatchEvent(new CustomEvent('auth-required', {
+                        detail: {
+                            message: 'Для доступу до цієї функції необхідно авторизуватися',
+                            source: event.reason.stack || 'unknown'
+                        }
+                    }));
+
+                    return;
+                }
+
+                // Обробка інших помилок у модулях core
+                if (event.reason && event.reason.stack &&
+                    (event.reason.stack.includes('core.js') || event.reason.stack.includes('task-manager'))) {
+                    console.error('❌ Core: Невідловлена помилка в модулі:', event.reason);
+                }
+            });
 
             // Ініціалізуємо Telegram WebApp, якщо він доступний
             if (window.Telegram && window.Telegram.WebApp) {
@@ -2237,6 +2353,9 @@
 
             // Запускаємо автоматичну синхронізацію
             startAutoSync();
+
+            // Перевіряємо наявність залежних модулів
+            checkDependencies();
 
             // Якщо увімкнена активна діагностика, запускаємо періодичну перевірку
             if (_config.activeConnectionDiagnostics) {
@@ -2398,7 +2517,7 @@
     // Експортуємо публічний API
     window.WinixCore = {
         // Метадані
-        version: '2.1.0',
+        version: '2.1.1',
         isInitialized: isInitialized,
 
         // Утиліти
@@ -2416,6 +2535,7 @@
         // Функції користувача
         getUserData,
         getUserId,
+        safeGetUserId,
         updateUserDisplay,
         getBalance,
         getCoins,
@@ -2436,6 +2556,7 @@
         diagnoseBeckendConnection,
         troubleshootConnection,
         classifyError,
+        checkDependencies,
 
         // Ініціалізація
         init,
@@ -2455,6 +2576,8 @@
     window.checkWinixServerConnection = checkServerConnection;
     window.diagnoseBeckendConnection = diagnoseBeckendConnection;
     window.troubleshootWinixConnection = troubleshootConnection;
+    window.safeGetUserId = safeGetUserId;
+    window.getUserId = safeGetUserId; // Замінюємо старий небезпечний метод
 
     console.log("✅ Core: Модуль успішно завантажено");
 })();
