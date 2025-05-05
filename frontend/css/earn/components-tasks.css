@@ -1,13 +1,10 @@
-/* Стилі для щоденного бонусу - 30-денний цикл
- * Оптимізовано для мобільних пристроїв
- * Підтримує відображення токенів і прогресивної винагороди
- *
- * ВИПРАВЛЕННЯ:
- * - Покращено стилізацію інформаційної кнопки
- * - Покращено стилізацію модального вікна календаря нагород
- * - Оптимізовано анімації для запобігання зависань
- * - Додано плавні переходи для всіх елементів
- */
+/*
+* WINIX Premium Theme - components-tasks.css
+* Стилі для компонентів завдань з преміальним дизайном
+* Версія 2.0 - Premium Edition
+*/
+
+/* ======== ЩОДЕННИЙ БОНУС ======== */
 
 /* Контейнер щоденного бонусу */
 .daily-bonus {
@@ -15,8 +12,20 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.25rem; /* 20px */
     will-change: transform, opacity;
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Контейнер прогресу з градієнтним фоном */
@@ -24,23 +33,24 @@
     width: 100%;
     height: auto;
     min-height: 6.5rem;
-    background: rgba(15, 23, 42, 0.4);
-    border-radius: 1.25rem;
-    padding: 1.25rem 0.75rem;
-    margin: 0.9375rem 0;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 1.25rem; /* 20px */
+    padding: 1.25rem 0.75rem; /* 20px 12px */
+    margin: 0.9375rem 0; /* 15px 0 */
     position: relative;
     display: flex;
     flex-direction: column;
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(78, 181, 247, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(78, 181, 247, 0.15);
     overflow: hidden;
     transform: translateZ(0);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
 }
 
 .daily-bonus-bar:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(78, 181, 247, 0.2) inset;
 }
 
 /* Фоновий ефект */
@@ -63,24 +73,49 @@
     opacity: 1;
 }
 
+/* Декоративні елементи */
+.daily-bonus-bar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(78, 181, 247, 0.3) 30%,
+        rgba(0, 201, 167, 0.5) 50%,
+        rgba(78, 181, 247, 0.3) 70%,
+        transparent);
+    opacity: 0.7;
+}
+
 /* Обгортка заголовку з кнопкою інформації */
 .title-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    position: relative;
+    z-index: 2;
 }
 
-/* Кнопка інформації - ВИПРАВЛЕНО: правильна стилізація для круглої форми */
+.daily-bonus-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #00C9A7;
+    text-shadow: 0 0 10px rgba(0, 201, 167, 0.3);
+    margin: 0;
+}
+
+/* Покращена кнопка інформації */
 .info-button {
     width: 24px;
     height: 24px;
-    position: relative;
-    top: -3px;
     border-radius: 50%;
-    border: 1px solid rgba(78, 181, 247, 0.3);
-    background: rgba(78, 181, 247, 0.1);
+    border: 1px solid rgba(78, 181, 247, 0.4);
+    background: rgba(78, 181, 247, 0.15);
     color: white;
     cursor: pointer;
     display: inline-flex;
@@ -88,13 +123,28 @@
     justify-content: center;
     font-size: 14px;
     font-weight: bold;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     text-align: center;
     padding: 0;
     line-height: 1;
     will-change: transform, background-color;
     text-decoration: none;
     outline: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.info-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .info-button:hover {
@@ -103,16 +153,21 @@
     border-color: rgba(78, 181, 247, 0.5);
 }
 
+.info-button:hover::before {
+    opacity: 1;
+    transform: scale(1);
+}
+
 .info-button:active {
     transform: scale(0.95);
 }
 
 .info-button:focus {
-    box-shadow: 0 0 0 2px rgba(78, 181, 247, 0.4);
+    box-shadow: 0 0 0 3px rgba(78, 181, 247, 0.4);
     outline: none;
 }
 
-/* Модальне вікно з інформацією - ВИПРАВЛЕНО: краща стилізація */
+/* Покращене модальне вікно з інформацією */
 .daily-bonus-modal {
     display: none;
     position: fixed;
@@ -126,7 +181,7 @@
     opacity: 0;
     will-change: opacity;
     overflow-y: auto;
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(5px);
 }
 
 .daily-bonus-modal.visible {
@@ -135,18 +190,20 @@
 
 .daily-bonus-modal-content {
     position: relative;
-    background: linear-gradient(135deg, rgba(30, 39, 70, 0.95), rgba(15, 20, 40, 0.95));
+    background: linear-gradient(135deg, rgba(25, 33, 60, 0.95), rgba(15, 20, 40, 0.95));
     margin: 10% auto;
-    padding: 25px;
-    border-radius: 15px;
+    padding: 30px;
+    border-radius: 20px;
     width: 90%;
     max-width: 500px;
-    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 201, 167, 0.3);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(78, 181, 247, 0.2) inset,
+                0 0 30px rgba(0, 201, 167, 0.2);
     max-height: 80vh;
     overflow: auto;
-    border: 1px solid rgba(78, 181, 247, 0.2);
+    border: 1px solid rgba(78, 181, 247, 0.25);
     transform: scale(0.9);
-    transition: transform 0.3s ease;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     will-change: transform;
 }
 
@@ -156,131 +213,134 @@
 
 .daily-bonus-modal-close {
     position: absolute;
-    top: 15px;
-    right: 20px;
+    top: 20px;
+    right: 25px;
     color: white;
     font-size: 22px;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s ease;
-    width: 30px;
-    height: 30px;
-    line-height: 30px;
+    transition: all 0.3s ease;
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
     text-align: center;
-    border-radius: 50% !important;  /* Додано !important для надійності */
-    background-color: rgba(78, 181, 247, 0.1);
+    border-radius: 50% !important;
+    background: rgba(78, 181, 247, 0.1);
     border: 1px solid rgba(78, 181, 247, 0.3);
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .daily-bonus-modal-close:hover {
     color: rgba(0, 201, 167, 1);
-    background-color: rgba(78, 181, 247, 0.2);
-}
-
-/* Анімації для модального вікна */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes scaleIn {
-    from { transform: scale(0.8); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-
-/* Стилізація скроллбару для модального вікна */
-.daily-bonus-modal-content::-webkit-scrollbar {
-    width: 6px;
-}
-
-.daily-bonus-modal-content::-webkit-scrollbar-track {
-    background: rgba(30, 39, 70, 0.5);
-    border-radius: 10px;
-}
-
-.daily-bonus-modal-content::-webkit-scrollbar-thumb {
-    background: rgba(78, 181, 247, 0.5);
-    border-radius: 10px;
-}
-
-.daily-bonus-modal-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(78, 181, 247, 0.7);
+    background: rgba(78, 181, 247, 0.2);
+    transform: rotate(90deg);
 }
 
 /* Заголовок модального вікна */
 .daily-bonus-modal-content h3 {
     text-align: center;
-    margin-bottom: 20px;
-    font-size: 22px;
-    color: white;
-    text-shadow: 0 0 10px rgba(78, 181, 247, 0.5);
+    margin-bottom: 25px;
+    font-size: 26px;
+    color: #00C9A7;
+    text-shadow: 0 0 10px rgba(0, 201, 167, 0.3);
     font-weight: bold;
+    position: relative;
+    padding-bottom: 15px;
 }
 
-/* Стилі для таблиці винагород в модальному вікні - ВИПРАВЛЕНО: покращена стилізація */
-.modal-rewards-table {
-    width: 100%;
-    margin-bottom: 20px;
+.daily-bonus-modal-content h3::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 3px;
+    background: linear-gradient(90deg,
+        rgba(78, 181, 247, 0.2),
+        rgba(0, 201, 167, 0.8),
+        rgba(78, 181, 247, 0.2));
+    border-radius: 3px;
 }
 
+/* Покращені стилі для таблиці винагород в модальному вікні */
 .rewards-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin-bottom: 30px;
 }
 
 .reward-day {
-    background: rgba(30, 39, 70, 0.7);
-    border-radius: 10px;
-    padding: 12px 8px;
+    background: rgba(20, 30, 60, 0.7);
+    border-radius: 14px;
+    padding: 15px 10px;
     text-align: center;
     position: relative;
     border: 1px solid rgba(78, 181, 247, 0.2);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: hidden;
+}
+
+.reward-day::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 20%, rgba(78, 181, 247, 0.05), transparent 80%);
+    opacity: 0.6;
 }
 
 .reward-day:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    border-color: rgba(78, 181, 247, 0.3);
 }
 
 .reward-day.claimed {
     background: linear-gradient(135deg, rgba(0, 201, 167, 0.2), rgba(0, 201, 167, 0.1));
     border: 1px solid rgba(0, 201, 167, 0.4);
-    box-shadow: 0 3px 8px rgba(0, 201, 167, 0.1);
+    box-shadow: 0 5px 15px rgba(0, 201, 167, 0.15);
+}
+
+.reward-day.claimed::before {
+    background: radial-gradient(circle at 30% 20%, rgba(0, 201, 167, 0.1), transparent 80%);
 }
 
 .reward-day.current {
     background: linear-gradient(135deg, rgba(78, 181, 247, 0.2), rgba(78, 181, 247, 0.1));
     border: 1px solid rgba(78, 181, 247, 0.4);
-    box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
-    animation: highlight-current 2s infinite alternate;
+    box-shadow: 0 0 20px rgba(78, 181, 247, 0.3);
+    animation: highlight-current 3s infinite alternate ease-in-out;
 }
 
 @keyframes highlight-current {
     0% {
-        box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.3);
+        border-color: rgba(78, 181, 247, 0.4);
     }
     100% {
-        box-shadow: 0 0 15px rgba(78, 181, 247, 0.5);
+        box-shadow: 0 0 25px rgba(78, 181, 247, 0.6);
+        border-color: rgba(78, 181, 247, 0.6);
     }
 }
 
 .day-number {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: bold;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
     color: white;
 }
 
 .day-reward {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
 }
 
 .token-badge {
@@ -289,74 +349,136 @@
     right: -8px;
     background: linear-gradient(135deg, #FFD700, #FFA000);
     border-radius: 50%;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
     font-weight: bold;
     color: black;
-    box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
     animation: token-glow 2s infinite alternate;
     z-index: 2;
 }
 
 @keyframes token-glow {
     0% {
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
     }
     100% {
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.9), 0 0 20px rgba(255, 215, 0, 0.3);
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 0 0 25px rgba(255, 215, 0, 0.3);
     }
 }
 
+/* Інформаційні блоки для модального вікна */
 .summary-box {
-    background: rgba(30, 39, 70, 0.7);
-    border-radius: 12px;
-    padding: 18px;
-    margin-top: 25px;
+    background: rgba(20, 30, 60, 0.7);
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 30px;
     border: 1px solid rgba(78, 181, 247, 0.2);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.summary-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 30%, rgba(78, 181, 247, 0.05), transparent 70%);
+    opacity: 0.6;
 }
 
 .summary-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
-    margin-bottom: 15px;
-    color: white;
+    margin-bottom: 18px;
+    color: #4eb5f7;
     text-align: center;
     text-shadow: 0 0 5px rgba(78, 181, 247, 0.3);
+    position: relative;
+}
+
+.summary-title::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg,
+        rgba(78, 181, 247, 0.2),
+        rgba(78, 181, 247, 0.8),
+        rgba(78, 181, 247, 0.2));
+    border-radius: 2px;
 }
 
 .summary-item {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 10px;
-    padding: 5px 0;
+    margin-bottom: 12px;
+    padding: 8px 0;
     border-bottom: 1px solid rgba(78, 181, 247, 0.1);
+    position: relative;
 }
 
 .summary-item:last-child {
     border-bottom: none;
+    margin-bottom: 0;
 }
 
+/* Бонус за виконання 30-денного циклу */
 .completion-bonus {
-    background: linear-gradient(135deg, rgba(0, 201, 167, 0.1), rgba(0, 201, 167, 0.05));
+    background: linear-gradient(135deg, rgba(0, 201, 167, 0.15), rgba(0, 201, 167, 0.05));
     border: 1px solid rgba(0, 201, 167, 0.3);
-    border-radius: 12px;
-    padding: 18px;
-    margin-top: 25px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    padding: 22px;
+    margin-top: 30px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.completion-bonus::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 30%, rgba(0, 201, 167, 0.1), transparent 70%);
+    opacity: 0.8;
 }
 
 .completion-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
-    margin-bottom: 15px;
-    color: rgba(0, 201, 167, 0.9);
+    margin-bottom: 18px;
+    color: #00C9A7;
     text-align: center;
-    text-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+    text-shadow: 0 0 8px rgba(0, 201, 167, 0.3);
+    position: relative;
+}
+
+.completion-title::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 2px;
+    background: linear-gradient(90deg,
+        rgba(0, 201, 167, 0.2),
+        rgba(0, 201, 167, 0.8),
+        rgba(0, 201, 167, 0.2));
+    border-radius: 2px;
 }
 
 /* Контейнер денного прогресу */
@@ -384,59 +506,74 @@
 
 /* Коло дня - базовий стан */
 .day-circle {
-    width: 2.25rem;
+    width: 2.25rem; /* 36px */
     height: 2.25rem;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.9rem;
-    background: rgba(20, 30, 60, 0.3);
-    border: 1px solid rgba(78, 181, 247, 0.15);
+    background: rgba(20, 30, 60, 0.5);
+    border: 1px solid rgba(78, 181, 247, 0.2);
     margin-bottom: 0.625rem;
     z-index: 3;
-    transition: all 0.3s ease;
-    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    color: rgba(255, 255, 255, 0.7);
     position: relative;
     transform: translateZ(0);
     will-change: transform, border-color, box-shadow;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Ефект для всіх кіл днів */
+.day-circle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08), transparent 70%);
+    opacity: 0.6;
 }
 
 /* Ефект при наведенні */
 .day-circle:hover {
-    transform: scale(1.1);
-    border-color: rgba(78, 181, 247, 0.4);
-    background: rgba(20, 30, 60, 0.5);
-    color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.15);
+    border-color: rgba(78, 181, 247, 0.5);
+    background: rgba(20, 30, 60, 0.7);
+    color: rgba(255, 255, 255, 1);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25), 0 0 8px rgba(78, 181, 247, 0.3);
 }
 
 /* Активний день - підсвічений */
 .day-circle.active {
-    background: rgba(78, 181, 247, 0.15);
-    border: 1px solid rgba(78, 181, 247, 0.5);
-    box-shadow: 0 0 10px rgba(78, 181, 247, 0.3);
+    background: rgba(78, 181, 247, 0.2);
+    border: 1px solid rgba(78, 181, 247, 0.6);
+    box-shadow: 0 0 15px rgba(78, 181, 247, 0.4);
     color: white;
-    animation: pulse-active 2s infinite ease-in-out;
+    animation: pulse-active 3s infinite ease-in-out;
 }
 
-/* Пульсація для активного дня - ВИПРАВЛЕНО: оптимізовано анімацію */
+/* Пульсація для активного дня */
 @keyframes pulse-active {
     0% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.3);
-        border-color: rgba(78, 181, 247, 0.5);
+        box-shadow: 0 0 8px rgba(78, 181, 247, 0.4);
+        border-color: rgba(78, 181, 247, 0.6);
     }
     50% {
-        box-shadow: 0 0 12px rgba(78, 181, 247, 0.6);
-        border-color: rgba(78, 181, 247, 0.8);
+        box-shadow: 0 0 18px rgba(78, 181, 247, 0.7);
+        border-color: rgba(78, 181, 247, 0.9);
     }
     100% {
-        box-shadow: 0 0 5px rgba(78, 181, 247, 0.3);
-        border-color: rgba(78, 181, 247, 0.5);
+        box-shadow: 0 0 8px rgba(78, 181, 247, 0.4);
+        border-color: rgba(78, 181, 247, 0.6);
     }
 }
 
-/* Звисаючий елемент після активного дня з пульсацією */
+/* Ефект кільця навколо активного дня */
 .day-circle.active::after {
     content: '';
     position: absolute;
@@ -457,11 +594,11 @@
         opacity: 0.8;
     }
     70% {
-        transform: scale(1.15);
+        transform: scale(1.2);
         opacity: 0;
     }
     100% {
-        transform: scale(1.15);
+        transform: scale(1.2);
         opacity: 0;
     }
 }
@@ -469,14 +606,14 @@
 /* Завершений день - зелене підсвічування */
 .day-circle.completed {
     background: rgba(0, 201, 167, 0.2);
-    border: 1px solid rgba(0, 201, 167, 0.5);
+    border: 1px solid rgba(0, 201, 167, 0.6);
     color: white;
-    box-shadow: 0 0 8px rgba(0, 201, 167, 0.4);
+    box-shadow: 0 0 12px rgba(0, 201, 167, 0.4);
 }
 
 /* Відображення винагороди дня */
 .day-reward {
-    font-size: 0.85rem;
+    font-size: 0.75rem; /* 12px */
     color: rgba(255, 255, 255, 0.7);
     font-weight: 500;
     transition: all 0.3s ease;
@@ -495,7 +632,7 @@
 }
 
 /* Стиль для мітки жетона на день */
-.token-badge {
+.token-badge-small {
     position: absolute;
     top: -5px;
     right: -5px;
@@ -509,17 +646,18 @@
     font-size: 10px;
     font-weight: bold;
     color: black;
-    box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.7);
     animation: glow-token 2s infinite alternate ease-in-out;
     will-change: box-shadow;
+    z-index: 4;
 }
 
 @keyframes glow-token {
     0% {
-        box-shadow: 0 0 3px rgba(255, 215, 0, 0.7);
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.7);
     }
     100% {
-        box-shadow: 0 0 8px rgba(255, 215, 0, 0.9);
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.9);
     }
 }
 
@@ -530,21 +668,27 @@
     top: 1.125rem; /* Центрування по кружечку */
     right: -2px;
     width: calc(100% - 2.25rem + 4px);
-    height: 1px;
-    background: rgba(78, 181, 247, 0.15);
+    height: 2px;
+    background: linear-gradient(90deg,
+        rgba(78, 181, 247, 0.2),
+        rgba(78, 181, 247, 0.3),
+        rgba(78, 181, 247, 0.2));
     z-index: 1;
+    border-radius: 1px;
 }
 
 /* Покращена кнопка отримання бонусу */
 .claim-button {
-    margin-top: 0.75rem;
-    padding: 0.75rem 2rem;
+    margin-top: 1rem;
+    padding: 0.9rem 2.5rem;
     border-radius: 1.5rem;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    background: rgba(0, 201, 167, 0.15);
-    border: 1px solid rgba(0, 201, 167, 0.3);
+    font-size: 1rem;
+    font-weight: 600;
+    background: linear-gradient(90deg,
+        rgba(0, 201, 167, 0.9),
+        rgba(0, 151, 136, 0.9));
     color: white;
+    border: none;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     letter-spacing: 0.0625rem;
     cursor: pointer;
@@ -553,13 +697,13 @@
     overflow: hidden;
     transform: translateZ(0);
     will-change: transform, box-shadow;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.2) inset;
 }
 
 /* Стан обробки */
 .claim-button.processing {
-    background: rgba(0, 201, 167, 0.1);
+    background: rgba(0, 201, 167, 0.4);
     color: rgba(255, 255, 255, 0.7);
-    border-color: rgba(0, 201, 167, 0.2);
     pointer-events: none;
 }
 
@@ -573,7 +717,7 @@
     background: linear-gradient(
         to right,
         transparent,
-        rgba(0, 201, 167, 0.2),
+        rgba(255, 255, 255, 0.2),
         transparent
     );
     animation: loading-shimmer 1.5s infinite;
@@ -585,39 +729,34 @@
     }
 }
 
-/* Гарна анімація при наведенні */
-.claim-button:not(:disabled)::before {
+/* Ефект світіння */
+.claim-button::before {
     content: '';
     position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(rgba(0, 201, 167, 0.3), transparent 70%);
-    transform: rotate(0deg);
-    animation: rotate-glow 8s linear infinite;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-    will-change: opacity, transform;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    transition: transform 0.5s ease;
+    transform: translateX(-100%) skewX(-15deg);
 }
 
-.claim-button:not(:disabled):hover::before {
-    opacity: 1;
+.claim-button:hover::before {
+    transform: translateX(100%) skewX(-15deg);
 }
 
-@keyframes rotate-glow {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.claim-button:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 201, 167, 0.5) inset;
 }
 
-.claim-button:not(:disabled):hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(0, 201, 167, 0.5) inset;
-}
-
-.claim-button:not(:disabled):active {
-    transform: translateY(0);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.3) inset;
+.claim-button:active {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.3) inset;
 }
 
 .claim-button:not(:disabled) {
@@ -626,101 +765,372 @@
 
 @keyframes claim-glow {
     0% {
-        box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 201, 167, 0.2) inset;
     }
     100% {
-        box-shadow: 0 0 15px rgba(0, 201, 167, 0.6);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 201, 167, 0.5), 0 0 0 1px rgba(0, 201, 167, 0.4) inset;
     }
 }
 
 .claim-button:disabled {
-    background: rgba(30, 39, 70, 0.2);
+    background: rgba(30, 39, 70, 0.3);
     color: rgba(255, 255, 255, 0.4);
     border-color: rgba(78, 181, 247, 0.1);
     cursor: not-allowed;
     box-shadow: none;
 }
 
-/* Стиль для повідомлення про необхідність авторизації */
-.auth-required-message {
-    background: rgba(30, 39, 70, 0.4);
-    border-radius: 1rem;
+/* ======== СТИЛІ ДЛЯ ЗАВДАНЬ ======== */
+
+/* Стилі для завдань */
+.task-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; /* 12px */
+}
+
+.task-item {
+    background: rgba(20, 30, 60, 0.7);
+    border-radius: var(--item-border-radius);
     padding: 1.25rem;
-    margin: 1rem 0;
-    text-align: center;
-    border: 1px solid rgba(78, 181, 247, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(5px);
+    animation: fadeInTask 0.5s ease forwards;
+    opacity: 0;
+    transform: translateY(10px);
 }
 
-.auth-required-message p {
-    margin-bottom: 1rem;
-    color: rgba(255, 255, 255, 0.9);
+@keyframes fadeInTask {
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.auth-button {
-    background: rgba(78, 181, 247, 0.2);
-    border: 1px solid rgba(78, 181, 247, 0.4);
-    color: white;
-    padding: 0.625rem 1.5rem;
-    border-radius: 1.5rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
+/* Анімуємо завдання з затримкою */
+.task-item:nth-child(1) { animation-delay: 0.05s; }
+.task-item:nth-child(2) { animation-delay: 0.1s; }
+.task-item:nth-child(3) { animation-delay: 0.15s; }
+.task-item:nth-child(4) { animation-delay: 0.2s; }
+.task-item:nth-child(5) { animation-delay: 0.25s; }
+
+.task-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 15% 15%, rgba(78, 181, 247, 0.05), transparent 70%);
+    opacity: 0.6;
+    transition: opacity 0.3s ease;
 }
 
-.auth-button:hover {
-    background: rgba(78, 181, 247, 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+.task-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(78, 181, 247, 0.2) inset;
 }
 
-/* Стилі для повідомлення про помилку і кнопки повторної спроби */
-.error-message {
-    padding: 15px;
-    background: rgba(244, 67, 54, 0.1);
-    border: 1px solid rgba(244, 67, 54, 0.3);
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-    margin-bottom: 10px;
+.task-item:hover::before {
+    opacity: 1;
 }
 
-.retry-button {
-    margin-top: 10px;
-    padding: 8px 20px;
-    background: rgba(78, 181, 247, 0.2);
-    border: 1px solid rgba(78, 181, 247, 0.4);
-    border-radius: 20px;
-    color: white;
-    cursor: pointer;
-    transition: all 0.3s ease;
+/* Різні стани завдань */
+.task-item.completed {
+    border-left: 3px solid var(--highlight-color);
 }
 
-.retry-button:hover {
-    background: rgba(78, 181, 247, 0.3);
-    transform: translateY(-2px);
+.task-item.ready-to-verify {
+    border-left: 3px solid var(--highlight-secondary);
 }
 
-/* Клас для анімації зміни балансу */
-@keyframes balance-increasing {
+.task-item.expired {
+    border-left: 3px solid var(--negative-color);
+    opacity: 0.8;
+}
+
+/* Анімація успішного завершення завдання */
+.task-item.success-pulse {
+    animation: success-pulse 1s ease-in-out;
+}
+
+@keyframes success-pulse {
     0% {
-        color: white;
-        transform: scale(1);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
     }
     50% {
-        color: #00C9A7;
-        transform: scale(1.2);
+        box-shadow: 0 0 30px rgba(0, 201, 167, 0.6), 0 0 0 1px rgba(0, 201, 167, 0.5) inset;
     }
     100% {
-        color: white;
-        transform: scale(1);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(78, 181, 247, 0.1) inset;
     }
 }
 
-.increasing {
-    animation: balance-increasing 1s ease-in-out;
+/* Заголовок завдання */
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
 }
 
-/* Адаптивні стилі для мобільних пристроїв */
+.task-title {
+    font-size: 1.125rem; /* 18px */
+    font-weight: 700;
+    color: var(--highlight-secondary);
+    margin: 0;
+    letter-spacing: 0.01rem;
+    flex: 1;
+}
+
+.task-reward {
+    font-size: 1rem; /* 16px */
+    font-weight: 700;
+    color: var(--highlight-color);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(0, 201, 167, 0.1);
+    border-radius: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid rgba(0, 201, 167, 0.2);
+    transition: all 0.3s ease;
+}
+
+.task-reward:hover {
+    background: rgba(0, 201, 167, 0.15);
+    border-color: rgba(0, 201, 167, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.token-symbol {
+    font-size: 0.875rem; /* 14px */
+    opacity: 0.9;
+}
+
+/* Опис завдання */
+.task-description {
+    color: var(--text-secondary);
+    font-size: 0.9375rem; /* 15px */
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+}
+
+/* Прогрес завдання */
+.task-progress {
+    margin: 0.875rem 0;
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem; /* 14px */
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.progress-bar-container {
+    height: 0.625rem; /* 10px */
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+    border-radius: 0.5rem;
+    transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Стан пульсації прогрес-бару */
+.progress-fill.pulse {
+    animation: progress-pulse 1s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes progress-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(0, 201, 167, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 201, 167, 0);
+    }
+}
+
+/* Кнопки дії завдання */
+.task-action {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.action-button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 1.5rem;
+    font-size: 0.9375rem; /* 15px */
+    font-weight: 600;
+    background: linear-gradient(90deg,
+        #4eb5f7,
+        #00a0e9);
+    color: white;
+    border: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+    min-width: 120px;
+    text-align: center;
+}
+
+/* Градієнтна межа для кнопки */
+.action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    transition: transform 0.5s ease;
+    transform: translateX(-100%) skewX(-15deg);
+}
+
+.action-button:hover::before {
+    transform: translateX(100%) skewX(-15deg);
+}
+
+.action-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.action-button:active {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.action-button[data-action="verify"] {
+    background: linear-gradient(90deg,
+        rgba(0, 201, 167, 0.9),
+        rgba(0, 151, 136, 0.9));
+}
+
+/* Таймер для обмежених завдань */
+.timer-container {
+    font-size: 0.875rem; /* 14px */
+    color: #FFD700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255, 215, 0, 0.1);
+    border-radius: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    animation: timer-pulse 2s infinite alternate;
+}
+
+@keyframes timer-pulse {
+    0% {
+        color: #FFD700;
+    }
+    100% {
+        color: #FFA500;
+    }
+}
+
+.timer-container.expired {
+    color: var(--negative-color);
+    background: rgba(244, 67, 54, 0.1);
+    border-color: rgba(244, 67, 54, 0.2);
+    animation: expired-pulse 1s 3;
+}
+
+@keyframes expired-pulse {
+    0% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.5;
+    }
+}
+
+.timer-icon {
+    font-size: 1rem;
+}
+
+.timer-value {
+    font-weight: 700;
+}
+
+/* Мітка завершення завдання */
+.completed-label {
+    display: inline-block;
+    padding: 0.625rem 1.25rem;
+    background: rgba(0, 201, 167, 0.15);
+    color: var(--highlight-color);
+    font-weight: 700;
+    border-radius: 1.5rem;
+    text-align: center;
+    border: 1px solid rgba(0, 201, 167, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Мітка партнера */
+.partner-label {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(78, 181, 247, 0.15);
+    color: var(--highlight-secondary);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    border: 1px solid rgba(78, 181, 247, 0.3);
+}
+
+/* Адаптивність для різних екранів */
 @media (max-width: 450px) {
     .day-circle {
         width: 1.875rem; /* 30px */
@@ -729,17 +1139,31 @@
     }
 
     .day-reward {
-        font-size: 0.75rem; /* 12px */
+        font-size: 0.6875rem; /* 11px */
     }
 
     .claim-button {
         font-size: 0.875rem; /* 14px */
-        padding: 0.625rem 1.5rem;
+        padding: 0.75rem 1.75rem;
     }
 
-    .daily-bonus-bar {
-        padding: 1rem 0.5rem;
-        min-height: 5.5rem;
+    .task-title {
+        font-size: 1rem; /* 16px */
+    }
+
+    .task-reward {
+        font-size: 0.875rem; /* 14px */
+        padding: 0.3rem 0.625rem;
+    }
+
+    .action-button {
+        font-size: 0.875rem; /* 14px */
+        padding: 0.625rem 1.25rem;
+        min-width: 100px;
+    }
+
+    .task-description {
+        font-size: 0.875rem; /* 14px */
     }
 
     .rewards-grid {
@@ -747,7 +1171,6 @@
     }
 }
 
-/* Для дуже малих екранів */
 @media (max-width: 350px) {
     .day-circle {
         width: 1.625rem; /* 26px */
@@ -756,7 +1179,7 @@
     }
 
     .day-reward {
-        font-size: 0.6875rem; /* 11px */
+        font-size: 0.625rem; /* 10px */
     }
 
     .claim-button {
@@ -764,33 +1187,102 @@
         font-size: 0.8125rem; /* 13px */
     }
 
+    .task-action {
+        flex-direction: column;
+        gap: 0.625rem; /* 10px */
+    }
+
+    .action-button {
+        width: 100%;
+    }
+
     .rewards-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
     }
 
-    /* ВИПРАВЛЕНО: Додані стилі для нового стану ready-to-verify */
-    .task-item.ready-to-verify {
-        border-left: 3px solid #4eb5f7;
+    .reward-day {
+        padding: 10px 8px;
     }
 
-    /* Приховання кнопок в залежності від статусу */
-    .task-item.ready-to-verify .action-button[data-action="start"] {
-        display: none;
+    .day-number {
+        font-size: 16px;
     }
 
-    .task-item:not(.ready-to-verify) .action-button[data-action="verify"] {
-        display: none;
+    .day-reward {
+        font-size: 12px;
     }
+}
 
-    .task-item .task-action {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
+/* Стилі для спеціальних задвань */
+.task-item[data-task-type="premium"] {
+    background: linear-gradient(135deg,
+        rgba(20, 30, 60, 0.7),
+        rgba(30, 40, 70, 0.7));
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
 
-    /* Стилі для повідомлення про необхідність авторизації */
-    .auth-required-message {
-        background: rgba(30, 39, 70, 0.4);
+.task-item[data-task-type="premium"]::before {
+    background: radial-gradient(circle at 30% 30%, rgba(255, 215, 0, 0.05), transparent 70%);
+}
+
+.task-item[data-task-type="premium"] .task-title {
+    color: #FFD700;
+}
+
+.task-item[data-task-type="premium"] .action-button {
+    background: linear-gradient(90deg, #FFD700, #FFA500);
+}
+
+/* Стилі для завдань партнерів */
+.task-item[data-task-type="partner"] {
+    background: linear-gradient(135deg,
+        rgba(30, 40, 70, 0.7),
+        rgba(20, 30, 60, 0.7));
+    border: 1px solid rgba(78, 181, 247, 0.2);
+}
+
+.task-item[data-task-type="partner"]::before {
+    background: radial-gradient(circle at 20% 20%, rgba(78, 181, 247, 0.05), transparent 70%);
+}
+
+/* Покращені стилі для спеціальних елементів */
+.reward-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    animation: reward-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes reward-pop {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
     }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.reward-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-gradient);
+    box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+}
+
+.token-reward-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+}
+
+.reward-value {
+    font-weight: 700;
+    color: white;
 }
