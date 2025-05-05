@@ -1,202 +1,255 @@
-from flask import jsonify
+"""
+Контролер для API реферальної системи.
+Оптимізована версія з уніфікованими методами та обробкою помилок.
+"""
 import logging
-import os
-import sys
 from datetime import datetime
+from typing import Tuple, Dict, Any, Optional
 
-# Додаємо кореневу папку бекенду до шляху Python для імпортів
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-# Імпортуємо з supabase_client без використання importlib
-from supabase_client import get_user, update_user, supabase
+from flask import jsonify, request, g
+from referrals.service import ReferralService
+from common.helpers import validate_telegram_id, api_response, api_error, api_success
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Допоміжна функція для перевірки валідності реферального коду
-def is_valid_referral_code(code):
-    """Перевірка валідності реферального коду"""
-    try:
-        return len(code) > 5
-    except:
-        return False
 
-def get_referral_tasks(telegram_id):
-    """Отримання статусу реферальних завдань"""
-    try:
-        # Отримуємо користувача
-        user = get_user(telegram_id)
+def get_referral_code(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Отримання реферального коду користувача.
 
-        if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+    Args:
+        telegram_id (str): Telegram ID користувача
 
-        # Отримуємо кількість рефералів
-        try:
-            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-            referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
-        except Exception as e:
-            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
-            referral_count = 0
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
 
-        # Отримуємо статус реферальних завдань
-        referral_tasks = user.get("referral_tasks", {})
+    # Отримуємо реферальний код
+    referral_code = ReferralService.get_user_referral_code(telegram_id)
 
-        # Визначаємо завдання і їх цілі
-        tasks = [
-            {"id": "invite-friends", "target": 5, "reward": 300},
-            {"id": "invite-friends-10", "target": 10, "reward": 700},
-            {"id": "invite-friends-25", "target": 25, "reward": 1500},
-            {"id": "invite-friends-100", "target": 100, "reward": 5000}
-        ]
+    if not referral_code:
+        return api_error(f"Не вдалося отримати реферальний код для користувача {telegram_id}", status_code=404)
 
-        # Визначаємо, які завдання виконані
-        completed_tasks = []
+    # Повертаємо успішний результат
+    return api_success({
+        "referral_code": referral_code,
+        "share_url": f"https://t.me/winix_bot?start={referral_code}"
+    }, "Реферальний код успішно отримано")
 
-        for task in tasks:
-            task_id = task["id"]
-            target = task["target"]
 
-            # Завдання виконане, якщо кількість рефералів >= цільової або статус в базі = True
-            if referral_count >= target or referral_tasks.get(task_id, False):
-                completed_tasks.append(task_id)
+def get_user_referrals(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Отримання інформації про рефералів користувача.
 
-        return jsonify({
-            "status": "success",
-            "referralCount": referral_count,
-            "completedTasks": completed_tasks,
-            "tasks": tasks
-        })
-    except Exception as e:
-        logger.error(f"Помилка отримання статусу реферальних завдань для {telegram_id}: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    Args:
+        telegram_id (str): Telegram ID користувача
 
-def claim_referral_reward(telegram_id, data):
-    """Отримання винагороди за реферальне завдання"""
-    try:
-        if not data or "taskId" not in data or "reward" not in data:
-            return jsonify({"status": "error", "message": "Відсутні необхідні дані"}), 400
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
 
-        task_id = data["taskId"]
-        reward_amount = float(data["reward"])
+    # Отримуємо інформацію про рефералів
+    referrals_data = ReferralService.get_user_referrals(telegram_id)
 
-        # Отримуємо користувача
-        user = get_user(telegram_id)
+    # Перевіряємо на наявність помилки
+    if "error" in referrals_data:
+        return api_error(f"Помилка отримання рефералів: {referrals_data['error']}", status_code=500)
 
-        if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
+    # Повертаємо успішний результат
+    return api_success(referrals_data, "Інформація про рефералів успішно отримана")
 
-        # Отримуємо кількість рефералів і статус завдань
-        try:
-            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-            referral_count = referrals_res.count if hasattr(referrals_res, 'count') else 0
-        except Exception as e:
-            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
-            referral_count = 0
 
-        referral_tasks = user.get("referral_tasks", {})
+def use_referral_code() -> Tuple[Dict[str, Any], int]:
+    """
+    Використання реферального коду новим користувачем.
 
-        # Визначаємо цільову кількість рефералів
-        target_map = {
-            "invite-friends": 5,
-            "invite-friends-10": 10,
-            "invite-friends-25": 25,
-            "invite-friends-100": 100
-        }
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Отримуємо дані з запиту
+    data = request.json or {}
 
-        target = target_map.get(task_id, 0)
+    # Перевіряємо наявність необхідних полів
+    required_fields = ["referral_code", "telegram_id"]
+    missing_fields = [field for field in required_fields if field not in data]
 
-        # Перевіряємо, чи завдання вже виконане
-        if referral_tasks.get(task_id, False):
-            return jsonify({
-                "status": "already_claimed",
-                "message": "Ви вже отримали винагороду за це завдання"
-            })
+    if missing_fields:
+        return api_error(f"Відсутні обов'язкові поля: {', '.join(missing_fields)}", status_code=400)
 
-        # Перевіряємо, чи достатньо рефералів
-        if referral_count < target:
-            return jsonify({
-                "status": "not_completed",
-                "message": f"Недостатньо рефералів для завершення завдання. Потрібно {target}, наявно {referral_count}"
-            }), 400
+    referral_code = data.get("referral_code")
+    telegram_id = data.get("telegram_id")
 
-        # Нараховуємо винагороду
-        current_balance = float(user.get("balance", 0))
-        new_balance = current_balance + reward_amount
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
 
-        # Оновлюємо статус завдання
-        if not referral_tasks:
-            referral_tasks = {}
-        referral_tasks[task_id] = True
+    # Перевіряємо валідність реферального коду
+    if not ReferralService.is_valid_referral_code(referral_code):
+        return api_error("Невалідний реферальний код", status_code=400)
 
-        # Оновлюємо дані в базі
-        update_user(telegram_id, {
-            "balance": new_balance,
-            "referral_tasks": referral_tasks
-        })
+    # Знаходимо користувача з цим реферальним кодом
+    referrer_data = ReferralService.get_user_by_referral_code(referral_code)
 
-        # Додаємо транзакцію
-        transaction = {
-            "telegram_id": telegram_id,
-            "type": "reward",
-            "amount": reward_amount,
-            "description": f"Винагорода за реферальне завдання: {task_id}",
-            "status": "completed"
-        }
+    if not referrer_data:
+        return api_error("Реферальний код не знайдено", status_code=404)
 
-        supabase.table("transactions").insert(transaction).execute()
+    referrer_id = referrer_data.get("telegram_id")
 
-        return jsonify({
-            "status": "success",
-            "message": f"Винагороду отримано: {reward_amount} WINIX",
-            "reward": reward_amount,
-            "newBalance": new_balance
-        })
-    except Exception as e:
-        logger.error(f"Помилка отримання винагороди за реферальне завдання для {telegram_id}: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    # Перевіряємо, що користувач не запрошує сам себе
+    if str(referrer_id) == str(telegram_id):
+        return api_error("Ви не можете використати власний реферальний код", status_code=400)
 
-def invite_referral(telegram_id, data):
-    """Запросити нового реферала"""
-    try:
-        if not data or "referralCode" not in data:
-            return jsonify({"status": "error", "message": "Відсутній реферальний код"}), 400
+    # Створюємо реферальний запис
+    referral = ReferralService.create_referral(referrer_id, telegram_id)
 
-        referral_code = data["referralCode"]
+    if not referral:
+        # Можливо, користувач вже був запрошений
+        return api_error("Не вдалося створити реферальне запрошення. Можливо, ви вже були запрошені.", status_code=400)
 
-        # Отримуємо користувача
-        user = get_user(telegram_id)
+    # Повертаємо успішний результат
+    return api_success({
+        "referral_id": referral.id,
+        "referrer_id": referral.referrer_id,
+        "referee_id": referral.referee_id
+    }, "Реферальний код успішно використано")
 
-        if not user:
-            return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-        # Перевіряємо, чи реферальний код валідний
-        if not is_valid_referral_code(referral_code):
-            return jsonify({
-                "status": "error",
-                "message": "Невалідний реферальний код"
-            }), 400
+def get_referral_tasks(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Отримання статусу реферальних завдань.
 
-        # Отримуємо поточну кількість рефералів
-        try:
-            referrals_res = supabase.table("winix").select("count").eq("referrer_id", telegram_id).execute()
-            current_referrals = referrals_res.count if hasattr(referrals_res, 'count') else 0
-        except Exception as e:
-            logger.error(f"Помилка отримання кількості рефералів: {str(e)}")
-            current_referrals = 0
+    Args:
+        telegram_id (str): Telegram ID користувача
 
-        # Додаємо нового реферала (у реальному випадку тут має бути логіка додавання реферала)
-        new_referrals = current_referrals + 1
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
 
-        return jsonify({
-            "status": "success",
-            "message": f"Друга успішно запрошено!",
-            "referralCount": new_referrals
-        })
-    except Exception as e:
-        logger.error(f"Помилка запрошення реферала для {telegram_id}: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    # Отримуємо дані реферальних завдань
+    result = ReferralService.get_referral_tasks(telegram_id)
+
+    # Перевіряємо результат
+    if result.get("status") == "error":
+        return api_error(result.get("message", "Невідома помилка"), status_code=400)
+
+    # Повертаємо успішний результат
+    return api_success(result, "Статус реферальних завдань успішно отримано")
+
+
+def claim_referral_reward(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Отримання винагороди за реферальне завдання.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
+
+    # Отримуємо дані з запиту
+    data = request.json or {}
+
+    # Перевіряємо наявність task_id
+    if "taskId" not in data:
+        return api_error("Відсутній ідентифікатор завдання", status_code=400)
+
+    task_id = data.get("taskId")
+
+    # Викликаємо сервіс для обробки винагороди
+    result = ReferralService.claim_referral_reward(telegram_id, task_id)
+
+    # Перевіряємо статус
+    if result.get("status") == "error":
+        return api_error(result.get("message", "Невідома помилка"), status_code=500)
+    elif result.get("status") == "already_claimed":
+        return api_response(result, 200)
+    elif result.get("status") == "not_completed":
+        return api_error(result.get("message", "Завдання не виконане"), status_code=400)
+
+    # Повертаємо успішний результат
+    return api_success(result, result.get("message", "Винагороду успішно отримано"))
+
+
+def invite_referral(telegram_id: str) -> Tuple[Dict[str, Any], int]:
+    """
+    Запросити нового реферала.
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Валідація ID користувача
+    if not validate_telegram_id(telegram_id):
+        return api_error("Некоректний ID користувача", status_code=400)
+
+    # Отримуємо дані з запиту
+    data = request.json or {}
+
+    # Перевіряємо наявність referralCode
+    if "referralCode" not in data:
+        return api_error("Відсутній реферальний код", status_code=400)
+
+    referral_code = data.get("referralCode")
+
+    # Перевіряємо валідність реферального коду
+    if not ReferralService.is_valid_referral_code(referral_code):
+        return api_error("Невалідний реферальний код", status_code=400)
+
+    # Знаходимо користувача з цим реферальним кодом
+    referrer_data = ReferralService.get_user_by_referral_code(referral_code)
+
+    if not referrer_data:
+        return api_error("Реферальний код не знайдено", status_code=404)
+
+    referrer_id = referrer_data.get("telegram_id")
+
+    # Повертаємо поточну кількість рефералів
+    referrals_data = ReferralService.get_user_referrals(telegram_id)
+    referral_count = referrals_data.get("total_count", 0)
+
+    # Повертаємо успішний результат
+    return api_success({
+        "referralCount": referral_count + 1,
+        "message": "Друга успішно запрошено!"
+    })
+
+
+def admin_process_pending_rewards() -> Tuple[Dict[str, Any], int]:
+    """
+    Адміністративна функція для обробки всіх очікуючих реферальних винагород.
+
+    Returns:
+        tuple: (відповідь API, код статусу)
+    """
+    # Перевірка прав адміністратора
+    if not g.get('is_admin', False):
+        return api_error("Недостатньо прав для виконання операції", status_code=403)
+
+    # Обробляємо всі очікуючі винагороди
+    result = ReferralService.process_all_pending_rewards()
+
+    # Перевіряємо результат
+    if not result.get('success', False):
+        return api_error(result.get('error', 'Невідома помилка'), status_code=500)
+
+    # Повертаємо успішний результат
+    return api_success(result,
+                       f"Оброблено {result.get('processed_count', 0)} винагород на суму {result.get('total_amount', 0)} WINIX")
