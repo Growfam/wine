@@ -437,13 +437,81 @@
                 }
             }
         }, true);
-        document.addEventListener('DOMContentLoaded', function() {
-    // Стилізація кнопок з текстом "Підписатися"
+
+// Функція для пошуку та стилізації кнопок "Підписатися"
+function styleSubscribeButtons() {
+    console.log('Стилізація кнопок "Підписатися"...');
+
+    // Масив можливих варіантів тексту для кнопок підписки
+    const subscribeKeywords = [
+        'підписатися',
+        'підписатись',
+        'підпишись',
+        'підписуйся',
+        'підписка',
+        'subscribe'
+    ];
+
+    // Знаходимо всі кнопки на сторінці
     document.querySelectorAll('button, .action-button').forEach(button => {
-        if (button.textContent.includes('Підписатися')) {
+        // Пропускаємо кнопки, які вже були оброблені
+        if (button.hasAttribute('data-subscribe-styled')) {
+            return;
+        }
+
+        // Отримуємо текст кнопки у нижньому регістрі для порівняння
+        const buttonText = (button.textContent || '').toLowerCase().trim();
+
+        // Перевіряємо чи містить кнопка один з ключових словосполучень
+        const hasSubscribeKeyword = subscribeKeywords.some(keyword =>
+            buttonText.includes(keyword)
+        );
+
+        // Додаємо клас для кнопок з атрибутами, пов'язаними з підпискою
+        const hasSubscribeAttribute = (
+            button.getAttribute('data-lang-key') === 'earn.subscribe' ||
+            button.getAttribute('data-action') === 'subscribe'
+        );
+
+        // Додаємо клас і маркер, якщо знайдено співпадіння
+        if (hasSubscribeKeyword || hasSubscribeAttribute) {
             button.classList.add('subscribe-button');
+            button.setAttribute('data-subscribe-styled', 'true');
+            console.log('Знайдено і стилізовано кнопку "Підписатися":', button);
         }
     });
+}
+
+// Викликаємо функцію після завантаження DOM
+document.addEventListener('DOMContentLoaded', function() {
+    // Початкова стилізація
+    styleSubscribeButtons();
+
+    // Встановлюємо MutationObserver для відстеження нових елементів
+    const observer = new MutationObserver(function(mutations) {
+        let shouldProcessButtons = false;
+
+        mutations.forEach(function(mutation) {
+            // Перевіряємо чи були додані нові елементи
+            if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                shouldProcessButtons = true;
+            }
+        });
+
+        // Викликаємо функцію стилізації, якщо були додані нові елементи
+        if (shouldProcessButtons) {
+            setTimeout(styleSubscribeButtons, 100);
+        }
+    });
+
+    // Починаємо спостереження за DOM
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    // Повторно перевіряємо кнопки через 1 секунду (для динамічно завантажених елементів)
+    setTimeout(styleSubscribeButtons, 1000);
 });
     </script>
 </body>

@@ -287,19 +287,24 @@ body {
     transform: scale(1);
 }
 
-/* Стилі для вкладок у категоріях завдань */
+/* ВИПРАВЛЕНО: Покращені стилі для вкладок у категоріях завдань */
 .tabs {
+    position: relative;
+    z-index: 5; /* Підвищений z-index для уникнення обрізання */
+    margin-top: 12px;
+    margin-bottom: 15px;
+    width: 100%;
+    max-width: calc(100% - 12px);
+    left: 6px;
+    right: 6px;
     display: flex;
     justify-content: space-between;
-    width: 100%;
-    margin: 0 0 0.9375rem 0;
     background: rgba(15, 23, 42, 0.6);
     border-radius: 1.25rem;
     padding: 0.3125rem;
     border: 1px solid rgba(78, 181, 247, 0.2);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    position: relative;
-    overflow: visible;
+    overflow: visible !important; /* Примусово показуємо вміст, що виходить за межі */
     backdrop-filter: blur(5px);
 }
 
@@ -332,6 +337,8 @@ body {
     position: relative;
     overflow: hidden;
     z-index: 1;
+    white-space: nowrap;
+    min-width: 70px;
 }
 
 .tab::before {
@@ -370,6 +377,31 @@ body {
     height: 2px;
     background: rgba(255, 255, 255, 0.7);
     border-radius: 1px;
+}
+
+/* Адаптивність для малих екранів */
+@media (max-width: 420px) {
+    .tab {
+        font-size: 0.85rem;
+        padding: 10px 5px;
+        min-width: 60px;
+    }
+}
+
+/* Додаткова адаптивність для найменших екранів */
+@media (max-width: 350px) {
+    .tab {
+        font-size: 0.75rem;
+        padding: 8px 4px;
+        min-width: 50px;
+    }
+
+    .tabs {
+        margin-top: 8px;
+        max-width: calc(100% - 8px);
+        left: 4px;
+        right: 4px;
+    }
 }
 
 /* Стилі для карток категорій */
