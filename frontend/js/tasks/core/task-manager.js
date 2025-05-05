@@ -14,6 +14,10 @@ window.TaskManager = (function() {
     let initialized = false;
     let activeTabType = 'social'; // Відслідковуємо активну вкладку
 
+    // ДОДАНО: Змінні для контролю стану перемикання
+    let tabSwitchInProgress = false;
+    let pendingTabSwitch = null;
+
     // Типи винагород
     const REWARD_TYPES = {
         TOKENS: 'tokens',
@@ -249,6 +253,9 @@ window.TaskManager = (function() {
         loadTasks();
 
         ensureBonusButtonVisible();
+
+        // ДОДАНО: Встановлюємо інтервал для регулярної перевірки прогрес-барів
+        setInterval(fixProgressBars, 2000);
 
         // Встановлюємо флаг ініціалізації
         initialized = true;
@@ -1019,155 +1026,188 @@ window.TaskManager = (function() {
         operationStatus.domReady = domElements.socialTasksContainer !== null;
     }
 
-   /**
- * Налаштування перемикачів вкладок
- * ВИПРАВЛЕНО: Додано більше затримок та кращу логіку перемикання
- */
-function setupTabSwitching() {
-    console.log('TaskManager: Налаштування перемикачів вкладок');
+    /**
+     * ВИПРАВЛЕНО: Повністю переписана функція налаштування перемикачів вкладок
+     */
+    function setupTabSwitching() {
+        console.log('TaskManager: Налаштування перемикачів вкладок');
 
-    if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
-        console.warn('TaskManager: Кнопки вкладок не знайдено');
-        return;
-    }
-
-    // Спочатку видаляємо всі обробники подій для уникнення дублювання
-    domElements.tabButtons.forEach(button => {
-        const newButton = button.cloneNode(true);
-        if (button.parentNode) {
-            button.parentNode.replaceChild(newButton, button);
+        if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
+            console.warn('TaskManager: Кнопки вкладок не знайдено');
+            return;
         }
-    });
 
-    // Оновлюємо посилання після клонування
-    domElements.tabButtons = document.querySelectorAll('.tab');
-
-    // Зберігаємо посилання на вкладки та секції перед додаванням обробників
-    const tabButtons = Array.from(domElements.tabButtons);
-    const contentSections = Array.from(domElements.contentSections);
-
-    // Додаємо обробники для кожної вкладки
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function(event) {
-            event.preventDefault();
-            const tabType = this.getAttribute('data-tab');
-
-            // Запобігаємо зайвій роботі, якщо вкладка вже активна
-            if (tabType === activeTabType) {
-                console.log('TaskManager: Вкладка вже активна:', tabType);
-                return;
+        // Спочатку видаляємо всі обробники подій
+        domElements.tabButtons.forEach(button => {
+            const newButton = button.cloneNode(true);
+            if (button.parentNode) {
+                button.parentNode.replaceChild(newButton, button);
             }
-
-            console.log('TaskManager: Перемикання на вкладку:', tabType);
-
-            // Знімаємо клас active з усіх вкладок
-            tabButtons.forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Додаємо клас active поточній вкладці
-            this.classList.add('active');
-
-            // Оновлюємо активну вкладку
-            activeTabType = tabType;
-
-            // Приховуємо всі секції контенту з плавним ефектом
-            contentSections.forEach(section => {
-                // Додаємо клас для анімації приховування
-                section.style.opacity = '0';
-                section.style.transition = 'opacity 0.2s ease';
-
-                // Через невелику затримку ховаємо секцію
-                setTimeout(() => {
-                    section.classList.remove('active');
-                    section.style.display = 'none';
-                }, 200);
-            });
-
-            // Через затримку показуємо відповідну секцію
-            setTimeout(() => {
-                // Знаходимо потрібну секцію
-                const targetSection = document.getElementById(`${tabType}-content`);
-
-                if (targetSection) {
-                    // Підготовка секції до показу
-                    targetSection.style.opacity = '0';
-                    targetSection.style.display = 'block';
-
-                    // Примусове оновлення розмітки перед анімацією
-                    targetSection.offsetHeight;
-
-                    // Додаємо активний клас та плавно показуємо
-                    targetSection.classList.add('active');
-
-                    // Оновлюємо вміст в залежності від типу вкладки з затримкою
-                    setTimeout(() => {
-                        targetSection.style.opacity = '1';
-
-                        // Оновлюємо вміст відповідної вкладки
-                        if (tabType === 'social') {
-                            renderSocialTasks();
-                            renderReferralTasks();
-                        } else if (tabType === 'limited') {
-                            renderLimitedTasks();
-                        } else if (tabType === 'partners') {
-                            renderPartnerTasks();
-                        }
-                    }, 50);
-                } else {
-                    console.error('TaskManager: Контейнер вкладки не знайдено:', tabType);
-                }
-
-                // Зберігаємо активну вкладку
-                try {
-                    localStorage.setItem('active_tasks_tab', tabType);
-                } catch (e) {
-                    console.warn('TaskManager: Помилка збереження вкладки в localStorage:', e.message);
-                }
-            }, 250); // Почекаємо поки інша секція сховається
         });
-    });
 
-    // Відновлюємо активну вкладку з localStorage з більшою затримкою
-    try {
-        const savedTab = localStorage.getItem('active_tasks_tab');
+        // Оновлюємо посилання
+        domElements.tabButtons = document.querySelectorAll('.tab');
+        const tabButtons = Array.from(domElements.tabButtons);
+        const contentSections = Array.from(domElements.contentSections);
 
-        if (savedTab) {
-            const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+        // Додаємо обробники для кожної вкладки
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                const tabType = this.getAttribute('data-tab');
 
-            if (savedTabButton) {
-                console.log('TaskManager: Відновлення вкладки з localStorage:', savedTab);
-                // Збільшуємо затримку для більш стабільної роботи
+                // Запобігаємо перемиканню, якщо процес вже запущений
+                if (tabSwitchInProgress) {
+                    console.log('Відкладаємо перемикання на:', tabType);
+                    pendingTabSwitch = tabType;
+                    return;
+                }
+
+                // Запобігаємо зайвій роботі, якщо вкладка вже активна
+                if (tabType === activeTabType) {
+                    console.log('Вкладка вже активна:', tabType);
+                    return;
+                }
+
+                // Починаємо процес перемикання
+                tabSwitchInProgress = true;
+                console.log('Перемикання на вкладку:', tabType);
+
+                // Знімаємо клас active з усіх вкладок
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                });
+
+                // Додаємо клас active поточній вкладці
+                this.classList.add('active');
+
+                // Оновлюємо активну вкладку
+                activeTabType = tabType;
+
+                // Приховуємо всі секції контенту
+                contentSections.forEach(section => {
+                    section.style.opacity = '0';
+                });
+
+                // Затримка перед показом нової вкладки
                 setTimeout(() => {
-                    savedTabButton.click();
-                }, 500);
-            } else {
-                // Якщо збережена вкладка не знайдена, встановлюємо першу вкладку як активну
-                if (tabButtons.length > 0) {
+                    // Приховуємо всі секції
+                    contentSections.forEach(section => {
+                        section.classList.remove('active');
+                        section.style.display = 'none';
+                    });
+
+                    // Знаходимо потрібну секцію
+                    const targetSection = document.getElementById(`${tabType}-content`);
+
+                    if (targetSection) {
+                        // Показуємо секцію
+                        targetSection.style.display = 'block';
+                        targetSection.classList.add('active');
+
+                        // Запускаємо рендеринг вмісту і оновлення вкладки
+                        setTimeout(() => {
+                            targetSection.style.opacity = '1';
+
+                            // Оновлюємо вміст
+                            if (tabType === 'social') {
+                                renderSocialTasks();
+                                renderReferralTasks();
+                            } else if (tabType === 'limited') {
+                                renderLimitedTasks();
+                            } else if (tabType === 'partners') {
+                                renderPartnerTasks();
+                            }
+
+                            // Виправляємо прогрес-бари
+                            setTimeout(fixProgressBars, 300);
+
+                            // Завершуємо процес перемикання
+                            setTimeout(() => {
+                                tabSwitchInProgress = false;
+
+                                // Перевіряємо, чи є відкладене перемикання
+                                if (pendingTabSwitch) {
+                                    const tabToSwitch = pendingTabSwitch;
+                                    pendingTabSwitch = null;
+
+                                    const pendingTab = document.querySelector(`.tab[data-tab="${tabToSwitch}"]`);
+                                    if (pendingTab) {
+                                        console.log('Виконуємо відкладене перемикання на:', tabToSwitch);
+                                        pendingTab.click();
+                                    }
+                                }
+                            }, 300);
+                        }, 50);
+
+                        // Зберігаємо активну вкладку
+                        try {
+                            localStorage.setItem('active_tasks_tab', tabType);
+                        } catch (e) {
+                            console.warn('Помилка збереження вкладки:', e.message);
+                        }
+                    } else {
+                        console.error('Контейнер вкладки не знайдено:', tabType);
+                        tabSwitchInProgress = false;
+                    }
+                }, 250);
+            });
+        });
+
+        // Відновлюємо активну вкладку з localStorage
+        try {
+            const savedTab = localStorage.getItem('active_tasks_tab');
+            if (savedTab) {
+                const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+                if (savedTabButton) {
+                    setTimeout(() => {
+                        savedTabButton.click();
+                    }, 800);
+                } else if (tabButtons.length > 0) {
                     setTimeout(() => {
                         tabButtons[0].click();
-                    }, 500);
+                    }, 800);
                 }
+            } else if (tabButtons.length > 0) {
+                setTimeout(() => {
+                    tabButtons[0].click();
+                }, 800);
             }
-        } else {
-            // Якщо немає збереженої вкладки, активуємо першу
+        } catch (e) {
+            console.warn('Помилка відновлення вкладки:', e.message);
             if (tabButtons.length > 0) {
                 setTimeout(() => {
                     tabButtons[0].click();
-                }, 500);
+                }, 800);
             }
         }
-    } catch (e) {
-        console.warn('TaskManager: Помилка відновлення вкладки з localStorage:', e.message);
 
-        // У випадку помилки активуємо першу вкладку
-        if (tabButtons.length > 0) {
-            setTimeout(() => {
-                tabButtons[0].click();
-            }, 500);
-        }
+        // Перевірка порожніх вкладок
+        setInterval(() => {
+            if (!tabSwitchInProgress) {
+                const activeSection = document.querySelector('.content-section.active');
+                if (activeSection) {
+                    const hasContent = activeSection.querySelector('.task-item, .no-tasks');
+                    if (!hasContent && activeSection.textContent.trim() === '') {
+                        console.log('Виявлено порожню вкладку:', activeTabType);
+
+                        // Перезавантажуємо контент
+                        if (activeTabType === 'social') {
+                            renderSocialTasks();
+                            renderReferralTasks();
+                        } else if (activeTabType === 'limited') {
+                            renderLimitedTasks();
+                        } else if (activeTabType === 'partners') {
+                            renderPartnerTasks();
+                        }
+
+                        // Виправляємо прогрес-бари
+                        setTimeout(fixProgressBars, 300);
+                    }
+                }
+            }
+        }, 2000);
     }
-}
 
     /**
      * Перевірка доступності API
@@ -1190,232 +1230,229 @@ function setupTabSwitching() {
     /**
      * Завантаження завдань
      */
-    /**
- * Завантаження завдань
- */
-async function loadTasks() {
-    console.log('TaskManager: Починаємо завантаження завдань...');
-
-    try {
-        // Запобігаємо одночасним запитам
-        if (operationStatus.tasksLoading) {
-            console.log('TaskManager: Завантаження вже виконується, пропускаємо');
-            return;
-        }
-
-        // Перевіряємо готовність DOM
-        if (!operationStatus.domReady) {
-            console.log('TaskManager: DOM не готовий, повторна спроба через 100мс');
-            setTimeout(loadTasks, 100);
-            return;
-        }
-
-        operationStatus.tasksLoading = true;
-
-        // Перевіряємо доступність API
-        if (!isApiAvailable()) {
-            throw new Error('API_NOT_AVAILABLE');
-        }
-
-        // Показуємо покращений індикатор завантаження в контейнерах
-        if (domElements.socialTasksContainer) {
-            domElements.socialTasksContainer.innerHTML = `
-                <div class="task-loader">
-                    <div class="loader-spinner"></div>
-                    <span>Завантаження завдань...</span>
-                </div>`;
-        }
-        if (domElements.limitedTasksContainer) {
-            domElements.limitedTasksContainer.innerHTML = `
-                <div class="task-loader">
-                    <div class="loader-spinner"></div>
-                    <span>Завантаження завдань...</span>
-                </div>`;
-        }
-        if (domElements.partnersTasksContainer) {
-            domElements.partnersTasksContainer.innerHTML = `
-                <div class="task-loader">
-                    <div class="loader-spinner"></div>
-                    <span>Завантаження завдань...</span>
-                </div>`;
-        }
-        if (domElements.referralTasksContainer) {
-            domElements.referralTasksContainer.innerHTML = `
-                <div class="task-loader">
-                    <div class="loader-spinner"></div>
-                    <span>Завантаження завдань...</span>
-                </div>`;
-        }
-
-        // Перевіряємо наявність ID користувача
-        const userId = safeGetUserId();
-        if (!userId) {
-            console.warn('TaskManager: ID користувача не знайдено, завантаження може бути обмежене');
-            // Продовжуємо виконання, оскільки деякі API можуть не вимагати ID
-        }
-
-        // Перевіряємо необхідні API шляхи
-        if (!window.API_PATHS.TASKS.SOCIAL) {
-            console.error('TaskManager: API_PATHS.TASKS.SOCIAL не знайдено!');
-            throw new Error('API_PATH_SOCIAL_NOT_FOUND');
-        }
-
-        // Перевіряємо і встановлюємо шлях для реферальних завдань
-        if (!window.API_PATHS.TASKS.REFERRAL) {
-            console.log('TaskManager: API_PATHS.TASKS.REFERRAL не знайдено, використовуємо SOCIAL');
-            window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
-        }
-
-        // Логуємо URL-шляхи які використовуються
-        console.log('TaskManager: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
-        console.log('TaskManager: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
-        console.log('TaskManager: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
-        console.log('TaskManager: URL для реферальних завдань =', window.API_PATHS.TASKS.REFERRAL);
+    async function loadTasks() {
+        console.log('TaskManager: Починаємо завантаження завдань...');
 
         try {
-            // Спробуємо завантажити соціальні завдання
-            console.log('TaskManager: Запит соціальних завдань...');
-            const socialResponse = await window.API.get(window.API_PATHS.TASKS.SOCIAL);
-
-            let socialTasksData = extractTasksFromResponse(socialResponse);
-
-            if (socialTasksData.length > 0) {
-                // Розділяємо соціальні й реферальні завдання
-                const { regular, referral } = splitSocialTasks(socialTasksData);
-                socialTasks = regular;
-                referralTasks = referral;
-
-                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                if (activeTabType === 'social') {
-                    renderSocialTasks();
-                    renderReferralTasks();
-                }
-            } else {
-                if (domElements.socialTasksContainer && activeTabType === 'social') {
-                    domElements.socialTasksContainer.innerHTML =
-                        '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
-                }
-                if (domElements.referralTasksContainer && activeTabType === 'social') {
-                    domElements.referralTasksContainer.innerHTML =
-                        '<div class="no-tasks">Реферальні завдання не знайдені.</div>';
-                }
+            // Запобігаємо одночасним запитам
+            if (operationStatus.tasksLoading) {
+                console.log('TaskManager: Завантаження вже виконується, пропускаємо');
+                return;
             }
 
-            // Завантажуємо лімітовані завдання
-            console.log('TaskManager: Запит лімітованих завдань...');
-            const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
-            let limitedTasksData = extractTasksFromResponse(limitedResponse);
-
-            if (limitedTasksData.length > 0) {
-                limitedTasks = normalizeTasksData(limitedTasksData);
-
-                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                if (activeTabType === 'limited') {
-                    renderLimitedTasks();
-                }
-            } else if (domElements.limitedTasksContainer && activeTabType === 'limited') {
-                domElements.limitedTasksContainer.innerHTML =
-                    '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
+            // Перевіряємо готовність DOM
+            if (!operationStatus.domReady) {
+                console.log('TaskManager: DOM не готовий, повторна спроба через 100мс');
+                setTimeout(loadTasks, 100);
+                return;
             }
 
-            // Завантажуємо партнерські завдання
-            console.log('TaskManager: Запит партнерських завдань...');
-            const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
-            let partnerTasksData = extractTasksFromResponse(partnerResponse);
+            operationStatus.tasksLoading = true;
 
-            if (partnerTasksData.length > 0) {
-                partnerTasks = normalizeTasksData(partnerTasksData);
-
-                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                if (activeTabType === 'partners') {
-                    renderPartnerTasks();
-                }
-            } else if (domElements.partnersTasksContainer && activeTabType === 'partners') {
-                domElements.partnersTasksContainer.innerHTML =
-                    '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
+            // Перевіряємо доступність API
+            if (!isApiAvailable()) {
+                throw new Error('API_NOT_AVAILABLE');
             }
 
-            // Завантажуємо прогрес користувача, якщо є ID
-            if (userId) {
-                try {
-                    console.log('TaskManager: Запит прогресу користувача...');
-                    // ВИПРАВЛЕНО: змінено шлях до ендпоінту прогресу користувача
-                    const progressResponse = await window.API.get('quests/user-progress/all');
+            // Показуємо покращений індикатор завантаження в контейнерах
+            if (domElements.socialTasksContainer) {
+                domElements.socialTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
+            }
+            if (domElements.limitedTasksContainer) {
+                domElements.limitedTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
+            }
+            if (domElements.partnersTasksContainer) {
+                domElements.partnersTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
+            }
+            if (domElements.referralTasksContainer) {
+                domElements.referralTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
+            }
 
-                    if (progressResponse.status === 'success' && progressResponse.data) {
-                        userProgress = progressResponse.data;
-                        console.log('TaskManager: Прогрес користувача отримано');
+            // Перевіряємо наявність ID користувача
+            const userId = safeGetUserId();
+            if (!userId) {
+                console.warn('TaskManager: ID користувача не знайдено, завантаження може бути обмежене');
+                // Продовжуємо виконання, оскільки деякі API можуть не вимагати ID
+            }
 
-                        // Оновлюємо відображення з урахуванням прогресу
-                        refreshActiveTab();
+            // Перевіряємо необхідні API шляхи
+            if (!window.API_PATHS.TASKS.SOCIAL) {
+                console.error('TaskManager: API_PATHS.TASKS.SOCIAL не знайдено!');
+                throw new Error('API_PATH_SOCIAL_NOT_FOUND');
+            }
+
+            // Перевіряємо і встановлюємо шлях для реферальних завдань
+            if (!window.API_PATHS.TASKS.REFERRAL) {
+                console.log('TaskManager: API_PATHS.TASKS.REFERRAL не знайдено, використовуємо SOCIAL');
+                window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
+            }
+
+            // Логуємо URL-шляхи які використовуються
+            console.log('TaskManager: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
+            console.log('TaskManager: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
+            console.log('TaskManager: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
+            console.log('TaskManager: URL для реферальних завдань =', window.API_PATHS.TASKS.REFERRAL);
+
+            try {
+                // Спробуємо завантажити соціальні завдання
+                console.log('TaskManager: Запит соціальних завдань...');
+                const socialResponse = await window.API.get(window.API_PATHS.TASKS.SOCIAL);
+
+                let socialTasksData = extractTasksFromResponse(socialResponse);
+
+                if (socialTasksData.length > 0) {
+                    // Розділяємо соціальні й реферальні завдання
+                    const { regular, referral } = splitSocialTasks(socialTasksData);
+                    socialTasks = regular;
+                    referralTasks = referral;
+
+                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                    if (activeTabType === 'social') {
+                        renderSocialTasks();
+                        renderReferralTasks();
                     }
-                } catch (progressError) {
-                    console.warn('TaskManager: Помилка отримання прогресу користувача:', progressError);
+                } else {
+                    if (domElements.socialTasksContainer && activeTabType === 'social') {
+                        domElements.socialTasksContainer.innerHTML =
+                            '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
+                    }
+                    if (domElements.referralTasksContainer && activeTabType === 'social') {
+                        domElements.referralTasksContainer.innerHTML =
+                            '<div class="no-tasks">Реферальні завдання не знайдені.</div>';
+                    }
+                }
 
-                    // Спробуємо альтернативний шлях
+                // Завантажуємо лімітовані завдання
+                console.log('TaskManager: Запит лімітованих завдань...');
+                const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
+                let limitedTasksData = extractTasksFromResponse(limitedResponse);
+
+                if (limitedTasksData.length > 0) {
+                    limitedTasks = normalizeTasksData(limitedTasksData);
+
+                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                    if (activeTabType === 'limited') {
+                        renderLimitedTasks();
+                    }
+                } else if (domElements.limitedTasksContainer && activeTabType === 'limited') {
+                    domElements.limitedTasksContainer.innerHTML =
+                        '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
+                }
+
+                // Завантажуємо партнерські завдання
+                console.log('TaskManager: Запит партнерських завдань...');
+                const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
+                let partnerTasksData = extractTasksFromResponse(partnerResponse);
+
+                if (partnerTasksData.length > 0) {
+                    partnerTasks = normalizeTasksData(partnerTasksData);
+
+                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                    if (activeTabType === 'partners') {
+                        renderPartnerTasks();
+                    }
+                } else if (domElements.partnersTasksContainer && activeTabType === 'partners') {
+                    domElements.partnersTasksContainer.innerHTML =
+                        '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
+                }
+
+                // Завантажуємо прогрес користувача, якщо є ID
+                if (userId) {
                     try {
-                        const alternativeProgressResponse = await window.API.get('quests/user-progress');
-                        if (alternativeProgressResponse.status === 'success' && alternativeProgressResponse.data) {
-                            userProgress = alternativeProgressResponse.data;
-                            console.log('TaskManager: Прогрес користувача отримано через альтернативний ендпоінт');
+                        console.log('TaskManager: Запит прогресу користувача...');
+                        // ВИПРАВЛЕНО: змінено шлях до ендпоінту прогресу користувача
+                        const progressResponse = await window.API.get('quests/user-progress/all');
+
+                        if (progressResponse.status === 'success' && progressResponse.data) {
+                            userProgress = progressResponse.data;
+                            console.log('TaskManager: Прогрес користувача отримано');
+
+                            // Оновлюємо відображення з урахуванням прогресу
                             refreshActiveTab();
                         }
-                    } catch (altError) {
-                        console.warn('TaskManager: Помилка отримання прогресу через альтернативний ендпоінт:', altError);
+                    } catch (progressError) {
+                        console.warn('TaskManager: Помилка отримання прогресу користувача:', progressError);
+
+                        // Спробуємо альтернативний шлях
+                        try {
+                            const alternativeProgressResponse = await window.API.get('quests/user-progress');
+                            if (alternativeProgressResponse.status === 'success' && alternativeProgressResponse.data) {
+                                userProgress = alternativeProgressResponse.data;
+                                console.log('TaskManager: Прогрес користувача отримано через альтернативний ендпоінт');
+                                refreshActiveTab();
+                            }
+                        } catch (altError) {
+                            console.warn('TaskManager: Помилка отримання прогресу через альтернативний ендпоінт:', altError);
+                        }
                     }
                 }
+
+            } catch (error) {
+                console.error('TaskManager: Помилка при виконанні запиту:', error);
+
+                // Показуємо стильне повідомлення про помилку в контейнерах
+                const errorHtml = `
+                    <div class="no-tasks">
+                        <div style="margin-bottom: 10px; color: #f44336;">🔄 Помилка завантаження завдань</div>
+                        <div style="font-size: 14px; opacity: 0.8;">Перевірте з'єднання з інтернетом або спробуйте пізніше</div>
+                        <button class="action-button" style="margin-top: 15px; padding: 8px 15px;" onclick="window.TaskManager.loadTasks()">
+                            Спробувати знову
+                        </button>
+                    </div>`;
+
+                if (domElements.socialTasksContainer && activeTabType === 'social') {
+                    domElements.socialTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.limitedTasksContainer && activeTabType === 'limited') {
+                    domElements.limitedTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.partnersTasksContainer && activeTabType === 'partners') {
+                    domElements.partnersTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.referralTasksContainer && activeTabType === 'social') {
+                    domElements.referralTasksContainer.innerHTML = errorHtml;
+                }
+
+                // Генеруємо подію про помилку
+                document.dispatchEvent(new CustomEvent('tasks-loading-error', {
+                    detail: { error: error }
+                }));
             }
 
         } catch (error) {
-            console.error('TaskManager: Помилка при виконанні запиту:', error);
+            console.error('TaskManager: Загальна помилка завантаження завдань:', error);
 
-            // Показуємо стильне повідомлення про помилку в контейнерах
-            const errorHtml = `
-                <div class="no-tasks">
-                    <div style="margin-bottom: 10px; color: #f44336;">🔄 Помилка завантаження завдань</div>
-                    <div style="font-size: 14px; opacity: 0.8;">Перевірте з'єднання з інтернетом або спробуйте пізніше</div>
-                    <button class="action-button" style="margin-top: 15px; padding: 8px 15px;" onclick="window.TaskManager.loadTasks()">
-                        Спробувати знову
-                    </button>
-                </div>`;
-
-            if (domElements.socialTasksContainer && activeTabType === 'social') {
-                domElements.socialTasksContainer.innerHTML = errorHtml;
-            }
-            if (domElements.limitedTasksContainer && activeTabType === 'limited') {
-                domElements.limitedTasksContainer.innerHTML = errorHtml;
-            }
-            if (domElements.partnersTasksContainer && activeTabType === 'partners') {
-                domElements.partnersTasksContainer.innerHTML = errorHtml;
-            }
-            if (domElements.referralTasksContainer && activeTabType === 'social') {
-                domElements.referralTasksContainer.innerHTML = errorHtml;
-            }
+            // Показуємо загальне повідомлення про помилку
+            showErrorMessage('Не вдалося завантажити завдання: ' + error.message);
 
             // Генеруємо подію про помилку
             document.dispatchEvent(new CustomEvent('tasks-loading-error', {
                 detail: { error: error }
             }));
+        } finally {
+            operationStatus.tasksLoading = false;
+            console.log('TaskManager: Завершено спробу завантаження завдань');
+
+            // Генеруємо подію про завершення завантаження
+            document.dispatchEvent(new CustomEvent('tasks-loading-completed'));
         }
-
-    } catch (error) {
-        console.error('TaskManager: Загальна помилка завантаження завдань:', error);
-
-        // Показуємо загальне повідомлення про помилку
-        showErrorMessage('Не вдалося завантажити завдання: ' + error.message);
-
-        // Генеруємо подію про помилку
-        document.dispatchEvent(new CustomEvent('tasks-loading-error', {
-            detail: { error: error }
-        }));
-    } finally {
-        operationStatus.tasksLoading = false;
-        console.log('TaskManager: Завершено спробу завантаження завдань');
-
-        // Генеруємо подію про завершення завантаження
-        document.dispatchEvent(new CustomEvent('tasks-loading-completed'));
     }
-}
 
     /**
      * Оновлення відображення лише для активної вкладки
@@ -1438,6 +1475,9 @@ async function loadTasks() {
 
         // Додаємо додаткову затримку для прикріплення обробників
         setTimeout(attachEventHandlers, 300);
+
+        // ДОДАНО: Виправляємо прогрес-бари
+        setTimeout(fixProgressBars, 500);
     }
 
     /**
@@ -1597,6 +1637,9 @@ async function loadTasks() {
 
         // Прикріплюємо обробники подій до нових елементів
         setTimeout(attachEventHandlers, 100);
+
+        // ДОДАНО: Виправляємо прогрес-бари
+        setTimeout(fixProgressBars, 300);
     }
 
     /**
@@ -1668,6 +1711,9 @@ async function loadTasks() {
 
         // Прикріплюємо обробники подій до нових елементів
         setTimeout(attachEventHandlers, 100);
+
+        // ДОДАНО: Виправляємо прогрес-бари
+        setTimeout(fixProgressBars, 300);
     }
 
     /**
@@ -1739,6 +1785,9 @@ async function loadTasks() {
 
         // Прикріплюємо обробники подій до нових елементів
         setTimeout(attachEventHandlers, 100);
+
+        // ДОДАНО: Виправляємо прогрес-бари
+        setTimeout(fixProgressBars, 300);
     }
 
     /**
@@ -1810,6 +1859,9 @@ async function loadTasks() {
 
         // Прикріплюємо обробники подій до нових елементів
         setTimeout(attachEventHandlers, 100);
+
+        // ДОДАНО: Виправляємо прогрес-бари
+        setTimeout(fixProgressBars, 300);
     }
 
     /**
@@ -1828,6 +1880,9 @@ async function loadTasks() {
 
             // Додатково перевіряємо наявність кнопок запрошення після рендеру
             removeInviteButtons();
+
+            // ДОДАНО: Виправляємо прогрес-бари
+            fixProgressBars();
         }, 300);
     }
 
@@ -1942,6 +1997,9 @@ async function loadTasks() {
                                                 }
                                                 button.setAttribute('data-handler-attached', 'true');
                                             });
+
+                                            // ДОДАНО: Виправляємо прогрес-бари
+                                            setTimeout(fixProgressBars, 100);
                                         }, 50);
                                     }, 300);
                                 } else {
@@ -1959,6 +2017,9 @@ async function loadTasks() {
                                         }
                                         button.setAttribute('data-handler-attached', 'true');
                                     });
+
+                                    // ДОДАНО: Виправляємо прогрес-бари
+                                    setTimeout(fixProgressBars, 100);
                                 }
                             } else {
                                 // Запасний варіант - оновлюємо через innerHTML
@@ -1988,6 +2049,9 @@ async function loadTasks() {
 
                                             // Додаємо обробники до кнопок
                                             attachEventHandlers();
+
+                                            // ДОДАНО: Виправляємо прогрес-бари
+                                            setTimeout(fixProgressBars, 100);
                                         }, 50);
                                     }, 300);
                                 } else {
@@ -1996,6 +2060,9 @@ async function loadTasks() {
 
                                     // Додаємо обробники до кнопок
                                     attachEventHandlers();
+
+                                    // ДОДАНО: Виправляємо прогрес-бари
+                                    setTimeout(fixProgressBars, 100);
                                 }
                             }
                         } catch (error) {
@@ -2006,6 +2073,9 @@ async function loadTasks() {
 
                             // Прикріплюємо обробники після оновлення DOM
                             setTimeout(attachEventHandlers, 50);
+
+                            // ДОДАНО: Виправляємо прогрес-бари
+                            setTimeout(fixProgressBars, 100);
                         }
                     }
                 }
@@ -2414,6 +2484,40 @@ async function loadTasks() {
     }
 
     /**
+     * ДОДАНО: Функція для виправлення прогрес-барів
+     */
+    function fixProgressBars() {
+        // Знаходимо всі прогрес-бари на сторінці
+        const progressFills = document.querySelectorAll('.progress-fill');
+
+        progressFills.forEach(bar => {
+            // Знаходимо батьківський елемент завдання
+            const taskItem = bar.closest('.task-item');
+            if (!taskItem) return;
+
+            // Отримуємо інформацію про прогрес з тексту
+            const progressText = taskItem.querySelector('.progress-text');
+            if (progressText) {
+                const progressInfo = progressText.textContent.trim();
+                const match = progressInfo.match(/(\d+)\/(\d+)/);
+
+                if (match && match.length === 3) {
+                    const current = parseInt(match[1]);
+                    const total = parseInt(match[2]);
+
+                    if (!isNaN(current) && !isNaN(total) && total > 0) {
+                        // Розраховуємо правильний відсоток
+                        const percent = Math.min(100, Math.floor((current / total) * 100));
+
+                        // Встановлюємо ширину з важливим правилом
+                        bar.setAttribute('style', `width: ${percent}% !important`);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Створення базового елементу завдання (запасний варіант)
      */
     function createBasicTaskElement(task, progress, isLimited = false) {
@@ -2676,6 +2780,7 @@ async function loadTasks() {
         safeGetUserId,
         removeInviteButtons,
         createCompletionParticles,
+        fixProgressBars,
         // Конфігурація
         setAnimationConfig: (config) => Object.assign(animationConfig, config),
         setThemeConfig: (config) => Object.assign(themeConfig, config),
