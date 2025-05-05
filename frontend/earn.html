@@ -438,5 +438,146 @@
             }
         }, true);
     </script>
+<!-- Додати цей код перед закриваючим тегом </body> -->
+<style>
+/* Глобальне приховування всіх кнопок "Запросити друзів" */
+[class*="запросити"],
+[class*="друзів"],
+[data-lang-key*="invite"],
+[data-action*="invite"],
+div:has(> button:has(img[alt*="invite"])),
+button.claim-button {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    overflow: hidden !important;
+    z-index: -9999 !important;
+}
+
+/* Приховуємо будь-які кнопки в синьому, що нагадують Запросити друзів */
+.action-button {
+    display: none !important;
+}
+
+/* Преміум стилі для прогрес-барів */
+.task-progress .progress-bar-container {
+    height: 12px !important;
+    background: rgba(20, 30, 60, 0.6) !important;
+    border-radius: 10px !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+    margin: 10px 0 !important;
+    overflow: hidden !important;
+}
+
+.task-progress .progress-fill {
+    height: 100% !important;
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 0 10px rgba(0, 201, 167, 0.5) !important;
+    transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+}
+
+/* Преміум стилі для завдань */
+.task-item {
+    background: linear-gradient(135deg, rgba(26, 32, 58, 0.85), rgba(13, 20, 46, 0.9)) !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid rgba(78, 181, 247, 0.2) !important;
+    margin-bottom: 16px !important;
+}
+</style>
+
+<script>
+// Функція видалення всіх елементів, які містять текст "Запросити друзів"
+function removeInviteButtons() {
+    // Знаходимо всі елементи, які можуть містити текст "Запросити друзів"
+    const elements = document.querySelectorAll('button, a, div');
+
+    elements.forEach(el => {
+        if (el.innerText && (
+            el.innerText.includes('Запросити друзів') ||
+            el.innerText.includes('запросити друзів') ||
+            el.innerText.includes('WINIX') && el.innerText.includes('500')
+        )) {
+            // Приховуємо елемент
+            el.style.display = 'none';
+            el.style.visibility = 'hidden';
+            el.style.opacity = '0';
+            el.style.height = '0';
+            el.style.overflow = 'hidden';
+
+            // Додаємо клас для зручності пошуку
+            el.classList.add('hidden-invite-button');
+
+            // Видаляємо обробники подій
+            const newEl = el.cloneNode(true);
+            el.parentNode.replaceChild(newEl, el);
+        }
+    });
+
+    // Також шукаємо за атрибутами
+    const byAttr = document.querySelectorAll('[data-lang-key*="invite"], [data-action*="invite"], .claim-button');
+    byAttr.forEach(el => {
+        el.style.display = 'none';
+        el.style.visibility = 'hidden';
+    });
+}
+
+// Видаляємо кнопки відразу
+removeInviteButtons();
+
+// Запускаємо видалення кнопок регулярно
+setInterval(removeInviteButtons, 1000);
+
+// Налаштовуємо спостерігач за DOM
+const observer = new MutationObserver((mutations) => {
+    removeInviteButtons();
+});
+
+// Спостерігаємо за всім документом
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// Добавляємо обробник для прогрес-барів
+setInterval(() => {
+    // Знаходимо всі прогрес-бари
+    const progressBars = document.querySelectorAll('.progress-fill');
+
+    progressBars.forEach(bar => {
+        // Отримуємо поточний прогрес
+        const width = parseInt(bar.style.width) || 0;
+
+        // Якщо прогрес 100% або більше, позначаємо завдання як виконане
+        if (width >= 100) {
+            // Додаємо анімацію для зелених прогрес-барів
+            bar.style.background = 'linear-gradient(90deg, #4CAF50, #2E7D32)';
+            bar.style.boxShadow = '0 0 15px rgba(76, 175, 80, 0.7)';
+
+            // Знаходимо батьківський елемент завдання
+            const taskItem = bar.closest('.task-item');
+            if (taskItem && !taskItem.classList.contains('completed')) {
+                // Позначаємо як виконане
+                taskItem.classList.add('completed');
+
+                // Додаємо текст "Виконано"
+                const actionDiv = taskItem.querySelector('.task-action');
+                if (actionDiv) {
+                    actionDiv.innerHTML = '<div class="completed-label">Виконано</div>';
+                }
+            }
+        }
+    });
+}, 2000);
+</script>
 </body>
 </html>
