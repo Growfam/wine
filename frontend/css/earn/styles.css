@@ -340,7 +340,7 @@ body {
     z-index: 1;
     white-space: nowrap;
     min-width: 70px;
-    /* Виправлено: видалено background */
+    /* Видалено background, щоб уникнути конфлікту зі стилями активної вкладки */
 }
 
 .tab::before {
@@ -474,19 +474,9 @@ body {
 
 /* ВИПРАВЛЕНО: Покращені стилі для секцій контенту */
 .content-section {
-    width: 100%;
     display: none !important;
-    animation: fadeIn 0.3s ease-out;
-    opacity: 0;
-    transition: opacity 0.3s ease-out;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-/* ВИПРАВЛЕНО: Покращений стиль для активної секції */
 .content-section.active {
     display: block !important;
     opacity: 1;

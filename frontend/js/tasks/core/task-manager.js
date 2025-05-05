@@ -1019,155 +1019,155 @@ window.TaskManager = (function() {
         operationStatus.domReady = domElements.socialTasksContainer !== null;
     }
 
-    /**
-     * Налаштування перемикачів вкладок
-     * ВИПРАВЛЕНО: Додано більше затримок та кращу логіку перемикання
-     */
-    function setupTabSwitching() {
-        console.log('TaskManager: Налаштування перемикачів вкладок');
+   /**
+ * Налаштування перемикачів вкладок
+ * ВИПРАВЛЕНО: Додано більше затримок та кращу логіку перемикання
+ */
+function setupTabSwitching() {
+    console.log('TaskManager: Налаштування перемикачів вкладок');
 
-        if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
-            console.warn('TaskManager: Кнопки вкладок не знайдено');
-            return;
+    if (!domElements.tabButtons || domElements.tabButtons.length === 0) {
+        console.warn('TaskManager: Кнопки вкладок не знайдено');
+        return;
+    }
+
+    // Спочатку видаляємо всі обробники подій для уникнення дублювання
+    domElements.tabButtons.forEach(button => {
+        const newButton = button.cloneNode(true);
+        if (button.parentNode) {
+            button.parentNode.replaceChild(newButton, button);
         }
+    });
 
-        // Спочатку видаляємо всі обробники подій для уникнення дублювання
-        domElements.tabButtons.forEach(button => {
-            const newButton = button.cloneNode(true);
-            if (button.parentNode) {
-                button.parentNode.replaceChild(newButton, button);
+    // Оновлюємо посилання після клонування
+    domElements.tabButtons = document.querySelectorAll('.tab');
+
+    // Зберігаємо посилання на вкладки та секції перед додаванням обробників
+    const tabButtons = Array.from(domElements.tabButtons);
+    const contentSections = Array.from(domElements.contentSections);
+
+    // Додаємо обробники для кожної вкладки
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            const tabType = this.getAttribute('data-tab');
+
+            // Запобігаємо зайвій роботі, якщо вкладка вже активна
+            if (tabType === activeTabType) {
+                console.log('TaskManager: Вкладка вже активна:', tabType);
+                return;
             }
-        });
 
-        // Оновлюємо посилання після клонування
-        domElements.tabButtons = document.querySelectorAll('.tab');
+            console.log('TaskManager: Перемикання на вкладку:', tabType);
 
-        // Зберігаємо посилання на вкладки та секції перед додаванням обробників
-        const tabButtons = Array.from(domElements.tabButtons);
-        const contentSections = Array.from(domElements.contentSections);
-
-        // Додаємо обробники для кожної вкладки
-        tabButtons.forEach(button => {
-            button.addEventListener('click', function(event) {
-                event.preventDefault();
-                const tabType = this.getAttribute('data-tab');
-
-                // Запобігаємо зайвій роботі, якщо вкладка вже активна
-                if (tabType === activeTabType) {
-                    console.log('TaskManager: Вкладка вже активна:', tabType);
-                    return;
-                }
-
-                console.log('TaskManager: Перемикання на вкладку:', tabType);
-
-                // Знімаємо клас active з усіх вкладок
-                tabButtons.forEach(btn => {
-                    btn.classList.remove('active');
-                });
-
-                // Додаємо клас active поточній вкладці
-                this.classList.add('active');
-
-                // Оновлюємо активну вкладку
-                activeTabType = tabType;
-
-                // Приховуємо всі секції контенту з плавним ефектом
-                contentSections.forEach(section => {
-                    // Додаємо клас для анімації приховування
-                    section.style.opacity = '0';
-                    section.style.transition = 'opacity 0.2s ease';
-
-                    // Через невелику затримку ховаємо секцію
-                    setTimeout(() => {
-                        section.classList.remove('active');
-                        section.style.display = 'none';
-                    }, 200);
-                });
-
-                // Через затримку показуємо відповідну секцію
-                setTimeout(() => {
-                    // Знаходимо потрібну секцію
-                    const targetSection = document.getElementById(`${tabType}-content`);
-
-                    if (targetSection) {
-                        // Підготовка секції до показу
-                        targetSection.style.opacity = '0';
-                        targetSection.style.display = 'block';
-
-                        // Примусове оновлення розмітки перед анімацією
-                        targetSection.offsetHeight;
-
-                        // Додаємо активний клас та плавно показуємо
-                        targetSection.classList.add('active');
-
-                        // Оновлюємо вміст в залежності від типу вкладки з затримкою
-                        setTimeout(() => {
-                            targetSection.style.opacity = '1';
-
-                            // Оновлюємо вміст відповідної вкладки
-                            if (tabType === 'social') {
-                                renderSocialTasks();
-                                renderReferralTasks();
-                            } else if (tabType === 'limited') {
-                                renderLimitedTasks();
-                            } else if (tabType === 'partners') {
-                                renderPartnerTasks();
-                            }
-                        }, 50);
-                    } else {
-                        console.error('TaskManager: Контейнер вкладки не знайдено:', tabType);
-                    }
-
-                    // Зберігаємо активну вкладку
-                    try {
-                        localStorage.setItem('active_tasks_tab', tabType);
-                    } catch (e) {
-                        console.warn('TaskManager: Помилка збереження вкладки в localStorage:', e.message);
-                    }
-                }, 250); // Почекаємо поки інша секція сховається
+            // Знімаємо клас active з усіх вкладок
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active');
             });
-        });
 
-        // Відновлюємо активну вкладку з localStorage з більшою затримкою
-        try {
-            const savedTab = localStorage.getItem('active_tasks_tab');
+            // Додаємо клас active поточній вкладці
+            this.classList.add('active');
 
-            if (savedTab) {
-                const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+            // Оновлюємо активну вкладку
+            activeTabType = tabType;
 
-                if (savedTabButton) {
-                    console.log('TaskManager: Відновлення вкладки з localStorage:', savedTab);
-                    // Збільшуємо затримку для більш стабільної роботи
+            // Приховуємо всі секції контенту з плавним ефектом
+            contentSections.forEach(section => {
+                // Додаємо клас для анімації приховування
+                section.style.opacity = '0';
+                section.style.transition = 'opacity 0.2s ease';
+
+                // Через невелику затримку ховаємо секцію
+                setTimeout(() => {
+                    section.classList.remove('active');
+                    section.style.display = 'none';
+                }, 200);
+            });
+
+            // Через затримку показуємо відповідну секцію
+            setTimeout(() => {
+                // Знаходимо потрібну секцію
+                const targetSection = document.getElementById(`${tabType}-content`);
+
+                if (targetSection) {
+                    // Підготовка секції до показу
+                    targetSection.style.opacity = '0';
+                    targetSection.style.display = 'block';
+
+                    // Примусове оновлення розмітки перед анімацією
+                    targetSection.offsetHeight;
+
+                    // Додаємо активний клас та плавно показуємо
+                    targetSection.classList.add('active');
+
+                    // Оновлюємо вміст в залежності від типу вкладки з затримкою
                     setTimeout(() => {
-                        savedTabButton.click();
-                    }, 500);
+                        targetSection.style.opacity = '1';
+
+                        // Оновлюємо вміст відповідної вкладки
+                        if (tabType === 'social') {
+                            renderSocialTasks();
+                            renderReferralTasks();
+                        } else if (tabType === 'limited') {
+                            renderLimitedTasks();
+                        } else if (tabType === 'partners') {
+                            renderPartnerTasks();
+                        }
+                    }, 50);
                 } else {
-                    // Якщо збережена вкладка не знайдена, встановлюємо першу вкладку як активну
-                    if (tabButtons.length > 0) {
-                        setTimeout(() => {
-                            tabButtons[0].click();
-                        }, 500);
-                    }
+                    console.error('TaskManager: Контейнер вкладки не знайдено:', tabType);
                 }
+
+                // Зберігаємо активну вкладку
+                try {
+                    localStorage.setItem('active_tasks_tab', tabType);
+                } catch (e) {
+                    console.warn('TaskManager: Помилка збереження вкладки в localStorage:', e.message);
+                }
+            }, 250); // Почекаємо поки інша секція сховається
+        });
+    });
+
+    // Відновлюємо активну вкладку з localStorage з більшою затримкою
+    try {
+        const savedTab = localStorage.getItem('active_tasks_tab');
+
+        if (savedTab) {
+            const savedTabButton = document.querySelector(`.tab[data-tab="${savedTab}"]`);
+
+            if (savedTabButton) {
+                console.log('TaskManager: Відновлення вкладки з localStorage:', savedTab);
+                // Збільшуємо затримку для більш стабільної роботи
+                setTimeout(() => {
+                    savedTabButton.click();
+                }, 500);
             } else {
-                // Якщо немає збереженої вкладки, активуємо першу
+                // Якщо збережена вкладка не знайдена, встановлюємо першу вкладку як активну
                 if (tabButtons.length > 0) {
                     setTimeout(() => {
                         tabButtons[0].click();
                     }, 500);
                 }
             }
-        } catch (e) {
-            console.warn('TaskManager: Помилка відновлення вкладки з localStorage:', e.message);
-
-            // У випадку помилки активуємо першу вкладку
+        } else {
+            // Якщо немає збереженої вкладки, активуємо першу
             if (tabButtons.length > 0) {
                 setTimeout(() => {
                     tabButtons[0].click();
                 }, 500);
             }
         }
+    } catch (e) {
+        console.warn('TaskManager: Помилка відновлення вкладки з localStorage:', e.message);
+
+        // У випадку помилки активуємо першу вкладку
+        if (tabButtons.length > 0) {
+            setTimeout(() => {
+                tabButtons[0].click();
+            }, 500);
+        }
     }
+}
 
     /**
      * Перевірка доступності API
