@@ -290,16 +290,16 @@ body {
 /* Стилі для вкладок у категоріях завдань */
 .tabs {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     width: 100%;
-    margin: 0 0 0.9375rem 0; /* 0 0 15px 0 */
+    margin: 0 0 0.9375rem 0;
     background: rgba(15, 23, 42, 0.6);
-    border-radius: 1.25rem; /* 20px */
-    padding: 0.3125rem; /* 5px */
-    border: var(--premium-border);
-    box-shadow: var(--premium-shadow);
+    border-radius: 1.25rem;
+    padding: 0.3125rem;
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     backdrop-filter: blur(5px);
 }
 
@@ -827,4 +827,27 @@ html, body {
     margin-right: 10px;
     color: white;
     font-weight: bold;
+}
+.header {
+    background: linear-gradient(135deg, rgba(26, 32, 58, 0.95), rgba(15, 23, 42, 0.95));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(78, 181, 247, 0.2);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.header .user-id-label,
+.header .user-id-value,
+.header .balance-label,
+.header .balance-value {
+    color: white !important;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+}
+
+.header .balance-value {
+    font-weight: bold;
+    font-size: 0.875rem !important;
+}
+
+.header .balance-label {
+    font-size: 0.75rem !important;
 }

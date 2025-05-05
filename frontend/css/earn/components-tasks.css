@@ -1335,3 +1335,64 @@
     font-weight: 700;
     color: white;
 }
+/* Преміальний стиль для кнопок Підписатися */
+.action-button[data-lang-key="earn.subscribe"],
+button.action-button[data-lang-key="earn.subscribe"],
+.action-button[data-action="subscribe"],
+button[data-action="subscribe"] {
+    background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+    border-radius: 1.5rem;
+    padding: 0.75rem 1.5rem;
+    font-weight: bold;
+    color: white;
+    border: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(78, 181, 247, 0.3);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Стилі для ефекту наведення */
+.action-button[data-lang-key="earn.subscribe"]::before,
+button.action-button[data-lang-key="earn.subscribe"]::before,
+.action-button[data-action="subscribe"]::before,
+button[data-action="subscribe"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    transform: translateX(-100%) skewX(-15deg);
+    transition: transform 0.5s ease;
+}
+
+/* Анімація при наведенні */
+.action-button[data-lang-key="earn.subscribe"]:hover::before,
+button.action-button[data-lang-key="earn.subscribe"]:hover::before,
+.action-button[data-action="subscribe"]:hover::before,
+button[data-action="subscribe"]:hover::before {
+    transform: translateX(100%) skewX(-15deg);
+}
+
+/* Ефект при наведенні */
+.action-button[data-lang-key="earn.subscribe"]:hover,
+button.action-button[data-lang-key="earn.subscribe"]:hover,
+.action-button[data-action="subscribe"]:hover,
+button[data-action="subscribe"]:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(78, 181, 247, 0.5);
+}
+
+/* Додаткові селектори для кнопок з текстом "Підписатися" */
+button.action-button span[data-lang-key="earn.subscribe"],
+.action-button span[data-lang-key="earn.subscribe"] {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

@@ -852,6 +852,23 @@ window.DailyBonus = (function() {
                 renderBackupUI();
                 return;
             }
+            // Перевіряємо наявність кнопки і створюємо її при необхідності
+        if (!state.claimButtonElement) {
+            state.claimButtonElement = document.getElementById('claim-daily');
+            // Якщо кнопки все ще немає, створюємо її
+            if (!state.claimButtonElement && state.containerElement) {
+                const bonusContainer = state.containerElement.querySelector('.daily-bonus');
+                if (bonusContainer) {
+                    state.claimButtonElement = document.createElement('button');
+                    state.claimButtonElement.id = 'claim-daily';
+                    state.claimButtonElement.className = 'claim-button';
+                    state.claimButtonElement.setAttribute('data-lang-key', 'earn.get');
+                    state.claimButtonElement.textContent = 'Отримати бонус';
+                    state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
+                    bonusContainer.appendChild(state.claimButtonElement);
+                }
+            }
+        }
 
             // Очищаємо контейнер прогресу
             state.progressContainerElement.innerHTML = '';
@@ -931,7 +948,7 @@ window.DailyBonus = (function() {
                 // Додаємо винагороду
                 const dayReward = document.createElement('div');
                 dayReward.className = 'day-reward';
-                dayReward.textContent = `${rewardAmount} WINIX`;
+                dayReward.textContent = `${rewardAmount} $W`;
                 dayMarker.appendChild(dayReward);
 
                 // Додаємо маркер до фрагменту
@@ -945,13 +962,15 @@ window.DailyBonus = (function() {
             updateClaimButton();
 
             console.log("DailyBonus: Інтерфейс успішно відображено");
-        } catch (error) {
-            console.error("DailyBonus: Помилка відображення інтерфейсу:", error);
-
-            // Резервне відображення у випадку помилки
-            renderBackupUI();
+        if (state.claimButtonElement) {
+            state.claimButtonElement.style.display = 'block';
+            updateClaimButton();
         }
+    } catch (error) {
+        console.error("DailyBonus: Помилка відображення інтерфейсу:", error);
+        renderBackupUI();
     }
+}
 
     /**
      * Оновлення стану кнопки отримання бонусу
