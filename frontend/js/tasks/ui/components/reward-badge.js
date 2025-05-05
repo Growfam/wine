@@ -7,141 +7,143 @@
  * - Різні формати відображення (компактний, розширений)
  */
 
-window.RewardBadge = (function() {
-    // Конфігурація
-    const CONFIG = {
-        tokenSymbol: '$WINIX',
-        coinLabel: 'жетонів',
-        coinLabelSingle: 'жетон',
-        coinLabelFew: 'жетони',
-        animationDuration: 2000
-    };
+// Імпорт необхідних залежностей
+import { UI } from '../../index.js';
+import { TaskRewards } from '../../services/task-store.js';
 
-    /**
-     * Створення бейджа з винагородою
-     * @param {Object} reward - Дані про винагороду {type, amount}
-     * @param {Object} options - Додаткові опції
-     * @returns {HTMLElement} DOM елемент з винагородою
-     */
-    function create(reward, options = {}) {
-        if (!reward || !reward.amount) {
-            return document.createElement('div');
-        }
+// Конфігурація
+const CONFIG = {
+    tokenSymbol: '$WINIX',
+    coinLabel: 'жетонів',
+    coinLabelSingle: 'жетон',
+    coinLabelFew: 'жетони',
+    animationDuration: 2000
+};
 
-        const badge = document.createElement('div');
-        badge.className = 'reward-badge';
-
-        if (options.compact) {
-            badge.classList.add('compact');
-        }
-
-        if (reward.type === 'tokens') {
-            badge.classList.add('token-reward');
-        } else {
-            badge.classList.add('coin-reward');
-        }
-
-        const symbol = reward.type === 'tokens'
-            ? CONFIG.tokenSymbol
-            : getCoinsLabel(reward.amount);
-
-        badge.innerHTML = `
-            <span class="reward-amount">${formatNumber(reward.amount)}</span>
-            <span class="reward-symbol">${symbol}</span>
-        `;
-
-        return badge;
+/**
+ * Створення бейджа з винагородою
+ * @param {Object} reward - Дані про винагороду {type, amount}
+ * @param {Object} options - Додаткові опції
+ * @returns {HTMLElement} DOM елемент з винагородою
+ */
+export function create(reward, options = {}) {
+    if (!reward || !reward.amount) {
+        return document.createElement('div');
     }
 
-    /**
-     * Визначення правильної форми слова "жетон" залежно від кількості
-     * @param {number} amount - Кількість жетонів
-     * @returns {string} Правильна форма слова
-     */
-    function getCoinsLabel(amount) {
-        // Спеціальні випадки для української мови
-        if (amount % 10 === 1 && amount % 100 !== 11) {
-            return CONFIG.coinLabelSingle;
-        } else if ([2, 3, 4].includes(amount % 10) &&
-                  ![12, 13, 14].includes(amount % 100)) {
-            return CONFIG.coinLabelFew;
-        } else {
-            return CONFIG.coinLabel;
-        }
+    const badge = document.createElement('div');
+    badge.className = 'reward-badge';
+
+    if (options.compact) {
+        badge.classList.add('compact');
     }
 
-    /**
-     * Форматування числа для відображення
-     * @param {number} number - Число для форматування
-     * @returns {string} Відформатоване число
-     */
-    function formatNumber(number) {
-        // Використовуємо глобальний форматтер, якщо доступний
-        if (window.Formatters && window.Formatters.formatNumber) {
-            return window.Formatters.formatNumber(number);
-        }
-
-        // Запасний варіант - просте форматування
-        return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    if (reward.type === 'tokens') {
+        badge.classList.add('token-reward');
+    } else {
+        badge.classList.add('coin-reward');
     }
 
-    /**
-     * Показати анімацію отримання винагороди
-     * @param {Object} reward - Дані про винагороду {type, amount}
-     * @param {Object} options - Додаткові опції
-     */
-    function showAnimation(reward, options = {}) {
-        if (!reward || !reward.amount) return;
+    const symbol = reward.type === 'tokens'
+        ? CONFIG.tokenSymbol
+        : getCoinsLabel(reward.amount);
 
-        // Перевіряємо наявність модуля анімацій
-        if (window.UI && window.UI.Animations && window.UI.Animations.showReward) {
-            window.UI.Animations.showReward(reward);
-            return;
-        }
+    badge.innerHTML = `
+        <span class="reward-amount">${formatNumber(reward.amount)}</span>
+        <span class="reward-symbol">${symbol}</span>
+    `;
 
-        // Власна реалізація анімації
-        const symbol = reward.type === 'tokens'
-            ? CONFIG.tokenSymbol
-            : getCoinsLabel(reward.amount);
+    return badge;
+}
 
-        // Створюємо елемент анімації
-        const anim = document.createElement('div');
-        anim.className = 'reward-animation';
-        anim.classList.add(reward.type === 'tokens' ? 'token-reward' : 'coin-reward');
+/**
+ * Визначення правильної форми слова "жетон" залежно від кількості
+ * @param {number} amount - Кількість жетонів
+ * @returns {string} Правильна форма слова
+ */
+export function getCoinsLabel(amount) {
+    // Спеціальні випадки для української мови
+    if (amount % 10 === 1 && amount % 100 !== 11) {
+        return CONFIG.coinLabelSingle;
+    } else if ([2, 3, 4].includes(amount % 10) &&
+              ![12, 13, 14].includes(amount % 100)) {
+        return CONFIG.coinLabelFew;
+    } else {
+        return CONFIG.coinLabel;
+    }
+}
 
-        anim.innerHTML = `
-            <span class="animation-prefix">+</span>
-            <span class="animation-amount">${formatNumber(reward.amount)}</span>
-            <span class="animation-symbol">${symbol}</span>
-        `;
+/**
+ * Форматування числа для відображення
+ * @param {number} number - Число для форматування
+ * @returns {string} Відформатоване число
+ */
+export function formatNumber(number) {
+    // Використовуємо форматтер з модуля task-formatter, якщо доступний
+    if (typeof import('../../utils/task-formatter.js').formatNumber === 'function') {
+        return import('../../utils/task-formatter.js').formatNumber(number);
+    }
 
-        // Додаємо до тіла документа
-        document.body.appendChild(anim);
+    // Запасний варіант - просте форматування
+    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
 
-        // Запускаємо анімацію
+/**
+ * Показати анімацію отримання винагороди
+ * @param {Object} reward - Дані про винагороду {type, amount}
+ * @param {Object} options - Додаткові опції
+ */
+export function showAnimation(reward, options = {}) {
+    if (!reward || !reward.amount) return;
+
+    // Перевіряємо наявність модуля анімацій
+    if (UI && UI.Animations && UI.Animations.showReward) {
+        UI.Animations.showReward(reward);
+        return;
+    }
+
+    // Власна реалізація анімації
+    const symbol = reward.type === 'tokens'
+        ? CONFIG.tokenSymbol
+        : getCoinsLabel(reward.amount);
+
+    // Створюємо елемент анімації
+    const anim = document.createElement('div');
+    anim.className = 'reward-animation';
+    anim.classList.add(reward.type === 'tokens' ? 'token-reward' : 'coin-reward');
+
+    anim.innerHTML = `
+        <span class="animation-prefix">+</span>
+        <span class="animation-amount">${formatNumber(reward.amount)}</span>
+        <span class="animation-symbol">${symbol}</span>
+    `;
+
+    // Додаємо до тіла документа
+    document.body.appendChild(anim);
+
+    // Запускаємо анімацію
+    setTimeout(() => {
+        anim.classList.add('show');
+
+        // Видаляємо після завершення
         setTimeout(() => {
-            anim.classList.add('show');
-
-            // Видаляємо після завершення
+            anim.classList.remove('show');
             setTimeout(() => {
-                anim.classList.remove('show');
-                setTimeout(() => {
-                    anim.remove();
-                }, 300);
-            }, CONFIG.animationDuration);
-        }, 10);
+                anim.remove();
+            }, 300);
+        }, CONFIG.animationDuration);
+    }, 10);
 
-        // Оновлюємо баланс користувача, якщо доступний сервіс
-        if (window.TaskRewards && window.TaskRewards.updateBalance) {
-            window.TaskRewards.updateBalance(reward);
-        }
+    // Оновлюємо баланс користувача, якщо доступний сервіс
+    if (TaskRewards && TaskRewards.updateBalance) {
+        TaskRewards.updateBalance(reward);
     }
+}
 
-    // Публічний API
-    return {
-        create,
-        showAnimation,
-        formatNumber,
-        getCoinsLabel
-    };
-})();
+// Експортуємо об'єкт з усіма функціями для зручності використання
+export default {
+    create,
+    showAnimation,
+    formatNumber,
+    getCoinsLabel
+};
