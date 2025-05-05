@@ -51,24 +51,40 @@
             to { transform: rotate(360deg); }
         }
 
-        /* ВИПРАВЛЕНО: Додано критичні стилі для вкладок і контентних секцій */
+        /* ВИПРАВЛЕНО: Критичні стилі для вкладок і контентних секцій */
         .content-section {
-            display: none !important;
+            display: none;
             opacity: 0;
             transition: opacity 0.3s ease;
+            z-index: 1;
+            position: relative;
         }
         .content-section.active {
-            display: block !important;
+            display: block;
             opacity: 1;
+            z-index: 2;
         }
         .tab {
             position: relative;
             cursor: pointer;
         }
         .tab.active {
-            background: linear-gradient(135deg, #4eb5f7, #00C9A7) !important;
-            color: white !important;
+            background: linear-gradient(135deg, #4eb5f7, #00C9A7);
+            color: white;
             font-weight: bold;
+        }
+
+        /* ВИПРАВЛЕНО: Правила для гарантування видимості кнопки бонусу */
+        #claim-daily, .claim-button {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+
+        #daily-bonus-container .claim-button:disabled {
+            opacity: 0.7 !important;
+            cursor: not-allowed !important;
         }
     </style>
 
@@ -287,43 +303,44 @@
     <!-- Повідомлення для копіювання -->
     <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
 
-    <!-- Підключення основних скриптів з атрибутами defer -->
-    <script src="js/tasks/utils/api-connectivity.js" defer></script>
-    <script src="js/api.js" defer></script>
-    <script src="js/auth.js" defer></script>
+    <!-- ВИПРАВЛЕНО: Порядок завантаження скриптів для забезпечення правильної ініціалізації -->
 
+    <!-- Спочатку завантажуємо утиліти та API -->
+    <script src="js/tasks/utils/api-connectivity.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
 
-    <!-- Основний скрипт (змінено на defer для правильного порядку) -->
-    <script src="js/core.js" defer></script>
+    <!-- Потім базові утиліти -->
+    <script src="js/tasks/utils/formatters.js"></script>
+    <script src="js/tasks/utils/storage.js"></script>
+    <script src="js/tasks/utils/time-utils.js"></script>
+    <script src="js/tasks/utils/validators.js"></script>
 
-    <!-- Підключення утиліт (з defer для паралельного завантаження) -->
-    <script src="js/tasks/utils/formatters.js" defer></script>
-    <script src="js/tasks/utils/storage.js" defer></script>
-    <script src="js/tasks/utils/time-utils.js" defer></script>
-    <script src="js/tasks/utils/validators.js" defer></script>
+    <!-- Далі UI компоненти -->
+    <script src="js/tasks/ui/animations.js"></script>
+    <script src="js/tasks/ui/countdown.js"></script>
+    <script src="js/tasks/ui/notifications.js"></script>
+    <script src="js/tasks/ui/progress-bar.js"></script>
 
-    <!-- Підключення UI компонентів (з defer для паралельного завантаження) -->
-    <script src="js/tasks/ui/animations.js" defer></script>
-    <script src="js/tasks/ui/countdown.js" defer></script>
-    <script src="js/tasks/ui/notifications.js" defer></script>
-    <script src="js/tasks/ui/progress-bar.js" defer></script>
+    <!-- Тепер основні компоненти -->
+    <script src="js/tasks/components/daily-bonus.js"></script>
+    <script src="js/tasks/components/social-task.js"></script>
+    <script src="js/tasks/components/limited-task.js"></script>
+    <script src="js/tasks/components/partner-task.js"></script>
+    <script src="js/tasks/components/leaderboard.js"></script>
 
-    <!-- Підключення основної логіки завдань (з defer для паралельного завантаження) -->
-    <script src="js/tasks/core/task-manager.js" defer></script>
-    <script src="js/tasks/core/progress.js" defer></script>
-    <script src="js/tasks/core/rewards.js" defer></script>
-    <script src="js/tasks/core/verification.js" defer></script>
-    <script src="js/tasks/core/integration.js" defer></script>
+    <!-- Основна логіка модулів -->
+    <script src="js/tasks/core/task-manager.js"></script>
+    <script src="js/tasks/core/progress.js"></script>
+    <script src="js/tasks/core/rewards.js"></script>
+    <script src="js/tasks/core/verification.js"></script>
+    <script src="js/tasks/core/integration.js"></script>
 
-    <!-- Підключення компонентів завдань (з defer для паралельного завантаження) -->
-    <script src="js/tasks/components/daily-bonus.js" defer></script>
-    <script src="js/tasks/components/social-task.js" defer></script>
-    <script src="js/tasks/components/limited-task.js" defer></script>
-    <script src="js/tasks/components/partner-task.js" defer></script>
-    <script src="js/tasks/components/leaderboard.js" defer></script>
+    <!-- Нарешті основний скрипт -->
+    <script src="js/core.js"></script>
 
     <script>
-        // Ініціалізація та покращена обробка завантаження
+        // ВИПРАВЛЕНО: Покращена система ініціалізації з чітким порядком виконання
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM Content Loaded');
 
@@ -335,13 +352,26 @@
                 console.log('API_PATHS доступний:', !!window.API_PATHS);
                 console.log('TaskManager доступний:', !!window.TaskManager);
                 console.log('SocialTask доступний:', !!window.SocialTask);
+                console.log('DailyBonus доступний:', !!window.DailyBonus);
                 console.log('TaskIntegration доступний:', !!window.TaskIntegration);
                 console.log('Core доступний:', !!window.WinixCore);
                 console.groupEnd();
             };
 
-            // Прихований індикатор завантаження через 3 секунди
-            // якщо сторінка завантажилась швидше
+            // Відстеження помилок завантаження
+            window.trackLoadErrors = function() {
+                const loadedScripts = {};
+                const scripts = document.querySelectorAll('script');
+                scripts.forEach(script => {
+                    if (script.src) {
+                        const name = script.src.split('/').pop();
+                        loadedScripts[name] = script.complete;
+                    }
+                });
+                return loadedScripts;
+            };
+
+            // Прихований індикатор завантаження через 3 секунди, якщо сторінка завантажилась швидше
             setTimeout(function() {
                 const loadingIndicator = document.getElementById('initial-loading');
                 if (loadingIndicator) {
@@ -358,44 +388,77 @@
                 window.Telegram.WebApp.expand();
             }
 
+            // ВИПРАВЛЕНО: Покращення ініціалізації компонентів з відстеженням залежностей
             // Перевіряємо необхідні компоненти і завантажуємо їх поступово
-            const initializationQueue = [
-                function checkAndInitCore() {
-                    if (window.Core) {
-                        window.Core.init();
-                        return true;
-                    }
-                    return false;
+            const initializationPlan = [
+                {
+                    name: 'Core',
+                    check: () => window.Core,
+                    init: () => window.Core.init(),
+                    required: true,
+                    initialized: false
                 },
-                function checkAndInitTaskIntegration() {
-                    if (window.TaskIntegration) {
-                        window.TaskIntegration.init();
-                        return true;
-                    }
-                    return false;
+                {
+                    name: 'TaskIntegration',
+                    check: () => window.TaskIntegration,
+                    init: () => window.TaskIntegration.init(),
+                    required: true,
+                    initialized: false,
+                    dependsOn: ['Core']
                 },
-                function checkAndInitTaskManager() {
-                    if (window.TaskManager) {
-                        window.TaskManager.init();
-                        return true;
-                    }
-                    return false;
+                {
+                    name: 'TaskManager',
+                    check: () => window.TaskManager,
+                    init: () => window.TaskManager.init(),
+                    required: true,
+                    initialized: false,
+                    dependsOn: ['Core', 'TaskIntegration']
+                },
+                {
+                    name: 'DailyBonus',
+                    check: () => window.DailyBonus,
+                    init: () => window.DailyBonus.init(),
+                    required: true,
+                    initialized: false,
+                    dependsOn: ['TaskManager']
                 }
             ];
 
+            // Функція для перевірки, чи всі залежності ініціалізовані
+            const checkDependencies = (component) => {
+                if (!component.dependsOn) return true;
+                return component.dependsOn.every(dependency => {
+                    const dep = initializationPlan.find(item => item.name === dependency);
+                    return dep && dep.initialized;
+                });
+            };
+
             // Запуск ініціалізаторів з перевіркою готовності
             function runInitializers() {
-                // Копіюємо масив ініціалізаторів для видалення виконаних
-                const remainingInitializers = initializationQueue.filter(initializer => !initializer());
+                // Спочатку виконуємо ініціалізацію компонентів без залежностей
+                initializationPlan.forEach(component => {
+                    if (!component.initialized && component.check() && (!component.dependsOn || checkDependencies(component))) {
+                        try {
+                            component.init();
+                            component.initialized = true;
+                            console.log(`Ініціалізовано: ${component.name}`);
+                        } catch(e) {
+                            console.error(`Помилка ініціалізації ${component.name}:`, e);
+                        }
+                    }
+                });
 
-                // Якщо залишились невиконані ініціалізатори, спробуємо ще раз через 100мс
-                if (remainingInitializers.length > 0) {
-                    initializationQueue.length = 0; // Очищаємо оригінальний масив
-                    initializationQueue.push(...remainingInitializers); // Додаємо невиконані ініціалізатори
+                // Перевіряємо, чи є неініціалізовані обов'язкові компоненти
+                const pendingRequired = initializationPlan.filter(
+                    component => component.required && !component.initialized
+                );
+
+                if (pendingRequired.length > 0) {
+                    console.log(`Очікуємо ініціалізації компонентів: ${pendingRequired.map(c => c.name).join(', ')}`);
                     setTimeout(runInitializers, 100);
                 } else {
-                    // Всі компоненти ініціалізовано
-                    console.log('All components initialized successfully');
+                    // Всі обов'язкові компоненти ініціалізовано
+                    console.log('Всі обов\'язкові компоненти ініціалізовано');
 
                     // Запускаємо діагностику
                     diagnoseSystemState();
@@ -408,68 +471,139 @@
                             loadingIndicator.style.display = 'none';
                         }, 300);
                     }
+
+                    // Перевірка і відновлення кнопки бонусу
+                    ensureDailyBonusVisible();
+                }
+            }
+
+            // ВИПРАВЛЕНО: Виділена функція для перевірки видимості кнопки бонусу
+            function ensureDailyBonusVisible() {
+                const claimButton = document.getElementById('claim-daily');
+                if (!claimButton || claimButton.style.display === 'none') {
+                    console.log('Відновлення видимості кнопки щоденного бонусу');
+                    const bonusContainer = document.querySelector('.daily-bonus');
+
+                    if (bonusContainer) {
+                        // Якщо кнопка існує але прихована
+                        if (claimButton) {
+                            claimButton.style.display = 'block';
+                            claimButton.style.visibility = 'visible';
+                            claimButton.style.opacity = '1';
+                        }
+                        // Якщо кнопка не існує
+                        else {
+                            const newButton = document.createElement('button');
+                            newButton.id = 'claim-daily';
+                            newButton.className = 'claim-button';
+                            newButton.setAttribute('data-lang-key', 'earn.get');
+                            newButton.textContent = 'Отримати бонус';
+
+                            bonusContainer.appendChild(newButton);
+
+                            // Додаємо обробник подій, якщо DailyBonus доступний
+                            if (window.DailyBonus && typeof window.DailyBonus.handleClaimButtonClick === 'function') {
+                                newButton.addEventListener('click', window.DailyBonus.handleClaimButtonClick);
+                            }
+                        }
+                    }
                 }
             }
 
             // Запускаємо ініціалізатори
             setTimeout(runInitializers, 100);
 
-            // ВИПРАВЛЕНО: Додано власну просту логіку для перемикання вкладок, якщо TaskManager не ініціалізується
-            setupBasicTabSwitching();
+            // ВИПРАВЛЕНО: Виправлений спосіб перемикання вкладок для кращої надійності
+            setupTabSwitching();
         });
 
-        // ВИПРАВЛЕНО: Додано базову функцію для перемикання вкладок як запасний варіант
-        function setupBasicTabSwitching() {
+        // ВИПРАВЛЕНО: Оновлена функція для перемикання вкладок
+        function setupTabSwitching() {
             const tabs = document.querySelectorAll('.tab');
             const contentSections = document.querySelectorAll('.content-section');
 
-            // Додаємо обробник для кожної вкладки
+            // Відслідковуємо стан перемикання
+            let isTabSwitching = false;
+            let tabSwitchTimeout = null;
+
+            // Функція для перемикання вкладок з захистом від збоїв
+            function switchTab(tabType) {
+                // Захист від одночасних перемикань
+                if (isTabSwitching) return;
+                isTabSwitching = true;
+
+                // Встановлюємо таймаут для примусового завершення перемикання
+                clearTimeout(tabSwitchTimeout);
+                tabSwitchTimeout = setTimeout(() => {
+                    isTabSwitching = false;
+                }, 2000);
+
+                console.log('Перемикання на вкладку:', tabType);
+
+                // Активація вкладки
+                tabs.forEach(tab => {
+                    if (tab.getAttribute('data-tab') === tabType) {
+                        tab.classList.add('active');
+                    } else {
+                        tab.classList.remove('active');
+                    }
+                });
+
+                // Приховуємо всі вкладки
+                contentSections.forEach(section => {
+                    // Зникнення з анімацією
+                    section.style.opacity = '0';
+                });
+
+                // Через затримку показуємо потрібну вкладку
+                setTimeout(() => {
+                    contentSections.forEach(section => {
+                        const sectionId = section.id;
+                        const sectionType = sectionId.replace('-content', '');
+
+                        if (sectionType === tabType) {
+                            // Явно встановлюємо стилі та класи для активної вкладки
+                            section.style.display = 'block';
+                            section.classList.add('active');
+
+                            // Затримка для запуску анімації появи
+                            setTimeout(() => {
+                                section.style.opacity = '1';
+
+                                // Переконуємося, що кнопка бонусу видима
+                                if (tabType === 'social') {
+                                    ensureDailyBonusVisible();
+                                }
+
+                                // Завершення процесу перемикання
+                                isTabSwitching = false;
+                                clearTimeout(tabSwitchTimeout);
+                            }, 50);
+                        } else {
+                            // Приховуємо неактивні вкладки
+                            section.classList.remove('active');
+                            section.style.display = 'none';
+                        }
+                    });
+
+                    // Зберігаємо вибір користувача
+                    try {
+                        localStorage.setItem('active_tasks_tab', tabType);
+                    } catch (e) {
+                        console.warn('Помилка збереження вкладки:', e);
+                    }
+                }, 250);
+            }
+
+            // Додаємо обробники до вкладок
             tabs.forEach(tab => {
                 tab.addEventListener('click', function() {
                     const tabType = this.getAttribute('data-tab');
-                    const targetSection = document.getElementById(`${tabType}-content`);
 
-                    // Якщо обрана вкладка вже активна, нічого не робимо
-                    if (this.classList.contains('active')) {
-                        return;
+                    // Перевіряємо, чи вкладка не активна вже
+                    if (!this.classList.contains('active')) {
+                        switchTab(tabType);
                     }
-
-                    // Видаляємо активний клас з усіх вкладок
-                    tabs.forEach(t => t.classList.remove('active'));
-
-                    // Додаємо активний клас поточній вкладці
-                    this.classList.add('active');
-
-                    // Приховуємо всі секції контенту з анімацією
-                    contentSections.forEach(section => {
-                        section.style.opacity = '0';
-
-                        // Через невелику затримку ховаємо секцію повністю
-                        setTimeout(() => {
-                            section.classList.remove('active');
-                            section.style.display = 'none';
-                        }, 200);
-                    });
-
-                    // Через затримку показуємо потрібну секцію
-                    setTimeout(() => {
-                        if (targetSection) {
-                            targetSection.style.display = 'block';
-
-                            // Примусове перемальовування перед анімацією
-                            targetSection.offsetHeight;
-
-                            targetSection.classList.add('active');
-                            targetSection.style.opacity = '1';
-
-                            // Зберігаємо вибір користувача
-                            try {
-                                localStorage.setItem('active_tasks_tab', tabType);
-                            } catch (e) {
-                                console.warn('Помилка збереження вкладки:', e);
-                            }
-                        }
-                    }, 250);
                 });
             });
 
@@ -477,11 +611,10 @@
             try {
                 const savedTab = localStorage.getItem('active_tasks_tab');
                 if (savedTab) {
-                    const tab = document.querySelector(`.tab[data-tab="${savedTab}"]`);
-                    if (tab) {
-                        // Затримка для кращої стабільності
-                        setTimeout(() => tab.click(), 500);
-                    }
+                    // Затримка для кращої стабільності
+                    setTimeout(() => {
+                        switchTab(savedTab);
+                    }, 500);
                 }
             } catch (e) {
                 console.warn('Помилка відновлення вкладки:', e);
@@ -505,14 +638,20 @@
             if (window.TaskManager && window.TaskManager.refreshAllTasks) {
                 window.TaskManager.refreshAllTasks();
             }
+
+            // Переконуємося, що кнопка бонусу видима
+            const activeTab = localStorage.getItem('active_tasks_tab') || 'social';
+            if (activeTab === 'social') {
+                ensureDailyBonusVisible();
+            }
         });
 
-        // Обробка помилок завантаження скриптів
+        // ВИПРАВЛЕНО: Покращена обробка помилок завантаження скриптів
         window.addEventListener('error', function(e) {
             if (e.target && e.target.tagName === 'SCRIPT') {
                 console.error('Failed to load script:', e.target.src);
 
-                // Спробуємо перезавантажити скрипт
+                // Спробуємо перезавантажити скрипт, але лише один раз
                 const failedScript = e.target;
                 const scriptSrc = failedScript.src;
 
@@ -522,8 +661,25 @@
                     // Створюємо новий елемент script
                     const newScript = document.createElement('script');
                     newScript.src = scriptSrc + '?already-retried=true';
-                    newScript.defer = failedScript.defer;
-                    newScript.async = failedScript.async;
+
+                    // Зберігаємо оригінальні атрибути
+                    Array.from(failedScript.attributes).forEach(attr => {
+                        if (attr.name !== 'src') {
+                            newScript.setAttribute(attr.name, attr.value);
+                        }
+                    });
+
+                    // Відслідковуємо успішне завантаження
+                    newScript.onload = function() {
+                        console.log('Successfully reloaded script:', scriptSrc);
+
+                        // Запускаємо ініціалізацію після перезавантаження скрипта
+                        if (scriptSrc.includes('task-manager.js') && window.TaskManager) {
+                            window.TaskManager.init();
+                        } else if (scriptSrc.includes('daily-bonus.js') && window.DailyBonus) {
+                            window.DailyBonus.init();
+                        }
+                    };
 
                     // Замінюємо старий елемент
                     failedScript.parentNode.replaceChild(newScript, failedScript);
@@ -531,81 +687,121 @@
             }
         }, true);
 
-// Функція для пошуку та стилізації кнопок "Підписатися"
-function styleSubscribeButtons() {
-    console.log('Стилізація кнопок "Підписатися"...');
+// ВИПРАВЛЕНО: Функція для видимості кнопки бонусу
+function ensureDailyBonusVisible() {
+    const claimButton = document.getElementById('claim-daily');
 
-    // Масив можливих варіантів тексту для кнопок підписки
-    const subscribeKeywords = [
-        'підписатися',
-        'підписатись',
-        'підпишись',
-        'підписуйся',
-        'підписка',
-        'subscribe'
-    ];
+    // Якщо кнопка не знайдена або прихована, спробуємо її відновити
+    if (!claimButton || window.getComputedStyle(claimButton).display === 'none') {
+        console.log('Відновлення видимості кнопки щоденного бонусу');
 
-    // Знаходимо всі кнопки на сторінці
-    document.querySelectorAll('button, .action-button').forEach(button => {
-        // Пропускаємо кнопки, які вже були оброблені
-        if (button.hasAttribute('data-subscribe-styled')) {
-            return;
+        // Знаходимо контейнер для кнопки
+        const bonusContainer = document.querySelector('.daily-bonus');
+
+        if (bonusContainer) {
+            if (claimButton) {
+                // Явно встановлюємо стилі для видимості
+                claimButton.style.display = 'block';
+                claimButton.style.visibility = 'visible';
+                claimButton.style.opacity = '1';
+                claimButton.style.pointerEvents = 'auto';
+            } else {
+                // Створюємо нову кнопку, якщо оригінальна не знайдена
+                const newButton = document.createElement('button');
+                newButton.id = 'claim-daily';
+                newButton.className = 'claim-button';
+                newButton.setAttribute('data-lang-key', 'earn.get');
+                newButton.textContent = 'Отримати бонус';
+                bonusContainer.appendChild(newButton);
+
+                // Додаємо обробник, якщо DailyBonus доступний
+                if (window.DailyBonus && typeof window.DailyBonus.handleClaimButtonClick === 'function') {
+                    newButton.addEventListener('click', window.DailyBonus.handleClaimButtonClick);
+                } else {
+                    // Якщо DailyBonus ще не завантажено, додаємо подію для відкладеного додавання обробника
+                    document.addEventListener('daily-bonus-initialized', function() {
+                        if (window.DailyBonus && typeof window.DailyBonus.handleClaimButtonClick === 'function') {
+                            const button = document.getElementById('claim-daily');
+                            if (button) {
+                                button.addEventListener('click', window.DailyBonus.handleClaimButtonClick);
+                            }
+                        }
+                    });
+                }
+            }
         }
+    }
 
-        // Отримуємо текст кнопки у нижньому регістрі для порівняння
-        const buttonText = (button.textContent || '').toLowerCase().trim();
+    // Встановлюємо регулярну перевірку видимості кнопки бонусу
+    setTimeout(checkBonusButtonVisibility, 1000);
+}
 
-        // Перевіряємо чи містить кнопка один з ключових словосполучень
-        const hasSubscribeKeyword = subscribeKeywords.some(keyword =>
-            buttonText.includes(keyword)
-        );
+// ВИПРАВЛЕНО: Додаткова перевірка видимості кнопки бонусу
+function checkBonusButtonVisibility() {
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab && activeTab.getAttribute('data-tab') === 'social') {
+        const claimButton = document.getElementById('claim-daily');
+        if (!claimButton || window.getComputedStyle(claimButton).display === 'none') {
+            ensureDailyBonusVisible();
+        }
+    }
+}
 
-        // Додаємо клас для кнопок з атрибутами, пов'язаними з підпискою
-        const hasSubscribeAttribute = (
-            button.getAttribute('data-lang-key') === 'earn.subscribe' ||
-            button.getAttribute('data-action') === 'subscribe'
-        );
+// ВИПРАВЛЕНО: Регулярна перевірка і відновлення прогрес-барів
+function fixProgressBars() {
+    // Знаходимо всі прогрес-бари
+    const progressBars = document.querySelectorAll('.progress-fill');
 
-        // Додаємо клас і маркер, якщо знайдено співпадіння
-        if (hasSubscribeKeyword || hasSubscribeAttribute) {
-            button.classList.add('subscribe-button');
-            button.setAttribute('data-subscribe-styled', 'true');
-            console.log('Знайдено і стилізовано кнопку "Підписатися":', button);
+    progressBars.forEach(bar => {
+        // Отримуємо елемент завдання
+        const taskItem = bar.closest('.task-item');
+        if (!taskItem) return;
+
+        // Отримуємо інформацію про прогрес з тексту
+        const progressText = taskItem.querySelector('.progress-text');
+        if (progressText) {
+            const progressInfo = progressText.textContent.trim();
+            const match = progressInfo.match(/(\d+)\/(\d+)/);
+
+            if (match && match.length === 3) {
+                const current = parseInt(match[1]);
+                const total = parseInt(match[2]);
+
+                if (!isNaN(current) && !isNaN(total) && total > 0) {
+                    // Розраховуємо відсоток
+                    const percent = Math.min(100, Math.floor((current / total) * 100));
+
+                    // Встановлюємо ширину прогрес-бару з високою специфічністю
+                    bar.setAttribute('style', `width: ${percent}% !important`);
+
+                    // Якщо прогрес 100%, оновлюємо стан
+                    if (percent >= 100 && !taskItem.classList.contains('completed')) {
+                        bar.classList.add('complete');
+                        taskItem.classList.add('completed');
+
+                        // Знаходимо контейнер дій
+                        const actionElement = taskItem.querySelector('.task-action');
+                        if (actionElement) {
+                            actionElement.innerHTML = '<div class="completed-label">Виконано</div>';
+                        }
+                    }
+                }
+            }
         }
     });
 }
 
-// Викликаємо функцію після завантаження DOM
-document.addEventListener('DOMContentLoaded', function() {
-    // Початкова стилізація
-    styleSubscribeButtons();
+// Регулярний запуск перевірки для прогрес-барів і кнопки бонусу
+setInterval(function() {
+    // Перевірка прогрес-барів
+    fixProgressBars();
 
-    // Встановлюємо MutationObserver для відстеження нових елементів
-    const observer = new MutationObserver(function(mutations) {
-        let shouldProcessButtons = false;
-
-        mutations.forEach(function(mutation) {
-            // Перевіряємо чи були додані нові елементи
-            if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                shouldProcessButtons = true;
-            }
-        });
-
-        // Викликаємо функцію стилізації, якщо були додані нові елементи
-        if (shouldProcessButtons) {
-            setTimeout(styleSubscribeButtons, 100);
-        }
-    });
-
-    // Починаємо спостереження за DOM
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    // Повторно перевіряємо кнопки через 1 секунду (для динамічно завантажених елементів)
-    setTimeout(styleSubscribeButtons, 1000);
-});
+    // Перевірка кнопки бонусу, якщо активна вкладка соціальних завдань
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab && activeTab.getAttribute('data-tab') === 'social') {
+        checkBonusButtonVisibility();
+    }
+}, 2000);
     </script>
 </body>
 </html>

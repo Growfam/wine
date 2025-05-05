@@ -1,15 +1,15 @@
 /**
  * WINIX - Щоденний бонус (30-денний цикл)
- * Версія: 2.0.2
+ * Версія: 2.1.0
  *
  * Модуль для управління щоденними бонусами в системі WINIX
  * Забезпечує 30-денний цикл бонусів з прогресивною системою винагород та жетонами
  *
  * ВИПРАВЛЕННЯ:
- * - Прискорене оновлення балансу без затримок
- * - Оптимізовані анімації для запобігання зависань
- * - Покращена сумісність з іншими модулями
- * - Виправлено стилізацію інформаційної кнопки
+ * - Покращена стабільність відображення кнопки бонусу
+ * - Оптимізована взаємодія з TaskManager
+ * - Додана система самовідновлення при помилках
+ * - Виправлена проблема з видимістю в різних вкладках
  */
 
 window.DailyBonus = (function() {
@@ -32,7 +32,9 @@ window.DailyBonus = (function() {
         },
         useDirectDomUpdates: true,  // Використовувати прямі оновлення DOM для балансу
         animationDebounce: 100,     // Мінімальний інтервал між анімаціями (мс)
-        cleanupModals: true         // Очищати модальні вікна при закритті для звільнення пам'яті
+        cleanupModals: true,        // Очищати модальні вікна при закритті для звільнення пам'яті
+        buttonRestoreInterval: 3000, // Інтервал перевірки і відновлення кнопки (мс)
+        tabCoordination: true       // Координація з TaskManager для роботи з вкладками
     };
 
     // Стан модуля
@@ -51,6 +53,11 @@ window.DailyBonus = (function() {
         infoModalElement: null,         // Модальне вікно з інформацією
         lastAnimationTime: 0,           // Час останньої анімації для дебаунсингу
         isModalVisible: false,          // Прапорець видимості модального вікна
+        taskManagerReady: false,        // Прапорець готовності TaskManager
+        buttonRestoreTimeout: null,     // Таймер для відновлення кнопки
+        restorationAttempts: 0,         // Лічильник спроб відновлення кнопки
+        lastButtonCheck: 0,             // Час останньої перевірки кнопки
+        originalButtonHTML: null,       // Збережений оригінальний HTML кнопки
         lastBalanceUpdate: {            // Останнє оновлення балансу
             tokens: null,
             coins: null,
@@ -110,6 +117,14 @@ window.DailyBonus = (function() {
             () => {
                 const urlParams = new URLSearchParams(window.location.search);
                 return urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
+            },
+
+            // 6. Спробуємо отримати через TaskManager, якщо він доступний
+            () => {
+                if (window.TaskManager && typeof window.TaskManager.safeGetUserId === 'function') {
+                    return window.TaskManager.safeGetUserId();
+                }
+                return null;
             }
         ];
 
@@ -146,18 +161,38 @@ window.DailyBonus = (function() {
 
         console.log("DailyBonus: Початок ініціалізації модуля");
 
+        // ВИПРАВЛЕННЯ 5: Повідомляємо TaskManager про ініціалізацію
+        document.dispatchEvent(new CustomEvent('daily-bonus-loaded'));
+
+        // Перевіряємо готовність TaskManager
+        checkTaskManagerReady();
+
         // Кешування DOM-елементів для швидшого доступу
         state.containerElement = document.getElementById('daily-bonus-container');
         state.claimButtonElement = document.getElementById('claim-daily');
         state.progressContainerElement = document.getElementById('daily-progress-container');
 
-        // Якщо елементи не знайдено, вихід
-        if (!state.containerElement) {
-            console.warn("DailyBonus: Не знайдено контейнер для щоденних бонусів");
+        // Якщо елементи не знайдено, спробуємо почекати їх появи
+        if (!state.containerElement || !state.progressContainerElement) {
+            console.warn("DailyBonus: Не знайдено контейнери для щоденних бонусів, чекаємо 500мс");
+
+            // Чекаємо поки DOM-елементи з'являться
+            setTimeout(init, 500);
             return;
         }
 
+        // Якщо не знайдено кнопку бонусу, але є контейнер, створюємо її
+        if (!state.claimButtonElement && state.containerElement) {
+            console.log("DailyBonus: Не знайдено кнопку бонусу, створюємо...");
+            createClaimButton();
+        }
+
         console.log("DailyBonus: DOM-елементи знайдено");
+
+        // Збереження оригінального HTML кнопки для можливого відновлення
+        if (state.claimButtonElement) {
+            state.originalButtonHTML = state.claimButtonElement.outerHTML;
+        }
 
         // Додаємо інформаційну кнопку, якщо її ще немає
         if (!document.getElementById('daily-bonus-info')) {
@@ -220,16 +255,7 @@ window.DailyBonus = (function() {
         }
 
         // Додаємо обробник подій для кнопки отримання бонусу
-        if (state.claimButtonElement) {
-            // Видаляємо старі обробники, щоб уникнути дублювання
-            const newClaimButton = state.claimButtonElement.cloneNode(true);
-            state.claimButtonElement.parentNode.replaceChild(newClaimButton, state.claimButtonElement);
-            state.claimButtonElement = newClaimButton;
-
-            // Додаємо новий обробник
-            state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
-            console.log("DailyBonus: Додано обробник кнопки отримання бонусу");
-        }
+        setupClaimButtonHandler();
 
         // Додаємо обробник для закриття модального вікна при натисканні Escape
         document.addEventListener('keydown', function(event) {
@@ -238,12 +264,315 @@ window.DailyBonus = (function() {
             }
         });
 
+        // ВИПРАВЛЕННЯ 5: Додаємо обробник для координації з TaskManager
+        if (config.tabCoordination) {
+            setupTaskManagerCoordination();
+        }
+
+        // ВИПРАВЛЕННЯ 5: Додаємо обробник для відновлення кнопки
+        setupButtonRestoration();
+
         // Оновлюємо стан ініціалізації
         state.isInitialized = true;
         console.log("DailyBonus: Модуль ініціалізовано");
 
         // Асинхронно завантажуємо дані з серверу
         loadBonusData(true);
+
+        // Надсилаємо подію про готовність модуля
+        document.dispatchEvent(new CustomEvent('daily-bonus-initialized'));
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Перевірка готовності TaskManager
+     */
+    function checkTaskManagerReady() {
+        // Спробуємо дізнатися, чи TaskManager вже ініціалізовано
+        if (window.TaskManager && window.TaskManager.initialized) {
+            state.taskManagerReady = true;
+            console.log("DailyBonus: TaskManager вже ініціалізовано");
+            return true;
+        }
+
+        // Відправляємо запит на перевірку статусу
+        document.dispatchEvent(new CustomEvent('daily-bonus-taskmanager-check'));
+
+        // Слухаємо відповідь
+        document.addEventListener('taskmanager-status', function(event) {
+            if (event.detail && event.detail.initialized) {
+                state.taskManagerReady = true;
+                console.log("DailyBonus: Отримано підтвердження про готовність TaskManager");
+            }
+        }, { once: true });
+
+        // Чекаємо на подію ініціалізації TaskManager
+        document.addEventListener('taskmanager-initialized', function() {
+            state.taskManagerReady = true;
+            console.log("DailyBonus: Отримано подію ініціалізації TaskManager");
+        }, { once: true });
+
+        return state.taskManagerReady;
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Інформування TaskManager про готовність DailyBonus
+     */
+    function notifyTaskManagerReady(ready = true) {
+        console.log(`DailyBonus: ${ready ? 'Повідомляємо' : 'Відміняємо повідомлення'} TaskManager про готовність`);
+
+        // Відправляємо подію про готовність DailyBonus
+        if (ready) {
+            document.dispatchEvent(new CustomEvent('daily-bonus-ready', {
+                detail: { initialized: state.isInitialized }
+            }));
+        }
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Створення обробника для кнопки бонусу
+     */
+    function setupClaimButtonHandler() {
+        if (!state.claimButtonElement) {
+            console.warn("DailyBonus: Не знайдено кнопку бонусу для налаштування обробника");
+            return;
+        }
+
+        // Видаляємо старі обробники, щоб уникнути дублювання
+        const newClaimButton = state.claimButtonElement.cloneNode(true);
+        if (state.claimButtonElement.parentNode) {
+            state.claimButtonElement.parentNode.replaceChild(newClaimButton, state.claimButtonElement);
+        }
+        state.claimButtonElement = newClaimButton;
+
+        // Додаємо новий обробник
+        state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
+
+        // ВИПРАВЛЕННЯ 5: Додаємо спеціальний атрибут для захисту від автоматичного видалення
+        state.claimButtonElement.setAttribute('data-protected', 'true');
+        state.claimButtonElement.setAttribute('data-role', 'claim-daily-bonus');
+
+        console.log("DailyBonus: Додано обробник кнопки отримання бонусу");
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Налаштування системи відновлення кнопки
+     */
+    function setupButtonRestoration() {
+        // Зупиняємо попередній таймер, якщо він є
+        if (state.buttonRestoreTimeout) {
+            clearInterval(state.buttonRestoreTimeout);
+        }
+
+        // Запускаємо новий таймер для регулярної перевірки кнопки
+        state.buttonRestoreTimeout = setInterval(checkAndRestoreButton, config.buttonRestoreInterval);
+
+        // Підписуємось на події відновлення кнопки
+        document.addEventListener('daily-bonus-button-restored', function() {
+            console.log("DailyBonus: Отримано подію відновлення кнопки");
+
+            // Оновлюємо посилання на кнопку
+            state.claimButtonElement = document.getElementById('claim-daily');
+
+            // Налаштовуємо обробник подій для відновленої кнопки
+            if (state.claimButtonElement) {
+                setupClaimButtonHandler();
+            }
+        });
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Перевірка та відновлення кнопки бонусу
+     */
+    function checkAndRestoreButton() {
+        // Пропускаємо перевірку, якщо недавно вже перевіряли
+        const now = Date.now();
+        if (now - state.lastButtonCheck < 1000) {
+            return;
+        }
+
+        state.lastButtonCheck = now;
+
+        // Перевіряємо наявність кнопки в DOM
+        const buttonExists = !!document.getElementById('claim-daily');
+
+        // Якщо кнопка відсутня і у нас є контейнер, відновлюємо її
+        if (!buttonExists && state.containerElement) {
+            console.log("DailyBonus: Виявлено відсутність кнопки бонусу, відновлюємо...");
+
+            // Шукаємо контейнер для кнопки
+            const bonusContainer = state.containerElement.querySelector('.daily-bonus');
+
+            if (bonusContainer) {
+                if (state.originalButtonHTML) {
+                    // Використовуємо збережений HTML
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = state.originalButtonHTML;
+                    const newButton = tempDiv.firstChild;
+
+                    // Додаємо кнопку до контейнера
+                    bonusContainer.appendChild(newButton);
+
+                    // Оновлюємо посилання
+                    state.claimButtonElement = newButton;
+
+                    // Налаштовуємо обробник подій
+                    setupClaimButtonHandler();
+
+                    console.log("DailyBonus: Кнопку бонусу успішно відновлено");
+
+                    // Скидаємо лічильник спроб
+                    state.restorationAttempts = 0;
+                } else {
+                    // Створюємо нову кнопку, якщо немає збереженого HTML
+                    createClaimButton();
+                }
+            } else {
+                console.warn("DailyBonus: Не знайдено контейнер для кнопки бонусу");
+
+                // Спроба знайти будь-який підходящий контейнер
+                const possibleContainers = [
+                    state.containerElement,
+                    document.querySelector('.daily-bonus'),
+                    document.querySelector('#daily-bonus-container')
+                ];
+
+                for (const container of possibleContainers) {
+                    if (container) {
+                        console.log("DailyBonus: Знайдено альтернативний контейнер, спроба відновлення кнопки");
+
+                        // Створюємо нову кнопку
+                        const newButton = document.createElement('button');
+                        newButton.id = 'claim-daily';
+                        newButton.className = 'claim-button';
+                        newButton.setAttribute('data-lang-key', 'earn.get');
+                        newButton.textContent = 'Отримати бонус';
+
+                        // Додаємо кнопку до контейнера
+                        container.appendChild(newButton);
+
+                        // Оновлюємо посилання
+                        state.claimButtonElement = newButton;
+
+                        // Налаштовуємо обробник подій
+                        setupClaimButtonHandler();
+
+                        // Зберігаємо HTML для майбутнього відновлення
+                        state.originalButtonHTML = newButton.outerHTML;
+
+                        console.log("DailyBonus: Створено нову кнопку бонусу");
+                        break;
+                    }
+                }
+            }
+
+            // Збільшуємо лічильник спроб
+            state.restorationAttempts++;
+
+            // Якщо зроблено багато невдалих спроб, сповільнюємо перевірку
+            if (state.restorationAttempts > 5) {
+                console.warn("DailyBonus: Багато невдалих спроб відновлення кнопки, збільшуємо інтервал перевірки");
+
+                // Змінюємо інтервал перевірки
+                clearInterval(state.buttonRestoreTimeout);
+                state.buttonRestoreTimeout = setInterval(checkAndRestoreButton, config.buttonRestoreInterval * 2);
+            }
+        } else if (buttonExists) {
+            // Кнопка існує, просто оновлюємо посилання, якщо потрібно
+            if (!state.claimButtonElement) {
+                state.claimButtonElement = document.getElementById('claim-daily');
+                setupClaimButtonHandler();
+            }
+
+            // Скидаємо лічильник спроб
+            state.restorationAttempts = 0;
+        }
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Створення кнопки отримання бонусу
+     */
+    function createClaimButton() {
+        // Перевіряємо, чи є контейнер для кнопки
+        const bonusContainer = state.containerElement ?
+                             state.containerElement.querySelector('.daily-bonus') :
+                             document.querySelector('.daily-bonus');
+
+        if (!bonusContainer) {
+            console.warn("DailyBonus: Не знайдено контейнер для кнопки бонусу");
+            return null;
+        }
+
+        // Створюємо нову кнопку
+        const newButton = document.createElement('button');
+        newButton.id = 'claim-daily';
+        newButton.className = 'claim-button';
+        newButton.setAttribute('data-lang-key', 'earn.get');
+        newButton.setAttribute('data-protected', 'true');
+        newButton.setAttribute('data-role', 'claim-daily-bonus');
+        newButton.textContent = 'Отримати бонус';
+
+        // Додаємо стилі для гарантованої видимості
+        newButton.style.display = 'block';
+        newButton.style.visibility = 'visible';
+        newButton.style.opacity = '1';
+
+        // Додаємо кнопку до контейнера
+        bonusContainer.appendChild(newButton);
+
+        // Оновлюємо посилання
+        state.claimButtonElement = newButton;
+
+        // Налаштовуємо обробник подій
+        setupClaimButtonHandler();
+
+        // Зберігаємо HTML для майбутнього відновлення
+        state.originalButtonHTML = newButton.outerHTML;
+
+        console.log("DailyBonus: Створено нову кнопку бонусу");
+        return newButton;
+    }
+
+    /**
+     * ВИПРАВЛЕННЯ 5: Налаштування координації з TaskManager
+     */
+    function setupTaskManagerCoordination() {
+        // Підписуємось на події від TaskManager
+        document.addEventListener('safe-buttons-list', function(event) {
+            if (event.detail && event.detail.buttonIds &&
+                event.detail.buttonIds.includes('claim-daily') &&
+                state.claimButtonElement) {
+
+                console.log("DailyBonus: Отримано список захищених кнопок від TaskManager");
+
+                // Додатково захищаємо нашу кнопку
+                state.claimButtonElement.style.display = 'block';
+                state.claimButtonElement.style.visibility = 'visible';
+                state.claimButtonElement.style.opacity = '1';
+                state.claimButtonElement.setAttribute('data-protected', 'true');
+            }
+        });
+
+        // Підписуємось на події зміни вкладок
+        document.addEventListener('tab-switched', function(event) {
+            if (event.detail && event.detail.tabType === 'social') {
+                console.log("DailyBonus: Перемикання на вкладку social");
+
+                // Перевіряємо видимість кнопки після переходу на вкладку social
+                setTimeout(checkAndRestoreButton, 300);
+            }
+        });
+
+        // Відправляємо запит на статус TaskManager
+        if (state.claimButtonElement) {
+            // Повідомляємо TaskManager про нашу кнопку
+            document.dispatchEvent(new CustomEvent('register-protected-button', {
+                detail: {
+                    buttonId: 'claim-daily',
+                    selector: '#claim-daily, .claim-button',
+                    role: 'claim-daily-bonus'
+                }
+            }));
+        }
     }
 
     /**
@@ -594,6 +923,19 @@ window.DailyBonus = (function() {
         if (state.claimButtonElement) {
             state.claimButtonElement.classList.remove('processing');
             state.claimButtonElement.disabled = false;
+        } else {
+            // Якщо посилання на кнопку втрачено, спробуємо знайти її в DOM
+            const button = document.getElementById('claim-daily');
+            if (button) {
+                button.classList.remove('processing');
+                button.disabled = false;
+
+                // Оновлюємо посилання
+                state.claimButtonElement = button;
+            } else {
+                // Якщо кнопку не знайдено, спробуємо відновити її
+                checkAndRestoreButton();
+            }
         }
     }
 
@@ -836,6 +1178,9 @@ window.DailyBonus = (function() {
         if (state.claimButtonElement) {
             state.claimButtonElement.disabled = true;
             state.claimButtonElement.textContent = 'Недоступно';
+        } else {
+            // Якщо кнопка відсутня, спробуємо створити її
+            createClaimButton();
         }
     }
 
@@ -852,23 +1197,23 @@ window.DailyBonus = (function() {
                 renderBackupUI();
                 return;
             }
-            // Перевіряємо наявність кнопки і створюємо її при необхідності
-        if (!state.claimButtonElement) {
-            state.claimButtonElement = document.getElementById('claim-daily');
-            // Якщо кнопки все ще немає, створюємо її
-            if (!state.claimButtonElement && state.containerElement) {
-                const bonusContainer = state.containerElement.querySelector('.daily-bonus');
-                if (bonusContainer) {
-                    state.claimButtonElement = document.createElement('button');
-                    state.claimButtonElement.id = 'claim-daily';
-                    state.claimButtonElement.className = 'claim-button';
-                    state.claimButtonElement.setAttribute('data-lang-key', 'earn.get');
-                    state.claimButtonElement.textContent = 'Отримати бонус';
-                    state.claimButtonElement.addEventListener('click', handleClaimButtonClick);
-                    bonusContainer.appendChild(state.claimButtonElement);
+
+            // ВИПРАВЛЕННЯ 5: Перевіряємо наявність кнопки і створюємо її при необхідності
+            if (!state.claimButtonElement) {
+                state.claimButtonElement = document.getElementById('claim-daily');
+                // Якщо кнопки все ще немає, створюємо її
+                if (!state.claimButtonElement) {
+                    createClaimButton();
                 }
             }
-        }
+
+            // Переконуємося, що кнопка видима
+            if (state.claimButtonElement) {
+                state.claimButtonElement.style.display = 'block';
+                state.claimButtonElement.style.visibility = 'visible';
+                state.claimButtonElement.style.opacity = '1';
+                state.claimButtonElement.style.pointerEvents = 'auto';
+            }
 
             // Очищаємо контейнер прогресу
             state.progressContainerElement.innerHTML = '';
@@ -962,21 +1307,35 @@ window.DailyBonus = (function() {
             updateClaimButton();
 
             console.log("DailyBonus: Інтерфейс успішно відображено");
-        if (state.claimButtonElement) {
-            state.claimButtonElement.style.display = 'block';
-            updateClaimButton();
+
+            // ВИПРАВЛЕННЯ 5: Остаточно переконуємося, що кнопка видима
+            if (state.claimButtonElement) {
+                state.claimButtonElement.style.display = 'block';
+                state.claimButtonElement.style.visibility = 'visible';
+                state.claimButtonElement.style.opacity = '1';
+                state.claimButtonElement.style.pointerEvents = 'auto';
+                updateClaimButton();
+            }
+        } catch (error) {
+            console.error("DailyBonus: Помилка відображення інтерфейсу:", error);
+            renderBackupUI();
         }
-    } catch (error) {
-        console.error("DailyBonus: Помилка відображення інтерфейсу:", error);
-        renderBackupUI();
     }
-}
 
     /**
      * Оновлення стану кнопки отримання бонусу
      */
     function updateClaimButton() {
-        if (!state.claimButtonElement) return;
+        if (!state.claimButtonElement) {
+            // Пробуємо знайти кнопку в DOM
+            state.claimButtonElement = document.getElementById('claim-daily');
+
+            // Якщо кнопки все ще немає, виходимо
+            if (!state.claimButtonElement) {
+                console.warn("DailyBonus: Кнопка бонусу не знайдена при оновленні");
+                return;
+            }
+        }
 
         // Перевіряємо чи є дані про бонус
         if (!state.bonusData) {
@@ -998,10 +1357,12 @@ window.DailyBonus = (function() {
             state.claimButtonElement.disabled = false;
             state.claimButtonElement.textContent = `Отримати бонус${tokenText}`;
             state.claimButtonElement.classList.remove('disabled');
+            state.claimButtonElement.style.opacity = '1';
         } else {
             state.claimButtonElement.disabled = true;
             state.claimButtonElement.textContent = 'Вже отримано';
             state.claimButtonElement.classList.add('disabled');
+            state.claimButtonElement.style.opacity = '0.7';
         }
     }
 
@@ -1104,22 +1465,22 @@ window.DailyBonus = (function() {
 
                 // Показуємо повідомлення про успіх
                 if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
-    window.UI.Notifications.showSuccess(rewardMessage);
-} else if (typeof window.showToast === 'function') {
-    // Використовуйте кастомну реалізацію toast для успіху
-    const toastElement = document.getElementById('toast-message');
-    if (toastElement) {
-        toastElement.textContent = rewardMessage;
-        toastElement.className = 'toast-message success show';
+                    window.UI.Notifications.showSuccess(rewardMessage);
+                } else if (typeof window.showToast === 'function') {
+                    // Використовуйте кастомну реалізацію toast для успіху
+                    const toastElement = document.getElementById('toast-message');
+                    if (toastElement) {
+                        toastElement.textContent = rewardMessage;
+                        toastElement.className = 'toast-message success show';
 
-        setTimeout(() => {
-            toastElement.classList.remove('show');
-            setTimeout(() => {
-                toastElement.className = 'toast-message';
-            }, 300);
-        }, 3000);
-    }
-}
+                        setTimeout(() => {
+                            toastElement.classList.remove('show');
+                            setTimeout(() => {
+                                toastElement.className = 'toast-message';
+                            }, 300);
+                        }, 3000);
+                    }
+                }
 
                 // Оновлюємо баланс користувача негайно
                 if (response.data.reward) {
@@ -1132,14 +1493,14 @@ window.DailyBonus = (function() {
                 }
 
                 // Показуємо анімацію винагороди через спеціальний метод
-if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
-    window.UI.Animations.showDailyBonusReward(
-        response.data.reward,
-        response.data.token_amount,
-        response.data.cycle_completed,
-        response.data.completion_bonus
-    );
-}
+                if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
+                    window.UI.Animations.showDailyBonusReward(
+                        response.data.reward,
+                        response.data.token_amount,
+                        response.data.cycle_completed,
+                        response.data.completion_bonus
+                    );
+                }
 
                 // Відправляємо подію про отримання бонусу
                 document.dispatchEvent(new CustomEvent('daily-bonus-claimed', {
@@ -1300,7 +1661,11 @@ if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
             lastLoaded: state.lastLoaded,
             isLoading: state.isLoading,
             pendingOperation: state.pendingOperation,
-            lastError: state.lastError
+            lastError: state.lastError,
+            hasContainer: !!state.containerElement,
+            hasButton: !!state.claimButtonElement,
+            hasProgressContainer: !!state.progressContainerElement,
+            taskManagerReady: state.taskManagerReady
         };
     }
 
@@ -1314,6 +1679,27 @@ if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
         console.log("DailyBonus: Кеш скинуто");
     }
 
+    // Підписка на події DOM для автоматичного запуску
+    document.addEventListener('DOMContentLoaded', function() {
+        // Відкладена ініціалізація для уникнення блокування рендерингу сторінки
+        setTimeout(function() {
+            if (!state.isInitialized) {
+                console.log("DailyBonus: Автоматичний запуск ініціалізації");
+                init();
+            }
+        }, 500);
+    });
+
+    // Якщо DOM вже завантажено, запускаємо ініціалізацію негайно
+    if (document.readyState !== 'loading') {
+        setTimeout(function() {
+            if (!state.isInitialized) {
+                console.log("DailyBonus: Запуск ініціалізації, DOM вже готовий");
+                init();
+            }
+        }, 100);
+    }
+
     // Публічний API
     return {
         init,
@@ -1325,16 +1711,19 @@ if (response.data.reward && window.UI?.Animations?.showDailyBonusReward) {
         showInfoModal,
         hideInfoModal,
         updateUserBalance,
-        updateUserCoins
+        updateUserCoins,
+        notifyTaskManagerReady,
+        checkAndRestoreButton,
+        // Додатковий метод для надійного оновлення кнопки
+        ensureButtonVisible: function() {
+            if (state.claimButtonElement) {
+                state.claimButtonElement.style.display = 'block';
+                state.claimButtonElement.style.visibility = 'visible';
+                state.claimButtonElement.style.opacity = '1';
+                updateClaimButton();
+            } else {
+                checkAndRestoreButton();
+            }
+        }
     };
 })();
-
-// Автоматична ініціалізація, якщо можливо
-document.addEventListener('DOMContentLoaded', function() {
-    // Відкладена ініціалізація для уникнення блокування рендерингу сторінки
-    setTimeout(function() {
-        if (window.DailyBonus && !window.DailyBonus.isInitialized) {
-            window.DailyBonus.init();
-        }
-    }, 100);
-});
