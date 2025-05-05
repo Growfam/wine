@@ -217,6 +217,129 @@ window.TaskManager = (function() {
         document.dispatchEvent(new CustomEvent('taskmanager-initialized'));
     }
 
+// Видалення кнопок "Запросити друзів"
+function removeInviteButtons() {
+    // Шукаємо всі елементи, які можуть бути кнопками запрошення
+    const buttonSelectors = [
+        'button:contains("Запросити друзів")',
+        '.action-button[data-action="invite"]',
+        '.invite-friends-button',
+        '.referral-button',
+        'a.invite-button',
+        '[data-lang-key="earn.invite_friends"]'
+    ];
+
+    // Набір селекторів для jQuery або querySelector
+    for (const selector of buttonSelectors) {
+        try {
+            // jQuery варіант, якщо доступний
+            if (window.jQuery) {
+                jQuery(selector).hide();
+            }
+            // Нативний JavaScript варіант
+            else {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
+        } catch (e) {
+            console.warn('Помилка при спробі приховати кнопки:', e);
+        }
+    }
+
+    // Шукаємо прямі елементи за текстом
+    document.querySelectorAll('button, a').forEach(el => {
+        if (el.textContent.includes('Запросити друзів') ||
+            el.textContent.includes('запросити друзів')) {
+            el.style.display = 'none';
+        }
+    });
+
+    console.log('Кнопки запрошення друзів приховано');
+}
+
+// Відстеження DOM для видалення кнопок при динамічному рендерингу
+function setupButtonObserver() {
+    // Перевіряємо підтримку MutationObserver
+    if (!window.MutationObserver) return;
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRemove = false;
+
+        // Перевіряємо, чи додано кнопки "Запросити друзів"
+        mutations.forEach(mutation => {
+            if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                shouldRemove = true;
+            }
+        });
+
+        // Якщо додано нові елементи, перевіряємо і видаляємо кнопки
+        if (shouldRemove) {
+            removeInviteButtons();
+        }
+    });
+
+    // Спостерігаємо за всім документом
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+
+    console.log('Спостерігач за кнопками запрошення налаштовано');
+}
+
+// Викликаємо функцію видалення кнопок
+removeInviteButtons();
+
+// Налаштовуємо спостереження за DOM для динамічно доданих кнопок
+setupButtonObserver();
+
+// Обробка прогрес-барів для автоматичного виконання завдань
+function setupProgressTracking() {
+    // Перевіряємо прогрес-бари кожні 2 секунди
+    setInterval(() => {
+        // Шукаємо всі прогрес-бари в реферальних завданнях
+        const progressBars = document.querySelectorAll('.task-item[data-task-type="referral"] .progress-fill');
+
+        progressBars.forEach(bar => {
+            // Отримуємо поточний прогрес
+            const width = parseInt(bar.style.width) || 0;
+
+            // Якщо прогрес 100% або більше, позначаємо завдання як виконане
+            if (width >= 100) {
+                // Додаємо клас для анімації
+                bar.classList.add('complete');
+
+                // Знаходимо батьківський елемент завдання
+                const taskItem = bar.closest('.task-item');
+                if (taskItem && !taskItem.classList.contains('completed')) {
+                    // Позначаємо як виконане
+                    taskItem.classList.add('completed');
+
+                    // Знаходимо кнопку дії та замінюємо її
+                    const actionDiv = taskItem.querySelector('.task-action');
+                    if (actionDiv) {
+                        actionDiv.innerHTML = '<div class="completed-label">Виконано</div>';
+                    }
+
+                    // Викликаємо подію виконання завдання
+                    const taskId = taskItem.getAttribute('data-task-id');
+                    if (taskId) {
+                        document.dispatchEvent(new CustomEvent('task-completed', {
+                            detail: { taskId, automatic: true }
+                        }));
+                    }
+                }
+            }
+        });
+    }, 2000);
+
+    console.log('Відстеження прогресу завдань налаштовано');
+}
+
+// Запускаємо відстеження прогресу
+setupProgressTracking();
+
     /**
      * Знаходження DOM-елементів
      */
