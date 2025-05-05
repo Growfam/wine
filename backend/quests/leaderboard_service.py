@@ -43,21 +43,41 @@ class LeaderboardService:
             List[Dict[str, Any]]: Список користувачів з їх статистикою рефералів
         """
         try:
+            # Перевіряємо правильність вхідних параметрів
+            if limit <= 0 or limit > 100:
+                logger.warning(f"Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
+                limit = 10
+
+            if offset < 0:
+                logger.warning(f"Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
+                offset = 0
+
             # Запит до бази даних
             # Використовуємо функцію SQL для підрахунку рефералів
-            # Ця функція має бути створена у базі даних (приклад схеми нижче)
-            response = supabase.rpc('get_referrals_leaderboard', {
-                'result_limit': limit,
-                'result_offset': offset
-            }).execute()
+            try:
+                response = supabase.rpc('get_referrals_leaderboard', {
+                    'result_limit': limit,
+                    'result_offset': offset
+                }).execute()
 
-            if not response.data:
-                logger.info("Лідерборд рефералів не має записів")
-                return []
+                if not response.data:
+                    logger.info("Лідерборд рефералів не має записів")
+                    return []
 
-            leaderboard = response.data
-            logger.info(f"Отримано {len(leaderboard)} записів з лідерборду рефералів")
-            return leaderboard
+                leaderboard = response.data
+
+                # Додаємо поле reward для кожного запису лідерборду (бали за запрошених)
+                for entry in leaderboard:
+                    # За кожного реферала нараховується 50 одиниць винагороди
+                    referrals_count = entry.get("referrals_count", 0)
+                    entry["reward"] = referrals_count * 50
+
+                logger.info(f"Отримано {len(leaderboard)} записів з лідерборду рефералів")
+                return leaderboard
+            except Exception as e:
+                logger.error(f"Помилка при виконанні SQL-функції get_referrals_leaderboard: {str(e)}")
+                raise
+
         except Exception as e:
             logger.error(f"Помилка при отриманні лідерборду рефералів: {str(e)}")
 
@@ -83,10 +103,11 @@ class LeaderboardService:
 
                     # Додаємо запис до лідерборду
                     leaderboard.append({
-                        "telegram_id": telegram_id,
+                        "id": telegram_id,  # ВИПРАВЛЕНО: Змінено поле "telegram_id" на "id" для сумісності з фронтендом
                         "username": user.get("username", "Користувач"),
                         "referrals_count": referrals_count,
-                        "referral_code": user.get("referral_code", "")
+                        "referral_code": user.get("referral_code", ""),
+                        "reward": referrals_count * 50  # За кожного реферала 50 одиниць винагороди
                     })
 
                 # Сортуємо за кількістю рефералів (спочатку найбільше)
@@ -120,24 +141,51 @@ class LeaderboardService:
             List[Dict[str, Any]]: Список користувачів з їх статистикою завдань
         """
         try:
+            # Перевіряємо правильність вхідних параметрів
+            if limit <= 0 or limit > 100:
+                logger.warning(f"Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
+                limit = 10
+
+            if offset < 0:
+                logger.warning(f"Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
+                offset = 0
+
+            if days <= 0 or days > 365:
+                logger.warning(f"Невалідний параметр days: {days}, використовуємо значення за замовчуванням 30")
+                days = 30
+
             # Визначаємо дату початку періоду
             start_date = (datetime.now() - timedelta(days=days)).isoformat()
 
             # Запит до бази даних
             # Використовуємо функцію SQL для отримання статистики завдань
-            response = supabase.rpc('get_tasks_leaderboard', {
-                'result_limit': limit,
-                'result_offset': offset,
-                'start_date': start_date
-            }).execute()
+            try:
+                response = supabase.rpc('get_tasks_leaderboard', {
+                    'result_limit': limit,
+                    'result_offset': offset,
+                    'start_date': start_date
+                }).execute()
 
-            if not response.data:
-                logger.info("Лідерборд завдань не має записів")
-                return []
+                if not response.data:
+                    logger.info("Лідерборд завдань не має записів")
+                    return []
 
-            leaderboard = response.data
-            logger.info(f"Отримано {len(leaderboard)} записів з лідерборду завдань")
-            return leaderboard
+                leaderboard = response.data
+
+                # Додаємо поле reward для кожного запису лідерборду (бали за виконані завдання)
+                for entry in leaderboard:
+                    # За кожне завдання нараховується 30 одиниць винагороди
+                    tasks_completed = entry.get("tasks_completed", 0)
+                    entry["reward"] = tasks_completed * 30
+                    # ВИПРАВЛЕНО: Змінено поле "telegram_id" на "id" для сумісності з фронтендом
+                    entry["id"] = entry.pop("telegram_id") if "telegram_id" in entry else None
+
+                logger.info(f"Отримано {len(leaderboard)} записів з лідерборду завдань")
+                return leaderboard
+            except Exception as e:
+                logger.error(f"Помилка при виконанні SQL-функції get_tasks_leaderboard: {str(e)}")
+                raise
+
         except Exception as e:
             logger.error(f"Помилка при отриманні лідерборду завдань: {str(e)}")
 
@@ -183,9 +231,10 @@ class LeaderboardService:
                 for telegram_id, tasks_count in user_tasks.items():
                     user_data = users_dict.get(telegram_id, {"username": "Користувач"})
                     leaderboard.append({
-                        "telegram_id": telegram_id,
+                        "id": telegram_id,  # ВИПРАВЛЕНО: Змінено поле для сумісності з фронтендом
                         "username": user_data.get("username", "Користувач"),
-                        "tasks_completed": tasks_count
+                        "tasks_completed": tasks_count,
+                        "reward": tasks_count * 30  # За кожне завдання 30 одиниць винагороди
                     })
 
                 # Сортуємо за кількістю завдань (спочатку найбільше)
@@ -218,6 +267,15 @@ class LeaderboardService:
             List[Dict[str, Any]]: Список користувачів з їх балансом
         """
         try:
+            # Перевіряємо правильність вхідних параметрів
+            if limit <= 0 or limit > 100:
+                logger.warning(f"Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
+                limit = 10
+
+            if offset < 0:
+                logger.warning(f"Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
+                offset = 0
+
             # Запит до бази даних
             response = supabase.table("winix") \
                 .select("telegram_id,username,balance") \
@@ -230,7 +288,16 @@ class LeaderboardService:
                 logger.info("Лідерборд балансу не має записів")
                 return []
 
-            leaderboard = response.data
+            # Перетворення формату даних для сумісності з інтерфейсом
+            leaderboard = []
+            for user in response.data:
+                leaderboard.append({
+                    "id": user.get("telegram_id"),  # ВИПРАВЛЕНО: Змінено поле для сумісності з фронтендом
+                    "username": user.get("username", "Користувач"),
+                    "balance": user.get("balance", 0),
+                    "reward": user.get("balance", 0)  # Балас з поля reward для сумісності з іншими лідербордами
+                })
+
             logger.info(f"Отримано {len(leaderboard)} записів з лідерборду балансу")
             return leaderboard
         except Exception as e:
@@ -266,7 +333,7 @@ class LeaderboardService:
 
                 # Знаходимо позицію користувача
                 for i, entry in enumerate(full_leaderboard):
-                    if entry.get("telegram_id") == telegram_id:
+                    if entry.get("id") == telegram_id or entry.get("telegram_id") == telegram_id:
                         return {
                             "position": i + 1,
                             "total": len(full_leaderboard),
@@ -302,7 +369,7 @@ class LeaderboardService:
 
                 # Знаходимо позицію користувача
                 for i, entry in enumerate(full_leaderboard):
-                    if entry.get("telegram_id") == telegram_id:
+                    if entry.get("id") == telegram_id or entry.get("telegram_id") == telegram_id:
                         return {
                             "position": i + 1,
                             "total": len(full_leaderboard),

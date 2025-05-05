@@ -1,7 +1,6 @@
 /**
  * API Connectivity Helpers - Набір функцій для забезпечення стабільного з'єднання з API
- * Виявляє та вирішує проблеми з підключенням до API
- * Оптимізовано для системи щоденних бонусів і запобігання дублюванню запитів
+ * Оптимізована версія зі спрощеною обробкою помилок та без надмірних механізмів CORS
  */
 
 window.APIConnectivity = (function() {
@@ -12,11 +11,8 @@ window.APIConnectivity = (function() {
         lastCheck: 0,
         failedEndpoints: {},
         successfulEndpoints: {},
-        fallbackMode: false,
-        checkInterval: null,
         pendingRequests: new Map(), // Зберігаємо активні запити для запобігання дублюванню
-        requestHistory: {},         // Історія успішних запитів для аналізу
-        serverTimeOffset: 0         // Різниця між часом сервера і клієнта
+        requestHistory: {}          // Історія успішних запитів для аналізу
     };
 
     // Конфігурація
@@ -24,14 +20,10 @@ window.APIConnectivity = (function() {
         // Список критичних ендпоінтів для перевірки доступності API
         criticalEndpoints: [
             'api/ping',
-            'api/user/{userId}',
-            'api/user/{userId}/daily-bonus',
-            'api/quests/tasks/social'
+            'api/user/{userId}'
         ],
         // Інтервал перевірки API у мілісекундах
         checkIntervalTime: 60000, // 1 хвилина
-        // Кількість послідовних помилок для переходу в режим fallback
-        maxConsecutiveFailures: 3,
         // Таймаут для запитів перевірки
         checkTimeout: 5000,
         // Таймаут для звичайних запитів
@@ -40,8 +32,6 @@ window.APIConnectivity = (function() {
         maxRetries: 2,
         // Початкова затримка між повторними спробами (мс)
         retryDelay: 1000,
-        // Чи використовувати експоненційне збільшення затримки
-        useExponentialBackoff: true,
         // Чи запобігати дублюванню паралельних запитів
         preventDuplicateRequests: true,
         // Час життя блокування паралельних запитів (мс)
@@ -83,11 +73,6 @@ window.APIConnectivity = (function() {
         // Початкова перевірка API
         checkAPIAvailability();
 
-        // Синхронізуємо час з сервером
-        if (state.isOnline) {
-            synchronizeServerTime();
-        }
-
         // Очищаємо застарілі елементи кешу
         cleanupCache();
     }
@@ -118,51 +103,6 @@ window.APIConnectivity = (function() {
     }
 
     /**
-     * Синхронізація часу з сервером
-     */
-    async function synchronizeServerTime() {
-        try {
-            const startTime = Date.now();
-            const response = await fetch(getApiBaseUrl() + '/api/ping?' + Date.now(), {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                },
-                timeout: config.checkTimeout
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const endTime = Date.now();
-                const roundTripTime = endTime - startTime;
-
-                // Отримуємо час сервера
-                if (data && data.timestamp) {
-                    const serverTime = new Date(data.timestamp).getTime();
-                    const clientTime = startTime + (roundTripTime / 2);
-
-                    // Обчислюємо різницю
-                    state.serverTimeOffset = serverTime - clientTime;
-
-                    if (config.debug) {
-                        console.log(`APIConnectivity: Синхронізовано час. Зміщення: ${state.serverTimeOffset}мс, RTT: ${roundTripTime}мс`);
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn("APIConnectivity: Помилка синхронізації часу:", error);
-        }
-    }
-
-    /**
-     * Отримання поточного часу сервера
-     * @returns {number} Поточний час сервера у мілісекундах
-     */
-    function getServerTime() {
-        return Date.now() + state.serverTimeOffset;
-    }
-
-    /**
      * Обробник події відновлення з'єднання
      */
     function handleOnline() {
@@ -176,9 +116,6 @@ window.APIConnectivity = (function() {
 
         // Перевіряємо доступність API
         checkAPIAvailability();
-
-        // Синхронізуємо час
-        synchronizeServerTime();
     }
 
     /**
@@ -235,129 +172,32 @@ window.APIConnectivity = (function() {
         const userId = getUserId();
 
         try {
-            // Функція для перевірки одного ендпоінту
-            async function checkEndpoint(endpoint) {
-                // Замінюємо placeholder userId, якщо потрібно
-                const formattedEndpoint = userId ?
-                    endpoint.replace('{userId}', userId) :
-                    endpoint;
+            // Виконуємо простий запит до API
+            const pingUrl = getApiUrl('api/ping');
+            const response = await fetch(pingUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: config.checkTimeout
+            });
 
-                try {
-                    if (config.debug) {
-                        console.log(`APIConnectivity: Перевірка ендпоінту ${formattedEndpoint}`);
-                    }
-
-                    // Створюємо URL для запиту
-                    let url = getApiUrl(formattedEndpoint);
-
-                    // Додаємо параметр для запобігання кешуванню
-                    url += (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
-
-                    // Виконуємо запит з обмеженим таймаутом
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), config.checkTimeout);
-
-                    const response = await fetch(url, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json'
-                        },
-                        signal: controller.signal
-                    });
-
-                    // Очищаємо таймаут
-                    clearTimeout(timeoutId);
-
-                    // Перевіряємо статус відповіді
-                    const success = response.ok || response.status === 404; // 404 може бути валідною відповіддю для неіснуючого ресурсу
-
-                    // Оновлюємо стан ендпоінту
-                    if (success) {
-                        // Скидаємо лічильник помилок
-                        delete state.failedEndpoints[endpoint];
-
-                        // Додаємо до успішних ендпоінтів
-                        state.successfulEndpoints[endpoint] = {
-                            timestamp: now,
-                            status: response.status
-                        };
-                    } else {
-                        // Збільшуємо лічильник помилок
-                        state.failedEndpoints[endpoint] = (state.failedEndpoints[endpoint] || 0) + 1;
-
-                        console.warn(`APIConnectivity: Помилка перевірки ендпоінту ${formattedEndpoint}: ${response.status}`);
-                    }
-
-                    return success;
-                } catch (error) {
-                    // Збільшуємо лічильник помилок
-                    state.failedEndpoints[endpoint] = (state.failedEndpoints[endpoint] || 0) + 1;
-
-                    console.error(`APIConnectivity: Помилка перевірки ендпоінту ${formattedEndpoint}:`, error);
-                    return false;
-                }
-            }
-
-            // Перевіряємо всі критичні ендпоінти
-            const results = await Promise.all(config.criticalEndpoints.map(checkEndpoint));
-
-            // Визначаємо загальну доступність API
-            // API вважається доступним, якщо хоча б 50% ендпоінтів працюють
-            const successCount = results.filter(Boolean).length;
-            const successRate = successCount / config.criticalEndpoints.length;
-
+            // Оновлюємо стан API
             const wasAvailable = state.apiAvailable;
-            state.apiAvailable = successRate >= 0.5;
+            state.apiAvailable = response.ok;
 
-            // Перевіряємо критичні помилки
-            const hasCriticalFailures = Object.values(state.failedEndpoints).some(count => count >= config.maxConsecutiveFailures);
-
-            // Якщо є критичні помилки, вмикаємо режим fallback
-            if (hasCriticalFailures && !state.fallbackMode) {
-                console.warn("APIConnectivity: Виявлено критичні помилки API, вмикаємо режим fallback");
-                state.fallbackMode = true;
-
-                // Відправляємо подію про перехід у режим fallback
-                document.dispatchEvent(new CustomEvent('api-fallback-mode-changed', {
-                    detail: { enabled: true }
-                }));
-            }
-
-            // Якщо API стан змінився, відправляємо подію
+            // Якщо стан змінився, відправляємо подію
             if (wasAvailable !== state.apiAvailable) {
-                console.log(`APIConnectivity: Стан API змінився на ${state.apiAvailable ? 'доступний' : 'недоступний'}`);
-
                 document.dispatchEvent(new CustomEvent('api-availability-changed', {
-                    detail: {
-                        available: state.apiAvailable,
-                        successRate: successRate
-                    }
+                    detail: { available: state.apiAvailable }
                 }));
-
-                // Якщо API став доступним і був увімкнений режим fallback, вимикаємо його
-                if (state.apiAvailable && state.fallbackMode) {
-                    console.log("APIConnectivity: API знову доступний, вимикаємо режим fallback");
-                    state.fallbackMode = false;
-
-                    // Відправляємо подію про вимкнення режиму fallback
-                    document.dispatchEvent(new CustomEvent('api-fallback-mode-changed', {
-                        detail: { enabled: false }
-                    }));
-
-                    // Очищаємо лічильники помилок
-                    state.failedEndpoints = {};
-                }
-            }
-
-            if (config.debug) {
-                console.log(`APIConnectivity: Перевірка завершена, успішність: ${Math.round(successRate * 100)}%`);
             }
 
             return state.apiAvailable;
         } catch (error) {
-            console.error("APIConnectivity: Критична помилка перевірки API:", error);
+            console.error("APIConnectivity: Помилка перевірки API:", error);
 
-            // У випадку критичної помилки вважаємо, що API недоступний
+            // У випадку помилки вважаємо, що API недоступний
             const wasAvailable = state.apiAvailable;
             state.apiAvailable = false;
 
@@ -373,50 +213,6 @@ window.APIConnectivity = (function() {
     }
 
     /**
-     * Примусовий перехід у fallback режим
-     * @param {boolean} enable - Увімкнути (true) або вимкнути (false) режим
-     */
-    function setFallbackMode(enable) {
-        if (state.fallbackMode !== enable) {
-            state.fallbackMode = enable;
-            console.log(`APIConnectivity: ${enable ? 'Увімкнено' : 'Вимкнено'} режим fallback вручну`);
-
-            // Відправляємо подію
-            document.dispatchEvent(new CustomEvent('api-fallback-mode-changed', {
-                detail: { enabled: enable, manual: true }
-            }));
-        }
-    }
-
-    /**
-     * Перевірка чи працює конкретний ендпоінт
-     * @param {string} endpoint - Ендпоінт для перевірки
-     * @returns {boolean} Результат перевірки
-     */
-    function isEndpointAvailable(endpoint) {
-        // Спочатку перевіряємо загальну доступність API
-        if (!state.apiAvailable) {
-            return false;
-        }
-
-        // Якщо ендпоінт нещодавно позначено як працюючий, повертаємо true
-        if (state.successfulEndpoints[endpoint]) {
-            const age = Date.now() - state.successfulEndpoints[endpoint].timestamp;
-            if (age < config.checkIntervalTime * 2) {
-                return true;
-            }
-        }
-
-        // Якщо ендпоінт має критичні помилки, повертаємо false
-        if (state.failedEndpoints[endpoint] >= config.maxConsecutiveFailures) {
-            return false;
-        }
-
-        // За замовчуванням вважаємо, що ендпоінт доступний
-        return true;
-    }
-
-    /**
      * Отримання стану API з'єднання
      * @returns {Object} Стан API з'єднання
      */
@@ -426,10 +222,8 @@ window.APIConnectivity = (function() {
             apiAvailable: state.apiAvailable,
             failedEndpoints: { ...state.failedEndpoints },
             successfulEndpoints: { ...state.successfulEndpoints },
-            fallbackMode: state.fallbackMode,
             lastCheck: state.lastCheck,
             timeSinceLastCheck: Date.now() - state.lastCheck,
-            serverTimeOffset: state.serverTimeOffset,
             pendingRequestsCount: state.pendingRequests.size,
             cacheSize: responseCache.size
         };
@@ -515,17 +309,7 @@ window.APIConnectivity = (function() {
                 return null;
             },
 
-            // 3. Telegram WebView Proxy
-            () => {
-                if (window.telegramWebviewProxy &&
-                    window.telegramWebviewProxy.initDataUnsafe &&
-                    window.telegramWebviewProxy.initDataUnsafe.user) {
-                    return window.telegramWebviewProxy.initDataUnsafe.user.id.toString();
-                }
-                return null;
-            },
-
-            // 4. User data з localStorage
+            // 3. User data з localStorage
             () => {
                 try {
                     const userData = localStorage.getItem('user_data');
@@ -539,7 +323,7 @@ window.APIConnectivity = (function() {
                 return null;
             },
 
-            // 5. Telegram ID з localStorage
+            // 4. Telegram ID з localStorage
             () => {
                 try {
                     return localStorage.getItem('telegram_user_id');
@@ -547,7 +331,7 @@ window.APIConnectivity = (function() {
                 return null;
             },
 
-            // 6. DOM-елемент user-id
+            // 5. DOM-елемент user-id
             () => {
                 const userIdElement = document.getElementById('user-id');
                 if (userIdElement && userIdElement.textContent) {
@@ -556,7 +340,7 @@ window.APIConnectivity = (function() {
                 return null;
             },
 
-            // 7. URL-параметри
+            // 6. URL-параметри
             () => {
                 try {
                     const urlParams = new URLSearchParams(window.location.search);
@@ -565,17 +349,7 @@ window.APIConnectivity = (function() {
                 return null;
             },
 
-            // 8. Глобальна функція getUserId
-            () => {
-                if (window.getUserId && typeof window.getUserId === 'function') {
-                    try {
-                        return window.getUserId();
-                    } catch (e) {}
-                }
-                return null;
-            },
-
-            // 9. WinixAPI, якщо доступний
+            // 7. WinixAPI, якщо доступний
             () => {
                 if (window.WinixAPI && window.WinixAPI.getUserId) {
                     try {
@@ -677,9 +451,6 @@ window.APIConnectivity = (function() {
         // Логуємо запит
         if (config.debug) {
             console.log(`APIConnectivity: Виконується запит ${requestOptions.method} ${url}`);
-            if (requestOptions.data) {
-                console.log("APIConnectivity: Дані запиту:", requestOptions.data);
-            }
         }
 
         // Виконуємо запит з повторними спробами
@@ -711,6 +482,12 @@ window.APIConnectivity = (function() {
 
                     // Встановлюємо таймаут
                     const timeoutId = setTimeout(() => controller.abort(), requestOptions.timeout);
+
+                    // Додаємо ID користувача в заголовок, якщо він є
+                    const userId = getUserId();
+                    if (userId) {
+                        fetchOptions.headers['X-Telegram-User-Id'] = userId;
+                    }
 
                     // Виконуємо запит
                     const response = await fetch(url, fetchOptions);
@@ -746,10 +523,6 @@ window.APIConnectivity = (function() {
                                 expiresAt: Date.now() + config.responseCacheTime,
                                 timestamp: Date.now()
                             });
-
-                            if (config.debug) {
-                                console.log(`APIConnectivity: Кешовано відповідь для ${url}`);
-                            }
                         }
 
                         // Зберігаємо статистику успішних запитів
@@ -809,10 +582,8 @@ window.APIConnectivity = (function() {
 
                 await new Promise(resolve => setTimeout(resolve, delayMs));
 
-                // Збільшуємо затримку для наступної спроби при експоненційному відтермінуванні
-                if (config.useExponentialBackoff) {
-                    delayMs *= 2;
-                }
+                // Збільшуємо затримку для наступної спроби
+                delayMs *= 1.5;
             }
 
             // Якщо всі спроби невдалі, викидаємо останню помилку
@@ -902,10 +673,6 @@ window.APIConnectivity = (function() {
         Object.keys(newConfig).forEach(key => {
             if (key in config) {
                 config[key] = newConfig[key];
-
-                if (config.debug) {
-                    console.log(`APIConnectivity: Оновлено конфігурацію: ${key} = ${newConfig[key]}`);
-                }
             }
         });
 
@@ -923,20 +690,15 @@ window.APIConnectivity = (function() {
         init,
         apiRequest,
         checkAPIAvailability,
-        isEndpointAvailable,
-        setFallbackMode,
         getConnectionState,
         resetFailureCounters,
         forceCheck,
         getUserId,
-        getServerTime,
         clearResponseCache,
         getRequestStats,
         updateConfig,
-        synchronizeServerTime,
 
         // Безпосередній доступ до стану
-        isFallbackMode: () => state.fallbackMode,
         isAPIAvailable: () => state.apiAvailable,
         isOnline: () => state.isOnline
     };
@@ -944,6 +706,5 @@ window.APIConnectivity = (function() {
 
 // Ініціалізуємо систему при завантаженні сторінки
 document.addEventListener('DOMContentLoaded', function() {
-    // Ініціалізуємо тільки якщо цей модуль увімкнено
     window.APIConnectivity.init();
 });

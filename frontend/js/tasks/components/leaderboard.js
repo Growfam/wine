@@ -14,6 +14,7 @@ window.Leaderboard = (function() {
     let currentUserId = null;
     let currentLanguage = 'uk';
     let isLoading = false;
+    let lastError = null;
 
     // DOM-елементи
     const leaderboardContainer = document.getElementById('leaderboard-container');
@@ -31,7 +32,9 @@ window.Leaderboard = (function() {
         REFERRALS: 'earn.leaderboard.referrals',
         REWARD: 'earn.leaderboard.reward',
         RETRY: 'earn.leaderboard.retry',
-        ERROR: 'earn.leaderboard.error'
+        ERROR: 'earn.leaderboard.error',
+        NO_DATA: 'earn.leaderboard.no_data',
+        CONNECTION_ERROR: 'earn.leaderboard.connection_error'
     };
 
     /**
@@ -201,6 +204,7 @@ window.Leaderboard = (function() {
         if (isLoading) return;
 
         isLoading = true;
+        lastError = null;
 
         // Показуємо індикатор завантаження
         showLoadingIndicator();
@@ -218,43 +222,93 @@ window.Leaderboard = (function() {
                 try {
                     const response = await window.API.get('/leaderboard/referrals');
 
-                    if (response && response.success && response.data) {
-                        leaderboardData = response.data;
+                    if (response && response.status === 'success' && response.data && response.data.leaderboard) {
+                        leaderboardData = response.data.leaderboard;
                         // Кешуємо отримані дані
                         cacheLeaderboardData();
                         renderLeaderboard();
                         return leaderboardData;
                     } else {
                         console.warn('API повернув неочікувану відповідь:', response);
+                        // Зберігаємо інформацію про помилку
+                        lastError = {
+                            code: 'INVALID_RESPONSE',
+                            message: response?.message || 'Сервер повернув неочікувану відповідь',
+                            response: response
+                        };
+
+                        // Якщо в кеші є дані, продовжуємо їх використовувати, але показуємо повідомлення
+                        if (leaderboardData && leaderboardData.length > 0) {
+                            renderLeaderboard();
+                            showErrorMessage('Не вдалося оновити дані рейтингу. Показано збережені дані.');
+                        } else {
+                            // Якщо в кеші немає даних, показуємо помилку
+                            showErrorView(lastError);
+                        }
                     }
                 } catch (apiError) {
                     console.error('Помилка запиту до API лідерської дошки:', apiError);
+                    lastError = {
+                        code: 'API_ERROR',
+                        message: apiError.message || 'Не вдалося завантажити дані рейтингу',
+                        originalError: apiError
+                    };
+
+                    // Якщо в кеші є дані, продовжуємо їх використовувати, але показуємо повідомлення
+                    if (leaderboardData && leaderboardData.length > 0) {
+                        renderLeaderboard();
+                        showErrorMessage('Не вдалося оновити дані рейтингу. Показано збережені дані.');
+                    } else {
+                        // Якщо в кеші немає даних, показуємо помилку
+                        showErrorView(lastError);
+                    }
+                }
+            } else {
+                // API недоступне
+                lastError = {
+                    code: 'API_UNAVAILABLE',
+                    message: 'API недоступне',
+                };
+
+                // Якщо в кеші є дані, продовжуємо їх використовувати
+                if (leaderboardData && leaderboardData.length > 0) {
+                    renderLeaderboard();
+                } else {
+                    // Якщо в кеші немає даних, показуємо помилку
+                    showErrorView(lastError);
                 }
             }
-
-            // Якщо дані вже були завантажені з кешу, не показуємо заглушку
-            if (leaderboardData.length > 0) {
-                renderLeaderboard();
-                return leaderboardData;
-            }
-
-            // Якщо не вдалося отримати дані з API або кешу, використовуємо моковані дані
-            const mockData = getMockLeaderboardData();
-            leaderboardData = mockData;
-            renderLeaderboard();
 
             return leaderboardData;
         } catch (error) {
             console.error('Помилка завантаження лідерської дошки:', error);
+            lastError = {
+                code: 'UNEXPECTED_ERROR',
+                message: error.message || 'Неочікувана помилка при завантаженні даних',
+                originalError: error
+            };
 
-            // У випадку помилки відображаємо заглушку
-            showFallbackLeaderboard();
+            // У випадку помилки відображаємо інтерфейс помилки
+            showErrorView(lastError);
 
             return [];
         } finally {
             // Приховуємо індикатор завантаження
             hideLoadingIndicator();
             isLoading = false;
+        }
+    }
+
+    /**
+     * Відображення повідомлення про помилку
+     * @param {string} message - Текст повідомлення
+     */
+    function showErrorMessage(message) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, 'warning');
+        } else {
+            // Запасний варіант, якщо функція showToast не доступна
+            alert(message);
         }
     }
 
@@ -363,50 +417,6 @@ window.Leaderboard = (function() {
     }
 
     /**
-     * Функція для отримання мокованих даних
-     */
-    function getMockLeaderboardData() {
-        // Генеруємо ID поточного користувача, якщо його немає
-        if (!currentUserId) {
-            currentUserId = "7066583465";
-        }
-
-        // Базовий набір даних
-        const mockUsers = [
-            { id: "9876543210", username: "CryptoWhale", referrals_count: 153, reward: 7650 },
-            { id: "8765432109", username: "TokenMaster", referrals_count: 129, reward: 6450 },
-            { id: "7654321098", username: "BlockchainGuru", referrals_count: 112, reward: 5600 },
-            { id: "6543210987", username: "CoinHunter", referrals_count: 98, reward: 4900 },
-            { id: "5432109876", username: "SatoshiFan", referrals_count: 87, reward: 4350 },
-            { id: "4321098765", username: "CryptoKing", referrals_count: 76, reward: 3800 },
-            { id: "3210987654", username: "TokenExplorer", referrals_count: 65, reward: 3250 },
-            { id: "2109876543", username: "WinixLover", referrals_count: 54, reward: 2700 },
-            { id: "1098765432", username: "CryptoNinja", referrals_count: 43, reward: 2150 },
-            { id: "1234567890", username: "BlockGenius", referrals_count: 32, reward: 1600 }
-        ];
-
-        // Перевіряємо, чи є поточний користувач у списку
-        const hasCurrentUser = mockUsers.some(user => user.id === currentUserId);
-
-        // Якщо поточного користувача немає у ТОП-10, додаємо його з випадковою позицією нижче 10
-        if (!hasCurrentUser && currentUserId) {
-            // Створюємо запис для поточного користувача
-            const currentUserEntry = {
-                id: currentUserId,
-                username: "Ви",
-                referrals_count: Math.floor(Math.random() * 30) + 1, // 1-30 рефералів
-                reward: Math.floor(Math.random() * 30) * 50, // винагорода
-                position: Math.floor(Math.random() * 40) + 11 // позиція 11-50
-            };
-
-            // Додаємо до набору даних
-            mockUsers.push(currentUserEntry);
-        }
-
-        return mockUsers;
-    }
-
-    /**
      * Форматування числа винагороди
      * @param {number} amount - Сума винагороди
      * @returns {string} - Відформатована сума
@@ -451,9 +461,9 @@ window.Leaderboard = (function() {
         // Очищаємо контейнер
         leaderboardContainer.innerHTML = '';
 
-        // Якщо немає даних, показуємо заглушку
+        // Якщо немає даних, показуємо повідомлення про відсутність даних
         if (!leaderboardData || leaderboardData.length === 0) {
-            showFallbackLeaderboard();
+            showNoDataView();
             return;
         }
 
@@ -631,25 +641,48 @@ window.Leaderboard = (function() {
     }
 
     /**
-     * Відображення заглушки для лідерської дошки
+     * Відображення екрану помилки
+     * @param {Object} error - Об'єкт помилки
      */
-    function showFallbackLeaderboard() {
+    function showErrorView(error) {
         if (!leaderboardContainer) return;
 
         // Очищаємо контейнер
         leaderboardContainer.innerHTML = '';
 
-        // Створюємо заглушку
-        const fallbackElement = document.createElement('div');
-        fallbackElement.className = 'leaderboard-fallback';
+        // Створюємо елемент помилки
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'leaderboard-error';
 
-        // Отримуємо локалізований текст
-        const fallbackText = getLocalizedText(
-            LOCALE_KEYS.FALLBACK,
-            'Дані лідерської дошки тимчасово недоступні. Спробуйте пізніше.'
+        // Додаємо іконку помилки
+        const errorIcon = document.createElement('div');
+        errorIcon.className = 'error-icon';
+        errorIcon.innerHTML = '❌';
+        errorContainer.appendChild(errorIcon);
+
+        // Додаємо заголовок
+        const errorTitle = document.createElement('h3');
+        errorTitle.className = 'error-title';
+        errorTitle.textContent = getLocalizedText(LOCALE_KEYS.ERROR, 'Помилка завантаження');
+        errorContainer.appendChild(errorTitle);
+
+        // Додаємо повідомлення про помилку
+        const errorMessage = document.createElement('p');
+        errorMessage.className = 'error-message';
+        errorMessage.textContent = getLocalizedText(
+            LOCALE_KEYS.CONNECTION_ERROR,
+            'Не вдалося завантажити дані лідерської дошки. Перевірте підключення до мережі та спробуйте ще раз.'
         );
+        errorContainer.appendChild(errorMessage);
 
-        fallbackElement.textContent = fallbackText;
+        // Додаємо технічну інформацію (для відлагодження)
+        if (error && error.code) {
+            const errorDetails = document.createElement('div');
+            errorDetails.className = 'error-details';
+            errorDetails.setAttribute('aria-hidden', 'true');
+            errorDetails.textContent = `Код помилки: ${error.code}`;
+            errorContainer.appendChild(errorDetails);
+        }
 
         // Додаємо кнопку повторної спроби
         const retryButton = document.createElement('button');
@@ -658,11 +691,51 @@ window.Leaderboard = (function() {
         retryButton.addEventListener('click', function() {
             loadLeaderboardData();
         });
-
-        fallbackElement.appendChild(retryButton);
+        errorContainer.appendChild(retryButton);
 
         // Додаємо до контейнера
-        leaderboardContainer.appendChild(fallbackElement);
+        leaderboardContainer.appendChild(errorContainer);
+    }
+
+    /**
+     * Відображення екрану відсутності даних
+     */
+    function showNoDataView() {
+        if (!leaderboardContainer) return;
+
+        // Очищаємо контейнер
+        leaderboardContainer.innerHTML = '';
+
+        // Створюємо елемент відсутності даних
+        const noDataContainer = document.createElement('div');
+        noDataContainer.className = 'leaderboard-no-data';
+
+        // Додаємо іконку
+        const noDataIcon = document.createElement('div');
+        noDataIcon.className = 'no-data-icon';
+        noDataIcon.innerHTML = '📊';
+        noDataContainer.appendChild(noDataIcon);
+
+        // Додаємо повідомлення
+        const noDataMessage = document.createElement('p');
+        noDataMessage.className = 'no-data-message';
+        noDataMessage.textContent = getLocalizedText(
+            LOCALE_KEYS.NO_DATA,
+            'Наразі немає даних для відображення. Станьте першим у рейтингу, запрошуючи друзів!'
+        );
+        noDataContainer.appendChild(noDataMessage);
+
+        // Додаємо кнопку повторної спроби
+        const retryButton = document.createElement('button');
+        retryButton.className = 'retry-button';
+        retryButton.textContent = getLocalizedText(LOCALE_KEYS.RETRY, 'Оновити');
+        retryButton.addEventListener('click', function() {
+            loadLeaderboardData();
+        });
+        noDataContainer.appendChild(retryButton);
+
+        // Додаємо до контейнера
+        leaderboardContainer.appendChild(noDataContainer);
     }
 
     /**
