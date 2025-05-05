@@ -219,40 +219,34 @@ def get_tasks_by_type(task_type):
         # Логування для відстеження
         logger.info(f"Запит на отримання завдань типу {task_type}")
 
-        try:
-            # Отримуємо завдання через сервіс
-            tasks = TaskService.get_tasks_by_type(task_type)
+        # Отримуємо завдання через сервіс
+        tasks = TaskService.get_tasks_by_type(task_type)
 
-            # Логування для відстеження
-            logger.info(f"Отримано {len(tasks)} завдань типу {task_type} від сервісу")
+        # Логування для відстеження
+        logger.info(f"Отримано {len(tasks)} завдань типу {task_type} від сервісу")
 
-            # Безпечне перетворення до формату API
-            tasks_data = []
-            for task in tasks:
-                try:
-                    # Перевіряємо формат даних
-                    if hasattr(task, 'to_dict') and callable(getattr(task, 'to_dict')):
-                        # Якщо це об'єкт з методом to_dict()
-                        task_dict = task.to_dict()
-                        tasks_data.append(task_dict)
-                    elif isinstance(task, dict):
-                        # Якщо це вже словник
-                        tasks_data.append(task)
-                    else:
-                        # Логування проблеми
-                        logger.warning(f"Пропускаємо завдання невідомого формату: {type(task)}")
-                        continue
-                except Exception as conversion_error:
-                    logger.error(f"Помилка перетворення завдання: {str(conversion_error)}")
+        # Безпечне перетворення до формату API
+        tasks_data = []
+        for task in tasks:
+            try:
+                # Перевіряємо формат даних
+                if hasattr(task, 'to_dict') and callable(getattr(task, 'to_dict')):
+                    # Якщо це об'єкт з методом to_dict()
+                    task_dict = task.to_dict()
+                    tasks_data.append(task_dict)
+                elif isinstance(task, dict):
+                    # Якщо це вже словник
+                    tasks_data.append(task)
+                else:
+                    # Логування проблеми
+                    logger.warning(f"Пропускаємо завдання невідомого формату: {type(task)}")
                     continue
+            except Exception as conversion_error:
+                logger.error(f"Помилка перетворення завдання: {str(conversion_error)}")
+                continue
 
-            # Формуємо відповідь
-            return api_success(data={"tasks": tasks_data}, message=f"Завдання типу {task_type} успішно отримано")
-
-        except Exception as service_error:
-            logger.error(f"Помилка TaskService: {str(service_error)}")
-            return api_error(message=f"Помилка отримання завдань типу {task_type} через сервіс",
-                             details={"error": str(service_error)})
+        # Формуємо відповідь
+        return api_success(data={"tasks": tasks_data}, message=f"Завдання типу {task_type} успішно отримано")
 
     except Exception as e:
         logger.error(f"Критична помилка при отриманні завдань типу {task_type}: {str(e)}")
@@ -440,8 +434,6 @@ def update_task_progress(telegram_id, task_id):
             task = TaskService.get_task_by_id(task_id)
 
             if task:
-                # ВИПРАВЛЕНО: Видалено перевірку task.verification_type == "auto"
-                # Автоматично нараховуємо винагороду для всіх типів завдань
                 success, error, reward_data = VerificationService.process_reward(telegram_id, task, updated_progress)
                 if success:
                     reward_result = {
@@ -563,7 +555,6 @@ def verify_task(telegram_id, task_id):
             # Нараховуємо винагороду, якщо вона ще не була видана
             reward_result = {}
             if completed_progress and not completed_progress.reward_claimed:
-                # ВИПРАВЛЕНО: Нараховуємо винагороду для всіх типів завдань, незалежно від verification_type
                 success, error, reward_data = VerificationService.process_reward(telegram_id, task, completed_progress)
                 if success:
                     reward_result = {
@@ -1114,129 +1105,4 @@ def get_user_leaderboard_position(telegram_id):
         )
     except Exception as e:
         logger.exception(f"Помилка отримання позиції користувача {telegram_id} в лідерборді")
-        return handle_exception(e, f"Помилка отримання позиції користувача {telegram_id} в лідерборді")
-
-
-# Контролери для рефералів
-
-def get_referral_code(telegram_id):
-    """
-    Отримання реферального коду користувача.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"get_referral_code: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        referral_code = ReferralService.get_user_referral_code(telegram_id)
-
-        if not referral_code:
-            return api_error(message="Не вдалося отримати реферальний код", status_code=404)
-
-        return api_success(
-            data={"referral_code": referral_code},
-            message="Реферальний код успішно отримано"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка отримання реферального коду для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання реферального коду для користувача {telegram_id}")
-
-
-def get_user_referrals(telegram_id):
-    """
-    Отримання інформації про рефералів користувача.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"get_user_referrals: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        referrals_data = ReferralService.get_user_referrals(telegram_id)
-
-        return api_success(
-            data=referrals_data,
-            message="Інформація про рефералів успішно отримана"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка отримання інформації про рефералів для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання інформації про рефералів для користувача {telegram_id}")
-
-
-def use_referral_code():
-    """
-    Використання реферального коду.
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Отримуємо дані запиту
-        data = request.json or {}
-
-        # Перевірка на обов'язкові поля
-        is_valid, errors = validate_request_data(data, ["referral_code", "telegram_id"])
-        if not is_valid:
-            return api_validation_error(errors)
-
-        referral_code = data.get("referral_code", "")
-        referee_id = data.get("telegram_id", "")
-
-        # Валідація параметрів
-        if not referral_code or not isinstance(referral_code, str):
-            return api_error(message="Недійсний реферальний код", status_code=400)
-
-        if not referee_id or not isinstance(referee_id, str):
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Отримуємо користувача за реферальним кодом
-        referrer = ReferralService.get_user_by_referral_code(referral_code)
-
-        if not referrer:
-            return api_error(message=f"Реферальний код {referral_code} не знайдено", status_code=404)
-
-        referrer_id = referrer.get("telegram_id")
-
-        # Перевіряємо, чи не намагається користувач використати свій власний код
-        if str(referrer_id) == str(referee_id):
-            return api_error(message="Ви не можете використати свій власний реферальний код", status_code=400)
-
-        # Створюємо реферальний запис
-        referral = ReferralService.create_referral(referrer_id, referee_id)
-
-        if not referral:
-            return api_error(message="Не вдалося створити реферальний запис", status_code=500)
-
-        # Обробляємо винагороду для реферера
-        success, error, reward_data = ReferralService.process_referral_reward(referral.id)
-
-        if not success:
-            return api_error(message=f"Не вдалося обробити реферальну винагороду: {error}", status_code=500)
-
-        return api_success(
-            data={
-                "referral": referral.to_dict(),
-                "referrer": {
-                    "telegram_id": referrer_id,
-                    "username": referrer.get("username")
-                },
-                "reward": reward_data
-            },
-            message="Реферальний код успішно використано"
-        )
-    except Exception as e:
-        logger.exception("Помилка використання реферального коду")
-        return handle_exception(e, "Помилка використання реферального коду")
+        return handle_exception(e),

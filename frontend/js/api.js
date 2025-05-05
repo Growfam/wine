@@ -1,7 +1,7 @@
 /**
  * api.js - Єдиний модуль для всіх API-запитів WINIX
- * Оптимізована версія з простішою обробкою помилок та розв'язаною проблемою CORS
- * @version 2.0.0
+ * Оптимізована версія з простішою обробкою помилок
+ * @version 2.1.0
  */
 
 (function() {
@@ -218,18 +218,9 @@
                 return _authToken;
             }
 
-            // 2. Спробуємо отримати токен через StorageUtils, якщо доступний
-            let token = null;
-            let tokenExpiry = 0;
-
-            if (window.StorageUtils) {
-                token = window.StorageUtils.getItem('auth_token');
-                tokenExpiry = parseInt(window.StorageUtils.getItem('auth_token_expiry') || '0');
-            } else {
-                // 3. Спробуємо отримати токен з localStorage
-                token = localStorage.getItem('auth_token');
-                tokenExpiry = parseInt(localStorage.getItem('auth_token_expiry') || '0');
-            }
+            // 2. Спробуємо отримати токен з localStorage
+            let token = localStorage.getItem('auth_token');
+            let tokenExpiry = parseInt(localStorage.getItem('auth_token_expiry') || '0');
 
             if (token && typeof token === 'string' && token.length > 5) {
                 if (tokenExpiry > now) {
@@ -244,7 +235,7 @@
                 }
             }
 
-            // 4. Альтернативні джерела токену
+            // 3. Альтернативні джерела токену
             if (window.WinixConfig && window.WinixConfig.authToken) {
                 _authToken = window.WinixConfig.authToken;
                 return _authToken;
@@ -317,29 +308,6 @@
     }
 
     /**
-     * Перевірка валідності UUID
-     * @param {string} id - ID для перевірки
-     * @returns {boolean} Результат перевірки
-     */
-    function isValidUUID(id) {
-        if (!id || typeof id !== 'string') return false;
-
-        // Нормалізуємо ID
-        const normalized = id.trim().toLowerCase();
-
-        // Підтримка різних форматів UUID
-        const patterns = {
-            standard: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-            noHyphens: /^[0-9a-f]{32}$/i,
-            braced: /^\{[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\}$/i
-        };
-
-        return patterns.standard.test(normalized) ||
-               patterns.noHyphens.test(normalized) ||
-               patterns.braced.test(normalized);
-    }
-
-    /**
      * Оновлення токену авторизації
      * @returns {Promise<string|null>} Новий токен або null
      */
@@ -386,21 +354,10 @@
                     _authTokenExpiry = Date.now() + (24 * 60 * 60 * 1000);
                 }
 
-                // Зберігаємо в localStorage і використовуємо StorageUtils, якщо доступний
+                // Зберігаємо в localStorage
                 try {
-                    if (window.StorageUtils) {
-                        window.StorageUtils.setItem('auth_token', _authToken, {
-                            persist: true,
-                            expires: _authTokenExpiry - Date.now()
-                        });
-                        window.StorageUtils.setItem('auth_token_expiry', _authTokenExpiry.toString(), {
-                            persist: true,
-                            expires: _authTokenExpiry - Date.now()
-                        });
-                    } else {
-                        localStorage.setItem('auth_token', _authToken);
-                        localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
-                    }
+                    localStorage.setItem('auth_token', _authToken);
+                    localStorage.setItem('auth_token_expiry', _authTokenExpiry.toString());
                 } catch (e) {
                     console.warn("🔌 API: Помилка збереження токену:", e);
                 }
@@ -471,13 +428,14 @@
                 // Забезпечуємо, що до URL не додаються неправильні параметри
                 const hasQuery = safeIncludes(normalizedEndpoint, '?');
 
-                // Додаємо кешобрейкер до URL (параметр t=timestamp)
-                const timestamp = Date.now();
-
                 // Формуємо повний URL з коректним шляхом
                 url = `${API_BASE_URL}/${normalizedEndpoint}`
-                    .replace(/([^:]\/)\/+/g, "$1") // Видаляємо зайві послідовні слеші
-                    + (hasQuery ? '&' : '?') + `t=${timestamp}`; // Додаємо кешобрейкер
+                    .replace(/([^:]\/)\/+/g, "$1"); // Видаляємо зайві послідовні слеші
+
+                // Додаємо кешобрейкер до URL (параметр t=timestamp) тільки для GET запитів
+                if (method === 'GET') {
+                    url += (hasQuery ? '&' : '?') + `t=${Date.now()}`;
+                }
             }
 
             // Заголовки запиту
@@ -746,8 +704,7 @@
 
         try {
             // Додаємо параметр для запобігання кешуванню
-            const nocache = Date.now();
-            const endpoint = API_PATHS.USER.BALANCE(userId) + `?nocache=${nocache}`;
+            const endpoint = API_PATHS.USER.BALANCE(userId);
 
             // Робимо запит до сервера
             const response = await apiRequest(endpoint, 'GET', null, {
@@ -933,7 +890,7 @@
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '2.0.0',
+            version: '2.1.0',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -948,8 +905,6 @@
         getUserId,
         getAuthToken,
         refreshToken,
-        isValidUUID,
-        safeIncludes,
         showError,
         formatErrorMessage,
 
