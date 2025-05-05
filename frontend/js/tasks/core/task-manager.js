@@ -1190,216 +1190,232 @@ function setupTabSwitching() {
     /**
      * Завантаження завдань
      */
-    async function loadTasks() {
-        console.log('TaskManager: Починаємо завантаження завдань...');
+    /**
+ * Завантаження завдань
+ */
+async function loadTasks() {
+    console.log('TaskManager: Починаємо завантаження завдань...');
+
+    try {
+        // Запобігаємо одночасним запитам
+        if (operationStatus.tasksLoading) {
+            console.log('TaskManager: Завантаження вже виконується, пропускаємо');
+            return;
+        }
+
+        // Перевіряємо готовність DOM
+        if (!operationStatus.domReady) {
+            console.log('TaskManager: DOM не готовий, повторна спроба через 100мс');
+            setTimeout(loadTasks, 100);
+            return;
+        }
+
+        operationStatus.tasksLoading = true;
+
+        // Перевіряємо доступність API
+        if (!isApiAvailable()) {
+            throw new Error('API_NOT_AVAILABLE');
+        }
+
+        // Показуємо покращений індикатор завантаження в контейнерах
+        if (domElements.socialTasksContainer) {
+            domElements.socialTasksContainer.innerHTML = `
+                <div class="task-loader">
+                    <div class="loader-spinner"></div>
+                    <span>Завантаження завдань...</span>
+                </div>`;
+        }
+        if (domElements.limitedTasksContainer) {
+            domElements.limitedTasksContainer.innerHTML = `
+                <div class="task-loader">
+                    <div class="loader-spinner"></div>
+                    <span>Завантаження завдань...</span>
+                </div>`;
+        }
+        if (domElements.partnersTasksContainer) {
+            domElements.partnersTasksContainer.innerHTML = `
+                <div class="task-loader">
+                    <div class="loader-spinner"></div>
+                    <span>Завантаження завдань...</span>
+                </div>`;
+        }
+        if (domElements.referralTasksContainer) {
+            domElements.referralTasksContainer.innerHTML = `
+                <div class="task-loader">
+                    <div class="loader-spinner"></div>
+                    <span>Завантаження завдань...</span>
+                </div>`;
+        }
+
+        // Перевіряємо наявність ID користувача
+        const userId = safeGetUserId();
+        if (!userId) {
+            console.warn('TaskManager: ID користувача не знайдено, завантаження може бути обмежене');
+            // Продовжуємо виконання, оскільки деякі API можуть не вимагати ID
+        }
+
+        // Перевіряємо необхідні API шляхи
+        if (!window.API_PATHS.TASKS.SOCIAL) {
+            console.error('TaskManager: API_PATHS.TASKS.SOCIAL не знайдено!');
+            throw new Error('API_PATH_SOCIAL_NOT_FOUND');
+        }
+
+        // Перевіряємо і встановлюємо шлях для реферальних завдань
+        if (!window.API_PATHS.TASKS.REFERRAL) {
+            console.log('TaskManager: API_PATHS.TASKS.REFERRAL не знайдено, використовуємо SOCIAL');
+            window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
+        }
+
+        // Логуємо URL-шляхи які використовуються
+        console.log('TaskManager: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
+        console.log('TaskManager: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
+        console.log('TaskManager: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
+        console.log('TaskManager: URL для реферальних завдань =', window.API_PATHS.TASKS.REFERRAL);
 
         try {
-            // Запобігаємо одночасним запитам
-            if (operationStatus.tasksLoading) {
-                console.log('TaskManager: Завантаження вже виконується, пропускаємо');
-                return;
-            }
+            // Спробуємо завантажити соціальні завдання
+            console.log('TaskManager: Запит соціальних завдань...');
+            const socialResponse = await window.API.get(window.API_PATHS.TASKS.SOCIAL);
 
-            // Перевіряємо готовність DOM
-            if (!operationStatus.domReady) {
-                console.log('TaskManager: DOM не готовий, повторна спроба через 100мс');
-                setTimeout(loadTasks, 100);
-                return;
-            }
+            let socialTasksData = extractTasksFromResponse(socialResponse);
 
-            operationStatus.tasksLoading = true;
+            if (socialTasksData.length > 0) {
+                // Розділяємо соціальні й реферальні завдання
+                const { regular, referral } = splitSocialTasks(socialTasksData);
+                socialTasks = regular;
+                referralTasks = referral;
 
-            // Перевіряємо доступність API
-            if (!isApiAvailable()) {
-                throw new Error('API_NOT_AVAILABLE');
-            }
-
-            // Показуємо покращений індикатор завантаження в контейнерах
-            if (domElements.socialTasksContainer) {
-                domElements.socialTasksContainer.innerHTML = `
-                    <div class="task-loader">
-                        <div class="loader-spinner"></div>
-                        <span>Завантаження завдань...</span>
-                    </div>`;
-            }
-            if (domElements.limitedTasksContainer) {
-                domElements.limitedTasksContainer.innerHTML = `
-                    <div class="task-loader">
-                        <div class="loader-spinner"></div>
-                        <span>Завантаження завдань...</span>
-                    </div>`;
-            }
-            if (domElements.partnersTasksContainer) {
-                domElements.partnersTasksContainer.innerHTML = `
-                    <div class="task-loader">
-                        <div class="loader-spinner"></div>
-                        <span>Завантаження завдань...</span>
-                    </div>`;
-            }
-            if (domElements.referralTasksContainer) {
-                domElements.referralTasksContainer.innerHTML = `
-                    <div class="task-loader">
-                        <div class="loader-spinner"></div>
-                        <span>Завантаження завдань...</span>
-                    </div>`;
-            }
-
-            // Перевіряємо наявність ID користувача
-            const userId = safeGetUserId();
-            if (!userId) {
-                console.warn('TaskManager: ID користувача не знайдено, завантаження може бути обмежене');
-                // Продовжуємо виконання, оскільки деякі API можуть не вимагати ID
-            }
-
-            // Перевіряємо необхідні API шляхи
-            if (!window.API_PATHS.TASKS.SOCIAL) {
-                console.error('TaskManager: API_PATHS.TASKS.SOCIAL не знайдено!');
-                throw new Error('API_PATH_SOCIAL_NOT_FOUND');
-            }
-
-            // Перевіряємо і встановлюємо шлях для реферальних завдань
-            if (!window.API_PATHS.TASKS.REFERRAL) {
-                console.log('TaskManager: API_PATHS.TASKS.REFERRAL не знайдено, використовуємо SOCIAL');
-                window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
-            }
-
-            // Логуємо URL-шляхи які використовуються
-            console.log('TaskManager: URL для соціальних завдань =', window.API_PATHS.TASKS.SOCIAL);
-            console.log('TaskManager: URL для лімітованих завдань =', window.API_PATHS.TASKS.LIMITED);
-            console.log('TaskManager: URL для партнерських завдань =', window.API_PATHS.TASKS.PARTNER);
-            console.log('TaskManager: URL для реферальних завдань =', window.API_PATHS.TASKS.REFERRAL);
-
-            try {
-                // Спробуємо завантажити соціальні завдання
-                console.log('TaskManager: Запит соціальних завдань...');
-                const socialResponse = await window.API.get(window.API_PATHS.TASKS.SOCIAL);
-
-                let socialTasksData = extractTasksFromResponse(socialResponse);
-
-                if (socialTasksData.length > 0) {
-                    // Розділяємо соціальні й реферальні завдання
-                    const { regular, referral } = splitSocialTasks(socialTasksData);
-                    socialTasks = regular;
-                    referralTasks = referral;
-
-                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                    if (activeTabType === 'social') {
-                        renderSocialTasks();
-                        renderReferralTasks();
-                    }
-                } else {
-                    if (domElements.socialTasksContainer && activeTabType === 'social') {
-                        domElements.socialTasksContainer.innerHTML =
-                            '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
-                    }
-                    if (domElements.referralTasksContainer && activeTabType === 'social') {
-                        domElements.referralTasksContainer.innerHTML =
-                            '<div class="no-tasks">Реферальні завдання не знайдені.</div>';
-                    }
+                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                if (activeTabType === 'social') {
+                    renderSocialTasks();
+                    renderReferralTasks();
                 }
-
-                // Завантажуємо лімітовані завдання
-                console.log('TaskManager: Запит лімітованих завдань...');
-                const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
-                let limitedTasksData = extractTasksFromResponse(limitedResponse);
-
-                if (limitedTasksData.length > 0) {
-                    limitedTasks = normalizeTasksData(limitedTasksData);
-
-                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                    if (activeTabType === 'limited') {
-                        renderLimitedTasks();
-                    }
-                } else if (domElements.limitedTasksContainer && activeTabType === 'limited') {
-                    domElements.limitedTasksContainer.innerHTML =
-                        '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
-                }
-
-                // Завантажуємо партнерські завдання
-                console.log('TaskManager: Запит партнерських завдань...');
-                const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
-                let partnerTasksData = extractTasksFromResponse(partnerResponse);
-
-                if (partnerTasksData.length > 0) {
-                    partnerTasks = normalizeTasksData(partnerTasksData);
-
-                    // Виконуємо рендеринг тільки якщо активна відповідна вкладка
-                    if (activeTabType === 'partners') {
-                        renderPartnerTasks();
-                    }
-                } else if (domElements.partnersTasksContainer && activeTabType === 'partners') {
-                    domElements.partnersTasksContainer.innerHTML =
-                        '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
-                }
-
-                // Завантажуємо прогрес користувача, якщо є ID
-                if (userId) {
-                    try {
-                        console.log('TaskManager: Запит прогресу користувача...');
-                        const progressResponse = await window.API.get('quests/user-progress');
-
-                        if (progressResponse.status === 'success' && progressResponse.data) {
-                            userProgress = progressResponse.data;
-                            console.log('TaskManager: Прогрес користувача отримано');
-
-                            // Оновлюємо відображення з урахуванням прогресу
-                            refreshActiveTab();
-                        }
-                    } catch (progressError) {
-                        console.warn('TaskManager: Помилка отримання прогресу користувача:', progressError);
-                    }
-                }
-
-            } catch (error) {
-                console.error('TaskManager: Помилка при виконанні запиту:', error);
-
-                // Показуємо стильне повідомлення про помилку в контейнерах
-                const errorHtml = `
-                    <div class="no-tasks">
-                        <div style="margin-bottom: 10px; color: #f44336;">🔄 Помилка завантаження завдань</div>
-                        <div style="font-size: 14px; opacity: 0.8;">Перевірте з'єднання з інтернетом або спробуйте пізніше</div>
-                        <button class="action-button" style="margin-top: 15px; padding: 8px 15px;" onclick="window.TaskManager.loadTasks()">
-                            Спробувати знову
-                        </button>
-                    </div>`;
-
+            } else {
                 if (domElements.socialTasksContainer && activeTabType === 'social') {
-                    domElements.socialTasksContainer.innerHTML = errorHtml;
-                }
-                if (domElements.limitedTasksContainer && activeTabType === 'limited') {
-                    domElements.limitedTasksContainer.innerHTML = errorHtml;
-                }
-                if (domElements.partnersTasksContainer && activeTabType === 'partners') {
-                    domElements.partnersTasksContainer.innerHTML = errorHtml;
+                    domElements.socialTasksContainer.innerHTML =
+                        '<div class="no-tasks">Завдання не знайдені. Спробуйте пізніше.</div>';
                 }
                 if (domElements.referralTasksContainer && activeTabType === 'social') {
-                    domElements.referralTasksContainer.innerHTML = errorHtml;
+                    domElements.referralTasksContainer.innerHTML =
+                        '<div class="no-tasks">Реферальні завдання не знайдені.</div>';
                 }
+            }
 
-                // Генеруємо подію про помилку
-                document.dispatchEvent(new CustomEvent('tasks-loading-error', {
-                    detail: { error: error }
-                }));
+            // Завантажуємо лімітовані завдання
+            console.log('TaskManager: Запит лімітованих завдань...');
+            const limitedResponse = await window.API.get(window.API_PATHS.TASKS.LIMITED);
+            let limitedTasksData = extractTasksFromResponse(limitedResponse);
+
+            if (limitedTasksData.length > 0) {
+                limitedTasks = normalizeTasksData(limitedTasksData);
+
+                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                if (activeTabType === 'limited') {
+                    renderLimitedTasks();
+                }
+            } else if (domElements.limitedTasksContainer && activeTabType === 'limited') {
+                domElements.limitedTasksContainer.innerHTML =
+                    '<div class="no-tasks">Лімітовані завдання не знайдені.</div>';
+            }
+
+            // Завантажуємо партнерські завдання
+            console.log('TaskManager: Запит партнерських завдань...');
+            const partnerResponse = await window.API.get(window.API_PATHS.TASKS.PARTNER);
+            let partnerTasksData = extractTasksFromResponse(partnerResponse);
+
+            if (partnerTasksData.length > 0) {
+                partnerTasks = normalizeTasksData(partnerTasksData);
+
+                // Виконуємо рендеринг тільки якщо активна відповідна вкладка
+                if (activeTabType === 'partners') {
+                    renderPartnerTasks();
+                }
+            } else if (domElements.partnersTasksContainer && activeTabType === 'partners') {
+                domElements.partnersTasksContainer.innerHTML =
+                    '<div class="no-tasks">Партнерські завдання не знайдені.</div>';
+            }
+
+            // Завантажуємо прогрес користувача, якщо є ID
+            if (userId) {
+                try {
+                    console.log('TaskManager: Запит прогресу користувача...');
+                    // ВИПРАВЛЕНО: змінено шлях до ендпоінту прогресу користувача
+                    const progressResponse = await window.API.get('quests/user-progress/all');
+
+                    if (progressResponse.status === 'success' && progressResponse.data) {
+                        userProgress = progressResponse.data;
+                        console.log('TaskManager: Прогрес користувача отримано');
+
+                        // Оновлюємо відображення з урахуванням прогресу
+                        refreshActiveTab();
+                    }
+                } catch (progressError) {
+                    console.warn('TaskManager: Помилка отримання прогресу користувача:', progressError);
+
+                    // Спробуємо альтернативний шлях
+                    try {
+                        const alternativeProgressResponse = await window.API.get('quests/user-progress');
+                        if (alternativeProgressResponse.status === 'success' && alternativeProgressResponse.data) {
+                            userProgress = alternativeProgressResponse.data;
+                            console.log('TaskManager: Прогрес користувача отримано через альтернативний ендпоінт');
+                            refreshActiveTab();
+                        }
+                    } catch (altError) {
+                        console.warn('TaskManager: Помилка отримання прогресу через альтернативний ендпоінт:', altError);
+                    }
+                }
             }
 
         } catch (error) {
-            console.error('TaskManager: Загальна помилка завантаження завдань:', error);
+            console.error('TaskManager: Помилка при виконанні запиту:', error);
 
-            // Показуємо загальне повідомлення про помилку
-            showErrorMessage('Не вдалося завантажити завдання: ' + error.message);
+            // Показуємо стильне повідомлення про помилку в контейнерах
+            const errorHtml = `
+                <div class="no-tasks">
+                    <div style="margin-bottom: 10px; color: #f44336;">🔄 Помилка завантаження завдань</div>
+                    <div style="font-size: 14px; opacity: 0.8;">Перевірте з'єднання з інтернетом або спробуйте пізніше</div>
+                    <button class="action-button" style="margin-top: 15px; padding: 8px 15px;" onclick="window.TaskManager.loadTasks()">
+                        Спробувати знову
+                    </button>
+                </div>`;
+
+            if (domElements.socialTasksContainer && activeTabType === 'social') {
+                domElements.socialTasksContainer.innerHTML = errorHtml;
+            }
+            if (domElements.limitedTasksContainer && activeTabType === 'limited') {
+                domElements.limitedTasksContainer.innerHTML = errorHtml;
+            }
+            if (domElements.partnersTasksContainer && activeTabType === 'partners') {
+                domElements.partnersTasksContainer.innerHTML = errorHtml;
+            }
+            if (domElements.referralTasksContainer && activeTabType === 'social') {
+                domElements.referralTasksContainer.innerHTML = errorHtml;
+            }
 
             // Генеруємо подію про помилку
             document.dispatchEvent(new CustomEvent('tasks-loading-error', {
                 detail: { error: error }
             }));
-        } finally {
-            operationStatus.tasksLoading = false;
-            console.log('TaskManager: Завершено спробу завантаження завдань');
-
-            // Генеруємо подію про завершення завантаження
-            document.dispatchEvent(new CustomEvent('tasks-loading-completed'));
         }
+
+    } catch (error) {
+        console.error('TaskManager: Загальна помилка завантаження завдань:', error);
+
+        // Показуємо загальне повідомлення про помилку
+        showErrorMessage('Не вдалося завантажити завдання: ' + error.message);
+
+        // Генеруємо подію про помилку
+        document.dispatchEvent(new CustomEvent('tasks-loading-error', {
+            detail: { error: error }
+        }));
+    } finally {
+        operationStatus.tasksLoading = false;
+        console.log('TaskManager: Завершено спробу завантаження завдань');
+
+        // Генеруємо подію про завершення завантаження
+        document.dispatchEvent(new CustomEvent('tasks-loading-completed'));
     }
+}
 
     /**
      * Оновлення відображення лише для активної вкладки

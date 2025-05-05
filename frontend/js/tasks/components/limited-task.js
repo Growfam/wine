@@ -568,7 +568,7 @@ window.LimitedTask = (function() {
         // Оновлюємо дані з сервера, якщо доступне API
         Promise.all([
             window.API.get('/quests/tasks/limited'),
-            window.API.get('/quests/user-progress')
+            window.API.get('/quests/user-progress/all')
         ])
         .then(([tasksResponse, progressResponse]) => {
             if (tasksResponse.success && progressResponse.success) {
