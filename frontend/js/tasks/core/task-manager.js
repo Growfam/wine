@@ -1,7 +1,7 @@
 /**
- * TaskManager - Модуль для управління завданнями
- * Виправлена версія з кращою діагностикою
- * @version 1.1.1
+ * TaskManager - Покращений модуль для управління завданнями
+ * Premium Edition: оптимізовано швидкість, покращено дизайн, додано анімації
+ * @version 2.0.0
  */
 
 window.TaskManager = (function() {
@@ -42,7 +42,27 @@ window.TaskManager = (function() {
     const errorHandlingConfig = {
         maxRetries: 3,
         retryInterval: 1500,
-        showTechnicalDetails: true
+        showTechnicalDetails: false
+    };
+
+    // Конфігурація преміальних анімацій
+    const animationConfig = {
+        enabled: true,
+        taskAppearDuration: 350, // ms
+        taskAppearDelay: 50, // ms between tasks
+        leaderboardAppearDuration: 450, // ms
+        leaderboardAppearDelay: 70, // ms between items
+        usePremiumEffects: true,
+        useReducedMotion: false
+    };
+
+    // Налаштування преміальної теми
+    const themeConfig = {
+        useGlassEffect: true,   // Скляний ефект для карток
+        useShadowEffect: true,  // Преміальні тіні
+        useRoundedCorners: true, // Заокруглені кути
+        useAnimatedGradients: true, // Анімовані градієнти
+        colorScheme: 'dark'     // 'dark' або 'light'
     };
 
     /**
@@ -140,6 +160,14 @@ window.TaskManager = (function() {
     function init() {
         console.log('TaskManager: Початок ініціалізації...');
 
+        // Перевіряємо чи потрібно використовувати режим зниженої анімації
+        checkReducedMotion();
+
+        // Додаємо преміальні стилі, якщо увімкнена відповідна опція
+        if (themeConfig.useGlassEffect || themeConfig.useShadowEffect) {
+            injectPremiumStyles();
+        }
+
         // Перевіряємо стан системи перед ініціалізацією
         diagnoseSystemState();
 
@@ -206,6 +234,15 @@ window.TaskManager = (function() {
         // Налаштування перемикачів вкладок
         setupTabSwitching();
 
+        // Видалення кнопок запрошення друзів
+        removeInviteButtons();
+
+        // Налаштування спостереження за DOM для динамічного видалення кнопок запрошення
+        setupButtonObserver();
+
+        // Налаштування відстеження прогресу
+        setupProgressTracking();
+
         // Завантаження завдань
         loadTasks();
 
@@ -217,128 +254,673 @@ window.TaskManager = (function() {
         document.dispatchEvent(new CustomEvent('taskmanager-initialized'));
     }
 
-// Видалення кнопок "Запросити друзів"
-function removeInviteButtons() {
-    // Шукаємо всі елементи, які можуть бути кнопками запрошення
-    const buttonSelectors = [
-        'button:contains("Запросити друзів")',
-        '.action-button[data-action="invite"]',
-        '.invite-friends-button',
-        '.referral-button',
-        'a.invite-button',
-        '[data-lang-key="earn.invite_friends"]'
-    ];
-
-    // Набір селекторів для jQuery або querySelector
-    for (const selector of buttonSelectors) {
+    /**
+     * Перевірка та встановлення режиму зниженої анімації
+     */
+    function checkReducedMotion() {
         try {
-            // jQuery варіант, якщо доступний
-            if (window.jQuery) {
-                jQuery(selector).hide();
-            }
-            // Нативний JavaScript варіант
-            else {
-                document.querySelectorAll(selector).forEach(el => {
-                    el.style.display = 'none';
-                });
+            // Перевіряємо налаштування користувача щодо зменшеної анімації
+            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            // Додатково перевіряємо локальне збереження налаштувань
+            const savedPreference = localStorage.getItem('reduced_animations');
+
+            if (prefersReducedMotion || savedPreference === 'true') {
+                animationConfig.useReducedMotion = true;
+                animationConfig.taskAppearDuration = 150;
+                animationConfig.taskAppearDelay = 20;
+                animationConfig.leaderboardAppearDuration = 200;
+                animationConfig.leaderboardAppearDelay = 30;
+
+                // Зменшуємо використання преміальних ефектів
+                themeConfig.useAnimatedGradients = false;
             }
         } catch (e) {
-            console.warn('Помилка при спробі приховати кнопки:', e);
+            console.warn('TaskManager: Помилка перевірки налаштувань анімації:', e);
         }
     }
 
-    // Шукаємо прямі елементи за текстом
-    document.querySelectorAll('button, a').forEach(el => {
-        if (el.textContent.includes('Запросити друзів') ||
-            el.textContent.includes('запросити друзів')) {
-            el.style.display = 'none';
-        }
-    });
+    /**
+     * Додавання преміальних стилів
+     */
+    function injectPremiumStyles() {
+        if (document.getElementById('premium-task-styles')) return;
 
-    console.log('Кнопки запрошення друзів приховано');
-}
-
-// Відстеження DOM для видалення кнопок при динамічному рендерингу
-function setupButtonObserver() {
-    // Перевіряємо підтримку MutationObserver
-    if (!window.MutationObserver) return;
-
-    const observer = new MutationObserver((mutations) => {
-        let shouldRemove = false;
-
-        // Перевіряємо, чи додано кнопки "Запросити друзів"
-        mutations.forEach(mutation => {
-            if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                shouldRemove = true;
+        const style = document.createElement('style');
+        style.id = 'premium-task-styles';
+        style.textContent = `
+            /* Преміальні стилі для завдань */
+            .task-item {
+                background: ${themeConfig.useGlassEffect ? 
+                    'rgba(20, 30, 60, 0.7)' : 
+                    'rgba(26, 32, 58, 0.95)'};
+                border-radius: 16px;
+                border: 1px solid rgba(78, 181, 247, 0.2);
+                box-shadow: ${themeConfig.useShadowEffect ? 
+                    '0 10px 25px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.1)' : 
+                    '0 5px 15px rgba(0, 0, 0, 0.15)'};
+                backdrop-filter: ${themeConfig.useGlassEffect ? 'blur(10px)' : 'none'};
+                transition: all 0.3s ease;
+                transform: translateY(20px);
+                opacity: 0;
+                overflow: hidden;
+                position: relative;
             }
-        });
-
-        // Якщо додано нові елементи, перевіряємо і видаляємо кнопки
-        if (shouldRemove) {
-            removeInviteButtons();
-        }
-    });
-
-    // Спостерігаємо за всім документом
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    console.log('Спостерігач за кнопками запрошення налаштовано');
-}
-
-// Викликаємо функцію видалення кнопок
-removeInviteButtons();
-
-// Налаштовуємо спостереження за DOM для динамічно доданих кнопок
-setupButtonObserver();
-
-// Обробка прогрес-барів для автоматичного виконання завдань
-function setupProgressTracking() {
-    // Перевіряємо прогрес-бари кожні 2 секунди
-    setInterval(() => {
-        // Шукаємо всі прогрес-бари в реферальних завданнях
-        const progressBars = document.querySelectorAll('.task-item[data-task-type="referral"] .progress-fill');
-
-        progressBars.forEach(bar => {
-            // Отримуємо поточний прогрес
-            const width = parseInt(bar.style.width) || 0;
-
-            // Якщо прогрес 100% або більше, позначаємо завдання як виконане
-            if (width >= 100) {
-                // Додаємо клас для анімації
-                bar.classList.add('complete');
-
-                // Знаходимо батьківський елемент завдання
-                const taskItem = bar.closest('.task-item');
-                if (taskItem && !taskItem.classList.contains('completed')) {
-                    // Позначаємо як виконане
-                    taskItem.classList.add('completed');
-
-                    // Знаходимо кнопку дії та замінюємо її
-                    const actionDiv = taskItem.querySelector('.task-action');
-                    if (actionDiv) {
-                        actionDiv.innerHTML = '<div class="completed-label">Виконано</div>';
-                    }
-
-                    // Викликаємо подію виконання завдання
-                    const taskId = taskItem.getAttribute('data-task-id');
-                    if (taskId) {
-                        document.dispatchEvent(new CustomEvent('task-completed', {
-                            detail: { taskId, automatic: true }
-                        }));
-                    }
+            
+            .task-item.show {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            
+            .task-item:hover {
+                transform: ${animationConfig.useReducedMotion ? 'none' : 'translateY(-3px)'};
+                box-shadow: ${themeConfig.useShadowEffect ? 
+                    '0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.2)' : 
+                    '0 8px 20px rgba(0, 0, 0, 0.2)'};
+            }
+            
+            .task-item::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: ${themeConfig.useAnimatedGradients ? 
+                    'radial-gradient(circle at 70% 80%, rgba(78, 181, 247, 0.1), transparent 70%)' : 
+                    'none'};
+                opacity: 0;
+                transition: opacity 0.5s ease;
+                z-index: 0;
+                pointer-events: none;
+            }
+            
+            .task-item:hover::before {
+                opacity: ${themeConfig.useAnimatedGradients ? '1' : '0'};
+            }
+            
+            .task-item.completed {
+                border-left: 4px solid #4caf50;
+            }
+            
+            .task-item.ready-to-verify {
+                border-left: 4px solid #4eb5f7;
+            }
+            
+            .task-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .task-title {
+                font-weight: bold;
+                font-size: 16px;
+                color: white;
+            }
+            
+            .task-description {
+                color: rgba(255, 255, 255, 0.8);
+                font-size: 14px;
+                margin-bottom: 15px;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .task-reward {
+                color: #FFD700;
+                font-weight: bold;
+                background: rgba(255, 215, 0, 0.1);
+                padding: 5px 10px;
+                border-radius: 20px;
+                font-size: 14px;
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+            }
+            
+            .token-symbol {
+                font-size: 12px;
+                opacity: 0.9;
+            }
+            
+            .task-progress {
+                margin-top: 15px;
+                margin-bottom: 15px;
+            }
+            
+            .progress-text {
+                display: flex;
+                justify-content: space-between;
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.8);
+                margin-bottom: 5px;
+            }
+            
+            .progress-bar-container {
+                height: 8px;
+                background: rgba(20, 30, 60, 0.4);
+                border-radius: 10px;
+                overflow: hidden;
+            }
+            
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+                border-radius: 10px;
+                box-shadow: 0 0 10px rgba(0, 201, 167, 0.4);
+                transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+            }
+            
+            .progress-fill.complete {
+                animation: progress-complete-pulse 2s infinite;
+            }
+            
+            @keyframes progress-complete-pulse {
+                0% {
+                    box-shadow: 0 0 5px rgba(0, 201, 167, 0.4);
+                }
+                50% {
+                    box-shadow: 0 0 15px rgba(0, 201, 167, 0.7);
+                }
+                100% {
+                    box-shadow: 0 0 5px rgba(0, 201, 167, 0.4);
                 }
             }
+            
+            .task-action {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                margin-top: 10px;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .action-button {
+                background: linear-gradient(90deg, #4eb5f7, #00C9A7);
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 10px 20px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .action-button::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+                transform: scale(0);
+                transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+                border-radius: 50%;
+            }
+            
+            .action-button:hover::before {
+                transform: scale(1);
+            }
+            
+            .action-button:hover {
+                transform: ${animationConfig.useReducedMotion ? 'none' : 'translateY(-2px)'};
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .action-button:active {
+                transform: translateY(1px);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            }
+            
+            .completed-label {
+                display: inline-block;
+                color: #4caf50;
+                font-weight: bold;
+                padding: 10px 20px;
+                border-radius: 10px;
+                background: rgba(76, 175, 80, 0.1);
+                border: 1px solid rgba(76, 175, 80, 0.3);
+            }
+            
+            /* Преміальні стилі для лідерської дошки */
+            .leaderboard-item {
+                background: ${themeConfig.useGlassEffect ? 
+                    'rgba(20, 30, 60, 0.7)' : 
+                    'rgba(26, 32, 58, 0.95)'};
+                border-radius: 16px;
+                border: 1px solid rgba(78, 181, 247, 0.2);
+                box-shadow: ${themeConfig.useShadowEffect ? 
+                    '0 10px 25px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.1)' : 
+                    '0 5px 15px rgba(0, 0, 0, 0.15)'};
+                backdrop-filter: ${themeConfig.useGlassEffect ? 'blur(10px)' : 'none'};
+                padding: 12px 15px;
+                margin-bottom: 10px;
+                transition: all 0.3s ease;
+                transform: translateY(20px);
+                opacity: 0;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .leaderboard-item.show {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            
+            .leaderboard-item::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: ${themeConfig.useAnimatedGradients ? 
+                    'linear-gradient(135deg, rgba(78, 181, 247, 0.05), transparent 70%)' : 
+                    'none'};
+                z-index: 0;
+            }
+            
+            .leaderboard-item:hover {
+                transform: ${animationConfig.useReducedMotion ? 'none' : 'translateY(-3px)'};
+                box-shadow: ${themeConfig.useShadowEffect ? 
+                    '0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.2)' : 
+                    '0 8px 20px rgba(0, 0, 0, 0.2)'};
+            }
+            
+            .position {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                background: linear-gradient(90deg, #4eb5f7, #b251f7);
+                color: white;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+                position: relative;
+                z-index: 1;
+            }
+            
+            .position.top-3 {
+                background: linear-gradient(90deg, #FFD700, #FFA500);
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+                animation: top-position-glow 2s infinite alternate;
+            }
+            
+            @keyframes top-position-glow {
+                0% {
+                    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+                }
+                100% {
+                    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.3);
+                }
+            }
+            
+            .leaderboard-item.current-user {
+                background: rgba(0, 201, 167, 0.1);
+                border: 1px solid rgba(0, 201, 167, 0.3);
+                box-shadow: 0 0 15px rgba(0, 201, 167, 0.2);
+                animation: highlight-pulse 3s infinite alternate;
+            }
+            
+            @keyframes highlight-pulse {
+                0% {
+                    box-shadow: 0 0 10px rgba(0, 201, 167, 0.2);
+                }
+                100% {
+                    box-shadow: 0 0 20px rgba(0, 201, 167, 0.4);
+                }
+            }
+            
+            /* Преміальні стилі для вкладок */
+            .tabs {
+                background: ${themeConfig.useGlassEffect ? 
+                    'rgba(15, 23, 42, 0.5)' : 
+                    'rgba(15, 23, 42, 0.8)'};
+                backdrop-filter: ${themeConfig.useGlassEffect ? 'blur(10px)' : 'none'};
+                border-radius: 16px;
+                padding: 5px;
+                display: flex;
+                margin-bottom: 15px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+                border: 1px solid rgba(78, 181, 247, 0.1);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .tab {
+                flex: 1;
+                text-align: center;
+                padding: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                color: rgba(255, 255, 255, 0.7);
+                cursor: pointer;
+                border-radius: 12px;
+                transition: all 0.3s ease;
+                position: relative;
+                z-index: 1;
+            }
+            
+            .tab.active {
+                background: linear-gradient(135deg, #4eb5f7, #00C9A7);
+                color: white;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            }
+            
+            .tab:not(.active):hover {
+                color: rgba(255, 255, 255, 0.9);
+                background: rgba(255, 255, 255, 0.1);
+            }
+            
+            .tab.active::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(rgba(0, 201, 167, 0.2), transparent 70%);
+                transform: rotate(0deg);
+                animation: rotate-glow 15s linear infinite;
+                opacity: 0.3;
+                pointer-events: none;
+                z-index: -1;
+            }
+            
+            @keyframes rotate-glow {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+            
+            /* Анімації для преміальних ефектів */
+            @keyframes gradient-shift {
+                0% {
+                    background-position: 0% 50%;
+                }
+                50% {
+                    background-position: 100% 50%;
+                }
+                100% {
+                    background-position: 0% 50%;
+                }
+            }
+            
+            .success-pulse {
+                animation: success-animation 1s;
+            }
+            
+            @keyframes success-animation {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5);
+                }
+                70% {
+                    box-shadow: 0 0 0 15px rgba(0, 201, 167, 0);
+                }
+                100% {
+                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0);
+                }
+            }
+            
+            /* Стилі для порожніх секцій */
+            .no-tasks, .task-loader, .leaderboard-loader {
+                background: rgba(20, 30, 60, 0.4);
+                border-radius: 16px;
+                padding: 20px;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.7);
+                margin: 20px 0;
+                border: 1px solid rgba(78, 181, 247, 0.1);
+                backdrop-filter: ${themeConfig.useGlassEffect ? 'blur(10px)' : 'none'};
+            }
+            
+            .task-loader, .leaderboard-loader {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+            }
+            
+            .loader-spinner {
+                width: 20px;
+                height: 20px;
+                border: 3px solid rgba(78, 181, 247, 0.3);
+                border-radius: 50%;
+                border-top-color: #4eb5f7;
+                animation: spin 1s linear infinite;
+            }
+            
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            
+            /* Преміум-стилі для кнопок і посилань */
+            .invite-button, .invite-friends-button, .action-button[data-action="invite"] {
+                display: none !important;
+            }
+        `;
+
+        document.head.appendChild(style);
+    }
+
+    /**
+     * Видалення кнопок "Запросити друзів"
+     */
+    function removeInviteButtons() {
+        // Шукаємо всі елементи, які можуть бути кнопками запрошення
+        const selectors = [
+            'button.invite-friends-button',
+            '.action-button[data-action="invite"]',
+            'button[data-lang-key="earn.invite_friends"]',
+            '.invite-friends-button',
+            '.referral-button',
+            'a.invite-button',
+            'a[href*="invite"]',
+            'button[onclick*="invite"]',
+            'button.claim-button',
+            '[data-lang-key="earn.invite_friends"]'
+        ];
+
+        // Приховуємо знайдені кнопки
+        selectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                el.style.display = 'none';
+            });
         });
-    }, 2000);
 
-    console.log('Відстеження прогресу завдань налаштовано');
-}
+        // Шукаємо за текстом
+        document.querySelectorAll('button, a').forEach(el => {
+            const text = el.textContent.toLowerCase();
+            if (text.includes('запросити друзів') ||
+                text.includes('invite friends') ||
+                text.includes('запросити')) {
+                el.style.display = 'none';
+            }
+        });
 
-// Запускаємо відстеження прогресу
-setupProgressTracking();
+        console.log('TaskManager: Кнопки запрошення друзів приховано');
+    }
+
+    /**
+     * Налаштування спостереження за DOM для видалення кнопок при динамічному рендерингу
+     */
+    function setupButtonObserver() {
+        if (!window.MutationObserver) return;
+
+        const observer = new MutationObserver(mutations => {
+            let shouldRemove = false;
+
+            mutations.forEach(mutation => {
+                if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                    shouldRemove = true;
+                }
+            });
+
+            if (shouldRemove) {
+                removeInviteButtons();
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        console.log('TaskManager: Налаштовано спостереження за DOM');
+    }
+
+    /**
+     * Налаштування відстеження прогресу завдань
+     */
+    function setupProgressTracking() {
+        // Перевіряємо прогрес-бари кожні 2 секунди
+        setInterval(() => {
+            // Знаходимо всі прогрес-бари в реферальних завданнях
+            const progressBars = document.querySelectorAll('.task-item[data-task-type="referral"] .progress-fill');
+
+            progressBars.forEach(bar => {
+                // Отримуємо поточний прогрес
+                const width = parseInt(bar.style.width) || 0;
+
+                // Якщо прогрес 100% або більше, позначаємо завдання як виконане
+                if (width >= 100) {
+                    // Додаємо клас для анімації
+                    bar.classList.add('complete');
+
+                    // Знаходимо батьківський елемент завдання
+                    const taskItem = bar.closest('.task-item');
+                    if (taskItem && !taskItem.classList.contains('completed')) {
+                        // Позначаємо як виконане
+                        taskItem.classList.add('completed');
+
+                        // Анімуємо завершення завдання
+                        if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                            taskItem.classList.add('success-pulse');
+                            setTimeout(() => {
+                                taskItem.classList.remove('success-pulse');
+                            }, 1000);
+
+                            // Створюємо ефект частинок для наочності
+                            createCompletionParticles(taskItem);
+                        }
+
+                        // Знаходимо кнопку дії та замінюємо її
+                        const actionDiv = taskItem.querySelector('.task-action');
+                        if (actionDiv) {
+                            actionDiv.innerHTML = '<div class="completed-label">Виконано</div>';
+                        }
+
+                        // Викликаємо подію виконання завдання
+                        const taskId = taskItem.getAttribute('data-task-id');
+                        if (taskId) {
+                            document.dispatchEvent(new CustomEvent('task-completed', {
+                                detail: { taskId, automatic: true }
+                            }));
+                        }
+                    }
+                }
+            });
+        }, 2000);
+
+        console.log('TaskManager: Відстеження прогресу завдань налаштовано');
+    }
+
+    /**
+     * Створення частинок для анімації завершення завдання
+     * @param {HTMLElement} element - DOM елемент завдання
+     */
+    function createCompletionParticles(element) {
+        if (!element || !animationConfig.enabled || animationConfig.useReducedMotion) return;
+
+        // Кількість частинок
+        const particleCount = 20;
+
+        // Кольори частинок
+        const colors = ['#4eb5f7', '#00C9A7', '#4CAF50', '#FFD700'];
+
+        // Розміри і позиція елемента
+        const rect = element.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        // Створюємо контейнер для частинок, якщо його ще немає
+        let container = document.getElementById('particles-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'particles-container';
+            container.style.position = 'fixed';
+            container.style.top = '0';
+            container.style.left = '0';
+            container.style.width = '100%';
+            container.style.height = '100%';
+            container.style.pointerEvents = 'none';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+        }
+
+        // Створюємо частинки
+        for (let i = 0; i < particleCount; i++) {
+            // Створюємо елемент частинки
+            const particle = document.createElement('div');
+
+            // Випадковий розмір між 6 і 14 пікселів
+            const size = Math.random() * 8 + 6;
+
+            // Стилізуємо частинку
+            particle.style.position = 'absolute';
+            particle.style.width = size + 'px';
+            particle.style.height = size + 'px';
+            particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            particle.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            particle.style.left = centerX + 'px';
+            particle.style.top = centerY + 'px';
+            particle.style.pointerEvents = 'none';
+            particle.style.boxShadow = '0 0 5px rgba(0, 201, 167, 0.8)';
+            particle.style.zIndex = '1000';
+            particle.style.transform = 'translate(-50%, -50%)';
+
+            // Додаємо частинку до контейнера
+            container.appendChild(particle);
+
+            // Анімуємо частинку
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 120 + 60;
+            const duration = Math.random() * 1000 + 800;
+
+            // Створюємо анімацію для частинки
+            particle.animate([
+                {
+                    transform: 'translate(-50%, -50%) scale(0.3)',
+                    opacity: 1
+                },
+                {
+                    transform: `translate(calc(-50% + ${Math.cos(angle) * distance}px), calc(-50% + ${Math.sin(angle) * distance}px)) scale(1) rotate(${Math.random() * 360}deg)`,
+                    opacity: 0
+                }
+            ], {
+                duration: duration,
+                easing: 'cubic-bezier(0.11, 0.8, 0.67, 1.4)',
+                fill: 'forwards'
+            });
+
+            // Видаляємо частинку після завершення анімації
+            setTimeout(() => {
+                particle.remove();
+            }, duration);
+        }
+    }
 
     /**
      * Знаходження DOM-елементів
@@ -404,6 +986,23 @@ setupProgressTracking();
                 const targetSection = document.getElementById(`${tabType}-content`);
                 if (targetSection) {
                     targetSection.classList.add('active');
+
+                    // Додаємо плавну анімацію для контенту
+                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                        // Знаходимо всі завдання в цій секції та анімуємо їх
+                        const taskItems = targetSection.querySelectorAll('.task-item');
+                        taskItems.forEach((item, index) => {
+                            item.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+                            item.classList.add('show');
+                        });
+
+                        // Аналогічно для елементів лідерської дошки
+                        const leaderboardItems = targetSection.querySelectorAll('.leaderboard-item');
+                        leaderboardItems.forEach((item, index) => {
+                            item.style.transitionDelay = `${index * animationConfig.leaderboardAppearDelay}ms`;
+                            item.classList.add('show');
+                        });
+                    }
                 }
 
                 // Зберігаємо активну вкладку в localStorage
@@ -474,18 +1073,34 @@ setupProgressTracking();
                 throw new Error('API_NOT_AVAILABLE');
             }
 
-            // Показуємо індикатор завантаження в контейнерах
+            // Показуємо покращений індикатор завантаження в контейнерах
             if (domElements.socialTasksContainer) {
-                domElements.socialTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                domElements.socialTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
             }
             if (domElements.limitedTasksContainer) {
-                domElements.limitedTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                domElements.limitedTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
             }
             if (domElements.partnersTasksContainer) {
-                domElements.partnersTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                domElements.partnersTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
             }
             if (domElements.referralTasksContainer) {
-                domElements.referralTasksContainer.innerHTML = '<div class="task-loader">Завантаження завдань...</div>';
+                domElements.referralTasksContainer.innerHTML = `
+                    <div class="task-loader">
+                        <div class="loader-spinner"></div>
+                        <span>Завантаження завдань...</span>
+                    </div>`;
             }
 
             // Перевіряємо наявність ID користувача
@@ -586,10 +1201,27 @@ setupProgressTracking();
             } catch (error) {
                 console.error('TaskManager: Помилка при виконанні запиту:', error);
 
-                // Показуємо повідомлення про помилку в контейнерах
-                const errorHtml = `<div class="error-message">Помилка завантаження завдань: ${error.message}</div>`;
+                // Показуємо стильне повідомлення про помилку в контейнерах
+                const errorHtml = `
+                    <div class="no-tasks">
+                        <div style="margin-bottom: 10px; color: #f44336;">🔄 Помилка завантаження завдань</div>
+                        <div style="font-size: 14px; opacity: 0.8;">Перевірте з'єднання з інтернетом або спробуйте пізніше</div>
+                        <button class="action-button" style="margin-top: 15px; padding: 8px 15px;" onclick="window.TaskManager.loadTasks()">
+                            Спробувати знову
+                        </button>
+                    </div>`;
+
                 if (domElements.socialTasksContainer) {
                     domElements.socialTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.limitedTasksContainer) {
+                    domElements.limitedTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.partnersTasksContainer) {
+                    domElements.partnersTasksContainer.innerHTML = errorHtml;
+                }
+                if (domElements.referralTasksContainer) {
+                    domElements.referralTasksContainer.innerHTML = errorHtml;
                 }
 
                 // Генеруємо подію про помилку
@@ -649,7 +1281,10 @@ setupProgressTracking();
         tasks.forEach(task => {
             if (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) {
                 referral.push(task);
-            } else if (task.type === 'referral' || (task.title && task.title.toLowerCase().includes('referral'))) {
+            } else if (task.type === 'referral' ||
+                       (task.title && task.title.toLowerCase().includes('referral')) ||
+                       (task.title && task.title.toLowerCase().includes('запроси')) ||
+                       (task.title && task.title.toLowerCase().includes('запросити'))) {
                 referral.push(task);
             } else {
                 regular.push(task);
@@ -717,15 +1352,30 @@ setupProgressTracking();
         domElements.socialTasksContainer.innerHTML = '';
 
         if (socialTasks.length === 0) {
-            domElements.socialTasksContainer.innerHTML = '<div class="no-tasks">Немає доступних завдань</div>';
+            domElements.socialTasksContainer.innerHTML =
+                '<div class="no-tasks">Немає доступних завдань</div>';
             return;
         }
 
         // Відображаємо кожне завдання
-        socialTasks.forEach(task => {
+        socialTasks.forEach((task, index) => {
             if (window.SocialTask && typeof window.SocialTask.create === 'function') {
                 try {
                     const taskElement = window.SocialTask.create(task, userProgress[task.id]);
+
+                    // Додаємо затримку для анімації появи, якщо увімкнено
+                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                        taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                        taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+
+                        // Додаємо клас show з затримкою для плавної анімації
+                        setTimeout(() => {
+                            taskElement.classList.add('show');
+                        }, 50);
+                    } else {
+                        taskElement.classList.add('show');
+                    }
+
                     domElements.socialTasksContainer.appendChild(taskElement);
                 } catch (error) {
                     console.error('TaskManager: Помилка створення елемента соціального завдання:', error);
@@ -734,8 +1384,23 @@ setupProgressTracking();
                 }
             } else {
                 console.warn('TaskManager: SocialTask.create не знайдено, використовуємо базовий шаблон');
-                // Запасний варіант
-                domElements.socialTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
+                // Запасний варіант з анімацією
+                const taskHtml = createBasicTaskElement(task, userProgress[task.id]);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = taskHtml;
+                const taskElement = tempDiv.firstChild;
+
+                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                    taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+                    setTimeout(() => {
+                        taskElement.classList.add('show');
+                    }, 50);
+                } else {
+                    taskElement.classList.add('show');
+                }
+
+                domElements.socialTasksContainer.appendChild(taskElement);
             }
         });
     }
@@ -755,15 +1420,30 @@ setupProgressTracking();
         domElements.referralTasksContainer.innerHTML = '';
 
         if (referralTasks.length === 0) {
-            domElements.referralTasksContainer.innerHTML = '<div class="no-tasks">Немає доступних реферальних завдань</div>';
+            domElements.referralTasksContainer.innerHTML =
+                '<div class="no-tasks">Немає доступних реферальних завдань</div>';
             return;
         }
 
         // Відображаємо кожне завдання
-        referralTasks.forEach(task => {
+        referralTasks.forEach((task, index) => {
             if (window.SocialTask && typeof window.SocialTask.create === 'function') {
                 try {
                     const taskElement = window.SocialTask.create(task, userProgress[task.id]);
+
+                    // Додаємо затримку для анімації появи, якщо увімкнено
+                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                        taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                        taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+
+                        // Додаємо клас show з затримкою для плавної анімації
+                        setTimeout(() => {
+                            taskElement.classList.add('show');
+                        }, 50);
+                    } else {
+                        taskElement.classList.add('show');
+                    }
+
                     domElements.referralTasksContainer.appendChild(taskElement);
                 } catch (error) {
                     console.error('TaskManager: Помилка створення елемента реферального завдання:', error);
@@ -772,8 +1452,23 @@ setupProgressTracking();
                 }
             } else {
                 console.warn('TaskManager: SocialTask.create не знайдено, використовуємо базовий шаблон');
-                // Запасний варіант
-                domElements.referralTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
+                // Запасний варіант з анімацією
+                const taskHtml = createBasicTaskElement(task, userProgress[task.id]);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = taskHtml;
+                const taskElement = tempDiv.firstChild;
+
+                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                    taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+                    setTimeout(() => {
+                        taskElement.classList.add('show');
+                    }, 50);
+                } else {
+                    taskElement.classList.add('show');
+                }
+
+                domElements.referralTasksContainer.appendChild(taskElement);
             }
         });
     }
@@ -793,15 +1488,30 @@ setupProgressTracking();
         domElements.limitedTasksContainer.innerHTML = '';
 
         if (limitedTasks.length === 0) {
-            domElements.limitedTasksContainer.innerHTML = '<div class="no-tasks">Немає доступних лімітованих завдань</div>';
+            domElements.limitedTasksContainer.innerHTML =
+                '<div class="no-tasks">Немає доступних лімітованих завдань</div>';
             return;
         }
 
         // Відображаємо кожне завдання
-        limitedTasks.forEach(task => {
+        limitedTasks.forEach((task, index) => {
             if (window.LimitedTask && typeof window.LimitedTask.create === 'function') {
                 try {
                     const taskElement = window.LimitedTask.create(task, userProgress[task.id]);
+
+                    // Додаємо затримку для анімації появи, якщо увімкнено
+                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                        taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                        taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+
+                        // Додаємо клас show з затримкою для плавної анімації
+                        setTimeout(() => {
+                            taskElement.classList.add('show');
+                        }, 50);
+                    } else {
+                        taskElement.classList.add('show');
+                    }
+
                     domElements.limitedTasksContainer.appendChild(taskElement);
                 } catch (error) {
                     console.error('TaskManager: Помилка створення елемента лімітованого завдання:', error);
@@ -810,8 +1520,23 @@ setupProgressTracking();
                 }
             } else {
                 console.warn('TaskManager: LimitedTask.create не знайдено, використовуємо базовий шаблон');
-                // Запасний варіант
-                domElements.limitedTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id], true);
+                // Запасний варіант з анімацією
+                const taskHtml = createBasicTaskElement(task, userProgress[task.id], true);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = taskHtml;
+                const taskElement = tempDiv.firstChild;
+
+                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                    taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+                    setTimeout(() => {
+                        taskElement.classList.add('show');
+                    }, 50);
+                } else {
+                    taskElement.classList.add('show');
+                }
+
+                domElements.limitedTasksContainer.appendChild(taskElement);
             }
         });
     }
@@ -831,15 +1556,30 @@ setupProgressTracking();
         domElements.partnersTasksContainer.innerHTML = '';
 
         if (partnerTasks.length === 0) {
-            domElements.partnersTasksContainer.innerHTML = '<div class="no-tasks">Немає доступних партнерських завдань</div>';
+            domElements.partnersTasksContainer.innerHTML =
+                '<div class="no-tasks">Немає доступних партнерських завдань</div>';
             return;
         }
 
         // Відображаємо кожне завдання
-        partnerTasks.forEach(task => {
+        partnerTasks.forEach((task, index) => {
             if (window.PartnerTask && typeof window.PartnerTask.create === 'function') {
                 try {
                     const taskElement = window.PartnerTask.create(task, userProgress[task.id]);
+
+                    // Додаємо затримку для анімації появи, якщо увімкнено
+                    if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                        taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                        taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+
+                        // Додаємо клас show з затримкою для плавної анімації
+                        setTimeout(() => {
+                            taskElement.classList.add('show');
+                        }, 50);
+                    } else {
+                        taskElement.classList.add('show');
+                    }
+
                     domElements.partnersTasksContainer.appendChild(taskElement);
                 } catch (error) {
                     console.error('TaskManager: Помилка створення елемента партнерського завдання:', error);
@@ -848,8 +1588,23 @@ setupProgressTracking();
                 }
             } else {
                 console.warn('TaskManager: PartnerTask.create не знайдено, використовуємо базовий шаблон');
-                // Запасний варіант
-                domElements.partnersTasksContainer.innerHTML += createBasicTaskElement(task, userProgress[task.id]);
+                // Запасний варіант з анімацією
+                const taskHtml = createBasicTaskElement(task, userProgress[task.id]);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = taskHtml;
+                const taskElement = tempDiv.firstChild;
+
+                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    taskElement.style.transitionDuration = `${animationConfig.taskAppearDuration}ms`;
+                    taskElement.style.transitionDelay = `${index * animationConfig.taskAppearDelay}ms`;
+                    setTimeout(() => {
+                        taskElement.classList.add('show');
+                    }, 50);
+                } else {
+                    taskElement.classList.add('show');
+                }
+
+                domElements.partnersTasksContainer.appendChild(taskElement);
             }
         });
     }
@@ -863,6 +1618,48 @@ setupProgressTracking();
         renderReferralTasks();
         renderLimitedTasks();
         renderPartnerTasks();
+
+        // Додаємо невелику затримку, щоб дати DOM оновитися
+        setTimeout(() => {
+            // Прикріплюємо обробники подій до кнопок
+            attachEventHandlers();
+
+            // Додатково перевіряємо наявність кнопок запрошення після рендеру
+            removeInviteButtons();
+        }, 200);
+    }
+
+    /**
+     * Додавання обробників до кнопок завдань
+     */
+    function attachEventHandlers() {
+        // Прикріплюємо обробники подій до всіх кнопок дій
+        document.querySelectorAll('.action-button[data-action]').forEach(button => {
+            // Перевіряємо, чи вже додано обробник
+            if (button.getAttribute('data-handler-attached') === 'true') {
+                return;
+            }
+
+            // Отримуємо дані кнопки
+            const action = button.getAttribute('data-action');
+            const taskId = button.getAttribute('data-task-id');
+
+            if (!taskId) return;
+
+            // Додаємо обробник відповідно до дії
+            if (action === 'start') {
+                button.addEventListener('click', function() {
+                    startTask(taskId);
+                });
+            } else if (action === 'verify') {
+                button.addEventListener('click', function() {
+                    verifyTask(taskId);
+                });
+            }
+
+            // Позначаємо, що обробник прикріплено
+            button.setAttribute('data-handler-attached', 'true');
+        });
     }
 
     /**
@@ -914,17 +1711,99 @@ setupProgressTracking();
 
                             // Якщо вдалося створити новий елемент, замінюємо старий
                             if (newTaskElement) {
-                                taskElement.replaceWith(newTaskElement);
+                                // Зберігаємо класи анімації
+                                if (taskElement.classList.contains('show')) {
+                                    newTaskElement.classList.add('show');
+                                }
+
+                                // Анімуємо оновлення, якщо увімкнено
+                                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                                    taskElement.style.transition = 'opacity 0.3s ease';
+                                    taskElement.style.opacity = '0';
+
+                                    setTimeout(() => {
+                                        // Замінюємо елемент
+                                        taskElement.replaceWith(newTaskElement);
+
+                                        // Анімуємо появу нового елемента
+                                        setTimeout(() => {
+                                            newTaskElement.style.opacity = '1';
+
+                                            // Додаємо обробники до кнопок нового елемента
+                                            const buttons = newTaskElement.querySelectorAll('.action-button[data-action]');
+                                            buttons.forEach(button => {
+                                                const action = button.getAttribute('data-action');
+                                                if (action === 'start') {
+                                                    button.addEventListener('click', () => startTask(taskId));
+                                                } else if (action === 'verify') {
+                                                    button.addEventListener('click', () => verifyTask(taskId));
+                                                }
+                                                button.setAttribute('data-handler-attached', 'true');
+                                            });
+                                        }, 50);
+                                    }, 300);
+                                } else {
+                                    // Замінюємо без анімації
+                                    taskElement.replaceWith(newTaskElement);
+
+                                    // Додаємо обробники до кнопок нового елемента
+                                    const buttons = newTaskElement.querySelectorAll('.action-button[data-action]');
+                                    buttons.forEach(button => {
+                                        const action = button.getAttribute('data-action');
+                                        if (action === 'start') {
+                                            button.addEventListener('click', () => startTask(taskId));
+                                        } else if (action === 'verify') {
+                                            button.addEventListener('click', () => verifyTask(taskId));
+                                        }
+                                        button.setAttribute('data-handler-attached', 'true');
+                                    });
+                                }
                             } else {
                                 // Запасний варіант - оновлюємо через innerHTML
                                 const isLimited = index === 2; // Це лімітоване завдання
-                                taskElement.outerHTML = createBasicTaskElement(task, userProgress[task.id], isLimited);
+                                const newTaskHtml = createBasicTaskElement(task, userProgress[task.id], isLimited);
+
+                                // Створюємо тимчасовий елемент
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = newTaskHtml;
+                                const newElement = tempDiv.firstChild;
+
+                                // Додаємо клас show, якщо він був
+                                if (taskElement.classList.contains('show')) {
+                                    newElement.classList.add('show');
+                                }
+
+                                // Анімуємо оновлення, якщо увімкнено
+                                if (animationConfig.enabled && !animationConfig.useReducedMotion) {
+                                    taskElement.style.transition = 'opacity 0.3s ease';
+                                    taskElement.style.opacity = '0';
+
+                                    setTimeout(() => {
+                                        taskElement.replaceWith(newElement);
+
+                                        setTimeout(() => {
+                                            newElement.style.opacity = '1';
+
+                                            // Додаємо обробники до кнопок
+                                            attachEventHandlers();
+                                        }, 50);
+                                    }, 300);
+                                } else {
+                                    // Замінюємо без анімації
+                                    taskElement.replaceWith(newElement);
+
+                                    // Додаємо обробники до кнопок
+                                    attachEventHandlers();
+                                }
                             }
                         } catch (error) {
                             console.error('TaskManager: Помилка оновлення елемента завдання:', error);
                             // Запасний варіант - оновлюємо через innerHTML
                             const isLimited = index === 2; // Це лімітоване завдання
                             taskElement.outerHTML = createBasicTaskElement(task, userProgress[task.id], isLimited);
+
+                            // Прикріплюємо обробники після оновлення DOM
+                            setTimeout(attachEventHandlers, 50);
                         }
                     }
                 }
@@ -945,7 +1824,7 @@ setupProgressTracking();
             if (!userId) {
                 console.error('TaskManager: ID користувача не знайдено, неможливо запустити завдання');
                 showErrorMessage('Для виконання завдання необхідно авторизуватися');
-                return;
+                return false;
             }
 
             // Знаходимо завдання
@@ -953,7 +1832,33 @@ setupProgressTracking();
             if (!task) {
                 console.error('TaskManager: Завдання не знайдено:', taskId);
                 showErrorMessage('Завдання не знайдено');
-                return;
+                return false;
+            }
+
+            // Знаходимо кнопку та додаємо клас завантаження
+            const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="start"]`);
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Завантаження...';
+
+                if (animationConfig.enabled) {
+                    button.style.opacity = '0.7';
+
+                    // Додаємо анімацію завантаження
+                    const loadingElement = document.createElement('div');
+                    loadingElement.style.position = 'absolute';
+                    loadingElement.style.top = '50%';
+                    loadingElement.style.left = '50%';
+                    loadingElement.style.transform = 'translate(-50%, -50%)';
+                    loadingElement.style.width = '20px';
+                    loadingElement.style.height = '20px';
+                    loadingElement.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+                    loadingElement.style.borderTop = '2px solid white';
+                    loadingElement.style.borderRadius = '50%';
+                    loadingElement.style.animation = 'spin 1s linear infinite';
+
+                    button.appendChild(loadingElement);
+                }
             }
 
             // Виконуємо запит до API
@@ -961,6 +1866,13 @@ setupProgressTracking();
 
             if (response.status === 'success' || response.success) {
                 console.log('TaskManager: Завдання успішно запущено:', taskId);
+
+                // Відновлюємо кнопку
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = task.action_label || 'Виконати';
+                    button.style.opacity = '1';
+                }
 
                 // Оновлюємо прогрес
                 if (response.data && response.data.progress) {
@@ -977,25 +1889,45 @@ setupProgressTracking();
                 // Оновлюємо відображення
                 refreshTaskDisplay(taskId);
 
+                // Показуємо користувачу повідомлення про успіх
+                if (window.UI && window.UI.Notifications && typeof window.UI.Notifications.showSuccess === 'function') {
+                    window.UI.Notifications.showSuccess('Завдання активовано!');
+                } else if (typeof showSuccessMessage === 'function') {
+                    showSuccessMessage('Завдання активовано!');
+                }
+
                 // Якщо є URL дії, відкриваємо його
                 if (task.action_url) {
                     // Пробуємо використати SocialTask для безпечної валідації URL
                     if (window.SocialTask && typeof window.SocialTask.validateUrl === 'function') {
                         const safeUrl = window.SocialTask.validateUrl(task.action_url);
                         if (safeUrl) {
-                            window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                            // Додаємо невелику затримку перед відкриттям URL
+                            setTimeout(() => {
+                                window.open(safeUrl, '_blank', 'noopener,noreferrer');
+                            }, 300);
                         } else {
                             showErrorMessage('Неможливо відкрити це посилання через проблеми безпеки');
                         }
                     } else {
                         // Запасний варіант - просто відкриваємо URL
-                        window.open(task.action_url, '_blank', 'noopener,noreferrer');
+                        setTimeout(() => {
+                            window.open(task.action_url, '_blank', 'noopener,noreferrer');
+                        }, 300);
                     }
                 }
 
                 return true;
             } else {
                 console.error('TaskManager: Помилка запуску завдання:', response.message || 'Невідома помилка');
+
+                // Відновлюємо кнопку
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = task.action_label || 'Виконати';
+                    button.style.opacity = '1';
+                }
+
                 showErrorMessage(response.message || 'Помилка запуску завдання');
                 return false;
             }
@@ -1017,7 +1949,7 @@ setupProgressTracking();
             // Запобігаємо повторним запитам для одного завдання
             if (operationStatus.verificationInProgress[taskId]) {
                 console.log('TaskManager: Перевірка вже виконується для завдання', taskId);
-                return;
+                return false;
             }
 
             operationStatus.verificationInProgress[taskId] = true;
@@ -1028,7 +1960,33 @@ setupProgressTracking();
                 console.error('TaskManager: ID користувача не знайдено, неможливо перевірити завдання');
                 showErrorMessage('Для перевірки завдання необхідно авторизуватися');
                 operationStatus.verificationInProgress[taskId] = false;
-                return;
+                return false;
+            }
+
+            // Знаходимо кнопку та додаємо клас завантаження
+            const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
+            if (button) {
+                button.disabled = true;
+                button.textContent = 'Перевірка...';
+
+                if (animationConfig.enabled) {
+                    button.style.opacity = '0.7';
+
+                    // Додаємо анімацію завантаження
+                    const loadingElement = document.createElement('div');
+                    loadingElement.style.position = 'absolute';
+                    loadingElement.style.top = '50%';
+                    loadingElement.style.left = '50%';
+                    loadingElement.style.transform = 'translate(-50%, -50%)';
+                    loadingElement.style.width = '20px';
+                    loadingElement.style.height = '20px';
+                    loadingElement.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+                    loadingElement.style.borderTop = '2px solid white';
+                    loadingElement.style.borderRadius = '50%';
+                    loadingElement.style.animation = 'spin 1s linear infinite';
+
+                    button.appendChild(loadingElement);
+                }
             }
 
             // Виконуємо запит до API
@@ -1049,11 +2007,31 @@ setupProgressTracking();
                     userProgress[taskId].progress_value = userProgress[taskId].target_value || 1;
                 }
 
-                // Оновлюємо відображення
-                refreshTaskDisplay(taskId);
+                // Оновлюємо відображення з анімацією
+                const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+                if (taskElement && animationConfig.enabled && !animationConfig.useReducedMotion) {
+                    // Додаємо клас для анімації успіху
+                    taskElement.classList.add('success-pulse');
 
-                // Показуємо повідомлення про успіх
-                showSuccessMessage(response.message || 'Завдання успішно виконано!');
+                    // Створюємо ефект частинок для наочності
+                    createCompletionParticles(taskElement);
+
+                    // Через 1 секунду оновлюємо відображення
+                    setTimeout(() => {
+                        taskElement.classList.remove('success-pulse');
+                        refreshTaskDisplay(taskId);
+                    }, 1000);
+                } else {
+                    // Оновлюємо без анімації
+                    refreshTaskDisplay(taskId);
+                }
+
+                // Показуємо повідомлення про успіх з використанням UI.Notifications, якщо доступно
+                if (window.UI && window.UI.Notifications && typeof window.UI.Notifications.showSuccess === 'function') {
+                    window.UI.Notifications.showSuccess(response.message || 'Завдання успішно виконано!');
+                } else {
+                    showSuccessMessage(response.message || 'Завдання успішно виконано!');
+                }
 
                 // Якщо є винагорода, оновлюємо баланс
                 if (response.data && response.data.reward) {
@@ -1069,12 +2047,31 @@ setupProgressTracking();
                 return true;
             } else {
                 console.error('TaskManager: Помилка перевірки завдання:', response.message || 'Невідома помилка');
+
+                // Відновлюємо кнопку
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = 'Перевірити';
+                    button.style.opacity = '1';
+                }
+
+                // Показуємо повідомлення про помилку
                 showErrorMessage(response.message || 'Помилка перевірки завдання');
+
                 operationStatus.verificationInProgress[taskId] = false;
                 return false;
             }
         } catch (error) {
             console.error('TaskManager: Помилка перевірки завдання:', error);
+
+            // Відновлюємо кнопку, якщо вона є
+            const button = document.querySelector(`.action-button[data-task-id="${taskId}"][data-action="verify"]`);
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Перевірити';
+                button.style.opacity = '1';
+            }
+
             showErrorMessage('Не вдалося перевірити завдання: ' + error.message);
             operationStatus.verificationInProgress[taskId] = false;
             return false;
@@ -1113,11 +2110,11 @@ setupProgressTracking();
                     const currentBalance = parseFloat(tokensElement.textContent) || 0;
                     const newBalance = currentBalance + parseFloat(reward.amount);
                     tokensElement.textContent = newBalance.toFixed(2);
-                    tokensElement.classList.add('highlight');
 
-                    // Через 2 секунди знімаємо виділення
+                    // Додаємо преміальну анімацію оновлення
+                    tokensElement.classList.add('increasing');
                     setTimeout(() => {
-                        tokensElement.classList.remove('highlight');
+                        tokensElement.classList.remove('increasing');
                     }, 2000);
 
                     // Зберігаємо в localStorage
@@ -1133,11 +2130,11 @@ setupProgressTracking();
                     const currentBalance = parseInt(coinsElement.textContent) || 0;
                     const newBalance = currentBalance + parseInt(reward.amount);
                     coinsElement.textContent = newBalance.toString();
-                    coinsElement.classList.add('highlight');
 
-                    // Через 2 секунди знімаємо виділення
+                    // Додаємо преміальну анімацію оновлення
+                    coinsElement.classList.add('increasing');
                     setTimeout(() => {
-                        coinsElement.classList.remove('highlight');
+                        coinsElement.classList.remove('increasing');
                     }, 2000);
 
                     // Зберігаємо в localStorage
@@ -1148,6 +2145,14 @@ setupProgressTracking();
                     }
                 }
             }
+
+            // Генеруємо подію про оновлення балансу
+            document.dispatchEvent(new CustomEvent('balance-updated', {
+                detail: {
+                    type: reward.type,
+                    amount: reward.amount
+                }
+            }));
         } catch (e) {
             console.error('TaskManager: Помилка оновлення балансу:', e);
         }
@@ -1249,6 +2254,7 @@ setupProgressTracking();
             actionButtons = `<button class="action-button" data-action="start" data-task-id="${task.id}" data-lang-key="earn.${task.action_type || 'start'}">${task.action_label || 'Виконати'}</button>`;
         }
 
+        // Збираємо HTML з покращеними стилями
         return `
             <div class="task-item" data-task-id="${task.id}" data-task-type="${task.type || 'social'}" data-target-value="${task.target_value}">
                 ${partnerLabel}
@@ -1262,7 +2268,10 @@ setupProgressTracking();
                 <div class="task-description">${escapeHtml(task.description)}</div>
                 ${task.target_value > 1 ? 
                   `<div class="task-progress">
-                       <div class="progress-text">${progressValue}/${task.target_value} ${task.progress_label || ''}</div>
+                       <div class="progress-text">
+                           <span>${progressValue}/${task.target_value} ${task.progress_label || ''}</span>
+                           <span>${progressPercent}%</span>
+                       </div>
                        <div class="progress-bar-container">
                            <div class="progress-fill" style="width: ${progressPercent}%;"></div>
                        </div>
@@ -1322,14 +2331,16 @@ setupProgressTracking();
             newToast.className = 'toast-message error show';
             newToast.textContent = message;
             newToast.style.position = 'fixed';
-            newToast.style.bottom = '20px';
+            newToast.style.top = '20px';
             newToast.style.left = '50%';
             newToast.style.transform = 'translateX(-50%)';
-            newToast.style.backgroundColor = '#f44336';
+            newToast.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
             newToast.style.color = 'white';
             newToast.style.padding = '12px 20px';
-            newToast.style.borderRadius = '4px';
+            newToast.style.borderRadius = '10px';
+            newToast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
             newToast.style.zIndex = '9999';
+            newToast.style.backdropFilter = 'blur(10px)';
 
             document.body.appendChild(newToast);
 
@@ -1379,14 +2390,16 @@ setupProgressTracking();
             newToast.className = 'toast-message success show';
             newToast.textContent = message;
             newToast.style.position = 'fixed';
-            newToast.style.bottom = '20px';
+            newToast.style.top = '20px';
             newToast.style.left = '50%';
             newToast.style.transform = 'translateX(-50%)';
-            newToast.style.backgroundColor = '#4CAF50';
+            newToast.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
             newToast.style.color = 'white';
             newToast.style.padding = '12px 20px';
-            newToast.style.borderRadius = '4px';
+            newToast.style.borderRadius = '10px';
+            newToast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
             newToast.style.zIndex = '9999';
+            newToast.style.backdropFilter = 'blur(10px)';
 
             document.body.appendChild(newToast);
 
@@ -1459,11 +2472,18 @@ setupProgressTracking();
         showSuccessMessage,
         diagnoseSystemState,
         safeGetUserId,
+        removeInviteButtons,
+        createCompletionParticles,
+        // Конфігурація
+        setAnimationConfig: (config) => Object.assign(animationConfig, config),
+        setThemeConfig: (config) => Object.assign(themeConfig, config),
         // Константи
         REWARD_TYPES,
         // Доступ до даних (тільки для читання)
         get userProgress() { return { ...userProgress }; },
         get domElements() { return { ...domElements }; },
-        get initialized() { return initialized; }
+        get initialized() { return initialized; },
+        get animationConfig() { return { ...animationConfig }; },
+        get themeConfig() { return { ...themeConfig }; }
     };
 })();
