@@ -1,6 +1,6 @@
 """
-Контролери для API завдань та бонусів у системі WINIX.
-Обробляють запити API та передають керування відповідним сервісам.
+Контролери для управління завданнями в системі WINIX.
+Обробляють запити API для CRUD операцій з завданнями та їх прогресом.
 """
 import logging
 import sys
@@ -20,10 +20,8 @@ from models.task import Task, TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIM
 from models.user_progress import UserProgress, STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_VERIFIED
 from quests.task_service import TaskService
 from quests.verification_service import VerificationService
-from quests.leaderboard_service import LeaderboardService
-from quests.referral_service import ReferralService
-from quests.daily_bonus import DailyBonusService
-from utils.api_helpers import api_success, api_error, api_validation_error, handle_exception, validate_request_data, validate_numeric_field
+from utils.api_helpers import api_success, api_error, api_validation_error, handle_exception, validate_request_data, \
+    validate_numeric_field
 from supabase_client import supabase
 
 # Налаштування логування
@@ -31,8 +29,6 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-
-# НОВІ ФУНКЦІЇ ДЛЯ КЕРУВАННЯ ЗАВДАННЯМИ
 
 def create_new_task(data):
     """
@@ -174,8 +170,6 @@ def delete_task_by_id(task_id):
         return handle_exception(e, f"Помилка видалення завдання {task_id}")
 
 
-# Контролери для завдань
-
 def get_all_tasks():
     """
     Отримання всіх завдань.
@@ -261,16 +255,20 @@ def get_referral_tasks():
     Returns:
         tuple: (відповідь API, код статусу)
     """
+    from common.helpers import safe_get_user_id
+    from referrals.controllers import get_referral_tasks as get_user_referral_tasks
+
     try:
         logger.info("Запит на отримання реферальних завдань")
 
-        # Отримуємо реферальні завдання через сервіс
-        tasks = TaskService.get_referral_tasks()
+        # Отримуємо ID користувача
+        telegram_id = safe_get_user_id()
+        if not telegram_id:
+            return api_error(message="ID користувача не знайдено", status_code=400)
 
-        # Конвертуємо у формат API
-        tasks_data = [task for task in tasks]
+        # Викликаємо функцію з модуля referrals
+        return get_user_referral_tasks(telegram_id)
 
-        return api_success(data={"tasks": tasks_data}, message="Реферальні завдання успішно отримано")
     except Exception as e:
         logger.error(f"Помилка отримання реферальних завдань: {str(e)}")
         return handle_exception(e, "Помилка отримання реферальних завдань")
@@ -689,420 +687,3 @@ def get_task_status(telegram_id, task_id):
     except Exception as e:
         logger.exception(f"Помилка отримання статусу завдання {task_id} для користувача {telegram_id}")
         return handle_exception(e, f"Помилка отримання статусу завдання {task_id} для користувача {telegram_id}")
-
-
-# Контролери для щоденних бонусів
-
-def get_daily_bonus_status(telegram_id: str) -> Tuple[Dict[str, Any], int]:
-    """
-    Отримання статусу щоденного бонусу.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"get_daily_bonus_status: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Логування запиту
-        logger.info(f"get_daily_bonus_status: Запит статусу щоденного бонусу для користувача {telegram_id}")
-
-        # Отримуємо статус бонусу через сервіс
-        bonus_status = DailyBonusService.get_daily_bonus_status(telegram_id)
-
-        # Перевіряємо наявність помилки
-        if "error" in bonus_status:
-            error_message = bonus_status.pop("error")
-            if "не знайдено" in error_message.lower():
-                return api_error(message=error_message, status_code=404)
-            return api_error(message=error_message, status_code=400)
-
-        # Повертаємо успішну відповідь
-        return api_success(
-            data=bonus_status,
-            message="Статус щоденного бонусу успішно отримано"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка отримання статусу щоденного бонусу для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання статусу щоденного бонусу для користувача {telegram_id}")
-
-
-def claim_daily_bonus(telegram_id: str, data: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Any], int]:
-    """
-    Отримання щоденного бонусу.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-        data (dict, optional): Дані запиту
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"claim_daily_bonus: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Отримуємо дані запиту
-        if data is None:
-            data = request.json or {}
-
-        # Логування запиту з рівнем безпеки
-        logger.info(f"claim_daily_bonus: Запит на отримання щоденного бонусу для користувача {telegram_id}")
-
-        # Отримуємо день, якщо він вказаний
-        day = None
-        if 'day' in data:
-            try:
-                day = int(data['day'])
-                # Валідація дня
-                if day < 1 or day > 7:
-                    return api_error(message=f"Недійсний день циклу. Має бути від 1 до 7, отримано: {day}", status_code=400)
-            except (ValueError, TypeError):
-                return api_error(message=f"Недійсний формат дня. Має бути ціле число, отримано: {data['day']}", status_code=400)
-
-        # Додаємо запис для аудиту
-        logger.info(f"claim_daily_bonus: Початок процесу отримання бонусу для користувача {telegram_id}, день: {day}")
-
-        # Видаємо бонус
-        success, error, bonus_data = DailyBonusService.claim_daily_bonus(telegram_id, day)
-
-        # Перевіряємо результат
-        if not success:
-            logger.warning(f"claim_daily_bonus: Помилка видачі бонусу для {telegram_id}: {error}")
-
-            # Визначаємо код статусу залежно від помилки
-            status_code = 400
-            if error and ("не знайдено" in error.lower() or "не існує" in error.lower()):
-                status_code = 404
-            elif error and "вже отримано" in error.lower():
-                status_code = 409  # Conflict
-
-            return api_error(message=error, status_code=status_code)
-
-        # Логуємо успішне отримання бонусу
-        logger.info(f"claim_daily_bonus: Користувач {telegram_id} успішно отримав щоденний бонус: +{bonus_data.get('reward', 0)} WINIX")
-
-        # Повертаємо успішну відповідь
-        return api_success(
-            data=bonus_data,
-            message=f"Щоденний бонус отримано: +{bonus_data.get('reward', 0)} WINIX"
-        )
-    except Exception as e:
-        logger.exception(f"Критична помилка отримання щоденного бонусу для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання щоденного бонусу для користувача {telegram_id}")
-
-
-def claim_streak_bonus(telegram_id: str) -> Tuple[Dict[str, Any], int]:
-    """
-    Отримання бонусу за стрік щоденних входів.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"claim_streak_bonus: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Логування запиту
-        logger.info(f"claim_streak_bonus: Запит на отримання бонусу за стрік для користувача {telegram_id}")
-
-        # Видаємо бонус за стрік
-        success, error, bonus_data = DailyBonusService.get_streak_bonus(telegram_id)
-
-        # Перевіряємо результат
-        if not success:
-            logger.warning(f"claim_streak_bonus: Помилка видачі бонусу за стрік для {telegram_id}: {error}")
-
-            # Визначаємо код статусу залежно від помилки
-            status_code = 400
-            if error and ("не знайдено" in error.lower() or "не існує" in error.lower()):
-                status_code = 404
-            elif error and "вже отримано" in error.lower():
-                status_code = 409  # Conflict
-
-            return api_error(message=error, status_code=status_code)
-
-        # Логуємо успішне отримання бонусу за стрік
-        logger.info(f"claim_streak_bonus: Користувач {telegram_id} успішно отримав бонус за стрік: +{bonus_data.get('reward', 0)} WINIX")
-
-        # Повертаємо успішну відповідь
-        return api_success(
-            data=bonus_data,
-            message=f"Бонус за стрік отримано: +{bonus_data.get('reward', 0)} WINIX"
-        )
-    except Exception as e:
-        logger.exception(f"Критична помилка отримання бонусу за стрік для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання бонусу за стрік для користувача {telegram_id}")
-
-
-def get_bonus_history(telegram_id: str) -> Tuple[Dict[str, Any], int]:
-    """
-    Отримання історії щоденних бонусів.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"get_bonus_history: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Отримуємо параметри пагінації та валідуємо їх
-        try:
-            limit = request.args.get('limit', 10, type=int)
-            offset = request.args.get('offset', 0, type=int)
-
-            # Валідація параметрів
-            if limit < 1 or limit > 100:
-                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
-            if offset < 0:
-                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
-        except ValueError:
-            return api_error(message="Некоректні параметри пагінації", status_code=400)
-
-        # Логування запиту
-        logger.info(f"get_bonus_history: Запит історії бонусів для користувача {telegram_id}, limit={limit}, offset={offset}")
-
-        # Отримуємо історію бонусів
-        bonus_history = DailyBonusService.get_bonus_history(telegram_id, limit, offset)
-
-        # Перевіряємо наявність помилки
-        if "error" in bonus_history:
-            error_message = bonus_history.pop("error")
-            return api_error(message=error_message, status_code=400)
-
-        # Повертаємо успішну відповідь
-        return api_success(
-            data=bonus_history,
-            message="Історія бонусів успішно отримана"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка отримання історії бонусів для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка отримання історії бонусів для користувача {telegram_id}")
-
-
-# Контролери для верифікації соціальних мереж
-
-def verify_subscription(telegram_id, data=None):
-    """
-    Верифікація підписки на соціальну мережу.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-        data (dict, optional): Дані запиту
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"verify_subscription: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Отримуємо дані запиту
-        if data is None:
-            data = request.json or {}
-
-        # Перевірка на обов'язкові поля
-        is_valid, errors = validate_request_data(data, ["platform"])
-        if not is_valid:
-            return api_validation_error(errors)
-
-        # Отримуємо платформу та додаткові дані
-        platform = data.get("platform", "").lower()
-        if not platform:
-            return api_error(message="Платформа не вказана", status_code=400)
-
-        username = data.get("username", "")
-        proof_url = data.get("proof_url", "")
-
-        # Виконуємо верифікацію
-        success, error, verification_details = VerificationService.verify_social_subscription(
-            telegram_id, platform, username, proof_url
-        )
-
-        if not success:
-            return api_error(message=error or "Помилка верифікації підписки", status_code=400)
-
-        # Оновлюємо статус соціального завдання
-        VerificationService.update_user_social_tasks(telegram_id, platform, True)
-
-        # Визначаємо суму винагороди залежно від платформи
-        reward_amounts = {
-            "twitter": 50,
-            "telegram": 80,
-            "youtube": 50,
-            "discord": 60,
-            "instagram": 70,
-            "facebook": 50,
-            "tiktok": 60
-        }
-
-        reward_amount = reward_amounts.get(platform, 50)
-
-        # Видаємо винагороду
-        from utils.transaction_helpers import execute_balance_transaction
-
-        transaction_result = execute_balance_transaction(
-            telegram_id=telegram_id,
-            amount=reward_amount,
-            type_name="social_reward",
-            description=f"Винагорода за підписку на {platform}"
-        )
-
-        if transaction_result.get("status") != "success":
-            return api_error(
-                message=f"Помилка нарахування винагороди: {transaction_result.get('message', 'Невідома помилка')}",
-                status_code=500
-            )
-
-        return api_success(
-            data={
-                "platform": platform,
-                "reward": reward_amount,
-                "previous_balance": transaction_result.get("previous_balance", 0),
-                "new_balance": transaction_result.get("new_balance", 0)
-            },
-            message=f"Підписку підтверджено! Отримано {reward_amount} WINIX"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка верифікації підписки для користувача {telegram_id}")
-        return handle_exception(e, f"Помилка верифікації підписки для користувача {telegram_id}")
-
-
-# Контролери для лідерборду
-
-def get_referrals_leaderboard():
-    """
-    Отримання лідерборду по рефералам.
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Отримуємо параметри пагінації
-        try:
-            limit = request.args.get('limit', 10, type=int)
-            offset = request.args.get('offset', 0, type=int)
-
-            # Валідація параметрів
-            if limit < 1 or limit > 100:
-                limit = 10  # Встановлюємо безпечне значення за замовчуванням
-                logger.warning(f"get_referrals_leaderboard: Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
-
-            if offset < 0:
-                offset = 0  # Встановлюємо безпечне значення за замовчуванням
-                logger.warning(f"get_referrals_leaderboard: Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
-        except ValueError:
-            limit = 10
-            offset = 0
-            logger.warning("get_referrals_leaderboard: Невалідні параметри пагінації, використовуємо значення за замовчуванням")
-
-        # Отримуємо лідерборд
-        leaderboard = LeaderboardService.get_referrals_leaderboard(limit, offset)
-
-        return api_success(
-            data={"leaderboard": leaderboard},
-            message="Лідерборд рефералів успішно отримано"
-        )
-    except Exception as e:
-        logger.exception("Помилка отримання лідерборду рефералів")
-        return handle_exception(e, "Помилка отримання лідерборду рефералів")
-
-
-def get_tasks_leaderboard():
-    """
-    Отримання лідерборду по завданням.
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Отримуємо параметри пагінації
-        try:
-            limit = request.args.get('limit', 10, type=int)
-            offset = request.args.get('offset', 0, type=int)
-            days = request.args.get('days', 30, type=int)
-
-            # Валідація параметрів
-            if limit < 1 or limit > 100:
-                limit = 10  # Встановлюємо безпечне значення за замовчуванням
-                logger.warning(f"get_tasks_leaderboard: Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
-
-            if offset < 0:
-                offset = 0  # Встановлюємо безпечне значення за замовчуванням
-                logger.warning(f"get_tasks_leaderboard: Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
-
-            if days < 1 or days > 365:
-                days = 30  # Встановлюємо безпечне значення за замовчуванням
-                logger.warning(f"get_tasks_leaderboard: Невалідний параметр days: {days}, використовуємо значення за замовчуванням 30")
-        except ValueError:
-            limit = 10
-            offset = 0
-            days = 30
-            logger.warning("get_tasks_leaderboard: Невалідні параметри пагінації, використовуємо значення за замовчуванням")
-
-        # Отримуємо лідерборд
-        leaderboard = LeaderboardService.get_tasks_leaderboard(limit, offset, days)
-
-        return api_success(
-            data={"leaderboard": leaderboard},
-            message="Лідерборд завдань успішно отримано"
-        )
-    except Exception as e:
-        logger.exception("Помилка отримання лідерборду завдань")
-        return handle_exception(e, "Помилка отримання лідерборду завдань")
-
-
-def get_user_leaderboard_position(telegram_id):
-    """
-    Отримання позиції користувача в лідерборді.
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-
-    Returns:
-        tuple: (відповідь API, код статусу)
-    """
-    try:
-        # Валідація telegram_id
-        if not telegram_id or not isinstance(telegram_id, str):
-            logger.error(f"get_user_leaderboard_position: Недійсний telegram_id: {telegram_id}")
-            return api_error(message="Недійсний ID користувача", status_code=400)
-
-        # Отримуємо тип лідерборду
-        leaderboard_type = request.args.get('type', 'referrals')
-
-        # Валідація типу лідерборду
-        valid_types = ['referrals', 'tasks']
-        if leaderboard_type not in valid_types:
-            leaderboard_type = 'referrals'  # Встановлюємо безпечне значення за замовчуванням
-            logger.warning(f"get_user_leaderboard_position: Невалідний тип лідерборду: {leaderboard_type}, використовуємо значення за замовчуванням 'referrals'")
-
-        # Отримуємо позицію
-        position_data = LeaderboardService.get_user_position(telegram_id, leaderboard_type)
-
-        return api_success(
-            data=position_data,
-            message=f"Позиція користувача в лідерборді {leaderboard_type} успішно отримана"
-        )
-    except Exception as e:
-        logger.exception(f"Помилка отримання позиції користувача {telegram_id} в лідерборді")
-        return handle_exception(e),

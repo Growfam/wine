@@ -1,67 +1,83 @@
 /**
- * ProgressBar - UI компонент для відображення прогрес-барів
+ * ProgressBar - оптимізований UI компонент для відображення прогрес-барів
  * Відповідає за:
- * - Створення візуального прогрес-бару
- * - Анімацію зміни прогресу
- * - Підтримку різних стилів та розмірів
+ * - Ефективне відображення візуального прогресу
+ * - Анімацію змін прогресу з мінімальним навантаженням
+ * - Легкий API для інтеграції з будь-якими завданнями
+ *
+ * @version 2.0.0
  */
 
-// Створюємо namespace для UI компонентів, якщо його ще немає
 window.UI = window.UI || {};
 
 window.UI.ProgressBar = (function() {
-    // Колекція прогрес-барів за ID
-    const progressBars = {};
+    // Колекція прогрес-барів з використанням Map для кращої продуктивності
+    const progressBars = new Map();
+
+    // Лічильник для генерації унікальних ID
     let barCounter = 0;
+
+    // Налаштування за замовчуванням
+    const config = {
+        animationDuration: 500,     // Тривалість анімації в мс
+        defaultStyle: 'default',    // Стиль за замовчуванням
+        defaultSize: 'default',     // Розмір за замовчуванням
+        autoClasses: true,          // Автоматичне додавання класів залежно від прогресу
+        useTransition: true         // Використовувати CSS-переходи для анімації
+    };
 
     /**
      * Ініціалізація модуля прогрес-барів
+     * @param {Object} options - Налаштування
      */
-    function init() {
+    function init(options = {}) {
         console.log('UI.ProgressBar: Ініціалізація модуля прогрес-барів');
 
-        // Додаємо стилі для прогрес-барів
+        // Оновлюємо налаштування
+        Object.assign(config, options);
+
+        // Додаємо стилі, якщо потрібно
         injectStyles();
 
         // Ініціалізуємо існуючі прогрес-бари
         initializeExistingProgressBars();
 
-        // Підписуємося на події
-        subscribeToEvents();
+        // Налаштовуємо обробники подій
+        setupEventListeners();
     }
 
     /**
-     * Додавання стилів для прогрес-барів
+     * Додавання CSS стилів для прогрес-барів
      */
     function injectStyles() {
         // Перевіряємо, чи стилі вже додані
         if (document.getElementById('progress-bar-styles')) return;
 
-        // Створюємо елемент стилів
         const styleElement = document.createElement('style');
         styleElement.id = 'progress-bar-styles';
 
-        // Додаємо CSS для прогрес-барів
+        // Оптимізований CSS з мінімальною кількістю правил
         styleElement.textContent = `
-            /* Основні стилі для прогрес-барів */
+            /* Контейнер прогрес-бару */
             .progress-bar-container {
                 width: 100%;
                 height: 0.625rem; /* 10px */
-                background: rgba(10, 20, 40, 0.5);
+                background: rgba(10, 20, 40, 0.2);
                 border-radius: 0.3125rem; /* 5px */
                 overflow: hidden;
                 position: relative;
             }
             
+            /* Заповнення прогрес-бару */
             .progress-bar-fill {
                 height: 100%;
                 background: linear-gradient(90deg, #4eb5f7, #00C9A7);
                 border-radius: 0.3125rem; /* 5px */
-                transition: width 0.5s ease-out;
-                position: relative;
+                transition: width ${config.animationDuration}ms cubic-bezier(0.1, 0.8, 0.2, 1);
+                width: 0;
             }
             
-            /* Розміри прогрес-барів */
+            /* Розміри */
             .progress-bar-container.small {
                 height: 0.375rem; /* 6px */
             }
@@ -70,7 +86,7 @@ window.UI.ProgressBar = (function() {
                 height: 0.875rem; /* 14px */
             }
             
-            /* Стилі прогрес-барів */
+            /* Стилі */
             .progress-bar-container.success .progress-bar-fill {
                 background: linear-gradient(90deg, #4CAF50, #2E7D32);
             }
@@ -83,68 +99,43 @@ window.UI.ProgressBar = (function() {
                 background: linear-gradient(90deg, #F44336, #D32F2F);
             }
             
-            /* Анімації для прогрес-барів */
+            /* Анімації */
+            @keyframes progress-pulse {
+                0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5); }
+                70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
+            }
+            
             .progress-bar-fill.pulse {
-                animation: progress-pulse 1s ease-out;
+                animation: progress-pulse 1.2s ease-out;
             }
             
             .progress-bar-fill.glow {
-                animation: progress-glow 2s infinite;
+                box-shadow: 0 0 8px rgba(0, 201, 167, 0.6);
             }
             
-            @keyframes progress-pulse {
-                0% {
-                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5);
-                }
-                70% {
-                    box-shadow: 0 0 0 10px rgba(0, 201, 167, 0);
-                }
-                100% {
-                    box-shadow: 0 0 0 0 rgba(0, 201, 167, 0);
-                }
-            }
-            
-            @keyframes progress-glow {
-                0% {
-                    box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
-                }
-                50% {
-                    box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
-                }
-                100% {
-                    box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
-                }
-            }
-            
-            /* Текстові мітки для прогрес-барів */
+            /* Текстові мітки */
             .progress-text {
-                font-size: 0.875rem; /* 14px */
-                color: #4eb5f7;
-                margin-bottom: 0.3125rem; /* 5px */
                 display: flex;
                 justify-content: space-between;
+                font-size: 0.875rem; /* 14px */
+                margin-bottom: 0.3125rem; /* 5px */
             }
             
-            .progress-text .progress-label {
+            .progress-label {
                 font-weight: bold;
             }
             
-            .progress-text .progress-value {
+            .progress-value {
                 opacity: 0.8;
-            }
-            
-            /* Прогрес-бар в завданнях */
-            .task-progress .progress-bar-container {
-                margin-top: 0.3125rem; /* 5px */
             }
         `;
 
-        // Додаємо стилі до документу
         document.head.appendChild(styleElement);
     }
 
     /**
-     * Ініціалізація існуючих прогрес-барів
+     * Ініціалізація існуючих прогрес-барів на сторінці
      */
     function initializeExistingProgressBars() {
         // Знаходимо всі контейнери прогрес-барів
@@ -155,9 +146,11 @@ window.UI.ProgressBar = (function() {
 
             // Ініціалізуємо кожен прогрес-бар
             containers.forEach(container => {
-                // Перевіряємо, чи є прогрес-бар всередині
+                // Перевіряємо, чи прогрес-бар вже ініціалізований
+                if (container.hasAttribute('data-progress-id')) return;
+
+                // Створюємо наповнення, якщо його немає
                 if (!container.querySelector('.progress-bar-fill')) {
-                    // Якщо немає, створюємо його
                     const fill = document.createElement('div');
                     fill.className = 'progress-bar-fill';
 
@@ -168,45 +161,48 @@ window.UI.ProgressBar = (function() {
                     container.appendChild(fill);
                 }
 
-                // Зберігаємо прогрес-бар в колекції
+                // Генеруємо ID
                 const id = ++barCounter;
                 container.setAttribute('data-progress-id', id);
 
-                // Отримуємо елемент заповнення
+                // Зберігаємо прогрес-бар в колекції
                 const fill = container.querySelector('.progress-bar-fill');
-
-                // Зберігаємо прогрес-бар
-                progressBars[id] = {
+                progressBars.set(id, {
                     container,
                     fill,
-                    progress: parseFloat(fill.style.width) || 0
-                };
+                    progress: parseFloat(fill.style.width) || 0,
+                    maxValue: 100,
+                    currentValue: parseFloat(fill.style.width) || 0
+                });
             });
         }
     }
 
     /**
-     * Підписка на події
+     * Налаштування обробників подій
      */
-    function subscribeToEvents() {
-        // Відстежуємо зміни в DOM для динамічно доданих прогрес-барів
+    function setupEventListeners() {
+        // Відстежуємо події додавання прогрес-барів
         document.addEventListener('progress-bar-added', function(event) {
             if (event.detail && event.detail.container) {
                 createProgressBar(event.detail.container, event.detail.options);
             }
         });
 
-        // Підписуємося на події оновлення прогресу
+        // Відстежуємо події оновлення прогресу
         document.addEventListener('progress-updated', function(event) {
             if (event.detail && event.detail.id) {
                 updateProgress(event.detail.id, event.detail.progress, event.detail.options);
             }
         });
+
+        // Очищення ресурсів при виході зі сторінки
+        window.addEventListener('beforeunload', cleanup);
     }
 
     /**
      * Створення прогрес-бару
-     * @param {HTMLElement|string} container - Контейнер або селектор для прогрес-бару
+     * @param {HTMLElement|string} container - Контейнер або селектор
      * @param {Object} options - Параметри прогрес-бару
      * @returns {number} ID прогрес-бару
      */
@@ -225,27 +221,11 @@ window.UI.ProgressBar = (function() {
             return -1;
         }
 
-        // Перевіряємо, чи контейнер вже має прогрес-бар
-        if (containerElement.querySelector('.progress-bar-fill')) {
-            // Якщо прогрес-бар вже є, оновлюємо його
-            const id = containerElement.getAttribute('data-progress-id');
-            if (id && progressBars[id]) {
-                // Оновлюємо опції
-                if (options.progress !== undefined) {
-                    updateProgress(id, options.progress, options);
-                }
-                return parseInt(id);
-            }
-        }
-
-        // Створюємо унікальний ID
-        const id = ++barCounter;
-
         // Параметри за замовчуванням
         const {
             progress = 0,
-            size = 'default',
-            style = 'default',
+            size = config.defaultSize,
+            style = config.defaultStyle,
             showText = false,
             label = '',
             maxValue = 100,
@@ -253,13 +233,24 @@ window.UI.ProgressBar = (function() {
             animated = true
         } = options;
 
+        // Перевіряємо, чи є вже прогрес-бар в контейнері
+        if (containerElement.hasAttribute('data-progress-id')) {
+            // Якщо прогрес-бар вже є, оновлюємо його
+            const id = parseInt(containerElement.getAttribute('data-progress-id'));
+            if (progressBars.has(id)) {
+                updateProgress(id, progress, options);
+                return id;
+            }
+        }
+
+        // Генеруємо новий ID
+        const id = ++barCounter;
+
         // Додаємо класи до контейнера
         containerElement.classList.add('progress-bar-container');
-
         if (size !== 'default') {
             containerElement.classList.add(size);
         }
-
         if (style !== 'default') {
             containerElement.classList.add(style);
         }
@@ -271,25 +262,21 @@ window.UI.ProgressBar = (function() {
         if (showText) {
             let textContainer;
 
-            // Перевіряємо, чи є текстовий контейнер
             if (!containerElement.parentNode.querySelector('.progress-text')) {
                 textContainer = document.createElement('div');
                 textContainer.className = 'progress-text';
-
-                // Додаємо перед контейнером прогрес-бару
                 containerElement.parentNode.insertBefore(textContainer, containerElement);
             } else {
                 textContainer = containerElement.parentNode.querySelector('.progress-text');
             }
 
-            // Заповнюємо текстовий контейнер
             textContainer.innerHTML = `
                 <span class="progress-label">${label}</span>
                 <span class="progress-value">${currentValue}/${maxValue}</span>
             `;
         }
 
-        // Створюємо прогрес-бар
+        // Створюємо заповнення прогрес-бару
         const progressFill = document.createElement('div');
         progressFill.className = 'progress-bar-fill';
 
@@ -302,18 +289,18 @@ window.UI.ProgressBar = (function() {
             progressFill.classList.add('glow');
         }
 
-        // Додаємо прогрес-бар в контейнер
+        // Додаємо заповнення в контейнер
         containerElement.appendChild(progressFill);
 
         // Зберігаємо прогрес-бар
-        progressBars[id] = {
+        progressBars.set(id, {
             container: containerElement,
             fill: progressFill,
             progress: progressValue,
             maxValue,
             currentValue,
             options
-        };
+        });
 
         return id;
     }
@@ -326,14 +313,15 @@ window.UI.ProgressBar = (function() {
      * @returns {boolean} Успішність оновлення
      */
     function updateProgress(id, progress, options = {}) {
-        const progressBar = progressBars[id];
-
-        if (!progressBar) {
+        // Перевіряємо наявність прогрес-бару
+        if (!progressBars.has(id)) {
             console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
             return false;
         }
 
-        // Параметри за замовчуванням
+        const progressBar = progressBars.get(id);
+
+        // Отримуємо параметри
         const {
             animated = true,
             pulse = true,
@@ -348,14 +336,12 @@ window.UI.ProgressBar = (function() {
         if (maxValue !== undefined && currentValue !== undefined) {
             newProgress = Math.min(100, Math.max(0, (currentValue / maxValue) * 100));
 
-            // Оновлюємо текстові мітки
-            const textContainer = progressBar.container.parentNode.querySelector('.progress-text');
-            if (textContainer) {
-                const valueElement = textContainer.querySelector('.progress-value');
-                if (valueElement) {
-                    valueElement.textContent = `${currentValue}/${maxValue}`;
-                }
-            }
+            // Оновлюємо текстові мітки, якщо є
+            updateProgressText(progressBar.container, currentValue, maxValue);
+
+            // Зберігаємо нові значення
+            progressBar.maxValue = maxValue;
+            progressBar.currentValue = currentValue;
         } else {
             newProgress = Math.min(100, Math.max(0, progress));
         }
@@ -365,45 +351,78 @@ window.UI.ProgressBar = (function() {
             return true;
         }
 
-        // Зберігаємо старий прогрес
+        // Зберігаємо старий прогрес для порівняння
         const oldProgress = progressBar.progress;
 
         // Оновлюємо прогрес
         progressBar.progress = newProgress;
-        progressBar.fill.style.width = `${newProgress}%`;
 
-        // Оновлюємо збережені значення
-        if (maxValue !== undefined) progressBar.maxValue = maxValue;
-        if (currentValue !== undefined) progressBar.currentValue = currentValue;
+        // Якщо потрібно використовувати CSS-переходи
+        if (config.useTransition) {
+            progressBar.fill.style.width = `${newProgress}%`;
+        } else {
+            // Без переходів для миттєвого оновлення
+            progressBar.fill.style.transition = 'none';
+            progressBar.fill.style.width = `${newProgress}%`;
 
-        // Додаємо анімацію
-        if (animated) {
-            // Додаємо анімацію пульсації, якщо прогрес збільшився
-            if (pulse && newProgress > oldProgress) {
-                progressBar.fill.classList.add('pulse');
+            // Змушуємо браузер виконати reflow для застосування змін
+            void progressBar.fill.offsetWidth;
 
-                // Видаляємо клас анімації через 1 секунду
-                setTimeout(() => {
-                    progressBar.fill.classList.remove('pulse');
-                }, 1000);
-            }
+            // Відновлюємо перехід для майбутніх оновлень
+            progressBar.fill.style.transition = '';
         }
 
-        // Змінюємо стиль, якщо прогрес повний
-        if (newProgress >= 100) {
-            progressBar.container.classList.add('success');
-            progressBar.fill.classList.remove('glow');
-        } else if (newProgress >= 75) {
-            progressBar.container.classList.remove('success', 'warning', 'danger');
-        } else if (newProgress >= 25) {
-            progressBar.container.classList.remove('success', 'danger');
-            progressBar.container.classList.add('warning');
-        } else {
-            progressBar.container.classList.remove('success', 'warning');
-            progressBar.container.classList.add('danger');
+        // Додаємо анімацію пульсації, якщо прогрес збільшився
+        if (animated && pulse && newProgress > oldProgress) {
+            progressBar.fill.classList.add('pulse');
+            setTimeout(() => {
+                progressBar.fill.classList.remove('pulse');
+            }, 1200);
+        }
+
+        // Оновлюємо стилі в залежності від прогресу, якщо потрібно
+        if (config.autoClasses) {
+            updateProgressBarClasses(progressBar.container, newProgress);
         }
 
         return true;
+    }
+
+    /**
+     * Оновлення текстових міток прогрес-бару
+     * @param {HTMLElement} container - Контейнер прогрес-бару
+     * @param {number} currentValue - Поточне значення
+     * @param {number} maxValue - Максимальне значення
+     */
+    function updateProgressText(container, currentValue, maxValue) {
+        const textContainer = container.parentNode.querySelector('.progress-text');
+        if (!textContainer) return;
+
+        const valueElement = textContainer.querySelector('.progress-value');
+        if (valueElement) {
+            valueElement.textContent = `${currentValue}/${maxValue}`;
+        }
+    }
+
+    /**
+     * Оновлення класів прогрес-бару в залежності від прогресу
+     * @param {HTMLElement} container - Контейнер прогрес-бару
+     * @param {number} progress - Значення прогресу
+     */
+    function updateProgressBarClasses(container, progress) {
+        // Знімаємо всі стани
+        container.classList.remove('success', 'warning', 'danger');
+
+        // Додаємо клас в залежності від прогресу
+        if (progress >= 100) {
+            container.classList.add('success');
+        } else if (progress >= 75) {
+            // Не додаємо клас для звичайного прогресу (75-99%)
+        } else if (progress >= 25) {
+            container.classList.add('warning');
+        } else {
+            container.classList.add('danger');
+        }
     }
 
     /**
@@ -412,22 +431,20 @@ window.UI.ProgressBar = (function() {
      * @returns {number} Прогрес (0-100)
      */
     function getProgress(id) {
-        const progressBar = progressBars[id];
-
-        if (!progressBar) {
+        if (!progressBars.has(id)) {
             console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
             return 0;
         }
 
-        return progressBar.progress;
+        return progressBars.get(id).progress;
     }
 
     /**
      * Отримання всіх прогрес-барів
-     * @returns {Object} Об'єкт з усіма прогрес-барами
+     * @returns {Map} Колекція прогрес-барів
      */
     function getAllProgressBars() {
-        return progressBars;
+        return new Map(progressBars);
     }
 
     /**
@@ -436,26 +453,45 @@ window.UI.ProgressBar = (function() {
      * @returns {boolean} Успішність видалення
      */
     function removeProgressBar(id) {
-        const progressBar = progressBars[id];
-
-        if (!progressBar) {
+        if (!progressBars.has(id)) {
             console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
             return false;
         }
 
-        // Видаляємо прогрес-бар з DOM
-        progressBar.fill.remove();
+        const progressBar = progressBars.get(id);
+
+        // Видаляємо заповнення з DOM
+        if (progressBar.fill && progressBar.fill.parentNode) {
+            progressBar.fill.remove();
+        }
 
         // Видаляємо атрибут ID
-        progressBar.container.removeAttribute('data-progress-id');
+        if (progressBar.container) {
+            progressBar.container.removeAttribute('data-progress-id');
+        }
 
         // Видаляємо з колекції
-        delete progressBars[id];
+        progressBars.delete(id);
 
         return true;
     }
 
-    // Ініціалізуємо модуль при завантаженні
+    /**
+     * Очищення ресурсів модуля
+     */
+    function cleanup() {
+        // Видаляємо всі обробники подій
+        document.removeEventListener('progress-bar-added', null);
+        document.removeEventListener('progress-updated', null);
+
+        // Скидаємо стан
+        progressBars.clear();
+        barCounter = 0;
+
+        console.log('UI.ProgressBar: Ресурси модуля очищено');
+    }
+
+    // Ініціалізуємо модуль при завантаженні сторінки
     document.addEventListener('DOMContentLoaded', init);
 
     // Публічний API модуля
