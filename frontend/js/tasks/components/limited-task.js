@@ -10,28 +10,6 @@ window.LimitedTask = (function() {
     // Кеш активних завдань та їх таймерів
     const tasks = new Map();
 
-    // Індикатор використання мок-даних
-    const mockDataStatus = {
-        timerData: false,
-        verification: false,
-        taskData: false
-    };
-
-    // Функція для логування використання мок-даних
-    function logMockDataUsage(dataType, reason) {
-        mockDataStatus[dataType] = true;
-        console.warn(`LimitedTask: Використання ТЕСТОВИХ даних для [${dataType}]. Причина: ${reason}`);
-
-        // Додаємо детальний запис у консоль розробника
-        if (console.groupCollapsed) {
-            console.groupCollapsed(`%cМОК-ДАНІ LimitedTask [${dataType}]`, 'background: #FFF3CD; color: #856404; padding: 2px 5px; border-radius: 3px;');
-            console.info(`Причина: ${reason}`);
-            console.info(`Час: ${new Date().toLocaleTimeString()}`);
-            console.trace('Стек виклику');
-            console.groupEnd();
-        }
-    }
-
     // Перевірка доступності API
     function isApiAvailable() {
         return window.API && typeof window.API.get === 'function' && typeof window.API.post === 'function';
@@ -443,88 +421,6 @@ window.LimitedTask = (function() {
                 logMockDataUsage('verification', 'Помилка API при верифікації');
                 simulateVerification(task);
             });
-    }
-
-    /**
-     * Симуляція верифікації завдання (для тестового режиму)
-     * @param {Object} task - Дані завдання
-     */
-    function simulateVerification(task) {
-        // Затримка для імітації запиту
-        setTimeout(() => {
-            // Оновлюємо відображення завдання
-            refreshTaskDisplay(task.id);
-
-            // Симулюємо успіх з ймовірністю 80%
-            const isSuccess = Math.random() < 0.8;
-
-            if (isSuccess) {
-                // Відображаємо успішне повідомлення
-                showMessage('Завдання успішно виконано! (Демонстраційний режим)', 'success');
-
-                // Симулюємо винагороду
-                const reward = {
-                    type: Math.random() < 0.5 ? 'tokens' : 'coins',
-                    amount: Math.floor(Math.random() * 50) + 10
-                };
-
-                // Показуємо анімацію винагороди
-                showRewardAnimation(reward);
-
-                // Оновлюємо стан завдання, якщо можливо
-                const taskData = tasks.get(task.id);
-                if (taskData) {
-                    taskData.progress = {
-                        status: 'completed',
-                        progress_value: task.target_value,
-                        completion_date: new Date().toISOString()
-                    };
-                    tasks.set(task.id, taskData);
-
-                    // Оновлюємо відображення завдання
-                    const newTaskElement = create(task, taskData.progress);
-                    const oldElement = document.querySelector(`.task-item[data-task-id="${task.id}"]`);
-                    if (oldElement && oldElement.parentNode) {
-                        oldElement.parentNode.replaceChild(newTaskElement, oldElement);
-                    }
-                }
-            } else {
-                // Відображаємо помилку
-                showMessage('Не вдалося перевірити виконання завдання (Демонстраційний режим)', 'error');
-
-                // Відновлюємо елементи управління
-                const taskElement = document.querySelector(`.task-item[data-task-id="${task.id}"]`);
-                if (taskElement) {
-                    const actionElement = taskElement.querySelector('.task-action');
-                    if (actionElement) {
-                        actionElement.innerHTML = `
-                            <button class="action-button" data-action="start" data-task-id="${task.id}">${task.action_label || 'Виконати'}</button>
-                            <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}">Перевірити</button>
-                        `;
-
-                        // Відновлюємо обробники подій
-                        const startButton = actionElement.querySelector('.action-button[data-action="start"]');
-                        const verifyButton = actionElement.querySelector('.action-button[data-action="verify"]');
-
-                        if (startButton) {
-                            startButton.addEventListener('click', function(event) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                handleStartTask(task);
-                            });
-                        }
-
-                        if (verifyButton) {
-                            verifyButton.addEventListener('click', function(event) {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                handleVerifyTask(task);
-                            });
-                        }
-                    }
-                }
-            }
-        }, 1500);
     }
 
     /**

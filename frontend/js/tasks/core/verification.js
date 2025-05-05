@@ -439,41 +439,44 @@ window.TaskVerification = (function() {
      * @param {string} taskId - ID завдання
      * @returns {Object} Оброблений результат помилки
      */
-    function handleVerificationError(error, taskId) {
-        console.error('TaskVerification: Помилка при верифікації завдання:', error);
-
-        // Класифікуємо помилку
-        let status = STATUS.ERROR;
-        let message = 'Сталася помилка під час перевірки завдання. Спробуйте пізніше.';
-
-        // Перевіряємо тип помилки
-        if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-            status = STATUS.TIMEOUT;
-            message = 'Перевищено час очікування відповіді від сервера. Перевірте з\'єднання та спробуйте ще раз.';
-        }
-        else if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            status = STATUS.NETWORK_ERROR;
-            message = 'Проблема з мережевим з\'єднанням. Перевірте підключення до Інтернету та спробуйте ще раз.';
-        }
-        else if (error.status === 401 || error.status === 403) {
-            message = 'Помилка авторизації. Оновіть сторінку та спробуйте знову.';
-        }
-        else if (error.status === 429) {
-            message = 'Занадто багато запитів. Будь ласка, спробуйте пізніше.';
-        }
-        else if (error.message.includes('CORS')) {
-            status = STATUS.NETWORK_ERROR;
-            message = 'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
+    async function verifyTask(taskId) {
+    try {
+        // Перевіряємо стан мережі
+        if (!isNetworkAvailable()) {
+            return {
+                success: false,
+                status: ErrorHandler.ERROR_TYPES.NETWORK,
+                message: ErrorHandler.getUserMessage(ErrorHandler.ERROR_TYPES.NETWORK)
+            };
         }
 
-        return {
-            success: false,
-            status: status,
-            message: message,
-            error: error.message,
-            taskId: taskId
-        };
+        // Створюємо унікальний ідентифікатор для цієї перевірки
+        const verificationId = `verification_${taskId}_${Date.now()}`;
+
+        // Показуємо індикатор завантаження
+        showVerificationLoader(taskId);
+
+        // Решта коду функції...
+
+    } catch (unexpectedError) {
+        // Приховуємо індикатор завантаження
+        hideVerificationLoader(taskId);
+
+        // Видаляємо завдання з активних перевірок
+        delete state.activeVerifications[taskId];
+
+        // Використовуємо утиліту для обробки помилки
+        const errorResult = ErrorHandler.handleError(unexpectedError, { taskId });
+
+        // Створюємо унікальний ідентифікатор події
+        const errorEventId = `verification_error_${taskId}_${Date.now()}`;
+
+        // Генеруємо подію про помилку
+        dispatchVerificationEvent(taskId, errorResult, errorEventId);
+
+        return errorResult;
     }
+}
 
     /**
      * Нормалізація даних винагороди
@@ -822,60 +825,47 @@ window.TaskVerification = (function() {
      * @returns {Promise<Object>} Результат перевірки
      */
     async function performApiVerification(taskId, verificationData = {}) {
-        // Перевіряємо наявність API
-        if (!window.API) {
-            console.warn('TaskVerification: API недоступне, використовуємо симуляцію перевірки');
-            return simulateVerification(taskId);
+    // Перевіряємо наявність API
+    if (!window.API) {
+        console.warn('TaskVerification: API недоступне');
+        throw new Error('API_NOT_AVAILABLE');
+    }
+
+    // Перевіряємо наявність шляхів API
+    if (!window.API_PATHS || !window.API_PATHS.TASKS) {
+        console.warn('TaskVerification: API_PATHS недоступні');
+        throw new Error('API_PATHS_NOT_AVAILABLE');
+    }
+
+    try {
+        // Отримуємо ID користувача
+        const userId = getUserId();
+        if (!userId) {
+            throw new Error('ID користувача не знайдено');
         }
 
-        // Перевіряємо наявність шляхів API
-        if (!window.API_PATHS || !window.API_PATHS.TASKS) {
-            console.warn('TaskVerification: API_PATHS недоступні, використовуємо симуляцію перевірки');
-            return simulateVerification(taskId);
-        }
-
-        try {
-            // Отримуємо ID користувача
-            const userId = getUserId();
-            if (!userId) {
-                throw new Error('ID користувача не знайдено');
+        // Додаємо базову інформацію для верифікації
+        const payload = {
+            verification_data: {
+                ...verificationData,
+                timestamp: Date.now(),
+                user_agent: navigator.userAgent,
+                platform: navigator.platform
             }
+        };
 
-            // Додаємо базову інформацію для верифікації
-            const payload = {
-                verification_data: {
-                    ...verificationData,
-                    timestamp: Date.now(),
-                    user_agent: navigator.userAgent,
-                    platform: navigator.platform
-                }
-            };
+        // ВИПРАВЛЕНО: Використовуємо правильний формат URL для верифікації
+        const apiPath = `/api/user/${userId}/tasks/${taskId}/verify`;
 
-            // Використовуємо ретрай функціонал для надійності
-            let result = null;
-            let lastError = null;
-            let attempts = 0;
+        // Виконуємо запит з автоматичним повторенням при помилках
+        return await ErrorHandler.executeWithRetry(
+            async () => {
+                // Створюємо контролер для таймауту
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), config.requestTimeout);
 
-            // Логіка повторних спроб
-            while (attempts <= config.maxApiRetries) {
                 try {
-                    attempts++;
-
-                    // Створюємо контролер для таймауту
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), config.requestTimeout);
-
-                    // ВИПРАВЛЕНО: Використовуємо правильний формат URL для верифікації
-                    // Оригінальний код використовував window.API_PATHS.TASKS.VERIFY(taskId)
-                    // Новий код використовує прямий URL відповідно до API документації
-                    const apiPath = `/api/user/${userId}/tasks/${taskId}/verify`;
-
-                    // Логуємо запит для діагностики
-                    if (config.debug) {
-                        console.log(`TaskVerification: Запит верифікації #${attempts} до ${apiPath}`, payload);
-                    }
-
-                    // Виконуємо запит до API
+                    // Виконуємо запит
                     const response = await window.API.post(
                         apiPath,
                         payload,
@@ -888,14 +878,9 @@ window.TaskVerification = (function() {
                     // Очищаємо таймаут
                     clearTimeout(timeoutId);
 
-                    // Логуємо відповідь для діагностики
-                    if (config.debug) {
-                        console.log(`TaskVerification: Відповідь на запит #${attempts}:`, response);
-                    }
-
                     // Обробляємо відповідь
                     if (response.status === 'success') {
-                        result = {
+                        return {
                             success: true,
                             status: STATUS.SUCCESS,
                             message: response.message || 'Завдання успішно виконано!',
@@ -903,89 +888,23 @@ window.TaskVerification = (function() {
                             verification_details: response.data?.verification || {},
                             response_time_ms: Date.now() - state.lastVerificationTime[taskId]
                         };
-
-                        break; // Успішний запит, виходимо з циклу
                     } else {
                         throw new Error(response.message || response.error || 'Не вдалося перевірити виконання завдання');
                     }
-                } catch (error) {
-                    lastError = error;
-
-                    // Перевіряємо тип помилки
-                    const isNetworkError = error.name === 'TypeError' ||
-                                          error.name === 'AbortError' ||
-                                          (error.message && error.message.includes('fetch'));
-
-                    const isCorsError = error.message && error.message.includes('CORS');
-
-                    // Для мережевих помилок і CORS помилок пробуємо повторно
-                    if ((isNetworkError || isCorsError) && attempts <= config.maxApiRetries) {
-                        console.warn(`TaskVerification: Помилка запиту #${attempts}, повторна спроба через ${config.retryInterval/1000}с...`);
-
-                        // Очікуємо перед повторною спробою
-                        await new Promise(resolve => setTimeout(resolve, config.retryInterval));
-                        continue;
-                    }
-
-                    // Інші помилки - просто виходимо з циклу
-                    break;
+                } finally {
+                    clearTimeout(timeoutId);
                 }
+            },
+            {
+                maxRetries: config.maxApiRetries,
+                retryDelay: config.retryInterval
             }
-
-            // Якщо є результат, повертаємо його
-            if (result) {
-                return result;
-            }
-
-            // Якщо не отримали результат, формуємо результат помилки
-            const errorResult = {
-                success: false,
-                status: STATUS.ERROR,
-                message: lastError?.message || 'Не вдалося перевірити виконання завдання',
-                attempts: attempts
-            };
-
-            // Для мережевих помилок
-            if (lastError?.name === 'TypeError' || lastError?.name === 'AbortError') {
-                errorResult.status = STATUS.NETWORK_ERROR;
-                errorResult.message = 'Проблема з підключенням до сервера. Перевірте з\'єднання та спробуйте ще раз.';
-            }
-            // Для помилок таймауту
-            else if (lastError?.name === 'TimeoutError' || (lastError?.message && lastError.message.includes('timeout'))) {
-                errorResult.status = STATUS.TIMEOUT;
-                errorResult.message = 'Перевищено час очікування. Спробуйте пізніше.';
-            }
-            // Для помилок CORS
-            else if (lastError?.message && lastError.message.includes('CORS')) {
-                errorResult.status = STATUS.NETWORK_ERROR;
-                errorResult.message = 'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
-            }
-
-            return errorResult;
-        } catch (error) {
-            console.error('TaskVerification: Критична помилка при виконанні API запиту:', error);
-
-            // Визначаємо тип помилки
-            let status = STATUS.ERROR;
-            let message = 'Сталася помилка при перевірці завдання. Спробуйте пізніше.';
-
-            if (error.name === 'TypeError' || error.name === 'AbortError' ||
-                (error.message && error.message.includes('fetch'))) {
-                status = STATUS.NETWORK_ERROR;
-                message = 'Проблема з підключенням до сервера. Перевірте з\'єднання та спробуйте ще раз.';
-            }
-            else if (error.message && error.message.includes('ID користувача не знайдено')) {
-                message = 'Не вдалося визначити ID користувача. Спробуйте оновити сторінку.';
-            }
-
-            return {
-                success: false,
-                status: status,
-                message: message,
-                error: error.message
-            };
-        }
+        );
+    } catch (error) {
+        // Обробляємо помилку за допомогою ErrorHandler
+        return ErrorHandler.handleError(error, { taskId, context: 'api_verification' });
     }
+}
 
     /**
      * Отримання ID користувача з різних джерел
@@ -1035,70 +954,6 @@ window.TaskVerification = (function() {
 
         return null;
     }
-
-    /**
-     * Імітація перевірки завдання для відладки або коли API недоступне
-     * @param {string} taskId - ID завдання
-     * @returns {Promise<Object>} Результат перевірки
-     */
-    async function simulateVerification(taskId) {
-        console.log('TaskVerification: Симуляція верифікації для завдання', taskId);
-
-        // Затримка для імітації мережевої затримки
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Отримуємо тип завдання
-        const taskType = getTaskType(taskId);
-
-        // Ймовірність успіху залежить від типу завдання
-        let successProbability;
-
-        switch (taskType) {
-            case TASK_TYPES.SOCIAL:
-                successProbability = 0.8; // 80% успіху для соціальних завдань
-                break;
-            case TASK_TYPES.LIMITED:
-                successProbability = 0.7; // 70% успіху для лімітованих завдань
-                break;
-            case TASK_TYPES.PARTNER:
-                successProbability = 0.6; // 60% успіху для партнерських завдань
-                break;
-            default:
-                successProbability = 0.75; // 75% успіху для інших завдань
-        }
-
-        // Імітуємо успіх/неуспіх на основі ймовірності
-        const isSuccess = Math.random() < successProbability;
-
-        if (isSuccess) {
-            // Отримуємо винагороду за завдання
-            const reward = getTaskReward(taskId);
-
-            return {
-                success: true,
-                status: STATUS.SUCCESS,
-                message: 'Завдання успішно виконано! (Симуляція)',
-                reward: reward,
-                simulated: true
-            };
-        } else {
-            // Визначаємо різні повідомлення невдачі
-            const failureMessages = [
-                'Умови завдання ще не виконані. Спробуйте пізніше. (Симуляція)',
-                'Не вдалося підтвердити виконання завдання. Переконайтеся, що ви виконали всі умови. (Симуляція)',
-                'Система не змогла перевірити виконання завдання. Спробуйте пізніше. (Симуляція)',
-                'Перевірка не пройшла. Перевірте, чи правильно виконано всі кроки. (Симуляція)'
-            ];
-
-            return {
-                success: false,
-                status: STATUS.FAILURE,
-                message: failureMessages[Math.floor(Math.random() * failureMessages.length)],
-                simulated: true
-            };
-        }
-    }
-
     /**
      * Отримання даних завдання з покращеним пошуком серед доступних джерел
      * @param {string} taskId - ID завдання
@@ -1501,62 +1356,6 @@ window.TaskVerification = (function() {
     function resetVerificationAttempts() {
         state.verificationAttempts = {};
     }
-
-    /**
-     * Тестова верифікація для діагностики API
-     * @returns {Promise<Object>} Результат тесту API
-     */
-    async function testApiConnection() {
-        console.log('TaskVerification: Перевірка з\'єднання з API...');
-
-        try {
-            // Перевіряємо доступність API
-            if (!window.API) {
-                return {
-                    success: false,
-                    message: 'API недоступне',
-                    apiExists: false
-                };
-            }
-
-            // Тестовий запит до API
-            const testResponse = await fetch(`${window.API_BASE_URL || ''}/api/health-check`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...config.headers
-                },
-                timeout: 5000
-            });
-
-            // Перевіряємо статус відповіді
-            if (testResponse.ok) {
-                return {
-                    success: true,
-                    message: 'З\'єднання з API успішне',
-                    status: testResponse.status,
-                    statusText: testResponse.statusText
-                };
-            } else {
-                return {
-                    success: false,
-                    message: `Помилка з'єднання: ${testResponse.status} ${testResponse.statusText}`,
-                    status: testResponse.status,
-                    statusText: testResponse.statusText
-                };
-            }
-        } catch (error) {
-            console.error('TaskVerification: Помилка тестового з\'єднання:', error);
-
-            return {
-                success: false,
-                message: `Помилка з'єднання: ${error.message}`,
-                error: error.message,
-                type: error.name
-            };
-        }
-    }
-
     /**
      * Скидання стану модуля
      */
