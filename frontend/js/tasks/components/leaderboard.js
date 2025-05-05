@@ -701,42 +701,42 @@ window.Leaderboard = (function() {
      * Відображення екрану відсутності даних
      */
     function showNoDataView() {
-        if (!leaderboardContainer) return;
+    if (!leaderboardContainer) return;
 
-        // Очищаємо контейнер
-        leaderboardContainer.innerHTML = '';
+    // Очищаємо контейнер
+    leaderboardContainer.innerHTML = '';
 
-        // Створюємо елемент відсутності даних
-        const noDataContainer = document.createElement('div');
-        noDataContainer.className = 'leaderboard-no-data';
+    // Створюємо елемент відсутності даних
+    const noDataContainer = document.createElement('div');
+    noDataContainer.className = 'leaderboard-no-data';
 
-        // Додаємо іконку
-        const noDataIcon = document.createElement('div');
-        noDataIcon.className = 'no-data-icon';
-        noDataIcon.innerHTML = '📊';
-        noDataContainer.appendChild(noDataIcon);
+    // Додаємо SVG-графік замість емодзі
+    const noDataIcon = document.createElement('div');
+    noDataIcon.className = 'no-data-icon';
 
-        // Додаємо повідомлення
-        const noDataMessage = document.createElement('p');
-        noDataMessage.className = 'no-data-message';
-        noDataMessage.textContent = getLocalizedText(
-            LOCALE_KEYS.NO_DATA,
-            'Наразі немає даних для відображення. Станьте першим у рейтингу, запрошуючи друзів!'
-        );
-        noDataContainer.appendChild(noDataMessage);
+    // Створюємо SVG графіка
+    noDataIcon.innerHTML = `
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="30" width="6" height="10" rx="1" fill="#4CAF50" />
+            <rect x="18" y="24" width="6" height="16" rx="1" fill="#2196F3" />
+            <rect x="28" y="20" width="6" height="20" rx="1" fill="#9C27B0" />
+            <path d="M8 8H40V40H8" stroke="#BBBBBB" stroke-width="2" stroke-linecap="round" />
+        </svg>
+    `;
+    noDataContainer.appendChild(noDataIcon);
 
-        // Додаємо кнопку повторної спроби
-        const retryButton = document.createElement('button');
-        retryButton.className = 'retry-button';
-        retryButton.textContent = getLocalizedText(LOCALE_KEYS.RETRY, 'Оновити');
-        retryButton.addEventListener('click', function() {
-            loadLeaderboardData();
-        });
-        noDataContainer.appendChild(retryButton);
+    // Додаємо повідомлення
+    const noDataMessage = document.createElement('p');
+    noDataMessage.className = 'no-data-message';
+    noDataMessage.textContent = getLocalizedText(
+        LOCALE_KEYS.NO_DATA,
+        'Наразі немає даних для відображення. Станьте першим у рейтингу, запрошуючи друзів!'
+    );
+    noDataContainer.appendChild(noDataMessage);
 
-        // Додаємо до контейнера
-        leaderboardContainer.appendChild(noDataContainer);
-    }
+    // Додаємо до контейнера
+    leaderboardContainer.appendChild(noDataContainer);
+}
 
     /**
      * Оновлення даних лідерської дошки
