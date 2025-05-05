@@ -2,7 +2,7 @@
 Модуль для реєстрації маршрутів API для завдань та бонусів.
 Визначає всі API ендпойнти для системи завдань WINIX.
 """
-from flask import request, jsonify
+from flask import request, jsonify, make_response
 import logging
 from datetime import datetime
 from . import controllers
@@ -21,6 +21,32 @@ def register_quests_routes(app):
         app: Екземпляр Flask-додатку
     """
     logger.info("Реєстрація маршрутів API для завдань та бонусів")
+
+    # CORS middleware для всіх запитів
+    @app.after_request
+    def add_cors_headers(response):
+        """Додає CORS заголовки до всіх відповідей"""
+        # Дозволяємо всі домени (в продакшені може бути обмежено)
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        # Дозволяємо всі методи
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        # Дозволяємо всі заголовки
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Telegram-User-Id')
+        # Кешування preflight запитів
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
+
+    # Окремий обробник для OPTIONS запитів (preflight)
+    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+    @app.route('/<path:path>', methods=['OPTIONS'])
+    def handle_options(path):
+        """Обробляє OPTIONS запити для CORS preflight"""
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Telegram-User-Id')
+        response.headers.add('Access-Control-Max-Age', '3600')
+        return response
 
     # Ендпоінт для перевірки доступності API
     @app.route('/api/ping', methods=['GET'])
@@ -150,16 +176,47 @@ def register_quests_routes(app):
     @app.route('/api/leaderboard/referrals', methods=['GET'])
     def api_get_referrals_leaderboard():
         """Отримання лідерборду по рефералам"""
+        # Отримуємо параметри з запиту
+        limit = request.args.get('limit', 10, type=int)
+        offset = request.args.get('offset', 0, type=int)
+
+        # Валідуємо параметри
+        if limit < 1 or limit > 100:
+            limit = 10
+        if offset < 0:
+            offset = 0
+
         return controllers.get_referrals_leaderboard()
 
     @app.route('/api/leaderboard/tasks', methods=['GET'])
     def api_get_tasks_leaderboard():
         """Отримання лідерборду по завданням"""
+        # Отримуємо параметри з запиту
+        limit = request.args.get('limit', 10, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        days = request.args.get('days', 30, type=int)
+
+        # Валідуємо параметри
+        if limit < 1 or limit > 100:
+            limit = 10
+        if offset < 0:
+            offset = 0
+        if days < 1 or days > 365:
+            days = 30
+
         return controllers.get_tasks_leaderboard()
 
     @app.route('/api/user/<telegram_id>/leaderboard-position', methods=['GET'])
     def api_get_user_leaderboard_position(telegram_id):
         """Отримання позиції користувача в лідерборді"""
+        # Отримуємо тип лідерборду
+        leaderboard_type = request.args.get('type', 'referrals')
+
+        # Валідуємо тип
+        valid_types = ['referrals', 'tasks', 'balance']
+        if leaderboard_type not in valid_types:
+            leaderboard_type = 'referrals'
+
         return controllers.get_user_leaderboard_position(telegram_id)
 
     # Маршрути для рефералів

@@ -1013,11 +1013,16 @@ def get_referrals_leaderboard():
 
             # Валідація параметрів
             if limit < 1 or limit > 100:
-                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
+                limit = 10  # Встановлюємо безпечне значення за замовчуванням
+                logger.warning(f"get_referrals_leaderboard: Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
+
             if offset < 0:
-                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
+                offset = 0  # Встановлюємо безпечне значення за замовчуванням
+                logger.warning(f"get_referrals_leaderboard: Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
         except ValueError:
-            return api_error(message="Некоректні параметри пагінації", status_code=400)
+            limit = 10
+            offset = 0
+            logger.warning("get_referrals_leaderboard: Невалідні параметри пагінації, використовуємо значення за замовчуванням")
 
         # Отримуємо лідерборд
         leaderboard = LeaderboardService.get_referrals_leaderboard(limit, offset)
@@ -1047,13 +1052,21 @@ def get_tasks_leaderboard():
 
             # Валідація параметрів
             if limit < 1 or limit > 100:
-                return api_error(message="Параметр limit має бути від 1 до 100", status_code=400)
+                limit = 10  # Встановлюємо безпечне значення за замовчуванням
+                logger.warning(f"get_tasks_leaderboard: Невалідний параметр limit: {limit}, використовуємо значення за замовчуванням 10")
+
             if offset < 0:
-                return api_error(message="Параметр offset має бути невід'ємним", status_code=400)
+                offset = 0  # Встановлюємо безпечне значення за замовчуванням
+                logger.warning(f"get_tasks_leaderboard: Невалідний параметр offset: {offset}, використовуємо значення за замовчуванням 0")
+
             if days < 1 or days > 365:
-                return api_error(message="Параметр days має бути від 1 до 365", status_code=400)
+                days = 30  # Встановлюємо безпечне значення за замовчуванням
+                logger.warning(f"get_tasks_leaderboard: Невалідний параметр days: {days}, використовуємо значення за замовчуванням 30")
         except ValueError:
-            return api_error(message="Некоректні параметри пагінації", status_code=400)
+            limit = 10
+            offset = 0
+            days = 30
+            logger.warning("get_tasks_leaderboard: Невалідні параметри пагінації, використовуємо значення за замовчуванням")
 
         # Отримуємо лідерборд
         leaderboard = LeaderboardService.get_tasks_leaderboard(limit, offset, days)
@@ -1089,8 +1102,8 @@ def get_user_leaderboard_position(telegram_id):
         # Валідація типу лідерборду
         valid_types = ['referrals', 'tasks']
         if leaderboard_type not in valid_types:
-            return api_error(message=f"Недійсний тип лідерборду. Допустимі типи: {', '.join(valid_types)}",
-                            status_code=400)
+            leaderboard_type = 'referrals'  # Встановлюємо безпечне значення за замовчуванням
+            logger.warning(f"get_user_leaderboard_position: Невалідний тип лідерборду: {leaderboard_type}, використовуємо значення за замовчуванням 'referrals'")
 
         # Отримуємо позицію
         position_data = LeaderboardService.get_user_position(telegram_id, leaderboard_type)
