@@ -9,6 +9,11 @@
  * @version 3.0.0
  */
 
+import { getLogger, LOG_CATEGORIES } from '../utils/logger.js';
+
+// Створюємо логер для модуля
+const logger = getLogger('UI.Notifications');
+
 // Конфігурація з оптимізованими значеннями
 const CONFIG = {
     maxNotifications: 3,       // Максимальна кількість одночасних сповіщень
@@ -39,7 +44,9 @@ export function init(options = {}) {
     // Оновлюємо конфігурацію модуля
     Object.assign(CONFIG, options);
 
-    log('Ініціалізація модуля сповіщень');
+    logger.info('Ініціалізація модуля сповіщень', 'init', {
+        category: LOG_CATEGORIES.INIT
+    });
 
     // Додаємо стилі тільки один раз
     injectStyles();
@@ -56,18 +63,10 @@ export function init(options = {}) {
     // Очищаємо ресурси при виході з сторінки
     window.addEventListener('beforeunload', cleanup);
 
-    log('Модуль сповіщень успішно ініціалізовано');
-}
-
-/**
- * Відлагоджувальний лог
- * @param {string} message - Повідомлення
- * @param {*} data - Додаткові дані
- */
-function log(message, data) {
-    if (CONFIG.debug) {
-        console.log(`[UI.Notifications] ${message}`, data || '');
-    }
+    logger.info('Модуль сповіщень успішно ініціалізовано', 'init', {
+        category: LOG_CATEGORIES.INIT,
+        details: { position: CONFIG.position, maxNotifications: CONFIG.maxNotifications }
+    });
 }
 
 /**
@@ -79,6 +78,10 @@ function ensureContainer() {
         container.id = state.containerId;
         container.className = `notification-container ${CONFIG.position}`;
         document.body.appendChild(container);
+
+        logger.debug('Створено контейнер для сповіщень', 'ensureContainer', {
+            category: LOG_CATEGORIES.RENDERING
+        });
     }
 }
 
@@ -100,6 +103,10 @@ function defineGlobalFunctions() {
 
     // Діалоги підтвердження
     window.showModernConfirm = showConfirmDialog;
+
+    logger.debug('Визначено глобальні функції для сумісності', 'defineGlobalFunctions', {
+        category: LOG_CATEGORIES.INIT
+    });
 }
 
 /**
@@ -113,6 +120,10 @@ function handleEscapeKey(event) {
         if (confirmDialog && confirmDialog.classList.contains('show')) {
             confirmDialog.classList.remove('show');
             event.preventDefault();
+
+            logger.info('Закрито діалог підтвердження за допомогою Escape', 'handleEscapeKey', {
+                category: LOG_CATEGORIES.UI
+            });
         }
 
         // Закриваємо індикатор завантаження
@@ -120,6 +131,10 @@ function handleEscapeKey(event) {
         if (loadingSpinner && loadingSpinner.classList.contains('show')) {
             hideLoading();
             event.preventDefault();
+
+            logger.info('Закрито індикатор завантаження за допомогою Escape', 'handleEscapeKey', {
+                category: LOG_CATEGORIES.UI
+            });
         }
     }
 }
@@ -442,6 +457,10 @@ function injectStyles() {
     `;
 
     document.head.appendChild(styleElement);
+
+    logger.debug('Додано стилі сповіщень', 'injectStyles', {
+        category: LOG_CATEGORIES.RENDERING
+    });
 }
 
 /**
@@ -511,6 +530,11 @@ export function showNotification(message, type = 'info', callback = null, option
         message = message.message || message.text || '';
     }
 
+    logger.info(`Показ сповіщення ${type}: ${message}`, 'showNotification', {
+        category: LOG_CATEGORIES.UI,
+        details: { type, title, message }
+    });
+
     return new Promise((resolve) => {
         // Якщо вже показується інше сповіщення, додаємо в чергу
         if (state.notificationShowing && state.notificationsQueue.length < CONFIG.maxNotifications) {
@@ -521,6 +545,12 @@ export function showNotification(message, type = 'info', callback = null, option
                 options: { ...options, title },
                 resolve
             });
+
+            logger.debug('Сповіщення додано в чергу', 'showNotification', {
+                category: LOG_CATEGORIES.UI,
+                details: { queueLength: state.notificationsQueue.length }
+            });
+
             return;
         }
 
@@ -565,10 +595,12 @@ export function showNotification(message, type = 'info', callback = null, option
                 }, duration);
             }
 
-            log(`Показано сповіщення [${type}]: ${message}`);
-
         } catch (e) {
-            console.error('Помилка показу сповіщення:', e);
+            logger.error(e, 'Помилка показу сповіщення', {
+                category: LOG_CATEGORIES.UI,
+                details: { type, message }
+            });
+
             // Використовуємо alert як запасний варіант
             alert(message);
             state.notificationShowing = false;
@@ -635,6 +667,11 @@ function createNotificationElement(id, type, title, message) {
     notification.appendChild(content);
     notification.appendChild(closeBtn);
 
+    logger.debug(`Створено елемент сповіщення ID: ${id}`, 'createNotificationElement', {
+        category: LOG_CATEGORIES.RENDERING,
+        details: { type, id }
+    });
+
     return notification;
 }
 
@@ -665,6 +702,10 @@ function closeNotification(notification, callback = null, resolvePromise = null)
         processNextNotification();
         return;
     }
+
+    logger.debug(`Закриття сповіщення ID: ${notification.id}`, 'closeNotification', {
+        category: LOG_CATEGORIES.UI
+    });
 
     // Знімаємо клас show
     notification.classList.remove('show');
@@ -698,6 +739,15 @@ function closeNotification(notification, callback = null, resolvePromise = null)
 function processNextNotification() {
     if (state.notificationsQueue.length > 0) {
         const nextNotification = state.notificationsQueue.shift();
+
+        logger.debug('Обробка наступного сповіщення з черги', 'processNextNotification', {
+            category: LOG_CATEGORIES.UI,
+            details: {
+                type: nextNotification.type,
+                queueLength: state.notificationsQueue.length
+            }
+        });
+
         showNotification(
             nextNotification.message,
             nextNotification.type,
@@ -771,6 +821,11 @@ function internalShowConfirmDialog(options, callback = null) {
         iconType = 'warning'
     } = options;
 
+    logger.info('Показ діалогу підтвердження', 'showConfirmDialog', {
+        category: LOG_CATEGORIES.UI,
+        details: { title, type, iconType }
+    });
+
     return new Promise((resolve) => {
         try {
             // Приховуємо інші діалоги
@@ -812,6 +867,11 @@ function internalShowConfirmDialog(options, callback = null) {
                 confirmOverlay.classList.remove('show');
                 setTimeout(() => {
                     const result = false;
+
+                    logger.info('Діалог скасовано користувачем', 'confirmDialog.cancel', {
+                        category: LOG_CATEGORIES.UI
+                    });
+
                     if (callback) callback(result);
                     resolve(result);
                 }, CONFIG.animationDuration);
@@ -821,6 +881,11 @@ function internalShowConfirmDialog(options, callback = null) {
                 confirmOverlay.classList.remove('show');
                 setTimeout(() => {
                     const result = true;
+
+                    logger.info('Діалог підтверджено користувачем', 'confirmDialog.confirm', {
+                        category: LOG_CATEGORIES.UI
+                    });
+
                     if (callback) callback(result);
                     resolve(result);
                 }, CONFIG.animationDuration);
@@ -829,9 +894,12 @@ function internalShowConfirmDialog(options, callback = null) {
             // Показуємо діалог
             confirmOverlay.classList.add('show');
 
-            log('Показано діалог підтвердження', options);
         } catch (e) {
-            console.error('Помилка показу діалогу підтвердження:', e);
+            logger.error(e, 'Помилка показу діалогу підтвердження', {
+                category: LOG_CATEGORIES.UI,
+                details: { message }
+            });
+
             // Використовуємо стандартний confirm як запасний варіант
             const result = confirm(message);
             if (callback) callback(result);
@@ -848,6 +916,11 @@ function hideAllDialogs() {
     existingDialogs.forEach(dialog => {
         if (dialog.id !== state.confirmDialogId) {
             dialog.classList.remove('show');
+
+            logger.debug('Приховано існуючий діалог', 'hideAllDialogs', {
+                category: LOG_CATEGORIES.UI,
+                details: { dialogId: dialog.id }
+            });
         }
     });
 }
@@ -875,6 +948,10 @@ export function showLoading(message) {
 
             document.body.appendChild(spinnerContainer);
             spinner = spinnerContainer;
+
+            logger.debug('Створено новий індикатор завантаження', 'showLoading', {
+                category: LOG_CATEGORIES.RENDERING
+            });
         } else {
             // Оновлюємо повідомлення
             if (message) {
@@ -888,14 +965,24 @@ export function showLoading(message) {
                     messageEl.textContent = message;
                     content.appendChild(messageEl);
                 }
+
+                logger.debug('Оновлено повідомлення індикатора завантаження', 'showLoading', {
+                    category: LOG_CATEGORIES.RENDERING
+                });
             }
         }
 
         // Показуємо індикатор
         spinner.classList.add('show');
-        log('Показано індикатор завантаження', message);
+
+        logger.info('Показано індикатор завантаження', 'showLoading', {
+            category: LOG_CATEGORIES.UI,
+            details: { message }
+        });
     } catch (e) {
-        console.error('Помилка показу індикатора завантаження:', e);
+        logger.error(e, 'Помилка показу індикатора завантаження', {
+            category: LOG_CATEGORIES.UI
+        });
     }
 }
 
@@ -907,10 +994,15 @@ export function hideLoading() {
         const spinner = document.getElementById(state.loadingSpinnerId);
         if (spinner) {
             spinner.classList.remove('show');
-            log('Приховано індикатор завантаження');
+
+            logger.info('Приховано індикатор завантаження', 'hideLoading', {
+                category: LOG_CATEGORIES.UI
+            });
         }
     } catch (e) {
-        console.error('Помилка приховування індикатора завантаження:', e);
+        logger.error(e, 'Помилка приховування індикатора завантаження', {
+            category: LOG_CATEGORIES.UI
+        });
     }
 }
 
@@ -928,6 +1020,11 @@ export function updateBalanceUI(newBalance) {
             document.getElementById('current-balance'),
             ...document.querySelectorAll('[data-balance-display]')
         ];
+
+        logger.info(`Оновлення балансу UI: ${newBalance}`, 'updateBalanceUI', {
+            category: LOG_CATEGORIES.UI,
+            details: { newBalance, elementsFound: balanceElements.filter(Boolean).length }
+        });
 
         // Оновлюємо відображення в DOM
         balanceElements.forEach(element => {
@@ -953,7 +1050,10 @@ export function updateBalanceUI(newBalance) {
             localStorage.setItem('userTokens', newBalance.toString());
             localStorage.setItem('winix_balance', newBalance.toString());
         } catch (error) {
-            console.warn('UI.Notifications: Помилка збереження балансу:', error);
+            logger.warn('Помилка збереження балансу', 'updateBalanceUI', {
+                category: LOG_CATEGORIES.STORAGE,
+                details: { error: error.message }
+            });
         }
 
         // Генеруємо подію для інших модулів
@@ -961,9 +1061,10 @@ export function updateBalanceUI(newBalance) {
             detail: { newBalance: parseFloat(newBalance) }
         }));
 
-        log('Оновлено баланс', newBalance);
     } catch (error) {
-        console.error('Помилка оновлення відображення балансу:', error);
+        logger.error(error, 'Помилка оновлення відображення балансу', {
+            category: LOG_CATEGORIES.UI
+        });
     }
 }
 
@@ -989,7 +1090,9 @@ export function cleanup() {
         state.activeTimeout = null;
     }
 
-    log('Ресурси модуля очищено');
+    logger.info('Ресурси модуля очищено', 'cleanup', {
+        category: LOG_CATEGORIES.LOGIC
+    });
 }
 
 // Створюємо об'єкт для експорту

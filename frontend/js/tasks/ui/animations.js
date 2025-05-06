@@ -7,6 +7,11 @@
  * @version 3.0.0
  */
 
+import { getLogger, LOG_CATEGORIES } from '../utils/logger.js';
+
+// Ініціалізуємо логер для модуля
+const logger = getLogger('UI.Animations');
+
 // Конфігурація з оптимізованими значеннями за замовчуванням
 const config = {
     enabled: true,                // Чи включені анімації
@@ -39,7 +44,9 @@ export function init(options = {}) {
     // Запобігаємо повторній ініціалізації
     if (state.initialized) return;
 
-    console.log('UI.Animations: Ініціалізація анімацій...');
+    logger.info('Ініціалізація анімацій...', 'init', {
+        category: LOG_CATEGORIES.INIT
+    });
 
     // Оновлюємо конфігурацію
     Object.assign(config, options);
@@ -56,7 +63,13 @@ export function init(options = {}) {
     // Відзначаємо, що модуль ініціалізовано
     state.initialized = true;
 
-    console.log(`UI.Animations: Ініціалізація завершена (режим: ${state.devicePerformance})`);
+    logger.info(`Ініціалізація завершена (режим: ${state.devicePerformance})`, 'init', {
+        category: LOG_CATEGORIES.INIT,
+        details: {
+            performanceMode: state.devicePerformance,
+            highQuality: state.highQualityEffects
+        }
+    });
 }
 
 /**
@@ -105,11 +118,17 @@ function detectDevicePerformance() {
         try {
             localStorage.setItem('devicePerformance', state.devicePerformance);
         } catch (e) {
-            console.warn('UI.Animations: Помилка збереження налаштувань:', e);
+            logger.warn('Помилка збереження налаштувань продуктивності', 'detectDevicePerformance', {
+                category: LOG_CATEGORIES.STORAGE,
+                details: { error: e.message }
+            });
         }
     } catch (e) {
         // Запасний варіант у випадку помилки
-        console.warn('UI.Animations: Помилка визначення продуктивності:', e);
+        logger.warn('Помилка визначення продуктивності', 'detectDevicePerformance', {
+            category: LOG_CATEGORIES.LOGIC,
+            details: { error: e.message }
+        });
         state.devicePerformance = 'medium';
         state.highQualityEffects = false;
     }
@@ -333,6 +352,10 @@ function injectAnimationStyles() {
     `;
 
     document.head.appendChild(styleElement);
+
+    logger.info('Стилі анімацій додано до документа', 'injectAnimationStyles', {
+        category: LOG_CATEGORIES.RENDERING
+    });
 }
 
 /**
@@ -356,9 +379,9 @@ function setupEventHandlers() {
                 showDailyBonusReward(
                     day_reward || 0,
                     token_amount || 0,
-                    cycle_completed,
-                    completion_bonus
-                );
+    cycleCompleted,
+    completion_bonus
+  );
             }
         });
 
@@ -367,13 +390,23 @@ function setupEventHandlers() {
             // Адаптуємо якість ефектів залежно від розміру екрану
             if (window.innerWidth < 768 && state.devicePerformance === 'high') {
                 state.devicePerformance = 'medium';
+                logger.info('Адаптовано режим продуктивності до розміру екрану', 'resizeHandler', {
+                    category: LOG_CATEGORIES.PERFORMANCE,
+                    details: { newMode: 'medium', width: window.innerWidth }
+                });
             }
         }, 300));
 
         // Очищення ресурсів при виході зі сторінки
         window.addEventListener('beforeunload', cleanup);
+
+        logger.info('Встановлено обробники подій', 'setupEventHandlers', {
+            category: LOG_CATEGORIES.INIT
+        });
     } catch (error) {
-        console.error('UI.Animations: Помилка налаштування обробників подій:', error);
+        logger.error(error, 'Помилка налаштування обробників подій', {
+            category: LOG_CATEGORIES.INIT
+        });
     }
 }
 
@@ -385,6 +418,10 @@ export function cleanup() {
     Object.keys(state.timers).forEach(id => {
         clearTimeout(state.timers[id]);
         delete state.timers[id];
+    });
+
+    logger.info('Ресурси модуля очищено', 'cleanup', {
+        category: LOG_CATEGORIES.LOGIC
     });
 }
 
@@ -431,6 +468,11 @@ export function showReward(reward, options = {}) {
     const rewardAmount = reward.amount;
     const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
     const iconType = reward.type === 'tokens' ? 'token' : 'coin';
+
+    logger.info(`Показ анімації винагороди: ${rewardAmount} ${rewardType}`, 'showReward', {
+        category: LOG_CATEGORIES.ANIMATION,
+        details: { amount: rewardAmount, type: reward.type, specialDay: settings.specialDay }
+    });
 
     // Створюємо контейнер для анімації
     const container = document.createElement('div');
@@ -510,6 +552,11 @@ export function showReward(reward, options = {}) {
             container.remove();
             state.animationsInProgress--;
 
+            logger.info('Закрито анімацію винагороди', 'closeRewardAnimation', {
+                category: LOG_CATEGORIES.ANIMATION,
+                details: { amount: rewardAmount, type: reward.type }
+            });
+
             // Викликаємо callback
             if (typeof settings.onClose === 'function') {
                 settings.onClose();
@@ -522,6 +569,16 @@ export function showReward(reward, options = {}) {
  * Показ анімації для щоденного бонусу (оптимізовано)
  */
 export function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, completionBonus) {
+    logger.info(`Показ щоденного бонусу`, 'showDailyBonusReward', {
+        category: LOG_CATEGORIES.ANIMATION,
+        details: {
+            winixAmount,
+            tokenAmount,
+            cycleCompleted: !!cycleCompleted,
+            hasCompletionBonus: !!completionBonus
+        }
+    });
+
     // Якщо цикл завершено, спочатку показуємо звичайний бонус
     if (cycleCompleted && completionBonus) {
         // Спочатку показуємо основний бонус
@@ -595,6 +652,11 @@ export function showDailyBonusReward(winixAmount, tokenAmount, cycleCompleted, c
 export function showCycleCompletionAnimation(bonusData) {
     if (!bonusData) return;
 
+    logger.info('Показ анімації бонусу за завершення циклу', 'showCycleCompletionAnimation', {
+        category: LOG_CATEGORIES.ANIMATION,
+        details: { bonusAmount: bonusData.amount, tokensAmount: bonusData.tokens }
+    });
+
     showReward({
         type: 'tokens',
         amount: bonusData.amount || 0
@@ -644,7 +706,10 @@ export function updateUserBalance(reward) {
             try {
                 localStorage.setItem('userTokens', newBalance.toString());
             } catch (e) {
-                console.warn('UI.Animations: Не вдалося зберегти баланс токенів:', e);
+                logger.warn('Не вдалося зберегти баланс токенів', 'updateUserBalance', {
+                    category: LOG_CATEGORIES.STORAGE,
+                    details: { error: e.message }
+                });
             }
         }
     } else if (reward.type === 'coins') {
@@ -665,7 +730,10 @@ export function updateUserBalance(reward) {
             try {
                 localStorage.setItem('userCoins', newBalance.toString());
             } catch (e) {
-                console.warn('UI.Animations: Не вдалося зберегти баланс жетонів:', e);
+                logger.warn('Не вдалося зберегти баланс жетонів', 'updateUserBalance', {
+                    category: LOG_CATEGORIES.STORAGE,
+                    details: { error: e.message }
+                });
             }
         }
     }
@@ -677,6 +745,11 @@ export function updateUserBalance(reward) {
             amount: reward.amount
         }
     }));
+
+    logger.info(`Оновлено баланс користувача`, 'updateUserBalance', {
+        category: LOG_CATEGORIES.LOGIC,
+        details: { type: reward.type, amount: reward.amount }
+    });
 }
 
 /**
@@ -684,10 +757,20 @@ export function updateUserBalance(reward) {
  */
 export function animateSuccessfulCompletion(taskId) {
     const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-    if (!taskElement) return;
+    if (!taskElement) {
+        logger.warn(`Не знайдено елемент завдання для анімації: ${taskId}`, 'animateSuccessfulCompletion', {
+            category: LOG_CATEGORIES.ANIMATION
+        });
+        return;
+    }
 
     // Додаємо клас для анімації
     taskElement.classList.add('success-pulse');
+
+    logger.info(`Анімація успішного виконання завдання ${taskId}`, 'animateSuccessfulCompletion', {
+        category: LOG_CATEGORIES.ANIMATION,
+        details: { taskId, highQuality: state.highQualityEffects }
+    });
 
     // Додаємо анімацію часток для потужних пристроїв
     if (state.highQualityEffects) {
@@ -711,6 +794,15 @@ export function createSuccessParticles(element) {
 
     // Кількість частинок залежно від продуктивності
     const particleCount = state.devicePerformance === 'high' ? 15 : 8;
+
+    logger.debug(`Створення ${particleCount} частинок для анімації успіху`, 'createSuccessParticles', {
+        category: LOG_CATEGORIES.ANIMATION,
+        details: {
+            centerX,
+            centerY,
+            performanceMode: state.devicePerformance
+        }
+    });
 
     // Створюємо частинки
     for (let i = 0; i < particleCount; i++) {
@@ -763,12 +855,22 @@ export function createSuccessParticles(element) {
  */
 export function showProgressAnimation(taskId, progress) {
     const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-    if (!taskElement) return;
+    if (!taskElement) {
+        logger.warn(`Не знайдено елемент завдання для анімації прогресу: ${taskId}`, 'showProgressAnimation', {
+            category: LOG_CATEGORIES.ANIMATION
+        });
+        return;
+    }
 
     const progressBar = taskElement.querySelector('.progress-fill');
     if (progressBar) {
         // Зберігаємо поточне значення
         const currentWidth = parseFloat(progressBar.style.width) || 0;
+
+        logger.info(`Анімація прогресу завдання ${taskId}: ${currentWidth}% -> ${progress}%`, 'showProgressAnimation', {
+            category: LOG_CATEGORIES.ANIMATION,
+            details: { taskId, currentProgress: currentWidth, newProgress: progress }
+        });
 
         // Встановлюємо нове значення з анімацією
         progressBar.style.transition = 'width 1s cubic-bezier(0.1, 0.8, 0.2, 1)';
@@ -794,6 +896,9 @@ export function showProgressAnimation(taskId, progress) {
             // Додаємо клас до батьківського елемента
             setTimeout(() => {
                 taskElement.classList.add('completed');
+                logger.info(`Завдання ${taskId} позначено як завершене`, 'showProgressAnimation', {
+                    category: LOG_CATEGORIES.ANIMATION
+                });
             }, 300);
         }
     }
@@ -803,10 +908,19 @@ export function showProgressAnimation(taskId, progress) {
  * Анімація для дня з жетонами у щоденному бонусі
  */
 export function animateTokenDay(dayElement) {
-    if (!dayElement) return;
+    if (!dayElement) {
+        logger.warn('Елемент дня для анімації жетонів не вказано', 'animateTokenDay', {
+            category: LOG_CATEGORIES.ANIMATION
+        });
+        return;
+    }
 
     // Додаємо класи для анімації
     dayElement.classList.add('token-day-pulse');
+
+    logger.info('Анімація дня з жетонами', 'animateTokenDay', {
+        category: LOG_CATEGORIES.ANIMATION
+    });
 
     // Створюємо ефект світіння
     const glow = document.createElement('div');
@@ -851,9 +965,28 @@ export function setPerformanceMode(mode) {
     if (['low', 'medium', 'high'].includes(mode)) {
         state.devicePerformance = mode;
         state.highQualityEffects = mode === 'high';
-        localStorage.setItem('devicePerformance', mode);
+
+        try {
+            localStorage.setItem('devicePerformance', mode);
+        } catch (e) {
+            logger.warn('Не вдалося зберегти режим продуктивності', 'setPerformanceMode', {
+                category: LOG_CATEGORIES.STORAGE,
+                details: { error: e.message }
+            });
+        }
+
+        logger.info(`Встановлено режим продуктивності: ${mode}`, 'setPerformanceMode', {
+            category: LOG_CATEGORIES.PERFORMANCE,
+            details: { mode, highQuality: state.highQualityEffects }
+        });
+
         return true;
     }
+
+    logger.warn(`Неправильний режим продуктивності: ${mode}`, 'setPerformanceMode', {
+        category: LOG_CATEGORIES.PERFORMANCE
+    });
+
     return false;
 }
 

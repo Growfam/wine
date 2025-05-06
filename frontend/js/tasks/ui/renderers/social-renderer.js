@@ -8,6 +8,8 @@
  * @version 3.0.0
  */
 
+import dependencyContainer from '../../utils/dependency-container.js';
+
 // Типи соціальних мереж
 export const SOCIAL_NETWORKS = {
     TELEGRAM: 'telegram',
@@ -38,6 +40,46 @@ const taskElements = new Map();
 const renderQueue = [];
 let isRendering = false;
 
+// Сервіси
+let taskSystem = null;
+let uiNotifications = null;
+
+/**
+ * Ініціалізація рендерера та отримання залежностей
+ */
+function initialize() {
+    // Отримуємо TaskSystem з контейнера залежностей
+    taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                dependencyContainer.resolve('TaskManager');
+
+    // Отримуємо сервіс сповіщень
+    uiNotifications = dependencyContainer.resolve('UI.Notifications');
+
+    // Реєструємо себе в контейнері залежностей
+    dependencyContainer.register('SocialRenderer', SocialRenderer);
+
+    // Підписуємося на події
+    document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('task-started', (event) => {
+            if (event.detail && event.detail.taskId) {
+                const taskElement = taskElements.get(event.detail.taskId);
+                if (taskElement) {
+                    updateTaskStatus(taskElement, STATUS.READY_TO_VERIFY);
+                }
+            }
+        });
+
+        document.addEventListener('task-completed', (event) => {
+            if (event.detail && event.detail.taskId) {
+                const taskElement = taskElements.get(event.detail.taskId);
+                if (taskElement) {
+                    updateTaskStatus(taskElement, STATUS.COMPLETED);
+                }
+            }
+        });
+    });
+}
+
 /**
  * Створення елементу соціального завдання
  * @param {Object} task - Модель завдання
@@ -45,6 +87,11 @@ let isRendering = false;
  * @returns {HTMLElement} DOM елемент завдання
  */
 export function render(task, progress) {
+    // Ініціалізуємо рендерер, якщо ще не зроблено
+    if (!taskSystem) {
+        initialize();
+    }
+
     // Перевіряємо валідність даних
     if (!task || !task.id) {
         console.error('SocialRenderer: Отримано некоректні дані завдання');
@@ -68,8 +115,11 @@ export function render(task, progress) {
     // Створюємо базову картку через TaskCard
     let taskElement;
 
-    if (window.TaskCard && window.TaskCard.create) {
-        taskElement = window.TaskCard.create(task, progress, options);
+    // Отримуємо TaskCard з контейнера залежностей
+    const TaskCard = dependencyContainer.resolve('TaskCard');
+
+    if (TaskCard && TaskCard.create) {
+        taskElement = TaskCard.create(task, progress, options);
 
         // Додаємо атрибути для соціальної мережі
         if (networkType) {
@@ -336,8 +386,17 @@ function setupButtonHandlers(taskElement) {
             // Спочатку змінюємо вигляд кнопки
             updateTaskStatus(taskElement, STATUS.LOADING);
 
-            // Викликаємо TaskManager, якщо доступний
-            if (window.TaskManager && window.TaskManager.startTask) {
+            // Отримуємо TaskSystem з контейнера, якщо ще не отримано
+            if (!taskSystem) {
+                taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                            dependencyContainer.resolve('TaskManager');
+            }
+
+            // Викликаємо TaskSystem, якщо доступний
+            if (taskSystem && typeof taskSystem.startTask === 'function') {
+                taskSystem.startTask(taskId);
+            } else if (window.TaskManager && window.TaskManager.startTask) {
+                // Для зворотної сумісності
                 window.TaskManager.startTask(taskId);
             } else if (window.SocialTask && window.SocialTask.handleStartTask) {
                 // Спроба використати старий інтерфейс
@@ -367,8 +426,17 @@ function setupButtonHandlers(taskElement) {
             // Спочатку змінюємо вигляд кнопки
             updateTaskStatus(taskElement, STATUS.LOADING);
 
-            // Викликаємо TaskManager, якщо доступний
-            if (window.TaskManager && window.TaskManager.verifyTask) {
+            // Отримуємо TaskSystem з контейнера, якщо ще не отримано
+            if (!taskSystem) {
+                taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                            dependencyContainer.resolve('TaskManager');
+            }
+
+            // Викликаємо TaskSystem, якщо доступний
+            if (taskSystem && typeof taskSystem.verifyTask === 'function') {
+                taskSystem.verifyTask(taskId);
+            } else if (window.TaskManager && window.TaskManager.verifyTask) {
+                // Для зворотної сумісності
                 window.TaskManager.verifyTask(taskId);
             } else if (window.SocialTask && window.SocialTask.handleVerifyTask) {
                 // Спроба використати старий інтерфейс
@@ -395,9 +463,15 @@ function setupButtonHandlers(taskElement) {
  * Оновлення відображення конкретного завдання
  */
 export function refreshTaskDisplay(taskId) {
-    // Якщо є TaskManager, делегуємо обробку йому
-    if (window.TaskManager && window.TaskManager.refreshTaskDisplay) {
-        window.TaskManager.refreshTaskDisplay(taskId);
+    // Отримуємо TaskSystem з контейнера, якщо ще не отримано
+    if (!taskSystem) {
+        taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                    dependencyContainer.resolve('TaskManager');
+    }
+
+    // Якщо є TaskSystem, делегуємо обробку йому
+    if (taskSystem && typeof taskSystem.refreshTaskDisplay === 'function') {
+        taskSystem.refreshTaskDisplay(taskId);
         return;
     }
 
@@ -448,14 +522,20 @@ async function refreshSingleTask(taskId) {
         // Намагаємося отримати актуальні дані про завдання
         let task, progress;
 
-        // Спроба отримати дані через TaskManager
-        if (window.TaskManager) {
-            if (window.TaskManager.findTaskById) {
-                task = window.TaskManager.findTaskById(taskId);
+        // Отримуємо TaskSystem з контейнера, якщо ще не отримано
+        if (!taskSystem) {
+            taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                        dependencyContainer.resolve('TaskManager');
+        }
+
+        // Спроба отримати дані через TaskSystem
+        if (taskSystem) {
+            if (typeof taskSystem.findTaskById === 'function') {
+                task = taskSystem.findTaskById(taskId);
             }
 
-            if (window.TaskManager.getTaskProgress) {
-                progress = window.TaskManager.getTaskProgress(taskId);
+            if (typeof taskSystem.getTaskProgress === 'function') {
+                progress = taskSystem.getTaskProgress(taskId);
             }
         }
 
@@ -510,7 +590,14 @@ export function refreshAllTasks() {
  * Показати повідомлення про успіх
  */
 function showSuccessMessage(message) {
-    if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
+    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
+    if (!uiNotifications) {
+        uiNotifications = dependencyContainer.resolve('UI.Notifications');
+    }
+
+    if (uiNotifications && typeof uiNotifications.showSuccess === 'function') {
+        uiNotifications.showSuccess(message);
+    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
         window.UI.Notifications.showSuccess(message);
     } else if (typeof window.showToast === 'function') {
         window.showToast(message, 'success');
@@ -523,7 +610,14 @@ function showSuccessMessage(message) {
  * Показати повідомлення про помилку
  */
 function showErrorMessage(message) {
-    if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
+    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
+    if (!uiNotifications) {
+        uiNotifications = dependencyContainer.resolve('UI.Notifications');
+    }
+
+    if (uiNotifications && typeof uiNotifications.showError === 'function') {
+        uiNotifications.showError(message);
+    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
         window.UI.Notifications.showError(message);
     } else if (typeof window.showToast === 'function') {
         window.showToast(message, 'error');
@@ -552,32 +646,15 @@ const SocialRenderer = {
     detectNetworkType,
     validateSocialUrl,
     SOCIAL_NETWORKS,
-    STATUS
+    STATUS,
+    initialize
 };
-
-// Підписуємося на події
-document.addEventListener('DOMContentLoaded', () => {
-    document.addEventListener('task-started', (event) => {
-        if (event.detail && event.detail.taskId) {
-            const taskElement = taskElements.get(event.detail.taskId);
-            if (taskElement) {
-                updateTaskStatus(taskElement, STATUS.READY_TO_VERIFY);
-            }
-        }
-    });
-
-    document.addEventListener('task-completed', (event) => {
-        if (event.detail && event.detail.taskId) {
-            const taskElement = taskElements.get(event.detail.taskId);
-            if (taskElement) {
-                updateTaskStatus(taskElement, STATUS.COMPLETED);
-            }
-        }
-    });
-});
 
 // Для зворотної сумісності зі старим кодом
 window.SocialRenderer = SocialRenderer;
+
+// Автоматична ініціалізація при завантаженні модуля
+setTimeout(initialize, 0);
 
 // Експортуємо за замовчуванням
 export default SocialRenderer;
