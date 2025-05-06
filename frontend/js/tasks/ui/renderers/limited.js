@@ -1,27 +1,26 @@
 /**
- * LimitedRenderer - рендерер для лімітованих за часом завдань
+ * Limited - рендерер для лімітованих за часом завдань
  *
  * Відповідає за:
  * - Відображення лімітованих завдань з таймером
  * - Інтеграцію з системою таймерів
  * - Рендеринг специфічних елементів для лімітованих завдань
  *
- * @version 2.0.0
+ * @version 2.1.0
  */
 
-import { BaseRenderer, TASK_STATUS } from './common/base-renderer.js';
-import { escapeHTML } from './common/utils.js';
+import { BaseRenderer, TASK_STATUS } from '/base.js';
 import dependencyContainer from '../../utils/dependency-container.js';
 
 /**
  * Рендерер для лімітованих завдань
  */
-class LimitedRenderer extends BaseRenderer {
+class Limited extends BaseRenderer {
     /**
-     * Конструктор LimitedRenderer
+     * Конструктор Limited
      */
     constructor() {
-        super('LimitedRenderer');
+        super('Limited');
 
         // Додаткові сервіси, специфічні для лімітованих завдань
         this.timeUtils = null;
@@ -361,10 +360,5 @@ class LimitedRenderer extends BaseRenderer {
 }
 
 // Створюємо екземпляр рендерера
-const limitedRenderer = new LimitedRenderer();
-
-// Для зворотної сумісності
-window.LimitedRenderer = limitedRenderer;
-
-// Експортуємо за замовчуванням
+const limitedRenderer = new Limited();
 export default limitedRenderer;

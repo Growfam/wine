@@ -6,11 +6,10 @@
  * - Надання спільної логіки для всіх типів рендерерів
  * - Уніфікацію обробки подій та стану завдань
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-import dependencyContainer from '../../../utils/dependency-container.js';
-import { escapeHTML, createFromHTML } from './utils.js';
+import dependencyContainer from '../../utils/dependency-container.js';
 
 // Статуси завдань
 export const TASK_STATUS = {
@@ -26,7 +25,7 @@ export const TASK_STATUS = {
 /**
  * Базовий клас рендерера
  */
-export class BaseRenderer {
+export default class BaseRenderer {
     /**
      * Конструктор базового рендерера
      * @param {string} name - Назва рендерера для реєстрації в контейнері
@@ -41,12 +40,6 @@ export class BaseRenderer {
         this.taskCard = null;
         this.notifications = null;
         this.logger = null;
-
-        // Стан рендерера
-        this.state = {
-            renderQueue: [],
-            isRendering: false
-        };
 
         // Автоматична ініціалізація при створенні
         setTimeout(() => this.initialize(), 0);
@@ -88,31 +81,27 @@ export class BaseRenderer {
 
     /**
      * Налаштування обробників подій
-     * Підклас має перевизначити цей метод при необхідності
      */
     setupEventListeners() {
         if (typeof document === 'undefined') return;
 
         // Базові обробники подій, спільні для всіх рендерерів
-        document.addEventListener('DOMContentLoaded', () => {
-            // Базова підписка на події завдань
-            document.addEventListener('task-started', (event) => {
-                if (event.detail && event.detail.taskId) {
-                    const taskElement = this.taskElements.get(event.detail.taskId);
-                    if (taskElement) {
-                        this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
-                    }
+        document.addEventListener('task-started', (event) => {
+            if (event.detail && event.detail.taskId) {
+                const taskElement = this.taskElements.get(event.detail.taskId);
+                if (taskElement) {
+                    this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
                 }
-            });
+            }
+        });
 
-            document.addEventListener('task-completed', (event) => {
-                if (event.detail && event.detail.taskId) {
-                    const taskElement = this.taskElements.get(event.detail.taskId);
-                    if (taskElement) {
-                        this.updateTaskStatus(taskElement, TASK_STATUS.COMPLETED);
-                    }
+        document.addEventListener('task-completed', (event) => {
+            if (event.detail && event.detail.taskId) {
+                const taskElement = this.taskElements.get(event.detail.taskId);
+                if (taskElement) {
+                    this.updateTaskStatus(taskElement, TASK_STATUS.COMPLETED);
                 }
-            });
+            }
         });
 
         // Очищаємо ресурси при виході зі сторінки
@@ -123,9 +112,10 @@ export class BaseRenderer {
      * Рендеринг елемента завдання
      * @param {Object} task - Модель завдання
      * @param {Object} progress - Прогрес виконання
+     * @param {Object} options - Додаткові опції рендерингу
      * @returns {HTMLElement} DOM елемент завдання
      */
-    render(task, progress) {
+    render(task, progress, options = {}) {
         if (!this.initialized) {
             this.initialize();
         }
@@ -137,23 +127,24 @@ export class BaseRenderer {
         }
 
         // Базові опції для TaskCard
-        const options = this.getTaskCardOptions(task);
+        const defaultOptions = this.getTaskCardOptions(task);
+        const mergedOptions = { ...defaultOptions, ...options };
 
         // Створюємо базову картку через TaskCard
         let taskElement;
 
         if (this.taskCard && typeof this.taskCard.create === 'function') {
-            taskElement = this.taskCard.create(task, progress, options);
+            taskElement = this.taskCard.create(task, progress, mergedOptions);
 
             // Додаємо додаткові атрибути
-            this.addTaskAttributes(taskElement, task, options);
+            this.addTaskAttributes(taskElement, task, mergedOptions);
         } else {
             // Запасний варіант, якщо TaskCard недоступний
-            taskElement = this.createFallbackElement(task, progress, options);
+            taskElement = this.createFallbackElement(task, progress, mergedOptions);
         }
 
         // Додаємо специфічні елементи для цього типу завдання
-        this.enhanceTaskElement(taskElement, task, progress, options);
+        this.enhanceTaskElement(taskElement, task, progress, mergedOptions);
 
         // Зберігаємо елемент у кеші
         this.taskElements.set(task.id, taskElement);
@@ -163,7 +154,6 @@ export class BaseRenderer {
 
     /**
      * Отримання опцій для TaskCard
-     * Підклас має перевизначити цей метод
      * @param {Object} task - Завдання
      * @returns {Object} Опції для TaskCard
      */
@@ -183,8 +173,6 @@ export class BaseRenderer {
     addTaskAttributes(taskElement, task, options) {
         taskElement.dataset.taskId = task.id;
         taskElement.dataset.taskType = this.name.toLowerCase().replace('renderer', '');
-
-        // Додаткові атрибути залежно від типу завдання (підклас має перевизначити)
     }
 
     /**
@@ -201,13 +189,18 @@ export class BaseRenderer {
         taskElement.dataset.taskId = task.id;
         taskElement.dataset.taskType = this.name.toLowerCase().replace('renderer', '');
 
+        // Безпечне отримання текстів
+        const safeTitle = this.escapeHtml(task.title || '');
+        const safeDescription = this.escapeHtml(task.description || '');
+        const rewardType = task.reward_type === 'tokens' ? '$WINIX' : 'жетонів';
+
         // Базовий HTML шаблон для всіх типів завдань
         taskElement.innerHTML = `
             <div class="task-header">
-                <div class="task-title">${escapeHTML(task.title)}</div>
-                <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
+                <div class="task-title">${safeTitle}</div>
+                <div class="task-reward">${task.reward_amount} ${rewardType}</div>
             </div>
-            <div class="task-description">${escapeHTML(task.description)}</div>
+            <div class="task-description">${safeDescription}</div>
             <div class="task-progress-container"></div>
             <div class="task-action"></div>
         `;
@@ -222,7 +215,6 @@ export class BaseRenderer {
 
     /**
      * Додавання специфічних елементів для типу завдання
-     * Підклас має перевизначити цей метод
      * @param {HTMLElement} taskElement - Елемент завдання
      * @param {Object} task - Завдання
      * @param {Object} progress - Прогрес
@@ -261,11 +253,9 @@ export class BaseRenderer {
         if (!taskElement) return;
 
         // Оновлюємо класи елемента
-        const statusClasses = [
-            'loading', 'completed', 'error',
-            'in-progress', 'ready-to-verify', 'expired'
-        ];
+        const statusClasses = Object.values(TASK_STATUS);
 
+        // Видаляємо всі статусні класи
         statusClasses.forEach(cls => taskElement.classList.remove(cls));
 
         // Додаємо відповідний клас
@@ -372,7 +362,6 @@ export class BaseRenderer {
 
     /**
      * Обробник запуску завдання
-     * Підклас має перевизначити цей метод
      * @param {string} taskId - ID завдання
      * @param {HTMLElement} taskElement - Елемент завдання
      */
@@ -390,7 +379,7 @@ export class BaseRenderer {
             // Для зворотної сумісності
             window.TaskManager.startTask(taskId);
         } else {
-            // Запасний варіант, підклас має реалізувати власну логіку
+            // Запасний варіант
             this.showErrorMessage('Неможливо запустити завдання: TaskSystem недоступний');
 
             // Відновлюємо стан кнопки
@@ -402,7 +391,6 @@ export class BaseRenderer {
 
     /**
      * Обробник перевірки завдання
-     * Підклас має перевизначити цей метод
      * @param {string} taskId - ID завдання
      * @param {HTMLElement} taskElement - Елемент завдання
      */
@@ -420,7 +408,7 @@ export class BaseRenderer {
             // Для зворотної сумісності
             window.TaskManager.verifyTask(taskId);
         } else {
-            // Запасний варіант, підклас має реалізувати власну логіку
+            // Запасний варіант
             this.showErrorMessage('Неможливо перевірити завдання: TaskSystem недоступний');
 
             // Відновлюємо стан кнопки
@@ -435,59 +423,6 @@ export class BaseRenderer {
      * @param {string} taskId - ID завдання
      */
     refreshTaskDisplay(taskId) {
-        // Отримуємо TaskSystem з контейнера, якщо ще не отримано
-        if (!this.taskSystem) {
-            this.taskSystem = dependencyContainer.resolve('TaskSystem') ||
-                            dependencyContainer.resolve('TaskManager');
-        }
-
-        // Якщо є TaskSystem, делегуємо обробку йому
-        if (this.taskSystem && typeof this.taskSystem.refreshTaskDisplay === 'function') {
-            this.taskSystem.refreshTaskDisplay(taskId);
-            return;
-        }
-
-        // Додаємо в чергу рендерингу
-        if (!this.state.renderQueue.includes(taskId)) {
-            this.state.renderQueue.push(taskId);
-
-            // Запускаємо процес рендерингу, якщо він ще не запущений
-            if (!this.state.isRendering) {
-                this.processRenderQueue();
-            }
-        }
-    }
-
-    /**
-     * Обробка черги рендерингу
-     */
-    processRenderQueue() {
-        if (this.state.isRendering || this.state.renderQueue.length === 0) {
-            return;
-        }
-
-        this.state.isRendering = true;
-
-        // Беремо перше завдання з черги
-        const taskId = this.state.renderQueue.shift();
-
-        // Оновлюємо це завдання
-        this.refreshSingleTask(taskId)
-            .finally(() => {
-                // Запускаємо обробку наступного завдання або завершуємо процес
-                if (this.state.renderQueue.length > 0) {
-                    setTimeout(() => this.processRenderQueue(), 16); // ~60 fps
-                } else {
-                    this.state.isRendering = false;
-                }
-            });
-    }
-
-    /**
-     * Оновлення одного завдання
-     * @param {string} taskId - ID завдання
-     */
-    async refreshSingleTask(taskId) {
         const taskElement = this.taskElements.get(taskId);
         if (!taskElement) return;
 
@@ -498,25 +433,11 @@ export class BaseRenderer {
                                 dependencyContainer.resolve('TaskManager');
             }
 
-            let task, progress;
+            let progress = null;
 
-            // Спроба отримати дані через TaskSystem
-            if (this.taskSystem) {
-                if (typeof this.taskSystem.findTaskById === 'function') {
-                    task = this.taskSystem.findTaskById(taskId);
-                }
-
-                if (typeof this.taskSystem.getTaskProgress === 'function') {
-                    progress = this.taskSystem.getTaskProgress(taskId);
-                }
-            }
-
-            // Якщо даних немає, спробуємо використати дані з data-атрибутів
-            if (!task) {
-                task = {
-                    id: taskId,
-                    type: taskElement.dataset.taskType
-                };
+            // Спроба отримати прогрес через TaskSystem
+            if (this.taskSystem && typeof this.taskSystem.getTaskProgress === 'function') {
+                progress = this.taskSystem.getTaskProgress(taskId);
             }
 
             // Визначаємо статус на основі наявних даних
@@ -553,7 +474,6 @@ export class BaseRenderer {
      * Оновлення всіх завдань
      */
     refreshAllTasks() {
-        // Додаємо всі завдання в чергу рендерингу
         this.taskElements.forEach((_, taskId) => {
             this.refreshTaskDisplay(taskId);
         });
@@ -574,9 +494,9 @@ export class BaseRenderer {
         } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
             window.UI.Notifications.showSuccess(message);
         } else if (typeof window.showToast === 'function') {
-            window.showToast(message, 'success');
+            window.showToast(message, false);
         } else {
-            alert(message);
+            console.log('Успіх:', message);
         }
     }
 
@@ -595,17 +515,30 @@ export class BaseRenderer {
         } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
             window.UI.Notifications.showError(message);
         } else if (typeof window.showToast === 'function') {
-            window.showToast(message, 'error');
+            window.showToast(message, true);
         } else {
-            alert(message);
+            console.error('Помилка:', message);
         }
+    }
+
+    /**
+     * Функція для безпечного виведення HTML
+     * @param {string} text - Текст для обробки
+     * @returns {string} Безпечний HTML
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     /**
      * Логування повідомлень
      * @param {string} level - Рівень логування ('info', 'warn', 'error')
      * @param {string} message - Повідомлення
-     * @param {Object} details - Додаткові деталі
+     * @param {Object} details - Додаткові дані
      */
     log(level, message, details = {}) {
         // Якщо є логер, використовуємо його
@@ -624,12 +557,7 @@ export class BaseRenderer {
      */
     cleanup() {
         this.taskElements.clear();
-        this.state.renderQueue = [];
-        this.state.isRendering = false;
 
         this.log('info', 'Ресурси рендерера очищено');
     }
 }
-
-// Експортуємо базовий рендерер
-export default BaseRenderer;

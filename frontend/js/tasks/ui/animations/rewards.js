@@ -9,7 +9,7 @@
 
 import { getLogger, LOG_CATEGORIES } from '../../utils/logger.js';
 import { state, config } from './core.js';
-import { createSuccessParticles } from './utils.js';
+import { createSuccessParticles } from '/../../utils/dom.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Rewards');

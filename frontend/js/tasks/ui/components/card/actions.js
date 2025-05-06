@@ -8,24 +8,30 @@
  */
 
 import dependencyContainer from '../../../utils/dependency-container.js';
+import { TASK_STATUS } from './base.js';
 
-// Отримання залежностей
-let taskManager = null;
-let uiNotifications = null;
+// Стан системи дій
+const state = {
+    initialized: false,
+    taskManager: null,
+    notifications: null
+};
 
 /**
- * Ініціалізація модуля та отримання залежностей
+ * Ініціалізація модуля
+ * @returns {Object} API модуля
  */
-function initialize() {
-    // Отримуємо TaskManager з контейнера залежностей
-    taskManager = dependencyContainer.resolve('TaskManager') ||
-                 dependencyContainer.resolve('TaskSystem');
+export function init() {
+    if (state.initialized) return;
 
-    // Отримуємо сервіс сповіщень
-    uiNotifications = dependencyContainer.resolve('UI.Notifications');
+    // Отримуємо залежності з контейнера
+    state.taskManager = dependencyContainer.resolve('TaskManager') ||
+                       dependencyContainer.resolve('TaskSystem');
 
-    // Реєструємо себе в контейнері залежностей
-    dependencyContainer.register('TaskCardActions', exports);
+    state.notifications = dependencyContainer.resolve('UI.Notifications');
+    state.initialized = true;
+
+    return exports;
 }
 
 /**
@@ -39,6 +45,7 @@ export function setupActionButtons(taskElement, task, progress, options = {}) {
     const actionContainer = taskElement.querySelector('.task-action');
     if (!actionContainer) return;
 
+    // Перевіряємо стан завдання
     const isCompleted = progress && progress.status === 'completed';
     const isExpired = task.end_date && new Date(task.end_date) <= new Date();
 
@@ -55,60 +62,66 @@ export function setupActionButtons(taskElement, task, progress, options = {}) {
     }
 
     // Визначаємо, який статус у прогресу завдання
-    const needsVerification = progress && (progress.status === 'started' || progress.status === 'ready_to_verify');
+    const needsVerification = progress &&
+                             (progress.status === 'started' ||
+                              progress.status === 'ready_to_verify');
 
-    // Якщо завдання потребує перевірки, додаємо кнопку "Перевірити"
+    // Додаємо відповідні кнопки
     if (needsVerification) {
-        const verifyBtn = createButton({
-            className: 'action-button verify-button',
-            action: 'verify',
-            taskId: task.id,
-            text: 'Перевірити',
-            langKey: 'earn.verify'
-        });
-
-        verifyBtn.addEventListener('click', function(event) {
-            event.preventDefault();
-            handleVerifyTask(task.id);
-        });
-
-        actionContainer.appendChild(verifyBtn);
-    }
-    // Інакше додаємо кнопку "Виконати" / "Почати"
-    else {
-        const startBtn = createButton({
-            className: 'action-button',
-            action: 'start',
-            taskId: task.id,
-            text: task.action_label || 'Виконати',
-            langKey: `earn.${task.action_type || 'start'}`
-        });
-
-        startBtn.addEventListener('click', function(event) {
-            event.preventDefault();
-            handleStartTask(task.id);
-        });
-
-        actionContainer.appendChild(startBtn);
+        addVerifyButton(actionContainer, task.id);
+    } else {
+        addStartButton(actionContainer, task.id, task.action_label);
 
         // Якщо дозволено перевірку, додаємо і кнопку "Перевірити"
         if (options.allowVerification) {
-            const verifyBtn = createButton({
-                className: 'action-button verify-button',
-                action: 'verify',
-                taskId: task.id,
-                text: 'Перевірити',
-                langKey: 'earn.verify'
-            });
-
-            verifyBtn.addEventListener('click', function(event) {
-                event.preventDefault();
-                handleVerifyTask(task.id);
-            });
-
-            actionContainer.appendChild(verifyBtn);
+            addVerifyButton(actionContainer, task.id);
         }
     }
+}
+
+/**
+ * Додавання кнопки "Виконати"
+ * @param {HTMLElement} container - Контейнер для кнопки
+ * @param {string} taskId - ID завдання
+ * @param {string} label - Текст кнопки
+ */
+function addStartButton(container, taskId, label = 'Виконати') {
+    const button = createButton({
+        className: 'action-button',
+        action: 'start',
+        taskId: taskId,
+        text: label || 'Виконати',
+        langKey: 'earn.start'
+    });
+
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        handleStartTask(taskId);
+    });
+
+    container.appendChild(button);
+}
+
+/**
+ * Додавання кнопки "Перевірити"
+ * @param {HTMLElement} container - Контейнер для кнопки
+ * @param {string} taskId - ID завдання
+ */
+function addVerifyButton(container, taskId) {
+    const button = createButton({
+        className: 'action-button verify-button',
+        action: 'verify',
+        taskId: taskId,
+        text: 'Перевірити',
+        langKey: 'earn.verify'
+    });
+
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        handleVerifyTask(taskId);
+    });
+
+    container.appendChild(button);
 }
 
 /**
@@ -127,7 +140,6 @@ function createButton(options) {
     }
 
     button.textContent = options.text || 'Дія';
-
     return button;
 }
 
@@ -137,8 +149,8 @@ function createButton(options) {
  */
 export function handleStartTask(taskId) {
     // Ініціалізуємо модуль при першому використанні
-    if (!taskManager) {
-        initialize();
+    if (!state.initialized) {
+        init();
     }
 
     // Отримуємо елемент завдання
@@ -146,13 +158,12 @@ export function handleStartTask(taskId) {
     if (!taskElement) return;
 
     // Оновлюємо відображення (показуємо індикатор завантаження)
-    updateActionStatus(taskElement, 'loading');
+    updateActionStatus(taskElement, TASK_STATUS.LOADING);
 
     // Викликаємо TaskManager для запуску завдання
-    if (taskManager && typeof taskManager.startTask === 'function') {
-        taskManager.startTask(taskId)
+    if (state.taskManager && typeof state.taskManager.startTask === 'function') {
+        state.taskManager.startTask(taskId)
             .then(response => {
-                // Обробляємо успішну відповідь
                 if (response.success) {
                     showSuccessMessage(response.message || 'Завдання успішно активовано');
 
@@ -162,23 +173,21 @@ export function handleStartTask(taskId) {
                     }
 
                     // Оновлюємо статус для перевірки
-                    updateActionStatus(taskElement, 'ready-to-verify');
+                    updateActionStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
                 } else {
                     // Обробляємо помилку
                     showErrorMessage(response.message || 'Помилка запуску завдання');
-                    updateActionStatus(taskElement, 'error');
+                    updateActionStatus(taskElement, TASK_STATUS.ERROR);
                 }
             })
             .catch(error => {
-                // Обробляємо помилку
                 showErrorMessage('Помилка запуску завдання');
-                updateActionStatus(taskElement, 'error');
+                updateActionStatus(taskElement, TASK_STATUS.ERROR);
                 console.error('Помилка запуску завдання:', error);
             });
     } else {
-        // Якщо TaskManager недоступний, повертаємо звичайний стан
         showErrorMessage('TaskManager недоступний');
-        updateActionStatus(taskElement, 'error');
+        updateActionStatus(taskElement, TASK_STATUS.ERROR);
     }
 }
 
@@ -188,8 +197,8 @@ export function handleStartTask(taskId) {
  */
 export function handleVerifyTask(taskId) {
     // Ініціалізуємо модуль при першому використанні
-    if (!taskManager) {
-        initialize();
+    if (!state.initialized) {
+        init();
     }
 
     // Отримуємо елемент завдання
@@ -197,37 +206,34 @@ export function handleVerifyTask(taskId) {
     if (!taskElement) return;
 
     // Оновлюємо відображення (показуємо індикатор завантаження)
-    updateActionStatus(taskElement, 'loading');
+    updateActionStatus(taskElement, TASK_STATUS.LOADING);
 
     // Викликаємо TaskManager для перевірки завдання
-    if (taskManager && typeof taskManager.verifyTask === 'function') {
-        taskManager.verifyTask(taskId)
+    if (state.taskManager && typeof state.taskManager.verifyTask === 'function') {
+        state.taskManager.verifyTask(taskId)
             .then(response => {
                 if (response.success) {
-                    // Обробляємо успішну відповідь
                     showSuccessMessage(response.message || 'Завдання успішно виконано');
-                    updateActionStatus(taskElement, 'completed');
+                    updateActionStatus(taskElement, TASK_STATUS.COMPLETED);
 
                     // Якщо є винагорода, показуємо її
                     if (response.reward && window.RewardBadge) {
                         window.RewardBadge.showAnimation(response.reward);
                     }
                 } else {
-                    // Обробляємо помилку
                     showErrorMessage(response.message || 'Помилка перевірки завдання');
-                    updateActionStatus(taskElement, 'error');
+                    updateActionStatus(taskElement, TASK_STATUS.ERROR);
                 }
             })
             .catch(error => {
-                // Обробляємо помилку
                 showErrorMessage('Помилка перевірки завдання');
-                updateActionStatus(taskElement, 'error');
+                updateActionStatus(taskElement, TASK_STATUS.ERROR);
                 console.error('Помилка перевірки завдання:', error);
             });
     } else {
         // Якщо TaskManager недоступний, повертаємо звичайний стан
         showErrorMessage('TaskManager недоступний');
-        updateActionStatus(taskElement, 'ready-to-verify');
+        updateActionStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
     }
 }
 
@@ -243,18 +249,23 @@ export function updateActionStatus(taskElement, status) {
     const taskId = taskElement.dataset.taskId;
 
     // Оновлюємо класи елемента
-    taskElement.classList.remove('loading', 'completed', 'error', 'in-progress', 'ready-to-verify', 'expired');
+    const statusList = [
+        'loading', 'completed', 'error',
+        'in-progress', 'ready-to-verify', 'expired'
+    ];
+    statusList.forEach(cls => taskElement.classList.remove(cls));
+
     if (status) {
         taskElement.classList.add(status);
     }
 
     // Оновлюємо вміст елемента дій відповідно до статусу
     switch (status) {
-        case 'completed':
+        case TASK_STATUS.COMPLETED:
             actionContainer.innerHTML = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
             break;
 
-        case 'loading':
+        case TASK_STATUS.LOADING:
             actionContainer.innerHTML = `
                 <div class="loading-indicator">
                     <div class="spinner"></div>
@@ -263,52 +274,38 @@ export function updateActionStatus(taskElement, status) {
             `;
             break;
 
-        case 'ready-to-verify':
-            actionContainer.innerHTML = `
-                <button class="action-button verify-button" data-action="verify" data-task-id="${taskId}" data-lang-key="earn.verify">Перевірити</button>
-            `;
-            // Відновлюємо обробники подій
-            const verifyBtn = actionContainer.querySelector('.verify-button');
-            if (verifyBtn) {
-                verifyBtn.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    handleVerifyTask(taskId);
-                });
-            }
+        case TASK_STATUS.READY_TO_VERIFY:
+            actionContainer.innerHTML = '';
+            addVerifyButton(actionContainer, taskId);
             break;
 
-        case 'expired':
+        case TASK_STATUS.EXPIRED:
             actionContainer.innerHTML = '<div class="expired-label" data-lang-key="earn.expired">Закінчено</div>';
             break;
 
-        case 'error':
+        case TASK_STATUS.ERROR:
             // Показуємо кнопку для повторної спроби
-            actionContainer.innerHTML = `
-                <button class="action-button" data-action="start" data-task-id="${taskId}" data-lang-key="earn.retry">Спробувати знову</button>
-            `;
-            // Відновлюємо обробники подій
-            const retryBtn = actionContainer.querySelector('.action-button');
-            if (retryBtn) {
-                retryBtn.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    handleStartTask(taskId);
-                });
-            }
+            actionContainer.innerHTML = '';
+            const retryBtn = createButton({
+                className: 'action-button',
+                action: 'start',
+                taskId: taskId,
+                text: 'Спробувати знову',
+                langKey: 'earn.retry'
+            });
+
+            retryBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                handleStartTask(taskId);
+            });
+
+            actionContainer.appendChild(retryBtn);
             break;
 
         default:
             // Базовий статус - кнопка "Виконати"
-            actionContainer.innerHTML = `
-                <button class="action-button" data-action="start" data-task-id="${taskId}" data-lang-key="earn.start">Виконати</button>
-            `;
-            // Відновлюємо обробники подій
-            const startBtn = actionContainer.querySelector('.action-button');
-            if (startBtn) {
-                startBtn.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    handleStartTask(taskId);
-                });
-            }
+            actionContainer.innerHTML = '';
+            addStartButton(actionContainer, taskId);
             break;
     }
 }
@@ -318,20 +315,17 @@ export function updateActionStatus(taskElement, status) {
  * @param {string} message - Повідомлення
  */
 function showSuccessMessage(message) {
-    // Ініціалізуємо модуль при першому використанні
-    if (!uiNotifications) {
-        initialize();
+    if (!state.initialized) {
+        init();
     }
 
-    // Використовуємо UI.Notifications, якщо доступно
-    if (uiNotifications && typeof uiNotifications.showSuccess === 'function') {
-        uiNotifications.showSuccess(message);
+    if (state.notifications && typeof state.notifications.showSuccess === 'function') {
+        state.notifications.showSuccess(message);
     } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
         window.UI.Notifications.showSuccess(message);
     } else if (typeof window.showToast === 'function') {
         window.showToast(message, false);
     } else {
-        // Запасний варіант
         console.log('Успіх:', message);
     }
 }
@@ -341,34 +335,31 @@ function showSuccessMessage(message) {
  * @param {string} message - Повідомлення
  */
 function showErrorMessage(message) {
-    // Ініціалізуємо модуль при першому використанні
-    if (!uiNotifications) {
-        initialize();
+    if (!state.initialized) {
+        init();
     }
 
-    // Використовуємо UI.Notifications, якщо доступно
-    if (uiNotifications && typeof uiNotifications.showError === 'function') {
-        uiNotifications.showError(message);
+    if (state.notifications && typeof state.notifications.showError === 'function') {
+        state.notifications.showError(message);
     } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
         window.UI.Notifications.showError(message);
     } else if (typeof window.showToast === 'function') {
         window.showToast(message, true);
     } else {
-        // Запасний варіант
         console.error('Помилка:', message);
     }
 }
 
-// Автоматична ініціалізація при першому імпорті
-setTimeout(initialize, 0);
+// Автоматична ініціалізація
+setTimeout(init, 0);
 
-// Експорт всіх функцій
+// Експорт публічного API
 const exports = {
     setupActionButtons,
     handleStartTask,
     handleVerifyTask,
     updateActionStatus,
-    initialize
+    init
 };
 
 export default exports;

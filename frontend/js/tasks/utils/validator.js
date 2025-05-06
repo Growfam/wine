@@ -8,8 +8,8 @@
  * @version 3.0.0
  */
 
-import DOMUtils from './DOMUtils.js';
-import TimeUtils from './TimeUtils.js';
+import DOMUtils from './dom.js';
+import TimeUtils from './time.js';
 
 // Ініціалізуємо глобальний об'єкт UI, якщо його немає
 window.UI = window.UI || {};
