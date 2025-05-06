@@ -10,27 +10,19 @@
 
 import { CONFIG } from '../config/task-types.js';
 import { getLogger, LOG_CATEGORIES } from '../utils/logger.js';
-import { DependencyContainer } from '../utils/dependency-container.js';
+import dependencyContainer from '../utils/dependency-container.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TaskIntegration');
 
-// Для зворотньої сумісності створюємо модульний обробник
-const moduleErrors = logger.createModuleHandler('TaskIntegration');
-
 class TaskIntegration {
   constructor() {
-    // Ініціалізація контейнера залежностей
-    this.dependencyContainer = new DependencyContainer();
-
     // Стан модуля
     this.state = {
       initialized: false,
       initStarted: false,
       moduleStates: {},
       failedModules: [],
-      initializationTimestamps: {},
-      lastError: null,
       initStartTime: 0,
       initEndTime: 0,
       conflictResolutionApplied: false
@@ -39,7 +31,6 @@ class TaskIntegration {
     // Конфігурація
     this.config = {
       enableLogging: true,
-      detailedLogging: true,
       maxInitAttempts: 3,
       initTimeout: 15000,
       autoResolveConflicts: true,
@@ -49,23 +40,20 @@ class TaskIntegration {
       fallbackUserMode: true
     };
 
-    // Залежності між модулями
+    // Залежності між модулями (спрощена схема)
     this.dependencies = {
-      'UI.Animations': { deps: ['StorageUtils', 'TimeUtils'], priority: 1 },
-      'UI.Notifications': { deps: [], priority: 1 },
-      'UI.ProgressBar': { deps: [], priority: 1 },
-      'TaskProgress': { deps: ['UI.Animations', 'UI.Notifications', 'UI.ProgressBar'], priority: 2 },
-      'TaskVerification': { deps: [], priority: 2 },
-      'TaskStore': { deps: ['TaskProgress', 'TaskVerification'], priority: 3 },
-      'TaskSystem': { deps: ['TaskStore', 'TaskProgress', 'TaskVerification'], priority: 4 }
+      'taskProgress': { deps: [], priority: 1 },
+      'taskVerification': { deps: [], priority: 1 },
+      'taskStore': { deps: ['taskProgress', 'taskVerification'], priority: 2 },
+      'taskSystem': { deps: ['taskStore', 'taskProgress', 'taskVerification'], priority: 3 }
     };
 
     // Критичні модулі
     this.criticalModules = [
-      'TaskProgress',
-      'TaskVerification',
-      'TaskStore',
-      'TaskSystem'
+      'taskProgress',
+      'taskVerification',
+      'taskStore',
+      'taskSystem'
     ];
 
     // DOM Observer для динамічних елементів
@@ -77,9 +65,9 @@ class TaskIntegration {
    * @param {string} moduleName - Назва модуля
    * @param {Object} moduleInstance - Екземпляр модуля
    */
-  registerModule(moduleName, moduleInstance) {
-    this.dependencyContainer.register(moduleName, moduleInstance);
-    logger.info(`Модуль ${moduleName} зареєстровано в контейнері залежностей`, 'registerModule');
+  register(moduleName, moduleInstance) {
+    dependencyContainer.register(moduleName, moduleInstance);
+    logger.info(`Модуль ${moduleName} зареєстровано в контейнері залежностей`, 'register');
     return this;
   }
 
@@ -89,21 +77,22 @@ class TaskIntegration {
    * @returns {Object|null} - Екземпляр модуля або null
    */
   getModule(moduleName) {
-    return this.dependencyContainer.resolve(moduleName);
+    return dependencyContainer.resolve(moduleName);
   }
 
   /**
-   * Ініціалізація сервісу інтеграції
-   * @param {Object} options - Налаштування
+   * Асинхронна ініціалізація сервісу
+   * @param {Object} options - Опції ініціалізації
+   * @returns {Promise<boolean>} Результат ініціалізації
    */
-  init(options = {}) {
+  async init(options = {}) {
     try {
       // Якщо ініціалізація вже почалася, не запускаємо знову
       if (this.state.initStarted) {
         logger.info('Ініціалізація вже розпочата', 'init', {
           category: LOG_CATEGORIES.INIT
         });
-        return;
+        return false;
       }
 
       // Оновлюємо конфігурацію
@@ -117,169 +106,92 @@ class TaskIntegration {
       });
 
       // Реєструємо себе як сервіс для інших модулів
-      this.registerModule('TaskIntegration', this);
+      this.register('TaskIntegration', this);
 
-      // Діагностика системи
-      this.diagnoseSystemState();
+      // Автоматична реєстрація модулів з глобального скопу
+      await this.autoRegisterGlobalModules();
 
-      // Налаштування обробників помилок
-      this.setupErrorHandlers();
+      // Ініціалізація модулів у правильному порядку
+      await this.initModulesInOrder();
 
-      // Перевіряємо стан DOM
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => this.startInitializationProcess());
-      } else {
-        this.startInitializationProcess();
+      // Застосування вирішення конфліктів, якщо потрібно
+      if (this.config.autoResolveConflicts) {
+        await this.resolveModuleConflicts();
       }
+
+      // Встановлюємо таймаут для перевірки стану ініціалізації
+      setTimeout(() => this.finalizeInitialization(), 500);
+
+      return true;
     } catch (error) {
       logger.fatal(error, 'Критична помилка при ініціалізації TaskIntegration', {
         category: LOG_CATEGORIES.INIT
       });
+      return false;
     }
   }
 
   /**
-   * Діагностика стану системи
+   * Асинхронна автоматична реєстрація модулів з глобального скопу
+   * @returns {Promise<void>}
    */
-  diagnoseSystemState() {
+  async autoRegisterGlobalModules() {
+    logger.info('Автоматична реєстрація модулів...', 'autoRegisterGlobalModules');
+
     try {
-      logger.info('Діагностика стану системи...', 'diagnoseSystemState');
+      // Список можливих назв модулів для автореєстрації
+      const moduleNames = [
+        'taskProgress', 'taskStore', 'taskVerification', 'taskApi', 'taskSystem'
+      ];
 
-      // Збираємо інформацію про стан
-      const diagnosticInfo = {
-        documentReadyState: document.readyState,
-        apiAvailable: !!window.API,
-        apiPathsAvailable: !!window.API_PATHS,
-        moduleAvailability: {}
-      };
+      // Для кожного модуля
+      for (const moduleName of moduleNames) {
+        // Перевіряємо чи не зареєстровано вже
+        if (!dependencyContainer.has(moduleName)) {
+          // Шукаємо в глобальному об'єкті
+          let moduleObj = window[moduleName];
 
-      // Перевіряємо наявність критичних модулів
-      this.criticalModules.forEach(moduleName => {
-        // Спочатку перевіряємо в контейнері залежностей
-        let moduleAvailable = this.dependencyContainer.has(moduleName);
-
-        // Якщо не знайдено в контейнері, перевіряємо в window
-        if (!moduleAvailable) {
-          moduleAvailable = this.getModuleObject(moduleName) !== null;
-
-          // Якщо знайдено в window, автоматично реєструємо в контейнері
-          if (moduleAvailable) {
-            const moduleObject = this.getModuleObject(moduleName);
-            this.registerModule(moduleName, moduleObject);
+          // Шукаємо переформатоване ім'я (перша літера вєлика)
+          if (!moduleObj) {
+            const capitalizedName = moduleName.charAt(0).toUpperCase() + moduleName.slice(1);
+            moduleObj = window[capitalizedName];
           }
-        }
 
-        diagnosticInfo.moduleAvailability[moduleName] = moduleAvailable;
-      });
-
-      // Логуємо діагностичну інформацію
-      logger.info('Результати діагностики', 'diagnoseSystemState', {
-        category: LOG_CATEGORIES.INIT,
-        details: diagnosticInfo
-      });
-
-      // Перевіряємо і виправляємо API_PATHS
-      this.fixApiPathsIfNeeded();
-
-      // Перевіряємо ID користувача
-      const userIdResult = this.safeGetUserId();
-      logger.info('Результат отримання ID користувача', 'diagnoseSystemState', {
-        category: LOG_CATEGORIES.INIT,
-        details: userIdResult
-      });
-    } catch (error) {
-      logger.error(error, 'Помилка під час діагностики стану системи', {
-        category: LOG_CATEGORIES.INIT
-      });
-    }
-  }
-
-  /**
-   * Запуск процесу ініціалізації
-   */
-  startInitializationProcess() {
-    try {
-      // Автоматична реєстрація модулів, які є в global scope
-      this.autoRegisterGlobalModules();
-
-      // Ініціалізація модулів у правильному порядку
-      this.initModulesInOrder();
-
-      // Встановлюємо таймаут для перевірки стану ініціалізації
-      setTimeout(() => this.checkInitializationStatus(), 500);
-
-      // Встановлюємо загальний таймаут ініціалізації
-      setTimeout(() => {
-        if (!this.state.initialized) {
-          logger.warn('Перевищено час очікування ініціалізації. Перевірка стану...', 'startInitializationProcess', {
-            category: LOG_CATEGORIES.TIMEOUT
-          });
-          this.finalizeInitialization(true);
-        }
-      }, this.config.initTimeout);
-
-      // Налаштовуємо спостереження за DOM
-      if (this.config.monitorDomMutations) {
-        this.setupDomObserver();
-      }
-    } catch (error) {
-      logger.error(error, 'Помилка запуску процесу ініціалізації', {
-        category: LOG_CATEGORIES.INIT
-      });
-    }
-  }
-
-  /**
-   * Автоматична реєстрація модулів із глобального простору
-   */
-  autoRegisterGlobalModules() {
-    try {
-      logger.info('Автоматична реєстрація глобальних модулів...', 'autoRegisterGlobalModules');
-
-      // Проходимо по всіх критичних модулях
-      this.criticalModules.forEach(moduleName => {
-        // Якщо модуль ще не зареєстрований в контейнері
-        if (!this.dependencyContainer.has(moduleName)) {
-          const moduleObj = this.getModuleObject(moduleName);
-          if (moduleObj) {
-            this.registerModule(moduleName, moduleObj);
-            logger.info(`Модуль ${moduleName} автоматично зареєстровано з глобального простору`, 'autoRegisterGlobalModules');
-          }
-        }
-      });
-
-      // Перевіряємо вкладені модулі (UI.*)
-      Object.keys(this.dependencies)
-        .filter(name => name.includes('.'))
-        .forEach(moduleName => {
-          if (!this.dependencyContainer.has(moduleName)) {
-            const moduleObj = this.getModuleObject(moduleName);
-            if (moduleObj) {
-              this.registerModule(moduleName, moduleObj);
-              logger.info(`Вкладений модуль ${moduleName} автоматично зареєстровано`, 'autoRegisterGlobalModules');
+          // Шукаємо альтернативні назви
+          if (!moduleObj) {
+            if (moduleName === 'taskSystem' && window.TaskManager) {
+              moduleObj = window.TaskManager;
             }
           }
-        });
+
+          // Якщо знайдено
+          if (moduleObj) {
+            this.register(moduleName, moduleObj);
+            logger.info(`Модуль ${moduleName} автоматично зареєстровано`, 'autoRegisterGlobalModules');
+          }
+        }
+      }
     } catch (error) {
-      logger.error(error, 'Помилка автоматичної реєстрації глобальних модулів', {
+      logger.error(error, 'Помилка автоматичної реєстрації модулів', {
         category: LOG_CATEGORIES.INIT
       });
     }
   }
 
   /**
-   * Ініціалізація модулів у правильному порядку
+   * Асинхронна ініціалізація модулів у правильному порядку
+   * @returns {Promise<void>}
    */
-  initModulesInOrder() {
-    try {
-      logger.info('Початок ініціалізації модулів у пріоритетному порядку', 'initModulesInOrder');
+  async initModulesInOrder() {
+    logger.info('Початок ініціалізації модулів у пріоритетному порядку', 'initModulesInOrder');
 
+    try {
       // Отримуємо список модулів, відсортований за пріоритетом
       const modulesToInit = this.getSortedModules();
 
-      // Ініціалізуємо модулі відповідно до їх пріоритету
+      // Почергово ініціалізуємо модулі
       for (const moduleName of modulesToInit) {
-        this.initializeModule(moduleName);
+        await this.initializeModule(moduleName);
       }
     } catch (error) {
       logger.error(error, 'Помилка при ініціалізації модулів', {
@@ -314,11 +226,11 @@ class TaskIntegration {
   }
 
   /**
-   * Ініціалізація конкретного модуля
+   * Асинхронна ініціалізація конкретного модуля
    * @param {string} moduleName - Назва модуля
-   * @returns {boolean} Результат ініціалізації
+   * @returns {Promise<boolean>} Результат ініціалізації
    */
-  initializeModule(moduleName) {
+  async initializeModule(moduleName) {
     try {
       // Якщо модуль вже ініціалізовано, пропускаємо
       if (this.state.moduleStates[moduleName] === 'ready') {
@@ -327,22 +239,11 @@ class TaskIntegration {
 
       // Відзначаємо, що ініціалізація почалася
       this.state.moduleStates[moduleName] = 'initializing';
-      this.state.initializationTimestamps[moduleName] = performance.now();
 
       // Отримуємо посилання на модуль з контейнера залежностей
-      let moduleObj = this.dependencyContainer.resolve(moduleName);
+      const moduleObj = dependencyContainer.resolve(moduleName);
 
-      // Якщо модуля немає в контейнері, спробуємо отримати з window
-      if (!moduleObj) {
-        moduleObj = this.getModuleObject(moduleName);
-
-        // Якщо модуль знайдено, реєструємо його в контейнері
-        if (moduleObj) {
-          this.registerModule(moduleName, moduleObj);
-        }
-      }
-
-      // Якщо модуль не існує, позначаємо як невдалий
+      // Якщо модуля немає, позначаємо як невдалий
       if (!moduleObj) {
         this.state.moduleStates[moduleName] = 'not_found';
         this.state.failedModules.push(moduleName);
@@ -354,44 +255,35 @@ class TaskIntegration {
         return false;
       }
 
-      // Перевіряємо, чи всі залежності ініціалізовані
-      const dependenciesReady = this.checkDependenciesReady(moduleName);
+      // Перевіряємо залежності
+      const deps = this.dependencies[moduleName]?.deps || [];
 
-      if (!dependenciesReady) {
-        if (this.config.detailedLogging) {
-          logger.info(`Очікуємо залежності для модуля ${moduleName}`, 'initializeModule', {
-            category: LOG_CATEGORIES.INIT,
-            details: { moduleName, dependencies: this.dependencies[moduleName]?.deps || [] }
-          });
+      // Першами ініціалізуємо залежності
+      for (const depName of deps) {
+        if (this.state.moduleStates[depName] !== 'ready') {
+          await this.initializeModule(depName);
         }
-
-        // Якщо не всі залежності готові, відкладаємо ініціалізацію
-        setTimeout(() => {
-          if (this.state.moduleStates[moduleName] !== 'ready') {
-            this.initializeModule(moduleName);
-          }
-        }, 100);
-
-        return false;
       }
 
       // Ін'єктуємо залежності перед ініціалізацією
       this.injectDependencies(moduleObj, moduleName);
 
-      // Якщо у модуля є метод init, викликаємо його
+      // Якщо у модуля є метод init або initialize, викликаємо його
       if (typeof moduleObj.init === 'function' || typeof moduleObj.initialize === 'function') {
         const initMethod = moduleObj.init || moduleObj.initialize;
-        initMethod.call(moduleObj);
+
+        // Перевіряємо, чи метод асинхронний
+        if (initMethod.constructor.name === 'AsyncFunction') {
+          await initMethod.call(moduleObj);
+        } else {
+          initMethod.call(moduleObj);
+        }
+
         this.state.moduleStates[moduleName] = 'ready';
 
         logger.info(`Модуль ${moduleName} успішно ініціалізовано`, 'initializeModule', {
           category: LOG_CATEGORIES.INIT
         });
-
-        // Вирішуємо конфлікти, якщо потрібно
-        if (this.config.autoResolveConflicts && !this.state.conflictResolutionApplied) {
-          this.resolveModuleConflicts();
-        }
 
         return true;
       } else {
@@ -411,7 +303,7 @@ class TaskIntegration {
       this.state.moduleStates[moduleName] = 'failed';
       this.state.failedModules.push(moduleName);
 
-      // Створюємо інформативну подію про помилку
+      // Генеруємо подію про помилку
       document.dispatchEvent(new CustomEvent('module-initialization-error', {
         detail: {
           module: moduleName,
@@ -440,17 +332,12 @@ class TaskIntegration {
       // Для кожної залежності
       deps.forEach(depName => {
         // Отримуємо об'єкт залежності з контейнера
-        const depObj = this.dependencyContainer.resolve(depName);
+        const depObj = dependencyContainer.resolve(depName);
 
         // Якщо залежність знайдено
         if (depObj) {
-          // Назва сервісу без крапок для встановлення в властивості
-          const serviceName = depName.includes('.')
-            ? depName.split('.').pop()
-            : depName;
-
           // Назва властивості з маленької літери для camelCase
-          const propName = serviceName.charAt(0).toLowerCase() + serviceName.slice(1);
+          const propName = depName.charAt(0).toLowerCase() + depName.slice(1);
 
           // Встановлюємо залежність в об'єкт модуля
           if (typeof moduleObj === 'object' && !moduleObj[propName]) {
@@ -468,152 +355,72 @@ class TaskIntegration {
   }
 
   /**
-   * Отримання об'єкта модуля за його назвою
-   * @param {string} moduleName - Назва модуля
-   * @returns {Object|null} Об'єкт модуля або null
+   * Вирішення конфліктів між модулями
+   * @returns {Promise<void>}
    */
-  getModuleObject(moduleName) {
+  async resolveModuleConflicts() {
+    if (this.state.conflictResolutionApplied) return;
+
     try {
-      // Спочатку шукаємо в контейнері залежностей
-      const moduleFromContainer = this.dependencyContainer.resolve(moduleName);
-      if (moduleFromContainer) {
-        return moduleFromContainer;
-      }
+      logger.info('Вирішення конфліктів між модулями...', 'resolveModuleConflicts');
 
-      // Обробка спеціальних випадків (залишаємо для зворотньої сумісності)
-      switch (moduleName) {
-        case 'TaskProgress':
-          // Якщо є імпорт, використовуємо його
-          try {
-            const taskProgress = this.dependencyContainer.resolve('taskProgress');
-            if (taskProgress) return taskProgress;
-          } catch (err) {}
+      // Отримуємо модулі з контейнера залежностей
+      const taskSystem = dependencyContainer.resolve('taskSystem');
+      const taskProgress = dependencyContainer.resolve('taskProgress');
+      const taskVerification = dependencyContainer.resolve('taskVerification');
+      const taskStore = dependencyContainer.resolve('taskStore');
 
-          // Інакше шукаємо в window
-          return window.TaskProgress || null;
-        case 'TaskVerification':
-          try {
-            const taskVerification = this.dependencyContainer.resolve('taskVerification');
-            if (taskVerification) return taskVerification;
-          } catch (err) {}
-
-          return window.TaskVerification || null;
-        case 'TaskStore':
-          try {
-            const taskStore = this.dependencyContainer.resolve('taskStore');
-            if (taskStore) return taskStore;
-          } catch (err) {}
-
-          return window.TaskStore || null;
-        case 'TaskSystem':
-          try {
-            const taskSystem = this.dependencyContainer.resolve('taskSystem');
-            if (taskSystem) return taskSystem;
-          } catch (err) {}
-
-          // Для TaskSystem перевіряємо window.TaskManager для зворотної сумісності
-          if (window.TaskManager) {
-            return window.TaskManager;
-          }
-          // Повертаємо TaskSystem з window, якщо він є
-          return window.TaskSystem;
-      }
-
-      // Обробка вкладених модулів для UI компонентів
-      if (moduleName.includes('.')) {
-        const parts = moduleName.split('.');
-        let obj = window;
-
-        for (const part of parts) {
-          if (obj && obj[part]) {
-            obj = obj[part];
-          } else {
-            return null;
-          }
+      // Синхронізуємо TaskSystem з TaskProgress
+      if (taskSystem && taskProgress) {
+        // Якщо потрібно, делегуємо методи прогресу
+        if (!taskSystem.getTaskProgress) {
+          taskSystem.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
         }
 
-        return obj;
+        if (!taskSystem.updateTaskProgress) {
+          taskSystem.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
+        }
+
+        logger.info('Налаштовано делегування методів прогресу', 'resolveModuleConflicts');
       }
 
-      // Звичайний випадок - пошук у глобальному об'єкті window
-      return window[moduleName];
-    } catch (error) {
-      logger.error(error, `Помилка отримання об'єкта модуля ${moduleName}`, {
-        category: LOG_CATEGORIES.LOGIC,
-        details: { moduleName }
-      });
-      return null;
-    }
-  }
+      // Синхронізуємо TaskSystem з TaskVerification
+      if (taskSystem && taskVerification) {
+        if (!taskSystem.verifyTask) {
+          taskSystem.verifyTask = taskVerification.verifyTask.bind(taskVerification);
+        }
 
-  /**
-   * Перевірка готовності всіх залежностей модуля
-   * @param {string} moduleName - Назва модуля
-   * @returns {boolean} Чи всі залежності готові
-   */
-  checkDependenciesReady(moduleName) {
-    try {
-      // Отримуємо список залежностей
-      const deps = this.dependencies[moduleName]?.deps || [];
-
-      // Якщо немає залежностей, повертаємо true
-      if (deps.length === 0) {
-        return true;
+        logger.info('Налаштовано делегування методів верифікації', 'resolveModuleConflicts');
       }
 
-      // Перевіряємо статус кожної залежності
-      return deps.every(dep => {
-        // Спочатку перевіряємо, чи залежність зареєстрована в контейнері
-        const isInContainer = this.dependencyContainer.has(dep);
+      // Для зворотньої сумісності
+      if (window.TaskManager) {
+        // Оновлюємо методи в TaskManager
+        if (taskProgress) {
+          window.TaskManager.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
+          window.TaskManager.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
+        }
 
-        // Потім перевіряємо статус ініціалізації
-        const initStatus = this.state.moduleStates[dep];
+        if (taskVerification) {
+          window.TaskManager.verifyTask = taskVerification.verifyTask.bind(taskVerification);
+        }
 
-        return isInContainer && initStatus === 'ready';
-      });
-    } catch (error) {
-      logger.error(error, `Помилка перевірки залежностей модуля ${moduleName}`, {
-        category: LOG_CATEGORIES.LOGIC,
-        details: { moduleName, dependencies: this.dependencies[moduleName]?.deps || [] }
-      });
-      return false;
-    }
-  }
-
-  /**
-   * Перевірка статусу ініціалізації
-   */
-  checkInitializationStatus() {
-    try {
-      // Отримуємо список критичних модулів, які не ініціалізовано
-      const pendingCriticalModules = this.criticalModules.filter(
-        m => this.state.moduleStates[m] !== 'ready' && this.state.moduleStates[m] !== 'not_found'
-      );
-
-      if (pendingCriticalModules.length === 0) {
-        // Всі критичні модулі ініціалізовано або недоступні
-        this.finalizeInitialization();
-      } else if (pendingCriticalModules.length > 0) {
-        // Ще є модулі, які чекають ініціалізації
-        logger.info(`Очікуємо ініціалізації модулів: ${pendingCriticalModules.join(', ')}`, 'checkInitializationStatus', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        // Повторюємо перевірку через 300мс
-        setTimeout(() => this.checkInitializationStatus(), 300);
+        // Реєструємо TaskManager в контейнері
+        this.register('TaskManager', window.TaskManager);
       }
+
+      this.state.conflictResolutionApplied = true;
     } catch (error) {
-      logger.error(error, 'Помилка перевірки статусу ініціалізації', {
-        category: LOG_CATEGORIES.INIT
+      logger.error(error, 'Помилка при вирішенні конфліктів між модулями', {
+        category: LOG_CATEGORIES.LOGIC
       });
     }
   }
 
   /**
    * Завершення процесу ініціалізації
-   * @param {boolean} timedOut - Чи відбувся таймаут
    */
-  finalizeInitialization(timedOut = false) {
+  finalizeInitialization() {
     try {
       // Якщо вже ініціалізовано, не виконуємо повторно
       if (this.state.initialized) return;
@@ -629,7 +436,7 @@ class TaskIntegration {
 
       this.state.initialized = true;
 
-      // Запускаємо додаткові операції після ініціалізації
+      // Відправляємо подію про успішну ініціалізацію
       if (allCriticalReady) {
         logger.info(`Всі критичні модулі успішно ініціалізовано за ${Math.round(initDuration)}мс`, 'finalizeInitialization', {
           category: LOG_CATEGORIES.INIT,
@@ -638,11 +445,6 @@ class TaskIntegration {
             moduleStates: { ...this.state.moduleStates }
           }
         });
-
-        // Застосовуємо додаткові налаштування якщо потрібно
-        if (this.config.autoResolveConflicts && !this.state.conflictResolutionApplied) {
-          this.resolveModuleConflicts();
-        }
 
         // Виправляємо проблеми з отриманням ID користувача у всіх модулях
         this.fixUserIdIssues();
@@ -672,102 +474,19 @@ class TaskIntegration {
           }
         }
 
-        // Якщо досягнуто таймаут ініціалізації
-        if (timedOut) {
-          logger.warn(`Ініціалізація завершена по таймауту за ${Math.round(initDuration)}мс`, 'finalizeInitialization', {
-            category: LOG_CATEGORIES.TIMEOUT,
-            details: {
-              initDuration: Math.round(initDuration),
-              moduleStates: { ...this.state.moduleStates },
-              failedModules: [...this.state.failedModules]
-            }
-          });
-
-          // Відправляємо подію про часткову ініціалізацію
-          document.dispatchEvent(new CustomEvent('task-system-partial-init', {
-            detail: {
-              modules: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'ready'),
-              failed: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'failed'),
-              notFound: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'not_found'),
-              initTime: Math.round(initDuration),
-              timestamp: Date.now(),
-              timedOut: true
-            }
-          }));
-        }
+        // Відправляємо подію про часткову ініціалізацію
+        document.dispatchEvent(new CustomEvent('task-system-partial-init', {
+          detail: {
+            modules: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'ready'),
+            failed: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'failed'),
+            notFound: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'not_found'),
+            initTime: Math.round(initDuration),
+            timestamp: Date.now()
+          }
+        }));
       }
     } catch (error) {
       logger.fatal(error, 'Критична помилка завершення ініціалізації', {
-        category: LOG_CATEGORIES.INIT
-      });
-    }
-  }
-
-  /**
-   * Виправлення проблем з API_PATHS
-   */
-  fixApiPathsIfNeeded() {
-    try {
-      // Перевіряємо наявність API_PATHS
-      if (!window.API_PATHS) {
-        logger.warn('API_PATHS відсутній, створюємо...', 'fixApiPathsIfNeeded', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        window.API_PATHS = {
-          TASKS: {
-            SOCIAL: 'quests/tasks/social',
-            LIMITED: 'quests/tasks/limited',
-            PARTNER: 'quests/tasks/partner',
-            REFERRAL: 'quests/tasks/referral'
-          }
-        };
-
-        // Реєструємо API_PATHS в контейнері залежностей
-        this.registerModule('API_PATHS', window.API_PATHS);
-        return;
-      }
-
-      // Перевіряємо наявність API_PATHS.TASKS
-      if (!window.API_PATHS.TASKS) {
-        logger.warn('API_PATHS.TASKS відсутній, створюємо...', 'fixApiPathsIfNeeded', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        window.API_PATHS.TASKS = {
-          SOCIAL: 'quests/tasks/social',
-          LIMITED: 'quests/tasks/limited',
-          PARTNER: 'quests/tasks/partner',
-          REFERRAL: 'quests/tasks/referral'
-        };
-
-        // Реєструємо оновлений API_PATHS в контейнері залежностей
-        this.registerModule('API_PATHS', window.API_PATHS);
-        return;
-      }
-
-      // Перевіряємо наявність REFERRAL шляху
-      if (!window.API_PATHS.TASKS.REFERRAL) {
-        logger.info('Створення REFERRAL шляху...', 'fixApiPathsIfNeeded', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        window.API_PATHS.TASKS.REFERRAL = window.API_PATHS.TASKS.SOCIAL;
-      }
-
-      // Виправляємо PARTNERS на PARTNER, якщо потрібно
-      if (window.API_PATHS.TASKS.PARTNERS && !window.API_PATHS.TASKS.PARTNER) {
-        logger.info('Виправлення PARTNERS на PARTNER...', 'fixApiPathsIfNeeded', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        window.API_PATHS.TASKS.PARTNER = window.API_PATHS.TASKS.PARTNERS;
-      }
-
-      // Реєструємо API_PATHS в контейнері залежностей
-      this.registerModule('API_PATHS', window.API_PATHS);
-    } catch (error) {
-      logger.error(error, 'Помилка виправлення API_PATHS', {
         category: LOG_CATEGORIES.INIT
       });
     }
@@ -793,7 +512,7 @@ class TaskIntegration {
         }
       };
 
-      this.registerModule('UserIdProvider', userIdProvider);
+      this.register('UserIdProvider', userIdProvider);
 
       // Перевіряємо, чи є функція getUserId
       if (typeof window.getUserId !== 'function') {
@@ -804,20 +523,6 @@ class TaskIntegration {
         // Створюємо функцію getUserId, яка використовує зареєстрований провайдер
         window.getUserId = userIdProvider.getUserId;
       }
-
-      // Ін'єктуємо userIdProvider у всі модулі, що потребують ID користувача
-      Object.keys(this.state.moduleStates)
-        .filter(moduleName => this.state.moduleStates[moduleName] === 'ready')
-        .forEach(moduleName => {
-          const moduleObj = this.dependencyContainer.resolve(moduleName);
-          if (moduleObj && typeof moduleObj === 'object') {
-            // Перевіряємо, чи у модуля є метод getUserId або він його використовує
-            if (typeof moduleObj.getUserId === 'function' || moduleObj.hasOwnProperty('userId')) {
-              moduleObj.userIdProvider = userIdProvider;
-              logger.info(`Ін'єктовано UserIdProvider в модуль ${moduleName}`, 'fixUserIdIssues');
-            }
-          }
-        });
     } catch (error) {
       logger.error(error, 'Помилка при виправленні проблем з ID користувача', {
         category: LOG_CATEGORIES.INIT
@@ -847,29 +552,6 @@ class TaskIntegration {
         }
       } catch (storageError) {
         logger.warn(storageError, 'Помилка доступу до localStorage', {
-          category: LOG_CATEGORIES.LOGIC
-        });
-      }
-
-      // Спробуємо отримати з DOM
-      try {
-        // Шукаємо в усіх можливих місцях
-        const possibleElements = [
-          document.getElementById('user-id'),
-          document.getElementById('header-user-id'),
-          document.querySelector('[data-user-id]')
-        ];
-
-        for (const element of possibleElements) {
-          if (element && element.textContent) {
-            const userId = element.textContent.trim();
-            if (userId) {
-              return { success: true, userId: userId, source: 'DOM' };
-            }
-          }
-        }
-      } catch (domError) {
-        logger.warn(domError, 'Помилка доступу до DOM', {
           category: LOG_CATEGORIES.LOGIC
         });
       }
@@ -932,233 +614,9 @@ class TaskIntegration {
   }
 
   /**
-   * Налаштування спостереження за DOM для динамічних елементів
-   */
-  setupDomObserver() {
-    if (!window.MutationObserver) {
-      logger.warn('MutationObserver не підтримується в цьому браузері', 'setupDomObserver', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-      return;
-    }
-
-    try {
-      // Створюємо спостерігач за DOM
-      this.domObserver = new MutationObserver(mutations => {
-        let hasContentChanges = false;
-
-        mutations.forEach(mutation => {
-          if (mutation.type === 'childList' && mutation.addedNodes.length) {
-            hasContentChanges = true;
-          }
-        });
-
-        // Якщо були додані нові елементи, реагуємо на зміни
-        if (hasContentChanges) {
-          this.handleDomChanges();
-        }
-      });
-
-      // Починаємо спостереження за всім документом
-      this.domObserver.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-
-      logger.info('Налаштовано спостереження за DOM', 'setupDomObserver');
-    } catch (error) {
-      logger.error(error, 'Помилка при налаштуванні спостереження за DOM', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-    }
-  }
-
-  /**
-   * Обробка змін в DOM
-   */
-  handleDomChanges() {
-    try {
-      // Тут можна додати логіку для реагування на зміни в DOM
-      // Наприклад, прикріплення обробників до нових елементів завдань
-
-      // Для майбутньої розробки - відстеження появи нових елементів завдань
-      const taskElements = document.querySelectorAll('.task-item:not([data-initialized])');
-      if (taskElements.length > 0) {
-        logger.info(`Виявлено ${taskElements.length} нових елементів завдань`, 'handleDomChanges', {
-          category: LOG_CATEGORIES.LOGIC
-        });
-
-        // Отримуємо рендерери з контейнера залежностей
-        const socialRenderer = this.dependencyContainer.resolve('SocialRenderer');
-        const limitedRenderer = this.dependencyContainer.resolve('LimitedRenderer');
-        const partnerRenderer = this.dependencyContainer.resolve('PartnerRenderer');
-
-        // Ініціалізуємо нові елементи через відповідні рендерери
-        taskElements.forEach(element => {
-          const taskType = element.dataset.taskType;
-          const taskId = element.dataset.taskId;
-
-          if (taskId) {
-            // Отримуємо завдання та прогрес
-            let task, progress;
-
-            // Спершу через TaskSystem
-            const taskSystem = this.dependencyContainer.resolve('TaskSystem');
-            if (taskSystem) {
-              task = taskSystem.findTaskById(taskId);
-              progress = taskSystem.getTaskProgress(taskId);
-            } else if (window.TaskManager) {
-              // Для зворотної сумісності
-              task = window.TaskManager.findTaskById(taskId);
-              progress = window.TaskManager.getTaskProgress(taskId);
-            }
-
-            // Ініціалізуємо через правильний рендерер
-            if (task) {
-              element.setAttribute('data-initialized', 'true');
-
-              switch (taskType) {
-                case 'social':
-                  if (socialRenderer && typeof socialRenderer.render === 'function') {
-                    socialRenderer.render(task, progress);
-                  }
-                  break;
-                case 'limited':
-                  if (limitedRenderer && typeof limitedRenderer.render === 'function') {
-                    limitedRenderer.render(task, progress);
-                  }
-                  break;
-                case 'partner':
-                  if (partnerRenderer && typeof partnerRenderer.render === 'function') {
-                    partnerRenderer.render(task, progress);
-                  }
-                  break;
-              }
-            }
-          }
-        });
-      }
-    } catch (error) {
-      logger.warn(error, 'Помилка обробки змін в DOM', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-    }
-  }
-
-  /**
-   * Налаштування обробників помилок
-   */
-  setupErrorHandlers() {
-    try {
-      // Обробка помилок вже відбувається через загальний ErrorHandler
-      // Тут ми додаємо лише додаткові обробники для системи завдань
-
-      // Підписуємось на події від ErrorHandler
-      document.addEventListener('app-error-critical', (event) => {
-        const errorDetail = event.detail;
-
-        // Реагуємо на критичні помилки у модулях завдань
-        if (errorDetail.module && errorDetail.module.startsWith('Task')) {
-          // Автоматичне відновлення при критичних помилках
-          if (this.config.autoRetryOnFailure) {
-            setTimeout(() => {
-              logger.info('Спроба відновлення після критичної помилки...', 'errorHandler');
-              this.recoverFailedModules();
-            }, 1000);
-          }
-        }
-      });
-
-      logger.info('Налаштовано обробники помилок', 'setupErrorHandlers');
-    } catch (error) {
-      logger.error(error, 'Помилка при налаштуванні обробників помилок', {
-        category: LOG_CATEGORIES.INIT
-      });
-    }
-  }
-
-  /**
-   * Вирішення конфліктів між модулями
-   */
-  resolveModuleConflicts() {
-    if (this.state.conflictResolutionApplied) return;
-
-    try {
-      logger.info('Синхронізація інтерфейсів між модулями...', 'resolveModuleConflicts');
-
-      // Отримуємо модулі з контейнера залежностей
-      const taskSystem = this.dependencyContainer.resolve('TaskSystem');
-      const taskProgress = this.dependencyContainer.resolve('TaskProgress');
-      const taskVerification = this.dependencyContainer.resolve('TaskVerification');
-      const taskStore = this.dependencyContainer.resolve('TaskStore');
-
-      // Синхронізуємо TaskManager з TaskProgress
-      if (taskSystem && taskProgress) {
-        // Якщо потрібно, делегуємо методи прогресу
-        if (!taskSystem.getTaskProgress) {
-          taskSystem.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
-        }
-
-        if (!taskSystem.updateTaskProgress) {
-          taskSystem.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
-        }
-
-        logger.info('Налаштовано делегування методів прогресу', 'resolveModuleConflicts');
-      }
-
-      // Синхронізуємо TaskManager з TaskVerification
-      if (taskSystem && taskVerification) {
-        if (!taskSystem.verifyTask) {
-          taskSystem.verifyTask = taskVerification.verifyTask.bind(taskVerification);
-        }
-
-        logger.info('Налаштовано делегування методів верифікації', 'resolveModuleConflicts');
-      }
-
-      // Синхронізуємо типи винагород
-      if (taskSystem && taskSystem.REWARD_TYPES) {
-        const rewardTypes = taskSystem.REWARD_TYPES;
-
-        // Передаємо в інші модулі
-        if (taskStore) {
-          taskStore.REWARD_TYPES = rewardTypes;
-        }
-
-        if (taskVerification) {
-          taskVerification.REWARD_TYPES = rewardTypes;
-        }
-
-        logger.info('Синхронізовано типи винагород між модулями', 'resolveModuleConflicts');
-      }
-
-      // Для зворотньої сумісності
-      if (window.TaskManager) {
-        // Оновлюємо методи в TaskManager
-        if (taskProgress) {
-          window.TaskManager.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
-          window.TaskManager.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
-        }
-
-        if (taskVerification) {
-          window.TaskManager.verifyTask = taskVerification.verifyTask.bind(taskVerification);
-        }
-
-        // Реєструємо TaskManager в контейнері
-        this.registerModule('TaskManager', window.TaskManager);
-      }
-
-      this.state.conflictResolutionApplied = true;
-    } catch (error) {
-      logger.error(error, 'Помилка при вирішенні конфліктів між модулями', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-    }
-  }
-
-  /**
    * Спроба відновлення невдалих модулів
    */
-  recoverFailedModules() {
+  async recoverFailedModules() {
     try {
       // Отримуємо список невдалих критичних модулів
       const failedCritical = this.criticalModules.filter(m => this.state.moduleStates[m] === 'failed');
@@ -1183,7 +641,7 @@ class TaskIntegration {
           }
 
           // Спробуємо ініціалізувати знову
-          this.initializeModule(moduleName);
+          await this.initializeModule(moduleName);
 
           logger.info(`Успішно відновлено модуль ${moduleName}`, 'recoverFailedModules');
         } catch (moduleError) {
@@ -1212,13 +670,12 @@ class TaskIntegration {
         failedModules: [...this.state.failedModules],
         initTime: this.state.initEndTime - this.state.initStartTime,
         initialized: this.state.initialized,
-        registeredModules: this.dependencyContainer.getRegisteredModules(),
+        registeredModules: dependencyContainer.getRegisteredModules(),
         userId: this.safeGetUserId()
       };
 
       logger.info('Діагностична інформація зібрана', 'diagnose', {
-        category: LOG_CATEGORIES.LOGIC,
-        details: diagnosticInfo
+        category: LOG_CATEGORIES.LOGIC
       });
 
       return diagnosticInfo;
@@ -1247,15 +704,6 @@ class TaskIntegration {
       this.state.initStartTime = 0;
       this.state.initEndTime = 0;
       this.state.conflictResolutionApplied = false;
-
-      // Очищаємо контейнер залежностей, крім самого себе
-      this.dependencyContainer.reset(['TaskIntegration']);
-
-      // Видаляємо обробник спостереження за DOM
-      if (this.domObserver) {
-        this.domObserver.disconnect();
-        this.domObserver = null;
-      }
 
       logger.info('Стан інтеграції скинуто', 'reset');
 

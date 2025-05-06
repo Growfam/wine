@@ -7,25 +7,13 @@
 // Імпорт конфігурації
 import * as TaskTypes from './config/task-types.js';
 
-// Імпорт моделей
-import TaskModel from './models/task-model.js';
-import SocialTaskModel from './models/social-task-model.js';
-import LimitedTaskModel from './models/limited-task-model.js';
-import PartnerTaskModel from './models/partner-task-model.js';
-
-// Імпорт сервісів
-import taskApi from './services/task-api.js';
-import taskStore from './services/task-store.js';
-import taskVerification from './services/task-verification.js';
-import taskProgress from './services/task-progress.js';
-
 // Імпорт контейнера залежностей
-import dependencyContainer from '/utils/dependency-container.js';
+import dependencyContainer from './utils/dependency-container.js';
 
-// Імпорт рендерерів (буде реалізовано пізніше)
-// import SocialRenderer from './ui/renderers/social-renderer.js';
-// import LimitedRenderer from './ui/renderers/limited-renderer.js';
-// import PartnerRenderer from './ui/renderers/partner-renderer.js';
+// Оголошення прямих імпортів без створення циркулярних залежностей
+// Типи моделей будуть завантажені динамічно, щоб уникнути циклів залежностей
+let TaskModel, SocialTaskModel, LimitedTaskModel, PartnerTaskModel;
+let taskApi, taskStore, taskVerification, taskProgress;
 
 /**
  * Клас для управління системою завдань
@@ -41,19 +29,60 @@ class TaskSystem {
     this.verification = null;
     this.progress = null;
 
-    // Моделі завдань
-    this.models = {
-      TaskModel,
-      SocialTaskModel,
-      LimitedTaskModel,
-      PartnerTaskModel
-    };
+    // Моделі завдань будуть завантажені при ініціалізації
+    this.models = {};
 
     // Типи та константи
     this.types = TaskTypes;
 
     // Реєстрація в контейнері залежностей
     dependencyContainer.register('TaskSystem', this);
+  }
+
+  /**
+   * Асинхронне завантаження всіх необхідних модулів
+   * @returns {Promise<void>}
+   */
+  async loadModules() {
+    try {
+      // Динамічне завантаження модулів для уникнення циркулярних залежностей
+      const modelModule = await import('./models/task-model.js');
+      const socialModelModule = await import('./models/social-task-model.js');
+      const limitedModelModule = await import('./models/limited-task-model.js');
+      const partnerModelModule = await import('./models/partner-task-model.js');
+
+      // Зберігаємо посилання на моделі
+      TaskModel = modelModule.default;
+      SocialTaskModel = socialModelModule.default;
+      LimitedTaskModel = limitedModelModule.default;
+      PartnerTaskModel = partnerModelModule.default;
+
+      // Завантажуємо сервіси
+      const apiModule = await import('./services/task-api.js');
+      const storeModule = await import('./services/task-store.js');
+      const verificationModule = await import('./services/task-verification.js');
+      const progressModule = await import('./services/task-progress.js');
+
+      // Зберігаємо посилання на сервіси
+      taskApi = apiModule.default;
+      taskStore = storeModule.default;
+      taskVerification = verificationModule.default;
+      taskProgress = progressModule.default;
+
+      // Оновлюємо посилання на моделі
+      this.models = {
+        TaskModel,
+        SocialTaskModel,
+        LimitedTaskModel,
+        PartnerTaskModel
+      };
+
+      console.log('TaskSystem: Всі модулі успішно завантажено');
+      return true;
+    } catch (error) {
+      console.error('TaskSystem: Помилка завантаження модулів:', error);
+      return false;
+    }
   }
 
   /**
@@ -70,6 +99,12 @@ class TaskSystem {
     console.log('TaskSystem: Початок ініціалізації');
 
     try {
+      // Спочатку завантажуємо всі необхідні модулі
+      const modulesLoaded = await this.loadModules();
+      if (!modulesLoaded) {
+        throw new Error('Не вдалося завантажити необхідні модулі');
+      }
+
       // Реєстрація основних модулів у контейнері залежностей
       dependencyContainer
         .register('taskApi', taskApi)
@@ -103,16 +138,15 @@ class TaskSystem {
         this.store.setTasks(TaskTypes.TASK_TYPES.PARTNER, tasksData.partner);
 
         // Розділяємо соціальні та реферальні завдання
-        const referralTasks = tasksData.social.filter(task => {
-          return task.tags &&
-                 (Array.isArray(task.tags) && task.tags.includes('referral')) ||
-                 task.type === 'referral' ||
-                 (task.title && (
-                   task.title.toLowerCase().includes('referral') ||
-                   task.title.toLowerCase().includes('запроси') ||
-                   task.title.toLowerCase().includes('запросити')
-                 ));
-        });
+        const referralTasks = tasksData.social.filter(task =>
+          (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) ||
+          task.type === 'referral' ||
+          (task.title && (
+            task.title.toLowerCase().includes('referral') ||
+            task.title.toLowerCase().includes('запроси') ||
+            task.title.toLowerCase().includes('запросити')
+          ))
+        );
 
         // Зберігаємо реферальні завдання
         if (referralTasks.length > 0) {
@@ -307,6 +341,8 @@ class TaskSystem {
    * @returns {Object} Стан системи
    */
   getSystemState() {
+    if (!this.store) return { initialized: false, version: this.version };
+
     return {
       initialized: this.initialized,
       version: this.version,
@@ -335,6 +371,12 @@ class TaskSystem {
    * @returns {Object} Діагностична інформація
    */
   diagnostics() {
+    if (!this.store) return {
+      initialized: this.initialized,
+      version: this.version,
+      modulesLoaded: false
+    };
+
     return {
       initialized: this.initialized,
       version: this.version,
@@ -347,7 +389,7 @@ class TaskSystem {
       },
       userProgress: Object.keys(this.store.userProgress).length,
       api: {
-        baseUrl: this.api.baseUrl
+        baseUrl: this.api?.baseUrl
       },
       dependencies: {
         registered: dependencyContainer.getRegisteredModules()
@@ -360,11 +402,11 @@ class TaskSystem {
    */
   reset() {
     // Скидаємо стан сховища
-    this.store.resetState();
+    if (this.store) this.store.resetState();
 
     // Скидаємо стан сервісів
-    this.progress.resetState();
-    this.verification.resetState();
+    if (this.progress) this.progress.resetState();
+    if (this.verification) this.verification.resetState();
 
     // Встановлюємо прапорець ініціалізації
     this.initialized = false;

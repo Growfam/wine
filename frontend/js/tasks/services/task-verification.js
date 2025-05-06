@@ -1,17 +1,20 @@
 /**
  * Сервіс верифікації виконання завдань
  *
- * Відповідає за:
- * - Перевірку виконання завдань
- * - Обробку результатів верифікації
- * - Кешування результатів
+ * Відповідає за організацію та координацію процесу верифікації завдань
+ * Делегує специфічну логіку в спеціалізовані верифікатори
  */
 
-import { VERIFICATION_STATUS, CONFIG, TASK_TYPES, SOCIAL_NETWORKS } from '../config/task-types.js';
-import taskApi from './task-api.js';
+import { VERIFICATION_STATUS, CONFIG, TASK_TYPES } from '../config/task-types.js';
 import taskStore from './task-store.js';
 import cacheService from '../utils/CacheService.js';
 import errorHandler, { ERROR_LEVELS, ERROR_CATEGORIES } from '../utils/error-handler.js';
+
+// Імпорт спеціалізованих верифікаторів
+import socialVerifier from './verification/social-verification.js';
+import limitedVerifier from './verification/limited-verification.js';
+import partnerVerifier from './verification/partner-verification.js';
+import genericVerifier from './verification/generic-verification.js';
 
 // Створюємо обробник помилок для модуля
 const moduleErrors = errorHandler.createModuleHandler('TaskVerification');
@@ -63,6 +66,14 @@ class TaskVerification {
 
       // Максимальна кількість спроб верифікації
       maxVerificationAttempts: CONFIG.MAX_VERIFICATION_ATTEMPTS
+    };
+
+    // Реєстрація верифікаторів
+    this.verifiers = {
+      [TASK_TYPES.SOCIAL]: socialVerifier,
+      [TASK_TYPES.LIMITED]: limitedVerifier,
+      [TASK_TYPES.PARTNER]: partnerVerifier,
+      generic: genericVerifier
     };
   }
 
@@ -168,19 +179,11 @@ class TaskVerification {
       let result;
 
       try {
-        switch (taskType) {
-          case TASK_TYPES.SOCIAL:
-            result = await this.verifySocialTask(taskId);
-            break;
-          case TASK_TYPES.LIMITED:
-            result = await this.verifyLimitedTask(taskId);
-            break;
-          case TASK_TYPES.PARTNER:
-            result = await this.verifyPartnerTask(taskId);
-            break;
-          default:
-            result = await this.verifyGenericTask(taskId);
-        }
+        // Вибираємо відповідний верифікатор
+        const verifier = this.verifiers[taskType] || this.verifiers.generic;
+
+        // Викликаємо метод верифікації
+        result = await verifier.verify(taskId, task);
       } catch (error) {
         // Обробка помилок верифікації
         result = this.handleVerificationError(error, taskId);
@@ -226,251 +229,6 @@ class TaskVerification {
       this.dispatchVerificationEvent(taskId, errorResult, errorEventId);
 
       return errorResult;
-    }
-  }
-
-  /**
-   * Перевірка соціального завдання
-   * @param {string} taskId - ID завдання
-   * @returns {Promise<Object>} Результат перевірки
-   */
-  async verifySocialTask(taskId) {
-    try {
-      // Отримуємо дані завдання
-      const task = taskStore.findTaskById(taskId);
-
-      if (!task) {
-        const noDataError = new Error('Не вдалося отримати дані завдання');
-        moduleErrors.error(noDataError, `Відсутні дані для соціального завдання ${taskId}`, {
-          category: ERROR_CATEGORIES.LOGIC,
-          details: { taskId }
-        });
-
-        return {
-          success: false,
-          status: VERIFICATION_STATUS.ERROR,
-          message: 'Не вдалося отримати дані завдання'
-        };
-      }
-
-      // Визначаємо тип соціальної мережі
-      const socialType = task.platform || this.determineSocialNetwork(task);
-
-      // Додаткова перевірка соціальної мережі
-      if (socialType) {
-        // Додаткові дані для верифікації соціального завдання
-        const verificationData = {
-          platform: socialType.toLowerCase(),
-          verification_type: 'social',
-          task_data: {
-            platform: socialType.toLowerCase(),
-            action_type: task.action_type || 'visit'
-          }
-        };
-
-        // Запит до API для верифікації
-        return await this.performApiVerification(taskId, verificationData);
-      }
-
-      // Якщо тип соціальної мережі не визначено, використовуємо стандартну перевірку
-      moduleErrors.warning(`Не вдалося визначити тип соціальної мережі для завдання ${taskId}`, 'verifySocialTask', {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { taskId, task }
-      });
-
-      return await this.verifyGenericTask(taskId);
-    } catch (error) {
-      moduleErrors.error(error, `Помилка при верифікації соціального завдання ${taskId}`, {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { taskId }
-      });
-
-      return this.handleVerificationError(error, taskId);
-    }
-  }
-
-  /**
-   * Перевірка лімітованого завдання
-   * @param {string} taskId - ID завдання
-   * @returns {Promise<Object>} Результат перевірки
-   */
-  async verifyLimitedTask(taskId) {
-    try {
-      // Отримуємо дані завдання
-      const task = taskStore.findTaskById(taskId);
-
-      if (!task) {
-        const noDataError = new Error('Не вдалося отримати дані завдання');
-        moduleErrors.error(noDataError, `Відсутні дані для лімітованого завдання ${taskId}`, {
-          category: ERROR_CATEGORIES.LOGIC,
-          details: { taskId }
-        });
-
-        return {
-          success: false,
-          status: VERIFICATION_STATUS.ERROR,
-          message: 'Не вдалося отримати дані завдання'
-        };
-      }
-
-      // Перевіряємо термін дії завдання
-      if (task.end_date) {
-        const endDate = new Date(task.end_date);
-        const now = new Date();
-
-        if (endDate <= now) {
-          moduleErrors.info(`Термін виконання завдання ${taskId} закінчився`, 'verifyLimitedTask', {
-            category: ERROR_CATEGORIES.LOGIC,
-            details: { taskId, endDate: endDate.toISOString(), now: now.toISOString() }
-          });
-
-          return {
-            success: false,
-            status: VERIFICATION_STATUS.FAILURE,
-            message: 'Термін виконання цього завдання закінчився'
-          };
-        }
-      }
-
-      // Додаткові дані для перевірки лімітованого завдання
-      const verificationData = {
-        verification_type: 'limited',
-        task_data: {
-          action_type: task.action_type || 'visit',
-          timestamp: Date.now()
-        }
-      };
-
-      // Запит до API для верифікації
-      return await this.performApiVerification(taskId, verificationData);
-    } catch (error) {
-      moduleErrors.error(error, `Помилка при верифікації лімітованого завдання ${taskId}`, {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { taskId }
-      });
-
-      return this.handleVerificationError(error, taskId);
-    }
-  }
-
-  /**
-   * Перевірка партнерського завдання
-   * @param {string} taskId - ID завдання
-   * @returns {Promise<Object>} Результат перевірки
-   */
-  async verifyPartnerTask(taskId) {
-    try {
-      // Отримуємо дані завдання
-      const task = taskStore.findTaskById(taskId);
-
-      if (!task) {
-        const noDataError = new Error('Не вдалося отримати дані завдання');
-        moduleErrors.error(noDataError, `Відсутні дані для партнерського завдання ${taskId}`, {
-          category: ERROR_CATEGORIES.LOGIC,
-          details: { taskId }
-        });
-
-        return {
-          success: false,
-          status: VERIFICATION_STATUS.ERROR,
-          message: 'Не вдалося отримати дані завдання'
-        };
-      }
-
-      // Додаткові дані для перевірки партнерського завдання
-      const verificationData = {
-        verification_type: 'partner',
-        task_data: {
-          partner_name: task.partner_name || '',
-          action_type: task.action_type || 'visit',
-          timestamp: Date.now()
-        }
-      };
-
-      // Запит до API для верифікації
-      return await this.performApiVerification(taskId, verificationData);
-    } catch (error) {
-      moduleErrors.error(error, `Помилка при верифікації партнерського завдання ${taskId}`, {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { taskId }
-      });
-
-      return this.handleVerificationError(error, taskId);
-    }
-  }
-
-  /**
-   * Перевірка загального завдання
-   * @param {string} taskId - ID завдання
-   * @returns {Promise<Object>} Результат перевірки
-   */
-  async verifyGenericTask(taskId) {
-    try {
-      // Отримуємо дані завдання
-      const task = taskStore.findTaskById(taskId);
-
-      // Додаткові дані для перевірки
-      const verificationData = {
-        verification_type: 'generic',
-        task_data: {
-          action_type: task?.action_type || 'generic',
-          timestamp: Date.now()
-        }
-      };
-
-      // Запит до API для верифікації
-      return await this.performApiVerification(taskId, verificationData);
-    } catch (error) {
-      moduleErrors.error(error, `Помилка при верифікації загального завдання ${taskId}`, {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { taskId }
-      });
-
-      return this.handleVerificationError(error, taskId);
-    }
-  }
-
-  /**
-   * Виконання API запиту для верифікації
-   * @param {string} taskId - ID завдання
-   * @param {Object} verificationData - Дані для верифікації
-   * @returns {Promise<Object>} Результат верифікації
-   */
-  async performApiVerification(taskId, verificationData = {}) {
-    try {
-      // Викликаємо API для верифікації
-      const response = await taskApi.verifyTask(taskId, verificationData);
-
-      // Обробляємо відповідь
-      if (response.status === 'success') {
-        moduleErrors.info(`Завдання ${taskId} успішно виконано`, 'performApiVerification', {
-          category: ERROR_CATEGORIES.LOGIC,
-          details: { taskId, verificationData }
-        });
-
-        return {
-          success: true,
-          status: VERIFICATION_STATUS.SUCCESS,
-          message: response.message || 'Завдання успішно виконано!',
-          reward: response.data?.reward || null,
-          verification_details: response.data?.verification || {},
-          response_time_ms: Date.now() - this.state.lastVerificationTime[taskId]
-        };
-      } else {
-        moduleErrors.warning(`Верифікація завдання ${taskId} невдала`, 'performApiVerification', {
-          category: ERROR_CATEGORIES.LOGIC,
-          details: { taskId, response, verificationData }
-        });
-
-        return {
-          success: false,
-          status: VERIFICATION_STATUS.FAILURE,
-          message: response.message || response.error || 'Не вдалося перевірити виконання завдання',
-          error: response.error
-        };
-      }
-    } catch (error) {
-      return this.handleVerificationError(error, taskId);
     }
   }
 
@@ -525,49 +283,6 @@ class TaskVerification {
       error: error.message,
       taskId: taskId
     };
-  }
-
-  /**
-   * Визначення типу соціальної мережі
-   * @param {Object} task - Дані завдання
-   * @returns {string|null} Тип соціальної мережі
-   */
-  determineSocialNetwork(task) {
-    if (!task || (!task.action_url && !task.channel_url)) return null;
-
-    try {
-      const url = (task.channel_url || task.action_url).toLowerCase();
-      const title = (task.title || '').toLowerCase();
-      const description = (task.description || '').toLowerCase();
-
-      if (url.includes('t.me/') || url.includes('telegram.') ||
-          title.includes('telegram') || description.includes('telegram')) {
-        return SOCIAL_NETWORKS.TELEGRAM;
-      }
-
-      if (url.includes('twitter.') || url.includes('x.com') ||
-          title.includes('twitter') || description.includes('twitter')) {
-        return SOCIAL_NETWORKS.TWITTER;
-      }
-
-      if (url.includes('discord.') ||
-          title.includes('discord') || description.includes('discord')) {
-        return SOCIAL_NETWORKS.DISCORD;
-      }
-
-      if (url.includes('facebook.') || url.includes('fb.') ||
-          title.includes('facebook') || description.includes('facebook')) {
-        return SOCIAL_NETWORKS.FACEBOOK;
-      }
-
-      return null;
-    } catch (error) {
-      moduleErrors.warning(error, 'Помилка при визначенні типу соціальної мережі', {
-        category: ERROR_CATEGORIES.LOGIC,
-        details: { task }
-      });
-      return null;
-    }
   }
 
   /**
