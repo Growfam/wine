@@ -80,8 +80,8 @@ export function getCoinsLabel(amount) {
  */
 export function formatNumber(number) {
     // Використовуємо форматтер з модуля task-formatter, якщо доступний
-    if (typeof import('../../utils/task-formatter.js').formatNumber === 'function') {
-        return import('../../utils/task-formatter.js').formatNumber(number);
+    if (typeof import('../../utils/formatter.js').formatNumber === 'function') {
+        return import('../../utils/formatter.js').formatNumber(number);
     }
 
     // Запасний варіант - просте форматування

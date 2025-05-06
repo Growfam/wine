@@ -5,393 +5,366 @@
  * - Відображення лімітованих завдань з таймером
  * - Інтеграцію з системою таймерів
  * - Рендеринг специфічних елементів для лімітованих завдань
+ *
+ * @version 2.0.0
  */
 
+import { BaseRenderer, TASK_STATUS } from './common/base-renderer.js';
+import { escapeHTML } from './common/utils.js';
 import dependencyContainer from '../../utils/dependency-container.js';
 
-// Приватні змінні модуля
-const tasks = new Map(); // Зберігає посилання на активні завдання
-
-// Залежності
-let TimeUtils = null;
-let DOMUtils = null;
-let TaskCard = null;
-let taskSystem = null;
-let uiNotifications = null;
-
 /**
- * Ініціалізація рендерера та отримання залежностей
+ * Рендерер для лімітованих завдань
  */
-function initialize() {
-    // Отримуємо TimeUtils з контейнера залежностей
-    TimeUtils = dependencyContainer.resolve('TimeUtils');
+class LimitedRenderer extends BaseRenderer {
+    /**
+     * Конструктор LimitedRenderer
+     */
+    constructor() {
+        super('LimitedRenderer');
 
-    // Отримуємо DOMUtils з контейнера залежностей
-    DOMUtils = dependencyContainer.resolve('DOMUtils');
-
-    // Отримуємо TaskCard з контейнера залежностей
-    TaskCard = dependencyContainer.resolve('TaskCard');
-
-    // Отримуємо TaskSystem з контейнера залежностей
-    taskSystem = dependencyContainer.resolve('TaskSystem') ||
-                dependencyContainer.resolve('TaskManager');
-
-    // Отримуємо сервіс сповіщень
-    uiNotifications = dependencyContainer.resolve('UI.Notifications');
-
-    // Реєструємо себе в контейнері залежностей
-    dependencyContainer.register('LimitedRenderer', LimitedRenderer);
-}
-
-/**
- * Створення елементу лімітованого завдання
- * @param {Object} task - Модель завдання
- * @param {Object} progress - Прогрес виконання
- * @returns {HTMLElement} DOM елемент завдання
- */
-export function render(task, progress) {
-    // Ініціалізуємо рендерер, якщо ще не зроблено
-    if (!TimeUtils || !DOMUtils) {
-        initialize();
+        // Додаткові сервіси, специфічні для лімітованих завдань
+        this.timeUtils = null;
     }
 
-    // Перевіряємо валідність даних
-    if (!task || !task.id) {
-        console.error('LimitedRenderer: Отримано некоректні дані завдання');
-        return document.createElement('div');
+    /**
+     * Ініціалізація рендерера
+     */
+    initialize() {
+        if (this.initialized) return;
+
+        // Викликаємо базову ініціалізацію
+        super.initialize();
+
+        // Отримуємо TimeUtils з контейнера залежностей
+        this.timeUtils = dependencyContainer.resolve('TimeUtils');
+
+        this.log('info', 'Рендерер лімітованих завдань ініціалізовано');
     }
 
-    // Базові опції для TaskCard
-    const options = {
-        customClass: 'limited-task',
-        allowVerification: true
-    };
-
-    // Створюємо базову картку через TaskCard
-    let taskElement;
-
-    if (TaskCard) {
-        taskElement = TaskCard.create(task, progress, options);
-    } else {
-        // Запасний варіант, якщо TaskCard недоступний
-        taskElement = createFallbackElement(task, progress);
+    /**
+     * Отримання опцій для TaskCard
+     * @param {Object} task - Завдання
+     * @returns {Object} Опції для TaskCard
+     */
+    getTaskCardOptions(task) {
+        return {
+            customClass: 'limited-task',
+            allowVerification: true
+        };
     }
 
-    // Додаємо специфічні елементи для лімітованого завдання
-    enhanceWithLimitedFeatures(taskElement, task, progress);
+    /**
+     * Додавання атрибутів до елемента завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     * @param {Object} task - Завдання
+     * @param {Object} options - Опції рендерингу
+     */
+    addTaskAttributes(taskElement, task, options) {
+        // Викликаємо базовий метод
+        super.addTaskAttributes(taskElement, task, options);
 
-    // Зберігаємо посилання на елемент
-    tasks.set(task.id, {
-        element: taskElement,
-        task: task,
-        progress: progress
-    });
-
-    return taskElement;
-}
-
-/**
- * Створення запасного елемента, якщо TaskCard недоступний
- */
-function createFallbackElement(task, progress) {
-    const isCompleted = progress && progress.status === 'completed';
-    const taskElement = document.createElement('div');
-    taskElement.className = 'task-item limited-task';
-    taskElement.dataset.taskId = task.id;
-    taskElement.dataset.taskType = 'limited';
-
-    // Наповнюємо базовим контентом
-    if (DOMUtils && DOMUtils.escapeHTML) {
-        taskElement.innerHTML = `
-            <div class="task-header">
-                <div class="task-title">${DOMUtils.escapeHTML(task.title)}</div>
-                <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
-            </div>
-            <div class="task-description">${DOMUtils.escapeHTML(task.description)}</div>
-            <div class="task-progress-container"></div>
-            <div class="task-action"></div>
-        `;
-    } else {
-        // Якщо DOMUtils недоступний, створюємо простий варіант
-        taskElement.innerHTML = `
-            <div class="task-header">
-                <div class="task-title">${escapeHtml(task.title)}</div>
-                <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
-            </div>
-            <div class="task-description">${escapeHtml(task.description)}</div>
-            <div class="task-progress-container"></div>
-            <div class="task-action"></div>
-        `;
+        // Додаємо специфічні атрибути для лімітованих завдань
+        if (task.end_date) {
+            taskElement.dataset.endDate = task.end_date;
+        }
     }
 
-    // Додаємо клас для завершеного завдання
-    if (isCompleted) {
-        taskElement.classList.add('completed');
+    /**
+     * Додавання специфічних елементів для лімітованого завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     * @param {Object} task - Завдання
+     * @param {Object} progress - Прогрес
+     * @param {Object} options - Опції рендерингу
+     */
+    enhanceTaskElement(taskElement, task, progress, options) {
+        // Перевіряємо кінцеву дату і розраховуємо статус
+        let isExpired = false;
+
+        if (task.end_date) {
+            let endDate;
+
+            // Парсимо дату з використанням TimeUtils, якщо доступний
+            if (this.timeUtils && this.timeUtils.parseDate) {
+                endDate = this.timeUtils.parseDate(task.end_date);
+            } else {
+                // Запасний варіант
+                endDate = new Date(task.end_date);
+            }
+
+            // Перевіряємо, чи не закінчився термін
+            const now = new Date();
+            isExpired = endDate <= now;
+
+            // Якщо термін не закінчився і завдання не виконане, додаємо таймер
+            const isCompleted = progress && progress.status === 'completed';
+
+            if (!isExpired && !isCompleted) {
+                this.addCountdownTimer(taskElement, task);
+            } else if (isExpired) {
+                // Додаємо позначку про закінчення терміну
+                taskElement.classList.add('expired');
+
+                // Знаходимо або створюємо контейнер для таймера
+                let timerContainer = taskElement.querySelector('.timer-container');
+
+                if (!timerContainer) {
+                    timerContainer = document.createElement('div');
+                    timerContainer.className = 'timer-container expired';
+
+                    // Додаємо контейнер після заголовка
+                    const headerElement = taskElement.querySelector('.task-header');
+                    if (headerElement) {
+                        headerElement.appendChild(timerContainer);
+                    }
+                }
+
+                timerContainer.innerHTML = `
+                    <span class="timer-icon"></span>
+                    <span data-lang-key="earn.expired">Закінчено</span>
+                `;
+
+                // Встановлюємо статус "закінчено"
+                this.updateTaskStatus(taskElement, TASK_STATUS.EXPIRED);
+            }
+        }
+
+        // Викликаємо базовий метод для встановлення початкового статусу
+        // тільки якщо завдання не прострочене
+        if (!isExpired) {
+            super.enhanceTaskElement(taskElement, task, progress, options);
+        }
     }
 
-    return taskElement;
-}
+    /**
+     * Додавання таймера зворотного відліку
+     * @param {HTMLElement} taskElement - Елемент завдання
+     * @param {Object} task - Завдання
+     */
+    addCountdownTimer(taskElement, task) {
+        if (!task.end_date) return;
 
-/**
- * Додавання специфічних елементів для лімітованого завдання
- */
-function enhanceWithLimitedFeatures(taskElement, task, progress) {
-    // Перевіряємо кінцеву дату і розраховуємо статус
-    let isExpired = false;
+        // Створюємо контейнер для таймера
+        const timerContainer = document.createElement('div');
+        timerContainer.className = 'timer-container';
 
-    if (task.end_date) {
-        let endDate;
+        // Створюємо елемент відліку
+        const timerElement = document.createElement('span');
+        timerElement.className = 'timer-value';
+        timerElement.dataset.endDate = task.end_date;
+        timerElement.dataset.format = 'short';
 
-        // Парсимо дату з використанням TimeUtils, якщо доступний
-        if (TimeUtils && TimeUtils.parseDate) {
-            endDate = TimeUtils.parseDate(task.end_date);
-        } else {
-            // Запасний варіант
-            endDate = new Date(task.end_date);
+        // Додаємо іконку
+        const timerIcon = document.createElement('span');
+        timerIcon.className = 'timer-icon';
+
+        // Складаємо все разом
+        timerContainer.appendChild(timerIcon);
+        timerContainer.appendChild(timerElement);
+
+        // Додаємо контейнер після заголовка
+        const headerElement = taskElement.querySelector('.task-header');
+        if (headerElement) {
+            headerElement.appendChild(timerContainer);
+        }
+
+        // Ініціалізуємо таймер
+        this.initializeTimer(task.id, timerElement);
+    }
+
+    /**
+     * Ініціалізація таймера
+     * @param {string} taskId - ID завдання
+     * @param {HTMLElement} timerElement - Елемент таймера
+     */
+    initializeTimer(taskId, timerElement) {
+        // Отримуємо кінцеву дату
+        const endDate = timerElement.getAttribute('data-end-date');
+        if (!endDate) return;
+
+        // Перевіряємо, чи доступний TimeUtils
+        if (!this.timeUtils) {
+            // Спроба отримати з контейнера, якщо ще не отримано
+            this.timeUtils = dependencyContainer.resolve('TimeUtils');
+
+            // Якщо все ще недоступний, використовуємо запасний варіант
+            if (!this.timeUtils) {
+                this.log('warn', 'TimeUtils недоступний для створення таймера');
+                return this.initializeFallbackTimer(taskId, timerElement, endDate);
+            }
+        }
+
+        // Функція, що викликається при закінченні часу
+        const onTimerComplete = () => {
+            const taskElement = this.taskElements.get(taskId);
+            if (taskElement) {
+                taskElement.classList.add('expired');
+                this.updateTaskStatus(taskElement, TASK_STATUS.EXPIRED);
+            }
+        };
+
+        // Використовуємо TimeUtils для створення таймера
+        this.timeUtils.createCountdown({
+            element: timerElement,
+            endDate: endDate,
+            format: 'short',
+            onComplete: onTimerComplete
+        });
+    }
+
+    /**
+     * Запасний варіант ініціалізації таймера (якщо TimeUtils недоступний)
+     * @param {string} taskId - ID завдання
+     * @param {HTMLElement} timerElement - Елемент таймера
+     * @param {string} endDateStr - Рядок з кінцевою датою
+     */
+    initializeFallbackTimer(taskId, timerElement, endDateStr) {
+        // Парсимо дату
+        const endDate = new Date(endDateStr);
+        if (isNaN(endDate.getTime())) return;
+
+        // Функція для оновлення таймера
+        const updateTimer = () => {
+            const now = new Date();
+            const timeLeft = endDate - now;
+
+            if (timeLeft <= 0) {
+                // Час вийшов
+                timerElement.textContent = 'Закінчено';
+
+                // Знаходимо елемент завдання і оновлюємо його статус
+                const taskElement = this.taskElements.get(taskId);
+                if (taskElement) {
+                    taskElement.classList.add('expired');
+                    this.updateTaskStatus(taskElement, TASK_STATUS.EXPIRED);
+                }
+
+                clearInterval(timerId);
+                return;
+            }
+
+            // Форматуємо час
+            const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+            let formattedTime;
+            if (days > 0) {
+                formattedTime = `${days}д ${hours}г`;
+            } else if (hours > 0) {
+                formattedTime = `${hours}г ${minutes}хв`;
+            } else {
+                formattedTime = `${minutes}хв ${seconds}с`;
+            }
+
+            timerElement.textContent = formattedTime;
+        };
+
+        // Запускаємо таймер
+        updateTimer();
+        const timerId = setInterval(updateTimer, 1000);
+
+        // Зберігаємо ID таймера для можливості очищення
+        timerElement.dataset.timerId = timerId;
+    }
+
+    /**
+     * Обробник запуску завдання
+     * @param {string} taskId - ID завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     */
+    handleStartTask(taskId, taskElement) {
+        // Отримуємо дані завдання
+        let task = null;
+
+        if (this.taskSystem && typeof this.taskSystem.findTaskById === 'function') {
+            task = this.taskSystem.findTaskById(taskId);
         }
 
         // Перевіряємо, чи не закінчився термін
-        const now = new Date();
-        isExpired = endDate <= now;
+        if (task && task.end_date) {
+            const endDate = this.timeUtils ?
+                this.timeUtils.parseDate(task.end_date) :
+                new Date(task.end_date);
 
-        // Якщо термін не закінчився і завдання не виконане, додаємо таймер
-        const isCompleted = progress && progress.status === 'completed';
+            if (endDate <= new Date()) {
+                this.showErrorMessage('Термін виконання завдання минув');
+                this.updateTaskStatus(taskElement, TASK_STATUS.EXPIRED);
+                return;
+            }
+        }
 
-        if (!isExpired && !isCompleted) {
-            addCountdownTimer(taskElement, task);
-        } else if (isExpired) {
-            // Додаємо позначку про закінчення терміну
-            taskElement.classList.add('expired');
+        // Викликаємо базовий метод
+        super.handleStartTask(taskId, taskElement);
+    }
 
-            // Знаходимо або створюємо контейнер для таймера
-            let timerContainer = taskElement.querySelector('.timer-container');
+    /**
+     * Оновлення одного завдання - перевизначаємо для перевірки терміну дії
+     * @param {string} taskId - ID завдання
+     */
+    async refreshSingleTask(taskId) {
+        const taskElement = this.taskElements.get(taskId);
+        if (!taskElement) return;
 
-            if (!timerContainer) {
-                timerContainer = document.createElement('div');
-                timerContainer.className = 'timer-container expired';
+        try {
+            // Отримуємо завдання і прогрес
+            let task, progress;
 
-                // Додаємо контейнер після заголовка
-                const headerElement = taskElement.querySelector('.task-header');
-                if (headerElement) {
-                    headerElement.appendChild(timerContainer);
+            if (this.taskSystem) {
+                if (typeof this.taskSystem.findTaskById === 'function') {
+                    task = this.taskSystem.findTaskById(taskId);
+                }
+
+                if (typeof this.taskSystem.getTaskProgress === 'function') {
+                    progress = this.taskSystem.getTaskProgress(taskId);
                 }
             }
 
-            timerContainer.innerHTML = `
-                <span class="timer-icon"></span>
-                <span data-lang-key="earn.expired">Закінчено</span>
-            `;
-        }
-    }
-}
+            // Перевіряємо закінчення терміну
+            if (task && task.end_date) {
+                const endDate = this.timeUtils ?
+                    this.timeUtils.parseDate(task.end_date) :
+                    new Date(task.end_date);
 
-/**
- * Додавання таймера зворотного відліку
- */
-function addCountdownTimer(taskElement, task) {
-    if (!task.end_date) return;
+                if (endDate <= new Date()) {
+                    // Завдання прострочене
+                    taskElement.classList.add('expired');
+                    this.updateTaskStatus(taskElement, TASK_STATUS.EXPIRED);
+                    return;
+                }
+            }
 
-    // Створюємо контейнер для таймера
-    const timerContainer = document.createElement('div');
-    timerContainer.className = 'timer-container';
+            // Продовжуємо стандартне оновлення статусу
+            await super.refreshSingleTask(taskId);
 
-    // Створюємо елемент відліку
-    const timerElement = document.createElement('span');
-    timerElement.className = 'timer-value';
-    timerElement.dataset.endDate = task.end_date;
-    timerElement.dataset.format = 'short';
-
-    // Додаємо іконку
-    const timerIcon = document.createElement('span');
-    timerIcon.className = 'timer-icon';
-
-    // Складаємо все разом
-    timerContainer.appendChild(timerIcon);
-    timerContainer.appendChild(timerElement);
-
-    // Додаємо контейнер після заголовка
-    const headerElement = taskElement.querySelector('.task-header');
-    if (headerElement) {
-        headerElement.appendChild(timerContainer);
-    }
-
-    // Ініціалізуємо таймер
-    initializeTimer(task.id, timerElement);
-}
-
-/**
- * Ініціалізація таймера
- */
-function initializeTimer(taskId, timerElement) {
-    // Отримуємо кінцеву дату
-    const endDate = timerElement.getAttribute('data-end-date');
-    if (!endDate) return;
-
-    // Перевіряємо, чи доступний TimeUtils
-    if (!TimeUtils) {
-        // Спроба отримати з контейнера, якщо ще не отримано
-        TimeUtils = dependencyContainer.resolve('TimeUtils');
-
-        // Якщо все ще недоступний, виходимо
-        if (!TimeUtils) {
-            console.error('LimitedRenderer: TimeUtils недоступний для створення таймера');
-            return;
+        } catch (error) {
+            this.log('error', `Помилка при оновленні завдання ${taskId}`, { error });
         }
     }
 
-    // Функція, що викликається при закінченні часу
-    const onTimerComplete = function() {
-        const taskData = tasks.get(taskId);
-        if (taskData && taskData.element) {
-            taskData.element.classList.add('expired');
-            refreshTaskDisplay(taskId);
-        }
-    };
+    /**
+     * Очищення ресурсів
+     */
+    cleanup() {
+        // Очищаємо таймери
+        this.taskElements.forEach((taskElement, taskId) => {
+            const timerElement = taskElement.querySelector('.timer-value');
+            if (timerElement && timerElement.dataset.timerId) {
+                clearInterval(parseInt(timerElement.dataset.timerId));
+            }
+        });
 
-    // Використовуємо TimeUtils для створення таймера
-    TimeUtils.createCountdown({
-        element: timerElement,
-        endDate: endDate,
-        format: 'short',
-        onComplete: onTimerComplete
-    });
-}
-
-/**
- * Оновлення відображення завдання
- */
-export function refreshTaskDisplay(taskId) {
-    // Отримуємо TaskSystem з контейнера залежностей, якщо ще не отримано
-    if (!taskSystem) {
-        taskSystem = dependencyContainer.resolve('TaskSystem') ||
-                    dependencyContainer.resolve('TaskManager');
-    }
-
-    // Якщо є TaskSystem, делегуємо обробку йому
-    if (taskSystem && typeof taskSystem.refreshTaskDisplay === 'function') {
-        taskSystem.refreshTaskDisplay(taskId);
-        return;
-    }
-
-    // Якщо є TaskManager, делегуємо обробку йому (для зворотної сумісності)
-    if (window.TaskManager && window.TaskManager.refreshTaskDisplay) {
-        window.TaskManager.refreshTaskDisplay(taskId);
-        return;
-    }
-
-    // Інакше робимо власне оновлення
-    const taskData = tasks.get(taskId);
-    if (!taskData) return;
-
-    // Дістаємо актуальні дані
-    const task = taskData.task;
-    const progress = taskData.progress;
-
-    // Повторно рендеримо завдання
-    const newElement = render(task, progress);
-
-    // Замінюємо старий елемент новим
-    if (taskData.element && taskData.element.parentNode) {
-        taskData.element.parentNode.replaceChild(newElement, taskData.element);
-    }
-
-    // Оновлюємо посилання на елемент
-    taskData.element = newElement;
-    tasks.set(taskId, taskData);
-}
-
-/**
- * Показати повідомлення про успіх
- */
-function showSuccessMessage(message) {
-    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
-    if (!uiNotifications) {
-        uiNotifications = dependencyContainer.resolve('UI.Notifications');
-    }
-
-    if (uiNotifications && typeof uiNotifications.showSuccess === 'function') {
-        uiNotifications.showSuccess(message);
-    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
-        window.UI.Notifications.showSuccess(message);
-    } else if (typeof window.showToast === 'function') {
-        window.showToast(message, 'success');
-    } else {
-        alert(message);
+        // Викликаємо базовий метод
+        super.cleanup();
     }
 }
 
-/**
- * Показати повідомлення про помилку
- */
-function showErrorMessage(message) {
-    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
-    if (!uiNotifications) {
-        uiNotifications = dependencyContainer.resolve('UI.Notifications');
-    }
+// Створюємо екземпляр рендерера
+const limitedRenderer = new LimitedRenderer();
 
-    if (uiNotifications && typeof uiNotifications.showError === 'function') {
-        uiNotifications.showError(message);
-    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
-        window.UI.Notifications.showError(message);
-    } else if (typeof window.showToast === 'function') {
-        window.showToast(message, 'error');
-    } else {
-        alert(message);
-    }
-}
+// Для зворотної сумісності
+window.LimitedRenderer = limitedRenderer;
 
-/**
- * Функція для безпечного виведення HTML
- */
-function escapeHtml(text) {
-    if (!text) return '';
-
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-/**
- * Очищення ресурсів
- */
-export function cleanup() {
-    // Отримуємо DOMUtils з контейнера залежностей, якщо ще не отримано
-    if (!DOMUtils) {
-        DOMUtils = dependencyContainer.resolve('DOMUtils');
-    }
-
-    // Очищаємо таймери
-    tasks.forEach((taskData) => {
-        const timerElement = taskData.element.querySelector('.timer-value');
-        if (timerElement && timerElement.dataset.timerId) {
-            clearInterval(parseInt(timerElement.dataset.timerId));
-        }
-    });
-
-    // Очищаємо карту завдань
-    tasks.clear();
-}
-
-// Підписуємося на подію виходу зі сторінки
-if (DOMUtils && DOMUtils.addEvent) {
-    DOMUtils.addEvent(window, 'beforeunload', cleanup);
-} else {
-    // Запасний варіант
-    window.addEventListener('beforeunload', cleanup);
-}
-
-// Публічний API
-const LimitedRenderer = {
-    render,
-    refreshTaskDisplay,
-    cleanup,
-    initialize
-};
-
-// Для зворотньої сумісності зі старим кодом
-window.LimitedRenderer = LimitedRenderer;
-
-// Автоматична ініціалізація при завантаженні модуля
-setTimeout(initialize, 0);
-
-export default LimitedRenderer;
+// Експортуємо за замовчуванням
+export default limitedRenderer;

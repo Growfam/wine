@@ -1,17 +1,18 @@
 /**
- * CacheService - централізований модуль для кешування даних
+ * CacheService - централізований модуль для кешування та зберігання даних
  *
  * Відповідає за:
  * - Уніфіковане кешування для всіх модулів
+ * - Простий API для зберігання та отримання даних
  * - Контроль часу життя кешу
  * - Обмеження розміру кешу
  * - Автоматичну інвалідацію застарілих записів
  * - Типобезпечне зберігання та отримання даних
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-import errorHandler, { ERROR_CATEGORIES } from './error-handler.js';
+import errorHandler, { ERROR_CATEGORIES } from './Logger.js';
 
 // Створюємо обробник помилок для модуля
 const moduleErrors = errorHandler.createModuleHandler('CacheService');
@@ -32,7 +33,10 @@ const DEFAULT_CONFIG = {
   storage: STORAGE_TYPES.MEMORY, // Тип сховища за замовчуванням
   prefix: 'cache_',            // Префікс для ключів у localStorage/sessionStorage
   debug: false,                // Режим відлагодження
-  serializeObjects: true       // Автоматично перетворювати об'єкти в JSON
+  serializeObjects: true,      // Автоматично перетворювати об'єкти в JSON
+  useLocalStorage: true,       // Використовувати localStorage
+  useSessionStorage: true,     // Використовувати sessionStorage
+  useFallback: true            // Використовувати резервне сховище в пам'яті
 };
 
 class CacheService {
@@ -53,6 +57,9 @@ class CacheService {
     // Таймер для очищення
     this._cleanupTimer = null;
 
+    // Перевірка доступності сховищ
+    this._checkStorageAvailability();
+
     // Ініціалізуємо сервіс
     this._initialize();
   }
@@ -62,9 +69,6 @@ class CacheService {
    */
   _initialize() {
     if (this._initialized) return;
-
-    // Перевіряємо доступність сховищ
-    this._checkStorageAvailability();
 
     // Запускаємо періодичне очищення
     this._startCleanupTimer();
@@ -81,7 +85,31 @@ class CacheService {
    */
   _checkStorageAvailability() {
     try {
-      // Перевіряємо localStorage
+      // Перевіряємо чи доступний localStorage
+      this.config.useLocalStorage = this._isLocalStorageAvailable();
+
+      // Перевіряємо чи доступний sessionStorage
+      this.config.useSessionStorage = this._isSessionStorageAvailable();
+
+      // Якщо обидва сховища недоступні, переходимо на режим пам'яті
+      if (!this.config.useLocalStorage && !this.config.useSessionStorage) {
+        console.warn('CacheService: Web Storage недоступний. Використовуємо тільки пам\'ять.');
+        this.config.storage = STORAGE_TYPES.MEMORY;
+        this.config.useFallback = true;
+      }
+
+      // Вибираємо найкращий тип сховища на основі доступності
+      if (this.config.storage !== STORAGE_TYPES.MEMORY) {
+        if (this.config.storage === STORAGE_TYPES.LOCAL && !this.config.useLocalStorage) {
+          this.config.storage = this.config.useSessionStorage ?
+            STORAGE_TYPES.SESSION : STORAGE_TYPES.MEMORY;
+        } else if (this.config.storage === STORAGE_TYPES.SESSION && !this.config.useSessionStorage) {
+          this.config.storage = this.config.useLocalStorage ?
+            STORAGE_TYPES.LOCAL : STORAGE_TYPES.MEMORY;
+        }
+      }
+
+      // Перевіряємо доступність обраного сховища
       if (this.config.storage === STORAGE_TYPES.LOCAL ||
           this.config.storage === STORAGE_TYPES.PERSISTENT) {
         const testKey = `${this.config.prefix}test`;
@@ -103,6 +131,36 @@ class CacheService {
       });
 
       this.config.storage = STORAGE_TYPES.MEMORY;
+    }
+  }
+
+  /**
+   * Перевірка доступності localStorage
+   * @returns {boolean} Доступність localStorage
+   */
+  _isLocalStorageAvailable() {
+    try {
+      const test = '__storage_test__';
+      localStorage.setItem(test, test);
+      localStorage.removeItem(test);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Перевірка доступності sessionStorage
+   * @returns {boolean} Доступність sessionStorage
+   */
+  _isSessionStorageAvailable() {
+    try {
+      const test = '__storage_test__';
+      sessionStorage.setItem(test, test);
+      sessionStorage.removeItem(test);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
@@ -284,7 +342,8 @@ class CacheService {
       // Опції за замовчуванням
       const {
         ttl = this.config.defaultTTL,  // Час життя кешу
-        tags = []                       // Теги для групування
+        tags = [],                     // Теги для групування
+        persist = true                 // Зберігати постійно (додано з task-storage.js)
       } = options;
 
       // Метадані для запису
@@ -292,7 +351,8 @@ class CacheService {
         type: typeof value,
         timestamp: Date.now(),
         expiresAt: ttl ? Date.now() + ttl : null,
-        tags: Array.isArray(tags) ? tags : []
+        tags: Array.isArray(tags) ? tags : [],
+        persist // Додаємо інформацію про постійність зберігання
       };
 
       // Якщо це дата, коригуємо тип
@@ -377,7 +437,9 @@ class CacheService {
 
       // Опції за замовчуванням
       const {
-        checkExpiry = true      // Перевіряти термін дії
+        checkExpiry = true,    // Перевіряти термін дії
+        parse = true,          // Парсити JSON (додано з task-storage.js)
+        persist = true         // Постійне зберігання (додано з task-storage.js)
       } = options;
 
       // Повні ключі
@@ -809,42 +871,81 @@ class CacheService {
 
   /**
    * Повне очищення кешу
+   * @param {Object} options - Опції очищення
    * @returns {boolean} Результат операції
    */
-  clear() {
+  clear(options = {}) {
     try {
-      if (this.config.storage === STORAGE_TYPES.MEMORY) {
-        // Очищаємо Map
-        this._memoryCache.clear();
-        this._metadataCache.clear();
-      } else {
-        // Отримуємо сховище
-        const storage = this._getStorage();
-        const prefix = this.config.prefix;
+      const {
+        onlyExpired = false,     // Тільки прострочені записи
+        onlyPrefix = true,       // Тільки записи з префіксом
+        preserveKeys = []        // Ключі для збереження
+      } = options;
 
-        // Збираємо ключі для видалення
-        const keysToRemove = [];
+      if (onlyExpired) {
+        // Очищаємо тільки прострочені записи
+        this.cleanup();
+      } else if (preserveKeys && preserveKeys.length > 0) {
+        // Отримуємо всі ключі
+        const allKeys = this.keys();
 
-        for (let i = 0; i < storage.length; i++) {
-          const key = storage.key(i);
-          if (key && key.startsWith(prefix)) {
-            keysToRemove.push(key);
+        // Фільтруємо ключі, які не треба зберігати
+        const keysToRemove = allKeys.filter(key => {
+          // Якщо ключ в списку на збереження, пропускаємо
+          if (preserveKeys.includes(key)) {
+            return false;
           }
-        }
 
-        // Видаляємо всі ключі
-        keysToRemove.forEach(key => {
-          try {
-            storage.removeItem(key);
-          } catch (e) {
-            // Ігноруємо помилки
+          // Якщо тільки з префіксом, перевіряємо префікс
+          if (onlyPrefix && !key.startsWith(this.config.prefix)) {
+            return false;
           }
+
+          return true;
         });
 
-        // Для персистентного режиму очищаємо також пам'ять
-        if (this.config.storage === STORAGE_TYPES.PERSISTENT) {
-          this._memoryCache.clear();
-          this._metadataCache.clear();
+        // Видаляємо кожен ключ
+        keysToRemove.forEach(key => this.remove(key));
+      } else {
+        // Для повного очищення
+        if (onlyPrefix) {
+          // Видаляємо тільки ключі з потрібним префіксом
+          this.removeMany(key => key.startsWith(this.config.prefix));
+        } else {
+          if (this.config.storage === STORAGE_TYPES.MEMORY) {
+            // Очищаємо Map
+            this._memoryCache.clear();
+            this._metadataCache.clear();
+          } else {
+            // Отримуємо сховище
+            const storage = this._getStorage();
+            const prefix = this.config.prefix;
+
+            // Збираємо ключі для видалення
+            const keysToRemove = [];
+
+            for (let i = 0; i < storage.length; i++) {
+              const key = storage.key(i);
+              if (key && key.startsWith(prefix)) {
+                keysToRemove.push(key);
+              }
+            }
+
+            // Видаляємо всі ключі
+            keysToRemove.forEach(key => {
+              try {
+                storage.removeItem(key);
+              } catch (e) {
+                // Ігноруємо помилки
+              }
+            });
+
+            // Для персистентного режиму очищаємо також пам'ять
+            if (this.config.storage === STORAGE_TYPES.PERSISTENT) {
+              this._memoryCache.clear();
+              this._metadataCache.clear();
+            }
+          }
         }
       }
 
@@ -961,6 +1062,100 @@ class CacheService {
         category: ERROR_CATEGORIES.LOGIC
       });
     }
+  }
+
+  // Функції з task-storage.js для сумісності
+  /**
+   * Збереження даних у сховище (функція з task-storage.js)
+   * @param {string} key - Ключ
+   * @param {any} value - Значення
+   * @param {Object} options - Додаткові параметри
+   * @returns {boolean} Успішність операції
+   */
+  setItem(key, value, options = {}) {
+    // Параметри за замовчуванням
+    const {
+      persist = true,         // Зберігати в localStorage
+      expires = null,         // Час життя в мс
+      compress = false        // Стиснення даних (не реалізовано)
+    } = options;
+
+    // Використовуємо внутрішній метод set для зберігання
+    return this.set(key, value, {
+      ttl: expires || this.config.defaultTTL,
+      tags: [persist ? 'persistent' : 'session'],
+      persist
+    });
+  }
+
+  /**
+   * Отримання даних зі сховища (функція з task-storage.js)
+   * @param {string} key - Ключ
+   * @param {any} defaultValue - Значення за замовчуванням
+   * @param {Object} options - Додаткові параметри
+   * @returns {any} Збережене значення або значення за замовчуванням
+   */
+  getItem(key, defaultValue = null, options = {}) {
+    // Параметри за замовчуванням
+    const {
+      checkExpiry = true,     // Перевіряти термін дії
+      persist = true,         // Читати з localStorage
+      parse = true            // Парсити значення
+    } = options;
+
+    // Використовуємо внутрішній метод get для отримання
+    return this.get(key, defaultValue, {
+      checkExpiry,
+      parse,
+      persist
+    });
+  }
+
+  /**
+   * Видалення даних зі сховища (функція з task-storage.js)
+   * @param {string} key - Ключ
+   * @param {Object} options - Додаткові параметри
+   * @returns {boolean} Успішність операції
+   */
+  removeItem(key, options = {}) {
+    return this.remove(key);
+  }
+
+  /**
+   * Отримання всіх ключів (функція з task-storage.js)
+   * @param {Object} options - Опції
+   * @returns {Array} Список ключів
+   */
+  getKeys(options = {}) {
+    const {
+      withPrefix = false,       // Повертати з префіксом
+      onlyExpired = false       // Тільки прострочені
+    } = options;
+
+    // Використовуємо метод keys з фільтром
+    const keys = this.keys((_key, metadata) => {
+      // Якщо тільки прострочені
+      if (onlyExpired) {
+        return metadata.expiresAt && metadata.expiresAt < Date.now();
+      }
+      return true;
+    });
+
+    // Якщо потрібно повертати з префіксом
+    if (withPrefix) {
+      return keys;
+    }
+
+    // Видаляємо префікс
+    return keys.map(key => key.startsWith(this.config.prefix) ? key.substring(this.config.prefix.length) : key);
+  }
+
+  /**
+   * Отримання поточної конфігурації (функція з task-storage.js)
+   * @returns {Object} Поточна конфігурація
+   */
+  getConfig() {
+    return { ...this.config };
   }
 }
 

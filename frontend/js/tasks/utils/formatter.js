@@ -4,10 +4,12 @@
  * - Уніфіковане форматування різних типів даних
  * - Підготовку даних для відправки в API
  * - Обробку отриманих даних з API
- * - Локалізовані формати чисел, дат та валют
+ * - Локалізовані формати чисел та валют
  *
- * @version 2.0.0
+ * @version 3.0.0
  */
+
+import TimeUtils from './TimeUtils.js';
 
 window.Formatters = (function() {
     // Кеш форматтерів для оптимізації
@@ -15,12 +17,10 @@ window.Formatters = (function() {
 
     // Налаштування для API
     const apiFormatSettings = {
-        dateFormat: 'ISO',
         decimalSeparator: '.',
         thousandsSeparator: '',
         currencyFormat: 'numeric',
-        preferNumbersAsStrings: false,
-        timeZoneHandling: 'utc'
+        preferNumbersAsStrings: false
     };
 
     /**
@@ -84,87 +84,6 @@ window.Formatters = (function() {
                 `${integerFormatted}${actualDecimalSeparator}${decimalPart}`;
         } catch (error) {
             return String(number);
-        }
-    }
-
-    /**
-     * Форматування дати для API
-     * @param {Date|string|number} date - Дата для форматування
-     * @param {Object} options - Параметри форматування
-     * @returns {string} Відформатована дата
-     */
-    function formatDateForApi(date, options = {}) {
-        const {
-            format = apiFormatSettings.dateFormat,
-            includeTime = true
-        } = options;
-
-        try {
-            // Конвертуємо вхідне значення у Date
-            const dateObj = parseDate(date);
-            if (!dateObj || isNaN(dateObj.getTime())) {
-                return null;
-            }
-
-            // ISO 8601 формат (найбільш універсальний)
-            if (format === 'ISO') {
-                return includeTime ? dateObj.toISOString() : dateObj.toISOString().split('T')[0];
-            }
-
-            // Власний формат (спрощена реалізація)
-            const padZero = (num) => String(num).padStart(2, '0');
-
-            const year = dateObj.getFullYear();
-            const month = padZero(dateObj.getMonth() + 1);
-            const day = padZero(dateObj.getDate());
-
-            let result = `${year}-${month}-${day}`;
-
-            if (includeTime) {
-                const hours = padZero(dateObj.getHours());
-                const minutes = padZero(dateObj.getMinutes());
-                const seconds = padZero(dateObj.getSeconds());
-                result += `T${hours}:${minutes}:${seconds}Z`;
-            }
-
-            return result;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    /**
-     * Обробка дати з API
-     * @param {string} apiDate - Дата з API
-     * @param {Object} options - Параметри обробки
-     * @returns {Date|null} Об'єкт Date або null
-     */
-    function parseApiDate(apiDate, options = {}) {
-        const {
-            adjustTimezone = true
-        } = options;
-
-        try {
-            if (!apiDate) return null;
-
-            // Створюємо об'єкт Date
-            const dateObj = new Date(apiDate);
-
-            // Перевіряємо валідність
-            if (isNaN(dateObj.getTime())) {
-                return null;
-            }
-
-            // Коригуємо часовий пояс, якщо потрібно
-            if (adjustTimezone && apiFormatSettings.timeZoneHandling === 'utc') {
-                // Перетворюємо UTC до локального часу
-                const offset = new Date().getTimezoneOffset() * 60000;
-                return new Date(dateObj.getTime() - offset);
-            }
-
-            return dateObj;
-        } catch (error) {
-            return null;
         }
     }
 
@@ -264,7 +183,7 @@ window.Formatters = (function() {
 
                 switch (fieldType) {
                     case 'date':
-                        result[key] = value ? formatDateForApi(value) : null;
+                        result[key] = value ? TimeUtils.formatDateForApi(value) : null;
                         break;
 
                     case 'timestamp':
@@ -272,7 +191,7 @@ window.Formatters = (function() {
                         if (value instanceof Date) {
                             result[key] = Math.floor(value.getTime() / 1000);
                         } else if (typeof value === 'string') {
-                            const date = parseDate(value);
+                            const date = TimeUtils.parseDate(value);
                             result[key] = date ? Math.floor(date.getTime() / 1000) : null;
                         } else {
                             result[key] = value;
@@ -339,7 +258,7 @@ window.Formatters = (function() {
                 switch (fieldType) {
                     case 'date':
                     case 'datetime':
-                        result[key] = value ? parseApiDate(value) : null;
+                        result[key] = value ? TimeUtils.parseApiDate(value) : null;
                         break;
 
                     case 'timestamp':
@@ -450,54 +369,6 @@ window.Formatters = (function() {
     }
 
     /**
-     * Перетворення різних форматів дати в об'єкт Date
-     * @param {Date|string|number} date - Дата для парсингу
-     * @returns {Date|null} Об'єкт Date або null
-     */
-    function parseDate(date) {
-        if (!date) return null;
-
-        // Якщо вже об'єкт Date
-        if (date instanceof Date) {
-            return new Date(date);
-        }
-
-        // Якщо число (timestamp)
-        if (typeof date === 'number') {
-            // Для Unix timestamp (секунди)
-            if (date < 10000000000) {
-                return new Date(date * 1000);
-            }
-            return new Date(date);
-        }
-
-        // Якщо рядок
-        if (typeof date === 'string') {
-            // ISO формат
-            const isoDate = new Date(date);
-            if (!isNaN(isoDate.getTime())) {
-                return isoDate;
-            }
-
-            // Український формат дд.мм.рррр
-            const uaMatch = date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
-            if (uaMatch) {
-                const [_, day, month, year, hours = 0, minutes = 0, seconds = 0] = uaMatch;
-                return new Date(
-                    parseInt(year),
-                    parseInt(month) - 1,
-                    parseInt(day),
-                    parseInt(hours),
-                    parseInt(minutes),
-                    parseInt(seconds)
-                );
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Форматування тексту для відображення в HTML
      * @param {string} text - Текст для форматування
      * @param {Object} options - Опції форматування
@@ -573,51 +444,19 @@ window.Formatters = (function() {
         Object.assign(apiFormatSettings, settings);
     }
 
-    /**
-     * Склонення слова залежно від числа
-     * @param {number} number - Число
-     * @param {string} one - Форма для 1
-     * @param {string} few - Форма для 2-4
-     * @param {string} many - Форма для 5-20
-     * @returns {string} Правильна форма слова
-     */
-    function pluralize(number, one, few, many) {
-        // Форматування українською
-        number = Math.abs(number) % 100;
-        const mod10 = number % 10;
-
-        if (number >= 11 && number <= 19) {
-            return many;
-        }
-
-        if (mod10 === 1) {
-            return one;
-        }
-
-        if (mod10 >= 2 && mod10 <= 4) {
-            return few;
-        }
-
-        return many;
-    }
-
     // Публічний API
     return {
         // Базові форматтери
         formatNumber,
         formatCurrency,
         formatText,
-        parseDate,
-        pluralize,
 
         // API функції
-        formatDateForApi,
-        parseApiDate,
         prepareDataForApi,
         processApiResponse,
         configureApiFormatter,
 
         // Версія
-        VERSION: "2.0.0"
+        VERSION: "3.0.0"
     };
 })();
