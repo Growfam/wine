@@ -1,10 +1,10 @@
 /**
- * Централізована система логування
+ * Централізована система логування та обробки помилок
  *
- * Забезпечує єдиний інтерфейс для логування в різних модулях
+ * Забезпечує єдиний інтерфейс для логування та обробки помилок у різних модулях
  * з підтримкою рівнів, категорій та форматування.
  *
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 // Рівні логування в порядку зростання важливості
@@ -15,6 +15,14 @@ export const LOG_LEVELS = {
     WARN: 40,     // Попередження, які не блокують роботу
     ERROR: 50,    // Помилки, які можуть впливати на функціональність
     FATAL: 60     // Критичні помилки, які зупиняють роботу
+};
+
+// Для сумісності з error-handler.js
+export const ERROR_LEVELS = {
+    INFO: LOG_LEVELS.INFO,
+    WARNING: LOG_LEVELS.WARN,
+    ERROR: LOG_LEVELS.ERROR,
+    CRITICAL: LOG_LEVELS.FATAL
 };
 
 // Категорії логів для кращої організації
@@ -30,8 +38,12 @@ export const LOG_CATEGORIES = {
     RENDERING: 'rendering',    // Відображення компонентів
     ANIMATION: 'animation',    // Анімації та візуальні ефекти
     PERFORMANCE: 'performance',// Продуктивність
+    VALIDATION: 'validation',  // Валідація даних
     UNKNOWN: 'unknown'         // Некатегоризовані події
 };
+
+// Для сумісності з error-handler.js
+export const ERROR_CATEGORIES = LOG_CATEGORIES;
 
 // Глобальні налаштування логування
 const config = {
@@ -48,7 +60,24 @@ const config = {
     environment: 'development',   // Середовище (development/production)
     formatOutput: true,           // Форматувати вивід у консоль
     silent: false,                // Повністю вимкнути логування
-    moduleFilters: {}             // Фільтри для конкретних модулів
+    moduleFilters: {},            // Фільтри для конкретних модулів
+    maxHistoryLength: 50,         // Максимальна кількість записів в історії
+    consoleOutput: {              // Налаштування консольного виведення
+        [LOG_LEVELS.TRACE]: false,
+        [LOG_LEVELS.DEBUG]: false,
+        [LOG_LEVELS.INFO]: true,
+        [LOG_LEVELS.WARN]: true,
+        [LOG_LEVELS.ERROR]: true,
+        [LOG_LEVELS.FATAL]: true
+    },
+    eventEmitting: {              // Налаштування відправки подій
+        [LOG_LEVELS.TRACE]: false,
+        [LOG_LEVELS.DEBUG]: false,
+        [LOG_LEVELS.INFO]: false,
+        [LOG_LEVELS.WARN]: false,
+        [LOG_LEVELS.ERROR]: true,
+        [LOG_LEVELS.FATAL]: true
+    }
 };
 
 // Кеш логерів для різних модулів
@@ -74,11 +103,34 @@ class Logger {
         // Створюємо методи для кожного рівня логування
         Object.keys(LOG_LEVELS).forEach(level => {
             const levelValue = LOG_LEVELS[level];
+            const methodName = level.toLowerCase();
 
-            this[level.toLowerCase()] = (message, source = '', details = {}) => {
-                this.log(levelValue, message, source, details);
-            };
+            // Не створюємо дублікати методів
+            if (!this[methodName]) {
+                this[methodName] = (message, source = '', details = {}) => {
+                    this.log(levelValue, message, source, details);
+                };
+            }
         });
+
+        // Для сумісності з error-handler
+        this.error = this.error || ((error, message, details = {}) => {
+            if (error instanceof Error) {
+                this.log(LOG_LEVELS.ERROR, error, message, details);
+            } else {
+                this.log(LOG_LEVELS.ERROR, message, '', { ...details, customError: error });
+            }
+        });
+
+        this.critical = this.fatal || ((error, message, details = {}) => {
+            if (error instanceof Error) {
+                this.log(LOG_LEVELS.FATAL, error, message, details);
+            } else {
+                this.log(LOG_LEVELS.FATAL, message, '', { ...details, customError: error });
+            }
+        });
+
+        this.warning = this.warn;
     }
 
     /**
@@ -132,7 +184,7 @@ class Logger {
         storeInBuffer(logEntry);
 
         // Виводимо в консоль
-        if (config.enableConsole) {
+        if (config.enableConsole && config.consoleOutput[level]) {
             outputToConsole(logEntry, errorObject);
         }
 
@@ -147,11 +199,15 @@ class Logger {
         }
 
         // Генеруємо подію про новий лог
-        dispatchLogEvent(logEntry);
+        if (config.eventEmitting[level]) {
+            dispatchLogEvent(logEntry);
+        }
     }
 
     /**
-     * Спеціальний метод для сумісності з попереднім errorHandler
+     * Метод для сумісності з попереднім errorHandler
+     * @param {string} submodule - Назва підмодуля
+     * @returns {Object} Обробник помилок для підмодуля
      */
     createModuleHandler(submodule) {
         // Створюємо підмодульний логер
@@ -174,6 +230,21 @@ class Logger {
                 } else {
                     submoduleLogger.fatal(message, source, { ...details, customError: error });
                 }
+            },
+            handle: (error, level = ERROR_LEVELS.ERROR, context = '', options = {}) => {
+                const levelMap = {
+                    [ERROR_LEVELS.INFO]: LOG_LEVELS.INFO,
+                    [ERROR_LEVELS.WARNING]: LOG_LEVELS.WARN,
+                    [ERROR_LEVELS.ERROR]: LOG_LEVELS.ERROR,
+                    [ERROR_LEVELS.CRITICAL]: LOG_LEVELS.FATAL
+                };
+
+                return submoduleLogger.log(
+                    levelMap[level] || LOG_LEVELS.ERROR,
+                    error,
+                    context,
+                    options
+                );
             }
         };
     }
@@ -274,7 +345,7 @@ function storeInLocalStorage(logEntry) {
             logs = JSON.parse(storedLogs);
         }
 
-        // Додаємо новий лог
+        // Додаємо новий лог (зберігаємо тільки необхідні поля для оптимізації)
         logs.push({
             t: logEntry.timestampStr,
             l: logEntry.levelName,
@@ -305,7 +376,7 @@ function sendToRemoteEndpoint(logEntry) {
     if (!config.remoteEndpoint) return;
 
     try {
-        // Дані для відправки
+        // Дані для відправки (тільки необхідні поля)
         const data = {
             timestamp: logEntry.timestampStr,
             level: logEntry.levelName,
@@ -317,7 +388,7 @@ function sendToRemoteEndpoint(logEntry) {
             environment: config.environment
         };
 
-        // Відправляємо асинхронно
+        // Відправляємо асинхронно з використанням Beacon API
         navigator.sendBeacon(config.remoteEndpoint, JSON.stringify(data));
     } catch (e) {
         // Ігноруємо помилки відправки
@@ -331,50 +402,38 @@ function sendToRemoteEndpoint(logEntry) {
  */
 function dispatchLogEvent(logEntry) {
     try {
-        // Створюємо подію
-        const event = new CustomEvent('app-log', {
-            detail: {
-                level: logEntry.levelName,
-                module: logEntry.module,
-                source: logEntry.source,
-                message: logEntry.message,
-                category: logEntry.category,
-                timestamp: logEntry.timestamp
-            }
-        });
+        // Спрощений об'єкт деталей для події
+        const eventDetail = {
+            level: logEntry.levelName,
+            module: logEntry.module,
+            source: logEntry.source,
+            message: logEntry.message,
+            category: logEntry.category,
+            timestamp: logEntry.timestamp.toISOString()
+        };
 
-        // Відправляємо подію
-        document.dispatchEvent(event);
+        // Створюємо і відправляємо подію
+        document.dispatchEvent(new CustomEvent(`app-log-${logEntry.levelName.toLowerCase()}`, {
+            detail: eventDetail
+        }));
 
-        // Для критичних помилок додатково генеруємо специфічну подію
+        // Загальна подія для всіх логів
+        document.dispatchEvent(new CustomEvent('app-log', {
+            detail: eventDetail
+        }));
+
+        // Додаткові події для помилок (сумісність з error-handler)
         if (logEntry.level >= LOG_LEVELS.ERROR) {
-            const errorEvent = new CustomEvent('app-error', {
-                detail: {
-                    level: logEntry.levelName,
-                    module: logEntry.module,
-                    source: logEntry.source,
-                    message: logEntry.message,
-                    category: logEntry.category,
-                    timestamp: logEntry.timestamp
-                }
-            });
+            // Подія для помилок
+            document.dispatchEvent(new CustomEvent('app-error', {
+                detail: eventDetail
+            }));
 
-            document.dispatchEvent(errorEvent);
-
-            // Окрема подія для помилок критичного рівня
+            // Окрема подія для критичних помилок
             if (logEntry.level >= LOG_LEVELS.FATAL) {
-                const criticalEvent = new CustomEvent('app-error-critical', {
-                    detail: {
-                        level: logEntry.levelName,
-                        module: logEntry.module,
-                        source: logEntry.source,
-                        message: logEntry.message,
-                        category: logEntry.category,
-                        timestamp: logEntry.timestamp
-                    }
-                });
-
-                document.dispatchEvent(criticalEvent);
+                document.dispatchEvent(new CustomEvent('app-error-critical', {
+                    detail: eventDetail
+                }));
             }
         }
     } catch (e) {
@@ -444,12 +503,14 @@ export function getLogs(filter = {}) {
     }
 
     // Фільтрація за часовим діапазоном
-    if (filter.startTime) {
-        filteredLogs = filteredLogs.filter(log => log.timestamp >= filter.startTime);
+    if (filter.from) {
+        const fromDate = new Date(filter.from);
+        filteredLogs = filteredLogs.filter(log => log.timestamp >= fromDate);
     }
 
-    if (filter.endTime) {
-        filteredLogs = filteredLogs.filter(log => log.timestamp <= filter.endTime);
+    if (filter.to) {
+        const toDate = new Date(filter.to);
+        filteredLogs = filteredLogs.filter(log => log.timestamp <= toDate);
     }
 
     return filteredLogs;
@@ -474,7 +535,7 @@ export function clearStoredLogs() {
 }
 
 /**
- * Вимкнення всього логування
+ * Вимкнення логування
  */
 export function disableLogging() {
     config.enabled = false;
@@ -495,30 +556,68 @@ export function exportLogsToJson() {
     return JSON.stringify(logsBuffer);
 }
 
-/**
- * Створення сумісності зі старим errorHandler
- */
-export const ERROR_LEVELS = {
-    INFO: LOG_LEVELS.INFO,
-    WARNING: LOG_LEVELS.WARN,
-    ERROR: LOG_LEVELS.ERROR,
-    CRITICAL: LOG_LEVELS.FATAL
-};
-
-export const ERROR_CATEGORIES = LOG_CATEGORIES;
-
-// Для сумісності з попереднім errorHandler
+// Для сумісності з попереднім error-handler.js
+// Це дозволяє використовувати старий API без змін
 export const errorHandler = {
-    createModuleHandler: (moduleName) => {
+    handleError: function(error, options = {}) {
+        const logger = getLogger('ErrorHandler');
+
+        // Налаштування за замовчуванням
+        const settings = {
+            level: ERROR_LEVELS.ERROR,
+            category: ERROR_CATEGORIES.UNKNOWN,
+            context: '',
+            module: '',
+            silent: false,
+            ...options
+        };
+
+        // Мапування рівнів помилок на рівні логів
+        const levelMap = {
+            [ERROR_LEVELS.INFO]: LOG_LEVELS.INFO,
+            [ERROR_LEVELS.WARNING]: LOG_LEVELS.WARN,
+            [ERROR_LEVELS.ERROR]: LOG_LEVELS.ERROR,
+            [ERROR_LEVELS.CRITICAL]: LOG_LEVELS.FATAL
+        };
+
+        // Логуємо помилку
+        logger.log(
+            levelMap[settings.level] || LOG_LEVELS.ERROR,
+            error,
+            settings.context,
+            {
+                category: settings.category,
+                module: settings.module,
+                ...options
+            }
+        );
+
+        // Формуємо запис про помилку
+        const errorRecord = {
+            timestamp: new Date(),
+            error: error,
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : null,
+            level: settings.level,
+            category: settings.category,
+            context: settings.context,
+            module: settings.module,
+            details: error.details || {}
+        };
+
+        return errorRecord;
+    },
+
+    createModuleHandler: function(moduleName) {
         return getLogger(moduleName).createModuleHandler(moduleName);
     },
 
-    getErrorHistory: (filter = {}) => {
+    getErrorHistory: function(filter = {}) {
         return getLogs(filter);
     }
 };
 
-// Створюємо глобальний логер для сумісності
+// Створюємо глобальний логер
 export const logger = getLogger('App');
 
 // Експортуємо за замовчуванням

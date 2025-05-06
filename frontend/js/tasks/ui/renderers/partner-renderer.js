@@ -5,8 +5,12 @@
  * - Безпечне відображення партнерських завдань
  * - Інтеграцію з CSRF захистом для партнерських переходів
  * - Безпечну обробку партнерських посилань
- * @version 3.0.0
+ * @version 4.0.0
  */
+
+import BaseRenderer, { TASK_STATUS } from './common/base-renderer.js';
+import { isUrlSafe, escapeHTML, generateCsrfToken } from './common/utils.js';
+import dependencyContainer from '../../utils/dependency-container.js';
 
 // Налаштування безпеки для партнерських доменів
 export const ALLOWED_DOMAINS = [
@@ -32,44 +36,40 @@ export const BLOCKED_SCHEMES = [
     'blob:'
 ];
 
-// Кеш для елементів завдань
-const taskElements = new Map();
-
-// CSRF токени
-const csrfTokens = new Map();
-
 /**
- * Створення елементу партнерського завдання
- * @param {Object} task - Модель завдання
- * @param {Object} progress - Прогрес виконання
- * @returns {HTMLElement} DOM елемент завдання
+ * Рендерер для партнерських завдань
  */
-export function render(task, progress) {
-    // Перевіряємо валідність даних
-    if (!task || !task.id) {
-        console.error('PartnerRenderer: Отримано некоректні дані завдання');
-        return document.createElement('div');
+class PartnerRenderer extends BaseRenderer {
+    /**
+     * Створення екземпляру PartnerRenderer
+     */
+    constructor() {
+        super('PartnerRenderer');
     }
 
-    // Базові опції для TaskCard
-    const options = {
-        customClass: 'partner-task',
-        allowVerification: true
-    };
-
-    // Перевіряємо URL на безпеку
-    let safeUrl = null;
-    if (task.action_url) {
-        safeUrl = isUrlSafe(task.action_url) ? task.action_url : null;
+    /**
+     * Отримання опцій для TaskCard
+     * @param {Object} task - Завдання
+     * @returns {Object} Опції для TaskCard
+     */
+    getTaskCardOptions(task) {
+        return {
+            customClass: 'partner-task',
+            allowVerification: true
+        };
     }
 
-    // Створюємо базову картку через TaskCard
-    let taskElement;
+    /**
+     * Додавання атрибутів до елемента завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     * @param {Object} task - Завдання
+     * @param {Object} options - Опції рендерингу
+     */
+    addTaskAttributes(taskElement, task, options) {
+        // Викликаємо базовий метод
+        super.addTaskAttributes(taskElement, task, options);
 
-    if (window.TaskCard && window.TaskCard.create) {
-        taskElement = window.TaskCard.create(task, progress, options);
-
-        // Додаємо атрибути для партнерського завдання
+        // Додаємо специфічні атрибути для партнерського завдання
         taskElement.dataset.taskType = 'partner';
 
         // Якщо є партнер, додаємо його дані
@@ -77,501 +77,163 @@ export function render(task, progress) {
             taskElement.dataset.partnerName = task.partner_name;
         }
 
+        // Перевіряємо URL на безпеку
+        let safeUrl = null;
+        if (task.action_url) {
+            safeUrl = this.checkUrlSafety(task.action_url) ? task.action_url : null;
+        }
+
         // Якщо є безпечний URL, додаємо його
         if (safeUrl) {
             taskElement.dataset.actionUrl = safeUrl;
         }
-    } else {
-        // Запасний варіант, якщо TaskCard недоступний
-        taskElement = createFallbackElement(task, progress, safeUrl);
     }
 
-    // Додаємо специфічні елементи для партнерського завдання
-    enhanceWithPartnerFeatures(taskElement, task, progress, safeUrl);
-
-    // Зберігаємо елемент у кеші
-    taskElements.set(task.id, taskElement);
-
-    return taskElement;
-}
-
-/**
- * Створення запасного елемента, якщо TaskCard недоступний
- */
-function createFallbackElement(task, progress, safeUrl) {
-    const isCompleted = progress && progress.status === 'completed';
-    const taskElement = document.createElement('div');
-    taskElement.className = 'task-item partner-task';
-    taskElement.dataset.taskId = task.id;
-    taskElement.dataset.taskType = 'partner';
-
-    if (task.partner_name) {
-        taskElement.dataset.partnerName = task.partner_name;
+    /**
+     * Перевірка безпеки URL для партнерських завдань
+     * @param {string} url - URL для перевірки
+     * @returns {boolean} Результат перевірки
+     */
+    checkUrlSafety(url) {
+        return isUrlSafe(url, ALLOWED_DOMAINS);
     }
 
-    if (safeUrl) {
-        taskElement.dataset.actionUrl = safeUrl;
-    }
+    /**
+     * Додавання специфічних елементів для партнерського завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     * @param {Object} task - Завдання
+     * @param {Object} progress - Прогрес
+     * @param {Object} options - Опції рендерингу
+     */
+    enhanceTaskElement(taskElement, task, progress, options) {
+        // Додаємо мітку партнера, якщо вказано
+        if (task.partner_name) {
+            const partnerLabel = document.createElement('div');
+            partnerLabel.className = 'partner-label';
+            partnerLabel.textContent = `Партнер: ${escapeHTML(task.partner_name)}`;
 
-    // Наповнюємо базовим контентом
-    taskElement.innerHTML = `
-        <div class="task-header">
-            <div class="task-title">${escapeHtml(task.title)}</div>
-            <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
-        </div>
-        <div class="task-description">${escapeHtml(task.description)}</div>
-        <div class="task-progress-container"></div>
-        <div class="task-action"></div>
-    `;
-
-    // Додаємо клас для завершеного завдання
-    if (isCompleted) {
-        taskElement.classList.add('completed');
-    }
-
-    return taskElement;
-}
-
-/**
- * Додавання специфічних елементів для партнерського завдання
- */
-function enhanceWithPartnerFeatures(taskElement, task, progress, safeUrl) {
-    // Додаємо мітку партнера, якщо вказано
-    if (task.partner_name) {
-        const partnerLabel = document.createElement('div');
-        partnerLabel.className = 'partner-label';
-        partnerLabel.textContent = `Партнер: ${escapeHtml(task.partner_name)}`;
-
-        // Додаємо мітку на початок елемента
-        if (taskElement.firstChild) {
-            taskElement.insertBefore(partnerLabel, taskElement.firstChild);
-        } else {
-            taskElement.appendChild(partnerLabel);
-        }
-    }
-
-    // Додаємо інформацію про URL, якщо він безпечний
-    if (safeUrl) {
-        // Безпечно форматуємо URL для відображення
-        let displayUrl = '';
-        try {
-            const urlObj = new URL(safeUrl);
-            displayUrl = urlObj.hostname;
-        } catch (e) {
-            displayUrl = 'partner-site';
+            // Додаємо мітку на початок елемента
+            if (taskElement.firstChild) {
+                taskElement.insertBefore(partnerLabel, taskElement.firstChild);
+            } else {
+                taskElement.appendChild(partnerLabel);
+            }
         }
 
-        const urlInfo = document.createElement('div');
-        urlInfo.className = 'partner-url-info';
-        urlInfo.innerHTML = `
-            <span class="partner-site-label">Сайт партнера:</span> 
-            <span class="partner-site-domain">${escapeHtml(displayUrl)}</span>
-        `;
+        // Перевіряємо URL на безпеку
+        let safeUrl = null;
+        if (task.action_url) {
+            safeUrl = this.checkUrlSafety(task.action_url) ? task.action_url : null;
+        }
 
-        // Додаємо інформацію в кінець елемента
-        taskElement.appendChild(urlInfo);
-    }
-
-    // Налаштовуємо кнопки дій
-    setupActionButtons(taskElement, task, progress);
-}
-
-/**
- * Налаштування кнопок дій для завдання
- */
-function setupActionButtons(taskElement, task, progress) {
-    const actionContainer = taskElement.querySelector('.task-action');
-    if (!actionContainer) return;
-
-    const isCompleted = progress && progress.status === 'completed';
-
-    // Якщо завдання завершено, показуємо лише статус
-    if (isCompleted) {
-        actionContainer.innerHTML = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
-        return;
-    }
-
-    // Створюємо кнопку "Виконати"
-    const startBtn = document.createElement('button');
-    startBtn.className = 'action-button';
-    startBtn.dataset.action = 'start';
-    startBtn.dataset.taskId = task.id;
-    startBtn.setAttribute('data-lang-key', `earn.${task.action_type || 'start'}`);
-    startBtn.textContent = task.action_label || 'Виконати';
-
-    // Додаємо обробник події
-    startBtn.addEventListener('click', function(event) {
-        event.preventDefault();
-        handleStartTask(task, taskElement);
-    });
-
-    // Додаємо кнопку до контейнера
-    actionContainer.appendChild(startBtn);
-
-    // Додаємо кнопку "Перевірити"
-    const verifyBtn = document.createElement('button');
-    verifyBtn.className = 'action-button verify-button';
-    verifyBtn.dataset.action = 'verify';
-    verifyBtn.dataset.taskId = task.id;
-    verifyBtn.setAttribute('data-lang-key', 'earn.verify');
-    verifyBtn.textContent = 'Перевірити';
-
-    // Додаємо обробник події
-    verifyBtn.addEventListener('click', function(event) {
-        event.preventDefault();
-        handleVerifyTask(task, taskElement);
-    });
-
-    // Додаємо кнопку до контейнера
-    actionContainer.appendChild(verifyBtn);
-}
-
-/**
- * Обробка початку виконання завдання
- */
-export function handleStartTask(task, taskElement) {
-    // Показуємо підтвердження переходу на сайт партнера
-    if (task.action_url && task.partner_name) {
-        if (confirm(`Ви будете перенаправлені на сайт партнера "${task.partner_name || 'WINIX'}". Продовжити?`)) {
-            // Генеруємо CSRF токен
-            const csrfToken = generateCsrfToken(task.id);
-
-            // Додаємо CSRF токен до URL
-            let safeUrl = task.action_url;
+        // Додаємо інформацію про URL, якщо він безпечний
+        if (safeUrl) {
+            // Безпечно форматуємо URL для відображення
+            let displayUrl = '';
             try {
                 const urlObj = new URL(safeUrl);
-
-                // Додаємо основні параметри
-                urlObj.searchParams.append('csrf_token', csrfToken);
-                urlObj.searchParams.append('task_id', task.id);
-                urlObj.searchParams.append('ts', Date.now());
-
-                safeUrl = urlObj.toString();
-
-                // Додаткова перевірка безпеки модифікованого URL
-                if (!isUrlSafe(safeUrl)) {
-                    throw new Error('Модифікований URL не пройшов перевірку безпеки');
-                }
+                displayUrl = urlObj.hostname;
             } catch (e) {
-                console.error('Помилка при додаванні параметрів до URL:', e);
-                showMessage('Не вдалося безпечно обробити URL партнера', 'error');
-                return;
+                displayUrl = 'partner-site';
             }
 
-            // Відкриваємо URL у новому вікні з налаштуваннями безпеки
-            const windowFeatures = 'noopener,noreferrer';
-            const newWindow = window.open(safeUrl, '_blank', windowFeatures);
-
-            // Додаткова перевірка, чи відкрилося нове вікно
-            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-                showMessage('Браузер заблокував спливаюче вікно. Дозвольте спливаючі вікна для цього сайту.', 'error');
-                return;
-            }
-
-            // Додаткова безпека - розриваємо зв'язок з відкритим вікном
-            newWindow.opener = null;
-
-            // Змінюємо відображення кнопок
-            if (taskElement) {
-                const actionContainer = taskElement.querySelector('.task-action');
-                if (actionContainer) {
-                    actionContainer.innerHTML = `
-                        <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>
-                    `;
-
-                    // Оновлюємо обробник
-                    const verifyBtn = actionContainer.querySelector('.verify-button');
-                    if (verifyBtn) {
-                        verifyBtn.addEventListener('click', function(event) {
-                            event.preventDefault();
-                            handleVerifyTask(task, taskElement);
-                        });
-                    }
-                }
-            }
-
-            // Викликаємо API для запуску завдання
-            if (window.TaskManager && window.TaskManager.startTask) {
-                window.TaskManager.startTask(task.id);
-            }
-
-            showMessage('Завдання розпочато! Виконайте необхідні дії на сайті партнера.', 'success');
-        }
-    } else {
-        // Якщо немає URL, просто запускаємо завдання
-        if (window.TaskManager && window.TaskManager.startTask) {
-            window.TaskManager.startTask(task.id);
-        }
-    }
-}
-
-/**
- * Обробник перевірки виконання завдання
- */
-export function handleVerifyTask(task, taskElement) {
-    // Оновлюємо відображення кнопки (показуємо індикатор завантаження)
-    if (taskElement) {
-        const actionContainer = taskElement.querySelector('.task-action');
-        if (actionContainer) {
-            actionContainer.innerHTML = `
-                <div class="loading-indicator">
-                    <div class="spinner"></div>
-                    <span data-lang-key="earn.verifying">Перевірка...</span>
-                </div>
+            const urlInfo = document.createElement('div');
+            urlInfo.className = 'partner-url-info';
+            urlInfo.innerHTML = `
+                <span class="partner-site-label">Сайт партнера:</span> 
+                <span class="partner-site-domain">${escapeHTML(displayUrl)}</span>
             `;
+
+            // Додаємо інформацію в кінець елемента
+            taskElement.appendChild(urlInfo);
         }
+
+        // Викликаємо базовий метод для встановлення статусу
+        super.enhanceTaskElement(taskElement, task, progress, options);
     }
 
-    // Викликаємо TaskManager для перевірки
-    if (window.TaskManager && window.TaskManager.verifyTask) {
-        window.TaskManager.verifyTask(task.id);
-    } else {
-        // Інакше симулюємо перевірку для демонстрації
-        setTimeout(() => {
-            const isSuccess = Math.random() > 0.2; // 80% успіху
+    /**
+     * Обробник запуску завдання
+     * @param {string} taskId - ID завдання
+     * @param {HTMLElement} taskElement - Елемент завдання
+     */
+    handleStartTask(taskId, taskElement) {
+        const task = {
+            id: taskId,
+            action_url: taskElement.dataset.actionUrl,
+            partner_name: taskElement.dataset.partnerName
+        };
 
-            if (isSuccess) {
-                // Відображаємо успішне виконання
-                if (taskElement) {
-                    taskElement.classList.add('completed');
+        // Показуємо підтвердження переходу на сайт партнера
+        if (task.action_url && task.partner_name) {
+            if (confirm(`Ви будете перенаправлені на сайт партнера "${task.partner_name || 'WINIX'}". Продовжити?`)) {
+                // Генеруємо CSRF токен
+                const csrfToken = generateCsrfToken(task.id);
 
-                    const actionContainer = taskElement.querySelector('.task-action');
-                    if (actionContainer) {
-                        actionContainer.innerHTML = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
+                // Додаємо CSRF токен до URL
+                let safeUrl = task.action_url;
+                try {
+                    const urlObj = new URL(safeUrl);
+
+                    // Додаємо основні параметри
+                    urlObj.searchParams.append('csrf_token', csrfToken);
+                    urlObj.searchParams.append('task_id', task.id);
+                    urlObj.searchParams.append('ts', Date.now());
+
+                    safeUrl = urlObj.toString();
+
+                    // Додаткова перевірка безпеки модифікованого URL
+                    if (!this.checkUrlSafety(safeUrl)) {
+                        throw new Error('Модифікований URL не пройшов перевірку безпеки');
                     }
+                } catch (e) {
+                    this.log('error', 'Помилка при додаванні параметрів до URL', { error: e });
+                    this.showErrorMessage('Не вдалося безпечно обробити URL партнера');
+                    return;
                 }
 
-                showMessage('Завдання успішно виконано!', 'success');
+                // Відкриваємо URL у новому вікні з налаштуваннями безпеки
+                const windowFeatures = 'noopener,noreferrer';
+                const newWindow = window.open(safeUrl, '_blank', windowFeatures);
 
-                // Симулюємо винагороду
-                const reward = {
-                    type: task.reward_type || 'tokens',
-                    amount: task.reward_amount || 50
-                };
-
-                // Показуємо анімацію винагороди
-                if (window.RewardBadge && window.RewardBadge.showAnimation) {
-                    window.RewardBadge.showAnimation(reward);
-                }
-            } else {
-                // Відображаємо помилку
-                if (taskElement) {
-                    const actionContainer = taskElement.querySelector('.task-action');
-                    if (actionContainer) {
-                        actionContainer.innerHTML = `
-                            <button class="action-button" data-action="start" data-task-id="${task.id}" data-lang-key="earn.retry">Спробувати знову</button>
-                            <button class="action-button verify-button" data-action="verify" data-task-id="${task.id}" data-lang-key="earn.verify">Перевірити</button>
-                        `;
-
-                        // Оновлюємо обробники
-                        setupActionButtons(taskElement, task, null);
-                    }
+                // Додаткова перевірка, чи відкрилося нове вікно
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    this.showErrorMessage('Браузер заблокував спливаюче вікно. Дозвольте спливаючі вікна для цього сайту.');
+                    return;
                 }
 
-                showMessage('Не вдалося перевірити виконання завдання', 'error');
+                // Додаткова безпека - розриваємо зв'язок з відкритим вікном
+                newWindow.opener = null;
+
+                // Змінюємо відображення кнопок
+                this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
+
+                // Викликаємо базовий метод для запуску завдання в API
+                super.handleStartTask(taskId, taskElement);
+
+                this.showSuccessMessage('Завдання розпочато! Виконайте необхідні дії на сайті партнера.');
             }
-        }, 1500);
-    }
-}
-
-/**
- * Генерація CSRF токену
- */
-export function generateCsrfToken(taskId) {
-    // Генеруємо випадковий токен
-    const token = generateRandomString(32);
-    const timestamp = Date.now();
-
-    // Зберігаємо токен
-    csrfTokens.set(taskId, {
-        token: token,
-        timestamp: timestamp,
-        expires: timestamp + (30 * 60 * 1000) // 30 хвилин
-    });
-
-    return token;
-}
-
-/**
- * Генерація випадкового рядка
- */
-export function generateRandomString(length) {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-
-    // Використовуємо криптографічно стійкий ГВЧ, якщо доступний
-    if (window.crypto && window.crypto.getRandomValues) {
-        const values = new Uint32Array(length);
-        window.crypto.getRandomValues(values);
-
-        for (let i = 0; i < length; i++) {
-            result += characters.charAt(values[i] % characters.length);
-        }
-    } else {
-        // Запасний варіант
-        for (let i = 0; i < length; i++) {
-            result += characters.charAt(Math.floor(Math.random() * characters.length));
-        }
-    }
-
-    return result;
-}
-
-/**
- * Перевірка безпеки URL
- */
-export function isUrlSafe(url) {
-    try {
-        // Перевірка, чи URL не порожній
-        if (!url || typeof url !== 'string') {
-            return false;
-        }
-
-        // Перевірка базового формату URL
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            return false;
-        }
-
-        // Перевірка на блоковані схеми
-        for (const scheme of BLOCKED_SCHEMES) {
-            if (url.toLowerCase().includes(scheme)) {
-                return false;
-            }
-        }
-
-        // Парсимо URL для аналізу домену
-        let urlObj;
-        try {
-            urlObj = new URL(url);
-        } catch (e) {
-            return false;
-        }
-
-        const domain = urlObj.hostname;
-
-        // Перевірка домену на основі білого списку
-        const isDomainAllowed = ALLOWED_DOMAINS.some(allowedDomain =>
-            domain === allowedDomain || domain.endsWith('.' + allowedDomain)
-        );
-
-        if (!isDomainAllowed) {
-            return false;
-        }
-
-        return true;
-    } catch (error) {
-        return false;
-    }
-}
-
-/**
- * Оновлення відображення конкретного завдання
- */
-export function refreshTaskDisplay(taskId) {
-    // Якщо є TaskManager, делегуємо обробку йому
-    if (window.TaskManager && window.TaskManager.refreshTaskDisplay) {
-        window.TaskManager.refreshTaskDisplay(taskId);
-        return;
-    }
-
-    // Інакше використовуємо локальне оновлення
-    const taskElement = taskElements.get(taskId);
-    if (!taskElement) return;
-
-    // Оновлюємо на основі даних прогресу
-    let progress = null;
-
-    if (window.TaskManager && window.TaskManager.getTaskProgress) {
-        progress = window.TaskManager.getTaskProgress(taskId);
-    }
-
-    const isCompleted = progress && progress.status === 'completed';
-
-    // Оновлюємо класи елемента
-    if (isCompleted) {
-        taskElement.classList.add('completed');
-    } else {
-        taskElement.classList.remove('completed');
-    }
-
-    // Оновлюємо елемент дій
-    const actionContainer = taskElement.querySelector('.task-action');
-    if (actionContainer) {
-        if (isCompleted) {
-            actionContainer.innerHTML = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
         } else {
-            // Отримуємо завдання
-            let task = null;
-
-            if (window.TaskManager && window.TaskManager.findTaskById) {
-                task = window.TaskManager.findTaskById(taskId);
-            }
-
-            if (!task) {
-                task = {
-                    id: taskId,
-                    partner_name: taskElement.dataset.partnerName,
-                    action_url: taskElement.dataset.actionUrl
-                };
-            }
-
-            // Встановлюємо нові кнопки дій
-            setupActionButtons(taskElement, task, progress);
+            // Якщо немає URL, просто запускаємо завдання
+            super.handleStartTask(taskId, taskElement);
         }
     }
 }
 
-/**
- * Показати повідомлення
- */
-function showMessage(message, type = 'info') {
-    // Використовуємо UI.Notifications, якщо доступний
-    if (window.UI && window.UI.Notifications) {
-        if (type === 'error') {
-            window.UI.Notifications.showError(message);
-        } else if (type === 'success') {
-            window.UI.Notifications.showSuccess(message);
-        } else {
-            window.UI.Notifications.showInfo(message);
-        }
-        return;
-    }
+// Створюємо єдиний екземпляр
+const partnerRenderer = new PartnerRenderer();
 
-    // Використовуємо showToast, якщо доступний
-    if (typeof window.showToast === 'function') {
-        window.showToast(message, type);
-        return;
-    }
-
-    // Інакше використовуємо стандартний alert
-    alert(message);
-}
-
-/**
- * Функція для безпечного виведення HTML
- */
-function escapeHtml(text) {
-    if (!text) return '';
-
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Створюємо об'єкт для експорту
-const PartnerRenderer = {
-    render,
-    refreshTaskDisplay,
-    isUrlSafe,
-    handleStartTask,
-    handleVerifyTask,
-    generateCsrfToken,
+// Для зворотної сумісності зі старим кодом
+window.PartnerRenderer = {
+    render: partnerRenderer.render.bind(partnerRenderer),
+    refreshTaskDisplay: partnerRenderer.refreshTaskDisplay.bind(partnerRenderer),
+    isUrlSafe: partnerRenderer.checkUrlSafety.bind(partnerRenderer),
+    handleStartTask: partnerRenderer.handleStartTask.bind(partnerRenderer),
+    handleVerifyTask: partnerRenderer.handleVerifyTask.bind(partnerRenderer),
+    generateCsrfToken: generateCsrfToken,
     ALLOWED_DOMAINS,
     BLOCKED_SCHEMES
 };
 
-// Для зворотної сумісності зі старим кодом
-window.PartnerRenderer = PartnerRenderer;
-
 // Експортуємо за замовчуванням
-export default PartnerRenderer;
+export default partnerRenderer;

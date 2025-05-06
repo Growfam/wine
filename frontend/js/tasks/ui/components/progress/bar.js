@@ -2,13 +2,13 @@
  * ProgressBar - оптимізований UI компонент для відображення прогрес-барів
  * Відповідає за:
  * - Ефективне відображення візуального прогресу
- * - Анімацію змін прогресу з мінімальним навантаженням
- * - Легкий API для інтеграції з будь-якими завданнями
+ * - Анімацію змін прогресу
+ * - API для інтеграції з завданнями
  *
  * @version 3.0.0
  */
 
-import DOMUtils from '../../utils/DOMUtils.js';
+import { injectStyles, addEvent, removeEvent, onDOMReady } from './utils.js';
 
 // Ініціалізуємо глобальний об'єкт UI, якщо його немає
 window.UI = window.UI || {};
@@ -16,8 +16,15 @@ window.UI = window.UI || {};
 // Колекція прогрес-барів з використанням Map для кращої продуктивності
 const progressBars = new Map();
 
-// Лічильник для генерації унікальних ID
-let barCounter = 0;
+// Кеш DOM-елементів
+const timerElements = new Map();
+
+// Стан модуля
+const state = {
+    timerIdCounter: 0,      // Лічильник для генерації ID таймерів
+    activeTimersCount: 0,   // Кількість активних таймерів
+    lastUpdateTime: 0       // Час останнього оновлення
+};
 
 // Налаштування за замовчуванням
 const config = {
@@ -30,14 +37,6 @@ const config = {
 
 // Прапорець активності модуля
 let isActive = false;
-
-// Зберігання посилань на обробники подій для подальшого очищення
-const eventHandlers = {
-    progressBarAdded: null,
-    progressUpdated: null,
-    beforeUnload: null,
-    domReady: null
-};
 
 /**
  * Ініціалізація модуля прогрес-барів
@@ -68,89 +67,6 @@ function init(options = {}) {
 }
 
 /**
- * Додавання CSS стилів для прогрес-барів
- */
-function injectStyles() {
-    // Оптимізований CSS з мінімальною кількістю правил
-    const css = `
-        /* Контейнер прогрес-бару */
-        .progress-bar-container {
-            width: 100%;
-            height: 0.625rem; /* 10px */
-            background: rgba(10, 20, 40, 0.2);
-            border-radius: 0.3125rem; /* 5px */
-            overflow: hidden;
-            position: relative;
-        }
-        
-        /* Заповнення прогрес-бару */
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4eb5f7, #00C9A7);
-            border-radius: 0.3125rem; /* 5px */
-            transition: width ${config.animationDuration}ms cubic-bezier(0.1, 0.8, 0.2, 1);
-            width: 0;
-        }
-        
-        /* Розміри */
-        .progress-bar-container.small {
-            height: 0.375rem; /* 6px */
-        }
-        
-        .progress-bar-container.large {
-            height: 0.875rem; /* 14px */
-        }
-        
-        /* Стилі */
-        .progress-bar-container.success .progress-bar-fill {
-            background: linear-gradient(90deg, #4CAF50, #2E7D32);
-        }
-        
-        .progress-bar-container.warning .progress-bar-fill {
-            background: linear-gradient(90deg, #FFC107, #FF9800);
-        }
-        
-        .progress-bar-container.danger .progress-bar-fill {
-            background: linear-gradient(90deg, #F44336, #D32F2F);
-        }
-        
-        /* Анімації */
-        @keyframes progress-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0.5); }
-            70% { box-shadow: 0 0 0 10px rgba(0, 201, 167, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(0, 201, 167, 0); }
-        }
-        
-        .progress-bar-fill.pulse {
-            animation: progress-pulse 1.2s ease-out;
-        }
-        
-        .progress-bar-fill.glow {
-            box-shadow: 0 0 8px rgba(0, 201, 167, 0.6);
-        }
-        
-        /* Текстові мітки */
-        .progress-text {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.875rem; /* 14px */
-            margin-bottom: 0.3125rem; /* 5px */
-        }
-        
-        .progress-label {
-            font-weight: bold;
-        }
-        
-        .progress-value {
-            opacity: 0.8;
-        }
-    `;
-
-    // Використовуємо DOMUtils для ін'єкції стилів
-    DOMUtils.injectStyles('progress-bar-styles', css);
-}
-
-/**
  * Ініціалізація існуючих прогрес-барів на сторінці
  */
 function initializeExistingProgressBars() {
@@ -178,7 +94,7 @@ function initializeExistingProgressBars() {
             }
 
             // Генеруємо ID
-            const id = ++barCounter;
+            const id = ++state.timerIdCounter;
             container.setAttribute('data-progress-id', id);
 
             // Зберігаємо прогрес-бар в колекції
@@ -198,29 +114,32 @@ function initializeExistingProgressBars() {
  * Налаштування обробників подій
  */
 function setupEventListeners() {
-    // Створюємо функції-обробники і зберігаємо посилання для подальшого видалення
-    eventHandlers.progressBarAdded = function(event) {
-        if (event.detail && event.detail.container) {
-            createProgressBar(event.detail.container, event.detail.options);
-        }
-    };
-
-    eventHandlers.progressUpdated = function(event) {
-        if (event.detail && event.detail.id) {
-            updateProgress(event.detail.id, event.detail.progress, event.detail.options);
-        }
-    };
-
-    eventHandlers.beforeUnload = cleanup;
-
     // Відстежуємо події додавання прогрес-барів
-    DOMUtils.addEvent(document, 'progress-bar-added', eventHandlers.progressBarAdded);
+    addEvent(document, 'progress-bar-added', handleProgressBarAdded);
 
     // Відстежуємо події оновлення прогресу
-    DOMUtils.addEvent(document, 'progress-updated', eventHandlers.progressUpdated);
+    addEvent(document, 'progress-updated', handleProgressUpdated);
 
     // Очищення ресурсів при виході зі сторінки
-    DOMUtils.addEvent(window, 'beforeunload', eventHandlers.beforeUnload);
+    addEvent(window, 'beforeunload', cleanup);
+}
+
+/**
+ * Обробник події додавання прогрес-бару
+ */
+function handleProgressBarAdded(event) {
+    if (event.detail && event.detail.container) {
+        createProgressBar(event.detail.container, event.detail.options);
+    }
+}
+
+/**
+ * Обробник події оновлення прогресу
+ */
+function handleProgressUpdated(event) {
+    if (event.detail && event.detail.id) {
+        updateProgress(event.detail.id, event.detail.progress, event.detail.options);
+    }
 }
 
 /**
@@ -273,7 +192,7 @@ function createProgressBar(container, options = {}) {
     }
 
     // Генеруємо новий ID
-    const id = ++barCounter;
+    const id = ++state.timerIdCounter;
 
     // Додаємо класи до контейнера
     containerElement.classList.add('progress-bar-container');
@@ -300,7 +219,7 @@ function createProgressBar(container, options = {}) {
         }
 
         textContainer.innerHTML = `
-            <span class="progress-label">${DOMUtils.escapeHTML(label)}</span>
+            <span class="progress-label">${escapeHTML(label)}</span>
             <span class="progress-value">${currentValue}/${maxValue}</span>
         `;
     }
@@ -525,24 +444,22 @@ function removeProgressBar(id) {
 }
 
 /**
+ * Функція для безпечного виведення HTML
+ */
+function escapeHTML(text) {
+    if (!text) return '';
+
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Очищення ресурсів модуля
  */
 function cleanup() {
     // Якщо модуль не активний, нічого не робимо
     if (!isActive) return;
-
-    // Видаляємо слухачі подій
-    if (eventHandlers.progressBarAdded) {
-        DOMUtils.removeEvent(document, 'progress-bar-added', eventHandlers.progressBarAdded);
-    }
-
-    if (eventHandlers.progressUpdated) {
-        DOMUtils.removeEvent(document, 'progress-updated', eventHandlers.progressUpdated);
-    }
-
-    if (eventHandlers.beforeUnload) {
-        DOMUtils.removeEvent(window, 'beforeunload', eventHandlers.beforeUnload);
-    }
 
     // Очищаємо DOM-зв'язки для уникнення витоків пам'яті
     progressBars.forEach((progressBar, id) => {
@@ -556,7 +473,7 @@ function cleanup() {
 
     // Очищаємо всі прогрес-бари
     progressBars.clear();
-    barCounter = 0;
+    state.timerIdCounter = 0;
 
     console.log('UI.ProgressBar: Ресурси модуля очищено');
 }
@@ -566,17 +483,17 @@ function cleanup() {
  * життєвого циклу компонента
  */
 function deactivate() {
+    // Видаляємо обробники подій
+    removeEvent(document, 'progress-bar-added', handleProgressBarAdded);
+    removeEvent(document, 'progress-updated', handleProgressUpdated);
+    removeEvent(window, 'beforeunload', cleanup);
+
+    // Очищаємо ресурси
     cleanup();
 
     // Встановлюємо прапорець деактивації
     const wasActive = isActive;
     isActive = false;
-
-    // Видаляємо стилі, якщо вони є
-    const stylesElement = document.getElementById('progress-bar-styles');
-    if (stylesElement) {
-        stylesElement.remove();
-    }
 
     // Сповіщаємо про деактивацію
     if (wasActive) {
@@ -587,13 +504,12 @@ function deactivate() {
 }
 
 // Ініціалізуємо модуль при завантаженні сторінки
-eventHandlers.domReady = function() {
+onDOMReady(function() {
     // Перевіряємо, чи не було запущено ініціалізацію раніше
     if (!isActive) {
         init();
     }
-};
-DOMUtils.onDOMReady(eventHandlers.domReady);
+});
 
 // Публічний API модуля
 const ProgressBar = {

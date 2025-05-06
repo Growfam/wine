@@ -4,8 +4,9 @@
  * - Ефективне форматування дат і часу
  * - Управління таймерами зворотного відліку
  * - Обробку відносного часу
+ * - Конвертацію дат для API
  *
- * @version 3.0.0
+ * @version 3.1.0
  */
 
 // Колекція таймерів з використанням Map для кращої продуктивності
@@ -27,7 +28,9 @@ const config = {
     updateInterval: 1000,       // Інтервал оновлення в мс
     autoCleanup: true,          // Автоматичне очищення таймерів
     useLocalTimezone: true,     // Використовувати локальний часовий пояс
-    adjustForTimezone: true     // Коригувати відображення за часовим поясом
+    adjustForTimezone: true,    // Коригувати відображення за часовим поясом
+    apiDateFormat: 'ISO',       // Формат дати для API (ISO, yyyy-mm-dd)
+    timeZoneHandling: 'utc'     // Обробка часових поясів (utc, local)
 };
 
 /**
@@ -634,10 +637,10 @@ export function parseDate(date) {
 
     // Якщо рядок
     if (typeof date === 'string') {
-        // Спочатку пробуємо стандартний парсинг
-        const parsedDate = new Date(date);
-        if (!isNaN(parsedDate.getTime())) {
-            return parsedDate;
+        // ISO формат
+        const isoDate = new Date(date);
+        if (!isNaN(isoDate.getTime())) {
+            return isoDate;
         }
 
         // Український формат дд.мм.рррр
@@ -798,10 +801,105 @@ export function updateSimpleTimerDisplay(element, endDate) {
     element.textContent = formatTimeLeft(timeLeft, 'short');
 }
 
+/**
+ * Форматування дати для API
+ * @param {Date|string|number} date - Дата для форматування
+ * @param {Object} options - Параметри форматування
+ * @returns {string} Відформатована дата для API
+ */
+export function formatDateForApi(date, options = {}) {
+    const {
+        format = config.apiDateFormat,
+        includeTime = true
+    } = options;
+
+    try {
+        // Конвертуємо вхідне значення у Date
+        const dateObj = parseDate(date);
+        if (!dateObj || isNaN(dateObj.getTime())) {
+            return null;
+        }
+
+        // ISO 8601 формат (найбільш універсальний)
+        if (format === 'ISO') {
+            return includeTime ? dateObj.toISOString() : dateObj.toISOString().split('T')[0];
+        }
+
+        // Власний формат (спрощена реалізація)
+        const padZero = (num) => String(num).padStart(2, '0');
+
+        const year = dateObj.getFullYear();
+        const month = padZero(dateObj.getMonth() + 1);
+        const day = padZero(dateObj.getDate());
+
+        let result = `${year}-${month}-${day}`;
+
+        if (includeTime) {
+            const hours = padZero(dateObj.getHours());
+            const minutes = padZero(dateObj.getMinutes());
+            const seconds = padZero(dateObj.getSeconds());
+            result += `T${hours}:${minutes}:${seconds}Z`;
+        }
+
+        return result;
+    } catch (error) {
+        console.error('TimeUtils: Помилка форматування дати для API:', error);
+        return null;
+    }
+}
+
+/**
+ * Обробка дати з API
+ * @param {string} apiDate - Дата з API
+ * @param {Object} options - Параметри обробки
+ * @returns {Date|null} Об'єкт Date або null
+ */
+export function parseApiDate(apiDate, options = {}) {
+    const {
+        adjustTimezone = true
+    } = options;
+
+    try {
+        if (!apiDate) return null;
+
+        // Створюємо об'єкт Date
+        const dateObj = new Date(apiDate);
+
+        // Перевіряємо валідність
+        if (isNaN(dateObj.getTime())) {
+            return null;
+        }
+
+        // Коригуємо часовий пояс, якщо потрібно
+        if (adjustTimezone && config.timeZoneHandling === 'utc') {
+            // Перетворюємо UTC до локального часу
+            const offset = new Date().getTimezoneOffset() * 60000;
+            return new Date(dateObj.getTime() - offset);
+        }
+
+        return dateObj;
+    } catch (error) {
+        console.error('TimeUtils: Помилка парсингу дати з API:', error);
+        return null;
+    }
+}
+
+/**
+ * Оновлення конфігурації модуля
+ * @param {Object} newConfig - Нові налаштування
+ * @returns {Object} Поточна конфігурація
+ */
+export function updateConfig(newConfig = {}) {
+    Object.assign(config, newConfig);
+    return { ...config };
+}
+
 export default {
     init,
     formatDate,
     formatTimeLeft,
+    formatDateForApi,
+    parseApiDate,
     createCountdown,
     createSimpleCountdown,
     stopCountdown,
@@ -814,5 +912,6 @@ export default {
     isExpired,
     isValidDate,
     isLeapYear,
+    updateConfig,
     cleanup
 };
