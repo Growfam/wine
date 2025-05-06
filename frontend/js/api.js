@@ -1,7 +1,7 @@
 /**
- * api.js - Єдиний модуль для всіх API-запитів WINIX
- * Оптимізована версія з простішою обробкою помилок
- * @version 2.1.0
+ * api.js - Основний модуль для загальних API-запитів WINIX
+ * Оптимізована версія з покращеною структурою та без логіки завдань
+ * @version 3.0.0
  */
 
 (function() {
@@ -9,30 +9,12 @@
     console.log("🔌 API: Ініціалізація API модуля");
 
     // ======== API-ШЛЯХИ ========
-
-    // Константи API-шляхів для централізованого управління
+    // Константи API-шляхів для централізованого управління (без задачних шляхів)
     const API_PATHS = {
-        // Завдання
-        TASKS: {
-            ALL: 'quests/tasks',
-            BY_TYPE: (type) => `quests/tasks/${type}`,
-            SOCIAL: 'quests/tasks/social',
-            LIMITED: 'quests/tasks/limited',
-            PARTNER: 'quests/tasks/partner',
-            REFERRAL: 'quests/tasks/referral',
-            DETAILS: (taskId) => `quests/tasks/${taskId}/details`,
-            START: (taskId) => `quests/tasks/${taskId}/start`,
-            VERIFY: (taskId) => `quests/tasks/${taskId}/verify`,
-            PROGRESS: (taskId) => `quests/tasks/${taskId}/progress`
-        },
-
         // Користувацькі шляхи
         USER: {
             DATA: (userId) => `user/${userId}`,
             BALANCE: (userId) => `user/${userId}/balance`,
-            TASKS: (userId) => `user/${userId}/tasks`,
-            PROGRESS: (userId) => `user/${userId}/progress`,
-            TASK_STATUS: (userId, taskId) => `user/${userId}/tasks/${taskId}/status`,
             SETTINGS: (userId) => `user/${userId}/settings`
         },
 
@@ -890,7 +872,7 @@
         // Конфігурація
         config: {
             baseUrl: API_BASE_URL,
-            version: '2.1.0',
+            version: '3.0.0',
             environment: API_BASE_URL.includes('localhost') ? 'development' : 'production'
         },
 
@@ -934,6 +916,19 @@
                     lastReset: Date.now()
                 };
                 return true;
+            },
+            clearCache: function() {
+                _userCache = null;
+                _userCacheTime = 0;
+                return true;
+            },
+            getConnectionState: function() {
+                return {
+                    online: typeof navigator.onLine !== 'undefined' ? navigator.onLine : true,
+                    baseUrl: API_BASE_URL,
+                    lastRequestTime: _requestCounter.lastReset,
+                    pendingRequests: _requestCounter.current
+                };
             }
         }
     };
