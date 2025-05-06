@@ -7,12 +7,41 @@
  * - Рендеринг специфічних елементів для лімітованих завдань
  */
 
-import TimeUtils from '../../utils/TimeUtils.js';
-import DOMUtils from '../../utils/DOMUtils.js';
-import TaskCard from '../components/task-card.js';
+import dependencyContainer from '../../utils/dependency-container.js';
 
 // Приватні змінні модуля
 const tasks = new Map(); // Зберігає посилання на активні завдання
+
+// Залежності
+let TimeUtils = null;
+let DOMUtils = null;
+let TaskCard = null;
+let taskSystem = null;
+let uiNotifications = null;
+
+/**
+ * Ініціалізація рендерера та отримання залежностей
+ */
+function initialize() {
+    // Отримуємо TimeUtils з контейнера залежностей
+    TimeUtils = dependencyContainer.resolve('TimeUtils');
+
+    // Отримуємо DOMUtils з контейнера залежностей
+    DOMUtils = dependencyContainer.resolve('DOMUtils');
+
+    // Отримуємо TaskCard з контейнера залежностей
+    TaskCard = dependencyContainer.resolve('TaskCard');
+
+    // Отримуємо TaskSystem з контейнера залежностей
+    taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                dependencyContainer.resolve('TaskManager');
+
+    // Отримуємо сервіс сповіщень
+    uiNotifications = dependencyContainer.resolve('UI.Notifications');
+
+    // Реєструємо себе в контейнері залежностей
+    dependencyContainer.register('LimitedRenderer', LimitedRenderer);
+}
 
 /**
  * Створення елементу лімітованого завдання
@@ -21,6 +50,11 @@ const tasks = new Map(); // Зберігає посилання на актив�
  * @returns {HTMLElement} DOM елемент завдання
  */
 export function render(task, progress) {
+    // Ініціалізуємо рендерер, якщо ще не зроблено
+    if (!TimeUtils || !DOMUtils) {
+        initialize();
+    }
+
     // Перевіряємо валідність даних
     if (!task || !task.id) {
         console.error('LimitedRenderer: Отримано некоректні дані завдання');
@@ -67,15 +101,28 @@ function createFallbackElement(task, progress) {
     taskElement.dataset.taskType = 'limited';
 
     // Наповнюємо базовим контентом
-    taskElement.innerHTML = `
-        <div class="task-header">
-            <div class="task-title">${DOMUtils.escapeHTML(task.title)}</div>
-            <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
-        </div>
-        <div class="task-description">${DOMUtils.escapeHTML(task.description)}</div>
-        <div class="task-progress-container"></div>
-        <div class="task-action"></div>
-    `;
+    if (DOMUtils && DOMUtils.escapeHTML) {
+        taskElement.innerHTML = `
+            <div class="task-header">
+                <div class="task-title">${DOMUtils.escapeHTML(task.title)}</div>
+                <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
+            </div>
+            <div class="task-description">${DOMUtils.escapeHTML(task.description)}</div>
+            <div class="task-progress-container"></div>
+            <div class="task-action"></div>
+        `;
+    } else {
+        // Якщо DOMUtils недоступний, створюємо простий варіант
+        taskElement.innerHTML = `
+            <div class="task-header">
+                <div class="task-title">${escapeHtml(task.title)}</div>
+                <div class="task-reward">${task.reward_amount} ${task.reward_type === 'tokens' ? '$WINIX' : 'жетонів'}</div>
+            </div>
+            <div class="task-description">${escapeHtml(task.description)}</div>
+            <div class="task-progress-container"></div>
+            <div class="task-action"></div>
+        `;
+    }
 
     // Додаємо клас для завершеного завдання
     if (isCompleted) {
@@ -93,8 +140,15 @@ function enhanceWithLimitedFeatures(taskElement, task, progress) {
     let isExpired = false;
 
     if (task.end_date) {
-        // Парсимо дату з використанням TimeUtils
-        const endDate = TimeUtils.parseDate(task.end_date);
+        let endDate;
+
+        // Парсимо дату з використанням TimeUtils, якщо доступний
+        if (TimeUtils && TimeUtils.parseDate) {
+            endDate = TimeUtils.parseDate(task.end_date);
+        } else {
+            // Запасний варіант
+            endDate = new Date(task.end_date);
+        }
 
         // Перевіряємо, чи не закінчився термін
         const now = new Date();
@@ -173,6 +227,18 @@ function initializeTimer(taskId, timerElement) {
     const endDate = timerElement.getAttribute('data-end-date');
     if (!endDate) return;
 
+    // Перевіряємо, чи доступний TimeUtils
+    if (!TimeUtils) {
+        // Спроба отримати з контейнера, якщо ще не отримано
+        TimeUtils = dependencyContainer.resolve('TimeUtils');
+
+        // Якщо все ще недоступний, виходимо
+        if (!TimeUtils) {
+            console.error('LimitedRenderer: TimeUtils недоступний для створення таймера');
+            return;
+        }
+    }
+
     // Функція, що викликається при закінченні часу
     const onTimerComplete = function() {
         const taskData = tasks.get(taskId);
@@ -195,7 +261,19 @@ function initializeTimer(taskId, timerElement) {
  * Оновлення відображення завдання
  */
 export function refreshTaskDisplay(taskId) {
-    // Якщо є TaskManager, делегуємо обробку йому
+    // Отримуємо TaskSystem з контейнера залежностей, якщо ще не отримано
+    if (!taskSystem) {
+        taskSystem = dependencyContainer.resolve('TaskSystem') ||
+                    dependencyContainer.resolve('TaskManager');
+    }
+
+    // Якщо є TaskSystem, делегуємо обробку йому
+    if (taskSystem && typeof taskSystem.refreshTaskDisplay === 'function') {
+        taskSystem.refreshTaskDisplay(taskId);
+        return;
+    }
+
+    // Якщо є TaskManager, делегуємо обробку йому (для зворотної сумісності)
     if (window.TaskManager && window.TaskManager.refreshTaskDisplay) {
         window.TaskManager.refreshTaskDisplay(taskId);
         return;
@@ -223,9 +301,65 @@ export function refreshTaskDisplay(taskId) {
 }
 
 /**
+ * Показати повідомлення про успіх
+ */
+function showSuccessMessage(message) {
+    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
+    if (!uiNotifications) {
+        uiNotifications = dependencyContainer.resolve('UI.Notifications');
+    }
+
+    if (uiNotifications && typeof uiNotifications.showSuccess === 'function') {
+        uiNotifications.showSuccess(message);
+    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showSuccess) {
+        window.UI.Notifications.showSuccess(message);
+    } else if (typeof window.showToast === 'function') {
+        window.showToast(message, 'success');
+    } else {
+        alert(message);
+    }
+}
+
+/**
+ * Показати повідомлення про помилку
+ */
+function showErrorMessage(message) {
+    // Отримуємо сервіс сповіщень з контейнера, якщо ще не отримано
+    if (!uiNotifications) {
+        uiNotifications = dependencyContainer.resolve('UI.Notifications');
+    }
+
+    if (uiNotifications && typeof uiNotifications.showError === 'function') {
+        uiNotifications.showError(message);
+    } else if (window.UI && window.UI.Notifications && window.UI.Notifications.showError) {
+        window.UI.Notifications.showError(message);
+    } else if (typeof window.showToast === 'function') {
+        window.showToast(message, 'error');
+    } else {
+        alert(message);
+    }
+}
+
+/**
+ * Функція для безпечного виведення HTML
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Очищення ресурсів
  */
 export function cleanup() {
+    // Отримуємо DOMUtils з контейнера залежностей, якщо ще не отримано
+    if (!DOMUtils) {
+        DOMUtils = dependencyContainer.resolve('DOMUtils');
+    }
+
     // Очищаємо таймери
     tasks.forEach((taskData) => {
         const timerElement = taskData.element.querySelector('.timer-value');
@@ -239,16 +373,25 @@ export function cleanup() {
 }
 
 // Підписуємося на подію виходу зі сторінки
-DOMUtils.addEvent(window, 'beforeunload', cleanup);
+if (DOMUtils && DOMUtils.addEvent) {
+    DOMUtils.addEvent(window, 'beforeunload', cleanup);
+} else {
+    // Запасний варіант
+    window.addEventListener('beforeunload', cleanup);
+}
 
 // Публічний API
 const LimitedRenderer = {
     render,
     refreshTaskDisplay,
-    cleanup
+    cleanup,
+    initialize
 };
 
 // Для зворотньої сумісності зі старим кодом
 window.LimitedRenderer = LimitedRenderer;
+
+// Автоматична ініціалізація при завантаженні модуля
+setTimeout(initialize, 0);
 
 export default LimitedRenderer;

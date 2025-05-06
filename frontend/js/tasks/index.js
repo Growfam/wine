@@ -19,6 +19,9 @@ import taskStore from './services/task-store.js';
 import taskVerification from './services/task-verification.js';
 import taskProgress from './services/task-progress.js';
 
+// Імпорт контейнера залежностей
+import dependencyContainer from '/utils/dependency-container.js';
+
 // Імпорт рендерерів (буде реалізовано пізніше)
 // import SocialRenderer from './ui/renderers/social-renderer.js';
 // import LimitedRenderer from './ui/renderers/limited-renderer.js';
@@ -33,10 +36,10 @@ class TaskSystem {
     this.version = '1.0.0';
 
     // Зберігаємо посилання на всі модулі та моделі
-    this.api = taskApi;
-    this.store = taskStore;
-    this.verification = taskVerification;
-    this.progress = taskProgress;
+    this.api = null;
+    this.store = null;
+    this.verification = null;
+    this.progress = null;
 
     // Моделі завдань
     this.models = {
@@ -48,6 +51,9 @@ class TaskSystem {
 
     // Типи та константи
     this.types = TaskTypes;
+
+    // Реєстрація в контейнері залежностей
+    dependencyContainer.register('TaskSystem', this);
   }
 
   /**
@@ -64,11 +70,28 @@ class TaskSystem {
     console.log('TaskSystem: Початок ініціалізації');
 
     try {
+      // Реєстрація основних модулів у контейнері залежностей
+      dependencyContainer
+        .register('taskApi', taskApi)
+        .register('taskStore', taskStore)
+        .register('taskVerification', taskVerification)
+        .register('taskProgress', taskProgress);
+
+      // Встановлення посилань на модулі
+      this.api = taskApi;
+      this.store = taskStore;
+      this.verification = taskVerification;
+      this.progress = taskProgress;
+
       // Ініціалізуємо сховище
-      this.store.initialize();
+      if (typeof this.store.initialize === 'function') {
+        this.store.initialize();
+      }
 
       // Ініціалізуємо модуль прогресу
-      this.progress.initialize();
+      if (typeof this.progress.initialize === 'function') {
+        this.progress.initialize();
+      }
 
       // Спробуємо завантажити завдання
       try {
@@ -114,6 +137,9 @@ class TaskSystem {
         version: this.version
       });
 
+      // Ін'єктуємо посилання на TaskSystem в інші модулі
+      this.injectSystemReference();
+
       console.log('TaskSystem: Ініціалізацію завершено успішно');
       return true;
     } catch (error) {
@@ -126,6 +152,19 @@ class TaskSystem {
 
       return false;
     }
+  }
+
+  /**
+   * Ін'єктування посилання на TaskSystem в інші модулі
+   */
+  injectSystemReference() {
+    const modules = [this.api, this.store, this.verification, this.progress];
+
+    modules.forEach(module => {
+      if (module && typeof module === 'object') {
+        module.taskSystem = this;
+      }
+    });
   }
 
   /**
@@ -309,6 +348,9 @@ class TaskSystem {
       userProgress: Object.keys(this.store.userProgress).length,
       api: {
         baseUrl: this.api.baseUrl
+      },
+      dependencies: {
+        registered: dependencyContainer.getRegisteredModules()
       }
     };
   }
@@ -366,5 +408,8 @@ window.TaskManager = {
   get initialized() { return taskSystem.initialized; },
   REWARD_TYPES: TaskTypes.REWARD_TYPES
 };
+
+// Реєструємо TaskManager у контейнері залежностей
+dependencyContainer.register('TaskManager', window.TaskManager);
 
 export default taskSystem;
