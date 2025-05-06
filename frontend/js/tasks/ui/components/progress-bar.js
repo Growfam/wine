@@ -28,12 +28,31 @@ const config = {
     useTransition: true         // Використовувати CSS-переходи для анімації
 };
 
+// Прапорець активності модуля
+let isActive = false;
+
+// Зберігання посилань на обробники подій для подальшого очищення
+const eventHandlers = {
+    progressBarAdded: null,
+    progressUpdated: null,
+    beforeUnload: null,
+    domReady: null
+};
+
 /**
  * Ініціалізація модуля прогрес-барів
  * @param {Object} options - Налаштування
  */
 function init(options = {}) {
+    // Якщо модуль вже активний, спочатку деактивуємо його
+    if (isActive) {
+        deactivate();
+    }
+
     console.log('UI.ProgressBar: Ініціалізація модуля прогрес-барів');
+
+    // Відмічаємо модуль як активний
+    isActive = true;
 
     // Оновлюємо налаштування
     Object.assign(config, options);
@@ -179,22 +198,29 @@ function initializeExistingProgressBars() {
  * Налаштування обробників подій
  */
 function setupEventListeners() {
-    // Відстежуємо події додавання прогрес-барів
-    DOMUtils.addEvent(document, 'progress-bar-added', function(event) {
+    // Створюємо функції-обробники і зберігаємо посилання для подальшого видалення
+    eventHandlers.progressBarAdded = function(event) {
         if (event.detail && event.detail.container) {
             createProgressBar(event.detail.container, event.detail.options);
         }
-    });
+    };
 
-    // Відстежуємо події оновлення прогресу
-    DOMUtils.addEvent(document, 'progress-updated', function(event) {
+    eventHandlers.progressUpdated = function(event) {
         if (event.detail && event.detail.id) {
             updateProgress(event.detail.id, event.detail.progress, event.detail.options);
         }
-    });
+    };
+
+    eventHandlers.beforeUnload = cleanup;
+
+    // Відстежуємо події додавання прогрес-барів
+    DOMUtils.addEvent(document, 'progress-bar-added', eventHandlers.progressBarAdded);
+
+    // Відстежуємо події оновлення прогресу
+    DOMUtils.addEvent(document, 'progress-updated', eventHandlers.progressUpdated);
 
     // Очищення ресурсів при виході зі сторінки
-    DOMUtils.addEvent(window, 'beforeunload', cleanup);
+    DOMUtils.addEvent(window, 'beforeunload', eventHandlers.beforeUnload);
 }
 
 /**
@@ -204,6 +230,12 @@ function setupEventListeners() {
  * @returns {number} ID прогрес-бару
  */
 function createProgressBar(container, options = {}) {
+    // Перевіряємо активність модуля
+    if (!isActive) {
+        console.warn('UI.ProgressBar: Модуль не активний. Спочатку викличте init()');
+        return -1;
+    }
+
     // Знаходимо контейнер
     let containerElement;
 
@@ -310,6 +342,12 @@ function createProgressBar(container, options = {}) {
  * @returns {boolean} Успішність оновлення
  */
 function updateProgress(id, progress, options = {}) {
+    // Перевіряємо активність модуля
+    if (!isActive) {
+        console.warn('UI.ProgressBar: Модуль не активний. Спочатку викличте init()');
+        return false;
+    }
+
     // Перевіряємо наявність прогрес-бару
     if (!progressBars.has(id)) {
         console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
@@ -428,6 +466,12 @@ function updateProgressBarClasses(container, progress) {
  * @returns {number} Прогрес (0-100)
  */
 function getProgress(id) {
+    // Перевіряємо активність модуля
+    if (!isActive) {
+        console.warn('UI.ProgressBar: Модуль не активний. Спочатку викличте init()');
+        return 0;
+    }
+
     if (!progressBars.has(id)) {
         console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
         return 0;
@@ -441,6 +485,7 @@ function getProgress(id) {
  * @returns {Map} Колекція прогрес-барів
  */
 function getAllProgressBars() {
+    // Повертаємо копію карти, а не оригінал
     return new Map(progressBars);
 }
 
@@ -450,6 +495,12 @@ function getAllProgressBars() {
  * @returns {boolean} Успішність видалення
  */
 function removeProgressBar(id) {
+    // Перевіряємо активність модуля
+    if (!isActive) {
+        console.warn('UI.ProgressBar: Модуль не активний. Спочатку викличте init()');
+        return false;
+    }
+
     if (!progressBars.has(id)) {
         console.warn(`UI.ProgressBar: Прогрес-бар з ID ${id} не знайдено`);
         return false;
@@ -477,6 +528,32 @@ function removeProgressBar(id) {
  * Очищення ресурсів модуля
  */
 function cleanup() {
+    // Якщо модуль не активний, нічого не робимо
+    if (!isActive) return;
+
+    // Видаляємо слухачі подій
+    if (eventHandlers.progressBarAdded) {
+        DOMUtils.removeEvent(document, 'progress-bar-added', eventHandlers.progressBarAdded);
+    }
+
+    if (eventHandlers.progressUpdated) {
+        DOMUtils.removeEvent(document, 'progress-updated', eventHandlers.progressUpdated);
+    }
+
+    if (eventHandlers.beforeUnload) {
+        DOMUtils.removeEvent(window, 'beforeunload', eventHandlers.beforeUnload);
+    }
+
+    // Очищаємо DOM-зв'язки для уникнення витоків пам'яті
+    progressBars.forEach((progressBar, id) => {
+        if (progressBar.container) {
+            progressBar.container.removeAttribute('data-progress-id');
+        }
+        // Явно знищуємо посилання на DOM-елементи
+        progressBar.container = null;
+        progressBar.fill = null;
+    });
+
     // Очищаємо всі прогрес-бари
     progressBars.clear();
     barCounter = 0;
@@ -484,8 +561,39 @@ function cleanup() {
     console.log('UI.ProgressBar: Ресурси модуля очищено');
 }
 
+/**
+ * Деактивація модуля - публічний метод для зовнішнього контролю
+ * життєвого циклу компонента
+ */
+function deactivate() {
+    cleanup();
+
+    // Встановлюємо прапорець деактивації
+    const wasActive = isActive;
+    isActive = false;
+
+    // Видаляємо стилі, якщо вони є
+    const stylesElement = document.getElementById('progress-bar-styles');
+    if (stylesElement) {
+        stylesElement.remove();
+    }
+
+    // Сповіщаємо про деактивацію
+    if (wasActive) {
+        document.dispatchEvent(new CustomEvent('progress-bar-deactivated'));
+    }
+
+    console.log('UI.ProgressBar: Модуль деактивовано');
+}
+
 // Ініціалізуємо модуль при завантаженні сторінки
-DOMUtils.onDOMReady(init);
+eventHandlers.domReady = function() {
+    // Перевіряємо, чи не було запущено ініціалізацію раніше
+    if (!isActive) {
+        init();
+    }
+};
+DOMUtils.onDOMReady(eventHandlers.domReady);
 
 // Публічний API модуля
 const ProgressBar = {
@@ -494,7 +602,10 @@ const ProgressBar = {
     updateProgress,
     getProgress,
     getAllProgressBars,
-    removeProgressBar
+    removeProgressBar,
+    cleanup,
+    deactivate,
+    isActive: () => isActive
 };
 
 // Експортуємо API

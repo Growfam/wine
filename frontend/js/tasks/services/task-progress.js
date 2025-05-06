@@ -13,6 +13,9 @@ import taskApi from './task-api.js';
 
 class TaskProgress {
   constructor() {
+    // Прапорець активності модуля
+    this.isActive = false;
+
     // Інтервали оновлення
     this.intervals = {
       progressUpdate: null
@@ -32,31 +35,81 @@ class TaskProgress {
 
     // Кеш останніх оновлень для запобігання дублікатам
     this.lastUpdates = new Map();
+
+    // Прив'язуємо обробники подій для збереження контексту this
+    this.handleTaskCompleted = this.handleTaskCompleted.bind(this);
+    this.handleProgressUpdated = this.handleProgressUpdated.bind(this);
+    this.handleTabSwitch = this.handleTabSwitch.bind(this);
+
+    // Зберігаємо стан реєстрації обробників
+    this.eventHandlersRegistered = false;
   }
 
   /**
    * Ініціалізація модуля
    */
   initialize() {
+    // Запобігаємо повторній ініціалізації
+    if (this.isActive) {
+      console.warn('TaskProgress: Сервіс вже ініціалізовано');
+      return;
+    }
+
+    // Встановлюємо прапорець активності
+    this.isActive = true;
+    console.log('TaskProgress: Ініціалізація сервісу управління прогресом');
+
     // Підписка на події
     this.setupEventListeners();
 
     // Запуск інтервалу відстеження прогресу
     this.startProgressTracking();
+
+    // Генеруємо подію про ініціалізацію
+    document.dispatchEvent(new CustomEvent('task-progress-initialized'));
   }
 
   /**
    * Встановлення слухачів подій
    */
   setupEventListeners() {
+    // Запобігаємо повторній реєстрації обробників
+    if (this.eventHandlersRegistered) {
+      return;
+    }
+
     // Підписка на подію завершення завдання
-    document.addEventListener('task-completed', this.handleTaskCompleted.bind(this));
+    document.addEventListener('task-completed', this.handleTaskCompleted);
 
     // Підписка на подію оновлення прогресу
-    document.addEventListener('task-progress-updated', this.handleProgressUpdated.bind(this));
+    document.addEventListener('task-progress-updated', this.handleProgressUpdated);
 
     // Підписка на подію зміни вкладки
-    document.addEventListener('tab-switched', this.handleTabSwitch.bind(this));
+    document.addEventListener('tab-switched', this.handleTabSwitch);
+
+    // Позначаємо, що обробники зареєстровані
+    this.eventHandlersRegistered = true;
+
+    console.log('TaskProgress: Обробники подій зареєстровано');
+  }
+
+  /**
+   * Видалення слухачів подій
+   */
+  removeEventListeners() {
+    if (!this.eventHandlersRegistered) {
+      return;
+    }
+
+    // Видаляємо всі обробники подій
+    document.removeEventListener('task-completed', this.handleTaskCompleted);
+    document.removeEventListener('task-progress-updated', this.handleProgressUpdated);
+    document.removeEventListener('tab-switched', this.handleTabSwitch);
+
+    // Позначаємо, що обробники видалені
+    this.eventHandlersRegistered = false;
+
+    console.log('TaskProgress: Обробники подій видалено');
   }
 
   /**
@@ -70,8 +123,12 @@ class TaskProgress {
 
     // Запускаємо інтервал оновлення прогресу
     this.intervals.progressUpdate = setInterval(() => {
-      this.updateAllTasksProgress();
+      if (this.isActive) {
+        this.updateAllTasksProgress();
+      }
     }, CONFIG.PROGRESS_UPDATE_INTERVAL);
+
+    console.log(`TaskProgress: Запущено відстеження прогресу (інтервал: ${CONFIG.PROGRESS_UPDATE_INTERVAL}мс)`);
   }
 
   /**
@@ -88,6 +145,8 @@ class TaskProgress {
       clearInterval(this.intervals.progressUpdate);
       this.intervals.progressUpdate = null;
     }
+
+    console.log('TaskProgress: Зупинено відстеження прогресу');
   }
 
   /**
@@ -95,6 +154,9 @@ class TaskProgress {
    * @param {CustomEvent} event - Подія
    */
   handleTaskCompleted(event) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     const { taskId, reward } = event.detail;
 
     // Отримуємо цільове значення
@@ -123,6 +185,9 @@ class TaskProgress {
    * @param {CustomEvent} event - Подія
    */
   handleProgressUpdated(event) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     const { taskId, progressData } = event.detail;
 
     // Оновлюємо прогрес у сховищі
@@ -146,6 +211,9 @@ class TaskProgress {
    * @param {CustomEvent} event - Подія
    */
   handleTabSwitch(event) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     const { to } = event.detail;
 
     // Очищаємо список відстежуваних завдань
@@ -161,6 +229,9 @@ class TaskProgress {
    * Оновлення прогресу для всіх завдань
    */
   updateAllTasksProgress() {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     // Оновлюємо прогрес для всіх відстежуваних завдань
     this.tracking.trackedTasks.forEach(taskId => {
       this.checkTaskProgress(taskId);
@@ -171,6 +242,9 @@ class TaskProgress {
    * Оновлення прогресу для видимих завдань
    */
   updateVisibleTasksProgress() {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     // Знаходимо всі видимі завдання
     document.querySelectorAll('.task-item:not(.completed)').forEach(taskElement => {
       const taskId = taskElement.getAttribute('data-task-id');
@@ -189,6 +263,9 @@ class TaskProgress {
    * @param {string} taskId - ID завдання
    */
   checkTaskProgress(taskId) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) return;
+
     // Отримуємо поточний прогрес
     const progress = taskStore.getTaskProgress(taskId);
 
@@ -269,6 +346,12 @@ class TaskProgress {
    * @returns {boolean} Результат оновлення
    */
   updateTaskProgress(taskId, progressData) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) {
+      console.warn('TaskProgress: Сервіс не активний');
+      return false;
+    }
+
     // Перевіряємо валідність даних
     if (!taskId || !progressData) {
       console.warn('TaskProgress: Некоректні дані прогресу');
@@ -344,6 +427,12 @@ class TaskProgress {
    * @returns {boolean} Результат операції
    */
   resetTaskProgress(taskId) {
+    // Перевіряємо активність модуля
+    if (!this.isActive) {
+      console.warn('TaskProgress: Сервіс не активний');
+      return false;
+    }
+
     // Скидаємо прогрес у сховищі
     taskStore.setTaskProgress(taskId, {
       status: TASK_STATUS.PENDING,
@@ -525,6 +614,12 @@ class TaskProgress {
    * Скидання стану модуля
    */
   resetState() {
+    // Перевіряємо активність модуля
+    if (!this.isActive) {
+      console.warn('TaskProgress: Сервіс не активний');
+      return;
+    }
+
     // Зупиняємо відстеження
     this.stopProgressTracking();
 
@@ -536,6 +631,65 @@ class TaskProgress {
 
     // Запускаємо відстеження знову
     this.startProgressTracking();
+
+    console.log('TaskProgress: Стан сервісу скинуто');
+  }
+
+  /**
+   * Повне очищення ресурсів сервісу
+   */
+  destroy() {
+    // Зупиняємо відстеження
+    this.stopProgressTracking();
+
+    // Видаляємо всі слухачі подій
+    this.removeEventListeners();
+
+    // Очищаємо всі колекції
+    this.tracking.trackedTasks.clear();
+    this.lastUpdates.clear();
+
+    // Очищаємо всі слухачі внутрішніх подій
+    this.listeners.onProgressUpdate.clear();
+    this.listeners.onTaskCompleted.clear();
+
+    // Встановлюємо прапорець деактивації
+    this.isActive = false;
+
+    // Генеруємо подію про деактивацію
+    document.dispatchEvent(new CustomEvent('task-progress-destroyed'));
+
+    console.log('TaskProgress: Ресурси сервісу повністю очищено');
+  }
+
+  /**
+   * Призупинення роботи сервісу без повного видалення
+   */
+  pause() {
+    // Перевіряємо активність модуля
+    if (!this.isActive) {
+      console.warn('TaskProgress: Сервіс не активний');
+      return;
+    }
+
+    // Зупиняємо інтервали і відстеження
+    this.stopProgressTracking();
+    console.log('TaskProgress: Сервіс призупинено');
+  }
+
+  /**
+   * Відновлення роботи сервісу
+   */
+  resume() {
+    // Перевіряємо активність модуля
+    if (!this.isActive) {
+      this.initialize();
+      return;
+    }
+
+    // Відновлюємо роботу інтервалів
+    this.startProgressTracking();
+    console.log('TaskProgress: Сервіс відновлено');
   }
 }
 
