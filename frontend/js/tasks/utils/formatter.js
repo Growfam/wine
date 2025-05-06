@@ -9,7 +9,7 @@
  * @version 3.0.0
  */
 
-import TimeUtils from './TimeUtils.js';
+import TimeUtils from './time.js';
 
 window.Formatters = (function() {
     // Кеш форматтерів для оптимізації

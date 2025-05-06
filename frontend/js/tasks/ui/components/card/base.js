@@ -2,16 +2,14 @@
  * TaskCard.base - базовий компонент для відображення картки завдання
  *
  * Відповідає за:
- * - Відображення спільних елементів для всіх типів завдань
- * - Створення та рендеринг основної структури картки
- * - Оновлення відображення статусу та стану
+ * - Рендеринг структури картки завдання
+ * - Управління візуальним станом картки
+ * - Оновлення елементів інтерфейсу
  */
 
-// Імпорт залежностей
-import taskActions from './actions.js';
 import dependencyContainer from '../../../utils/dependency-container.js';
 
-// DOM шаблон для карточки завдання
+// Шаблон для карточки завдання
 const TEMPLATE = `
     <div class="task-header">
         <div class="task-title"></div>
@@ -21,6 +19,17 @@ const TEMPLATE = `
     <div class="task-progress-container"></div>
     <div class="task-action"></div>
 `;
+
+// Статуси завдань
+export const TASK_STATUS = {
+    IDLE: 'idle',                 // Початковий стан
+    LOADING: 'loading',           // Завантаження/обробка
+    COMPLETED: 'completed',       // Завершено
+    ERROR: 'error',               // Помилка
+    IN_PROGRESS: 'in-progress',   // В процесі виконання
+    READY_TO_VERIFY: 'ready-to-verify', // Готове до перевірки
+    EXPIRED: 'expired'            // Термін дії завдання минув
+};
 
 /**
  * Створення базової картки завдання
@@ -35,7 +44,7 @@ export function create(task, progress, options = {}) {
         return document.createElement('div');
     }
 
-    const isCompleted = progress && progress.status === 'completed';
+    // Створюємо основний елемент
     const taskElement = document.createElement('div');
     taskElement.className = 'task-item';
     taskElement.dataset.taskId = task.id;
@@ -44,27 +53,27 @@ export function create(task, progress, options = {}) {
     // Додаємо базову структуру
     taskElement.innerHTML = TEMPLATE;
 
-    // Заповнюємо основні елементи
-    fillTaskContent(taskElement, task, progress, options);
+    // Заповнюємо вміст
+    fillTaskContent(taskElement, task, progress);
 
-    // Налаштовуємо статус, класи та обробники подій
+    // Налаштовуємо статус
     setupTaskStatus(taskElement, task, progress);
 
-    // Додаємо атрибути з опцій
+    // Додаємо користувацькі класи
     if (options.customClass) {
         taskElement.classList.add(options.customClass);
     }
-
-    // Налаштовуємо кнопки дій
-    taskActions.setupActionButtons(taskElement, task, progress, options);
 
     return taskElement;
 }
 
 /**
  * Заповнення контенту картки завдання
+ * @param {HTMLElement} taskElement - Елемент завдання
+ * @param {Object} task - Дані завдання
+ * @param {Object} progress - Прогрес виконання
  */
-function fillTaskContent(taskElement, task, progress, options) {
+function fillTaskContent(taskElement, task, progress) {
     // Заголовок
     const titleElement = taskElement.querySelector('.task-title');
     if (titleElement) {
@@ -101,21 +110,27 @@ function fillTaskContent(taskElement, task, progress, options) {
 
 /**
  * Відображення прогресу завдання
+ * @param {HTMLElement} container - Контейнер для прогресу
+ * @param {Object} task - Дані завдання
+ * @param {Object} progress - Прогрес виконання
  */
 function renderTaskProgress(container, task, progress) {
-    // Отримуємо сервіс прогресу
+    // Спроба використати TaskProgress, якщо доступний
     const TaskProgress = dependencyContainer.resolve('TaskProgress');
 
     if (TaskProgress && typeof TaskProgress.render === 'function') {
         TaskProgress.render(container, task, progress);
     } else {
-        // Запасний варіант, якщо сервіс недоступний
+        // Запасний варіант візуалізації прогресу
         renderDefaultProgress(container, task, progress);
     }
 }
 
 /**
  * Запасний варіант відображення прогресу
+ * @param {HTMLElement} container - Контейнер для прогресу
+ * @param {Object} task - Дані завдання
+ * @param {Object} progress - Прогрес виконання
  */
 function renderDefaultProgress(container, task, progress) {
     const currentValue = progress?.progress_value || 0;
@@ -134,6 +149,9 @@ function renderDefaultProgress(container, task, progress) {
 
 /**
  * Налаштування статусу картки завдання
+ * @param {HTMLElement} taskElement - Елемент завдання
+ * @param {Object} task - Завдання
+ * @param {Object} progress - Прогрес
  */
 function setupTaskStatus(taskElement, task, progress) {
     // Визначаємо статус завдання
@@ -155,28 +173,33 @@ function setupTaskStatus(taskElement, task, progress) {
 
 /**
  * Оновлення статусу картки завдання
+ * @param {HTMLElement} taskElement - Елемент завдання
+ * @param {string} status - Новий статус
  */
 export function updateStatus(taskElement, status) {
     if (!taskElement) return;
 
-    const statusClasses = ['loading', 'completed', 'error', 'in-progress', 'ready-to-verify', 'expired'];
+    // Список всіх можливих статусів
+    const statusClasses = [
+        'loading', 'completed', 'error',
+        'in-progress', 'ready-to-verify', 'expired'
+    ];
 
     // Видаляємо всі статусні класи
     statusClasses.forEach(cls => {
         taskElement.classList.remove(cls);
     });
 
-    // Додаємо відповідний клас
+    // Додаємо новий клас статусу
     if (status) {
         taskElement.classList.add(status);
     }
-
-    // Оновлюємо вміст елементу дій
-    taskActions.updateActionStatus(taskElement, status);
 }
 
 /**
- * Функція для безпечного виведення HTML
+ * Безпечне представлення HTML
+ * @param {string} text - Текст для обробки
+ * @returns {string} Безпечний HTML
  */
 export function escapeHtml(text) {
     if (!text) return '';
@@ -184,15 +207,6 @@ export function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-}
-
-/**
- * Створення списку класів для картки
- * @param {Array} classes - Масив класів
- * @returns {string} Рядок класів
- */
-export function createClassList(classes = []) {
-    return classes.filter(Boolean).join(' ');
 }
 
 /**
@@ -237,14 +251,14 @@ export function updateTaskDescription(taskElement, description) {
     }
 }
 
-// Експорт за замовчуванням для зворотної сумісності
+// Експорт API модуля
 export default {
     create,
     updateStatus,
     escapeHtml,
-    createClassList,
     getTaskElementById,
     isTaskRendered,
     updateTaskTitle,
-    updateTaskDescription
+    updateTaskDescription,
+    TASK_STATUS
 };

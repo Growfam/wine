@@ -1,16 +1,14 @@
 /**
- * PartnerRenderer - рендерер для партнерських завдань
+ * Partner - рендерер для партнерських завдань
  *
  * Відповідає за:
  * - Безпечне відображення партнерських завдань
  * - Інтеграцію з CSRF захистом для партнерських переходів
  * - Безпечну обробку партнерських посилань
- * @version 4.0.0
+ * @version 4.1.0
  */
 
-import BaseRenderer, { TASK_STATUS } from './common/base-renderer.js';
-import { isUrlSafe, escapeHTML, generateCsrfToken } from './common/utils.js';
-import dependencyContainer from '../../utils/dependency-container.js';
+import { BaseRenderer, TASK_STATUS } from '/base.js';
 
 // Налаштування безпеки для партнерських доменів
 export const ALLOWED_DOMAINS = [
@@ -37,14 +35,56 @@ export const BLOCKED_SCHEMES = [
 ];
 
 /**
+ * Генерація CSRF токена для партнерського завдання
+ * @param {string} taskId - ID завдання
+ * @returns {string} CSRF токен
+ */
+export function generateCsrfToken(taskId) {
+    // Проста реалізація генерації токена
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 10);
+    return `${taskId}_${timestamp}_${random}`;
+}
+
+/**
+ * Перевірка безпеки URL
+ * @param {string} url - URL для перевірки
+ * @param {Array} allowedDomains - Дозволені домени
+ * @returns {boolean} Результат перевірки
+ */
+export function isUrlSafe(url, allowedDomains = ALLOWED_DOMAINS) {
+    try {
+        // Перевіряємо, чи URL не пустий
+        if (!url) return false;
+
+        // Створюємо об'єкт URL для аналізу
+        const urlObj = new URL(url);
+
+        // Перевіряємо схему
+        if (BLOCKED_SCHEMES.includes(urlObj.protocol.toLowerCase())) {
+            return false;
+        }
+
+        // Перевіряємо домен
+        const domain = urlObj.hostname.toLowerCase();
+        return allowedDomains.some(allowed =>
+            domain === allowed || domain.endsWith(`.${allowed}`)
+        );
+    } catch (error) {
+        // Якщо URL невалідний, повертаємо false
+        return false;
+    }
+}
+
+/**
  * Рендерер для партнерських завдань
  */
-class PartnerRenderer extends BaseRenderer {
+class Partner extends BaseRenderer {
     /**
-     * Створення екземпляру PartnerRenderer
+     * Створення екземпляру Partner
      */
     constructor() {
-        super('PartnerRenderer');
+        super('Partner');
     }
 
     /**
@@ -80,22 +120,13 @@ class PartnerRenderer extends BaseRenderer {
         // Перевіряємо URL на безпеку
         let safeUrl = null;
         if (task.action_url) {
-            safeUrl = this.checkUrlSafety(task.action_url) ? task.action_url : null;
+            safeUrl = isUrlSafe(task.action_url) ? task.action_url : null;
         }
 
         // Якщо є безпечний URL, додаємо його
         if (safeUrl) {
             taskElement.dataset.actionUrl = safeUrl;
         }
-    }
-
-    /**
-     * Перевірка безпеки URL для партнерських завдань
-     * @param {string} url - URL для перевірки
-     * @returns {boolean} Результат перевірки
-     */
-    checkUrlSafety(url) {
-        return isUrlSafe(url, ALLOWED_DOMAINS);
     }
 
     /**
@@ -110,7 +141,7 @@ class PartnerRenderer extends BaseRenderer {
         if (task.partner_name) {
             const partnerLabel = document.createElement('div');
             partnerLabel.className = 'partner-label';
-            partnerLabel.textContent = `Партнер: ${escapeHTML(task.partner_name)}`;
+            partnerLabel.textContent = `Партнер: ${this.escapeHTML(task.partner_name)}`;
 
             // Додаємо мітку на початок елемента
             if (taskElement.firstChild) {
@@ -123,7 +154,7 @@ class PartnerRenderer extends BaseRenderer {
         // Перевіряємо URL на безпеку
         let safeUrl = null;
         if (task.action_url) {
-            safeUrl = this.checkUrlSafety(task.action_url) ? task.action_url : null;
+            safeUrl = isUrlSafe(task.action_url) ? task.action_url : null;
         }
 
         // Додаємо інформацію про URL, якщо він безпечний
@@ -141,7 +172,7 @@ class PartnerRenderer extends BaseRenderer {
             urlInfo.className = 'partner-url-info';
             urlInfo.innerHTML = `
                 <span class="partner-site-label">Сайт партнера:</span> 
-                <span class="partner-site-domain">${escapeHTML(displayUrl)}</span>
+                <span class="partner-site-domain">${this.escapeHTML(displayUrl)}</span>
             `;
 
             // Додаємо інформацію в кінець елемента
@@ -183,7 +214,7 @@ class PartnerRenderer extends BaseRenderer {
                     safeUrl = urlObj.toString();
 
                     // Додаткова перевірка безпеки модифікованого URL
-                    if (!this.checkUrlSafety(safeUrl)) {
+                    if (!isUrlSafe(safeUrl)) {
                         throw new Error('Модифікований URL не пройшов перевірку безпеки');
                     }
                 } catch (e) {
@@ -218,22 +249,21 @@ class PartnerRenderer extends BaseRenderer {
             super.handleStartTask(taskId, taskElement);
         }
     }
+
+    /**
+     * Функція для безпечного виведення HTML
+     * @param {string} text - Текст для обробки
+     * @returns {string} Безпечний HTML
+     */
+    escapeHTML(text) {
+        if (!text) return '';
+
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 }
 
 // Створюємо єдиний екземпляр
-const partnerRenderer = new PartnerRenderer();
-
-// Для зворотної сумісності зі старим кодом
-window.PartnerRenderer = {
-    render: partnerRenderer.render.bind(partnerRenderer),
-    refreshTaskDisplay: partnerRenderer.refreshTaskDisplay.bind(partnerRenderer),
-    isUrlSafe: partnerRenderer.checkUrlSafety.bind(partnerRenderer),
-    handleStartTask: partnerRenderer.handleStartTask.bind(partnerRenderer),
-    handleVerifyTask: partnerRenderer.handleVerifyTask.bind(partnerRenderer),
-    generateCsrfToken: generateCsrfToken,
-    ALLOWED_DOMAINS,
-    BLOCKED_SCHEMES
-};
-
-// Експортуємо за замовчуванням
+const partnerRenderer = new Partner();
 export default partnerRenderer;

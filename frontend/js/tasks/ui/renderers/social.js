@@ -1,15 +1,15 @@
 /**
- * SocialRenderer - рендерер для соціальних завдань
+ * Social - рендерер для соціальних завдань
  *
  * Відповідає за:
  * - Відображення соціальних завдань
- * - Інтеграцію з системою перевірки соціальних мереж
  * - Оптимізоване відображення для високої продуктивності
+ * - Взаємодію з системою перевірки соціальних мереж
+ *
  * @version 4.0.0
  */
 
-import BaseRenderer, { TASK_STATUS } from './common/base-renderer.js';
-import { detectNetworkType, escapeHTML, isUrlSafe } from './common/utils.js';
+import BaseRenderer, { TASK_STATUS } from './base.js';
 import dependencyContainer from '../../utils/dependency-container.js';
 
 // Типи соціальних мереж
@@ -26,20 +26,111 @@ export const SOCIAL_NETWORKS = {
 };
 
 /**
+ * Визначення типу соціальної мережі за URL
+ * @param {string} url - URL для аналізу
+ * @returns {string|null} Тип соціальної мережі або null
+ */
+export function detectNetworkType(url) {
+    if (!url) return null;
+
+    // Нормалізуємо URL
+    const normalizedUrl = url.toLowerCase();
+
+    // Визначаємо тип мережі за доменом
+    if (normalizedUrl.includes('t.me') || normalizedUrl.includes('telegram')) {
+        return SOCIAL_NETWORKS.TELEGRAM;
+    }
+    if (normalizedUrl.includes('twitter') || normalizedUrl.includes('x.com')) {
+        return SOCIAL_NETWORKS.TWITTER;
+    }
+    if (normalizedUrl.includes('facebook') || normalizedUrl.includes('fb.com')) {
+        return SOCIAL_NETWORKS.FACEBOOK;
+    }
+    if (normalizedUrl.includes('instagram')) {
+        return SOCIAL_NETWORKS.INSTAGRAM;
+    }
+    if (normalizedUrl.includes('discord')) {
+        return SOCIAL_NETWORKS.DISCORD;
+    }
+    if (normalizedUrl.includes('youtube') || normalizedUrl.includes('youtu.be')) {
+        return SOCIAL_NETWORKS.YOUTUBE;
+    }
+    if (normalizedUrl.includes('tiktok')) {
+        return SOCIAL_NETWORKS.TIKTOK;
+    }
+    if (normalizedUrl.includes('linkedin')) {
+        return SOCIAL_NETWORKS.LINKEDIN;
+    }
+    if (normalizedUrl.includes('reddit')) {
+        return SOCIAL_NETWORKS.REDDIT;
+    }
+
+    return null;
+}
+
+/**
+ * Перевірка безпеки URL
+ * @param {string} url - URL для перевірки
+ * @returns {boolean} Чи є URL безпечним
+ */
+export function isUrlSafe(url) {
+    if (!url) return false;
+
+    try {
+        const urlObj = new URL(url);
+
+        // Перевіряємо протокол
+        if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+            return false;
+        }
+
+        // Перевіряємо на відомі небезпечні домени
+        const blockedDomains = [
+            'evil.com',
+            'malware.com',
+            'phishing.com'
+        ];
+
+        for (const domain of blockedDomains) {
+            if (urlObj.hostname.includes(domain)) {
+                return false;
+            }
+        }
+
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * Екранування HTML для безпечного відображення
+ * @param {string} text - Текст для екранування
+ * @returns {string} Екранований текст
+ */
+export function escapeHTML(text) {
+    if (!text) return '';
+
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
  * Рендерер для соціальних завдань
  */
-class SocialRenderer extends BaseRenderer {
+class Social extends BaseRenderer {
     /**
-     * Створення екземпляру SocialRenderer
+     * Створення екземпляру Social
      */
     constructor() {
         super('SocialRenderer');
     }
 
     /**
-     * Отримання опцій для TaskCard
+     * Отримання опцій для рендерингу
      * @param {Object} task - Завдання
-     * @returns {Object} Опції для TaskCard
+     * @returns {Object} Опції для рендерингу
      */
     getTaskCardOptions(task) {
         // Визначаємо тип соціальної мережі
@@ -119,8 +210,13 @@ class SocialRenderer extends BaseRenderer {
                 <span class="social-site-domain">${escapeHTML(displayUrl)}</span>
             `;
 
-            // Додаємо інформацію після кнопок дій
-            taskElement.appendChild(infoElement);
+            // Додаємо інформацію після опису завдання
+            const descriptionElement = taskElement.querySelector('.task-description');
+            if (descriptionElement) {
+                descriptionElement.parentNode.insertBefore(infoElement, descriptionElement.nextSibling);
+            } else {
+                taskElement.appendChild(infoElement);
+            }
         }
 
         // Викликаємо базовий метод для встановлення статусу
@@ -183,20 +279,25 @@ class SocialRenderer extends BaseRenderer {
 }
 
 // Створюємо єдиний екземпляр
-const socialRenderer = new SocialRenderer();
+const socialRenderer = new Social();
 
-// Для зворотної сумісності зі старим кодом
-window.SocialRenderer = {
-    render: socialRenderer.render.bind(socialRenderer),
-    refreshTaskDisplay: socialRenderer.refreshTaskDisplay.bind(socialRenderer),
-    refreshAllTasks: socialRenderer.refreshAllTasks.bind(socialRenderer),
-    updateTaskStatus: socialRenderer.updateTaskStatus.bind(socialRenderer),
-    detectNetworkType: detectNetworkType,
-    validateSocialUrl: socialRenderer.validateSocialUrl.bind(socialRenderer),
+// Створюємо об'єкт для зворотної сумісності
+const legacyAPI = {
+    render: (...args) => socialRenderer.render(...args),
+    refreshTaskDisplay: (...args) => socialRenderer.refreshTaskDisplay(...args),
+    refreshAllTasks: (...args) => socialRenderer.refreshAllTasks(...args),
+    updateTaskStatus: (...args) => socialRenderer.updateTaskStatus(...args),
+    detectNetworkType,
+    validateSocialUrl: (...args) => socialRenderer.validateSocialUrl(...args),
     SOCIAL_NETWORKS,
     STATUS: TASK_STATUS,
-    initialize: socialRenderer.initialize.bind(socialRenderer)
+    initialize: (...args) => socialRenderer.initialize(...args)
 };
+
+// Експортуємо для зворотної сумісності
+if (typeof window !== 'undefined') {
+    window.SocialRenderer = legacyAPI;
+}
 
 // Експортуємо за замовчуванням
 export default socialRenderer;
