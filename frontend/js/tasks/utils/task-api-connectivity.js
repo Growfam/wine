@@ -1,5 +1,5 @@
 /**
- * APIConnectivity - модуль для надійної взаємодії з API
+ * APICore - базовий модуль для роботи з API
  *
  * Відповідає за:
  * - Перевірку доступності API та стабільності з'єднання
@@ -7,14 +7,14 @@
  * - Кешування відповідей
  * - Уніфіковану обробку помилок
  *
- * @version 3.2.0
+ * @version 4.0.0
  */
 
-import errorHandler, { ERROR_LEVELS, ERROR_CATEGORIES } from './error-handler.js';
+import errorHandler, { ERROR_CATEGORIES } from './error-handler.js';
 import cacheService from './CacheService.js';
 
 // Створюємо обробник помилок для модуля
-const moduleErrors = errorHandler.createModuleHandler('APIConnectivity');
+const moduleErrors = errorHandler.createModuleHandler('APICore');
 
 // Таймери для очищення
 const timers = {
@@ -128,8 +128,8 @@ function scheduleCleanup() {
         }
 
         timers.cacheCleanup = setInterval(() => {
-            // Замість власної реалізації використовуємо функцію очищення CacheService
-            cacheService.cleanup();
+            // Очищення кешу API-запитів
+            cacheService.removeByTags([CACHE_TAGS.API, CACHE_TAGS.RESPONSE], false);
         }, 300000);
     } catch (error) {
         moduleErrors.error(error, 'Помилка планування очищення кешу', {
@@ -449,40 +449,6 @@ function getUserId() {
 }
 
 /**
- * Форматування дати в UTC
- * @param {Date} date - Дата
- * @returns {string} Дата в ISO форматі
- */
-function formatDateToUTC(date) {
-    try {
-        if (!date) date = new Date();
-        return date.toISOString();
-    } catch (error) {
-        moduleErrors.error(error, 'Помилка форматування дати', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-        return new Date().toISOString();
-    }
-}
-
-/**
- * Парсинг ISO дати
- * @param {string} dateString - Рядок ISO дати
- * @returns {Date|null} Об'єкт Date
- */
-function parseISODate(dateString) {
-    try {
-        if (!dateString) return null;
-        return new Date(dateString);
-    } catch (error) {
-        moduleErrors.error(error, 'Помилка парсингу ISO дати', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-        return null;
-    }
-}
-
-/**
  * Виконання запиту до API
  * @param {string} endpoint - Ендпоінт
  * @param {Object} options - Налаштування запиту
@@ -492,7 +458,7 @@ async function apiRequest(endpoint, options = {}) {
     try {
         // Перевіряємо статус модуля
         if (!isInitialized) {
-            const error = new Error('APIConnectivity не ініціалізовано');
+            const error = new Error('APICore не ініціалізовано');
             moduleErrors.error(error, 'Модуль не ініціалізовано', {
                 category: ERROR_CATEGORIES.INIT
             });
@@ -596,7 +562,7 @@ async function executeRequest(endpoint, url, options, cacheKey) {
 
             // Додаємо тіло для POST/PUT
             if (options.data && (options.method === 'POST' || options.method === 'PUT')) {
-                fetchOptions.body = JSON.stringify(prepareDateValues(options.data));
+                fetchOptions.body = JSON.stringify(options.data);
             }
 
             // Додаємо ID користувача в заголовок
@@ -620,7 +586,6 @@ async function executeRequest(endpoint, url, options, cacheKey) {
 
             if (contentType?.includes('application/json')) {
                 data = await response.json();
-                processISODates(data);
             } else {
                 data = {
                     status: response.ok ? 'success' : 'error',
@@ -720,34 +685,6 @@ async function executeRequest(endpoint, url, options, cacheKey) {
 }
 
 /**
- * Підготовка дат у даних
- * @param {Object} data - Дані для підготовки
- * @returns {Object} Підготовлені дані
- */
-function prepareDateValues(data) {
-    try {
-        if (!data || typeof data !== 'object') return data;
-
-        const prepared = Array.isArray(data) ? [...data] : {...data};
-
-        for (const key in prepared) {
-            if (prepared[key] instanceof Date) {
-                prepared[key] = formatDateToUTC(prepared[key]);
-            } else if (typeof prepared[key] === 'object' && prepared[key] !== null) {
-                prepared[key] = prepareDateValues(prepared[key]);
-            }
-        }
-
-        return prepared;
-    } catch (error) {
-        moduleErrors.error(error, 'Помилка підготовки дат', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-        return data;
-    }
-}
-
-/**
  * Оновлення статистики запитів
  * @param {string} endpoint - Ендпоінт
  * @param {boolean} success - Успішність запиту
@@ -770,34 +707,6 @@ function updateRequestStats(endpoint, success) {
         });
     } catch (error) {
         moduleErrors.warning(error, 'Помилка оновлення статистики', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-    }
-}
-
-/**
- * Обробка ISO дат в об'єкті
- * @param {Object} obj - Об'єкт для обробки
- */
-function processISODates(obj) {
-    try {
-        if (!obj || typeof obj !== 'object') return;
-
-        const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/;
-
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                const value = obj[key];
-
-                if (typeof value === 'string' && isoDateRegex.test(value)) {
-                    obj[key] = parseISODate(value);
-                } else if (value && typeof value === 'object') {
-                    processISODates(value);
-                }
-            }
-        }
-    } catch (error) {
-        moduleErrors.warning(error, 'Помилка обробки ISO дат', {
             category: ERROR_CATEGORIES.LOGIC
         });
     }
@@ -939,48 +848,6 @@ function destroy() {
     }
 }
 
-/**
- * Призупинення модуля
- */
-function pause() {
-    try {
-        if (!isInitialized) return;
-
-        if (timers.periodicCheck) {
-            clearInterval(timers.periodicCheck);
-            timers.periodicCheck = null;
-        }
-
-        if (timers.cacheCleanup) {
-            clearInterval(timers.cacheCleanup);
-            timers.cacheCleanup = null;
-        }
-    } catch (error) {
-        moduleErrors.error(error, 'Помилка призупинення модуля', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-    }
-}
-
-/**
- * Відновлення роботи модуля
- */
-function resume() {
-    try {
-        if (!isInitialized) {
-            moduleErrors.warning('Модуль не ініціалізовано', 'resume');
-            return;
-        }
-
-        startPeriodicCheck();
-        scheduleCleanup();
-    } catch (error) {
-        moduleErrors.error(error, 'Помилка відновлення модуля', {
-            category: ERROR_CATEGORIES.LOGIC
-        });
-    }
-}
-
 // Одразу встановлюємо початковий стан з'єднання
 state.isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
@@ -997,7 +864,7 @@ if (typeof document !== 'undefined') {
 }
 
 // Публічний API
-const APIConnectivity = {
+const APICore = {
     init,
     apiRequest,
     checkAPIAvailability,
@@ -1008,19 +875,14 @@ const APIConnectivity = {
     clearResponseCache,
     getRequestStats,
     updateConfig,
-    formatDateToUTC,
-    parseISODate,
     isAPIAvailable: () => state.apiAvailable,
     isOnline: () => state.isOnline,
-    destroy,
-    pause,
-    resume,
-    isInitiated: () => isInitialized
+    destroy
 };
 
 // Експортуємо об'єкт
 if (typeof window !== 'undefined') {
-    window.APIConnectivity = APIConnectivity;
+    window.APICore = APICore;
 }
 
-export default APIConnectivity;
+export default APICore;
