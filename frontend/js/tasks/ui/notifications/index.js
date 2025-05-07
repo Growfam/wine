@@ -1,4 +1,3 @@
-
 /**
  * Notifications - централізований модуль для управління та відображення сповіщень
  * Точка входу для всіх типів сповіщень
@@ -12,7 +11,7 @@ import { getLogger, LOG_CATEGORIES } from '../../utils/logger.js';
 const logger = getLogger('UI.Notifications');
 
 // Імпортуємо підмодулі
-import toasts from './toasts.js';
+import toasts from './toast.js';
 import dialog from './dialog.js';
 import loading from './loading.js';
 import { CONFIG, updateConfig } from './common.js';

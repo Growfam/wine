@@ -305,7 +305,7 @@ function setupEventHandlers() {
         document.addEventListener('task-completed', function(event) {
             if (event.detail && event.detail.taskId) {
                 // Імпортовано з progress.js
-                const { animateSuccessfulCompletion } = require('./progress.js');
+                const { animateSuccessfulCompletion } = require('./task/progress.js');
                 animateSuccessfulCompletion(event.detail.taskId);
             }
         });
@@ -316,7 +316,7 @@ function setupEventHandlers() {
                 const { token_amount, day_reward, cycle_completed, completion_bonus } = event.detail;
 
                 // Імпортовано з rewards.js
-                const { showDailyBonusReward } = require('./rewards.js');
+                const { showDailyBonusReward } = require('./reward/display.js');
                 // Спочатку показуємо основну винагороду
                 showDailyBonusReward(
                     day_reward || 0,
@@ -328,7 +328,7 @@ function setupEventHandlers() {
         });
 
         // Обробник зміни розміру вікна
-        const { debounce } = require('./utils.js');
+        const { debounce } = require('../utils.js');
         window.addEventListener('resize', debounce(function() {
             // Адаптуємо якість ефектів залежно від розміру екрану
             if (window.innerWidth < 768 && state.devicePerformance === 'high') {
@@ -341,7 +341,7 @@ function setupEventHandlers() {
         }, 300));
 
         // Очищення ресурсів при виході зі сторінки
-        const { cleanup } = require('./utils.js');
+        const { cleanup } = require('../utils.js');
         window.addEventListener('beforeunload', cleanup);
 
         logger.info('Встановлено обробники подій', 'setupEventHandlers', {
