@@ -7,7 +7,7 @@
  * - Оновлення елементів інтерфейсу
  */
 
-import dependencyContainer from '../../../utils/dependency-container.js';
+import dependencyContainer from '../../../utils';
 
 // Шаблон для карточки завдання
 const TEMPLATE = `

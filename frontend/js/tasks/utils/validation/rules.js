@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core/logger.js';
+import { getLogger } from '../core';
 import * as coreValidators from './core.js';
 import { parseDate } from '../time/date.js';
 

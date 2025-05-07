@@ -9,7 +9,7 @@
 
 // Імпорт необхідних залежностей
 import { UI } from '../../index.js';
-import { TaskRewards } from '../../services/task-store.js';
+import { TaskRewards } from '../../../services';
 
 // Конфігурація
 const CONFIG = {

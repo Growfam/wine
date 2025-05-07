@@ -10,7 +10,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core/logger.js';
+import { getLogger } from '../core';
 import { parseDate } from './date.js';
 
 // Створюємо логер для модуля

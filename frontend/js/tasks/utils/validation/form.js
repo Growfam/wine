@@ -9,9 +9,9 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core/logger.js';
+import { getLogger } from '../core';
 import { validate } from './core.js';
-import { addEvent, removeAllEvents, debounce, findParent, scrollToElement } from '../dom/index.js';
+import { addEvent, removeAllEvents, debounce, findParent, scrollToElement } from '../dom';
 
 // Створюємо логер для модуля
 const logger = getLogger('ValidationForm');

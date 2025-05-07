@@ -10,7 +10,7 @@
  */
 
 import BaseRenderer, { TASK_STATUS } from '../base.js';
-import dependencyContainer from '../../../utils/dependency-container.js';
+import dependencyContainer from '../../../utils';
 
 /**
  * Рендерер для лімітованих завдань

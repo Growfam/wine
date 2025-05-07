@@ -7,8 +7,8 @@
  * - Оновлення статусу дій
  */
 
-import dependencyContainer from '../../../utils/dependency-container.js';
-import { TASK_STATUS } from './base.js';
+import dependencyContainer from '../../../utils';
+import { TASK_STATUS } from '/index.js';
 
 // Стан системи дій
 const state = {
