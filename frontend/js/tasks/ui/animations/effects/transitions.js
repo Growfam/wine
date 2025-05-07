@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/logger.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.Animations.Effects.Transitions');

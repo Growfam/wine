@@ -7,7 +7,7 @@
  * - Анімацію змін прогресу
  */
 
-import dependencyContainer from '../../../utils/dependency-container.js';
+import dependencyContainer from '../../../utils';
 import { UI } from '../../../index.js';
 
 // Стан модуля

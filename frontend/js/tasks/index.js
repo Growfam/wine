@@ -8,7 +8,7 @@
 import * as TaskTypes from './config/task-types.js';
 
 // Імпорт контейнера залежностей
-import dependencyContainer from './utils/dependency-container.js';
+import dependencyContainer from './utils';
 
 // Оголошення прямих імпортів без створення циркулярних залежностей
 // Типи моделей будуть завантажені динамічно, щоб уникнути циклів залежностей

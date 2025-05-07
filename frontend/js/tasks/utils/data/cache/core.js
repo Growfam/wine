@@ -11,7 +11,7 @@
  */
 
 import { StorageAdapter } from './storage.js';
-import { getLogger } from '../core/logger.js';
+import { getLogger } from '../../core';
 
 // Створюємо логер для модуля
 const logger = getLogger('CacheCore');

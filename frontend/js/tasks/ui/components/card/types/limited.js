@@ -9,7 +9,7 @@
 
 import { create as createBaseCard } from '../base.js';
 import { setupActionButtons } from '../actions.js';
-import dependencyContainer from '../../../../utils/dependency-container.js';
+import dependencyContainer from '../../../../utils';
 
 /**
  * Створення картки обмеженого завдання
