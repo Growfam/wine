@@ -34,7 +34,8 @@ export function createSuccessParticles(element, options = {}) {
             count: window.innerWidth < 768 ? 8 : 15,
             colors: config.particleColors || ['#4EB5F7', '#00C9A7', '#AD6EE5', '#FFD700', '#52C0BD'],
             minSize: 4,
-            maxSize: 10,
+            maxSize:
+10,
             duration: [500, 1500],
             ...options
         };

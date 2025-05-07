@@ -1,30 +1,50 @@
 /**
- * Task API - головний модуль для інтеграції з API завдань
+ * Головний модуль API завдань
  *
- * Об'єднує функціональність основних компонентів API завдань
- * для забезпечення єдиного інтерфейсу взаємодії з системою завдань
+ * Інтегрує всі компоненти API для роботи з завданнями:
+ * - Сервіси для отримання даних та виконання дій
+ * - Базові компоненти для запитів і кешування
+ * - Моделі даних
  *
- * @version 3.0.0
+ * @version 3.1.0
  */
 
-// Імпортуємо базові модулі
-import apiCore, { CONFIG } from './core.js';
-import taskDataApi from './task-data.js';
-import taskActionApi from './task-actions.js';
+// Імпорт базових компонентів
+import requestService from './core/request.js';
+import cacheService from './core/cache.js';
+import { CONFIG, API_VERSION } from './core/config.js';
+
+// Імпорт сервісів
+import taskService from './services/task-service.js';
+import actionService from './services/action-service.js';
+import progressService from './services/progress-service.js';
+
+// Імпорт моделей
+import taskTypesModel from './models/task-types.js';
 
 /**
- * Основний клас API для завдань
+ * Головний клас API завдань
  */
-class TaskApi {
+class TaskAPI {
     constructor() {
-        // Базові компоненти API
-        this.core = apiCore;
-        this.data = taskDataApi;
-        this.actions = taskActionApi;
+        // Версія API
+        this.version = API_VERSION;
 
-        // Експортуємо основні конфігурації
+        // Базові компоненти
+        this.request = requestService;
+        this.cache = cacheService;
+
+        // Сервіси
+        this.tasks = taskService;
+        this.actions = actionService;
+        this.progress = progressService;
+
+        // Моделі
+        this.types = taskTypesModel;
+
+        // Конфігурація
         this.config = CONFIG;
-        this.baseUrl = this.core.baseUrl;
+        this.baseUrl = requestService.baseUrl;
     }
 
     /**
@@ -33,7 +53,7 @@ class TaskApi {
      */
     init(options = {}) {
         // Логуємо ініціалізацію
-        console.log("🔄 Task API: Ініціалізація модуля завдань");
+        console.log(`🔄 Task API: Ініціалізація модуля завдань v${this.version}`);
 
         // Можемо оновити конфігурацію, якщо потрібно
         if (options.apiPaths) {
@@ -45,7 +65,7 @@ class TaskApi {
             document.dispatchEvent(new CustomEvent('task-api-initialized', {
                 detail: {
                     timestamp: Date.now(),
-                    version: '3.0.0'
+                    version: this.version
                 }
             }));
         }
@@ -54,12 +74,28 @@ class TaskApi {
     }
 
     /**
+     * Отримання ID користувача
+     * @returns {string|null} ID користувача
+     */
+    getUserId() {
+        return this.request.getUserId();
+    }
+
+    /**
+     * Очищення всього кешу API
+     */
+    clearCache() {
+        this.cache.clearCache();
+        console.log('✓ Task API: Кеш очищено');
+    }
+
+    /**
      * Завантаження всіх завдань
      * @param {Object} options - Параметри запиту
      * @returns {Promise<Object>} Дані завдань
      */
     async getAllTasks(options = {}) {
-        return this.data.loadAllTasks(options);
+        return this.tasks.loadAllTasks(options);
     }
 
     /**
@@ -69,7 +105,7 @@ class TaskApi {
      * @returns {Promise<Object>} Дані завдань
      */
     async getTasksByType(type, options = {}) {
-        return this.data.loadTasksByType(type, options);
+        return this.tasks.loadTasksByType(type, options);
     }
 
     /**
@@ -79,7 +115,7 @@ class TaskApi {
      * @returns {Promise<Object>} Дані завдання
      */
     async getTaskDetails(taskId, options = {}) {
-        return this.data.getTaskData(taskId, options);
+        return this.tasks.getTaskDetails(taskId, options);
     }
 
     /**
@@ -89,7 +125,7 @@ class TaskApi {
      * @returns {Promise<Object>} Прогрес завдання
      */
     async getTaskProgress(taskId, options = {}) {
-        return this.data.getTaskProgress(taskId, options);
+        return this.tasks.getTaskProgress(taskId, options);
     }
 
     /**
@@ -99,7 +135,7 @@ class TaskApi {
      * @returns {Promise<Object>} Статус завдання
      */
     async getTaskStatus(taskId, options = {}) {
-        return this.data.getTaskStatus(taskId, options);
+        return this.tasks.getTaskStatus(taskId, options);
     }
 
     /**
@@ -155,29 +191,38 @@ class TaskApi {
     }
 
     /**
-     * Очищення кешу даних завдань
-     * @param {string} taskId - ID завдання для очищення (опціонально)
+     * Запуск моніторингу прогресу завдання
+     * @param {string} taskId - ID завдання
+     * @param {number} interval - Інтервал оновлення (мс)
+     * @param {Function} callback - Функція зворотного виклику
+     * @returns {string} ID моніторингу
      */
-    clearCache(taskId) {
-        if (taskId) {
-            this.data.clearTaskCache(taskId);
-        } else {
-            this.data.clearTaskCache();
-            this.core.clearCache();
-        }
+    startProgressMonitoring(taskId, interval, callback) {
+        return this.progress.startProgressMonitoring(taskId, interval, callback);
     }
 
     /**
-     * Отримання ID користувача
-     * @returns {string|null} ID користувача
+     * Зупинка моніторингу прогресу
+     * @param {string} monitoringId - ID моніторингу
+     * @returns {boolean} Результат операції
      */
-    getUserId() {
-        return this.core.getUserId();
+    stopProgressMonitoring(monitoringId) {
+        return this.progress.stopProgressMonitoring(monitoringId);
+    }
+
+    /**
+     * Аналіз стану завдання
+     * @param {string} taskId - ID завдання
+     * @param {Object} options - Параметри запиту
+     * @returns {Promise<Object>} Результат аналізу
+     */
+    async analyzeTaskProgress(taskId, options = {}) {
+        return this.progress.analyzeTaskProgress(taskId, options);
     }
 }
 
 // Створюємо і експортуємо єдиний екземпляр API
-const taskApi = new TaskApi();
+const taskApi = new TaskAPI();
 
 // Виконуємо автоматичну ініціалізацію
 if (typeof window !== 'undefined') {
@@ -198,8 +243,12 @@ export default taskApi;
 
 // Експортуємо окремі компоненти для розширеного використання
 export {
-    apiCore,
-    taskDataApi,
-    taskActionApi,
-    CONFIG
+    requestService,
+    cacheService,
+    taskService,
+    actionService,
+    progressService,
+    taskTypesModel,
+    CONFIG,
+    API_VERSION
 };
