@@ -59,7 +59,7 @@ class DailyBonusCacheHandler {
     try {
       if (!bonusModel || !bonusModel.userId) {
         logger.warn('Неможливо зберегти дані без ID користувача', 'saveToCache', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
         return false;
       }
@@ -72,7 +72,7 @@ class DailyBonusCacheHandler {
         data: bonusModel,
         timestamp: Date.now(),
         expires: Date.now() + this.CACHE_TTL,
-        version: '1.0'
+        version: '1.0',
       };
 
       // Спочатку спробуємо використати cacheService, якщо він є
@@ -81,12 +81,12 @@ class DailyBonusCacheHandler {
       if (cacheService && typeof cacheService.set === 'function') {
         cacheService.set(cacheKey, cacheData, {
           ttl: this.CACHE_TTL,
-          tags: ['daily_bonus', `user_${bonusModel.userId}`]
+          tags: ['daily_bonus', `user_${bonusModel.userId}`],
         });
 
         logger.debug('Дані збережено в cacheService', 'saveToCache', {
           category: LOG_CATEGORIES.CACHE,
-          details: { userId: bonusModel.userId }
+          details: { userId: bonusModel.userId },
         });
 
         return true;
@@ -98,20 +98,20 @@ class DailyBonusCacheHandler {
 
         logger.debug('Дані збережено в localStorage', 'saveToCache', {
           category: LOG_CATEGORIES.CACHE,
-          details: { userId: bonusModel.userId }
+          details: { userId: bonusModel.userId },
         });
 
         return true;
       } catch (storageError) {
         logger.warn(storageError, 'Помилка збереження в localStorage', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
 
         return false;
       }
     } catch (error) {
       logger.error(error, 'Помилка збереження даних в кеш', {
-        category: LOG_CATEGORIES.CACHE
+        category: LOG_CATEGORIES.CACHE,
       });
 
       return false;
@@ -127,7 +127,7 @@ class DailyBonusCacheHandler {
     try {
       if (!userId) {
         logger.warn('Неможливо завантажити дані без ID користувача', 'loadFromCache', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
         return null;
       }
@@ -146,7 +146,7 @@ class DailyBonusCacheHandler {
           if (cachedData.expires && cachedData.expires > Date.now()) {
             logger.debug('Дані завантажено з cacheService', 'loadFromCache', {
               category: LOG_CATEGORIES.CACHE,
-              details: { userId }
+              details: { userId },
             });
 
             // Створюємо модель з кешованих даних
@@ -170,7 +170,7 @@ class DailyBonusCacheHandler {
         if (cachedData.expires && cachedData.expires > Date.now()) {
           logger.debug('Дані завантажено з localStorage', 'loadFromCache', {
             category: LOG_CATEGORIES.CACHE,
-            details: { userId }
+            details: { userId },
           });
 
           // Створюємо модель з кешованих даних
@@ -181,14 +181,14 @@ class DailyBonusCacheHandler {
         }
       } catch (storageError) {
         logger.warn(storageError, 'Помилка завантаження з localStorage', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
       }
 
       return null;
     } catch (error) {
       logger.error(error, 'Помилка завантаження даних з кешу', {
-        category: LOG_CATEGORIES.CACHE
+        category: LOG_CATEGORIES.CACHE,
       });
 
       return null;
@@ -204,7 +204,7 @@ class DailyBonusCacheHandler {
     try {
       if (!userId) {
         logger.warn('Неможливо видалити дані без ID користувача', 'removeFromCache', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
         return false;
       }
@@ -220,7 +220,7 @@ class DailyBonusCacheHandler {
 
         logger.debug('Дані видалено з cacheService', 'removeFromCache', {
           category: LOG_CATEGORIES.CACHE,
-          details: { userId }
+          details: { userId },
         });
       }
 
@@ -230,11 +230,11 @@ class DailyBonusCacheHandler {
 
         logger.debug('Дані видалено з localStorage', 'removeFromCache', {
           category: LOG_CATEGORIES.CACHE,
-          details: { userId }
+          details: { userId },
         });
       } catch (storageError) {
         logger.warn(storageError, 'Помилка видалення з localStorage', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
       }
 
@@ -246,7 +246,7 @@ class DailyBonusCacheHandler {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка видалення даних з кешу', {
-        category: LOG_CATEGORIES.CACHE
+        category: LOG_CATEGORIES.CACHE,
       });
 
       return false;
@@ -266,7 +266,7 @@ class DailyBonusCacheHandler {
         cacheService.removeByTags(['daily_bonus']);
 
         logger.info('Кеш щоденних бонусів очищено через cacheService', 'clearAllCache', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
       }
 
@@ -281,11 +281,11 @@ class DailyBonusCacheHandler {
         }
 
         logger.info('Кеш щоденних бонусів очищено з localStorage', 'clearAllCache', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
       } catch (storageError) {
         logger.warn(storageError, 'Помилка очищення з localStorage', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
       }
 
@@ -295,7 +295,7 @@ class DailyBonusCacheHandler {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка очищення кешу щоденних бонусів', {
-        category: LOG_CATEGORIES.CACHE
+        category: LOG_CATEGORIES.CACHE,
       });
 
       return false;

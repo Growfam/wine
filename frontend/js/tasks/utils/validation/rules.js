@@ -24,12 +24,7 @@ const logger = getLogger('ValidationRules');
  */
 export function validateUsername(value, options = {}) {
   try {
-    const {
-      minLength = 3,
-      maxLength = 20,
-      allowSpecialChars = false,
-      errorMessage
-    } = options;
+    const { minLength = 3, maxLength = 20, allowSpecialChars = false, errorMessage } = options;
 
     // Базова перевірка довжини
     const lengthResult = coreValidators.validateLength(
@@ -61,16 +56,16 @@ export function validateUsername(value, options = {}) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || message)
+      errorMessage: isValid ? '' : errorMessage || message,
     };
   } catch (error) {
     logger.error('Помилка валідації імені користувача', 'validateUsername', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -88,7 +83,7 @@ export function validatePersonName(value, options = {}) {
       maxLength = 50,
       allowNumbers = false,
       allowSpecialChars = false,
-      errorMessage
+      errorMessage,
     } = options;
 
     // Базова перевірка довжини
@@ -124,16 +119,16 @@ export function validatePersonName(value, options = {}) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || "Ім'я містить неприпустимі символи")
+      errorMessage: isValid ? '' : errorMessage || "Ім'я містить неприпустимі символи",
     };
   } catch (error) {
     logger.error('Помилка валідації імені особи', 'validatePersonName', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -147,11 +142,11 @@ export function validatePersonName(value, options = {}) {
 export function validateEmailExtended(value, options = {}) {
   try {
     const {
-      allowedDomains = [],      // Дозволені домени
-      blockedDomains = [],      // Заблоковані домени
-      corporateOnly = false,    // Тільки корпоративні (не публічні) домени
+      allowedDomains = [], // Дозволені домени
+      blockedDomains = [], // Заблоковані домени
+      corporateOnly = false, // Тільки корпоративні (не публічні) домени
       errorMessage,
-      domainErrorMessage
+      domainErrorMessage,
     } = options;
 
     // Базова валідація електронної пошти
@@ -168,7 +163,7 @@ export function validateEmailExtended(value, options = {}) {
       if (emailParts.length !== 2) {
         return {
           isValid: false,
-          errorMessage: errorMessage || 'Невірний формат електронної адреси'
+          errorMessage: errorMessage || 'Невірний формат електронної адреси',
         };
       }
 
@@ -176,28 +171,32 @@ export function validateEmailExtended(value, options = {}) {
 
       // Перевіряємо дозволені домени
       if (allowedDomains.length > 0) {
-        const isDomainAllowed = allowedDomains.some(allowedDomain =>
-          domain === allowedDomain.toLowerCase() || domain.endsWith('.' + allowedDomain.toLowerCase())
+        const isDomainAllowed = allowedDomains.some(
+          (allowedDomain) =>
+            domain === allowedDomain.toLowerCase() ||
+            domain.endsWith('.' + allowedDomain.toLowerCase())
         );
 
         if (!isDomainAllowed) {
           return {
             isValid: false,
-            errorMessage: domainErrorMessage || `Домен ${domain} не входить до списку дозволених`
+            errorMessage: domainErrorMessage || `Домен ${domain} не входить до списку дозволених`,
           };
         }
       }
 
       // Перевіряємо заблоковані домени
       if (blockedDomains.length > 0) {
-        const isDomainBlocked = blockedDomains.some(blockedDomain =>
-          domain === blockedDomain.toLowerCase() || domain.endsWith('.' + blockedDomain.toLowerCase())
+        const isDomainBlocked = blockedDomains.some(
+          (blockedDomain) =>
+            domain === blockedDomain.toLowerCase() ||
+            domain.endsWith('.' + blockedDomain.toLowerCase())
         );
 
         if (isDomainBlocked) {
           return {
             isValid: false,
-            errorMessage: domainErrorMessage || `Домен ${domain} заблоковано`
+            errorMessage: domainErrorMessage || `Домен ${domain} заблоковано`,
           };
         }
       }
@@ -205,19 +204,31 @@ export function validateEmailExtended(value, options = {}) {
       // Перевіряємо, чи домен публічний
       if (corporateOnly) {
         const publicDomains = [
-          'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com',
-          'mail.ru', 'yandex.ru', 'icloud.com', 'aol.com', 'protonmail.com',
-          'ukr.net', 'i.ua', 'meta.ua', 'bigmir.net'
+          'gmail.com',
+          'yahoo.com',
+          'hotmail.com',
+          'outlook.com',
+          'live.com',
+          'mail.ru',
+          'yandex.ru',
+          'icloud.com',
+          'aol.com',
+          'protonmail.com',
+          'ukr.net',
+          'i.ua',
+          'meta.ua',
+          'bigmir.net',
         ];
 
-        const isPublicDomain = publicDomains.some(publicDomain =>
-          domain === publicDomain.toLowerCase()
+        const isPublicDomain = publicDomains.some(
+          (publicDomain) => domain === publicDomain.toLowerCase()
         );
 
         if (isPublicDomain) {
           return {
             isValid: false,
-            errorMessage: domainErrorMessage || 'Будь ласка, використовуйте корпоративну електронну адресу'
+            errorMessage:
+              domainErrorMessage || 'Будь ласка, використовуйте корпоративну електронну адресу',
           };
         }
       }
@@ -225,16 +236,16 @@ export function validateEmailExtended(value, options = {}) {
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка розширеної валідації email', 'validateEmailExtended', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -249,16 +260,16 @@ export function validateNistPassword(value, options = {}) {
   try {
     const {
       minLength = 8,
-      blockedPasswords = [],  // Список заблокованих паролів
-      checkCommon = true,     // Перевірка на наявність у списку поширених паролів
-      errorMessage
+      blockedPasswords = [], // Список заблокованих паролів
+      checkCommon = true, // Перевірка на наявність у списку поширених паролів
+      errorMessage,
     } = options;
 
     // Перевіряємо мінімальну довжину
     if (String(value).length < minLength) {
       return {
         isValid: false,
-        errorMessage: errorMessage || `Пароль повинен містити щонайменше ${minLength} символів`
+        errorMessage: errorMessage || `Пароль повинен містити щонайменше ${minLength} символів`,
       };
     }
 
@@ -266,39 +277,60 @@ export function validateNistPassword(value, options = {}) {
     if (blockedPasswords.includes(String(value))) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Цей пароль заблокований з міркувань безпеки'
+        errorMessage: errorMessage || 'Цей пароль заблокований з міркувань безпеки',
       };
     }
 
     // Перевіряємо поширені паролі (спрощена реалізація)
     if (checkCommon) {
       const commonPasswords = [
-        'password', 'qwerty', '123456', '123456789', '12345678', '12345',
-        '1234567', '1234567890', 'admin', 'welcome', 'monkey', 'letmein',
-        'football', '111111', '123123', 'dragon', '1234', 'master', 'sunshine',
-        'iloveyou', 'princess', 'admin123', 'qwerty123', 'qazwsx', 'qwe123'
+        'password',
+        'qwerty',
+        '123456',
+        '123456789',
+        '12345678',
+        '12345',
+        '1234567',
+        '1234567890',
+        'admin',
+        'welcome',
+        'monkey',
+        'letmein',
+        'football',
+        '111111',
+        '123123',
+        'dragon',
+        '1234',
+        'master',
+        'sunshine',
+        'iloveyou',
+        'princess',
+        'admin123',
+        'qwerty123',
+        'qazwsx',
+        'qwe123',
       ];
 
       if (commonPasswords.includes(String(value).toLowerCase())) {
         return {
           isValid: false,
-          errorMessage: errorMessage || 'Цей пароль є занадто поширеним'
+          errorMessage: errorMessage || 'Цей пароль є занадто поширеним',
         };
       }
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка валідації NIST пароля', 'validateNistPassword', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -312,9 +344,9 @@ export function validateNistPassword(value, options = {}) {
 export function validateCreditCard(value, options = {}) {
   try {
     const {
-      acceptedTypes = [],    // Типи карток: visa, mastercard, amex, etc.
+      acceptedTypes = [], // Типи карток: visa, mastercard, amex, etc.
       errorMessage,
-      typeErrorMessage
+      typeErrorMessage,
     } = options;
 
     // Видаляємо пробіли, дефіси тощо
@@ -324,7 +356,7 @@ export function validateCreditCard(value, options = {}) {
     if (!/^\d+$/.test(cardNumber)) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Номер картки повинен містити тільки цифри'
+        errorMessage: errorMessage || 'Номер картки повинен містити тільки цифри',
       };
     }
 
@@ -332,7 +364,7 @@ export function validateCreditCard(value, options = {}) {
     if (cardNumber.length < 13 || cardNumber.length > 19) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Невірна довжина номера картки'
+        errorMessage: errorMessage || 'Невірна довжина номера картки',
       };
     }
 
@@ -368,7 +400,7 @@ export function validateCreditCard(value, options = {}) {
     if (acceptedTypes.length > 0 && cardType && !acceptedTypes.includes(cardType)) {
       return {
         isValid: false,
-        errorMessage: typeErrorMessage || `Картки типу ${cardType} не приймаються`
+        errorMessage: typeErrorMessage || `Картки типу ${cardType} не приймаються`,
       };
     }
 
@@ -396,17 +428,17 @@ export function validateCreditCard(value, options = {}) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Невірний номер картки'),
-      cardType
+      errorMessage: isValid ? '' : errorMessage || 'Невірний номер картки',
+      cardType,
     };
   } catch (error) {
     logger.error('Помилка валідації кредитної картки', 'validateCreditCard', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -420,20 +452,20 @@ export function validateCreditCard(value, options = {}) {
 export function validateDateExtended(value, options = {}) {
   try {
     const {
-      format = 'yyyy-mm-dd',  // Формат дати
-      min,                    // Мінімальна дата
-      max,                    // Максимальна дата
-      disallowedDates = [],   // Заборонені дати
-      disallowedDays = [],    // Заборонені дні тижня (0-6, де 0 - неділя)
-      allowedDays = [],       // Дозволені дні тижня (якщо вказано, інші дні заборонені)
-      minAge,                 // Мінімальний вік (для дат народження)
-      maxAge,                 // Максимальний вік (для дат народження)
+      format = 'yyyy-mm-dd', // Формат дати
+      min, // Мінімальна дата
+      max, // Максимальна дата
+      disallowedDates = [], // Заборонені дати
+      disallowedDays = [], // Заборонені дні тижня (0-6, де 0 - неділя)
+      allowedDays = [], // Дозволені дні тижня (якщо вказано, інші дні заборонені)
+      minAge, // Мінімальний вік (для дат народження)
+      maxAge, // Максимальний вік (для дат народження)
       errorMessage,
       minMessage,
       maxMessage,
       disallowedMessage,
       dayMessage,
-      ageMessage
+      ageMessage,
     } = options;
 
     // Парсимо дату
@@ -442,7 +474,7 @@ export function validateDateExtended(value, options = {}) {
     if (!dateObj || isNaN(dateObj.getTime())) {
       return {
         isValid: false,
-        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`
+        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`,
       };
     }
 
@@ -452,7 +484,7 @@ export function validateDateExtended(value, options = {}) {
       if (minDate && dateObj < minDate) {
         return {
           isValid: false,
-          errorMessage: minMessage || `Дата повинна бути не раніше ${minDate.toLocaleDateString()}`
+          errorMessage: minMessage || `Дата повинна бути не раніше ${minDate.toLocaleDateString()}`,
         };
       }
     }
@@ -463,14 +495,15 @@ export function validateDateExtended(value, options = {}) {
       if (maxDate && dateObj > maxDate) {
         return {
           isValid: false,
-          errorMessage: maxMessage || `Дата повинна бути не пізніше ${maxDate.toLocaleDateString()}`
+          errorMessage:
+            maxMessage || `Дата повинна бути не пізніше ${maxDate.toLocaleDateString()}`,
         };
       }
     }
 
     // Перевіряємо заборонені дати
     if (disallowedDates.length > 0) {
-      const isDisallowed = disallowedDates.some(disallowedDate => {
+      const isDisallowed = disallowedDates.some((disallowedDate) => {
         const disDate = parseDate(disallowedDate);
         return disDate && disDate.getTime() === dateObj.getTime();
       });
@@ -478,7 +511,7 @@ export function validateDateExtended(value, options = {}) {
       if (isDisallowed) {
         return {
           isValid: false,
-          errorMessage: disallowedMessage || 'Ця дата недоступна для вибору'
+          errorMessage: disallowedMessage || 'Ця дата недоступна для вибору',
         };
       }
     }
@@ -489,11 +522,19 @@ export function validateDateExtended(value, options = {}) {
     // Перевіряємо заборонені дні тижня
     if (disallowedDays.length > 0 && disallowedDays.includes(dayOfWeek)) {
       // Назви днів тижня для повідомлення
-      const dayNames = ['неділя', 'понеділок', 'вівторок', 'середа', 'четвер', 'п\'ятниця', 'субота'];
+      const dayNames = [
+        'неділя',
+        'понеділок',
+        'вівторок',
+        'середа',
+        'четвер',
+        "п'ятниця",
+        'субота',
+      ];
 
       return {
         isValid: false,
-        errorMessage: dayMessage || `${dayNames[dayOfWeek]} недоступна для вибору`
+        errorMessage: dayMessage || `${dayNames[dayOfWeek]} недоступна для вибору`,
       };
     }
 
@@ -501,7 +542,7 @@ export function validateDateExtended(value, options = {}) {
     if (allowedDays.length > 0 && !allowedDays.includes(dayOfWeek)) {
       return {
         isValid: false,
-        errorMessage: dayMessage || 'Цей день тижня недоступний для вибору'
+        errorMessage: dayMessage || 'Цей день тижня недоступний для вибору',
       };
     }
 
@@ -523,7 +564,7 @@ export function validateDateExtended(value, options = {}) {
       if (minAge !== undefined && age < minAge) {
         return {
           isValid: false,
-          errorMessage: ageMessage || `Мінімальний вік повинен бути ${minAge} років`
+          errorMessage: ageMessage || `Мінімальний вік повинен бути ${minAge} років`,
         };
       }
 
@@ -531,23 +572,23 @@ export function validateDateExtended(value, options = {}) {
       if (maxAge !== undefined && age > maxAge) {
         return {
           isValid: false,
-          errorMessage: ageMessage || `Максимальний вік повинен бути ${maxAge} років`
+          errorMessage: ageMessage || `Максимальний вік повинен бути ${maxAge} років`,
         };
       }
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка розширеної валідації дати', 'validateDateExtended', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -561,29 +602,29 @@ export function validateDateExtended(value, options = {}) {
 export function validateFile(file, options = {}) {
   try {
     const {
-      maxSize = 5 * 1024 * 1024,  // Максимальний розмір в байтах (за замовчуванням 5 МБ)
-      allowedTypes = [],          // Дозволені MIME типи
-      allowedExtensions = [],     // Дозволені розширення
+      maxSize = 5 * 1024 * 1024, // Максимальний розмір в байтах (за замовчуванням 5 МБ)
+      allowedTypes = [], // Дозволені MIME типи
+      allowedExtensions = [], // Дозволені розширення
       errorMessage,
       sizeErrorMessage,
       typeErrorMessage,
-      extensionErrorMessage
+      extensionErrorMessage,
     } = options;
 
     // Перевіряємо, чи переданий файл
     if (!file || !file.name || !file.type) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Файл не вибрано'
+        errorMessage: errorMessage || 'Файл не вибрано',
       };
     }
 
     // Перевіряємо розмір файлу
     if (file.size > maxSize) {
-      const maxSizeMB = Math.round(maxSize / (1024 * 1024) * 10) / 10;
+      const maxSizeMB = Math.round((maxSize / (1024 * 1024)) * 10) / 10;
       return {
         isValid: false,
-        errorMessage: sizeErrorMessage || `Розмір файлу перевищує ${maxSizeMB} МБ`
+        errorMessage: sizeErrorMessage || `Розмір файлу перевищує ${maxSizeMB} МБ`,
       };
     }
 
@@ -591,7 +632,9 @@ export function validateFile(file, options = {}) {
     if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
       return {
         isValid: false,
-        errorMessage: typeErrorMessage || `Неприпустимий тип файлу. Підтримувані типи: ${allowedTypes.join(', ')}`
+        errorMessage:
+          typeErrorMessage ||
+          `Неприпустимий тип файлу. Підтримувані типи: ${allowedTypes.join(', ')}`,
       };
     }
 
@@ -601,23 +644,25 @@ export function validateFile(file, options = {}) {
       if (!allowedExtensions.includes(fileExtension)) {
         return {
           isValid: false,
-          errorMessage: extensionErrorMessage || `Неприпустиме розширення файлу. Підтримувані розширення: ${allowedExtensions.join(', ')}`
+          errorMessage:
+            extensionErrorMessage ||
+            `Неприпустиме розширення файлу. Підтримувані розширення: ${allowedExtensions.join(', ')}`,
         };
       }
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка валідації файлу', 'validateFile', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -635,7 +680,7 @@ export function validateAddress(value, options = {}) {
       maxLength = 200,
       requireHouseNumber = true,
       allowPOBox = false,
-      errorMessage
+      errorMessage,
     } = options;
 
     // Базова перевірка довжини
@@ -661,31 +706,34 @@ export function validateAddress(value, options = {}) {
       if (!hasNumber) {
         return {
           isValid: false,
-          errorMessage: errorMessage || 'Адреса повинна містити номер будинку'
+          errorMessage: errorMessage || 'Адреса повинна містити номер будинку',
         };
       }
     }
 
     // Перевіряємо, чи є адреса поштовою скринькою, якщо вони заборонені
-    if (!allowPOBox && /\b[P|p]\.?\s*[O|o]\.?\s*[B|b][O|o][X|x]?|поштова скринька|а\/с\b/.test(address)) {
+    if (
+      !allowPOBox &&
+      /\b[P|p]\.?\s*[O|o]\.?\s*[B|b][O|o][X|x]?|поштова скринька|а\/с\b/.test(address)
+    ) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Використання поштової скриньки не допускається'
+        errorMessage: errorMessage || 'Використання поштової скриньки не допускається',
       };
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка валідації адреси', 'validateAddress', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -699,11 +747,11 @@ export function validateAddress(value, options = {}) {
 export function validatePhoneExtended(value, options = {}) {
   try {
     const {
-      country = 'UA',          // Код країни (UA, US, тощо)
-      allowedCountries = [],   // Дозволені коди країн
-      formatType = 'flexible',  // Тип формату (strict, flexible)
+      country = 'UA', // Код країни (UA, US, тощо)
+      allowedCountries = [], // Дозволені коди країн
+      formatType = 'flexible', // Тип формату (strict, flexible)
       errorMessage,
-      countryErrorMessage
+      countryErrorMessage,
     } = options;
 
     // Очищаємо номер від усіх нецифрових символів, крім + на початку
@@ -719,7 +767,7 @@ export function validatePhoneExtended(value, options = {}) {
     if (cleanedNumber.length < 10 || cleanedNumber.length > 15) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Невірна довжина телефонного номера'
+        errorMessage: errorMessage || 'Невірна довжина телефонного номера',
       };
     }
 
@@ -727,16 +775,16 @@ export function validatePhoneExtended(value, options = {}) {
     const countryRules = {
       UA: {
         pattern: /^(?:\+?38)?0\d{9}$/,
-        formatted: '+38 0XX XXX XX XX'
+        formatted: '+38 0XX XXX XX XX',
       },
       US: {
         pattern: /^(?:\+?1)?[2-9]\d{2}[2-9]\d{6}$/,
-        formatted: '+1 XXX XXX XXXX'
+        formatted: '+1 XXX XXX XXXX',
       },
       UK: {
         pattern: /^(?:\+?44)?[1-9]\d{9,10}$/,
-        formatted: '+44 XXXX XXXXXX'
-      }
+        formatted: '+44 XXXX XXXXXX',
+      },
       // Можна додати правила для інших країн
     };
 
@@ -744,7 +792,7 @@ export function validatePhoneExtended(value, options = {}) {
     if (allowedCountries.length > 0 && !allowedCountries.includes(country)) {
       return {
         isValid: false,
-        errorMessage: countryErrorMessage || `Номери країни ${country} не підтримуються`
+        errorMessage: countryErrorMessage || `Номери країни ${country} не підтримуються`,
       };
     }
 
@@ -759,7 +807,8 @@ export function validatePhoneExtended(value, options = {}) {
         if (!isValid) {
           return {
             isValid: false,
-            errorMessage: errorMessage || `Невірний формат номера. Очікуваний формат: ${rule.formatted}`
+            errorMessage:
+              errorMessage || `Невірний формат номера. Очікуваний формат: ${rule.formatted}`,
           };
         }
       }
@@ -772,16 +821,16 @@ export function validatePhoneExtended(value, options = {}) {
     return {
       isValid: true,
       errorMessage: '',
-      formattedNumber: cleanedNumber
+      formattedNumber: cleanedNumber,
     };
   } catch (error) {
     logger.error('Помилка розширеної валідації телефону', 'validatePhoneExtended', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -799,5 +848,5 @@ export default {
   validatePhoneExtended,
 
   // Експортуємо базові валідатори з core для зручності
-  ...coreValidators
+  ...coreValidators,
 };

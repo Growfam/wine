@@ -15,26 +15,26 @@ const logger = getLogger('UI.Notifications.Common');
 
 // Конфігурація з оптимізованими значеннями
 export const CONFIG = {
-    maxNotifications: 3,       // Максимальна кількість одночасних сповіщень
-    autoHideTimeout: 5000,     // Час автоматичного закриття (мс)
-    animationDuration: 300,    // Тривалість анімації (мс)
-    position: 'top-right',     // Позиція сповіщень
-    maxWidth: 380,             // Максимальна ширина сповіщення
-    debug: false               // Режим налагодження
+  maxNotifications: 3, // Максимальна кількість одночасних сповіщень
+  autoHideTimeout: 5000, // Час автоматичного закриття (мс)
+  animationDuration: 300, // Тривалість анімації (мс)
+  position: 'top-right', // Позиція сповіщень
+  maxWidth: 380, // Максимальна ширина сповіщення
+  debug: false, // Режим налагодження
 };
 
 /**
  * Ін'єкція CSS стилів у документ
  */
 export function injectStyles() {
-    // Перевіряємо, чи стилі вже додані
-    if (document.getElementById('notification-styles')) return;
+  // Перевіряємо, чи стилі вже додані
+  if (document.getElementById('notification-styles')) return;
 
-    const styleElement = document.createElement('style');
-    styleElement.id = 'notification-styles';
+  const styleElement = document.createElement('style');
+  styleElement.id = 'notification-styles';
 
-    // Оптимізований CSS з мінімальною кількістю правил
-    styleElement.textContent = `
+  // Оптимізований CSS з мінімальною кількістю правил
+  styleElement.textContent = `
         /* Контейнер сповіщень */
         .notification-container {
             position: fixed;
@@ -351,11 +351,11 @@ export function injectStyles() {
         }
     `;
 
-    document.head.appendChild(styleElement);
+  document.head.appendChild(styleElement);
 
-    logger.debug('Додано стилі сповіщень', 'injectStyles', {
-        category: LOG_CATEGORIES.RENDERING
-    });
+  logger.debug('Додано стилі сповіщень', 'injectStyles', {
+    category: LOG_CATEGORIES.RENDERING,
+  });
 }
 
 /**
@@ -363,16 +363,16 @@ export function injectStyles() {
  * @param {string} containerId - ID контейнера
  */
 export function ensureContainer(containerId) {
-    if (!document.getElementById(containerId)) {
-        const container = document.createElement('div');
-        container.id = containerId;
-        container.className = `notification-container ${CONFIG.position}`;
-        document.body.appendChild(container);
+  if (!document.getElementById(containerId)) {
+    const container = document.createElement('div');
+    container.id = containerId;
+    container.className = `notification-container ${CONFIG.position}`;
+    document.body.appendChild(container);
 
-        logger.debug('Створено контейнер для сповіщень', 'ensureContainer', {
-            category: LOG_CATEGORIES.RENDERING
-        });
-    }
+    logger.debug('Створено контейнер для сповіщень', 'ensureContainer', {
+      category: LOG_CATEGORIES.RENDERING,
+    });
+  }
 }
 
 /**
@@ -381,12 +381,12 @@ export function ensureContainer(containerId) {
  * @returns {Object} Оновлена конфігурація
  */
 export function updateConfig(newConfig) {
-    Object.assign(CONFIG, newConfig);
+  Object.assign(CONFIG, newConfig);
 
-    logger.info('Оновлено конфігурацію сповіщень', 'updateConfig', {
-        category: LOG_CATEGORIES.INIT,
-        details: CONFIG
-    });
+  logger.info('Оновлено конфігурацію сповіщень', 'updateConfig', {
+    category: LOG_CATEGORIES.INIT,
+    details: CONFIG,
+  });
 
-    return { ...CONFIG };
+  return { ...CONFIG };
 }

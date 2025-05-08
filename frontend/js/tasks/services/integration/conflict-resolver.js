@@ -62,7 +62,8 @@ export class ConflictResolver {
         // Оновлюємо методи в TaskManager
         if (taskProgress) {
           window.TaskManager.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
-          window.TaskManager.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
+          window.TaskManager.updateTaskProgress =
+            taskProgress.updateTaskProgress.bind(taskProgress);
         }
 
         if (taskVerification) {
@@ -76,7 +77,7 @@ export class ConflictResolver {
       this.conflictResolutionApplied = true;
     } catch (error) {
       logger.error(error, 'Помилка при вирішенні конфліктів між модулями', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
     }
   }
@@ -117,7 +118,10 @@ export class ConflictResolver {
 
         default:
           // Для інших модулів не потрібно спеціальних дій
-          logger.info(`Немає спеціальних дій для модуля ${moduleName}`, 'resolveConflictsForModule');
+          logger.info(
+            `Немає спеціальних дій для модуля ${moduleName}`,
+            'resolveConflictsForModule'
+          );
           return true;
       }
 
@@ -125,7 +129,7 @@ export class ConflictResolver {
     } catch (error) {
       logger.error(error, `Помилка при вирішенні конфліктів для модуля ${moduleName}`, {
         category: LOG_CATEGORIES.LOGIC,
-        details: { moduleName }
+        details: { moduleName },
       });
       return false;
     }
@@ -142,7 +146,10 @@ export class ConflictResolver {
     const taskSystem = dependencyContainer.resolve('taskSystem');
     if (taskSystem && taskSystem.updateProgress && !progressModule.legacyUpdateProgress) {
       progressModule.legacyUpdateProgress = taskSystem.updateProgress.bind(taskSystem);
-      logger.info('Додано метод legacyUpdateProgress до TaskProgress', 'resolveTaskProgressConflicts');
+      logger.info(
+        'Додано метод legacyUpdateProgress до TaskProgress',
+        'resolveTaskProgressConflicts'
+      );
     }
   }
 
@@ -160,7 +167,10 @@ export class ConflictResolver {
         const genericVerifier = dependencyContainer.resolve('genericVerifier');
         if (genericVerifier) {
           verificationModule.registerVerifier('generic', genericVerifier);
-          logger.info('Зареєстровано genericVerifier в TaskVerification', 'resolveTaskVerificationConflicts');
+          logger.info(
+            'Зареєстровано genericVerifier в TaskVerification',
+            'resolveTaskVerificationConflicts'
+          );
         }
       }
     }
@@ -175,7 +185,10 @@ export class ConflictResolver {
 
     // Перевіряємо наявність кеш-сервісу
     if (!window.cacheService) {
-      logger.warn('Не знайдено cacheService, використовуємо локальний кеш для TaskStore', 'resolveTaskStoreConflicts');
+      logger.warn(
+        'Не знайдено cacheService, використовуємо локальний кеш для TaskStore',
+        'resolveTaskStoreConflicts'
+      );
 
       // Можна додати простий кеш для сумісності
       window.cacheService = {
@@ -203,7 +216,7 @@ export class ConflictResolver {
             return false;
           }
         },
-        removeByTags: () => true // Заглушка для сумісності
+        removeByTags: () => true, // Заглушка для сумісності
       };
     }
   }
@@ -220,10 +233,16 @@ export class ConflictResolver {
       // Перенаправляємо деякі методи
       const methods = ['initialize', 'getTaskProgress', 'updateTaskProgress', 'verifyTask'];
 
-      methods.forEach(method => {
-        if (typeof systemModule[method] === 'function' && typeof window.TaskManager[method] !== 'function') {
+      methods.forEach((method) => {
+        if (
+          typeof systemModule[method] === 'function' &&
+          typeof window.TaskManager[method] !== 'function'
+        ) {
           window.TaskManager[method] = systemModule[method].bind(systemModule);
-          logger.info(`Метод ${method} додано до TaskManager для сумісності`, 'resolveTaskSystemConflicts');
+          logger.info(
+            `Метод ${method} додано до TaskManager для сумісності`,
+            'resolveTaskSystemConflicts'
+          );
         }
       });
     }

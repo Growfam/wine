@@ -21,16 +21,16 @@ export const CACHE_TAGS = {
   COMMON: 'common',
   TEMP: 'temporary',
   USER: 'user',
-  SYSTEM: 'system'
+  SYSTEM: 'system',
 };
 
 // Конфігурація за замовчуванням
 const DEFAULT_CONFIG = {
-  defaultTTL: 3600000,      // Час життя кешу за замовчуванням (1 година)
-  cleanupInterval: 300000,  // Інтервал очищення (5 хвилин)
-  maxSize: 500,             // Максимальна кількість елементів у кеші
-  prefix: 'cache_',         // Префікс для ключів
-  debug: false,             // Режим відлагодження
+  defaultTTL: 3600000, // Час життя кешу за замовчуванням (1 година)
+  cleanupInterval: 300000, // Інтервал очищення (5 хвилин)
+  maxSize: 500, // Максимальна кількість елементів у кеші
+  prefix: 'cache_', // Префікс для ключів
+  debug: false, // Режим відлагодження
 };
 
 /**
@@ -119,9 +119,9 @@ class CacheCore {
 
       // Опції за замовчуванням
       const {
-        ttl = this.config.defaultTTL,  // Час життя кешу
-        tags = [],                     // Теги для групування
-        persist = true                 // Зберігати постійно
+        ttl = this.config.defaultTTL, // Час життя кешу
+        tags = [], // Теги для групування
+        persist = true, // Зберігати постійно
       } = options;
 
       // Метадані для запису
@@ -130,7 +130,7 @@ class CacheCore {
         timestamp: Date.now(),
         expiresAt: ttl ? Date.now() + ttl : null,
         tags: Array.isArray(tags) ? tags : [],
-        persist
+        persist,
       };
 
       // Якщо це дата, коригуємо тип
@@ -174,8 +174,8 @@ class CacheCore {
 
       // Опції за замовчуванням
       const {
-        checkExpiry = true,    // Перевіряти термін дії
-        persist = true         // Читати з постійного сховища
+        checkExpiry = true, // Перевіряти термін дії
+        persist = true, // Читати з постійного сховища
       } = options;
 
       // Спочатку перевіряємо кеш в пам'яті
@@ -258,12 +258,12 @@ class CacheCore {
       const allItems = this._getAllItems();
 
       // Фільтруємо застарілі записи
-      const expiredItems = allItems.filter(item =>
-        item.metadata && item.metadata.expiresAt && item.metadata.expiresAt < now
+      const expiredItems = allItems.filter(
+        (item) => item.metadata && item.metadata.expiresAt && item.metadata.expiresAt < now
       );
 
       // Видаляємо всі застарілі записи
-      expiredItems.forEach(item => {
+      expiredItems.forEach((item) => {
         this.remove(item.key);
         removedCount++;
       });
@@ -271,16 +271,17 @@ class CacheCore {
       // Перевіряємо розмір кешу
       if (allItems.length > this.config.maxSize) {
         // Визначаємо кількість записів для видалення
-        const itemsToRemove = Math.ceil((allItems.length - this.config.maxSize) +
-                                      (allItems.length * cleanupPercentage));
+        const itemsToRemove = Math.ceil(
+          allItems.length - this.config.maxSize + allItems.length * cleanupPercentage
+        );
 
         // Сортуємо за часом доступу (видаляємо найстаріші)
         const sortedItems = allItems
-          .filter(item => !expiredItems.includes(item)) // Виключаємо вже видалені
+          .filter((item) => !expiredItems.includes(item)) // Виключаємо вже видалені
           .sort((a, b) => (a.metadata?.timestamp || 0) - (b.metadata?.timestamp || 0));
 
         // Видаляємо старі записи
-        sortedItems.slice(0, itemsToRemove).forEach(item => {
+        sortedItems.slice(0, itemsToRemove).forEach((item) => {
           this.remove(item.key);
           removedCount++;
         });
@@ -315,9 +316,9 @@ class CacheCore {
       // Додаємо елементи з постійного сховища, які ще не в пам'яті
       const storageItems = this.storage.getAllItems();
 
-      storageItems.forEach(item => {
+      storageItems.forEach((item) => {
         // Додаємо тільки якщо ще немає такого ключа
-        if (!items.some(existingItem => existingItem.key === item.key)) {
+        if (!items.some((existingItem) => existingItem.key === item.key)) {
           items.push(item);
         }
       });
@@ -359,12 +360,13 @@ class CacheCore {
       const items = this._getAllItems();
 
       // Фільтруємо елементи для видалення
-      const itemsToRemove = typeof keyOrFilter === 'function'
-        ? items.filter(item => keyOrFilter(item.key, item.metadata))
-        : items.filter(item => item.key.includes(keyOrFilter));
+      const itemsToRemove =
+        typeof keyOrFilter === 'function'
+          ? items.filter((item) => keyOrFilter(item.key, item.metadata))
+          : items.filter((item) => item.key.includes(keyOrFilter));
 
       // Видаляємо кожен елемент
-      itemsToRemove.forEach(item => {
+      itemsToRemove.forEach((item) => {
         if (this.remove(item.key)) {
           count++;
         }
@@ -376,7 +378,10 @@ class CacheCore {
 
       return count;
     } catch (error) {
-      logger.error('Помилка масового видалення з кешу', { filter: typeof keyOrFilter, error: error.message });
+      logger.error('Помилка масового видалення з кешу', {
+        filter: typeof keyOrFilter,
+        error: error.message,
+      });
       return 0;
     }
   }
@@ -400,10 +405,10 @@ class CacheCore {
 
         if (matchAll) {
           // Всі теги мають збігатися
-          return tagsArray.every(tag => metadata.tags.includes(tag));
+          return tagsArray.every((tag) => metadata.tags.includes(tag));
         } else {
           // Хоча б один тег має збігатися
-          return tagsArray.some(tag => metadata.tags.includes(tag));
+          return tagsArray.some((tag) => metadata.tags.includes(tag));
         }
       });
     } catch (error) {
@@ -470,12 +475,13 @@ class CacheCore {
       const items = this._getAllItems();
 
       // Фільтруємо за необхідності
-      const filteredItems = typeof filter === 'function'
-        ? items.filter(item => filter(item.key, item.metadata))
-        : items;
+      const filteredItems =
+        typeof filter === 'function'
+          ? items.filter((item) => filter(item.key, item.metadata))
+          : items;
 
       // Повертаємо тільки ключі
-      return filteredItems.map(item => item.key);
+      return filteredItems.map((item) => item.key);
     } catch (error) {
       logger.error('Помилка отримання ключів кешу', { error: error.message });
       return [];
@@ -490,8 +496,8 @@ class CacheCore {
   clear(options = {}) {
     try {
       const {
-        onlyExpired = false,     // Тільки прострочені записи
-        preserveKeys = []        // Ключі для збереження
+        onlyExpired = false, // Тільки прострочені записи
+        preserveKeys = [], // Ключі для збереження
       } = options;
 
       if (onlyExpired) {
@@ -499,7 +505,7 @@ class CacheCore {
         this.cleanup();
       } else if (preserveKeys && preserveKeys.length > 0) {
         // Видаляємо всі, крім збережених
-        this.removeMany(key => !preserveKeys.includes(key));
+        this.removeMany((key) => !preserveKeys.includes(key));
       } else {
         // Повне очищення
         this._memoryCache.clear();
@@ -532,9 +538,9 @@ class CacheCore {
 
       // Групуємо за тегами
       const tagStats = {};
-      items.forEach(item => {
+      items.forEach((item) => {
         if (item.metadata && item.metadata.tags) {
-          item.metadata.tags.forEach(tag => {
+          item.metadata.tags.forEach((tag) => {
             if (!tagStats[tag]) {
               tagStats[tag] = 0;
             }
@@ -544,8 +550,8 @@ class CacheCore {
       });
 
       // Рахуємо застарілі записи
-      const expiredCount = items.filter(item =>
-        item.metadata && item.metadata.expiresAt && item.metadata.expiresAt < now
+      const expiredCount = items.filter(
+        (item) => item.metadata && item.metadata.expiresAt && item.metadata.expiresAt < now
       ).length;
 
       return {
@@ -555,13 +561,13 @@ class CacheCore {
         storageType: this.storage.storageType,
         tagStats,
         memoryItems: this._memoryCache.size,
-        persistentItems: this.storage.getItemCount()
+        persistentItems: this.storage.getItemCount(),
       };
     } catch (error) {
       logger.error('Помилка отримання статистики кешу', { error: error.message });
       return {
         error: true,
-        message: error.message
+        message: error.message,
       };
     }
   }

@@ -16,19 +16,19 @@ class TaskProgress {
 
     // Інтервали оновлення
     this.intervals = {
-      progressUpdate: null
+      progressUpdate: null,
     };
 
     // Стан відстеження
     this.tracking = {
       isActive: false,
-      trackedTasks: new Set()
+      trackedTasks: new Set(),
     };
 
     // Слухачі подій
     this.listeners = {
       onProgressUpdate: new Set(),
-      onTaskCompleted: new Set()
+      onTaskCompleted: new Set(),
     };
 
     // Кеш останніх оновлень для запобігання дублікатам
@@ -126,7 +126,9 @@ class TaskProgress {
       }
     }, CONFIG.PROGRESS_UPDATE_INTERVAL);
 
-    console.log(`TaskProgress: Запущено відстеження прогресу (інтервал: ${CONFIG.PROGRESS_UPDATE_INTERVAL}мс)`);
+    console.log(
+      `TaskProgress: Запущено відстеження прогресу (інтервал: ${CONFIG.PROGRESS_UPDATE_INTERVAL}мс)`
+    );
   }
 
   /**
@@ -164,14 +166,14 @@ class TaskProgress {
     this.updateTaskProgress(taskId, {
       status: TASK_STATUS.COMPLETED,
       progress_value: targetValue,
-      completion_date: new Date().toISOString()
+      completion_date: new Date().toISOString(),
     });
 
     // Повідомляємо слухачів
     this.notifyListeners('onTaskCompleted', {
       taskId,
       reward,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Припиняємо відстеження цього завдання
@@ -200,7 +202,7 @@ class TaskProgress {
     this.notifyListeners('onProgressUpdate', {
       taskId,
       progressData,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -231,7 +233,7 @@ class TaskProgress {
     if (!this.isActive) return;
 
     // Оновлюємо прогрес для всіх відстежуваних завдань
-    this.tracking.trackedTasks.forEach(taskId => {
+    this.tracking.trackedTasks.forEach((taskId) => {
       this.checkTaskProgress(taskId);
     });
   }
@@ -244,7 +246,7 @@ class TaskProgress {
     if (!this.isActive) return;
 
     // Знаходимо всі видимі завдання
-    document.querySelectorAll('.task-item:not(.completed)').forEach(taskElement => {
+    document.querySelectorAll('.task-item:not(.completed)').forEach((taskElement) => {
       const taskId = taskElement.getAttribute('data-task-id');
       if (taskId) {
         // Додаємо до списку відстежуваних
@@ -305,8 +307,7 @@ class TaskProgress {
       const { timestamp, data } = lastUpdate;
 
       // Якщо однакові дані і минуло менше 500мс, ігноруємо
-      if (JSON.stringify(data) === JSON.stringify(progressData) &&
-          Date.now() - timestamp < 500) {
+      if (JSON.stringify(data) === JSON.stringify(progressData) && Date.now() - timestamp < 500) {
         return false;
       }
     }
@@ -314,20 +315,22 @@ class TaskProgress {
     // Запам'ятовуємо це оновлення
     this.lastUpdates.set(taskId, {
       timestamp: Date.now(),
-      data: progressData
+      data: progressData,
     });
 
     // Оновлюємо прогрес у сховищі
     taskStore.setTaskProgress(taskId, progressData);
 
     // Генеруємо подію про оновлення прогресу
-    document.dispatchEvent(new CustomEvent('task-progress-updated', {
-      detail: {
-        taskId,
-        progressData,
-        timestamp: Date.now()
-      }
-    }));
+    document.dispatchEvent(
+      new CustomEvent('task-progress-updated', {
+        detail: {
+          taskId,
+          progressData,
+          timestamp: Date.now(),
+        },
+      })
+    );
 
     // Перевіряємо, чи потрібно генерувати подію про виконання завдання
     if (progressData.status === TASK_STATUS.COMPLETED) {
@@ -337,16 +340,20 @@ class TaskProgress {
         const task = taskStore.findTaskById(taskId);
 
         // Генеруємо подію про виконання завдання
-        document.dispatchEvent(new CustomEvent('task-completed', {
-          detail: {
-            taskId,
-            reward: task ? {
-              type: task.reward_type,
-              amount: task.reward_amount
-            } : null,
-            timestamp: Date.now()
-          }
-        }));
+        document.dispatchEvent(
+          new CustomEvent('task-completed', {
+            detail: {
+              taskId,
+              reward: task
+                ? {
+                    type: task.reward_type,
+                    amount: task.reward_amount,
+                  }
+                : null,
+              timestamp: Date.now(),
+            },
+          })
+        );
       }, 50);
     }
 
@@ -377,19 +384,21 @@ class TaskProgress {
     // Скидаємо прогрес у сховищі
     taskStore.setTaskProgress(taskId, {
       status: TASK_STATUS.PENDING,
-      progress_value: 0
+      progress_value: 0,
     });
 
     // Видаляємо з відстежуваних
     this.tracking.trackedTasks.delete(taskId);
 
     // Генеруємо подію про скидання прогресу
-    document.dispatchEvent(new CustomEvent('task-progress-reset', {
-      detail: {
-        taskId,
-        timestamp: Date.now()
-      }
-    }));
+    document.dispatchEvent(
+      new CustomEvent('task-progress-reset', {
+        detail: {
+          taskId,
+          timestamp: Date.now(),
+        },
+      })
+    );
 
     return true;
   }
@@ -462,7 +471,7 @@ class TaskProgress {
   notifyListeners(eventType, data) {
     if (!this.listeners[eventType]) return;
 
-    this.listeners[eventType].forEach(callback => {
+    this.listeners[eventType].forEach((callback) => {
       try {
         callback(data);
       } catch (error) {

@@ -17,9 +17,9 @@ const logger = getLogger('TimeDate');
 
 // Конфігурація за замовчуванням
 const config = {
-  adjustForTimezone: true,   // Коригувати відображення за часовим поясом
-  apiDateFormat: 'ISO',      // Формат дати для API (ISO, yyyy-mm-dd)
-  timeZoneHandling: 'utc'    // Обробка часових поясів (utc, local)
+  adjustForTimezone: true, // Коригувати відображення за часовим поясом
+  apiDateFormat: 'ISO', // Формат дати для API (ISO, yyyy-mm-dd)
+  timeZoneHandling: 'utc', // Обробка часових поясів (utc, local)
 };
 
 /**
@@ -54,7 +54,9 @@ export function parseDate(date) {
       }
 
       // Український формат дд.мм.рррр
-      const uaMatch = date.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+      const uaMatch = date.match(
+        /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+      );
       if (uaMatch) {
         const [_, day, month, year, hours = 0, minutes = 0, seconds = 0] = uaMatch;
         return new Date(
@@ -68,7 +70,9 @@ export function parseDate(date) {
       }
 
       // Американський формат мм/дд/рррр
-      const usMatch = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+      const usMatch = date.match(
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+      );
       if (usMatch) {
         const [_, month, day, year, hours = 0, minutes = 0, seconds = 0] = usMatch;
         return new Date(
@@ -86,7 +90,7 @@ export function parseDate(date) {
   } catch (error) {
     logger.error('Помилка парсингу дати', 'parseDate', {
       date,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -107,14 +111,14 @@ export function isValidDate(year, month, day) {
     }
 
     // Перевіряємо кількість днів у місяці
-    const daysInMonth = [31, (isLeapYear(year) ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     return day <= daysInMonth[month - 1];
   } catch (error) {
     logger.error('Помилка перевірки дати', 'isValidDate', {
       year,
       month,
       day,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -126,7 +130,7 @@ export function isValidDate(year, month, day) {
  * @returns {boolean} Високосний рік чи ні
  */
 export function isLeapYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 /**
@@ -136,10 +140,7 @@ export function isLeapYear(year) {
  * @returns {string} Відформатована дата для API
  */
 export function formatDateForApi(date, options = {}) {
-  const {
-    format = config.apiDateFormat,
-    includeTime = true
-  } = options;
+  const { format = config.apiDateFormat, includeTime = true } = options;
 
   try {
     // Конвертуємо вхідне значення у Date
@@ -172,7 +173,7 @@ export function formatDateForApi(date, options = {}) {
     return result;
   } catch (error) {
     logger.error('Помилка форматування дати для API', 'formatDateForApi', {
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -185,9 +186,7 @@ export function formatDateForApi(date, options = {}) {
  * @returns {Date|null} Об'єкт Date або null
  */
 export function parseApiDate(apiDate, options = {}) {
-  const {
-    adjustTimezone = true
-  } = options;
+  const { adjustTimezone = true } = options;
 
   try {
     if (!apiDate) return null;
@@ -211,7 +210,7 @@ export function parseApiDate(apiDate, options = {}) {
   } catch (error) {
     logger.error('Помилка парсингу дати з API', 'parseApiDate', {
       apiDate,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -297,11 +296,11 @@ export function getDateDifference(date1, date2 = new Date()) {
       totalHours: hours,
       totalMinutes: minutes,
       totalSeconds: seconds,
-      milliseconds: diff
+      milliseconds: diff,
     };
   } catch (error) {
     logger.error('Помилка обчислення різниці дат', 'getDateDifference', {
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -315,14 +314,7 @@ export function getDateDifference(date1, date2 = new Date()) {
  */
 export function addPeriod(date, period = {}) {
   try {
-    const {
-      years = 0,
-      months = 0,
-      days = 0,
-      hours = 0,
-      minutes = 0,
-      seconds = 0
-    } = period;
+    const { years = 0, months = 0, days = 0, hours = 0, minutes = 0, seconds = 0 } = period;
 
     const dateObj = parseDate(date);
     if (!dateObj) {
@@ -342,7 +334,7 @@ export function addPeriod(date, period = {}) {
     logger.error('Помилка додавання періоду до дати', 'addPeriod', {
       date,
       period,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -358,7 +350,7 @@ export function subtractPeriod(date, period = {}) {
   // Створюємо від'ємний період
   const negativePeriod = {};
 
-  Object.keys(period).forEach(key => {
+  Object.keys(period).forEach((key) => {
     negativePeriod[key] = -period[key];
   });
 
@@ -393,17 +385,17 @@ export function getUserTimezone() {
       offsetMinutes,
       offsetHours: offsetMinutes / 60,
       offsetString,
-      timezoneName
+      timezoneName,
     };
   } catch (error) {
     logger.error('Помилка визначення часового поясу', 'getUserTimezone', {
-      error: error.message
+      error: error.message,
     });
     return {
       offsetMinutes: 0,
       offsetHours: 0,
       offsetString: 'UTC+00:00',
-      timezoneName: ''
+      timezoneName: '',
     };
   }
 }
@@ -444,7 +436,7 @@ export function isDateInRange(date, startDate, endDate, inclusive = true) {
     }
   } catch (error) {
     logger.error('Помилка перевірки діапазону дат', 'isDateInRange', {
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -477,7 +469,7 @@ export function getMonthDay(date, type = 'first') {
     logger.error('Помилка отримання дня місяця', 'getMonthDay', {
       date,
       type,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -501,5 +493,5 @@ export default {
   // Експортуємо конфігурацію як readonly
   get config() {
     return { ...config };
-  }
+  },
 };

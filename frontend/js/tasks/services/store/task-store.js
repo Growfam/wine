@@ -18,7 +18,7 @@ class TaskStore {
       [TASK_TYPES.SOCIAL]: [],
       [TASK_TYPES.LIMITED]: [],
       [TASK_TYPES.PARTNER]: [],
-      [TASK_TYPES.REFERRAL]: []
+      [TASK_TYPES.REFERRAL]: [],
     };
 
     // Поточний прогрес користувача
@@ -27,7 +27,7 @@ class TaskStore {
     // Балансы користувача
     this.userBalances = {
       tokens: null,
-      coins: null
+      coins: null,
     };
 
     // Стан завантаження
@@ -36,14 +36,14 @@ class TaskStore {
       [TASK_TYPES.LIMITED]: false,
       [TASK_TYPES.PARTNER]: false,
       [TASK_TYPES.REFERRAL]: false,
-      userProgress: false
+      userProgress: false,
     };
 
     // Стан системи
     this.systemState = {
       initialized: false,
       activeTabType: TASK_TYPES.SOCIAL,
-      tabSwitchInProgress: false
+      tabSwitchInProgress: false,
     };
 
     // Список підписників на зміни
@@ -54,7 +54,7 @@ class TaskStore {
       USER_PROGRESS: 'task_progress',
       ACTIVE_TAB: 'active_tasks_tab',
       BALANCES: 'user_balances',
-      DAILY_BONUS_INFO: 'daily_bonus_info'
+      DAILY_BONUS_INFO: 'daily_bonus_info',
     };
 
     // Час життя кешу для різних типів даних
@@ -62,7 +62,7 @@ class TaskStore {
       TASKS: 600000, // 10 хвилин
       PROGRESS: 86400000, // 24 години
       BALANCES: 300000, // 5 хвилин
-      DAILY_BONUS: 43200000 // 12 годин
+      DAILY_BONUS: 43200000, // 12 годин
     };
   }
 
@@ -109,7 +109,7 @@ class TaskStore {
    */
   unsubscribe(callback) {
     // Видаляємо зі списку підписників
-    this.subscribers = this.subscribers.filter(cb => cb !== callback);
+    this.subscribers = this.subscribers.filter((cb) => cb !== callback);
   }
 
   /**
@@ -119,7 +119,7 @@ class TaskStore {
    */
   notifySubscribers(action, data = null) {
     // Викликаємо всі функції підписників
-    this.subscribers.forEach(callback => {
+    this.subscribers.forEach((callback) => {
       try {
         callback(action, data);
       } catch (error) {
@@ -128,9 +128,11 @@ class TaskStore {
     });
 
     // Генеруємо подію для глобальних обробників
-    document.dispatchEvent(new CustomEvent('task-store-update', {
-      detail: { action, data }
-    }));
+    document.dispatchEvent(
+      new CustomEvent('task-store-update', {
+        detail: { action, data },
+      })
+    );
   }
 
   /**
@@ -158,7 +160,7 @@ class TaskStore {
       // Зберігаємо оновлені баланси в кеш
       saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
         ttl: this.CACHE_TTL.BALANCES,
-        tags: ['user', 'balances']
+        tags: ['user', 'balances'],
       });
     } catch (error) {
       console.warn('Помилка завантаження балансів:', error);
@@ -221,7 +223,7 @@ class TaskStore {
     // Оновлюємо кеш балансів
     saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
       ttl: this.CACHE_TTL.BALANCES,
-      tags: ['user', 'balances']
+      tags: ['user', 'balances'],
     });
 
     // Сповіщаємо підписників
@@ -229,7 +231,7 @@ class TaskStore {
       type,
       amount: normalizedAmount,
       isIncrement,
-      newBalance: type === 'tokens' ? this.userBalances.tokens : this.userBalances.coins
+      newBalance: type === 'tokens' ? this.userBalances.tokens : this.userBalances.coins,
     });
   }
 
@@ -261,7 +263,7 @@ class TaskStore {
     // Сповіщаємо підписників
     this.notifySubscribers('tab-switched', {
       from: prevTabType,
-      to: tabType
+      to: tabType,
     });
 
     // Знімаємо прапорець перемикання через короткий час
@@ -293,12 +295,12 @@ class TaskStore {
 
     // Шукаємо серед усіх типів завдань
     for (const type in this.tasks) {
-      const task = this.tasks[type].find(t => t.id === taskId);
+      const task = this.tasks[type].find((t) => t.id === taskId);
       if (task) {
         // Зберігаємо в кеш
         saveToCache(`task_${taskId}`, task, {
           ttl: this.CACHE_TTL.TASKS,
-          tags: ['tasks', `type_${type}`]
+          tags: ['tasks', `type_${type}`],
         });
         return task;
       }
@@ -325,23 +327,23 @@ class TaskStore {
 
     try {
       // Конвертуємо дані в моделі
-      const taskModels = tasks.map(taskData => createTaskModel(type, taskData));
+      const taskModels = tasks.map((taskData) => createTaskModel(type, taskData));
 
       // Зберігаємо масив завдань
       this.tasks[type] = taskModels;
 
       // Оновлюємо кеш для кожного завдання
-      taskModels.forEach(task => {
+      taskModels.forEach((task) => {
         saveToCache(`task_${task.id}`, task, {
           ttl: this.CACHE_TTL.TASKS,
-          tags: ['tasks', `type_${type}`]
+          tags: ['tasks', `type_${type}`],
         });
       });
 
       // Також кешуємо весь масив завдань даного типу
       saveToCache(`tasks_${type}`, taskModels, {
         ttl: this.CACHE_TTL.TASKS,
-        tags: ['tasks', `type_${type}`, 'collections']
+        tags: ['tasks', `type_${type}`, 'collections'],
       });
 
       // Сповіщаємо підписників
@@ -378,13 +380,13 @@ class TaskStore {
     // Оновлюємо кеш
     saveToCache(`task_${task.id}`, task, {
       ttl: this.CACHE_TTL.TASKS,
-      tags: ['tasks', `type_${type}`]
+      tags: ['tasks', `type_${type}`],
     });
 
     // Також оновлюємо колекцію завдань
     saveToCache(`tasks_${type}`, this.tasks[type], {
       ttl: this.CACHE_TTL.TASKS,
-      tags: ['tasks', `type_${type}`, 'collections']
+      tags: ['tasks', `type_${type}`, 'collections'],
     });
 
     // Сповіщаємо підписників
@@ -413,13 +415,13 @@ class TaskStore {
     // Оновлюємо кеш
     saveToCache(`task_${taskId}`, task, {
       ttl: this.CACHE_TTL.TASKS,
-      tags: ['tasks', `type_${task.type}`]
+      tags: ['tasks', `type_${task.type}`],
     });
 
     // Також оновлюємо колекцію завдань
     saveToCache(`tasks_${task.type}`, this.tasks[task.type], {
       ttl: this.CACHE_TTL.TASKS,
-      tags: ['tasks', `type_${task.type}`, 'collections']
+      tags: ['tasks', `type_${task.type}`, 'collections'],
     });
 
     // Сповіщаємо підписників
@@ -445,7 +447,7 @@ class TaskStore {
     const taskType = task.type;
 
     // Видаляємо завдання з масиву
-    this.tasks[taskType] = this.tasks[taskType].filter(t => t.id !== taskId);
+    this.tasks[taskType] = this.tasks[taskType].filter((t) => t.id !== taskId);
 
     // Видаляємо з кешу
     const cacheService = window.cacheService || { remove: () => {} };
@@ -454,7 +456,7 @@ class TaskStore {
     // Також оновлюємо колекцію завдань
     saveToCache(`tasks_${taskType}`, this.tasks[taskType], {
       ttl: this.CACHE_TTL.TASKS,
-      tags: ['tasks', `type_${taskType}`, 'collections']
+      tags: ['tasks', `type_${taskType}`, 'collections'],
     });
 
     // Сповіщаємо підписників
@@ -489,7 +491,7 @@ class TaskStore {
       // Оновлюємо кеш завдання
       saveToCache(`task_${taskId}`, task, {
         ttl: this.CACHE_TTL.TASKS,
-        tags: ['tasks', `type_${task.type}`]
+        tags: ['tasks', `type_${task.type}`],
       });
     }
 
@@ -565,7 +567,7 @@ class TaskStore {
       // Зберігаємо в кеш
       saveToCache(this.CACHE_KEYS.DAILY_BONUS_INFO, data, {
         ttl: this.CACHE_TTL.DAILY_BONUS,
-        tags: ['daily_bonus', 'user']
+        tags: ['daily_bonus', 'user'],
       });
 
       // Сповіщаємо підписників

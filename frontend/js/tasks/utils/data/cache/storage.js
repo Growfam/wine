@@ -16,10 +16,10 @@ const logger = getLogger('CacheStorage');
 
 // Типи сховищ
 export const STORAGE_TYPES = {
-  MEMORY: 'memory',        // В пам'яті (Map)
-  LOCAL: 'localStorage',   // localStorage
+  MEMORY: 'memory', // В пам'яті (Map)
+  LOCAL: 'localStorage', // localStorage
   SESSION: 'sessionStorage', // sessionStorage
-  PERSISTENT: 'persistent' // Комбінація localStorage + пам'ять для резервного копіювання
+  PERSISTENT: 'persistent', // Комбінація localStorage + пам'ять для резервного копіювання
 };
 
 /**
@@ -33,10 +33,10 @@ export class StorageAdapter {
   constructor(config = {}) {
     // Налаштування за замовчуванням
     this.config = {
-      prefix: 'cache_',            // Префікс для ключів у localStorage/sessionStorage
+      prefix: 'cache_', // Префікс для ключів у localStorage/sessionStorage
       storage: STORAGE_TYPES.LOCAL, // Тип сховища за замовчуванням
-      serializeObjects: true,      // Автоматично перетворювати об'єкти в JSON
-      debug: false                 // Режим відлагодження
+      serializeObjects: true, // Автоматично перетворювати об'єкти в JSON
+      debug: false, // Режим відлагодження
     };
 
     // Застосовуємо конфігурацію
@@ -52,7 +52,7 @@ export class StorageAdapter {
     if (this.config.debug) {
       logger.info('Ініціалізовано StorageAdapter', {
         storageType: this.storageType,
-        availableStorages: this.availableStorages
+        availableStorages: this.availableStorages,
       });
     }
   }
@@ -65,7 +65,7 @@ export class StorageAdapter {
   _checkStorageAvailability() {
     const available = {
       localStorage: false,
-      sessionStorage: false
+      sessionStorage: false,
     };
 
     try {
@@ -192,7 +192,7 @@ export class StorageAdapter {
     } catch (error) {
       logger.error('Помилка серіалізації значення', {
         valueType: typeof value,
-        error: error.message
+        error: error.message,
       });
       return String(value);
     }
@@ -258,7 +258,7 @@ export class StorageAdapter {
       logger.error('Помилка десеріалізації значення', {
         serialized,
         type,
-        error: error.message
+        error: error.message,
       });
       return serialized;
     }
@@ -303,7 +303,7 @@ export class StorageAdapter {
           // Якщо і друга спроба невдала
           logger.error('Не вдалося записати в сховище навіть після очищення', {
             key,
-            error: retryError.message
+            error: retryError.message,
           });
           return false;
         }
@@ -405,7 +405,7 @@ export class StorageAdapter {
       }
 
       // Видаляємо ключі
-      keysToRemove.forEach(key => {
+      keysToRemove.forEach((key) => {
         storage.removeItem(key);
       });
 
@@ -449,7 +449,7 @@ export class StorageAdapter {
               key: originalKey,
               metaKey: key,
               dataKey: this._getFullKey(originalKey),
-              metadata
+              metadata,
             });
           } catch (e) {
             // Ігноруємо некоректні метадані
@@ -461,7 +461,7 @@ export class StorageAdapter {
       metaEntries.sort((a, b) => (a.metadata.timestamp || 0) - (b.metadata.timestamp || 0));
 
       // Видаляємо застарілі записи
-      metaEntries.forEach(entry => {
+      metaEntries.forEach((entry) => {
         // Видаляємо прострочені
         if (entry.metadata.expiresAt && entry.metadata.expiresAt < now) {
           storage.removeItem(entry.metaKey);
@@ -475,7 +475,7 @@ export class StorageAdapter {
         const toRemove = Math.ceil(metaEntries.length * 0.25) - removed;
 
         // Видаляємо найстаріші записи
-        metaEntries.slice(0, toRemove).forEach(entry => {
+        metaEntries.slice(0, toRemove).forEach((entry) => {
           storage.removeItem(entry.metaKey);
           storage.removeItem(entry.dataKey);
           removed++;
@@ -514,7 +514,7 @@ export class StorageAdapter {
 
             items.push({
               key: originalKey,
-              metadata
+              metadata,
             });
           } catch (e) {
             // Ігноруємо некоректні метадані
@@ -600,8 +600,8 @@ export const storageCompat = {
 
     // Параметри за замовчуванням
     const {
-      persist = true,         // Зберігати в localStorage
-      expires = null,         // Час життя в мс
+      persist = true, // Зберігати в localStorage
+      expires = null, // Час життя в мс
     } = options;
 
     // Створюємо метадані
@@ -610,7 +610,7 @@ export const storageCompat = {
       timestamp: Date.now(),
       expiresAt: expires ? Date.now() + expires : null,
       tags: [persist ? 'persistent' : 'session'],
-      persist
+      persist,
     };
 
     return adapter.setItem(key, value, metadata);
@@ -635,7 +635,11 @@ export const storageCompat = {
     }
 
     // Перевіряємо термін дії
-    if (options.checkExpiry !== false && result.metadata.expiresAt && result.metadata.expiresAt < Date.now()) {
+    if (
+      options.checkExpiry !== false &&
+      result.metadata.expiresAt &&
+      result.metadata.expiresAt < Date.now()
+    ) {
       // Видаляємо прострочений запис
       adapter.removeItem(key);
       return defaultValue;
@@ -661,7 +665,7 @@ export const storageCompat = {
   getKeys() {
     const adapter = new StorageAdapter();
     const items = adapter.getAllItems();
-    return items.map(item => item.key);
+    return items.map((item) => item.key);
   },
 
   /**
@@ -671,7 +675,7 @@ export const storageCompat = {
   clear() {
     const adapter = new StorageAdapter();
     return adapter.clear();
-  }
+  },
 };
 
 export default storageCompat;

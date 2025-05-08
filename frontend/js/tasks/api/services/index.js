@@ -13,14 +13,10 @@ import taskService from './task-service.js';
 import actionService from './action-service.js';
 import progressService from './progress-service.js';
 
-export {
-    taskService,
-    actionService,
-    progressService
-};
+export { taskService, actionService, progressService };
 
 export default {
-    tasks: taskService,
-    actions: actionService,
-    progress: progressService
+  tasks: taskService,
+  actions: actionService,
+  progress: progressService,
 };

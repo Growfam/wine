@@ -75,7 +75,7 @@ export function getElementPosition(element) {
     right: rect.right + scrollLeft,
     bottom: rect.bottom + scrollTop,
     width: rect.width,
-    height: rect.height
+    height: rect.height,
   };
 }
 
@@ -101,10 +101,10 @@ export function scrollToElement(element, options = {}) {
 
     // Параметри за замовчуванням
     const {
-      behavior = 'smooth',  // Поведінка прокрутки
-      block = 'start',      // Вертикальне вирівнювання
-      inline = 'nearest',   // Горизонтальне вирівнювання
-      offset = 0            // Додатковий відступ зверху
+      behavior = 'smooth', // Поведінка прокрутки
+      block = 'start', // Вертикальне вирівнювання
+      inline = 'nearest', // Горизонтальне вирівнювання
+      offset = 0, // Додатковий відступ зверху
     } = options;
 
     // Прокрутка з урахуванням відступу
@@ -117,7 +117,7 @@ export function scrollToElement(element, options = {}) {
 
       window.scrollTo({
         top: targetTop,
-        behavior
+        behavior,
       });
     } else {
       // Використовуємо стандартний метод
@@ -142,7 +142,7 @@ export function isElementInViewport(element, options = {}) {
   try {
     const {
       fullyVisible = false, // Чи має елемент бути повністю видимим
-      margin = 0            // Відступ від меж вьюпорта
+      margin = 0, // Відступ від меж вьюпорта
     } = options;
 
     const rect = element.getBoundingClientRect();
@@ -160,8 +160,8 @@ export function isElementInViewport(element, options = {}) {
     }
 
     // Перевіряємо, чи елемент хоча б частково видимий
-    const vertInView = (rect.top <= windowHeight - margin) && ((rect.top + rect.height) >= margin);
-    const horizInView = (rect.left <= windowWidth - margin) && ((rect.left + rect.width) >= margin);
+    const vertInView = rect.top <= windowHeight - margin && rect.top + rect.height >= margin;
+    const horizInView = rect.left <= windowWidth - margin && rect.left + rect.width >= margin;
 
     return vertInView && horizInView;
   } catch (error) {
@@ -196,9 +196,9 @@ export function loadImage(src) {
 export function addClass(element, ...classNames) {
   if (!element || !element.classList) return element;
 
-  classNames.forEach(className => {
+  classNames.forEach((className) => {
     if (className && typeof className === 'string') {
-      element.classList.add(...className.split(' ').filter(c => c.trim()));
+      element.classList.add(...className.split(' ').filter((c) => c.trim()));
     }
   });
 
@@ -214,9 +214,9 @@ export function addClass(element, ...classNames) {
 export function removeClass(element, ...classNames) {
   if (!element || !element.classList) return element;
 
-  classNames.forEach(className => {
+  classNames.forEach((className) => {
     if (className && typeof className === 'string') {
-      element.classList.remove(...className.split(' ').filter(c => c.trim()));
+      element.classList.remove(...className.split(' ').filter((c) => c.trim()));
     }
   });
 
@@ -317,7 +317,7 @@ export function createElement(tag, attrs = {}, content) {
     // Додаємо вміст
     if (content) {
       if (Array.isArray(content)) {
-        content.forEach(item => {
+        content.forEach((item) => {
           if (typeof item === 'string') {
             element.appendChild(document.createTextNode(item));
           } else if (item instanceof Node) {
@@ -350,5 +350,5 @@ export default {
   hasClass,
   toggleClass,
   findParent,
-  createElement
+  createElement,
 };

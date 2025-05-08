@@ -21,7 +21,7 @@ export class VerificationCore {
       activeVerifications: {},
 
       // Реєстр оброблених подій
-      processedEvents: {}
+      processedEvents: {},
     };
 
     // Конфігурація
@@ -36,7 +36,7 @@ export class VerificationCore {
       blockRepeatedRequests: true,
 
       // Максимальна кількість спроб верифікації
-      maxVerificationAttempts: CONFIG.MAX_VERIFICATION_ATTEMPTS
+      maxVerificationAttempts: CONFIG.MAX_VERIFICATION_ATTEMPTS,
     };
 
     // Реєстр верифікаторів
@@ -73,7 +73,7 @@ export class VerificationCore {
         return {
           success: false,
           status: VERIFICATION_STATUS.PENDING,
-          message: 'Перевірка вже виконується. Зачекайте.'
+          message: 'Перевірка вже виконується. Зачекайте.',
         };
       }
 
@@ -90,13 +90,14 @@ export class VerificationCore {
         return {
           success: false,
           status: VERIFICATION_STATUS.FAILURE,
-          message: `Зачекайте ${waitTime} сек. перед новою спробою перевірки.`
+          message: `Зачекайте ${waitTime} сек. перед новою спробою перевірки.`,
         };
       }
 
       // Перевіряємо кількість спроб
       if (this.config.maxVerificationAttempts > 0) {
-        this.state.verificationAttempts[taskId] = (this.state.verificationAttempts[taskId] || 0) + 1;
+        this.state.verificationAttempts[taskId] =
+          (this.state.verificationAttempts[taskId] || 0) + 1;
 
         if (this.state.verificationAttempts[taskId] > this.config.maxVerificationAttempts) {
           this.hideVerificationLoader(taskId);
@@ -106,7 +107,7 @@ export class VerificationCore {
           return {
             success: false,
             status: VERIFICATION_STATUS.FAILURE,
-            message: `Перевищено максимальну кількість спроб (${this.config.maxVerificationAttempts}). Спробуйте пізніше.`
+            message: `Перевищено максимальну кількість спроб (${this.config.maxVerificationAttempts}). Спробуйте пізніше.`,
           };
         }
       }
@@ -175,7 +176,7 @@ export class VerificationCore {
         success: false,
         status: VERIFICATION_STATUS.ERROR,
         message: 'Сталася неочікувана помилка під час перевірки завдання. Спробуйте пізніше.',
-        error: unexpectedError.message
+        error: unexpectedError.message,
       };
 
       // Створюємо унікальний ідентифікатор події
@@ -204,17 +205,20 @@ export class VerificationCore {
     // Перевіряємо тип помилки
     if (error.name === 'AbortError' || error.name === 'TimeoutError') {
       status = VERIFICATION_STATUS.TIMEOUT;
-      message = 'Перевищено час очікування відповіді від сервера. Перевірте з\'єднання та спробуйте ще раз.';
+      message =
+        "Перевищено час очікування відповіді від сервера. Перевірте з'єднання та спробуйте ще раз.";
     } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
       status = VERIFICATION_STATUS.NETWORK_ERROR;
-      message = 'Проблема з мережевим з\'єднанням. Перевірте підключення до Інтернету та спробуйте ще раз.';
+      message =
+        "Проблема з мережевим з'єднанням. Перевірте підключення до Інтернету та спробуйте ще раз.";
     } else if (error.status === 401 || error.status === 403) {
       message = 'Помилка авторизації. Оновіть сторінку та спробуйте знову.';
     } else if (error.status === 429) {
       message = 'Занадто багато запитів. Будь ласка, спробуйте пізніше.';
     } else if (error.message && error.message.includes('CORS')) {
       status = VERIFICATION_STATUS.NETWORK_ERROR;
-      message = 'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
+      message =
+        'Проблема з доступом до сервера. Спробуйте оновити сторінку або використати інший браузер.';
     }
 
     return {
@@ -222,7 +226,7 @@ export class VerificationCore {
       status: status,
       message: message,
       error: error.message,
-      taskId: taskId
+      taskId: taskId,
     };
   }
 

@@ -44,7 +44,7 @@ const taskVerification = {
   // Управління станом
   resetVerificationAttempts: () => verificationCore.resetVerificationAttempts(),
   clearProcessedEvents: () => verificationCore.clearProcessedEvents(),
-  resetState: () => verificationCore.resetState()
+  resetState: () => verificationCore.resetState(),
 };
 
 export default taskVerification;

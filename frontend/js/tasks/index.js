@@ -23,7 +23,7 @@ let moduleCache = {
   models: null,
   api: null,
   services: null,
-  ui: null
+  ui: null,
 };
 
 /**
@@ -70,14 +70,10 @@ class TaskSystem {
       }
 
       // Завантажуємо всі необхідні модулі паралельно
-      const [
-        modelsModule,
-        servicesModule,
-        uiModule
-      ] = await Promise.all([
+      const [modelsModule, servicesModule, uiModule] = await Promise.all([
         import('./models'),
         import('./services'),
-        import('./ui')
+        import('./ui'),
       ]);
 
       // Зберігаємо модулі в кеш
@@ -158,7 +154,7 @@ class TaskSystem {
       // Спробуємо завантажити завдання
       try {
         const tasksData = await this.api.getAllTasks({
-          forceRefresh: options.forceRefresh || false
+          forceRefresh: options.forceRefresh || false,
         });
 
         // Зберігаємо завдання у сховище
@@ -167,14 +163,14 @@ class TaskSystem {
         this.store.setTasks(TaskTypes.TASK_TYPES.PARTNER, tasksData.partner || []);
 
         // Розділяємо соціальні та реферальні завдання
-        const referralTasks = (tasksData.social || []).filter(task =>
-          (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) ||
-          task.type === 'referral' ||
-          (task.title && (
-            task.title.toLowerCase().includes('referral') ||
-            task.title.toLowerCase().includes('запроси') ||
-            task.title.toLowerCase().includes('запросити')
-          ))
+        const referralTasks = (tasksData.social || []).filter(
+          (task) =>
+            (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) ||
+            task.type === 'referral' ||
+            (task.title &&
+              (task.title.toLowerCase().includes('referral') ||
+                task.title.toLowerCase().includes('запроси') ||
+                task.title.toLowerCase().includes('запросити')))
         );
 
         // Зберігаємо реферальні завдання
@@ -191,10 +187,12 @@ class TaskSystem {
           social: (tasksData.social || []).length,
           limited: (tasksData.limited || []).length,
           partner: (tasksData.partner || []).length,
-          referral: referralTasks.length
+          referral: referralTasks.length,
         });
       } catch (loadError) {
-        logger.warn('Помилка завантаження завдань, продовжуємо ініціалізацію', 'initialize', { error: loadError });
+        logger.warn('Помилка завантаження завдань, продовжуємо ініціалізацію', 'initialize', {
+          error: loadError,
+        });
       }
 
       // Встановлюємо прапорець ініціалізації
@@ -202,7 +200,7 @@ class TaskSystem {
 
       // Генеруємо подію ініціалізації
       this.dispatchSystemEvent('initialized', {
-        version: this.version
+        version: this.version,
       });
 
       // Ін'єктуємо посилання на TaskSystem в інші модулі
@@ -215,7 +213,7 @@ class TaskSystem {
 
       // Генеруємо подію помилки
       this.dispatchSystemEvent('initialization-error', {
-        error: error.message
+        error: error.message,
       });
 
       return false;
@@ -228,13 +226,13 @@ class TaskSystem {
   injectSystemReference() {
     const modules = [this.api, this.store, this.verification, this.progress, this.dailyBonus];
 
-    modules.forEach(module => {
+    modules.forEach((module) => {
       if (module && typeof module === 'object') {
         module.taskSystem = this;
       }
     });
 
-    logger.debug('Посилання на TaskSystem ін\'єктовано в модулі', 'injectSystemReference');
+    logger.debug("Посилання на TaskSystem ін'єктовано в модулі", 'injectSystemReference');
   }
 
   /**
@@ -248,8 +246,8 @@ class TaskSystem {
     const event = new CustomEvent(`task-system-${eventName}`, {
       detail: {
         ...data,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     });
 
     document.dispatchEvent(event);
@@ -296,14 +294,14 @@ class TaskSystem {
           this.progress.updateTaskProgress(taskId, {
             status: 'started',
             progress_value: 0,
-            task_id: taskId
+            task_id: taskId,
           });
         }
 
         // Генеруємо подію про запуск завдання
         this.dispatchSystemEvent('task-started', {
           taskId,
-          response
+          response,
         });
 
         // Отримуємо дані завдання
@@ -314,14 +312,14 @@ class TaskSystem {
           success: true,
           message: response.message || 'Завдання успішно активовано',
           task,
-          action_url: task?.action_url || task?.channel_url
+          action_url: task?.action_url || task?.channel_url,
         };
       } else {
         // Повертаємо помилку
         return {
           success: false,
           message: response.message || response.error || 'Помилка запуску завдання',
-          error: response.error
+          error: response.error,
         };
       }
     } catch (error) {
@@ -330,7 +328,7 @@ class TaskSystem {
       return {
         success: false,
         message: 'Помилка запуску завдання',
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -412,7 +410,11 @@ class TaskSystem {
       return result;
     } catch (error) {
       logger.error('Помилка отримання щоденного бонусу', 'claimDailyBonus', { error });
-      return { success: false, message: 'Помилка отримання щоденного бонусу', error: error.message };
+      return {
+        success: false,
+        message: 'Помилка отримання щоденного бонусу',
+        error: error.message,
+      };
     }
   }
 
@@ -460,7 +462,7 @@ class TaskSystem {
     // ID елементів в UI
     const elementIds = {
       coins: 'user-coins',
-      tokens: 'user-tokens'
+      tokens: 'user-tokens',
     };
 
     const elementId = elementIds[type];
@@ -474,9 +476,7 @@ class TaskSystem {
     let currentValue = parseInt(element.textContent.replace(/[^\d]/g, '')) || 0;
 
     // Оновлюємо значення
-    let newValue = isIncrement
-      ? currentValue + amount
-      : Math.max(0, currentValue - amount);
+    let newValue = isIncrement ? currentValue + amount : Math.max(0, currentValue - amount);
 
     // Оновлюємо відображення
     element.textContent = newValue.toString();
@@ -505,8 +505,8 @@ class TaskSystem {
         social: this.store.tasks?.[TaskTypes.TASK_TYPES.SOCIAL]?.length || 0,
         limited: this.store.tasks?.[TaskTypes.TASK_TYPES.LIMITED]?.length || 0,
         partner: this.store.tasks?.[TaskTypes.TASK_TYPES.PARTNER]?.length || 0,
-        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0
-      }
+        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0,
+      },
     };
   }
 
@@ -515,11 +515,12 @@ class TaskSystem {
    * @returns {Object} Діагностична інформація
    */
   diagnostics() {
-    if (!this.store) return {
-      initialized: this.initialized,
-      version: this.version,
-      modulesLoaded: false
-    };
+    if (!this.store)
+      return {
+        initialized: this.initialized,
+        version: this.version,
+        modulesLoaded: false,
+      };
 
     return {
       initialized: this.initialized,
@@ -529,20 +530,20 @@ class TaskSystem {
         social: this.store.tasks?.[TaskTypes.TASK_TYPES.SOCIAL]?.length || 0,
         limited: this.store.tasks?.[TaskTypes.TASK_TYPES.LIMITED]?.length || 0,
         partner: this.store.tasks?.[TaskTypes.TASK_TYPES.PARTNER]?.length || 0,
-        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0
+        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0,
       },
       userProgress: this.store.userProgress ? Object.keys(this.store.userProgress).length : 0,
       api: {
         baseUrl: this.api?.baseUrl || 'не налаштовано',
-        version: this.api?.version || 'невідомо'
+        version: this.api?.version || 'невідомо',
       },
       dailyBonus: {
         initialized: !!this.dailyBonus,
-        claimed: this.dailyBonus?.isClaimedToday?.() || false
+        claimed: this.dailyBonus?.isClaimedToday?.() || false,
       },
       dependencies: {
-        registered: dependencyContainer.getRegisteredModules?.() || []
-      }
+        registered: dependencyContainer.getRegisteredModules?.() || [],
+      },
     };
   }
 
@@ -603,9 +604,13 @@ window.TaskManager = {
   },
 
   // Властивості
-  get initialized() { return taskSystem.initialized; },
-  get version() { return taskSystem.version; },
-  REWARD_TYPES: TaskTypes.REWARD_TYPES
+  get initialized() {
+    return taskSystem.initialized;
+  },
+  get version() {
+    return taskSystem.version;
+  },
+  REWARD_TYPES: TaskTypes.REWARD_TYPES,
 };
 
 // Реєструємо TaskManager у контейнері залежностей

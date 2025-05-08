@@ -22,15 +22,19 @@ export class GenericVerifier extends BaseVerifier {
         verification_type: 'generic',
         task_data: {
           action_type: task?.action_type || 'generic',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       };
 
       // Запит до API для верифікації
       return await this.performApiVerification(taskId, verificationData);
     } catch (error) {
       console.error(`Помилка при верифікації загального завдання ${taskId}:`, error);
-      return this.createErrorResult(taskId, 'Сталася помилка під час перевірки завдання', error.message);
+      return this.createErrorResult(
+        taskId,
+        'Сталася помилка під час перевірки завдання',
+        error.message
+      );
     }
   }
 }

@@ -52,11 +52,13 @@ export function hasTrackingParams(url) {
 
   try {
     const urlObj = new URL(url);
-    return urlObj.searchParams.has('utm_source') ||
-           urlObj.searchParams.has('utm_medium') ||
-           urlObj.searchParams.has('utm_campaign') ||
-           urlObj.searchParams.has('partner_id') ||
-           urlObj.searchParams.has('tracking_id');
+    return (
+      urlObj.searchParams.has('utm_source') ||
+      urlObj.searchParams.has('utm_medium') ||
+      urlObj.searchParams.has('utm_campaign') ||
+      urlObj.searchParams.has('partner_id') ||
+      urlObj.searchParams.has('tracking_id')
+    );
   } catch (error) {
     return false;
   }
@@ -75,12 +77,17 @@ export function removeTrackingParams(url) {
 
     // Список трекінгових параметрів
     const trackingParams = [
-      'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-      'partner_id', 'tracking_id'
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'partner_id',
+      'tracking_id',
     ];
 
     // Видаляємо кожен параметр
-    trackingParams.forEach(param => {
+    trackingParams.forEach((param) => {
       urlObj.searchParams.delete(param);
     });
 

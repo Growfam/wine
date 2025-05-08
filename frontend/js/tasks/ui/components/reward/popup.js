@@ -15,18 +15,18 @@ const logger = getLogger('UI.RewardPopup');
 
 // Конфігурація
 const CONFIG = {
-    animationDuration: 2000,     // Тривалість анімації (мс)
-    autoHideTimeout: 5000,       // Час автоматичного закриття (мс)
-    transitionDuration: 700,     // Тривалість переходів (мс)
-    timingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'  // Функція пом'якшення
+  animationDuration: 2000, // Тривалість анімації (мс)
+  autoHideTimeout: 5000, // Час автоматичного закриття (мс)
+  transitionDuration: 700, // Тривалість переходів (мс)
+  timingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)', // Функція пом'якшення
 };
 
 // Стан модуля
 const state = {
-    rewardQueue: [],             // Черга винагород
-    activePopup: null,           // Активне вікно
-    isActive: false,             // Чи відображається зараз вікно
-    timers: {}                   // Активні таймери
+  rewardQueue: [], // Черга винагород
+  activePopup: null, // Активне вікно
+  isActive: false, // Чи відображається зараз вікно
+  timers: {}, // Активні таймери
 };
 
 /**
@@ -36,123 +36,123 @@ const state = {
  * @returns {Promise} Проміс, що завершується після закриття вікна
  */
 export function showRewardPopup(reward, options = {}) {
-    return new Promise((resolve) => {
-        // Якщо вже показується інше вікно, додаємо в чергу
-        if (state.isActive) {
-            state.rewardQueue.push({
-                reward,
-                options,
-                resolve
-            });
+  return new Promise((resolve) => {
+    // Якщо вже показується інше вікно, додаємо в чергу
+    if (state.isActive) {
+      state.rewardQueue.push({
+        reward,
+        options,
+        resolve,
+      });
 
-            logger.info('Додано винагороду в чергу', 'showRewardPopup', {
-                category: LOG_CATEGORIES.UI,
-                details: { queueLength: state.rewardQueue.length }
-            });
+      logger.info('Додано винагороду в чергу', 'showRewardPopup', {
+        category: LOG_CATEGORIES.UI,
+        details: { queueLength: state.rewardQueue.length },
+      });
 
-            return;
-        }
+      return;
+    }
 
-        // Позначаємо, що вікно активне
-        state.isActive = true;
+    // Позначаємо, що вікно активне
+    state.isActive = true;
 
-        // Налаштування за замовчуванням
-        const settings = {
-            title: 'Вітаємо!',
-            message: null,
-            duration: CONFIG.autoHideTimeout,
-            showConfetti: true,
-            autoClose: true,
-            specialEffect: false,
-            onClose: null,
-            id: `reward_${Date.now()}`
-        };
-        Object.assign(settings, options);
+    // Налаштування за замовчуванням
+    const settings = {
+      title: 'Вітаємо!',
+      message: null,
+      duration: CONFIG.autoHideTimeout,
+      showConfetti: true,
+      autoClose: true,
+      specialEffect: false,
+      onClose: null,
+      id: `reward_${Date.now()}`,
+    };
+    Object.assign(settings, options);
 
-        // Визначаємо тип та текст винагороди
-        const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
-        const rewardMessage = settings.message || `Ви отримали ${reward.amount} ${rewardType}`;
+    // Визначаємо тип та текст винагороди
+    const rewardType = reward.type === 'tokens' ? '$WINIX' : 'жетонів';
+    const rewardMessage = settings.message || `Ви отримали ${reward.amount} ${rewardType}`;
 
-        logger.info(`Показ вікна винагороди: ${reward.amount} ${rewardType}`, 'showRewardPopup', {
-            category: LOG_CATEGORIES.UI,
-            details: { amount: reward.amount, type: reward.type }
-        });
-
-        // Створюємо контейнер, якщо його немає
-        ensureContainer();
-        const container = document.getElementById('reward-popup-container');
-
-        // Створюємо вікно
-        const popup = createPopupElement(reward, rewardMessage, settings);
-
-        // Зберігаємо посилання на активне вікно
-        state.activePopup = {
-            element: popup,
-            settings
-        };
-
-        // Додаємо до контейнера
-        container.appendChild(popup);
-
-        // Показуємо контейнер і вікно з анімацією
-        setTimeout(() => {
-            container.classList.add('show');
-            popup.classList.add('show');
-
-            // Додаємо спеціальні ефекти, якщо потрібно
-            if (settings.showConfetti && UI.Animations && UI.Animations.createConfetti) {
-                setTimeout(() => {
-                    UI.Animations.createConfetti({
-                        count: window.innerWidth < 768 ? 40 : 80,
-                        duration: 2000
-                    });
-                }, 200);
-            }
-
-            // Якщо є спеціальні ефекти
-            if (settings.specialEffect && UI.Animations && UI.Animations.createStarsEffect) {
-                setTimeout(() => {
-                    UI.Animations.createStarsEffect(popup);
-                }, 500);
-            }
-        }, 10);
-
-        // Кнопка закриття
-        const closeButton = popup.querySelector('.reward-popup-button');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
-                closeRewardPopup(resolve);
-            });
-        }
-
-        // Автоматичне закриття
-        if (settings.autoClose) {
-            state.timers[settings.id] = setTimeout(() => {
-                closeRewardPopup(resolve);
-            }, settings.duration);
-        }
+    logger.info(`Показ вікна винагороди: ${reward.amount} ${rewardType}`, 'showRewardPopup', {
+      category: LOG_CATEGORIES.UI,
+      details: { amount: reward.amount, type: reward.type },
     });
+
+    // Створюємо контейнер, якщо його немає
+    ensureContainer();
+    const container = document.getElementById('reward-popup-container');
+
+    // Створюємо вікно
+    const popup = createPopupElement(reward, rewardMessage, settings);
+
+    // Зберігаємо посилання на активне вікно
+    state.activePopup = {
+      element: popup,
+      settings,
+    };
+
+    // Додаємо до контейнера
+    container.appendChild(popup);
+
+    // Показуємо контейнер і вікно з анімацією
+    setTimeout(() => {
+      container.classList.add('show');
+      popup.classList.add('show');
+
+      // Додаємо спеціальні ефекти, якщо потрібно
+      if (settings.showConfetti && UI.Animations && UI.Animations.createConfetti) {
+        setTimeout(() => {
+          UI.Animations.createConfetti({
+            count: window.innerWidth < 768 ? 40 : 80,
+            duration: 2000,
+          });
+        }, 200);
+      }
+
+      // Якщо є спеціальні ефекти
+      if (settings.specialEffect && UI.Animations && UI.Animations.createStarsEffect) {
+        setTimeout(() => {
+          UI.Animations.createStarsEffect(popup);
+        }, 500);
+      }
+    }, 10);
+
+    // Кнопка закриття
+    const closeButton = popup.querySelector('.reward-popup-button');
+    if (closeButton) {
+      closeButton.addEventListener('click', () => {
+        closeRewardPopup(resolve);
+      });
+    }
+
+    // Автоматичне закриття
+    if (settings.autoClose) {
+      state.timers[settings.id] = setTimeout(() => {
+        closeRewardPopup(resolve);
+      }, settings.duration);
+    }
+  });
 }
 
 /**
  * Забезпечення наявності контейнера
  */
 function ensureContainer() {
-    if (!document.getElementById('reward-popup-container')) {
-        const container = document.createElement('div');
-        container.id = 'reward-popup-container';
-        container.className = 'reward-popup-container';
+  if (!document.getElementById('reward-popup-container')) {
+    const container = document.createElement('div');
+    container.id = 'reward-popup-container';
+    container.className = 'reward-popup-container';
 
-        // Додаємо стилі
-        injectStyles();
+    // Додаємо стилі
+    injectStyles();
 
-        // Додаємо у документ
-        document.body.appendChild(container);
+    // Додаємо у документ
+    document.body.appendChild(container);
 
-        logger.debug('Створено контейнер для вікон винагород', 'ensureContainer', {
-            category: LOG_CATEGORIES.RENDERING
-        });
-    }
+    logger.debug('Створено контейнер для вікон винагород', 'ensureContainer', {
+      category: LOG_CATEGORIES.RENDERING,
+    });
+  }
 }
 
 /**
@@ -163,23 +163,23 @@ function ensureContainer() {
  * @returns {HTMLElement} Елемент вікна
  */
 function createPopupElement(reward, message, settings) {
-    const popup = document.createElement('div');
-    popup.className = 'reward-popup';
+  const popup = document.createElement('div');
+  popup.className = 'reward-popup';
 
-    // Додаємо клас для типу винагороди
-    if (reward.type === 'tokens') {
-        popup.classList.add('token-reward');
-    } else {
-        popup.classList.add('coin-reward');
-    }
+  // Додаємо клас для типу винагороди
+  if (reward.type === 'tokens') {
+    popup.classList.add('token-reward');
+  } else {
+    popup.classList.add('coin-reward');
+  }
 
-    // Додаємо спеціальний клас, якщо потрібно
-    if (settings.specialEffect) {
-        popup.classList.add('special-effect');
-    }
+  // Додаємо спеціальний клас, якщо потрібно
+  if (settings.specialEffect) {
+    popup.classList.add('special-effect');
+  }
 
-    // Створюємо контент
-    popup.innerHTML = `
+  // Створюємо контент
+  popup.innerHTML = `
         <div class="reward-popup-title">${settings.title}</div>
         
         <div class="reward-popup-icon">
@@ -195,7 +195,7 @@ function createPopupElement(reward, message, settings) {
         <button class="reward-popup-button">Чудово!</button>
     `;
 
-    return popup;
+  return popup;
 }
 
 /**
@@ -203,68 +203,67 @@ function createPopupElement(reward, message, settings) {
  * @param {Function} resolvePromise - Функція для вирішення проміса
  */
 function closeRewardPopup(resolvePromise) {
-    if (!state.activePopup) return;
+  if (!state.activePopup) return;
 
-    const { element, settings } = state.activePopup;
-    const container = document.getElementById('reward-popup-container');
+  const { element, settings } = state.activePopup;
+  const container = document.getElementById('reward-popup-container');
 
-    // Знімаємо класи для анімації
-    element.classList.remove('show');
-    container.classList.remove('show');
+  // Знімаємо класи для анімації
+  element.classList.remove('show');
+  container.classList.remove('show');
 
-    // Очищаємо таймер
-    if (state.timers[settings.id]) {
-        clearTimeout(state.timers[settings.id]);
-        delete state.timers[settings.id];
+  // Очищаємо таймер
+  if (state.timers[settings.id]) {
+    clearTimeout(state.timers[settings.id]);
+    delete state.timers[settings.id];
+  }
+
+  // Видаляємо елемент після анімації
+  setTimeout(() => {
+    if (element.parentNode) {
+      element.parentNode.removeChild(element);
     }
 
-    // Видаляємо елемент після анімації
-    setTimeout(() => {
-        if (element.parentNode) {
-            element.parentNode.removeChild(element);
-        }
+    // Очищаємо стан
+    state.activePopup = null;
+    state.isActive = false;
 
-        // Очищаємо стан
-        state.activePopup = null;
-        state.isActive = false;
+    // Викликаємо callback
+    if (typeof settings.onClose === 'function') {
+      settings.onClose();
+    }
 
-        // Викликаємо callback
-        if (typeof settings.onClose === 'function') {
-            settings.onClose();
-        }
+    // Вирішуємо проміс
+    if (resolvePromise) {
+      resolvePromise();
+    }
 
-        // Вирішуємо проміс
-        if (resolvePromise) {
-            resolvePromise();
-        }
-
-        // Показуємо наступну винагороду з черги
-        showNextReward();
-    }, CONFIG.transitionDuration);
+    // Показуємо наступну винагороду з черги
+    showNextReward();
+  }, CONFIG.transitionDuration);
 }
 
 /**
  * Показ наступної винагороди з черги
  */
 function showNextReward() {
-    if (state.rewardQueue.length > 0) {
-        const nextReward = state.rewardQueue.shift();
+  if (state.rewardQueue.length > 0) {
+    const nextReward = state.rewardQueue.shift();
 
-        logger.info('Показ наступної винагороди з черги', 'showNextReward', {
-            category: LOG_CATEGORIES.UI,
-            details: { queueLength: state.rewardQueue.length }
-        });
+    logger.info('Показ наступної винагороди з черги', 'showNextReward', {
+      category: LOG_CATEGORIES.UI,
+      details: { queueLength: state.rewardQueue.length },
+    });
 
-        // Показуємо наступну винагороду з невеликою затримкою
-        setTimeout(() => {
-            showRewardPopup(nextReward.reward, nextReward.options)
-                .then(() => {
-                    if (nextReward.resolve) {
-                        nextReward.resolve();
-                    }
-                });
-        }, 500);
-    }
+    // Показуємо наступну винагороду з невеликою затримкою
+    setTimeout(() => {
+      showRewardPopup(nextReward.reward, nextReward.options).then(() => {
+        if (nextReward.resolve) {
+          nextReward.resolve();
+        }
+      });
+    }, 500);
+  }
 }
 
 /**
@@ -274,43 +273,43 @@ function showNextReward() {
  * @returns {Promise} Проміс, що завершується після показу всіх винагород
  */
 export function showRewardSequence(rewards, options = {}) {
-    return new Promise(async (resolve) => {
-        if (!rewards || !rewards.length) {
-            resolve();
-            return;
-        }
+  return new Promise(async (resolve) => {
+    if (!rewards || !rewards.length) {
+      resolve();
+      return;
+    }
 
-        logger.info(`Показ послідовності з ${rewards.length} винагород`, 'showRewardSequence', {
-            category: LOG_CATEGORIES.UI
-        });
-
-        // Показуємо винагороди послідовно
-        for (let i = 0; i < rewards.length; i++) {
-            const reward = rewards[i];
-            const isLastReward = i === rewards.length - 1;
-
-            // Для останньої винагороди додаємо callback, який вирішить основний проміс
-            const rewardOptions = {
-                ...options,
-                onClose: isLastReward ? resolve : null
-            };
-
-            // Показуємо винагороду і чекаємо її закриття
-            await showRewardPopup(reward, rewardOptions);
-        }
+    logger.info(`Показ послідовності з ${rewards.length} винагород`, 'showRewardSequence', {
+      category: LOG_CATEGORIES.UI,
     });
+
+    // Показуємо винагороди послідовно
+    for (let i = 0; i < rewards.length; i++) {
+      const reward = rewards[i];
+      const isLastReward = i === rewards.length - 1;
+
+      // Для останньої винагороди додаємо callback, який вирішить основний проміс
+      const rewardOptions = {
+        ...options,
+        onClose: isLastReward ? resolve : null,
+      };
+
+      // Показуємо винагороду і чекаємо її закриття
+      await showRewardPopup(reward, rewardOptions);
+    }
+  });
 }
 
 /**
  * Ін'єкція стилів
  */
 function injectStyles() {
-    if (document.getElementById('reward-popup-styles')) return;
+  if (document.getElementById('reward-popup-styles')) return;
 
-    const styleElement = document.createElement('style');
-    styleElement.id = 'reward-popup-styles';
+  const styleElement = document.createElement('style');
+  styleElement.id = 'reward-popup-styles';
 
-    styleElement.textContent = `
+  styleElement.textContent = `
         .reward-popup-container {
             position: fixed;
             top: 0;
@@ -476,49 +475,49 @@ function injectStyles() {
         }
     `;
 
-    document.head.appendChild(styleElement);
+  document.head.appendChild(styleElement);
 
-    logger.debug('Додано стилі для вікон винагород', 'injectStyles', {
-        category: LOG_CATEGORIES.RENDERING
-    });
+  logger.debug('Додано стилі для вікон винагород', 'injectStyles', {
+    category: LOG_CATEGORIES.RENDERING,
+  });
 }
 
 /**
  * Очистка ресурсів
  */
 export function cleanup() {
-    // Очищаємо всі таймери
-    Object.keys(state.timers).forEach(timerId => {
-        clearTimeout(state.timers[timerId]);
-    });
-    state.timers = {};
+  // Очищаємо всі таймери
+  Object.keys(state.timers).forEach((timerId) => {
+    clearTimeout(state.timers[timerId]);
+  });
+  state.timers = {};
 
-    // Очищаємо чергу
-    state.rewardQueue = [];
+  // Очищаємо чергу
+  state.rewardQueue = [];
 
-    // Закриваємо активне вікно
-    if (state.activePopup) {
-        const container = document.getElementById('reward-popup-container');
-        if (container) {
-            container.classList.remove('show');
-        }
-
-        if (state.activePopup.element && state.activePopup.element.parentNode) {
-            state.activePopup.element.remove();
-        }
-
-        state.activePopup = null;
-        state.isActive = false;
+  // Закриваємо активне вікно
+  if (state.activePopup) {
+    const container = document.getElementById('reward-popup-container');
+    if (container) {
+      container.classList.remove('show');
     }
 
-    logger.info('Ресурси модуля вікон винагород очищено', 'cleanup', {
-        category: LOG_CATEGORIES.LOGIC
-    });
+    if (state.activePopup.element && state.activePopup.element.parentNode) {
+      state.activePopup.element.remove();
+    }
+
+    state.activePopup = null;
+    state.isActive = false;
+  }
+
+  logger.info('Ресурси модуля вікон винагород очищено', 'cleanup', {
+    category: LOG_CATEGORIES.LOGIC,
+  });
 }
 
 // Експортуємо публічний API
 export default {
-    showRewardPopup,
-    showRewardSequence,
-    cleanup
+  showRewardPopup,
+  showRewardSequence,
+  cleanup,
 };

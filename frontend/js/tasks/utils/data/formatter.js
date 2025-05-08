@@ -23,7 +23,7 @@ const apiFormatSettings = {
   decimalSeparator: '.',
   thousandsSeparator: '',
   currencyFormat: 'numeric',
-  preferNumbersAsStrings: false
+  preferNumbersAsStrings: false,
 };
 
 /**
@@ -40,7 +40,7 @@ export function formatNumber(number, options = {}) {
     thousandsSeparator = ' ',
     roundingMode = 'round',
     padDecimals = false,
-    forApi = false
+    forApi = false,
   } = options;
 
   try {
@@ -51,16 +51,24 @@ export function formatNumber(number, options = {}) {
 
     // Для API використовуємо специфічні налаштування
     const actualDecimalSeparator = forApi ? apiFormatSettings.decimalSeparator : decimalSeparator;
-    const actualThousandsSeparator = forApi ? apiFormatSettings.thousandsSeparator : thousandsSeparator;
+    const actualThousandsSeparator = forApi
+      ? apiFormatSettings.thousandsSeparator
+      : thousandsSeparator;
 
     // Округлення числа
     let rounded;
     const factor = Math.pow(10, decimals);
 
     switch (roundingMode) {
-      case 'floor': rounded = Math.floor(number * factor) / factor; break;
-      case 'ceil': rounded = Math.ceil(number * factor) / factor; break;
-      case 'round': default: rounded = Math.round(number * factor) / factor;
+      case 'floor':
+        rounded = Math.floor(number * factor) / factor;
+        break;
+      case 'ceil':
+        rounded = Math.ceil(number * factor) / factor;
+        break;
+      case 'round':
+      default:
+        rounded = Math.round(number * factor) / factor;
     }
 
     // Для API повертаємо число, якщо потрібно
@@ -82,13 +90,13 @@ export function formatNumber(number, options = {}) {
     const integerFormatted = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, actualThousandsSeparator);
 
     // Повертаємо відформатоване число
-    return decimals === 0 || !decimalPart ?
-      integerFormatted :
-      `${integerFormatted}${actualDecimalSeparator}${decimalPart}`;
+    return decimals === 0 || !decimalPart
+      ? integerFormatted
+      : `${integerFormatted}${actualDecimalSeparator}${decimalPart}`;
   } catch (error) {
     logger.error('Помилка форматування числа', 'formatNumber', {
       number,
-      error: error.message
+      error: error.message,
     });
     return String(number);
   }
@@ -102,12 +110,7 @@ export function formatNumber(number, options = {}) {
  * @returns {string|number|Object} Відформатована валюта
  */
 export function formatCurrency(amount, currency = 'UAH', options = {}) {
-  const {
-    locale = 'uk-UA',
-    useSymbol = true,
-    decimals = 2,
-    forApi = false
-  } = options;
+  const { locale = 'uk-UA', useSymbol = true, decimals = 2, forApi = false } = options;
 
   try {
     // Перевірка на NaN та Infinity
@@ -122,7 +125,7 @@ export function formatCurrency(amount, currency = 'UAH', options = {}) {
       } else {
         return {
           amount: formatNumber(amount, { decimals, forApi: true }),
-          currency: currency
+          currency: currency,
         };
       }
     }
@@ -135,7 +138,7 @@ export function formatCurrency(amount, currency = 'UAH', options = {}) {
         style: 'currency',
         currency: currency,
         minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
+        maximumFractionDigits: decimals,
       });
     }
 
@@ -148,27 +151,27 @@ export function formatCurrency(amount, currency = 'UAH', options = {}) {
     const formattedNumber = formatNumber(amount, {
       decimals: decimals,
       decimalSeparator: ',',
-      thousandsSeparator: ' '
+      thousandsSeparator: ' ',
     });
 
     // Символи валют
     const symbols = {
-      'UAH': '₴',
-      'USD': '$',
-      'EUR': '€',
-      'GBP': '£',
-      'JPY': '¥',
-      'RUB': '₽',
-      'WINIX': 'WINIX'
+      UAH: '₴',
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      JPY: '¥',
+      RUB: '₽',
+      WINIX: 'WINIX',
     };
 
-    const symbol = useSymbol ? (symbols[currency] || currency) : currency;
+    const symbol = useSymbol ? symbols[currency] || currency : currency;
     return `${formattedNumber} ${symbol}`;
   } catch (error) {
     logger.error('Помилка форматування валюти', 'formatCurrency', {
       amount,
       currency,
-      error: error.message
+      error: error.message,
     });
     return `${amount} ${currency}`;
   }
@@ -189,7 +192,7 @@ export function prepareDataForApi(data, fieldDefs = {}) {
     const result = {};
 
     // Обробляємо кожне поле
-    Object.keys(data).forEach(key => {
+    Object.keys(data).forEach((key) => {
       const value = data[key];
       const fieldType = fieldDefs[key] || detectFieldType(value, key);
 
@@ -220,7 +223,7 @@ export function prepareDataForApi(data, fieldDefs = {}) {
 
         case 'array':
           if (Array.isArray(value)) {
-            result[key] = value.map(item =>
+            result[key] = value.map((item) =>
               typeof item === 'object' ? prepareDataForApi(item) : item
             );
           } else {
@@ -240,7 +243,7 @@ export function prepareDataForApi(data, fieldDefs = {}) {
     return result;
   } catch (error) {
     logger.error('Помилка підготовки даних для API', 'prepareDataForApi', {
-      error: error.message
+      error: error.message,
     });
     return data;
   }
@@ -260,13 +263,13 @@ export function processApiResponse(apiData, fieldDefs = {}) {
 
     // Для масиву обробляємо кожен елемент
     if (Array.isArray(apiData)) {
-      return apiData.map(item => processApiResponse(item, fieldDefs));
+      return apiData.map((item) => processApiResponse(item, fieldDefs));
     }
 
     const result = {};
 
     // Обробляємо кожне поле
-    Object.keys(apiData).forEach(key => {
+    Object.keys(apiData).forEach((key) => {
       const value = apiData[key];
       const fieldType = fieldDefs[key] || detectFieldType(value, key);
 
@@ -301,7 +304,7 @@ export function processApiResponse(apiData, fieldDefs = {}) {
 
         case 'array':
           if (Array.isArray(value)) {
-            result[key] = value.map(item =>
+            result[key] = value.map((item) =>
               typeof item === 'object' ? processApiResponse(item, fieldDefs) : item
             );
           } else {
@@ -321,7 +324,7 @@ export function processApiResponse(apiData, fieldDefs = {}) {
     return result;
   } catch (error) {
     logger.error('Помилка обробки відповіді API', 'processApiResponse', {
-      error: error.message
+      error: error.message,
     });
     return apiData;
   }
@@ -366,20 +369,32 @@ export function detectFieldType(value, fieldName) {
   }
 
   // Фінансові показники
-  if (nameLower.includes('price') || nameLower.includes('amount') ||
-      nameLower.includes('cost') || nameLower.includes('balance')) {
+  if (
+    nameLower.includes('price') ||
+    nameLower.includes('amount') ||
+    nameLower.includes('cost') ||
+    nameLower.includes('balance')
+  ) {
     return 'currency';
   }
 
   // Числові показники
-  if (nameLower.includes('count') || nameLower.includes('quantity') ||
-      nameLower.includes('number') || (nameLower.includes('id') && !isNaN(value))) {
+  if (
+    nameLower.includes('count') ||
+    nameLower.includes('quantity') ||
+    nameLower.includes('number') ||
+    (nameLower.includes('id') && !isNaN(value))
+  ) {
     return 'number';
   }
 
   // Булеві значення
-  if (nameLower.startsWith('is_') || nameLower.startsWith('has_') ||
-      nameLower.includes('enable') || nameLower.includes('active')) {
+  if (
+    nameLower.startsWith('is_') ||
+    nameLower.startsWith('has_') ||
+    nameLower.includes('enable') ||
+    nameLower.includes('active')
+  ) {
     return 'boolean';
   }
 
@@ -399,7 +414,7 @@ export function formatText(text, options = {}) {
     preserveWords = true,
     preserveLines = true,
     escapeHtml = true,
-    stripTags = true
+    stripTags = true,
   } = options;
 
   try {
@@ -451,7 +466,7 @@ export function formatText(text, options = {}) {
     return result;
   } catch (error) {
     logger.error('Помилка форматування тексту', 'formatText', {
-      error: error.message
+      error: error.message,
     });
     return String(text);
   }
@@ -480,7 +495,7 @@ export function formatDateForApi(date, includeTime = true) {
   } catch (error) {
     logger.error('Помилка форматування дати для API', 'formatDateForApi', {
       date,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -509,7 +524,9 @@ export function parseDate(dateStr) {
       }
 
       // Спроба dd.mm.yyyy формату
-      const uaMatch = dateStr.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+      const uaMatch = dateStr.match(
+        /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/
+      );
       if (uaMatch) {
         const [_, day, month, year, hours = 0, minutes = 0, seconds = 0] = uaMatch;
         return new Date(
@@ -536,7 +553,7 @@ export function parseDate(dateStr) {
   } catch (error) {
     logger.error('Помилка парсингу дати', 'parseDate', {
       dateStr,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -562,7 +579,7 @@ export function formatJson(obj, indent = 2) {
     return JSON.stringify(obj, null, indent);
   } catch (error) {
     logger.error('Помилка форматування JSON', 'formatJson', {
-      error: error.message
+      error: error.message,
     });
     return JSON.stringify({ error: 'Error formatting JSON' });
   }
@@ -595,5 +612,5 @@ export default {
   processApiResponse,
   configureApiFormatter,
   detectFieldType,
-  parseDate
+  parseDate,
 };

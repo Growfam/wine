@@ -10,5 +10,5 @@ export { default as DailyBonusDialog } from './dialog';
 export default {
   Calendar: require('./calendar').default,
   RewardPreview: require('./reward-preview').default,
-  Dialog: require('./dialog').default
+  Dialog: require('./dialog').default,
 };

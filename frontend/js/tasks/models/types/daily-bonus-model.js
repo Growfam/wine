@@ -41,7 +41,7 @@ export class DailyBonusModel {
     this.timestamps = {
       lastClaimed: data.timestamps?.lastClaimed || null,
       nextAvailable: data.timestamps?.nextAvailable || null,
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
     };
 
     // Історія отриманих бонусів
@@ -95,7 +95,7 @@ export class DailyBonusModel {
     this.isSpecialDay = this._checkIfSpecialDay();
 
     logger.debug('Модель щоденного бонусу оновлена', 'update', {
-      category: LOG_CATEGORIES.MODELS
+      category: LOG_CATEGORIES.MODELS,
     });
   }
 
@@ -126,15 +126,15 @@ export class DailyBonusModel {
       details: {
         day: this.currentDay,
         multiplier,
-        isSpecialDay: this.isSpecialDay
-      }
+        isSpecialDay: this.isSpecialDay,
+      },
     });
 
     return {
       tokens,
       coins,
       multiplier,
-      isSpecialDay: this.isSpecialDay
+      isSpecialDay: this.isSpecialDay,
     };
   }
 
@@ -155,7 +155,7 @@ export class DailyBonusModel {
 
     return {
       tokens: DAILY_BONUS_CONFIG.COMPLETION_BONUS.tokens,
-      coins: DAILY_BONUS_CONFIG.COMPLETION_BONUS.coins
+      coins: DAILY_BONUS_CONFIG.COMPLETION_BONUS.coins,
     };
   }
 
@@ -174,7 +174,7 @@ export class DailyBonusModel {
           available: true,
           status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
           nextTime: null,
-          reason: 'RESET_TIME_PASSED'
+          reason: 'RESET_TIME_PASSED',
         };
       }
 
@@ -182,7 +182,7 @@ export class DailyBonusModel {
         available: false,
         status: DAILY_BONUS_TYPES.STATUS.CLAIMED,
         nextTime: this.timestamps.nextAvailable,
-        reason: 'ALREADY_CLAIMED'
+        reason: 'ALREADY_CLAIMED',
       };
     }
 
@@ -192,7 +192,7 @@ export class DailyBonusModel {
         available: true,
         status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
         nextTime: null,
-        reason: 'AVAILABLE'
+        reason: 'AVAILABLE',
       };
     }
 
@@ -207,7 +207,7 @@ export class DailyBonusModel {
           available: true,
           status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
           nextTime: null,
-          reason: 'RECOVERY_AVAILABLE'
+          reason: 'RECOVERY_AVAILABLE',
         };
       }
 
@@ -216,7 +216,7 @@ export class DailyBonusModel {
         available: true,
         status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
         nextTime: null,
-        reason: 'NEW_CYCLE'
+        reason: 'NEW_CYCLE',
       };
     }
 
@@ -227,7 +227,7 @@ export class DailyBonusModel {
           available: true,
           status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
           nextTime: null,
-          reason: 'WAIT_TIME_PASSED'
+          reason: 'WAIT_TIME_PASSED',
         };
       }
 
@@ -235,7 +235,7 @@ export class DailyBonusModel {
         available: false,
         status: DAILY_BONUS_TYPES.STATUS.PENDING,
         nextTime: this.timestamps.nextAvailable,
-        reason: 'WAITING'
+        reason: 'WAITING',
       };
     }
 
@@ -244,7 +244,7 @@ export class DailyBonusModel {
       available: false,
       status: this.status,
       nextTime: this.timestamps.nextAvailable,
-      reason: 'UNKNOWN'
+      reason: 'UNKNOWN',
     };
   }
 
@@ -257,7 +257,7 @@ export class DailyBonusModel {
       day: this.currentDay,
       cycle: this.completedCycles,
       timestamp: Date.now(),
-      reward: { ...reward }
+      reward: { ...reward },
     };
 
     this.history.unshift(historyRecord);
@@ -280,7 +280,7 @@ export class DailyBonusModel {
       completedCycles: this.completedCycles,
       isSpecialDay: this.isSpecialDay,
       timestamps: { ...this.timestamps },
-      availability: this.checkAvailability()
+      availability: this.checkAvailability(),
     };
   }
 
@@ -298,7 +298,7 @@ export class DailyBonusModel {
 
       logger.info('Завершено цикл щоденних бонусів', 'moveToNextDay', {
         category: LOG_CATEGORIES.LOGIC,
-        details: { completedCycles: this.completedCycles }
+        details: { completedCycles: this.completedCycles },
       });
     } else {
       // Інакше просто збільшуємо поточний день
@@ -314,7 +314,7 @@ export class DailyBonusModel {
     this.timestamps.nextAvailable = Date.now() + DAILY_BONUS_CONFIG.RESET_TIME_MS;
 
     logger.info(`Здійснено перехід до дня ${this.currentDay}`, 'moveToNextDay', {
-      category: LOG_CATEGORIES.LOGIC
+      category: LOG_CATEGORIES.LOGIC,
     });
   }
 }

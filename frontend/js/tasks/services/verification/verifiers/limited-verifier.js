@@ -30,10 +30,7 @@ export class LimitedVerifier extends BaseVerifier {
         if (endDate <= now) {
           console.info(`Термін виконання завдання ${taskId} закінчився`);
 
-          return this.createFailureResult(
-            taskId,
-            'Термін виконання цього завдання закінчився'
-          );
+          return this.createFailureResult(taskId, 'Термін виконання цього завдання закінчився');
         }
       }
 
@@ -41,10 +38,7 @@ export class LimitedVerifier extends BaseVerifier {
       if (task.max_completions !== null && task.current_completions >= task.max_completions) {
         console.info(`Ліміт виконань завдання ${taskId} вичерпано`);
 
-        return this.createFailureResult(
-          taskId,
-          'Ліміт виконань цього завдання вичерпано'
-        );
+        return this.createFailureResult(taskId, 'Ліміт виконань цього завдання вичерпано');
       }
 
       // Додаткові дані для перевірки лімітованого завдання
@@ -52,8 +46,8 @@ export class LimitedVerifier extends BaseVerifier {
         verification_type: 'limited',
         task_data: {
           action_type: task.action_type || 'visit',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       };
 
       // Запит до API для верифікації

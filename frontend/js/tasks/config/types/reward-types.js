@@ -7,7 +7,7 @@
 // Типи винагород
 export const REWARD_TYPES = {
   TOKENS: 'tokens',
-  COINS: 'coins'
+  COINS: 'coins',
 };
 
 export default REWARD_TYPES;

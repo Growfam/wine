@@ -10,12 +10,7 @@ import cacheCore, { CACHE_TAGS } from './core.js';
 import { StorageAdapter, STORAGE_TYPES, storageCompat } from './storage.js';
 
 // Експорт для зручного імпорту
-export {
-  CACHE_TAGS,
-  StorageAdapter,
-  STORAGE_TYPES,
-  storageCompat
-};
+export { CACHE_TAGS, StorageAdapter, STORAGE_TYPES, storageCompat };
 
 // Створюємо та експортуємо зручні методи для роботи з кешем
 export const set = (key, value, options) => cacheCore.set(key, value, options);
@@ -48,5 +43,5 @@ export default {
   // Компоненти
   core: cacheCore,
   StorageAdapter,
-  storageCompat
+  storageCompat,
 };

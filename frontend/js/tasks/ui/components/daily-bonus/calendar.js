@@ -15,11 +15,11 @@ const logger = getLogger('UI.DailyBonusCalendar');
 
 // Іконки для днів
 const DAY_ICONS = {
-  done: '✓',            // Завершений день
-  current: '!',         // Поточний день
-  pending: '',          // Майбутній день
-  special: '$',         // День з особливою винагородою (жетони)
-  completion: '★'       // День завершення циклу
+  done: '✓', // Завершений день
+  current: '!', // Поточний день
+  pending: '', // Майбутній день
+  special: '$', // День з особливою винагородою (жетони)
+  completion: '★', // День завершення циклу
 };
 
 /**
@@ -33,25 +33,25 @@ class DailyBonusCalendar {
   constructor(options = {}) {
     // Налаштування
     this.options = {
-      container: null,      // Контейнер для рендерингу
-      currentDay: 1,        // Поточний день (1-7)
-      onDayClick: null,     // Обробник кліку на день
-      cycleSize: DAILY_BONUS_CONFIG.CYCLE_DAYS,  // Розмір циклу (7 днів)
-      inline: false,        // Чи вбудований календар
+      container: null, // Контейнер для рендерингу
+      currentDay: 1, // Поточний день (1-7)
+      onDayClick: null, // Обробник кліку на день
+      cycleSize: DAILY_BONUS_CONFIG.CYCLE_DAYS, // Розмір циклу (7 днів)
+      inline: false, // Чи вбудований календар
       highlightToday: true, // Підсвічувати поточний день
-      interactive: false,   // Чи можна взаємодіяти з днями
+      interactive: false, // Чи можна взаємодіяти з днями
       specialDays: DAILY_BONUS_CONFIG.COIN_DAYS, // Дні з особливою винагородою
-      theme: 'default',     // Тема оформлення
-      ...options
+      theme: 'default', // Тема оформлення
+      ...options,
     };
 
     // Внутрішній стан
     this.state = {
       elementId: `daily-bonus-calendar-${Date.now()}`, // ID елемента
-      initialized: false,       // Чи ініціалізовано
-      days: [],                 // Масив елементів днів
+      initialized: false, // Чи ініціалізовано
+      days: [], // Масив елементів днів
       animationInProgress: false, // Чи відбувається анімація
-      updating: false           // Чи відбувається оновлення
+      updating: false, // Чи відбувається оновлення
     };
 
     // Ініціалізуємо, якщо є контейнер
@@ -74,7 +74,7 @@ class DailyBonusCalendar {
 
       if (!container) {
         logger.warn('Контейнер для календаря не знайдено', 'initialize', {
-          category: LOG_CATEGORIES.RENDERING
+          category: LOG_CATEGORIES.RENDERING,
         });
         return false;
       }
@@ -92,13 +92,13 @@ class DailyBonusCalendar {
       this.state.initialized = true;
 
       logger.info('Календар щоденного бонусу ініціалізовано', 'initialize', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return true;
     } catch (error) {
       logger.error(error, 'Помилка ініціалізації календаря', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return false;
@@ -152,11 +152,11 @@ class DailyBonusCalendar {
       container.appendChild(calendarElement);
 
       logger.debug('Календар щоденного бонусу відрендерено', 'render', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     } catch (error) {
       logger.error(error, 'Помилка рендерингу календаря', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     }
   }
@@ -222,7 +222,7 @@ class DailyBonusCalendar {
         if (calendar) {
           const days = calendar.querySelectorAll('.daily-bonus-calendar-day');
 
-          days.forEach(day => {
+          days.forEach((day) => {
             day.addEventListener('click', (event) => {
               // Отримуємо номер дня
               const dayNumber = parseInt(day.dataset.day, 10);
@@ -234,10 +234,10 @@ class DailyBonusCalendar {
         }
       }
 
-      logger.debug('Обробники подій для календаря прив\'язано', '_bindEvents');
+      logger.debug("Обробники подій для календаря прив'язано", '_bindEvents');
     } catch (error) {
-      logger.error(error, 'Помилка прив\'язки обробників подій', {
-        category: LOG_CATEGORIES.EVENTS
+      logger.error(error, "Помилка прив'язки обробників подій", {
+        category: LOG_CATEGORIES.EVENTS,
       });
     }
   }
@@ -279,12 +279,12 @@ class DailyBonusCalendar {
         category: LOG_CATEGORIES.RENDERING,
         details: {
           currentDay: this.options.currentDay,
-          cycleSize: this.options.cycleSize
-        }
+          cycleSize: this.options.cycleSize,
+        },
       });
     } catch (error) {
       logger.error(error, 'Помилка оновлення календаря', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     } finally {
       this.state.updating = false;
@@ -314,11 +314,11 @@ class DailyBonusCalendar {
       }, duration);
 
       logger.debug(`Підсвічування дня ${day}`, 'highlightDay', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
     } catch (error) {
       logger.error(error, 'Помилка підсвічування дня', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
     }
   }
@@ -384,7 +384,9 @@ class DailyBonusCalendar {
         }
 
         // Оновлюємо заголовок
-        const header = document.querySelector(`#${this.state.elementId} .daily-bonus-calendar-header h3`);
+        const header = document.querySelector(
+          `#${this.state.elementId} .daily-bonus-calendar-header h3`
+        );
         if (header) {
           header.textContent = `ЩОДЕННИЙ БОНУС - ДЕНЬ ${nextDay} з ${this.options.cycleSize}`;
           header.classList.add('animated');
@@ -410,11 +412,11 @@ class DailyBonusCalendar {
       }, 700);
 
       logger.info(`Анімація переходу до дня ${nextDay}`, 'animateNextDay', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
     } catch (error) {
       logger.error(error, 'Помилка анімації переходу до наступного дня', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
 
       this.state.animationInProgress = false;
@@ -443,7 +445,7 @@ class DailyBonusCalendar {
       logger.info('Ресурси календаря очищено', 'destroy');
     } catch (error) {
       logger.error(error, 'Помилка очищення ресурсів календаря', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
     }
   }

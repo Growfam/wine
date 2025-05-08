@@ -29,34 +29,35 @@ class DailyBonusDialog {
     // Налаштування
     this.options = {
       appendTo: document.body, // Елемент, до якого додавати діалог
-      autoShow: false,         // Чи показувати автоматично
-      theme: 'default',        // Тема оформлення
-      onClaim: null,           // Обробник отримання бонусу
-      onClose: null,           // Обробник закриття діалогу
-      closeOnClaim: false,     // Чи закривати після отримання
-      showAnimation: true,     // Чи показувати анімацію отримання
-      ...options
+      autoShow: false, // Чи показувати автоматично
+      theme: 'default', // Тема оформлення
+      onClaim: null, // Обробник отримання бонусу
+      onClose: null, // Обробник закриття діалогу
+      closeOnClaim: false, // Чи закривати після отримання
+      showAnimation: true, // Чи показувати анімацію отримання
+      ...options,
     };
 
     // Внутрішній стан
     this.state = {
       elementId: `daily-bonus-dialog-${Date.now()}`, // ID елемента
-      initialized: false,          // Чи ініціалізовано
-      visible: false,              // Чи видиме вікно
-      loading: false,              // Чи триває завантаження
-      claiming: false,             // Чи триває отримання бонусу
-      bonusData: null,             // Дані бонусу
-      calendarComponent: null,     // Компонент календаря
-      rewardComponent: null,       // Компонент відображення винагороди
-      elements: {                  // Елементи діалогу
+      initialized: false, // Чи ініціалізовано
+      visible: false, // Чи видиме вікно
+      loading: false, // Чи триває завантаження
+      claiming: false, // Чи триває отримання бонусу
+      bonusData: null, // Дані бонусу
+      calendarComponent: null, // Компонент календаря
+      rewardComponent: null, // Компонент відображення винагороди
+      elements: {
+        // Елементи діалогу
         dialog: null,
         overlay: null,
         content: null,
         calendar: null,
         reward: null,
         button: null,
-        closeBtn: null
-      }
+        closeBtn: null,
+      },
     };
 
     // Ініціалізуємо
@@ -89,13 +90,13 @@ class DailyBonusDialog {
       this.state.initialized = true;
 
       logger.info('Діалогове вікно щоденного бонусу ініціалізовано', 'initialize', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return true;
     } catch (error) {
       logger.error(error, 'Помилка ініціалізації діалогового вікна', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return false;
@@ -167,26 +168,26 @@ class DailyBonusDialog {
         calendar: calendarContainer,
         reward: rewardContainer,
         button: claimButton,
-        closeBtn
+        closeBtn,
       };
 
       // Ініціалізуємо компоненти
       this.state.calendarComponent = new DailyBonusCalendar({
         container: calendarContainer,
-        theme: this.options.theme
+        theme: this.options.theme,
       });
 
       this.state.rewardComponent = new DailyBonusRewardPreview({
         container: rewardContainer,
-        theme: this.options.theme
+        theme: this.options.theme,
       });
 
       logger.debug('DOM-структура діалогового вікна створена', '_createDOMStructure', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     } catch (error) {
       logger.error(error, 'Помилка створення DOM-структури', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     }
   }
@@ -221,12 +222,12 @@ class DailyBonusDialog {
         }
       });
 
-      logger.debug('Обробники подій прив\'язано', '_bindEvents', {
-        category: LOG_CATEGORIES.EVENTS
+      logger.debug("Обробники подій прив'язано", '_bindEvents', {
+        category: LOG_CATEGORIES.EVENTS,
       });
     } catch (error) {
-      logger.error(error, 'Помилка прив\'язки обробників подій', {
-        category: LOG_CATEGORIES.EVENTS
+      logger.error(error, "Помилка прив'язки обробників подій", {
+        category: LOG_CATEGORIES.EVENTS,
       });
     }
   }
@@ -269,11 +270,11 @@ class DailyBonusDialog {
       this._updateButtonState();
 
       logger.info('Діалогове вікно щоденного бонусу показано', 'show', {
-        category: LOG_CATEGORIES.UI
+        category: LOG_CATEGORIES.UI,
       });
     } catch (error) {
       logger.error(error, 'Помилка показу діалогового вікна', {
-        category: LOG_CATEGORIES.UI
+        category: LOG_CATEGORIES.UI,
       });
 
       // Зупиняємо завантаження
@@ -304,7 +305,7 @@ class DailyBonusDialog {
           currentDay: bonusData.currentDay,
           specialDays: DAILY_BONUS_CONFIG.COIN_DAYS,
           cycleSize: DAILY_BONUS_CONFIG.CYCLE_DAYS,
-          theme: this.options.theme
+          theme: this.options.theme,
         });
       }
 
@@ -318,16 +319,16 @@ class DailyBonusDialog {
           tokens: reward.tokens,
           coins: reward.coins,
           isSpecialDay: reward.isSpecialDay,
-          theme: this.options.theme
+          theme: this.options.theme,
         });
       }
 
       logger.debug('Компоненти діалогового вікна оновлено', '_updateComponents', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     } catch (error) {
       logger.error(error, 'Помилка оновлення компонентів', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     }
   }
@@ -386,11 +387,11 @@ class DailyBonusDialog {
 
       logger.debug('Стан кнопки оновлено', '_updateButtonState', {
         category: LOG_CATEGORIES.RENDERING,
-        details: { available: availability.available, status: availability.status }
+        details: { available: availability.available, status: availability.status },
       });
     } catch (error) {
       logger.error(error, 'Помилка оновлення стану кнопки', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     }
   }
@@ -422,8 +423,8 @@ class DailyBonusDialog {
         details: {
           tokens: result.reward.tokens,
           coins: result.reward.coins,
-          isCycleCompleted: result.isCycleCompleted
-        }
+          isCycleCompleted: result.isCycleCompleted,
+        },
       });
 
       // Оновлюємо дані бонусу
@@ -493,7 +494,7 @@ class DailyBonusDialog {
       }
     } catch (error) {
       logger.error(error, 'Помилка отримання бонусу', {
-        category: LOG_CATEGORIES.REWARDS
+        category: LOG_CATEGORIES.REWARDS,
       });
 
       // Показуємо помилку
@@ -520,62 +521,74 @@ class DailyBonusDialog {
   _showRewardAnimation(result) {
     try {
       // Показуємо анімацію винагороди
-      showReward({
-        type: 'tokens',
-        amount: result.reward.tokens
-      }, {
-        duration: 3000,
-        autoClose: true,
-        onClose: () => {
-          // Якщо є жетони, показуємо їх також
-          if (result.reward.coins > 0) {
-            setTimeout(() => {
-              showReward({
-                type: 'coins',
-                amount: result.reward.coins
-              }, {
-                duration: 3000,
-                autoClose: true,
-                specialDay: true,
-                onClose: () => {
-                  // Якщо завершено цикл і є бонус за завершення
-                  if (result.isCycleCompleted && result.completionBonus) {
-                    setTimeout(() => {
-                      showReward({
-                        type: 'tokens',
-                        amount: result.completionBonus.tokens
-                      }, {
-                        duration: 3000,
-                        autoClose: true,
-                        specialDay: true
-                      });
-                    }, 500);
+      showReward(
+        {
+          type: 'tokens',
+          amount: result.reward.tokens,
+        },
+        {
+          duration: 3000,
+          autoClose: true,
+          onClose: () => {
+            // Якщо є жетони, показуємо їх також
+            if (result.reward.coins > 0) {
+              setTimeout(() => {
+                showReward(
+                  {
+                    type: 'coins',
+                    amount: result.reward.coins,
+                  },
+                  {
+                    duration: 3000,
+                    autoClose: true,
+                    specialDay: true,
+                    onClose: () => {
+                      // Якщо завершено цикл і є бонус за завершення
+                      if (result.isCycleCompleted && result.completionBonus) {
+                        setTimeout(() => {
+                          showReward(
+                            {
+                              type: 'tokens',
+                              amount: result.completionBonus.tokens,
+                            },
+                            {
+                              duration: 3000,
+                              autoClose: true,
+                              specialDay: true,
+                            }
+                          );
+                        }, 500);
+                      }
+                    },
                   }
-                }
-              });
-            }, 500);
-          } else if (result.isCycleCompleted && result.completionBonus) {
-            // Якщо завершено цикл і є бонус за завершення, але немає жетонів
-            setTimeout(() => {
-              showReward({
-                type: 'tokens',
-                amount: result.completionBonus.tokens
-              }, {
-                duration: 3000,
-                autoClose: true,
-                specialDay: true
-              });
-            }, 500);
-          }
+                );
+              }, 500);
+            } else if (result.isCycleCompleted && result.completionBonus) {
+              // Якщо завершено цикл і є бонус за завершення, але немає жетонів
+              setTimeout(() => {
+                showReward(
+                  {
+                    type: 'tokens',
+                    amount: result.completionBonus.tokens,
+                  },
+                  {
+                    duration: 3000,
+                    autoClose: true,
+                    specialDay: true,
+                  }
+                );
+              }, 500);
+            }
+          },
         }
-      });
+      );
 
       logger.info('Показано анімацію винагороди', '_showRewardAnimation', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
     } catch (error) {
       logger.error(error, 'Помилка показу анімації винагороди', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
     }
   }
@@ -600,11 +613,11 @@ class DailyBonusDialog {
       }
 
       logger.info('Діалогове вікно щоденного бонусу приховано', 'hide', {
-        category: LOG_CATEGORIES.UI
+        category: LOG_CATEGORIES.UI,
       });
     } catch (error) {
       logger.error(error, 'Помилка приховування діалогового вікна', {
-        category: LOG_CATEGORIES.UI
+        category: LOG_CATEGORIES.UI,
       });
 
       // Все одно оновлюємо стан
@@ -643,7 +656,7 @@ class DailyBonusDialog {
       logger.info('Ресурси діалогового вікна очищено', 'destroy');
     } catch (error) {
       logger.error(error, 'Помилка очищення ресурсів діалогового вікна', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
     }
   }

@@ -1,4 +1,3 @@
-
 /**
  * Модуль ядра API завдань
  *
@@ -14,18 +13,12 @@ import cacheService from './cache.js';
 import requestService from './request.js';
 import { CONFIG, API_VERSION, API_ERROR_CODES } from './config.js';
 
-export {
-    cacheService,
-    requestService,
-    CONFIG,
-    API_VERSION,
-    API_ERROR_CODES
-};
+export { cacheService, requestService, CONFIG, API_VERSION, API_ERROR_CODES };
 
 export default {
-    cache: cacheService,
-    request: requestService,
-    config: CONFIG,
-    version: API_VERSION,
-    errorCodes: API_ERROR_CODES
+  cache: cacheService,
+  request: requestService,
+  config: CONFIG,
+  version: API_VERSION,
+  errorCodes: API_ERROR_CODES,
 };

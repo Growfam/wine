@@ -17,10 +17,10 @@ export class DependencyManager {
   constructor() {
     // Залежності між модулями (спрощена схема)
     this.dependencies = {
-      'taskProgress': { deps: [], priority: 1 },
-      'taskVerification': { deps: [], priority: 1 },
-      'taskStore': { deps: ['taskProgress', 'taskVerification'], priority: 2 },
-      'taskSystem': { deps: ['taskStore', 'taskProgress', 'taskVerification'], priority: 3 }
+      taskProgress: { deps: [], priority: 1 },
+      taskVerification: { deps: [], priority: 1 },
+      taskStore: { deps: ['taskProgress', 'taskVerification'], priority: 2 },
+      taskSystem: { deps: ['taskStore', 'taskProgress', 'taskVerification'], priority: 3 },
     };
   }
 
@@ -89,7 +89,7 @@ export class DependencyManager {
       if (deps.length === 0) return;
 
       // Для кожної залежності
-      deps.forEach(depName => {
+      deps.forEach((depName) => {
         // Отримуємо об'єкт залежності з контейнера
         const depObj = dependencyContainer.resolve(depName);
 
@@ -101,14 +101,17 @@ export class DependencyManager {
           // Встановлюємо залежність в об'єкт модуля
           if (typeof moduleObj === 'object' && !moduleObj[propName]) {
             moduleObj[propName] = depObj;
-            logger.info(`Ін'єктовано залежність ${depName} в модуль ${moduleName} як ${propName}`, 'injectDependencies');
+            logger.info(
+              `Ін'єктовано залежність ${depName} в модуль ${moduleName} як ${propName}`,
+              'injectDependencies'
+            );
           }
         }
       });
     } catch (error) {
       logger.error(error, `Помилка при ін'єктуванні залежностей для модуля ${moduleName}`, {
         category: LOG_CATEGORIES.LOGIC,
-        details: { moduleName }
+        details: { moduleName },
       });
     }
   }
@@ -128,7 +131,7 @@ export class DependencyManager {
     this.dependencies[moduleName].priority = priority;
 
     logger.info(`Встановлено залежності для модуля ${moduleName}`, 'setDependencies', {
-      details: { moduleName, deps, priority }
+      details: { moduleName, deps, priority },
     });
   }
 

@@ -13,7 +13,7 @@ export const ACTION_TYPES = {
   SHARE: 'share',
   FOLLOW: 'follow',
   INSTALL: 'install',
-  GENERIC: 'generic'
+  GENERIC: 'generic',
 };
 
 export default ACTION_TYPES;

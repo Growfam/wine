@@ -30,7 +30,7 @@ export function formatDate(date, format = 'medium', options = {}) {
     if (!dateObj) return 'Невірна дата';
 
     const {
-      locale = 'uk-UA' // Локаль за замовчуванням
+      locale = 'uk-UA', // Локаль за замовчуванням
     } = options;
 
     // Функція для додавання нуля перед числом
@@ -56,12 +56,24 @@ export function formatDate(date, format = 'medium', options = {}) {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
-            day: 'numeric'
+            day: 'numeric',
           });
         } catch (e) {
           // Запасний варіант, якщо toLocaleDateString недоступний
-          const months = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
-                        'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+          const months = [
+            'січня',
+            'лютого',
+            'березня',
+            'квітня',
+            'травня',
+            'червня',
+            'липня',
+            'серпня',
+            'вересня',
+            'жовтня',
+            'листопада',
+            'грудня',
+          ];
           return `${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()} р.`;
         }
 
@@ -76,7 +88,7 @@ export function formatDate(date, format = 'medium', options = {}) {
     }
   } catch (error) {
     logger.error('Помилка форматування дати', 'formatDate', {
-      error: error.message
+      error: error.message,
     });
     return 'Помилка дати';
   }
@@ -92,7 +104,7 @@ export function getRelativeTimeString(date, options = {}) {
   try {
     const {
       locale = 'uk-UA', // Локаль за замовчуванням
-      now = new Date()  // Поточна дата для порівняння
+      now = new Date(), // Поточна дата для порівняння
     } = options;
 
     // Конвертуємо вхідні дати в об'єкти Date
@@ -113,7 +125,7 @@ export function getRelativeTimeString(date, options = {}) {
     try {
       const rtf = new Intl.RelativeTimeFormat(locale, {
         numeric: 'auto',
-        style: options.style || 'long'
+        style: options.style || 'long',
       });
 
       // В майбутньому
@@ -201,7 +213,7 @@ export function getRelativeTimeString(date, options = {}) {
     }
   } catch (error) {
     logger.error('Помилка отримання відносного часу', 'getRelativeTimeString', {
-      error: error.message
+      error: error.message,
     });
     return 'Помилка обчислення часу';
   }
@@ -228,7 +240,7 @@ export function pluralize(n, form1, form2, form5) {
   } catch (error) {
     logger.error('Помилка склонення слова', 'pluralize', {
       n,
-      error: error.message
+      error: error.message,
     });
     return form5; // Повертаємо форму за замовчуванням
   }
@@ -254,7 +266,7 @@ export function formatTimeLeft(timeLeft, format = 'short', options = {}) {
     const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
     // Функція для додавання нуля перед числом
-    const padZero = (num) => options.padZero ? String(num).padStart(2, '0') : num;
+    const padZero = (num) => (options.padZero ? String(num).padStart(2, '0') : num);
 
     // Короткий формат
     if (format === 'short') {
@@ -296,7 +308,7 @@ export function formatTimeLeft(timeLeft, format = 'short', options = {}) {
     return parts.join(' ');
   } catch (error) {
     logger.error('Помилка форматування залишку часу', 'formatTimeLeft', {
-      error: error.message
+      error: error.message,
     });
     return 'Помилка обчислення часу';
   }
@@ -311,9 +323,9 @@ export function formatTimeLeft(timeLeft, format = 'short', options = {}) {
 export function formatDuration(duration, options = {}) {
   try {
     const {
-      format = 'short',            // Формат (short, medium, full)
-      showZeroValues = false,      // Показувати нульові значення
-      maxParts = 0                 // Максимальна кількість частин (0 - без обмеження)
+      format = 'short', // Формат (short, medium, full)
+      showZeroValues = false, // Показувати нульові значення
+      maxParts = 0, // Максимальна кількість частин (0 - без обмеження)
     } = options;
 
     if (duration <= 0) {
@@ -387,7 +399,7 @@ export function formatDuration(duration, options = {}) {
     return parts.join(' ');
   } catch (error) {
     logger.error('Помилка форматування тривалості', 'formatDuration', {
-      error: error.message
+      error: error.message,
     });
     return 'Помилка форматування';
   }
@@ -405,7 +417,8 @@ export function parseIsoDuration(isoDuration) {
     }
 
     // Регулярний вираз для аналізу ISO 8601 тривалості
-    const regex = /P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?/;
+    const regex =
+      /P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?/;
     const matches = isoDuration.match(regex);
 
     if (!matches) {
@@ -432,7 +445,7 @@ export function parseIsoDuration(isoDuration) {
   } catch (error) {
     logger.error('Помилка парсингу ISO тривалості', 'parseIsoDuration', {
       isoDuration,
-      error: error.message
+      error: error.message,
     });
     return 0;
   }
@@ -447,8 +460,8 @@ export function parseIsoDuration(isoDuration) {
 export function formatIsoDuration(ms, options = {}) {
   try {
     const {
-      includeZero = false,  // Включати нульові значення
-      precision = 0         // Точність для секунд (кількість десяткових знаків)
+      includeZero = false, // Включати нульові значення
+      precision = 0, // Точність для секунд (кількість десяткових знаків)
     } = options;
 
     if (ms <= 0) {
@@ -496,7 +509,7 @@ export function formatIsoDuration(ms, options = {}) {
   } catch (error) {
     logger.error('Помилка форматування ISO тривалості', 'formatIsoDuration', {
       ms,
-      error: error.message
+      error: error.message,
     });
     return 'PT0S';
   }
@@ -510,5 +523,5 @@ export default {
   formatTimeLeft,
   formatDuration,
   parseIsoDuration,
-  formatIsoDuration
+  formatIsoDuration,
 };
