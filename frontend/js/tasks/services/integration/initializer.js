@@ -1,21 +1,19 @@
 /**
- * Сервіс інтеграції системи завдань
+ * Ініціалізатор системи завдань
  *
  * Відповідає за:
- * - Координацію ініціалізації всіх модулів
- * - Виявлення та вирішення конфліктів
- * - Відновлення при помилках
- * - Діагностику системи
+ * - Ініціалізацію модулів системи
+ * - Координацію процесу завантаження
  */
 
-import { CONFIG } from '../config/task-types.js';
-import { getLogger, LOG_CATEGORIES } from '../utils/logger.js';
-import dependencyContainer from '../utils/dependency-container.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils';
+import dependencyContainer from '../../utils';
+import { CONFIG } from '../../config';
 
 // Створюємо логер для модуля
 const logger = getLogger('TaskIntegration');
 
-class TaskIntegration {
+export class Initializer {
   constructor() {
     // Стан модуля
     this.state = {
@@ -55,29 +53,6 @@ class TaskIntegration {
       'taskStore',
       'taskSystem'
     ];
-
-    // DOM Observer для динамічних елементів
-    this.domObserver = null;
-  }
-
-  /**
-   * Реєстрація модуля в контейнері залежностей
-   * @param {string} moduleName - Назва модуля
-   * @param {Object} moduleInstance - Екземпляр модуля
-   */
-  register(moduleName, moduleInstance) {
-    dependencyContainer.register(moduleName, moduleInstance);
-    logger.info(`Модуль ${moduleName} зареєстровано в контейнері залежностей`, 'register');
-    return this;
-  }
-
-  /**
-   * Отримання модуля з контейнера залежностей
-   * @param {string} moduleName - Назва модуля
-   * @returns {Object|null} - Екземпляр модуля або null
-   */
-  getModule(moduleName) {
-    return dependencyContainer.resolve(moduleName);
   }
 
   /**
@@ -106,7 +81,7 @@ class TaskIntegration {
       });
 
       // Реєструємо себе як сервіс для інших модулів
-      this.register('TaskIntegration', this);
+      dependencyContainer.register('TaskIntegration', this);
 
       // Автоматична реєстрація модулів з глобального скопу
       await this.autoRegisterGlobalModules();
@@ -166,7 +141,7 @@ class TaskIntegration {
 
           // Якщо знайдено
           if (moduleObj) {
-            this.register(moduleName, moduleObj);
+            dependencyContainer.register(moduleName, moduleObj);
             logger.info(`Модуль ${moduleName} автоматично зареєстровано`, 'autoRegisterGlobalModules');
           }
         }
@@ -355,69 +330,6 @@ class TaskIntegration {
   }
 
   /**
-   * Вирішення конфліктів між модулями
-   * @returns {Promise<void>}
-   */
-  async resolveModuleConflicts() {
-    if (this.state.conflictResolutionApplied) return;
-
-    try {
-      logger.info('Вирішення конфліктів між модулями...', 'resolveModuleConflicts');
-
-      // Отримуємо модулі з контейнера залежностей
-      const taskSystem = dependencyContainer.resolve('taskSystem');
-      const taskProgress = dependencyContainer.resolve('taskProgress');
-      const taskVerification = dependencyContainer.resolve('taskVerification');
-      const taskStore = dependencyContainer.resolve('taskStore');
-
-      // Синхронізуємо TaskSystem з TaskProgress
-      if (taskSystem && taskProgress) {
-        // Якщо потрібно, делегуємо методи прогресу
-        if (!taskSystem.getTaskProgress) {
-          taskSystem.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
-        }
-
-        if (!taskSystem.updateTaskProgress) {
-          taskSystem.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
-        }
-
-        logger.info('Налаштовано делегування методів прогресу', 'resolveModuleConflicts');
-      }
-
-      // Синхронізуємо TaskSystem з TaskVerification
-      if (taskSystem && taskVerification) {
-        if (!taskSystem.verifyTask) {
-          taskSystem.verifyTask = taskVerification.verifyTask.bind(taskVerification);
-        }
-
-        logger.info('Налаштовано делегування методів верифікації', 'resolveModuleConflicts');
-      }
-
-      // Для зворотньої сумісності
-      if (window.TaskManager) {
-        // Оновлюємо методи в TaskManager
-        if (taskProgress) {
-          window.TaskManager.getTaskProgress = taskProgress.getTaskProgress.bind(taskProgress);
-          window.TaskManager.updateTaskProgress = taskProgress.updateTaskProgress.bind(taskProgress);
-        }
-
-        if (taskVerification) {
-          window.TaskManager.verifyTask = taskVerification.verifyTask.bind(taskVerification);
-        }
-
-        // Реєструємо TaskManager в контейнері
-        this.register('TaskManager', window.TaskManager);
-      }
-
-      this.state.conflictResolutionApplied = true;
-    } catch (error) {
-      logger.error(error, 'Помилка при вирішенні конфліктів між модулями', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-    }
-  }
-
-  /**
    * Завершення процесу ініціалізації
    */
   finalizeInitialization() {
@@ -493,205 +405,6 @@ class TaskIntegration {
   }
 
   /**
-   * Виправлення проблем з ID користувача у всіх модулях
-   */
-  fixUserIdIssues() {
-    try {
-      // Створення userId-провайдера та реєстрація в контейнері залежностей
-      const userIdProvider = {
-        getUserId: () => {
-          const userIdResult = this.safeGetUserId();
-          if (!userIdResult.success) {
-            if (this.config.fallbackUserMode) {
-              logger.info('Повертаємо тимчасовий ID для режиму fallback', 'getUserId');
-              return 'temp_user_' + Math.random().toString(36).substring(2, 9);
-            }
-            return null;
-          }
-          return userIdResult.userId;
-        }
-      };
-
-      this.register('UserIdProvider', userIdProvider);
-
-      // Перевіряємо, чи є функція getUserId
-      if (typeof window.getUserId !== 'function') {
-        logger.info('Створення глобальної функції getUserId...', 'fixUserIdIssues', {
-          category: LOG_CATEGORIES.INIT
-        });
-
-        // Створюємо функцію getUserId, яка використовує зареєстрований провайдер
-        window.getUserId = userIdProvider.getUserId;
-      }
-    } catch (error) {
-      logger.error(error, 'Помилка при виправленні проблем з ID користувача', {
-        category: LOG_CATEGORIES.INIT
-      });
-    }
-  }
-
-  /**
-   * Безпечне отримання ID користувача з обробкою помилок
-   * @returns {Object} Результат отримання ID користувача
-   */
-  safeGetUserId() {
-    try {
-      // Спробуємо отримати ID користувача через звичайну функцію getUserId
-      if (typeof window.getUserId === 'function') {
-        const userId = window.getUserId();
-        if (userId) {
-          return { success: true, userId: userId };
-        }
-      }
-
-      // Спробуємо знайти ID в localStorage
-      try {
-        const storedId = localStorage.getItem('telegram_user_id');
-        if (storedId && storedId !== 'undefined' && storedId !== 'null') {
-          return { success: true, userId: storedId, source: 'localStorage' };
-        }
-      } catch (storageError) {
-        logger.warn(storageError, 'Помилка доступу до localStorage', {
-          category: LOG_CATEGORIES.LOGIC
-        });
-      }
-
-      // Спробуємо отримати з URL-параметрів
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const id = urlParams.get('id') || urlParams.get('user_id') || urlParams.get('telegram_id');
-        if (id) {
-          return { success: true, userId: id, source: 'URL' };
-        }
-      } catch (urlError) {
-        logger.warn(urlError, 'Помилка парсингу URL', {
-          category: LOG_CATEGORIES.LOGIC
-        });
-      }
-
-      // Спробуємо отримати з Telegram WebApp
-      try {
-        if (window.Telegram && window.Telegram.WebApp &&
-          window.Telegram.WebApp.initDataUnsafe &&
-          window.Telegram.WebApp.initDataUnsafe.user &&
-          window.Telegram.WebApp.initDataUnsafe.user.id) {
-
-          const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-          if (telegramId) {
-            return { success: true, userId: telegramId, source: 'TelegramWebApp' };
-          }
-        }
-      } catch (telegramError) {
-        logger.warn(telegramError, 'Помилка доступу до Telegram WebApp', {
-          category: LOG_CATEGORIES.LOGIC
-        });
-      }
-
-      // Не знайдено ID користувача
-      logger.warn('ID користувача не знайдено', 'safeGetUserId', {
-        category: LOG_CATEGORIES.AUTH
-      });
-
-      return {
-        success: false,
-        error: 'ID користувача не знайдено',
-        fallbackAvailable: this.config.fallbackUserMode,
-        requiresAuth: true
-      };
-    } catch (error) {
-      logger.error(error, 'Помилка отримання ID користувача', {
-        category: LOG_CATEGORIES.AUTH
-      });
-
-      return {
-        success: false,
-        error: error.message || 'Помилка отримання ID користувача',
-        originalError: error,
-        fallbackAvailable: this.config.fallbackUserMode,
-        requiresAuth: true
-      };
-    }
-  }
-
-  /**
-   * Спроба відновлення невдалих модулів
-   */
-  async recoverFailedModules() {
-    try {
-      // Отримуємо список невдалих критичних модулів
-      const failedCritical = this.criticalModules.filter(m => this.state.moduleStates[m] === 'failed');
-
-      if (failedCritical.length === 0) {
-        logger.info('Немає невдалих критичних модулів для відновлення', 'recoverFailedModules');
-        return;
-      }
-
-      logger.info(`Спроба відновлення модулів: ${failedCritical.join(', ')}`, 'recoverFailedModules');
-
-      // Спробуємо ще раз ініціалізувати кожен модуль
-      for (const moduleName of failedCritical) {
-        try {
-          // Скидаємо стан модуля
-          this.state.moduleStates[moduleName] = 'pending';
-
-          // Видаляємо з списку невдалих
-          const index = this.state.failedModules.indexOf(moduleName);
-          if (index > -1) {
-            this.state.failedModules.splice(index, 1);
-          }
-
-          // Спробуємо ініціалізувати знову
-          await this.initializeModule(moduleName);
-
-          logger.info(`Успішно відновлено модуль ${moduleName}`, 'recoverFailedModules');
-        } catch (moduleError) {
-          logger.error(moduleError, `Помилка при спробі відновлення модуля ${moduleName}`, {
-            category: LOG_CATEGORIES.INIT,
-            details: { moduleName }
-          });
-        }
-      }
-    } catch (error) {
-      logger.error(error, 'Помилка при відновленні невдалих модулів', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-    }
-  }
-
-  /**
-   * Діагностика системи
-   * @returns {Object} Діагностична інформація
-   */
-  diagnose() {
-    try {
-      const diagnosticInfo = {
-        state: { ...this.state },
-        moduleStates: { ...this.state.moduleStates },
-        failedModules: [...this.state.failedModules],
-        initTime: this.state.initEndTime - this.state.initStartTime,
-        initialized: this.state.initialized,
-        registeredModules: dependencyContainer.getRegisteredModules(),
-        userId: this.safeGetUserId()
-      };
-
-      logger.info('Діагностична інформація зібрана', 'diagnose', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-
-      return diagnosticInfo;
-    } catch (error) {
-      logger.error(error, 'Помилка діагностики системи', {
-        category: LOG_CATEGORIES.LOGIC
-      });
-
-      return {
-        error: error.message,
-        timestamp: Date.now()
-      };
-    }
-  }
-
-  /**
    * Скидання стану інтеграції для повторної ініціалізації
    */
   reset() {
@@ -716,19 +429,3 @@ class TaskIntegration {
     }
   }
 }
-
-// Створюємо і експортуємо єдиний екземпляр сервісу інтеграції
-const taskIntegration = new TaskIntegration();
-
-// Для зворотної сумісності зі старою системою, додаємо в глобальний простір
-window.TaskIntegration = taskIntegration;
-
-// Ініціалізуємо модуль при завантаженні скрипту
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => taskIntegration.init());
-} else {
-  // Невелика затримка для завершення завантаження інших скриптів
-  setTimeout(() => taskIntegration.init(), 100);
-}
-
-export default taskIntegration;

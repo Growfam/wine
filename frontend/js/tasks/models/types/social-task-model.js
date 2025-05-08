@@ -4,8 +4,8 @@
  * Розширює базову модель для соціальних завдань
  */
 
-import { TaskModel } from './task-model.js';
-import { TASK_TYPES } from '../config/task-types.js';
+import { TaskModel } from '../base';
+import { TASK_TYPES } from '../../config';
 
 export class SocialTaskModel extends TaskModel {
   /**
@@ -38,6 +38,26 @@ export class SocialTaskModel extends TaskModel {
       platform_user_id: apiData.platform_user_id,
       requires_verification: apiData.requires_verification !== false
     });
+  }
+
+  /**
+   * Визначення типу соціальної мережі на основі URL
+   * @returns {string} Тип соціальної мережі
+   */
+  getSocialPlatformType() {
+    // Намагаємося визначити тип платформи
+    if (this.platform) return this.platform;
+
+    // Спробуємо визначити на основі URL
+    return this.detectPlatform(this.channel_url || this.action_url);
+  }
+
+  /**
+   * Перевірка, чи потрібна верифікація
+   * @returns {boolean} Потрібна верифікація чи ні
+   */
+  needsVerification() {
+    return this.requires_verification === true;
   }
 }
 
