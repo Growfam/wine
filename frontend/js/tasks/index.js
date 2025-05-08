@@ -1,19 +1,30 @@
 /**
- * Точка входу системи завдань
+ * Точка входу системи завдань WINIX
  *
  * Ініціалізує всі модулі та експортує публічне API
+ * @version 3.1.0
  */
 
 // Імпорт конфігурації
 import * as TaskTypes from './config';
+import { CONFIG } from './config/settings';
 
 // Імпорт контейнера залежностей
-import dependencyContainer from './utils';
+import dependencyContainer, { getLogger } from './utils';
 
-// Оголошення прямих імпортів без створення циркулярних залежностей
-// Типи моделей будуть завантажені динамічно, щоб уникнути циклів залежностей
-let TaskModel, SocialTaskModel, LimitedTaskModel, PartnerTaskModel;
-let taskApi, taskStore, taskVerification, taskProgress;
+// Створюємо логер для основної системи
+const logger = getLogger('TaskSystem');
+
+// Імпорт API (без створення циркулярних залежностей)
+import taskApiFactory from './api/index.js';
+
+// Оголошення модулів, які будуть завантажені динамічно
+let moduleCache = {
+  models: null,
+  api: null,
+  services: null,
+  ui: null
+};
 
 /**
  * Клас для управління системою завдань
@@ -21,66 +32,82 @@ let taskApi, taskStore, taskVerification, taskProgress;
 class TaskSystem {
   constructor() {
     this.initialized = false;
-    this.version = '1.0.0';
+    this.version = '3.1.0';
 
-    // Зберігаємо посилання на всі модулі та моделі
+    // Зберігаємо посилання на всі модулі та сервіси
     this.api = null;
     this.store = null;
     this.verification = null;
     this.progress = null;
+    this.dailyBonus = null;
 
     // Моделі завдань будуть завантажені при ініціалізації
     this.models = {};
 
     // Типи та константи
     this.types = TaskTypes;
+    this.config = CONFIG;
 
     // Реєстрація в контейнері залежностей
     dependencyContainer.register('TaskSystem', this);
+
+    // Логуємо створення системи
+    logger.info('Створено екземпляр системи завдань', 'constructor');
   }
 
   /**
    * Асинхронне завантаження всіх необхідних модулів
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>}
    */
   async loadModules() {
     try {
-      // Динамічне завантаження модулів для уникнення циркулярних залежностей
-      const modelModule = await import('./models');
-      const socialModelModule = await import('./models');
-      const limitedModelModule = await import('./models');
-      const partnerModelModule = await import('./models');
+      logger.info('Початок завантаження модулів', 'loadModules');
 
-      // Зберігаємо посилання на моделі
-      TaskModel = modelModule.default;
-      SocialTaskModel = socialModelModule.default;
-      LimitedTaskModel = limitedModelModule.default;
-      PartnerTaskModel = partnerModelModule.default;
+      // Якщо модулі вже в кеші, повертаємо їх
+      if (moduleCache.models && moduleCache.services) {
+        logger.info('Використання кешованих модулів', 'loadModules');
+        return true;
+      }
 
-      // Завантажуємо сервіси
-      const apiModule = await import('./services');
-      const storeModule = await import('./services');
-      const verificationModule = await import('./services');
-      const progressModule = await import('./services');
+      // Завантажуємо всі необхідні модулі паралельно
+      const [
+        modelsModule,
+        servicesModule,
+        uiModule
+      ] = await Promise.all([
+        import('./models'),
+        import('./services'),
+        import('./ui')
+      ]);
 
-      // Зберігаємо посилання на сервіси
-      taskApi = apiModule.default;
-      taskStore = storeModule.default;
-      taskVerification = verificationModule.default;
-      taskProgress = progressModule.default;
+      // Зберігаємо модулі в кеш
+      moduleCache.models = modelsModule;
+      moduleCache.services = servicesModule;
+      moduleCache.ui = uiModule;
+
+      // Ініціалізуємо API (створюємо один раз)
+      if (!moduleCache.api) {
+        moduleCache.api = taskApiFactory;
+        moduleCache.api.init();
+      }
+
+      // Сервіси завдань
+      const { taskStore, taskVerification, taskProgress, dailyBonusService } = servicesModule;
+
+      // Оновлюємо посилання на сервіси
+      this.api = moduleCache.api;
+      this.store = taskStore;
+      this.verification = taskVerification;
+      this.progress = taskProgress;
+      this.dailyBonus = dailyBonusService;
 
       // Оновлюємо посилання на моделі
-      this.models = {
-        TaskModel,
-        SocialTaskModel,
-        LimitedTaskModel,
-        PartnerTaskModel
-      };
+      this.models = modelsModule;
 
-      console.log('TaskSystem: Всі модулі успішно завантажено');
+      logger.info('Всі модулі успішно завантажено', 'loadModules');
       return true;
     } catch (error) {
-      console.error('TaskSystem: Помилка завантаження модулів:', error);
+      logger.error('Помилка завантаження модулів', 'loadModules', { error });
       return false;
     }
   }
@@ -92,11 +119,11 @@ class TaskSystem {
    */
   async initialize(options = {}) {
     if (this.initialized) {
-      console.log('TaskSystem: Система вже ініціалізована');
+      logger.info('Система вже ініціалізована', 'initialize');
       return true;
     }
 
-    console.log('TaskSystem: Початок ініціалізації');
+    logger.info('Початок ініціалізації', 'initialize', { options });
 
     try {
       // Спочатку завантажуємо всі необхідні модулі
@@ -107,38 +134,40 @@ class TaskSystem {
 
       // Реєстрація основних модулів у контейнері залежностей
       dependencyContainer
-        .register('taskApi', taskApi)
-        .register('taskStore', taskStore)
-        .register('taskVerification', taskVerification)
-        .register('taskProgress', taskProgress);
-
-      // Встановлення посилань на модулі
-      this.api = taskApi;
-      this.store = taskStore;
-      this.verification = taskVerification;
-      this.progress = taskProgress;
+        .register('taskApi', this.api)
+        .register('taskStore', this.store)
+        .register('taskVerification', this.verification)
+        .register('taskProgress', this.progress)
+        .register('dailyBonusService', this.dailyBonus);
 
       // Ініціалізуємо сховище
       if (typeof this.store.initialize === 'function') {
-        this.store.initialize();
+        this.store.initialize(options.store);
       }
 
       // Ініціалізуємо модуль прогресу
       if (typeof this.progress.initialize === 'function') {
-        this.progress.initialize();
+        this.progress.initialize(options.progress);
+      }
+
+      // Ініціалізуємо щоденні бонуси
+      if (typeof this.dailyBonus.initialize === 'function') {
+        this.dailyBonus.initialize(options.dailyBonus);
       }
 
       // Спробуємо завантажити завдання
       try {
-        const tasksData = await this.api.loadAllTasks();
+        const tasksData = await this.api.getAllTasks({
+          forceRefresh: options.forceRefresh || false
+        });
 
         // Зберігаємо завдання у сховище
-        this.store.setTasks(TaskTypes.TASK_TYPES.SOCIAL, tasksData.social);
-        this.store.setTasks(TaskTypes.TASK_TYPES.LIMITED, tasksData.limited);
-        this.store.setTasks(TaskTypes.TASK_TYPES.PARTNER, tasksData.partner);
+        this.store.setTasks(TaskTypes.TASK_TYPES.SOCIAL, tasksData.social || []);
+        this.store.setTasks(TaskTypes.TASK_TYPES.LIMITED, tasksData.limited || []);
+        this.store.setTasks(TaskTypes.TASK_TYPES.PARTNER, tasksData.partner || []);
 
         // Розділяємо соціальні та реферальні завдання
-        const referralTasks = tasksData.social.filter(task =>
+        const referralTasks = (tasksData.social || []).filter(task =>
           (task.tags && Array.isArray(task.tags) && task.tags.includes('referral')) ||
           task.type === 'referral' ||
           (task.title && (
@@ -158,9 +187,14 @@ class TaskSystem {
           this.store.setUserProgress(tasksData.userProgress);
         }
 
-        console.log('TaskSystem: Всі типи завдань успішно завантажено');
+        logger.info('Всі типи завдань успішно завантажено', 'initialize', {
+          social: (tasksData.social || []).length,
+          limited: (tasksData.limited || []).length,
+          partner: (tasksData.partner || []).length,
+          referral: referralTasks.length
+        });
       } catch (loadError) {
-        console.warn('TaskSystem: Помилка завантаження завдань, продовжуємо ініціалізацію:', loadError);
+        logger.warn('Помилка завантаження завдань, продовжуємо ініціалізацію', 'initialize', { error: loadError });
       }
 
       // Встановлюємо прапорець ініціалізації
@@ -174,10 +208,10 @@ class TaskSystem {
       // Ін'єктуємо посилання на TaskSystem в інші модулі
       this.injectSystemReference();
 
-      console.log('TaskSystem: Ініціалізацію завершено успішно');
+      logger.info('Ініціалізацію завершено успішно', 'initialize');
       return true;
     } catch (error) {
-      console.error('TaskSystem: Критична помилка ініціалізації:', error);
+      logger.error('Критична помилка ініціалізації', 'initialize', { error });
 
       // Генеруємо подію помилки
       this.dispatchSystemEvent('initialization-error', {
@@ -192,13 +226,15 @@ class TaskSystem {
    * Ін'єктування посилання на TaskSystem в інші модулі
    */
   injectSystemReference() {
-    const modules = [this.api, this.store, this.verification, this.progress];
+    const modules = [this.api, this.store, this.verification, this.progress, this.dailyBonus];
 
     modules.forEach(module => {
       if (module && typeof module === 'object') {
         module.taskSystem = this;
       }
     });
+
+    logger.debug('Посилання на TaskSystem ін\'єктовано в модулі', 'injectSystemReference');
   }
 
   /**
@@ -207,6 +243,8 @@ class TaskSystem {
    * @param {Object} data - Дані події
    */
   dispatchSystemEvent(eventName, data = {}) {
+    if (typeof document === 'undefined') return;
+
     const event = new CustomEvent(`task-system-${eventName}`, {
       detail: {
         ...data,
@@ -215,6 +253,7 @@ class TaskSystem {
     });
 
     document.dispatchEvent(event);
+    logger.debug(`Згенеровано подію ${eventName}`, 'dispatchSystemEvent', { data });
   }
 
   /**
@@ -223,7 +262,7 @@ class TaskSystem {
    * @returns {Array} Масив завдань
    */
   getTasks(type) {
-    return this.store.getTasks(type);
+    return this.store?.getTasks(type) || [];
   }
 
   /**
@@ -232,7 +271,7 @@ class TaskSystem {
    * @returns {Object|null} Знайдене завдання
    */
   findTaskById(taskId) {
-    return this.store.findTaskById(taskId);
+    return this.store?.findTaskById(taskId) || null;
   }
 
   /**
@@ -242,6 +281,10 @@ class TaskSystem {
    */
   async startTask(taskId) {
     try {
+      if (!this.api) {
+        throw new Error('API не ініціалізовано');
+      }
+
       const response = await this.api.startTask(taskId);
 
       if (response.status === 'success' || response.success) {
@@ -282,7 +325,7 @@ class TaskSystem {
         };
       }
     } catch (error) {
-      console.error('TaskSystem: Помилка запуску завдання:', error);
+      logger.error('Помилка запуску завдання', 'startTask', { taskId, error });
 
       return {
         success: false,
@@ -298,6 +341,11 @@ class TaskSystem {
    * @returns {Promise<Object>} Результат верифікації
    */
   async verifyTask(taskId) {
+    if (!this.verification) {
+      logger.error('Модуль верифікації не ініціалізовано', 'verifyTask', { taskId });
+      return { success: false, message: 'Модуль верифікації не ініціалізовано' };
+    }
+
     return await this.verification.verifyTask(taskId);
   }
 
@@ -308,6 +356,11 @@ class TaskSystem {
    * @returns {boolean} Результат операції
    */
   updateTaskProgress(taskId, progressData) {
+    if (!this.progress) {
+      logger.error('Модуль прогресу не ініціалізовано', 'updateTaskProgress', { taskId });
+      return false;
+    }
+
     return this.progress.updateTaskProgress(taskId, progressData);
   }
 
@@ -317,6 +370,11 @@ class TaskSystem {
    * @returns {Object|null} Прогрес завдання
    */
   getTaskProgress(taskId) {
+    if (!this.progress) {
+      logger.error('Модуль прогресу не ініціалізовано', 'getTaskProgress', { taskId });
+      return null;
+    }
+
     return this.progress.getTaskProgress(taskId);
   }
 
@@ -325,7 +383,37 @@ class TaskSystem {
    * @returns {Promise<Object>} Результат операції
    */
   async syncProgress() {
+    if (!this.progress) {
+      logger.error('Модуль прогресу не ініціалізовано', 'syncProgress');
+      return { success: false, message: 'Модуль прогресу не ініціалізовано' };
+    }
+
     return await this.progress.syncAllProgress();
+  }
+
+  /**
+   * Отримання щоденного бонусу
+   * @returns {Promise<Object>} Результат операції
+   */
+  async claimDailyBonus() {
+    if (!this.dailyBonus) {
+      logger.error('Модуль щоденних бонусів не ініціалізовано', 'claimDailyBonus');
+      return { success: false, message: 'Модуль щоденних бонусів не ініціалізовано' };
+    }
+
+    try {
+      const result = await this.dailyBonus.claimDailyBonus();
+
+      // Оновлюємо баланс, якщо бонус отримано успішно
+      if (result.success && result.data && result.data.amount) {
+        this.updateBalance('coins', result.data.amount, true);
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('Помилка отримання щоденного бонусу', 'claimDailyBonus', { error });
+      return { success: false, message: 'Помилка отримання щоденного бонусу', error: error.message };
+    }
   }
 
   /**
@@ -333,7 +421,73 @@ class TaskSystem {
    * @param {string} tabType - Тип вкладки
    */
   setActiveTab(tabType) {
+    if (!this.store) {
+      logger.error('Сховище не ініціалізовано', 'setActiveTab', { tabType });
+      return;
+    }
+
     this.store.setActiveTab(tabType);
+  }
+
+  /**
+   * Оновлення балансу
+   * @param {string} type - Тип балансу ('coins' або 'tokens')
+   * @param {number} amount - Сума
+   * @param {boolean} isIncrement - Чи є це збільшенням
+   */
+  updateBalance(type, amount, isIncrement = true) {
+    if (!this.store) {
+      logger.error('Сховище не ініціалізовано', 'updateBalance', { type, amount, isIncrement });
+      return;
+    }
+
+    this.store.updateBalance(type, amount, isIncrement);
+
+    // Оновлюємо відображення в інтерфейсі
+    this.updateBalanceUI(type, amount, isIncrement);
+  }
+
+  /**
+   * Оновлення відображення балансу в UI
+   * @param {string} type - Тип балансу ('coins' або 'tokens')
+   * @param {number} amount - Сума
+   * @param {boolean} isIncrement - Чи є це збільшенням
+   * @private
+   */
+  updateBalanceUI(type, amount, isIncrement) {
+    if (typeof document === 'undefined') return;
+
+    // ID елементів в UI
+    const elementIds = {
+      coins: 'user-coins',
+      tokens: 'user-tokens'
+    };
+
+    const elementId = elementIds[type];
+    if (!elementId) return;
+
+    // Отримуємо елемент
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    // Отримуємо поточне значення
+    let currentValue = parseInt(element.textContent.replace(/[^\d]/g, '')) || 0;
+
+    // Оновлюємо значення
+    let newValue = isIncrement
+      ? currentValue + amount
+      : Math.max(0, currentValue - amount);
+
+    // Оновлюємо відображення
+    element.textContent = newValue.toString();
+
+    // Анімуємо зміну
+    element.classList.add(isIncrement ? 'balance-increased' : 'balance-decreased');
+
+    // Видаляємо клас анімації після завершення
+    setTimeout(() => {
+      element.classList.remove('balance-increased', 'balance-decreased');
+    }, 1500);
   }
 
   /**
@@ -346,24 +500,14 @@ class TaskSystem {
     return {
       initialized: this.initialized,
       version: this.version,
-      activeTabType: this.store.systemState.activeTabType,
+      activeTabType: this.store.systemState?.activeTabType,
       tasksCount: {
-        social: this.store.tasks[TaskTypes.TASK_TYPES.SOCIAL].length,
-        limited: this.store.tasks[TaskTypes.TASK_TYPES.LIMITED].length,
-        partner: this.store.tasks[TaskTypes.TASK_TYPES.PARTNER].length,
-        referral: this.store.tasks[TaskTypes.TASK_TYPES.REFERRAL].length
+        social: this.store.tasks?.[TaskTypes.TASK_TYPES.SOCIAL]?.length || 0,
+        limited: this.store.tasks?.[TaskTypes.TASK_TYPES.LIMITED]?.length || 0,
+        partner: this.store.tasks?.[TaskTypes.TASK_TYPES.PARTNER]?.length || 0,
+        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0
       }
     };
-  }
-
-  /**
-   * Оновлення балансу
-   * @param {string} type - Тип балансу
-   * @param {number} amount - Сума
-   * @param {boolean} isIncrement - Чи є це збільшенням
-   */
-  updateBalance(type, amount, isIncrement = true) {
-    this.store.updateBalance(type, amount, isIncrement);
   }
 
   /**
@@ -382,17 +526,22 @@ class TaskSystem {
       version: this.version,
       systemState: this.store.systemState,
       tasks: {
-        social: this.store.tasks[TaskTypes.TASK_TYPES.SOCIAL].length,
-        limited: this.store.tasks[TaskTypes.TASK_TYPES.LIMITED].length,
-        partner: this.store.tasks[TaskTypes.TASK_TYPES.PARTNER].length,
-        referral: this.store.tasks[TaskTypes.TASK_TYPES.REFERRAL].length
+        social: this.store.tasks?.[TaskTypes.TASK_TYPES.SOCIAL]?.length || 0,
+        limited: this.store.tasks?.[TaskTypes.TASK_TYPES.LIMITED]?.length || 0,
+        partner: this.store.tasks?.[TaskTypes.TASK_TYPES.PARTNER]?.length || 0,
+        referral: this.store.tasks?.[TaskTypes.TASK_TYPES.REFERRAL]?.length || 0
       },
-      userProgress: Object.keys(this.store.userProgress).length,
+      userProgress: this.store.userProgress ? Object.keys(this.store.userProgress).length : 0,
       api: {
-        baseUrl: this.api?.baseUrl
+        baseUrl: this.api?.baseUrl || 'не налаштовано',
+        version: this.api?.version || 'невідомо'
+      },
+      dailyBonus: {
+        initialized: !!this.dailyBonus,
+        claimed: this.dailyBonus?.isClaimedToday?.() || false
       },
       dependencies: {
-        registered: dependencyContainer.getRegisteredModules()
+        registered: dependencyContainer.getRegisteredModules?.() || []
       }
     };
   }
@@ -407,6 +556,12 @@ class TaskSystem {
     // Скидаємо стан сервісів
     if (this.progress) this.progress.resetState();
     if (this.verification) this.verification.resetState();
+    if (this.dailyBonus) this.dailyBonus.resetState?.();
+
+    // Очищаємо кеш API
+    if (this.api && this.api.clearCache) {
+      this.api.clearCache();
+    }
 
     // Встановлюємо прапорець ініціалізації
     this.initialized = false;
@@ -414,7 +569,7 @@ class TaskSystem {
     // Генеруємо подію скидання
     this.dispatchSystemEvent('reset');
 
-    console.log('TaskSystem: Стан системи скинуто');
+    logger.info('Стан системи скинуто', 'reset');
   }
 }
 
@@ -431,10 +586,11 @@ window.TaskManager = {
   verifyTask: taskSystem.verifyTask.bind(taskSystem),
   updateTaskProgress: taskSystem.updateTaskProgress.bind(taskSystem),
   getTaskProgress: taskSystem.getTaskProgress.bind(taskSystem),
+  claimDailyBonus: taskSystem.claimDailyBonus.bind(taskSystem),
 
   // Додаткові методи
   diagnoseSystemState: taskSystem.diagnostics.bind(taskSystem),
-  refreshAllTasks: () => taskSystem.initialize(),
+  refreshAllTasks: () => taskSystem.initialize({ forceRefresh: true }),
   showErrorMessage: (message) => {
     // Для сумісності з попередньою версією
     console.error(message);
@@ -448,10 +604,30 @@ window.TaskManager = {
 
   // Властивості
   get initialized() { return taskSystem.initialized; },
+  get version() { return taskSystem.version; },
   REWARD_TYPES: TaskTypes.REWARD_TYPES
 };
 
 // Реєструємо TaskManager у контейнері залежностей
 dependencyContainer.register('TaskManager', window.TaskManager);
 
+// Для використання в сучасному синтаксисі
+window.WINIX = window.WINIX || {};
+window.WINIX.tasks = taskSystem;
+
+// Автоматична ініціалізація при завантаженні сторінки
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      logger.debug('DOM завантажено, автоматична ініціалізація TaskSystem');
+      setTimeout(() => taskSystem.initialize(), 100);
+    });
+  } else {
+    // DOM вже завантажено
+    logger.debug('DOM вже завантажено, автоматична ініціалізація TaskSystem');
+    setTimeout(() => taskSystem.initialize(), 100);
+  }
+}
+
+// Експортуємо для використання в модулях
 export default taskSystem;

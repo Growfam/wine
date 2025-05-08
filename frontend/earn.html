@@ -129,22 +129,15 @@
     <!-- Попереднє завантаження критичних ресурсів -->
     <link rel="preload" href="css/earn/components-tasks.css" as="style">
     <link rel="preload" href="js/core.js" as="script">
-    <link rel="preload" href="js/tasks/core/task-manager.js" as="script">
-    <link rel="preload" href="js/tasks/components/daily-bonus.js" as="script">
+    <link rel="preload" href="js/tasks/index.js" as="script">
 
-    <!-- Відкладене завантаження некритичних стилів -->
-    <link rel="stylesheet" href="css/earn/components-tasks.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/leaderboard.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/premium-animations.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="css/earn/winix-icons.css" media="print" onload="this.media='all'">
-
-    <!-- Запасні варіанти для браузерів без підтримки onload для стилів -->
-    <noscript>
-        <link rel="stylesheet" href="css/earn/components-tasks.css">
-        <link rel="stylesheet" href="css/earn/leaderboard.css">
-        <link rel="stylesheet" href="css/earn/premium-animations.css">
-        <link rel="stylesheet" href="css/earn/winix-icons.css">
-    </noscript>
+    <!-- Стилі для завдань та анімацій -->
+    <link rel="stylesheet" href="css/earn/components-tasks.css">
+    <link rel="stylesheet" href="css/earn/leaderboard.css">
+    <link rel="stylesheet" href="css/earn/animations.css">
+    <link rel="stylesheet" href="css/earn/premium-animations.css">
+    <link rel="stylesheet" href="css/earn/premium-theme.css">
+    <link rel="stylesheet" href="css/earn/winix-icons.css">
 
     <!-- Підключення Telegram WebApp API негайно -->
     <script src="js/telegram-web-app.js"></script>
@@ -339,11 +332,345 @@
     <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
 
     <!-- ВИПРАВЛЕНО: Оптимізована послідовність завантаження скриптів -->
-    <!-- Першочергові скрипти (блокуючі) -->
-    <script src="js/telegram-web-app.js"></script>
-
-    <!-- ВИПРАВЛЕНО: Пріоритетне завантаження ключових модулів -->
+    <!-- Першочергові скрипти -->
     <script src="js/core.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
 
+    <!-- Підключення системи завдань -->
+    <script type="module">
+        // Імпорт системи завдань
+        import taskSystem from './js/tasks/index.js';
+
+        // Деякі загальні змінні для роботи з UI
+        let dailyBonusInitialized = false;
+
+        // Після завантаження DOM
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('📱 WINIX - Ініціалізація сторінки завдань');
+
+            try {
+                // Ініціалізуємо систему завдань
+                const initialized = await taskSystem.initialize({
+                    forceRefresh: false,
+                    ui: {
+                        animations: {
+                            enabled: true,
+                            performanceMode: window.innerWidth < 768 // Режим продуктивності на мобільних
+                        }
+                    }
+                });
+
+                if (initialized) {
+                    console.log('✅ Система завдань успішно ініціалізована');
+
+                    // Ініціалізуємо компоненти щоденного бонусу
+                    initializeDailyBonus();
+
+                    // Ініціалізуємо вкладки
+                    initializeTabs();
+
+                    // Ховаємо індикатор завантаження
+                    hideLoadingIndicator();
+                } else {
+                    console.error('❌ Помилка ініціалізації системи завдань');
+                    showErrorMessage('Не вдалося завантажити систему завдань. Спробуйте оновити сторінку.');
+                }
+            } catch (error) {
+                console.error('❌ Критична помилка:', error);
+                showErrorMessage('Виникла помилка при завантаженні даних');
+            }
+        });
+
+        /**
+         * Ініціалізація системи вкладок
+         */
+        function initializeTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const contentSections = document.querySelectorAll('.content-section');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabType = tab.getAttribute('data-tab');
+
+                    // Змінюємо активну вкладку
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // Змінюємо видимий контент
+                    contentSections.forEach(section => {
+                        section.classList.remove('active');
+                        if (section.id === `${tabType}-content`) {
+                            section.classList.add('active');
+                        }
+                    });
+
+                    // Повідомляємо систему завдань про зміну вкладки
+                    if (taskSystem && taskSystem.setActiveTab) {
+                        taskSystem.setActiveTab(tabType);
+                    }
+                });
+            });
+        }
+
+        /**
+         * Ініціалізація компонента щоденного бонусу
+         */
+        function initializeDailyBonus() {
+            if (dailyBonusInitialized) return;
+
+            // Отримуємо елементи
+            const claimButton = document.getElementById('claim-daily');
+            const progressContainer = document.getElementById('daily-progress-container');
+
+            if (!claimButton || !progressContainer) {
+                console.warn('⚠️ Елементи щоденного бонусу не знайдено');
+                return;
+            }
+
+            // Створюємо календар бонусів на 7 днів
+            createDailyBonusCalendar(progressContainer);
+
+            // Завантажуємо стан щоденного бонусу
+            loadDailyBonusStatus();
+
+            // Додаємо обробник кліку на кнопку отримання бонусу
+            claimButton.addEventListener('click', claimDailyBonus);
+
+            // Позначаємо, що ініціалізовано
+            dailyBonusInitialized = true;
+        }
+
+        /**
+         * Створення календаря щоденного бонусу
+         * @param {HTMLElement} container - Контейнер для календаря
+         */
+        function createDailyBonusCalendar(container) {
+            // Очищаємо контейнер
+            container.innerHTML = '';
+
+            // Створюємо 7 днів
+            for (let i = 1; i <= 7; i++) {
+                const dayElement = document.createElement('div');
+                dayElement.className = 'daily-day';
+                dayElement.dataset.day = i;
+
+                const dayCircle = document.createElement('div');
+                dayCircle.className = 'day-circle';
+                dayCircle.textContent = i;
+
+                // Додаємо мітку токена на кожен 7-й день
+                if (i % 7 === 0) {
+                    const tokenBadge = document.createElement('div');
+                    tokenBadge.className = 'token-badge-small';
+                    tokenBadge.textContent = '⭐';
+                    dayCircle.appendChild(tokenBadge);
+                }
+
+                const dayReward = document.createElement('div');
+                dayReward.className = 'day-reward';
+
+                // Встановлюємо винагороду (модель нагород: день 7 = 50 жетонів, інші дні = 10)
+                const rewardAmount = i % 7 === 0 ? 50 : 10;
+                dayReward.textContent = `${rewardAmount} ₴`;
+
+                dayElement.appendChild(dayCircle);
+                dayElement.appendChild(dayReward);
+                container.appendChild(dayElement);
+            }
+        }
+
+        /**
+         * Завантаження статусу щоденного бонусу
+         */
+        async function loadDailyBonusStatus() {
+            try {
+                // Перевіряємо наявність API для щоденного бонусу
+                if (!taskSystem.dailyBonus || !taskSystem.dailyBonus.getStatus) {
+                    console.warn('⚠️ API щоденного бонусу недоступне');
+                    return;
+                }
+
+                // Завантажуємо статус
+                const response = await taskSystem.dailyBonus.getStatus();
+
+                if (response.success) {
+                    updateDailyBonusUI(response.data);
+                } else {
+                    console.warn('⚠️ Помилка отримання статусу щоденного бонусу:', response.message);
+                }
+            } catch (error) {
+                console.error('❌ Помилка завантаження щоденного бонусу:', error);
+            }
+        }
+
+        /**
+         * Отримання щоденного бонусу
+         */
+        async function claimDailyBonus() {
+            const claimButton = document.getElementById('claim-daily');
+
+            if (!claimButton || claimButton.disabled) return;
+
+            try {
+                // Показуємо стан завантаження
+                claimButton.disabled = true;
+                claimButton.classList.add('processing');
+                claimButton.textContent = 'Отримання...';
+
+                // Викликаємо API отримання бонусу
+                const result = await taskSystem.claimDailyBonus();
+
+                if (result.success) {
+                    // Оновлюємо UI
+                    updateDailyBonusUI({
+                        ...result.data,
+                        claimed_today: true
+                    });
+
+                    // Показуємо повідомлення про успіх
+                    showSuccessMessage(`Щоденний бонус отримано: +${result.data.amount} жетонів!`);
+
+                    // Оновлюємо баланс (анімовано)
+                    updateBalanceUI(result.data.amount);
+                } else {
+                    // Показуємо повідомлення про помилку
+                    showErrorMessage(result.message || 'Не вдалося отримати щоденний бонус');
+                }
+            } catch (error) {
+                console.error('❌ Помилка отримання щоденного бонусу:', error);
+                showErrorMessage('Помилка отримання щоденного бонусу');
+            } finally {
+                // Відновлюємо кнопку
+                const claimButton = document.getElementById('claim-daily');
+                if (claimButton) {
+                    claimButton.disabled = false;
+                    claimButton.classList.remove('processing');
+                    claimButton.textContent = 'Отримати бонус';
+                }
+            }
+        }
+
+        /**
+         * Оновлення UI щоденного бонусу
+         * @param {Object} data - Дані щоденного бонусу
+         */
+        function updateDailyBonusUI(data) {
+            if (!data) return;
+
+            const { current_day = 1, claimed_today = false, streak = 0 } = data;
+            const claimButton = document.getElementById('claim-daily');
+            const progressContainer = document.getElementById('daily-progress-container');
+
+            if (!claimButton || !progressContainer) return;
+
+            // Оновлюємо дні
+            const dayElements = progressContainer.querySelectorAll('.daily-day');
+            dayElements.forEach(dayElement => {
+                const day = parseInt(dayElement.dataset.day);
+                const dayCircle = dayElement.querySelector('.day-circle');
+
+                // Видаляємо всі класи стану
+                dayCircle.classList.remove('active', 'completed', 'current');
+
+                if (day < current_day) {
+                    // Попередні дні (отримані)
+                    dayCircle.classList.add('completed');
+                } else if (day === current_day) {
+                    // Поточний день
+                    dayCircle.classList.add('current');
+
+                    // Якщо вже отримано сьогодні
+                    if (claimed_today) {
+                        dayCircle.classList.add('completed');
+                    } else {
+                        dayCircle.classList.add('active');
+                    }
+                }
+            });
+
+            // Оновлюємо кнопку
+            if (claimed_today) {
+                claimButton.disabled = true;
+                claimButton.classList.add('disabled');
+                claimButton.textContent = 'Вже отримано';
+            } else {
+                claimButton.disabled = false;
+                claimButton.classList.remove('disabled');
+                claimButton.textContent = 'Отримати бонус';
+            }
+        }
+
+        /**
+         * Оновлення відображення балансу
+         * @param {number} amount - Сума для додавання
+         */
+        function updateBalanceUI(amount) {
+            const userCoins = document.getElementById('user-coins');
+            if (!userCoins) return;
+
+            // Отримуємо поточне значення
+            const currentValue = parseInt(userCoins.textContent) || 0;
+
+            // Встановлюємо нове значення
+            userCoins.textContent = currentValue + amount;
+
+            // Додаємо клас для анімації
+            userCoins.classList.add('balance-increased');
+
+            // Видаляємо клас через 1.5 секунди
+            setTimeout(() => {
+                userCoins.classList.remove('balance-increased');
+            }, 1500);
+        }
+
+        /**
+         * Показати повідомлення про успіх
+         * @param {string} message - Текст повідомлення
+         */
+        function showSuccessMessage(message) {
+            const toast = document.getElementById('toast-message');
+            if (!toast) return;
+
+            toast.textContent = message;
+            toast.className = 'toast-message toast-success show';
+
+            setTimeout(() => {
+                toast.className = 'toast-message';
+            }, 3000);
+        }
+
+        /**
+         * Показати повідомлення про помилку
+         * @param {string} message - Текст помилки
+         */
+        function showErrorMessage(message) {
+            const toast = document.getElementById('toast-message');
+            if (!toast) return;
+
+            toast.textContent = message;
+            toast.className = 'toast-message toast-error show';
+
+            setTimeout(() => {
+                toast.className = 'toast-message';
+            }, 3000);
+        }
+
+        /**
+         * Сховати індикатор завантаження
+         */
+        function hideLoadingIndicator() {
+            const loadingIndicator = document.getElementById('initial-loading');
+            if (loadingIndicator) {
+                // Плавно приховуємо
+                loadingIndicator.style.opacity = '0';
+
+                // Після закінчення анімації видаляємо з DOM
+                setTimeout(() => {
+                    loadingIndicator.style.display = 'none';
+                }, 300);
+            }
+        }
+    </script>
+</body>
+</html>
