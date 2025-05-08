@@ -9,15 +9,10 @@
  * @version 3.1.0
  */
 
-// Імпорт базових компонентів з core
-import coreModule from './core/index.js';
-
-// Деструктуризація імпортів з базового модуля
-const {
-  request: requestService,
-  cache: cacheService,
-  config: { CONFIG, API_VERSION, API_ERROR_CODES }
-} = coreModule;
+// Прямий імпорт базових компонентів без циклічних залежностей
+import requestService from './core/request.js';
+import cacheService from './core/cache.js';
+import { CONFIG, API_VERSION, API_ERROR_CODES } from './core/config.js';
 
 // Об'єкт для зберігання лінивих завантажень модулів
 const lazyModules = {
@@ -28,31 +23,35 @@ const lazyModules = {
   dailyBonusModels: null
 };
 
-// Функції для ледачого завантаження модулів
-const getTaskService = () => {
+// Функції для ленивого завантаження модулів через динамічні імпорти
+const getTaskService = async () => {
   if (!lazyModules.taskService) {
-    lazyModules.taskService = require('./services/task-service.js').default;
+    const module = await import('./services/task-service.js');
+    lazyModules.taskService = module.default;
   }
   return lazyModules.taskService;
 };
 
-const getActionService = () => {
+const getActionService = async () => {
   if (!lazyModules.actionService) {
-    lazyModules.actionService = require('./services/action-service.js').default;
+    const module = await import('./services/action-service.js');
+    lazyModules.actionService = module.default;
   }
   return lazyModules.actionService;
 };
 
-const getProgressService = () => {
+const getProgressService = async () => {
   if (!lazyModules.progressService) {
-    lazyModules.progressService = require('./services/progress-service.js').default;
+    const module = await import('./services/progress-service.js');
+    lazyModules.progressService = module.default;
   }
   return lazyModules.progressService;
 };
 
-const getTaskTypesModel = () => {
+const getTaskTypesModel = async () => {
   if (!lazyModules.taskTypesModel) {
-    lazyModules.taskTypesModel = require('./models/task-types.js').default;
+    const module = await import('./models/task-types.js');
+    lazyModules.taskTypesModel = module.default;
   }
   return lazyModules.taskTypesModel;
 };
@@ -98,25 +97,45 @@ class TaskAPI {
 
     // Прапорець ініціалізації
     this._initialized = false;
+
+    // Зберігаємо кешовані сервіси
+    this._cachedServices = {
+      tasks: null,
+      actions: null,
+      progress: null,
+      types: null
+    };
   }
 
   /**
    * Ледаче отримання сервісів (для уникнення циклічних залежностей)
    */
-  get tasks() {
-    return getTaskService();
+  async getTasks() {
+    if (!this._cachedServices.tasks) {
+      this._cachedServices.tasks = await getTaskService();
+    }
+    return this._cachedServices.tasks;
   }
 
-  get actions() {
-    return getActionService();
+  async getActions() {
+    if (!this._cachedServices.actions) {
+      this._cachedServices.actions = await getActionService();
+    }
+    return this._cachedServices.actions;
   }
 
-  get progress() {
-    return getProgressService();
+  async getProgress() {
+    if (!this._cachedServices.progress) {
+      this._cachedServices.progress = await getProgressService();
+    }
+    return this._cachedServices.progress;
   }
 
-  get types() {
-    return getTaskTypesModel();
+  async getTypes() {
+    if (!this._cachedServices.types) {
+      this._cachedServices.types = await getTaskTypesModel();
+    }
+    return this._cachedServices.types;
   }
 
   /**
@@ -150,6 +169,16 @@ class TaskAPI {
     // Позначаємо, що ініціалізовано
     this._initialized = true;
 
+    // Попередньо завантажуємо базові модулі
+    Promise.all([
+      this.getTasks(),
+      this.getActions(),
+      this.getProgress(),
+      this.getTypes()
+    ]).catch(error => {
+      console.error('Помилка попереднього завантаження модулів:', error);
+    });
+
     return this;
   }
 
@@ -175,7 +204,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Дані завдань
    */
   async getAllTasks(options = {}) {
-    return this.tasks.loadAllTasks(options);
+    const tasks = await this.getTasks();
+    return tasks.loadAllTasks(options);
   }
 
   /**
@@ -185,7 +215,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Дані завдань
    */
   async getTasksByType(type, options = {}) {
-    return this.tasks.loadTasksByType(type, options);
+    const tasks = await this.getTasks();
+    return tasks.loadTasksByType(type, options);
   }
 
   /**
@@ -195,7 +226,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Дані завдання
    */
   async getTaskDetails(taskId, options = {}) {
-    return this.tasks.getTaskDetails(taskId, options);
+    const tasks = await this.getTasks();
+    return tasks.getTaskDetails(taskId, options);
   }
 
   /**
@@ -205,7 +237,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Прогрес завдання
    */
   async getTaskProgress(taskId, options = {}) {
-    return this.tasks.getTaskProgress(taskId, options);
+    const tasks = await this.getTasks();
+    return tasks.getTaskProgress(taskId, options);
   }
 
   /**
@@ -215,7 +248,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Статус завдання
    */
   async getTaskStatus(taskId, options = {}) {
-    return this.tasks.getTaskStatus(taskId, options);
+    const tasks = await this.getTasks();
+    return tasks.getTaskStatus(taskId, options);
   }
 
   /**
@@ -225,7 +259,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат операції
    */
   async startTask(taskId, options = {}) {
-    return this.actions.startTask(taskId, options);
+    const actions = await this.getActions();
+    return actions.startTask(taskId, options);
   }
 
   /**
@@ -236,7 +271,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат верифікації
    */
   async verifyTask(taskId, verificationData = {}, options = {}) {
-    return this.actions.verifyTask(taskId, verificationData, options);
+    const actions = await this.getActions();
+    return actions.verifyTask(taskId, verificationData, options);
   }
 
   /**
@@ -247,7 +283,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат оновлення
    */
   async updateTaskProgress(taskId, progressData = {}, options = {}) {
-    return this.actions.updateTaskProgress(taskId, progressData, options);
+    const actions = await this.getActions();
+    return actions.updateTaskProgress(taskId, progressData, options);
   }
 
   /**
@@ -257,7 +294,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат скасування
    */
   async cancelTask(taskId, options = {}) {
-    return this.actions.cancelTask(taskId, options);
+    const actions = await this.getActions();
+    return actions.cancelTask(taskId, options);
   }
 
   /**
@@ -267,7 +305,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат отримання нагороди
    */
   async claimTaskReward(taskId, options = {}) {
-    return this.actions.claimTaskReward(taskId, options);
+    const actions = await this.getActions();
+    return actions.claimTaskReward(taskId, options);
   }
 
   /**
@@ -275,19 +314,21 @@ class TaskAPI {
    * @param {string} taskId - ID завдання
    * @param {number} interval - Інтервал оновлення (мс)
    * @param {Function} callback - Функція зворотного виклику
-   * @returns {string} ID моніторингу
+   * @returns {Promise<string>} ID моніторингу
    */
-  startProgressMonitoring(taskId, interval, callback) {
-    return this.progress.startProgressMonitoring(taskId, interval, callback);
+  async startProgressMonitoring(taskId, interval, callback) {
+    const progress = await this.getProgress();
+    return progress.startProgressMonitoring(taskId, interval, callback);
   }
 
   /**
    * Зупинка моніторингу прогресу
    * @param {string} monitoringId - ID моніторингу
-   * @returns {boolean} Результат операції
+   * @returns {Promise<boolean>} Результат операції
    */
-  stopProgressMonitoring(monitoringId) {
-    return this.progress.stopProgressMonitoring(monitoringId);
+  async stopProgressMonitoring(monitoringId) {
+    const progress = await this.getProgress();
+    return progress.stopProgressMonitoring(monitoringId);
   }
 
   /**
@@ -297,7 +338,8 @@ class TaskAPI {
    * @returns {Promise<Object>} Результат аналізу
    */
   async analyzeTaskProgress(taskId, options = {}) {
-    return this.progress.analyzeTaskProgress(taskId, options);
+    const progress = await this.getProgress();
+    return progress.analyzeTaskProgress(taskId, options);
   }
 
   /**

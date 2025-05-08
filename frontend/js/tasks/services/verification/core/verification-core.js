@@ -4,7 +4,7 @@
  * Центральний компонент сервісу верифікації, який координує процес перевірки завдань
  */
 
-import { VERIFICATION_STATUS, CONFIG } from '../../../config/index.js';
+import { VERIFICATION_STATUS } from '../../../config/index.js';
 import { getLogger } from '../../../utils/core/logger.js';
 import {
   cacheTaskType,
@@ -58,17 +58,28 @@ export class VerificationCore {
     // Конфігурація
     this.config = {
       // Час життя кешу (мс)
-      cacheTTL: CONFIG.CACHE_TTL || 1800000,
+      cacheTTL: 1800000, // Значення за замовчуванням, якщо CONFIG.CACHE_TTL не визначено
 
       // Тривалість затримки між перевірками (мс)
-      throttleDelay: CONFIG.THROTTLE_DELAY || 5000,
+      throttleDelay: 5000, // Значення за замовчуванням, якщо CONFIG.THROTTLE_DELAY не визначено
 
       // Чи блокувати повторні запити на перевірку
       blockRepeatedRequests: true,
 
       // Максимальна кількість спроб верифікації
-      maxVerificationAttempts: CONFIG.MAX_VERIFICATION_ATTEMPTS || 10,
+      maxVerificationAttempts: 10, // Значення за замовчуванням, якщо CONFIG.MAX_VERIFICATION_ATTEMPTS не визначено
     };
+
+    // Встановлюємо значення з CONFIG якщо вони доступні
+    try {
+      if (typeof window !== 'undefined' && window.CONFIG) {
+        if (window.CONFIG.CACHE_TTL) this.config.cacheTTL = window.CONFIG.CACHE_TTL;
+        if (window.CONFIG.THROTTLE_DELAY) this.config.throttleDelay = window.CONFIG.THROTTLE_DELAY;
+        if (window.CONFIG.MAX_VERIFICATION_ATTEMPTS) this.config.maxVerificationAttempts = window.CONFIG.MAX_VERIFICATION_ATTEMPTS;
+      }
+    } catch (e) {
+      logger.warn('Не вдалося отримати CONFIG для верифікації: ' + e.message);
+    }
 
     // Реєстр верифікаторів
     this.verifiers = {};

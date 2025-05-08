@@ -55,6 +55,22 @@ export class DependencyContainer {
   }
 
   /**
+   * Видалення сервісу з контейнера
+   * @param {string} name - Назва сервісу
+   * @returns {boolean} Чи було видалено сервіс
+   */
+  remove(name) {
+    return this.services.delete(name);
+  }
+
+  /**
+   * Очищення контейнера
+   */
+  clear() {
+    this.services.clear();
+  }
+
+  /**
    * Скидання контейнера
    * @param {Array<string>} except - Список сервісів, які не потрібно видаляти
    */
@@ -83,4 +99,10 @@ export class DependencyContainer {
 // Створюємо глобальний екземпляр контейнера
 const container = new DependencyContainer();
 
+// Додаємо в глобальний скоп для доступу з інших модулів
+if (typeof window !== 'undefined') {
+  window.dependencyContainer = container;
+}
+
+// Експорт глобального контейнера
 export default container;
