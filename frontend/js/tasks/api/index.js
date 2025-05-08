@@ -10,17 +10,13 @@
  */
 
 // Імпорт базових компонентів
-import requestService from './core/request.js';
-import cacheService from './core/cache.js';
-import { CONFIG, API_VERSION } from './core/config.js';
+import { requestService, cacheService, CONFIG, API_VERSION } from './core/index.js';
 
 // Імпорт сервісів
-import taskService from './services/task-service.js';
-import actionService from './services/action-service.js';
-import progressService from './services/progress-service.js';
+import { taskService, actionService, progressService } from './services/index.js';
 
 // Імпорт моделей
-import taskTypesModel from './models/task-types.js';
+import { taskTypesModel } from './models/index.js';
 
 /**
  * Головний клас API завдань
