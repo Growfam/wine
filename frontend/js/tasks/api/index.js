@@ -18,6 +18,8 @@ import { taskService, actionService, progressService } from './services/index.js
 // Імпорт моделей
 import { taskTypesModel } from './models/index.js';
 
+export { getDailyBonusStatus, claimDailyBonus, getDailyBonusHistory } from './models/daily-bonus';
+
 /**
  * Головний клас API завдань
  */
