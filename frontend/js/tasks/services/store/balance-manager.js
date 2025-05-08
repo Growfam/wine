@@ -111,14 +111,14 @@ export class BalanceManager {
 
     if (type === 'tokens') {
       if (isIncrement) {
-        this.userBalances.tokens += normalizedAmount;
+        this.userBalances.tokens = (this.userBalances.tokens || 0) + normalizedAmount;
       } else {
         this.userBalances.tokens = normalizedAmount;
       }
       newBalance = this.userBalances.tokens;
     } else if (type === 'coins') {
       if (isIncrement) {
-        this.userBalances.coins += normalizedAmount;
+        this.userBalances.coins = (this.userBalances.coins || 0) + normalizedAmount;
       } else {
         this.userBalances.coins = normalizedAmount;
       }

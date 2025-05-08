@@ -9,12 +9,15 @@
  * @version 3.1.0
  */
 
+// Вирішення циклічної залежності: пряме імпортування замість імпорту з індексного файлу
 import cacheService from './cache.js';
 import requestService from './request.js';
 import { CONFIG, API_VERSION, API_ERROR_CODES } from './config.js';
 
+// Експорт базових компонентів
 export { cacheService, requestService, CONFIG, API_VERSION, API_ERROR_CODES };
 
+// Експорт за замовчуванням
 export default {
   cache: cacheService,
   request: requestService,
