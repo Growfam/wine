@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1A1A2E">
     <title>WINIX - Заробляй</title>
 
-    <!-- ВИПРАВЛЕНО: Оптимізовані критичні стилі для стабільного відображення -->
+    <!-- Критичні стилі для швидкого рендерингу -->
     <style>
         /* Базові стилі для найшвидшого рендерингу контенту */
         body {
@@ -51,7 +51,7 @@
             to { transform: rotate(360deg); }
         }
 
-        /* ВИПРАВЛЕНО: Критичні стилі з кращою підтримкою вкладок і видимості контенту */
+        /* Критичні стилі для вкладок і видимості контенту */
         .content-section {
             display: none;
             opacity: 0;
@@ -73,7 +73,7 @@
             font-weight: bold;
         }
 
-        /* ВИПРАВЛЕНО: Стилі для гарантії видимості кнопки щоденного бонусу */
+        /* Стилі для кнопки щоденного бонусу */
         #claim-daily {
             display: block !important;
             opacity: 1 !important;
@@ -106,7 +106,7 @@
             color: rgba(255, 255, 255, 0.8) !important;
         }
 
-        /* ВИПРАВЛЕНО: Надійна наявність кнопки бонусу */
+        /* Стилі для контейнера бонусу */
         #daily-bonus-container {
             display: block !important;
             visibility: visible !important;
@@ -122,7 +122,7 @@
             margin-bottom: 15px !important;
         }
 
-        /* ВИПРАВЛЕНО: Додаткові стилі для анімацій і станів */
+        /* Додаткові стилі для анімацій і станів */
         .daily-day {
             opacity: 1 !important;
             transition: transform 0.3s ease, opacity 0.3s ease !important;
@@ -206,73 +206,242 @@
     </style>
 
     <!-- Підключення основних стилів -->
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/earn/styles.css">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/earn/styles.css">
 
     <!-- Попереднє завантаження критичних ресурсів -->
-    <link rel="preload" href="css/earn/components-tasks.css" as="style">
-    <link rel="preload" href="js/core.js" as="script">
-    <link rel="preload" href="js/tasks/index.js" as="script">
+    <link rel="preload" href="/css/earn/components-tasks.css" as="style">
+    <link rel="preload" href="/js/core.js" as="script">
+    <link rel="preload" href="/js/tasks/index.js" as="script">
 
     <!-- Стилі для завдань та анімацій -->
-    <link rel="stylesheet" href="css/earn/components-tasks.css">
-    <link rel="stylesheet" href="css/earn/leaderboard.css">
-    <link rel="stylesheet" href="css/earn/animations.css">
-    <link rel="stylesheet" href="css/earn/premium-animations.css">
-    <link rel="stylesheet" href="css/earn/premium-theme.css">
-    <link rel="stylesheet" href="css/earn/winix-icons.css">
+    <link rel="stylesheet" href="/css/earn/components-tasks.css">
+    <link rel="stylesheet" href="/css/earn/leaderboard.css">
+    <link rel="stylesheet" href="/css/earn/animations.css">
+    <link rel="stylesheet" href="/css/earn/premium-animations.css">
+    <link rel="stylesheet" href="/css/earn/premium-theme.css">
+    <link rel="stylesheet" href="/css/earn/winix-icons.css">
 
     <!-- Підключення Telegram WebApp API негайно -->
-    <script src="js/telegram-web-app.js"></script>
-  <!-- Додати наступний код перед закриваючим тегом </head> в HTML файли -->
+    <script src="/js/telegram-web-app.js"></script>
 
-<!-- WINIX Loader - система виправлення помилок завантаження модулів -->
-<script src="/js/winix-loader.js"></script>
-
-<!-- Захисний скрипт підключення модулів -->
-<script>
-  // Функція для безпечного завантаження модулів
-  function safeLoadModule(src, delay = 0) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.type = 'text/javascript';
-        script.async = false;
-        script.onerror = (err) => {
-          console.error(`Помилка завантаження ${src}:`, err);
-          if (window.reportModuleError) {
-            window.reportModuleError(src, err);
-          }
-          reject(err);
-        };
-        script.onload = () => {
-          console.log(`Модуль ${src} успішно завантажено`);
-          resolve();
-        };
-        document.head.appendChild(script);
-      }, delay);
+    <!-- WINIX Loader - система оптимізованого завантаження модулів -->
+    <script>
+    // Налаштування системи відслідковування помилок модулів
+    window.moduleErrors = [];
+    window.moduleLoadingStatus = {};
+    window.moduleRetryCount = {};
+    window.MAX_RETRIES = 3;
+    
+    // Функція логування помилок модулів
+    window.reportModuleError = function(modulePath, error) {
+        window.moduleErrors.push({
+            module: modulePath,
+            error: error?.message || 'Невідома помилка',
+            timestamp: new Date().toISOString()
+        });
+        
+        console.error(`[MODULE ERROR] ${modulePath}: ${error?.message || 'Невідома помилка'}`);
+        
+        // Спробуємо відправити на сервер, якщо можливо
+        try {
+            const errorData = {
+                module: modulePath,
+                error: error?.message || 'Невідома помилка',
+                stack: error?.stack || '',
+                timestamp: new Date().toISOString()
+            };
+            
+            fetch('/api/log/error', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(errorData)
+            }).catch(() => {}); // Ігноруємо помилки при відправці логів
+        } catch (e) {
+            // Ігноруємо помилки відправки
+        }
+    };
+    
+    // Функція для безпечного завантаження модулів з повторними спробами
+    window.safeLoadModule = function(src, options = {}) {
+        const { delay = 0, retry = true, dependsOn = [], type = 'script' } = options;
+        
+        return new Promise((resolve, reject) => {
+            // Перевіряємо залежності
+            const unresolvedDependencies = dependsOn.filter(dep => 
+                window.moduleLoadingStatus[dep] !== 'loaded');
+                
+            if (unresolvedDependencies.length > 0) {
+                console.warn(`Модуль ${src} залежить від ${unresolvedDependencies.join(', ')}, які ще не завантажені`);
+                
+                // Якщо встановлено retry, спробуємо пізніше
+                if (retry) {
+                    setTimeout(() => {
+                        window.safeLoadModule(src, options)
+                            .then(resolve)
+                            .catch(reject);
+                    }, 500);
+                    return;
+                } else {
+                    reject(new Error(`Незадоволені залежності: ${unresolvedDependencies.join(', ')}`));
+                    return;
+                }
+            }
+            
+            // Встановлюємо статус "завантажується"
+            window.moduleLoadingStatus[src] = 'loading';
+            
+            setTimeout(() => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.type = 'text/javascript';
+                
+                // Встановлюємо тип модуля якщо потрібно
+                if (type === 'module') {
+                    script.type = 'module';
+                }
+                
+                script.async = false;
+                
+                script.onerror = (err) => {
+                    window.moduleLoadingStatus[src] = 'error';
+                    
+                    // Рахуємо спроби
+                    window.moduleRetryCount[src] = (window.moduleRetryCount[src] || 0) + 1;
+                    
+                    // Спробуємо ще раз, якщо не перевищили ліміт
+                    if (retry && window.moduleRetryCount[src] < window.MAX_RETRIES) {
+                        console.warn(`Спроба повторного завантаження модуля ${src} (${window.moduleRetryCount[src]}/${window.MAX_RETRIES})`);
+                        
+                        setTimeout(() => {
+                            window.safeLoadModule(src, options)
+                                .then(resolve)
+                                .catch(reject);
+                        }, 1000); // Збільшуємо затримку при повторних спробах
+                    } else {
+                        if (window.reportModuleError) {
+                            window.reportModuleError(src, err);
+                        }
+                        reject(err);
+                    }
+                };
+                
+                script.onload = () => {
+                    console.log(`Модуль ${src} успішно завантажено`);
+                    window.moduleLoadingStatus[src] = 'loaded';
+                    resolve();
+                    
+                    // Запускаємо подію для сповіщення інших скриптів про завантаження
+                    document.dispatchEvent(new CustomEvent('module-loaded', { 
+                        detail: { module: src } 
+                    }));
+                };
+                
+                document.head.appendChild(script);
+            }, delay);
+        });
+    };
+    
+    // Створюємо чергу завантаження модулів
+    window.moduleQueue = [];
+    window.processModuleQueue = async function() {
+        if (window.moduleQueue.length === 0) return;
+        
+        const nextModule = window.moduleQueue.shift();
+        
+        try {
+            await window.safeLoadModule(nextModule.src, nextModule.options);
+        } catch (error) {
+            console.error(`Помилка при завантаженні модуля ${nextModule.src}:`, error);
+        }
+        
+        // Обробляємо наступний модуль
+        window.processModuleQueue();
+    };
+    
+    // Функція для додавання модуля до черги
+    window.addModuleToQueue = function(src, options = {}) {
+        window.moduleQueue.push({ src, options });
+        
+        // Якщо це перший модуль, починаємо обробку черги
+        if (window.moduleQueue.length === 1) {
+            window.processModuleQueue();
+        }
+    };
+    
+    // Диспетчер завантаження модулів - завантажує у правильному порядку
+    window.loadCoreModules = async function() {
+        console.log('📦 Початок завантаження основних модулів WINIX');
+        
+        try {
+            // Спочатку ядро
+            await window.safeLoadModule('/js/core.js', { retry: true });
+            await window.safeLoadModule('/js/api.js', { retry: true, dependsOn: ['/js/core.js'] });
+            await window.safeLoadModule('/js/auth.js', { retry: true, dependsOn: ['/js/core.js', '/js/api.js'] });
+            
+            // Потім модулі системи завдань
+            await window.safeLoadModule('/js/tasks/config/index.js', { retry: true, dependsOn: ['/js/core.js'] });
+            await window.safeLoadModule('/js/tasks/utils/index.js', { retry: true, dependsOn: ['/js/core.js', '/js/tasks/config/index.js'] });
+            await window.safeLoadModule('/js/tasks/api/index.js', { retry: true, dependsOn: ['/js/core.js', '/js/api.js', '/js/tasks/utils/index.js'] });
+            
+            // І, нарешті, індексний файл системи завдань
+            await window.safeLoadModule('/js/tasks/index.js', { 
+                retry: true, 
+                type: 'module',
+                dependsOn: [
+                    '/js/core.js', 
+                    '/js/api.js',
+                    '/js/tasks/config/index.js',
+                    '/js/tasks/utils/index.js',
+                    '/js/tasks/api/index.js'
+                ]
+            });
+            
+            console.log('✅ Всі основні модулі WINIX завантажено успішно');
+            
+            // Сповіщаємо про завершення завантаження
+            document.dispatchEvent(new CustomEvent('winix-core-loaded'));
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Критична помилка при завантаженні модулів:', error);
+            return false;
+        }
+    };
+    
+    // Автоматичне завантаження модулів після завантаження сторінки
+    document.addEventListener('DOMContentLoaded', () => {
+        // Розпочинаємо завантаження з невеликою затримкою для стабільності
+        setTimeout(() => {
+            window.loadCoreModules().then(success => {
+                if (success) {
+                    // Ініціалізуємо систему завдань
+                    if (window.initializeTaskSystem) {
+                        window.initializeTaskSystem();
+                    }
+                } else {
+                    // Показуємо помилку на UI
+                    const loadingIndicator = document.getElementById('initial-loading');
+                    if (loadingIndicator) {
+                        loadingIndicator.innerHTML = `
+                            <div class="error-icon" style="color: #E94560; font-size: 48px; margin-bottom: 15px;">❌</div>
+                            <p>Помилка завантаження. Спробуйте оновити сторінку.</p>
+                            <button onclick="location.reload()" style="
+                                margin-top: 10px;
+                                padding: 8px 16px;
+                                background: #E94560;
+                                border: none;
+                                border-radius: 4px;
+                                color: white;
+                                cursor: pointer;
+                            ">Оновити</button>
+                        `;
+                    }
+                }
+            });
+        }, 100);
     });
-  }
-
-  // Підключення скриптів, що забезпечують щоденні бонуси
-  document.addEventListener('winix-loader-ready', async function() {
-    console.log('💎 WINIX-LOADER готовий, підключаємо додаткові модулі');
-
-    try {
-      // Використовуємо ланцюжок промісів з затримками для правильного порядку завантаження
-      await safeLoadModule('/js/tasks/config/index.js', 100);
-      await safeLoadModule('/js/tasks/utils/index.js', 200);
-      await safeLoadModule('/js/tasks/api/index.js', 300);
-
-      console.log('✅ Всі додаткові модулі завантажено успішно');
-    } catch (error) {
-      console.error('❌ Помилка завантаження додаткових модулів:', error);
-    }
-  });
-</script>
-
-<!-- Кінець WINIX Loader -->
+    </script>
 </head>
 <body>
 <!-- Індикатор завантаження -->
@@ -429,31 +598,31 @@
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                    <img src="/assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
                 <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item active" data-section="earn">
                 <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                    <img src="/assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
                 <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                    <img src="/assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
                 <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                    <img src="/assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
                 <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                    <img src="/assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
                 <span data-lang-key="general">General</span>
             </div>
@@ -463,27 +632,23 @@
     <!-- Повідомлення для копіювання -->
     <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
 
-    <!-- ВИПРАВЛЕНО: Оптимізована послідовність завантаження скриптів -->
-    <!-- Першочергові скрипти -->
-    <script src="js/core.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-
-    <!-- Підключення системи завдань -->
-    <script type="module">
-        // Імпорт системи завдань
-        import taskSystem from './js/tasks/index.js';
-
-        // Деякі загальні змінні для роботи з UI
-        let dailyBonusInitialized = false;
-
-        // Після завантаження DOM
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('📱 WINIX - Ініціалізація сторінки завдань');
-
+    <!-- Оптимізований скрипт ініціалізації сторінки -->
+    <script>
+        // Глобальні змінні та функції UI
+        window.dailyBonusInitialized = false;
+        
+        // Функція ініціалізації системи завдань
+        window.initializeTaskSystem = async function() {
+            console.log('📱 WINIX - Ініціалізація системи завдань');
+            
             try {
-                // Ініціалізуємо систему завдань
-                const initialized = await taskSystem.initialize({
+                // Перевіряємо наявність модуля завдань
+                if (!window.taskSystem || !window.taskSystem.initialize) {
+                    throw new Error('Модуль системи завдань не знайдено');
+                }
+                
+                // Ініціалізуємо систему завдань з безпечними параметрами
+                const initialized = await window.taskSystem.initialize({
                     forceRefresh: false,
                     ui: {
                         animations: {
@@ -492,16 +657,16 @@
                         }
                     }
                 });
-
+                
                 if (initialized) {
                     console.log('✅ Система завдань успішно ініціалізована');
-
+                    
                     // Ініціалізуємо компоненти щоденного бонусу
                     initializeDailyBonus();
-
+                    
                     // Ініціалізуємо вкладки
                     initializeTabs();
-
+                    
                     // Ховаємо індикатор завантаження
                     hideLoadingIndicator();
                 } else {
@@ -512,7 +677,7 @@
                 console.error('❌ Критична помилка:', error);
                 showErrorMessage('Виникла помилка при завантаженні даних');
             }
-        });
+        };
 
         /**
          * Ініціалізація системи вкладок
@@ -538,8 +703,8 @@
                     });
 
                     // Повідомляємо систему завдань про зміну вкладки
-                    if (taskSystem && taskSystem.setActiveTab) {
-                        taskSystem.setActiveTab(tabType);
+                    if (window.taskSystem && window.taskSystem.setActiveTab) {
+                        window.taskSystem.setActiveTab(tabType);
                     }
                 });
             });
@@ -549,7 +714,7 @@
          * Ініціалізація компонента щоденного бонусу
          */
         function initializeDailyBonus() {
-            if (dailyBonusInitialized) return;
+            if (window.dailyBonusInitialized) return;
 
             // Отримуємо елементи
             const claimButton = document.getElementById('claim-daily');
@@ -570,7 +735,7 @@
             claimButton.addEventListener('click', claimDailyBonus);
 
             // Позначаємо, що ініціалізовано
-            dailyBonusInitialized = true;
+            window.dailyBonusInitialized = true;
         }
 
         /**
@@ -618,18 +783,18 @@
         async function loadDailyBonusStatus() {
             try {
                 // Перевіряємо наявність API для щоденного бонусу
-                if (!taskSystem.dailyBonus || !taskSystem.dailyBonus.getStatus) {
+                if (!window.taskSystem || !window.taskSystem.dailyBonus || !window.taskSystem.dailyBonus.getStatus) {
                     console.warn('⚠️ API щоденного бонусу недоступне');
                     return;
                 }
 
                 // Завантажуємо статус
-                const response = await taskSystem.dailyBonus.getStatus();
+                const response = await window.taskSystem.dailyBonus.getStatus();
 
-                if (response.success) {
+                if (response && response.success) {
                     updateDailyBonusUI(response.data);
                 } else {
-                    console.warn('⚠️ Помилка отримання статусу щоденного бонусу:', response.message);
+                    console.warn('⚠️ Помилка отримання статусу щоденного бонусу:', response?.message || 'Невідома помилка');
                 }
             } catch (error) {
                 console.error('❌ Помилка завантаження щоденного бонусу:', error);
@@ -650,24 +815,29 @@
                 claimButton.classList.add('processing');
                 claimButton.textContent = 'Отримання...';
 
-                // Викликаємо API отримання бонусу
-                const result = await taskSystem.claimDailyBonus();
+                // Перевіряємо наявність API
+                if (!window.taskSystem || !window.taskSystem.claimDailyBonus) {
+                    throw new Error('API отримання бонусу недоступне');
+                }
 
-                if (result.success) {
+                // Викликаємо API отримання бонусу
+                const result = await window.taskSystem.claimDailyBonus();
+
+                if (result && result.success) {
                     // Оновлюємо UI
                     updateDailyBonusUI({
-                        ...result.data,
+                        ...(result.data || {}),
                         claimed_today: true
                     });
 
                     // Показуємо повідомлення про успіх
-                    showSuccessMessage(`Щоденний бонус отримано: +${result.data.amount} жетонів!`);
+                    showSuccessMessage(`Щоденний бонус отримано: +${result.data?.amount || 0} жетонів!`);
 
                     // Оновлюємо баланс (анімовано)
-                    updateBalanceUI(result.data.amount);
+                    updateBalanceUI(result.data?.amount || 0);
                 } else {
                     // Показуємо повідомлення про помилку
-                    showErrorMessage(result.message || 'Не вдалося отримати щоденний бонус');
+                    showErrorMessage(result?.message || 'Не вдалося отримати щоденний бонус');
                 }
             } catch (error) {
                 console.error('❌ Помилка отримання щоденного бонусу:', error);
@@ -803,6 +973,18 @@
                 }, 300);
             }
         }
+        
+        // Додаємо обробники для навігації
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const section = this.getAttribute('data-section');
+                if (section && section !== 'earn') {
+                    // Перенаправляємо на іншу сторінку
+                    window.location.href = `/${section}.html`;
+                }
+            });
+        });
     </script>
 </body>
 </html>
+```

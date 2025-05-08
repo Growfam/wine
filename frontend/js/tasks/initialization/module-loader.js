@@ -36,11 +36,11 @@ export async function loadModules() {
       return moduleCache;
     }
 
-    // Завантажуємо всі необхідні модулі паралельно
+    // Завантажуємо всі необхідні модулі паралельно з використанням динамічних імпортів
     const [modelsModule, servicesModule, uiModule] = await Promise.all([
-      import('../models'),
-      import('../services'),
-      import('../ui'),
+      import('../models/index.js'),
+      import('../services/index.js'),
+      import('../ui/index.js'),
     ]);
 
     // Зберігаємо модулі в кеш
