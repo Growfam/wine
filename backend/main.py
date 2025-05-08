@@ -705,7 +705,7 @@ init_raffle_service()
 if __name__ == '__main__':
     try:
         # Отримуємо порт з конфігурації або середовища
-        port = int(os.environ.get("PORT", app.config.get("PORT", 5000)))
+        port = int(os.environ.get("PORT", app.config.get("PORT", 8080)))
         debug_mode = app.config.get("DEBUG", False)
 
         # Виводимо інформацію про запуск
