@@ -6,8 +6,7 @@
  * - Координацію процесу завантаження
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils';
-import dependencyContainer from '../../utils';
+import { getLogger, LOG_CATEGORIES, dependencyContainer } from '../../utils/index.js';
 import { CONFIG } from '../../config';
 
 // Створюємо логер для модуля
