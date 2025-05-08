@@ -7,8 +7,8 @@
  * - Оновлення статусу дій
  */
 
-import dependencyContainer from '../../../utils';
-import { TASK_STATUS } from '/index.js';
+import dependencyContainer from '../../../utils/index.js';
+import { TASK_STATUS } from '../../../config/types/status-types.js';
 
 // Стан системи дій
 const state = {
@@ -22,7 +22,7 @@ const state = {
  * @returns {Object} API модуля
  */
 export function init() {
-  if (state.initialized) return;
+  if (state.initialized) return exports;
 
   // Отримуємо залежності з контейнера
   state.taskManager =

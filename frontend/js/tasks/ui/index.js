@@ -4,71 +4,102 @@
  * Експортує всі необхідні компоненти та модулі для UI частини системи
  */
 
-// ВИПРАВЛЕНО: Додано перевірку наявності модулів перед імпортом
-try {
-  // Імпортуємо основні модулі
-  import * as animations from './animations/index.js';
-  import * as components from './components/index.js';
-  import * as notifications from './notifications/index.js';
-  import * as renderers from './renderers/index.js';
+// Визначаємо заглушки, які будуть використані, якщо модулі не завантажаться
+const dummyAnimations = {
+  animate: () => {},
+  fadeIn: () => {},
+  fadeOut: () => {},
+  slideIn: () => {},
+  slideOut: () => {},
+  init: () => {},
+};
 
-  // Експорт компонентів щоденного бонусу
-  import DailyBonus from './components/daily-bonus/index.js';
+const dummyComponents = {
+  createComponent: () => ({}),
+  renderComponent: () => {},
+  updateComponent: () => {},
+};
 
-  // Експортуємо все разом
-  export {
-    animations,
-    components,
-    notifications,
-    renderers,
-    DailyBonus
-  };
-} catch (error) {
-  // Створюємо заглушки для відсутніх модулів
-  console.warn('Не вдалося завантажити один або більше UI модулів. Створено заглушки.', error);
+const dummyNotifications = {
+  showNotification: () => {},
+  showSuccess: () => {},
+  showError: () => {},
+  hideNotification: () => {},
+};
 
-  // Заглушка для анімацій
-  const dummyAnimations = {
-    animate: () => {},
-    fadeIn: () => {},
-    fadeOut: () => {},
-    slideIn: () => {},
-    slideOut: () => {}
-  };
+const dummyRenderers = {
+  renderTaskList: () => {},
+  renderTaskItem: () => {},
+  renderTaskProgress: () => {},
+};
 
-  // Заглушка для компонентів
-  const dummyComponents = {
-    createComponent: () => ({}),
-    renderComponent: () => {},
-    updateComponent: () => {}
-  };
+const dummyDailyBonus = {
+  render: () => {},
+  update: () => {},
+  claim: async () => ({ success: false, error: 'Модуль щоденного бонусу недоступний' }),
+};
 
-  // Заглушка для сповіщень
-  const dummyNotifications = {
-    showNotification: () => {},
-    showSuccess: () => {},
-    showError: () => {},
-    hideNotification: () => {}
-  };
+// Заготовки для експорту
+let animations = dummyAnimations;
+let components = dummyComponents;
+let notifications = dummyNotifications;
+let renderers = dummyRenderers;
+let DailyBonus = dummyDailyBonus;
 
-  // Заглушка для рендерерів
-  const dummyRenderers = {
-    renderTaskList: () => {},
-    renderTaskItem: () => {},
-    renderTaskProgress: () => {}
-  };
-
-  // Заглушка для компонента щоденного бонусу
-  const dummyDailyBonus = {
-    render: () => {},
-    update: () => {},
-    claim: async () => ({ success: false, error: 'Модуль щоденного бонусу недоступний' })
-  };
-
-  // Експортуємо заглушки
-  export const animations = dummyAnimations;
-  export const components = dummyComponents;
-  export const notifications = dummyNotifications;
-  export const renderers = dummyRenderers;
-  export const DailyBonus = dummyDailyBonus;
+// Функція обробки помилок у модулях
+function handleModuleError(moduleName, error) {
+  console.warn(`Не вдалося завантажити модуль ${moduleName}:`, error.message);
 }
+
+// Завантаження модуля анімацій
+try {
+  animations = require('./animations/index.js');
+} catch (error) {
+  handleModuleError('animations', error);
+}
+
+// Завантаження модуля компонентів
+try {
+  components = require('./components/index.js');
+} catch (error) {
+  handleModuleError('components', error);
+}
+
+// Завантаження модуля сповіщень
+try {
+  notifications = require('./notifications/index.js');
+} catch (error) {
+  handleModuleError('notifications', error);
+}
+
+// Завантаження модуля рендерерів
+try {
+  renderers = require('./renderers/index.js');
+} catch (error) {
+  handleModuleError('renderers', error);
+}
+
+// Завантаження модуля щоденного бонусу
+try {
+  DailyBonus = require('./components/daily-bonus/index.js').default;
+} catch (error) {
+  handleModuleError('DailyBonus', error);
+}
+
+// Експортуємо модулі
+export {
+  animations,
+  components,
+  notifications,
+  renderers,
+  DailyBonus
+};
+
+// Експорт за замовчуванням
+export default {
+  animations,
+  components,
+  notifications,
+  renderers,
+  DailyBonus
+};

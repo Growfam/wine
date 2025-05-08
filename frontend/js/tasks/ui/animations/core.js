@@ -7,7 +7,11 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils';
+import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+// Імпортуємо необхідні компоненти
+import { animateSuccessfulCompletion } from './task/progress.js';
+import { showDailyBonusReward } from './reward/display.js';
+import { debounce, cleanup } from '../../utils/index.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Core');
@@ -312,8 +316,7 @@ function setupEventHandlers() {
     // Обробник завершення завдання
     document.addEventListener('task-completed', function (event) {
       if (event.detail && event.detail.taskId) {
-        // Імпортовано з progress.js
-        const { animateSuccessfulCompletion } = require('./task/progress.js');
+        // Викликаємо функцію анімації
         animateSuccessfulCompletion(event.detail.taskId);
       }
     });
@@ -323,15 +326,12 @@ function setupEventHandlers() {
       if (event.detail) {
         const { token_amount, day_reward, cycle_completed, completion_bonus } = event.detail;
 
-        // Імпортовано з rewards.js
-        const { showDailyBonusReward } = require('./reward/display.js');
-        // Спочатку показуємо основну винагороду
+        // Показуємо основну винагороду
         showDailyBonusReward(day_reward || 0, token_amount || 0, cycle_completed, completion_bonus);
       }
     });
 
-    // Обробник зміни розміру вікна
-    const { debounce } = require('../utils.js');
+    // Обробник зміни розміру вікна з дебаунсом
     window.addEventListener(
       'resize',
       debounce(function () {
@@ -347,7 +347,6 @@ function setupEventHandlers() {
     );
 
     // Очищення ресурсів при виході зі сторінки
-    const { cleanup } = require('../utils.js');
     window.addEventListener('beforeunload', cleanup);
 
     logger.info('Встановлено обробники подій', 'setupEventHandlers', {

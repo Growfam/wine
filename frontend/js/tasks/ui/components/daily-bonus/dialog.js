@@ -7,15 +7,17 @@
  * - Інтеграцію з сервісом щоденних бонусів
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types';
-import DailyBonusCalendar from './calendar';
-import DailyBonusRewardPreview from './reward-preview';
-import { dailyBonusService } from '../../../services';
-import { showReward } from '../../../ui/animations';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types.js';
+import DailyBonusCalendar from './calendar.js';
+import DailyBonusRewardPreview from './reward-preview.js';
+import { default as DailyBonusService } from '../../../services/daily-bonus/daily-bonus-service.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.DailyBonusDialog');
+
+// Сервіс для роботи з щоденними бонусами
+const dailyBonusService = new DailyBonusService();
 
 /**
  * Клас компонента діалогового вікна щоденного бонусу
@@ -82,7 +84,7 @@ class DailyBonusDialog {
       this._bindEvents();
 
       // Ініціалізуємо сервіс бонусів, якщо він не ініціалізований
-      if (dailyBonusService && !dailyBonusService.initialized) {
+      if (!dailyBonusService.initialized) {
         dailyBonusService.initialize();
       }
 
@@ -519,73 +521,85 @@ class DailyBonusDialog {
    * @private
    */
   _showRewardAnimation(result) {
+    // Імпортуємо функцію showReward, якщо вона доступна
     try {
-      // Показуємо анімацію винагороди
-      showReward(
-        {
-          type: 'tokens',
-          amount: result.reward.tokens,
-        },
-        {
-          duration: 3000,
-          autoClose: true,
-          onClose: () => {
-            // Якщо є жетони, показуємо їх також
-            if (result.reward.coins > 0) {
-              setTimeout(() => {
-                showReward(
-                  {
-                    type: 'coins',
-                    amount: result.reward.coins,
-                  },
-                  {
-                    duration: 3000,
-                    autoClose: true,
-                    specialDay: true,
-                    onClose: () => {
-                      // Якщо завершено цикл і є бонус за завершення
-                      if (result.isCycleCompleted && result.completionBonus) {
-                        setTimeout(() => {
-                          showReward(
-                            {
-                              type: 'tokens',
-                              amount: result.completionBonus.tokens,
-                            },
-                            {
-                              duration: 3000,
-                              autoClose: true,
-                              specialDay: true,
-                            }
-                          );
-                        }, 500);
-                      }
-                    },
-                  }
-                );
-              }, 500);
-            } else if (result.isCycleCompleted && result.completionBonus) {
-              // Якщо завершено цикл і є бонус за завершення, але немає жетонів
-              setTimeout(() => {
-                showReward(
-                  {
-                    type: 'tokens',
-                    amount: result.completionBonus.tokens,
-                  },
-                  {
-                    duration: 3000,
-                    autoClose: true,
-                    specialDay: true,
-                  }
-                );
-              }, 500);
-            }
-          },
-        }
-      );
+      // Імпортуємо модуль за допомогою динамічного імпорту
+      import('../../../ui/animations/reward/display.js')
+        .then((module) => {
+          const showReward = module.showReward;
 
-      logger.info('Показано анімацію винагороди', '_showRewardAnimation', {
-        category: LOG_CATEGORIES.ANIMATION,
-      });
+          // Показуємо анімацію винагороди
+          showReward(
+            {
+              type: 'tokens',
+              amount: result.reward.tokens,
+            },
+            {
+              duration: 3000,
+              autoClose: true,
+              onClose: () => {
+                // Якщо є жетони, показуємо їх також
+                if (result.reward.coins > 0) {
+                  setTimeout(() => {
+                    showReward(
+                      {
+                        type: 'coins',
+                        amount: result.reward.coins,
+                      },
+                      {
+                        duration: 3000,
+                        autoClose: true,
+                        specialDay: true,
+                        onClose: () => {
+                          // Якщо завершено цикл і є бонус за завершення
+                          if (result.isCycleCompleted && result.completionBonus) {
+                            setTimeout(() => {
+                              showReward(
+                                {
+                                  type: 'tokens',
+                                  amount: result.completionBonus.tokens,
+                                },
+                                {
+                                  duration: 3000,
+                                  autoClose: true,
+                                  specialDay: true,
+                                }
+                              );
+                            }, 500);
+                          }
+                        },
+                      }
+                    );
+                  }, 500);
+                } else if (result.isCycleCompleted && result.completionBonus) {
+                  // Якщо завершено цикл і є бонус за завершення, але немає жетонів
+                  setTimeout(() => {
+                    showReward(
+                      {
+                        type: 'tokens',
+                        amount: result.completionBonus.tokens,
+                      },
+                      {
+                        duration: 3000,
+                        autoClose: true,
+                        specialDay: true,
+                      }
+                    );
+                  }, 500);
+                }
+              },
+            }
+          );
+
+          logger.info('Показано анімацію винагороди', '_showRewardAnimation', {
+            category: LOG_CATEGORIES.ANIMATION,
+          });
+        })
+        .catch((error) => {
+          logger.error(error, 'Помилка імпорту модуля анімації', {
+            category: LOG_CATEGORIES.ANIMATION,
+          });
+        });
     } catch (error) {
       logger.error(error, 'Помилка показу анімації винагороди', {
         category: LOG_CATEGORIES.ANIMATION,
