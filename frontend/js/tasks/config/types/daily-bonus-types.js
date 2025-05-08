@@ -1,90 +1,188 @@
 /**
- * Типи щоденних бонусів
+ * Модель щоденного бонусу
  *
- * Визначає доступні типи та статуси щоденних бонусів
+ * Відповідає за структуру даних щоденного бонусу та методи роботи з ним.
  */
 
-// Типи щоденних бонусів
-export const DAILY_BONUS_TYPES = {
-  // Тип бонусу
-  TYPE: {
-    STANDARD: 'standard', // Стандартний бонус
-    SPECIAL: 'special', // Спеціальний бонус (свята, акції)
-  },
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types';
 
-  // Статуси бонусу
-  STATUS: {
-    AVAILABLE: 'available', // Доступний для отримання
-    CLAIMED: 'claimed', // Вже отримано сьогодні
-    EXPIRED: 'expired', // Прострочений (пропущений день)
-    PENDING: 'pending', // В очікуванні (майбутній день)
-    LOCKED: 'locked', // Заблокований (потрібно виконати умову)
-  },
+/**
+ * Створення моделі щоденного бонусу
+ * @param {Object} data - Базові дані для моделі
+ * @returns {Object} Модель щоденного бонусу з методами
+ */
+export function createDailyBonusModel(data = {}) {
+  // Базові дані бонусу
+  const model = {
+    // ID користувача
+    userId: data.userId || '',
 
-  // Типи подій
-  EVENT: {
-    CLAIMED: 'daily_bonus_claimed', // Бонус отримано
-    AVAILABLE: 'daily_bonus_available', // Бонус став доступним
-    EXPIRED: 'daily_bonus_expired', // Бонус просрочено
-    STREAK_COMPLETED: 'streak_completed', // Завершена серія днів
-  },
+    // Поточний статус бонусу
+    status: data.status || DAILY_BONUS_TYPES.STATUS.PENDING,
 
-  // Типи нагород
-  REWARD: {
-    TOKENS: 'tokens', // Токени WINIX
-    COINS: 'coins', // Жетони
-    COMBO: 'combo', // Комбінована нагорода (токени + жетони)
-  },
-};
+    // Поточний день циклу (1-7)
+    currentDay: data.currentDay || 1,
 
-// Конфігурація розрахунку нагород
-export const DAILY_BONUS_CONFIG = {
-  // Цикл бонусів (7 днів)
-  CYCLE_DAYS: 7,
+    // Загальна кількість днів з початку збору бонусів
+    totalDays: data.totalDays || 0,
 
-  // Множники для різних днів циклу
-  MULTIPLIERS: {
-    1: 1.0, // День 1 - базова нагорода
-    2: 1.0, // День 2 - базова нагорода
-    3: 1.5, // День 3 - 150% від базової
-    4: 1.0, // День 4 - базова нагорода
-    5: 2.0, // День 5 - 200% від базової (подвійна)
-    6: 1.0, // День 6 - базова нагорода
-    7: 3.0, // День 7 - 300% від базової (потрійна)
-  },
+    // Кількість завершених циклів
+    completedCycles: data.completedCycles || 0,
 
-  // Базова нагорода
-  BASE_REWARD: {
-    tokens: 5, // 5 токенів WINIX
-    coins: 0, // 0 жетонів за замовчуванням
-  },
+    // Часові мітки
+    timestamps: {
+      // Коли був отриманий останній бонус
+      lastClaimed: data.timestamps?.lastClaimed || null,
 
-  // Бонус за завершення циклу
-  COMPLETION_BONUS: {
-    tokens: 20, // 20 токенів WINIX
-    coins: 5, // 5 жетонів
-  },
+      // Коли буде доступний наступний бонус
+      nextAvailable: data.timestamps?.nextAvailable || null,
 
-  // Спеціальні дні (з жетонами)
-  COIN_DAYS: [5, 7], // День 5 і 7 дають жетони
+      // Коли модель була останній раз оновлена
+      lastUpdated: data.timestamps?.lastUpdated || Date.now(),
+    },
 
-  // Кількість жетонів для спеціальних днів
-  COIN_REWARDS: {
-    5: 2, // 2 жетони на день 5
-    7: 5, // 5 жетонів на день 7
-  },
+    // Історія отриманих бонусів
+    history: data.history || [],
 
-  // Максимальна кількість днів для відновлення серії
-  MAX_RECOVERY_DAYS: 1,
+    /**
+     * Перевірка доступності бонусу
+     * @returns {Object} Результат перевірки
+     */
+    checkAvailability() {
+      const now = Date.now();
 
-  // Час до оновлення бонусу (у мілісекундах, 24 години)
-  RESET_TIME_MS: 24 * 60 * 60 * 1000,
+      // Якщо немає часової мітки останнього отримання
+      if (!this.timestamps.lastClaimed) {
+        return {
+          available: true,
+          reason: 'first_time',
+        };
+      }
 
-  // Час зберігання в кеші (у мілісекундах, 7 днів)
-  CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000,
+      // Якщо вже отримано сьогодні
+      if (this.status === DAILY_BONUS_TYPES.STATUS.CLAIMED &&
+          this.timestamps.nextAvailable &&
+          this.timestamps.nextAvailable > now) {
+        return {
+          available: false,
+          reason: 'already_claimed',
+          nextAvailable: this.timestamps.nextAvailable,
+          timeRemaining: this.timestamps.nextAvailable - now,
+        };
+      }
 
-  // Ключ для кешування
-  CACHE_KEY: 'daily_bonus_data',
-};
+      // Якщо час до наступного бонусу вже вийшов
+      if (this.timestamps.nextAvailable && this.timestamps.nextAvailable <= now) {
+        return {
+          available: true,
+          reason: 'time_elapsed',
+        };
+      }
 
-export default DAILY_BONUS_TYPES;
+      // За замовчуванням - доступний
+      return {
+        available: true,
+        reason: 'available',
+      };
+    },
+
+    /**
+     * Розрахунок винагороди за поточний день
+     * @returns {Object} Дані винагороди
+     */
+    calculateReward() {
+      // Базова винагорода
+      const baseReward = DAILY_BONUS_CONFIG.BASE_REWARD;
+
+      // День циклу (1-7)
+      const cycleDay = this.currentDay % DAILY_BONUS_CONFIG.CYCLE_DAYS || DAILY_BONUS_CONFIG.CYCLE_DAYS;
+
+      // Множник для поточного дня
+      const multiplier = DAILY_BONUS_CONFIG.MULTIPLIERS[cycleDay] || 1.0;
+
+      // Токени з урахуванням множника
+      const tokens = Math.round(baseReward.tokens * multiplier);
+
+      // Жетони (для спеціальних днів)
+      let coins = 0;
+      if (DAILY_BONUS_CONFIG.COIN_DAYS.includes(cycleDay)) {
+        coins = DAILY_BONUS_CONFIG.COIN_REWARDS[cycleDay] || 0;
+      }
+
+      return {
+        day: cycleDay,
+        tokens,
+        coins,
+        isSpecialDay: DAILY_BONUS_CONFIG.COIN_DAYS.includes(cycleDay),
+      };
+    },
+
+    /**
+     * Перевірка, чи завершено поточний цикл
+     * @returns {boolean} Результат перевірки
+     */
+    isCycleCompleted() {
+      // Перевіряємо, чи поточний день є останнім у циклі
+      return this.currentDay % DAILY_BONUS_CONFIG.CYCLE_DAYS === 0;
+    },
+
+    /**
+     * Отримання бонусу за завершення циклу
+     * @returns {Object} Дані бонусу
+     */
+    getCompletionBonus() {
+      if (!this.isCycleCompleted()) {
+        return null;
+      }
+
+      return {
+        tokens: DAILY_BONUS_CONFIG.COMPLETION_BONUS.tokens,
+        coins: DAILY_BONUS_CONFIG.COMPLETION_BONUS.coins,
+      };
+    },
+
+    /**
+     * Додавання запису в історію бонусів
+     * @param {Object} reward - Дані винагороди
+     */
+    addToHistory(reward) {
+      const historyEntry = {
+        day: this.currentDay,
+        cycle: Math.floor((this.currentDay - 1) / DAILY_BONUS_CONFIG.CYCLE_DAYS) + 1,
+        timestamp: Date.now(),
+        reward: {
+          tokens: reward.tokens || 0,
+          coins: reward.coins || 0,
+          isSpecialDay: reward.isSpecialDay || false,
+        },
+      };
+
+      this.history.push(historyEntry);
+
+      // Обмежуємо розмір історії
+      if (this.history.length > 30) {
+        this.history = this.history.slice(-30);
+      }
+    },
+
+    /**
+     * Перетворення моделі в об'єкт для зберігання
+     * @returns {Object} Дані моделі
+     */
+    toJSON() {
+      return {
+        userId: this.userId,
+        status: this.status,
+        currentDay: this.currentDay,
+        totalDays: this.totalDays,
+        completedCycles: this.completedCycles,
+        timestamps: { ...this.timestamps },
+        history: [...this.history],
+      };
+    },
+  };
+
+  return model;
+}
+
+export default createDailyBonusModel;
