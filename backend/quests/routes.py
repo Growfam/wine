@@ -181,6 +181,43 @@ def register_quests_routes(app):
         """Отримання історії щоденних бонусів"""
         return get_bonus_history(telegram_id)
 
+    # ВИПРАВЛЕНО: Додаткові маршрути для сумісності з фронтендом
+    @app.route('/api/daily-bonus/status', methods=['POST'])
+    def api_daily_bonus_status():
+        """Отримання статусу щоденного бонусу (для сумісності)"""
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "ID користувача не вказано"
+            }), 400
+        return get_daily_bonus_status(user_id)
+
+    @app.route('/api/daily-bonus/claim', methods=['POST'])
+    def api_daily_bonus_claim():
+        """Отримання щоденного бонусу (для сумісності)"""
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "ID користувача не вказано"
+            }), 400
+        return claim_daily_bonus(user_id, data)
+
+    @app.route('/api/daily-bonus/history', methods=['POST'])
+    def api_daily_bonus_history():
+        """Отримання історії щоденних бонусів (для сумісності)"""
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({
+                "success": False,
+                "error": "ID користувача не вказано"
+            }), 400
+        return get_bonus_history(user_id)
+
     # ============ МАРШРУТИ ДЛЯ ВЕРИФІКАЦІЇ СОЦІАЛЬНИХ МЕРЕЖ ============
 
     @app.route('/api/user/<telegram_id>/verify-subscription', methods=['POST'])

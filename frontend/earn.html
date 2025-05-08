@@ -106,11 +106,12 @@
             color: rgba(255, 255, 255, 0.8) !important;
         }
 
-        /* Надійна наявність кнопки бонусу */
+        /* ВИПРАВЛЕНО: Надійна наявність кнопки бонусу */
         #daily-bonus-container {
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
+            z-index: 10 !important;
         }
 
         .daily-bonus {
@@ -119,6 +120,88 @@
             flex-direction: column !important;
             width: 100% !important;
             margin-bottom: 15px !important;
+        }
+
+        /* ВИПРАВЛЕНО: Додаткові стилі для анімацій і станів */
+        .daily-day {
+            opacity: 1 !important;
+            transition: transform 0.3s ease, opacity 0.3s ease !important;
+        }
+
+        .day-circle {
+            position: relative !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 36px !important;
+            height: 36px !important;
+            border-radius: 50% !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            transition: background-color 0.3s ease !important;
+        }
+
+        .day-circle.active {
+            background-color: rgba(78, 181, 247, 0.5) !important;
+            box-shadow: 0 0 10px rgba(78, 181, 247, 0.7) !important;
+        }
+
+        .day-circle.completed {
+            background-color: rgba(0, 201, 167, 0.7) !important;
+            box-shadow: 0 0 10px rgba(0, 201, 167, 0.7) !important;
+        }
+
+        .day-circle.current {
+            background-color: rgba(233, 69, 96, 0.7) !important;
+            box-shadow: 0 0 10px rgba(233, 69, 96, 0.7) !important;
+        }
+
+        /* Анімація збільшення балансу */
+        .balance-increased {
+            animation: balance-increase 1.5s ease-out forwards !important;
+        }
+
+        .balance-decreased {
+            animation: balance-decrease 1.5s ease-out forwards !important;
+        }
+
+        @keyframes balance-increase {
+            0%, 100% { color: white; }
+            30%, 70% { color: #4eb5f7; }
+        }
+
+        @keyframes balance-decrease {
+            0%, 100% { color: white; }
+            30%, 70% { color: #E94560; }
+        }
+
+        /* Покращені сповіщення */
+        .toast-message {
+            position: fixed !important;
+            bottom: -100px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            color: white !important;
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            opacity: 0 !important;
+            transition: bottom 0.3s ease, opacity 0.3s ease !important;
+            z-index: 1000 !important;
+            text-align: center !important;
+            max-width: 90% !important;
+        }
+
+        .toast-message.show {
+            bottom: 20px !important;
+            opacity: 1 !important;
+        }
+
+        .toast-success {
+            border-left: 4px solid #00C9A7 !important;
+        }
+
+        .toast-error {
+            border-left: 4px solid #E94560 !important;
         }
     </style>
 
