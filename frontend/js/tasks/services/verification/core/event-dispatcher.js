@@ -263,11 +263,34 @@ export function setupVerificationEventHandlers() {
   }
 }
 
+/**
+ * Функція для ініціалізації диспетчера подій
+ * @param {Object} verificationCore - Основний модуль верифікації
+ */
+export function setupEventDispatcher(verificationCore) {
+  // Реєстрація обробників подій
+  setupVerificationEventHandlers();
+
+  // Періодичне очищення застарілих подій
+  const cleanupInterval = setInterval(() => {
+    clearExpiredProcessedEvents();
+  }, 1800000); // кожні 30 хвилин
+
+  logger.info('Диспетчер подій верифікації ініціалізовано');
+
+  return {
+    clearInterval: () => clearInterval(cleanupInterval),
+    dispatchEvent: dispatchVerificationEvent,
+    dispatchErrorEvent: dispatchVerificationErrorEvent
+  };
+}
+
 export default {
   dispatchVerificationEvent,
   handleSuccessfulVerification,
   dispatchVerificationErrorEvent,
   clearExpiredProcessedEvents,
   isProcessedEvent,
-  setupVerificationEventHandlers
+  setupVerificationEventHandlers,
+  setupEventDispatcher
 };

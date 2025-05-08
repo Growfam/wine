@@ -13,14 +13,14 @@ import { getLogger } from '../../../utils/core/logger.js';
 const logger = getLogger('VerificationCache');
 
 // Константи для кешу
-const CACHE_KEYS = {
+export const CACHE_KEYS = {
   TASK_TYPE: 'task_type_',
   VERIFICATION_RESULT: 'verification_result_',
   PROCESSED_EVENT: 'processed_event_',
 };
 
 // Час життя кешу для різних типів даних (мс)
-const CACHE_TTL = {
+export const CACHE_TTL = {
   TASK_TYPE: 86400000, // 24 години
   SUCCESS_RESULT: 1800000, // 30 хвилин для успішних результатів
   FAILURE_RESULT: 600000, // 10 хвилин для невдалих результатів
@@ -317,6 +317,22 @@ export function clearExpiredEvents() {
   }
 }
 
+// Функція для ініціалізації менеджера кешування
+export function setupCacheManager(verificationCore) {
+  // Тут можна додати ініціалізацію або додаткові налаштування
+  logger.info('Менеджер кешування ініціалізовано');
+
+  // Періодичне очищення застарілих подій
+  const cleanupInterval = setInterval(() => {
+    clearExpiredEvents();
+  }, 1800000); // кожні 30 хвилин
+
+  return {
+    clearInterval: () => clearInterval(cleanupInterval)
+  };
+}
+
+// Експортуємо все для зручного імпорту
 export default {
   cacheTaskType,
   getCachedTaskType,
@@ -326,6 +342,7 @@ export default {
   isEventProcessed,
   clearCache,
   clearExpiredEvents,
+  setupCacheManager,
   CACHE_KEYS,
   CACHE_TTL
 };

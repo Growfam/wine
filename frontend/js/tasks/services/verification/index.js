@@ -4,47 +4,96 @@
  * Експортує функціональність для перевірки виконання завдань
  */
 
-import { VerificationCore } from './core/verification-core';
-import { setupCacheManager } from './core/cache-manager';
-import { setupEventDispatcher } from './core/event-dispatcher';
-import { setupUIHandlers } from './ui/loaders';
-import { verifiers } from './verifiers';
+import { VerificationCore } from './core/verification-core.js';
+import { setupCacheManager } from './core/cache-manager.js';
+import { setupErrorHandler } from './core/error-handler.js';
+import { setupEventDispatcher } from './core/event-dispatcher.js';
+import { setupTypeDetector } from './core/type-detector.js';
+import { setupUIController } from './core/ui-controller.js';
+import { getLogger } from '../../utils/core/logger.js';
 
-// Створюємо єдиний екземпляр сервісу верифікації
-const verificationCore = new VerificationCore();
+// Створюємо логер для модуля
+const logger = getLogger('VerificationService');
 
-// Додаємо верифікатори
-Object.entries(verifiers).forEach(([type, verifier]) => {
-  verificationCore.registerVerifier(type, verifier);
-});
+// Ініціалізуємо сервіс верифікації
+function initVerificationService(taskStore, verifiers = {}) {
+  logger.info('Ініціалізація сервісу верифікації');
 
-// Налаштовуємо управління кешем
-setupCacheManager(verificationCore);
+  // Створюємо єдиний екземпляр сервісу верифікації
+  const verificationCore = new VerificationCore();
 
-// Налаштовуємо диспетчер подій
-setupEventDispatcher(verificationCore);
+  // Ініціалізуємо ядро з посиланням на сховище завдань
+  verificationCore.initialize(taskStore);
 
-// Налаштовуємо обробники UI
-setupUIHandlers(verificationCore);
+  // Додаємо верифікатори
+  Object.entries(verifiers).forEach(([type, verifier]) => {
+    verificationCore.registerVerifier(type, verifier);
+  });
 
-// Створюємо публічний API сервісу
-const taskVerification = {
-  // Основні методи верифікації
-  verifyTask: (taskId) => verificationCore.verifyTask(taskId),
-  isVerificationInProgress: (taskId) => verificationCore.isVerificationInProgress(taskId),
+  // Налаштовуємо управління кешем
+  const cacheManager = setupCacheManager(verificationCore);
 
-  // Робота з кешем
-  getCachedResult: (taskId) => verificationCore.getCachedResult(taskId),
-  clearCache: () => verificationCore.clearCache(),
+  // Налаштовуємо обробник помилок
+  const errorHandler = setupErrorHandler();
 
-  // Робота з UI
-  showVerificationLoader: (taskId) => verificationCore.showVerificationLoader(taskId),
-  hideVerificationLoader: (taskId) => verificationCore.hideVerificationLoader(taskId),
+  // Налаштовуємо визначник типів
+  const typeDetector = setupTypeDetector();
 
-  // Управління станом
-  resetVerificationAttempts: () => verificationCore.resetVerificationAttempts(),
-  clearProcessedEvents: () => verificationCore.clearProcessedEvents(),
-  resetState: () => verificationCore.resetState(),
-};
+  // Налаштовуємо диспетчер подій
+  const eventDispatcher = setupEventDispatcher(verificationCore);
 
-export default taskVerification;
+  // Налаштовуємо обробники UI
+  const uiController = setupUIController(verificationCore);
+
+  // Створюємо публічний API сервісу
+  const taskVerification = {
+    // Основні методи верифікації
+    verifyTask: (taskId) => verificationCore.verifyTask(taskId),
+    isVerificationInProgress: (taskId) => verificationCore.isVerificationInProgress(taskId),
+
+    // Робота з кешем
+    getCachedResult: (taskId) => getCachedVerificationResult(taskId),
+    clearCache: () => clearCache(),
+
+    // Робота з UI
+    showVerificationLoader: (taskId) => showVerificationLoader(taskId),
+    hideVerificationLoader: (taskId) => hideVerificationLoader(taskId),
+
+    // Управління станом
+    resetVerificationAttempts: () => verificationCore.resetVerificationAttempts(),
+    clearProcessedEvents: () => verificationCore.clearProcessedEvents(),
+    resetState: () => verificationCore.resetState(),
+
+    // Додаткові методи для розширюваності
+    registerVerifier: (type, verifier) => verificationCore.registerVerifier(type, verifier),
+    getTaskType: (taskId) => typeDetector.getTaskType(taskId, taskStore),
+
+    // Метод очищення ресурсів при закритті
+    destroy: () => {
+      cacheManager.clearInterval();
+      eventDispatcher.clearInterval();
+      logger.info('Сервіс верифікації завершив роботу');
+    }
+  };
+
+  logger.info('Сервіс верифікації успішно ініціалізовано');
+
+  return taskVerification;
+}
+
+// Створюємо сервіс верифікації з верифікаторами за замовчуванням
+let defaultVerificationService = null;
+
+// Функція для отримання або створення сервісу верифікації
+export function getVerificationService(taskStore, verifiers) {
+  if (!defaultVerificationService) {
+    defaultVerificationService = initVerificationService(taskStore, verifiers);
+  }
+  return defaultVerificationService;
+}
+
+// Експортуємо функцію для безпосереднього створення сервісу
+export { initVerificationService };
+
+// Експортуємо сервіс верифікації за замовчуванням
+export default getVerificationService;
