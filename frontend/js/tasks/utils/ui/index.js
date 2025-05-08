@@ -5,8 +5,8 @@
  * у контексті системи завдань.
  */
 
-// Експорт функцій для роботи з індикаторами завантаження
-export {
+// Імпорт функцій для роботи з індикаторами завантаження
+import {
   showLoadingIndicator,
   hideLoadingIndicator,
   showVerificationMessage,
@@ -14,6 +14,16 @@ export {
   showVerificationLoader,
   hideVerificationLoader
 } from './loaders.js';
+
+// Явний експорт імпортованих функцій
+export {
+  showLoadingIndicator,
+  hideLoadingIndicator,
+  showVerificationMessage,
+  updateProgressUI,
+  showVerificationLoader,
+  hideVerificationLoader
+};
 
 // Експорт за замовчуванням
 export default {

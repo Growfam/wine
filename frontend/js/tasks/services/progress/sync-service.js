@@ -170,3 +170,11 @@ export async function sendProgressWithRetry(taskId, progressData, maxRetries = 3
     attempts: maxRetries,
   };
 }
+
+// Експортуємо всі функції
+export default {
+  setupSyncService,
+  syncTaskProgress,
+  syncAllProgress,
+  sendProgressWithRetry
+};

@@ -9,22 +9,30 @@
  * @version 3.1.0
  */
 
-// Імпорт базових компонентів
-import { requestService, cacheService, CONFIG, API_VERSION } from './core/index.js';
+// Імпорт базових компонентів - розв'язання циклічної залежності
+import requestService from './core/request.js';
+import cacheService from './core/cache.js';
+import { CONFIG, API_VERSION, API_ERROR_CODES } from './core/config.js';
 
 // Імпорт сервісів
-import { taskService, actionService, progressService } from './services/index.js';
+import taskService from './services/task-service.js';
+import actionService from './services/action-service.js';
+import progressService from './services/progress-service.js';
 
 // Імпорт моделей
-import { taskTypesModel } from './models/index.js';
+import taskTypesModel from './models/task-types.js';
 
-// Імпорт модуля щоденних бонусів
-import dailyBonusModel from './models/daily-bonus.js';
+// Імпорт модуля щоденних бонусів (імпортуємо безпосередньо функції, а не по дефолту)
+import {
+  getDailyBonusStatus as modelGetDailyBonusStatus,
+  claimDailyBonus as modelClaimDailyBonus,
+  getDailyBonusHistory as modelGetDailyBonusHistory
+} from './models/daily-bonus.js';
 
 // Експорт функцій щоденного бонусу через проміжний інтерфейс
-export const getDailyBonusStatus = (userId) => dailyBonusModel.getDailyBonusStatus(userId);
-export const claimDailyBonus = (userId) => dailyBonusModel.claimDailyBonus(userId);
-export const getDailyBonusHistory = (userId, options) => dailyBonusModel.getDailyBonusHistory(userId, options);
+export const getDailyBonusStatus = (userId) => modelGetDailyBonusStatus(userId);
+export const claimDailyBonus = (userId) => modelClaimDailyBonus(userId);
+export const getDailyBonusHistory = (userId, options) => modelGetDailyBonusHistory(userId, options);
 
 /**
  * Головний клас API завдань

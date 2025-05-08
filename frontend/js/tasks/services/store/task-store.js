@@ -10,8 +10,10 @@
 import { TASK_TYPES } from '../../config';
 import { createTaskModel } from '../../models';
 import { saveToCache, loadFromCache } from './cache-handlers.js';
-import balanceManager from './balance-manager.js';
-import progressManager from './progress-manager.js';
+
+// Вирішення циклічної залежності: імпортуємо BalanceManagerClass замість екземпляра
+import { BalanceManager } from './balance-manager.js';
+import { ProgressManager } from './progress-manager.js';
 
 class TaskStore {
   constructor() {
@@ -46,6 +48,7 @@ class TaskStore {
     this.CACHE_KEYS = {
       ACTIVE_TAB: 'active_tasks_tab',
       DAILY_BONUS_INFO: 'daily_bonus_info',
+      USER_PROGRESS: 'task_progress',
     };
 
     // Час життя кешу для різних типів даних
@@ -54,9 +57,12 @@ class TaskStore {
       DAILY_BONUS: 43200000, // 12 годин
     };
 
-    // Посилання на інші менеджери
-    this.balanceManager = balanceManager;
-    this.progressManager = progressManager;
+    // Створюємо екземпляри менеджерів безпосередньо тут, щоб уникнути циклічної залежності
+    this.balanceManager = new BalanceManager();
+    this.progressManager = new ProgressManager();
+
+    // Посилання на прогрес користувача
+    this.userProgress = {};
   }
 
   /**
@@ -432,7 +438,14 @@ class TaskStore {
    * @param {Object} progress - Прогрес користувача
    */
   setUserProgress(progress) {
+    // Зберігаємо посилання на прогрес
+    this.userProgress = progress;
+
+    // Встановлюємо прогрес у менеджер
     this.progressManager.setAllProgress(progress);
+
+    // Зберігаємо в кеш
+    saveToCache(this.CACHE_KEYS.USER_PROGRESS, progress);
   }
 
   /**
@@ -503,9 +516,14 @@ class TaskStore {
     this.balanceManager.resetState();
     this.progressManager.resetState();
 
+    // Скидаємо прогрес користувача
+    this.userProgress = {};
+
     // Сповіщаємо підписників
     this.notifySubscribers('state-reset');
   }
 }
 
-export default new TaskStore();
+// Створюємо і експортуємо єдиний екземпляр сховища
+const taskStore = new TaskStore();
+export default taskStore;
