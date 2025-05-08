@@ -1,15 +1,23 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Копіюємо файли залежностей
-COPY requirements.txt .
+# Встановлення системних залежностей
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Встановлюємо залежності
+# Копіюємо requirements.txt і встановлюємо залежності
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копіюємо весь проект
 COPY . .
 
-# Задаємо команду запуску
-CMD ["python3", "backend/main.py"]
+# Змінні середовища
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+# Запуск через gunicorn або python (якщо gunicorn не спрацює)
+CMD gunicorn --bind 0.0.0.0:$PORT "backend.main:app" || python backend/main.py
