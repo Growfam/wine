@@ -1,8 +1,16 @@
 // Головна точка входу для всього UI
-export * from './animations/index.js';
-export * from './components/index.js';
-export * from './notifications/index.js';
-export * from './renderers/index.js';
+import * as animations from './animations/index.js';
+import * as components from './components/index.js';
+import * as notifications from './notifications/index.js';
+import * as renderers from './renderers/index.js';
 
 // Експорт компонентів щоденного бонусу
-export { default as DailyBonus } from './components/daily-bonus';
+import DailyBonus from './components/daily-bonus';
+
+export {
+  animations,
+  components,
+  notifications,
+  renderers,
+  DailyBonus
+};

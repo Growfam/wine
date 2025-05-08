@@ -58,7 +58,8 @@ def create_app(config_name=None):
     app = Flask(
         __name__,
         template_folder=os.path.join(BASE_DIR, 'frontend'),
-        static_folder=os.path.join(BASE_DIR, 'frontend')
+        static_folder=os.path.join(BASE_DIR, 'frontend'),
+        static_url_path=''  # Важливо для правильної обробки статичних файлів
     )
 
     # Завантажуємо конфігурацію
@@ -94,6 +95,17 @@ def create_app(config_name=None):
 
     # Налаштовуємо обробники помилок
     register_error_handlers(app)
+
+    # Додаємо обробник для MIME-типів
+    @app.after_request
+    def add_mime_types(response):
+        if response.mimetype == 'application/octet-stream':
+            path = request.path
+            if path.endswith('.js'):
+                response.mimetype = 'application/javascript'
+            elif path.endswith('.css'):
+                response.mimetype = 'text/css'
+        return response
 
     return app
 
@@ -277,6 +289,16 @@ def register_utility_routes(app):
         original_index_html_exists = os.path.exists(os.path.join(template_dir, 'original-index.html'))
         raffles_html_exists = os.path.exists(os.path.join(template_dir, 'raffles.html'))
 
+        # Перевіряємо JS файли, які викликають проблеми
+        js_dir = os.path.join(BASE_DIR, 'frontend/js')
+        settings_js_path = os.path.join(js_dir, 'tasks/config/settings.js')
+        ui_index_js_path = os.path.join(js_dir, 'tasks/ui/index.js')
+        daily_bonus_js_path = os.path.join(js_dir, 'tasks/api/models/daily-bonus.js')
+
+        settings_js_exists = os.path.exists(settings_js_path)
+        ui_index_js_exists = os.path.exists(ui_index_js_path)
+        daily_bonus_js_exists = os.path.exists(daily_bonus_js_path)
+
         # Отримуємо список зареєстрованих маршрутів
         routes = []
         for rule in app.url_map.iter_rules():
@@ -301,7 +323,21 @@ def register_utility_routes(app):
                 "index_html_exists": index_html_exists,
                 "original_index_html_exists": original_index_html_exists,
                 "raffles_html_exists": raffles_html_exists,
-                "supabase_test": supabase_test
+                "supabase_test": supabase_test,
+                "problem_js_files": {
+                    "settings_js": {
+                        "path": settings_js_path,
+                        "exists": settings_js_exists
+                    },
+                    "ui_index_js": {
+                        "path": ui_index_js_path,
+                        "exists": ui_index_js_exists
+                    },
+                    "daily_bonus_js": {
+                        "path": daily_bonus_js_path,
+                        "exists": daily_bonus_js_exists
+                    }
+                }
             },
             "routes": routes[:20]  # Обмежуємо до 20 маршрутів для читабельності
         })
@@ -326,14 +362,19 @@ def register_static_routes(app):
     # Функція для обробки статичних файлів
     def serve_static_file(directory, filename):
         try:
-            if os.path.exists(os.path.join(directory, filename)):
+            file_path = os.path.join(directory, filename)
+            logger.info(f"Шукаю статичний файл: {file_path}")
+
+            if os.path.exists(file_path):
+                logger.info(f"Файл знайдено: {file_path}")
                 return send_from_directory(directory, filename)
             else:
-                logger.warning(f"Файл не знайдено: {directory}/{filename}")
-                return jsonify({"error": f"Файл не знайдено: {filename}"}), 404
+                logger.warning(f"Файл не знайдено: {file_path}")
+                abort(404)
         except Exception as e:
             logger.error(f"Помилка видачі статичного файлу {filename}: {str(e)}")
-            return jsonify({"error": f"Помилка видачі файлу: {filename}"}), 500
+            logger.exception(e)  # Повний стек помилки для налагодження
+            abort(500)
 
     # Реєстрація маршрутів для кожної директорії
     @app.route('/assets/<path:filename>')
@@ -344,13 +385,73 @@ def register_static_routes(app):
     def serve_chenel_png(filename):
         return serve_static_file(static_dirs['ChenelPNG'], filename)
 
+    # Спеціальне обслуговування JS файлів
     @app.route('/js/<path:filename>')
     def serve_js(filename):
-        return serve_static_file(static_dirs['js'], filename)
+        try:
+            file_path = os.path.join(static_dirs['js'], filename)
+            logger.info(f"Шукаю JS файл: {file_path}")
+
+            if os.path.exists(file_path):
+                logger.info(f"JS файл знайдено: {file_path}")
+                response = send_from_directory(static_dirs['js'], filename)
+                response.mimetype = 'application/javascript'
+                return response
+            else:
+                logger.warning(f"JS файл не знайдено: {file_path}")
+                abort(404)
+        except Exception as e:
+            logger.error(f"Помилка видачі JS файлу {filename}: {str(e)}")
+            logger.exception(e)  # Повний стек помилки для налагодження
+            abort(500)
+
+    # Обробка запитів з доменним шляхом (для перехоплення повного URL)
+    @app.route('/winixbot.com/js/<path:filename>')
+    def serve_domained_js(filename):
+        return serve_js(filename)
 
     @app.route('/css/<path:filename>')
     def serve_css(filename):
-        return serve_static_file(static_dirs['css'], filename)
+        try:
+            file_path = os.path.join(static_dirs['css'], filename)
+            logger.info(f"Шукаю CSS файл: {file_path}")
+
+            if os.path.exists(file_path):
+                logger.info(f"CSS файл знайдено: {file_path}")
+                response = send_from_directory(static_dirs['css'], filename)
+                response.mimetype = 'text/css'
+                return response
+            else:
+                logger.warning(f"CSS файл не знайдено: {file_path}")
+                abort(404)
+        except Exception as e:
+            logger.error(f"Помилка видачі CSS файлу {filename}: {str(e)}")
+            logger.exception(e)
+            abort(500)
+
+    # Обробка запитів з доменним шляхом для CSS
+    @app.route('/winixbot.com/css/<path:filename>')
+    def serve_domained_css(filename):
+        return serve_css(filename)
+
+    # Додаємо загальний обробник для будь-яких статичних файлів
+    @app.route('/<path:filename>')
+    def serve_any_static(filename):
+        # Перевіряємо, чи це файл типу, який ми знаємо як обробляти
+        if filename.endswith('.js'):
+            return serve_js(filename)
+        elif filename.endswith('.css'):
+            return serve_css(filename)
+        elif filename.startswith('assets/'):
+            return serve_asset(filename[7:])
+        elif filename.startswith('ChenelPNG/'):
+            return serve_chenel_png(filename[10:])
+
+        # Якщо ніде не знайдено, шукаємо в кореневій статичній директорії
+        try:
+            return app.send_static_file(filename)
+        except Exception:
+            abort(404)
 
     logger.info("Маршрути для статичних файлів зареєстровано")
 
@@ -600,7 +701,16 @@ def register_error_handlers(app):
 
     @app.errorhandler(404)
     def page_not_found(e):
-        logger.error(f"404 error: {request.path}")
+        # Перевірка чи це запит на статичні JS/CSS файли
+        if request.path.endswith('.js') or request.path.endswith('.css'):
+            logger.error(f"404 статичний файл не знайдено: {request.path}")
+
+            if request.path.endswith('.js'):
+                return "// Файл не знайдено", 404, {'Content-Type': 'application/javascript'}
+            else:
+                return "/* Файл не знайдено */", 404, {'Content-Type': 'text/css'}
+
+        logger.error(f"404 маршрут не знайдено: {request.path}")
 
         # Перевірка чи це API запит
         is_api_request = request.path.startswith('/api/')
@@ -657,12 +767,20 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def server_error(e):
         error_details = str(e)
-        logger.error(f"500 error: {error_details}")
+        logger.error(f"500 помилка: {error_details}")
 
         # В режимі розробки включаємо трейс помилки
         if app.config.get('DEBUG', False):
             error_trace = traceback.format_exc()
             logger.error(f"Error trace: {error_trace}")
+
+        # Перевірка чи це запит на статичні JS/CSS файли
+        if request.path.endswith('.js'):
+            logger.error(f"500 помилка для JS файлу: {request.path}")
+            return f"// Помилка сервера при обробці JavaScript файлу: {error_details}", 500, {'Content-Type': 'application/javascript'}
+        elif request.path.endswith('.css'):
+            logger.error(f"500 помилка для CSS файлу: {request.path}")
+            return f"/* Помилка сервера при обробці CSS файлу: {error_details} */", 500, {'Content-Type': 'text/css'}
 
         return jsonify({
             "error": "server_error",
