@@ -8,65 +8,25 @@
  * - Підготовку даних для відправки на сервер
  */
 
-// Визначаємо, чи доступна система логів
-const hasLogger = typeof window !== 'undefined' &&
-                 window.ModuleRegistry &&
-                 window.ModuleRegistry.get('logger');
+// Імпортуємо залежності явно замість використання глобальних об'єктів
+import { getLogger } from '../../utils/core/logger.js';
+import { DAILY_BONUS_TYPES } from '../../config/types/daily-bonus-types.js';
 
-// Функція логування з перевіркою доступності логера
-function safeLog(level, message, source = '', details = {}) {
+// Створюємо логер для модуля
+const logger = getLogger('DailyBonusModel');
+
+// Функція логування з використанням логера
+function logMessage(level, message, source = '', details = {}) {
   try {
-    if (hasLogger) {
-      const logger = window.ModuleRegistry.get('logger');
-      logger[level](message, source, details);
-    } else {
-      console[level === 'warn' ? 'warning' : level](
-        `[API.Models.DailyBonus${source ? '.' + source : ''}] ${message}`,
-        details
-      );
-    }
+    logger[level](message, source, details);
   } catch (e) {
     console.error('Помилка при логуванні:', e);
   }
 }
 
-// Завантажуємо типи бонусів
-let DAILY_BONUS_TYPES = {
-  // Тип бонусу
-  TYPE: {
-    STANDARD: 'standard', // Стандартний бонус
-    SPECIAL: 'special', // Спеціальний бонус (свята, акції)
-  },
-
-  // Статуси бонусу
-  STATUS: {
-    AVAILABLE: 'available', // Доступний для отримання
-    CLAIMED: 'claimed', // Вже отримано сьогодні
-    EXPIRED: 'expired', // Прострочений (пропущений день)
-    PENDING: 'pending', // В очікуванні (майбутній день)
-    LOCKED: 'locked', // Заблокований (потрібно виконати умову)
-  }
-};
-
-// Завантажуємо типи бонусів з реєстра модулів якщо можливо
-try {
-  if (window.ModuleRegistry && window.ModuleRegistry.get('DAILY_BONUS_TYPES')) {
-    DAILY_BONUS_TYPES = window.ModuleRegistry.get('DAILY_BONUS_TYPES');
-    safeLog('info', 'Завантажено типи бонусів з реєстру модулів');
-  }
-} catch (e) {
-  safeLog('error', 'Помилка завантаження типів бонусів', '', { error: e });
-}
-
 // Функція для створення моделі бонусу
 function createDailyBonusModel(data = {}) {
   try {
-    // Перевіряємо наявність функції в реєстрі
-    if (window.ModuleRegistry && window.ModuleRegistry.get('createDailyBonusModel')) {
-      return window.ModuleRegistry.get('createDailyBonusModel')(data);
-    }
-
-    // Запасний варіант, якщо немає функції в реєстрі
     const now = Date.now();
 
     return {
@@ -122,7 +82,7 @@ function createDailyBonusModel(data = {}) {
       }
     };
   } catch (e) {
-    safeLog('error', 'Помилка створення моделі бонусу', 'createDailyBonusModel', { error: e });
+    logMessage('error', 'Помилка створення моделі бонусу', 'createDailyBonusModel', { error: e });
     // Повертаємо базову модель при помилці
     return {
       userId: data.userId || null,
@@ -143,7 +103,7 @@ function createDailyBonusModel(data = {}) {
 function convertServerToClientModel(serverModel, userId) {
   try {
     if (!serverModel) {
-      safeLog('warn', 'Отримано порожню серверну модель', 'convertServerToClientModel');
+      logMessage('warn', 'Отримано порожню серверну модель', 'convertServerToClientModel');
       return createDefaultModel(userId);
     }
 
@@ -182,11 +142,11 @@ function convertServerToClientModel(serverModel, userId) {
       history: convertServerHistory(serverModel.history),
     };
 
-    safeLog('debug', 'Серверна модель успішно конвертована', 'convertServerToClientModel');
+    logMessage('debug', 'Серверна модель успішно конвертована', 'convertServerToClientModel');
 
     return createDailyBonusModel(clientModel);
   } catch (error) {
-    safeLog('error', 'Помилка конвертації серверної моделі', '', { error });
+    logMessage('error', 'Помилка конвертації серверної моделі', '', { error });
     return createDefaultModel(userId);
   }
 }
@@ -199,7 +159,7 @@ function convertServerToClientModel(serverModel, userId) {
 function convertClientToServerModel(clientModel) {
   try {
     if (!clientModel) {
-      safeLog('warn', 'Отримано порожню клієнтську модель', 'convertClientToServerModel');
+      logMessage('warn', 'Отримано порожню клієнтську модель', 'convertClientToServerModel');
       return null;
     }
 
@@ -223,11 +183,11 @@ function convertClientToServerModel(clientModel) {
       completed_cycles: clientModel.completedCycles,
     };
 
-    safeLog('debug', 'Клієнтська модель успішно конвертована для сервера', 'convertClientToServerModel');
+    logMessage('debug', 'Клієнтська модель успішно конвертована для сервера', 'convertClientToServerModel');
 
     return serverModel;
   } catch (error) {
-    safeLog('error', 'Помилка конвертації клієнтської моделі для сервера', '', { error });
+    logMessage('error', 'Помилка конвертації клієнтської моделі для сервера', '', { error });
     return null;
   }
 }
@@ -256,7 +216,7 @@ function convertServerHistory(serverHistory) {
       };
     });
   } catch (error) {
-    safeLog('error', 'Помилка конвертації історії', '', { error });
+    logMessage('error', 'Помилка конвертації історії', '', { error });
     return [];
   }
 }
@@ -283,7 +243,7 @@ function createDefaultModel(userId) {
     history: [],
   };
 
-  safeLog('info', 'Створено модель щоденного бонусу за замовчуванням', 'createDefaultModel');
+  logMessage('info', 'Створено модель щоденного бонусу за замовчуванням', 'createDefaultModel');
 
   return createDailyBonusModel(defaultModel);
 }
@@ -321,7 +281,7 @@ function processClaimResponse(response, userId) {
         : null,
     };
 
-    safeLog('info', 'Успішно оброблено відповідь отримання бонусу', 'processClaimResponse', {
+    logMessage('info', 'Успішно оброблено відповідь отримання бонусу', 'processClaimResponse', {
       tokens: reward.tokens,
       coins: reward.coins,
       isCompletionReward: !!reward.completion,
@@ -333,7 +293,7 @@ function processClaimResponse(response, userId) {
       reward: reward,
     };
   } catch (error) {
-    safeLog('error', 'Помилка обробки відповіді отримання бонусу', '', { error });
+    logMessage('error', 'Помилка обробки відповіді отримання бонусу', '', { error });
 
     return {
       success: false,
@@ -352,7 +312,7 @@ function processClaimResponse(response, userId) {
  */
 async function performBonusApiRequest(endpoint, data = {}) {
   try {
-    safeLog('info', `Виконання запиту до API щоденних бонусів: ${endpoint}`, 'performBonusApiRequest');
+    logMessage('info', `Виконання запиту до API щоденних бонусів: ${endpoint}`, 'performBonusApiRequest');
 
     // Базовий URL API
     const baseApiUrl = '/api/daily-bonus';
@@ -385,14 +345,14 @@ async function performBonusApiRequest(endpoint, data = {}) {
       };
     }
 
-    safeLog('info', `Успішно отримано відповідь від API: ${endpoint}`, 'performBonusApiRequest');
+    logMessage('info', `Успішно отримано відповідь від API: ${endpoint}`, 'performBonusApiRequest');
 
     return {
       success: true,
       data: responseData.data,
     };
   } catch (error) {
-    safeLog('error', `Помилка виконання запиту до API: ${endpoint}`, '', {
+    logMessage('error', `Помилка виконання запиту до API: ${endpoint}`, '', {
       error,
       endpoint,
       data
@@ -413,29 +373,7 @@ async function performBonusApiRequest(endpoint, data = {}) {
  */
 async function getDailyBonusStatus(userId) {
   try {
-    // Використовуємо API модуль якщо доступний
-    if (window.WinixAPI && window.WinixAPI.apiRequest) {
-      const response = await window.WinixAPI.apiRequest('api/daily-bonus/status', 'POST', {
-        user_id: userId
-      });
-
-      if (response.status === 'success' && response.data) {
-        // Конвертуємо серверну модель в клієнтську
-        const bonusModel = convertServerToClientModel(response.data.bonus, userId);
-
-        return {
-          success: true,
-          bonus: bonusModel,
-        };
-      } else {
-        return {
-          success: false,
-          error: response.message || 'Помилка API при отриманні статусу бонусу'
-        };
-      }
-    }
-
-    // Альтернативний метод запиту
+    // Виконуємо API запит, використовуючи нашу абстракцію
     const response = await performBonusApiRequest('status', { user_id: userId });
 
     if (!response.success) {
@@ -454,7 +392,7 @@ async function getDailyBonusStatus(userId) {
       bonus: bonusModel,
     };
   } catch (error) {
-    safeLog('error', 'Помилка отримання статусу щоденного бонусу', '', { error, userId });
+    logMessage('error', 'Помилка отримання статусу щоденного бонусу', '', { error, userId });
 
     return {
       success: false,
@@ -470,23 +408,7 @@ async function getDailyBonusStatus(userId) {
  */
 async function claimDailyBonus(userId) {
   try {
-    // Використовуємо API модуль якщо доступний
-    if (window.WinixAPI && window.WinixAPI.apiRequest) {
-      const response = await window.WinixAPI.apiRequest('api/daily-bonus/claim', 'POST', {
-        user_id: userId
-      });
-
-      if (response.status === 'success') {
-        return processClaimResponse(response, userId);
-      } else {
-        return {
-          success: false,
-          error: response.message || 'Помилка API при отриманні бонусу'
-        };
-      }
-    }
-
-    // Альтернативний метод запиту
+    // Виконуємо API запит
     const response = await performBonusApiRequest('claim', { user_id: userId });
 
     if (!response.success) {
@@ -500,7 +422,7 @@ async function claimDailyBonus(userId) {
     // Обробляємо відповідь
     return processClaimResponse(response, userId);
   } catch (error) {
-    safeLog('error', 'Помилка нарахування щоденного бонусу', '', { error, userId });
+    logMessage('error', 'Помилка нарахування щоденного бонусу', '', { error, userId });
 
     return {
       success: false,
@@ -524,33 +446,7 @@ async function getDailyBonusHistory(userId, options = {}) {
       offset: options.offset || 0,
     };
 
-    // Використовуємо API модуль якщо доступний
-    if (window.WinixAPI && window.WinixAPI.apiRequest) {
-      const response = await window.WinixAPI.apiRequest('api/daily-bonus/history', 'POST', requestData);
-
-      if (response.status === 'success') {
-        // Конвертуємо історію
-        const history = response.data?.history || [];
-        const convertedHistory = convertServerHistory(history);
-
-        return {
-          success: true,
-          history: convertedHistory,
-          pagination: {
-            total: response.data?.total || convertedHistory.length,
-            limit: requestData.limit,
-            offset: requestData.offset,
-          },
-        };
-      } else {
-        return {
-          success: false,
-          error: response.message || 'Помилка API при отриманні історії бонусів'
-        };
-      }
-    }
-
-    // Альтернативний метод запиту
+    // Виконуємо API запит
     const response = await performBonusApiRequest('history', requestData);
 
     if (!response.success) {
@@ -575,7 +471,7 @@ async function getDailyBonusHistory(userId, options = {}) {
       },
     };
   } catch (error) {
-    safeLog('error', 'Помилка отримання історії щоденних бонусів', '', { error, userId });
+    logMessage('error', 'Помилка отримання історії щоденних бонусів', '', { error, userId });
 
     return {
       success: false,
@@ -584,17 +480,20 @@ async function getDailyBonusHistory(userId, options = {}) {
   }
 }
 
-// Реєструємо модуль для глобального доступу
-if (window.ModuleRegistry) {
-  window.ModuleRegistry.register('dailyBonusApi', {
-    getDailyBonusStatus,
-    claimDailyBonus,
-    getDailyBonusHistory,
-    convertServerToClientModel,
-    convertClientToServerModel,
-    createDefaultModel,
-    createDailyBonusModel
-  });
+// Створення та експорт публічного API для модуля
+const dailyBonusApi = {
+  getDailyBonusStatus,
+  claimDailyBonus,
+  getDailyBonusHistory,
+  convertServerToClientModel,
+  convertClientToServerModel,
+  createDefaultModel,
+  createDailyBonusModel
+};
+
+// Якщо потрібно реєструвати в глобальному об'єкті (опційно)
+if (typeof window !== 'undefined' && window.ModuleRegistry) {
+  window.ModuleRegistry.register('dailyBonusApi', dailyBonusApi);
 }
 
 // Експортуємо публічне API
@@ -610,15 +509,5 @@ export {
   createDailyBonusModel
 };
 
-// Експортуємо за замовчуванням
-export default {
-  convertServerToClientModel,
-  convertClientToServerModel,
-  processClaimResponse,
-  createDefaultModel,
-  getDailyBonusStatus,
-  claimDailyBonus,
-  getDailyBonusHistory,
-  performBonusApiRequest,
-  createDailyBonusModel
-};
+// Експорт за замовчуванням
+export default dailyBonusApi;

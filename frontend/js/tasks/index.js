@@ -6,11 +6,12 @@
  */
 
 // Імпорт конфігурації
-import * as TaskTypes from './config';
-import { CONFIG } from './config/settings';
+import * as TaskTypes from './config/index.js';
+import { CONFIG } from './config/settings.js';
 
 // Імпорт контейнера залежностей
-import dependencyContainer, { getLogger } from './utils';
+import dependencyContainer from './utils/core/dependency.js';
+import { getLogger } from './utils/core/logger.js';
 
 // Створюємо логер для основної системи
 const logger = getLogger('TaskSystem');

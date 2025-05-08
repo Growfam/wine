@@ -9,7 +9,7 @@ import { REWARD_TYPES } from './reward-types';
 import { TASK_STATUS } from './status-types';
 import { VERIFICATION_STATUS } from './verification-status';
 import { SOCIAL_NETWORKS } from './social-networks';
-import { DAILY_BONUS_TYPES } from './daily-bonus-types'; // Додати цей імпорт
+import { DAILY_BONUS_TYPES } from './daily-bonus-types.js';
 
 // Реекспорт типів
 export {

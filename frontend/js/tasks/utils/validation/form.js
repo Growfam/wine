@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core';
+import { getLogger } from '../core/index.js';
 import { validate } from './core.js';
 import { addEvent, removeAllEvents, debounce, findParent, scrollToElement } from '../dom';
 
