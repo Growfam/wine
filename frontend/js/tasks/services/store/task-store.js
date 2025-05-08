@@ -7,12 +7,9 @@
  * - Управління станом системи
  */
 
-import { TASK_TYPES } from '../config/task-types.js';
-import { TaskModel } from '../models/task-model.js';
-import { SocialTaskModel } from '../models/social-task-model.js';
-import { LimitedTaskModel } from '../models/limited-task-model.js';
-import { PartnerTaskModel } from '../models/partner-task-model.js';
-import cacheService from '../utils/CacheService.js';
+import { TASK_TYPES } from '../../config';
+import { createTaskModel } from '../../models';
+import { saveToCache, loadFromCache } from './cache-handlers';
 
 class TaskStore {
   constructor() {
@@ -74,7 +71,7 @@ class TaskStore {
     if (this.systemState.initialized) return;
 
     // Завантажуємо прогрес з кешу
-    this.loadFromCache();
+    loadFromCache(this);
 
     // Завантажуємо баланси
     this.loadBalances();
@@ -135,53 +132,12 @@ class TaskStore {
   }
 
   /**
-   * Завантаження даних з кешу
-   */
-  loadFromCache() {
-    try {
-      // Завантажуємо прогрес
-      const savedProgress = cacheService.get(this.CACHE_KEYS.USER_PROGRESS, {});
-      if (savedProgress && typeof savedProgress === 'object') {
-        this.userProgress = savedProgress;
-      }
-
-      // Завантажуємо активну вкладку
-      const activeTab = cacheService.get(this.CACHE_KEYS.ACTIVE_TAB);
-      if (activeTab && Object.values(TASK_TYPES).includes(activeTab)) {
-        this.systemState.activeTabType = activeTab;
-      }
-    } catch (error) {
-      console.warn('Помилка завантаження даних з кешу:', error);
-    }
-  }
-
-  /**
-   * Збереження даних в кеш
-   */
-  saveToCache() {
-    try {
-      // Зберігаємо прогрес
-      cacheService.set(this.CACHE_KEYS.USER_PROGRESS, this.userProgress, {
-        ttl: this.CACHE_TTL.PROGRESS,
-        tags: ['user', 'progress']
-      });
-
-      // Зберігаємо активну вкладку
-      cacheService.set(this.CACHE_KEYS.ACTIVE_TAB, this.systemState.activeTabType, {
-        tags: ['ui', 'settings']
-      });
-    } catch (error) {
-      console.warn('Помилка збереження даних в кеш:', error);
-    }
-  }
-
-  /**
    * Завантаження балансів користувача
    */
   loadBalances() {
     try {
       // Спочатку спробуємо завантажити з кешу
-      const cachedBalances = cacheService.get(this.CACHE_KEYS.BALANCES);
+      const cachedBalances = loadFromCache(this.CACHE_KEYS.BALANCES);
       if (cachedBalances) {
         this.userBalances = cachedBalances;
       }
@@ -198,7 +154,7 @@ class TaskStore {
       }
 
       // Зберігаємо оновлені баланси в кеш
-      cacheService.set(this.CACHE_KEYS.BALANCES, this.userBalances, {
+      saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
         ttl: this.CACHE_TTL.BALANCES,
         tags: ['user', 'balances']
       });
@@ -236,8 +192,8 @@ class TaskStore {
       }
 
       // Зберігаємо в кеш
-      cacheService.set('userTokens', this.userBalances.tokens.toString());
-      cacheService.set('winix_balance', this.userBalances.tokens.toString());
+      saveToCache('userTokens', this.userBalances.tokens.toString());
+      saveToCache('winix_balance', this.userBalances.tokens.toString());
     } else if (type === 'coins') {
       if (isIncrement) {
         this.userBalances.coins += normalizedAmount;
@@ -256,12 +212,12 @@ class TaskStore {
       }
 
       // Зберігаємо в кеш
-      cacheService.set('userCoins', this.userBalances.coins.toString());
-      cacheService.set('winix_coins', this.userBalances.coins.toString());
+      saveToCache('userCoins', this.userBalances.coins.toString());
+      saveToCache('winix_coins', this.userBalances.coins.toString());
     }
 
     // Оновлюємо кеш балансів
-    cacheService.set(this.CACHE_KEYS.BALANCES, this.userBalances, {
+    saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
       ttl: this.CACHE_TTL.BALANCES,
       tags: ['user', 'balances']
     });
@@ -298,7 +254,7 @@ class TaskStore {
     this.systemState.activeTabType = tabType;
 
     // Зберігаємо в кеш
-    this.saveToCache();
+    saveToCache(this.CACHE_KEYS.ACTIVE_TAB, this.systemState.activeTabType);
 
     // Сповіщаємо підписників
     this.notifySubscribers('tab-switched', {
@@ -328,7 +284,7 @@ class TaskStore {
    */
   findTaskById(taskId) {
     // Спочатку перевіряємо кеш
-    const cachedTask = cacheService.get(`task_${taskId}`);
+    const cachedTask = loadFromCache(`task_${taskId}`);
     if (cachedTask) {
       return cachedTask;
     }
@@ -338,7 +294,7 @@ class TaskStore {
       const task = this.tasks[type].find(t => t.id === taskId);
       if (task) {
         // Зберігаємо в кеш
-        cacheService.set(`task_${taskId}`, task, {
+        saveToCache(`task_${taskId}`, task, {
           ttl: this.CACHE_TTL.TASKS,
           tags: ['tasks', `type_${type}`]
         });
@@ -367,34 +323,21 @@ class TaskStore {
 
     try {
       // Конвертуємо дані в моделі
-      const taskModels = tasks.map(taskData => {
-        switch (type) {
-          case TASK_TYPES.SOCIAL:
-            return SocialTaskModel.fromApiData(taskData);
-          case TASK_TYPES.LIMITED:
-            return LimitedTaskModel.fromApiData(taskData);
-          case TASK_TYPES.PARTNER:
-            return PartnerTaskModel.fromApiData(taskData);
-          case TASK_TYPES.REFERRAL:
-            return SocialTaskModel.fromApiData(taskData);
-          default:
-            return TaskModel.fromApiData(taskData);
-        }
-      });
+      const taskModels = tasks.map(taskData => createTaskModel(type, taskData));
 
       // Зберігаємо масив завдань
       this.tasks[type] = taskModels;
 
       // Оновлюємо кеш для кожного завдання
       taskModels.forEach(task => {
-        cacheService.set(`task_${task.id}`, task, {
+        saveToCache(`task_${task.id}`, task, {
           ttl: this.CACHE_TTL.TASKS,
           tags: ['tasks', `type_${type}`]
         });
       });
 
       // Також кешуємо весь масив завдань даного типу
-      cacheService.set(`tasks_${type}`, taskModels, {
+      saveToCache(`tasks_${type}`, taskModels, {
         ttl: this.CACHE_TTL.TASKS,
         tags: ['tasks', `type_${type}`, 'collections']
       });
@@ -425,35 +368,19 @@ class TaskStore {
     }
 
     // Створюємо модель завдання
-    let task;
-    switch (type) {
-      case TASK_TYPES.SOCIAL:
-        task = SocialTaskModel.fromApiData(taskData);
-        break;
-      case TASK_TYPES.LIMITED:
-        task = LimitedTaskModel.fromApiData(taskData);
-        break;
-      case TASK_TYPES.PARTNER:
-        task = PartnerTaskModel.fromApiData(taskData);
-        break;
-      case TASK_TYPES.REFERRAL:
-        task = SocialTaskModel.fromApiData(taskData);
-        break;
-      default:
-        task = TaskModel.fromApiData(taskData);
-    }
+    const task = createTaskModel(type, taskData);
 
     // Додаємо завдання до масиву
     this.tasks[type].push(task);
 
     // Оновлюємо кеш
-    cacheService.set(`task_${task.id}`, task, {
+    saveToCache(`task_${task.id}`, task, {
       ttl: this.CACHE_TTL.TASKS,
       tags: ['tasks', `type_${type}`]
     });
 
     // Також оновлюємо колекцію завдань
-    cacheService.set(`tasks_${type}`, this.tasks[type], {
+    saveToCache(`tasks_${type}`, this.tasks[type], {
       ttl: this.CACHE_TTL.TASKS,
       tags: ['tasks', `type_${type}`, 'collections']
     });
@@ -482,13 +409,13 @@ class TaskStore {
     task.update(updateData);
 
     // Оновлюємо кеш
-    cacheService.set(`task_${taskId}`, task, {
+    saveToCache(`task_${taskId}`, task, {
       ttl: this.CACHE_TTL.TASKS,
       tags: ['tasks', `type_${task.type}`]
     });
 
     // Також оновлюємо колекцію завдань
-    cacheService.set(`tasks_${task.type}`, this.tasks[task.type], {
+    saveToCache(`tasks_${task.type}`, this.tasks[task.type], {
       ttl: this.CACHE_TTL.TASKS,
       tags: ['tasks', `type_${task.type}`, 'collections']
     });
@@ -519,10 +446,11 @@ class TaskStore {
     this.tasks[taskType] = this.tasks[taskType].filter(t => t.id !== taskId);
 
     // Видаляємо з кешу
+    const cacheService = window.cacheService || { remove: () => {} };
     cacheService.remove(`task_${taskId}`);
 
     // Також оновлюємо колекцію завдань
-    cacheService.set(`tasks_${taskType}`, this.tasks[taskType], {
+    saveToCache(`tasks_${taskType}`, this.tasks[taskType], {
       ttl: this.CACHE_TTL.TASKS,
       tags: ['tasks', `type_${taskType}`, 'collections']
     });
@@ -549,7 +477,7 @@ class TaskStore {
     this.userProgress[taskId] = progressData;
 
     // Зберігаємо в кеш
-    this.saveToCache();
+    saveToCache(this.CACHE_KEYS.USER_PROGRESS, this.userProgress);
 
     // Оновлюємо статус завдання
     const task = this.findTaskById(taskId);
@@ -557,7 +485,7 @@ class TaskStore {
       task.status = progressData.status || task.status;
 
       // Оновлюємо кеш завдання
-      cacheService.set(`task_${taskId}`, task, {
+      saveToCache(`task_${taskId}`, task, {
         ttl: this.CACHE_TTL.TASKS,
         tags: ['tasks', `type_${task.type}`]
       });
@@ -599,7 +527,7 @@ class TaskStore {
     this.userProgress = { ...progress };
 
     // Зберігаємо в кеш
-    this.saveToCache();
+    saveToCache(this.CACHE_KEYS.USER_PROGRESS, this.userProgress);
 
     // Сповіщаємо підписників
     this.notifySubscribers('all-progress-updated', { progress: this.userProgress });
@@ -610,6 +538,7 @@ class TaskStore {
    */
   clearCache() {
     // Видаляємо всі завдання з кешу
+    const cacheService = window.cacheService || { removeByTags: () => {} };
     cacheService.removeByTags('tasks');
   }
 
@@ -630,6 +559,4 @@ class TaskStore {
   }
 }
 
-// Створюємо і експортуємо єдиний екземпляр сховища
-const taskStore = new TaskStore();
-export default taskStore;
+export default TaskStore;

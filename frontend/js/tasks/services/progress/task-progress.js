@@ -4,12 +4,10 @@
  * Відповідає за:
  * - Відстеження прогресу виконання завдань
  * - Оновлення прогресу в реальному часі
- * - Синхронізацію прогресу з сервером
  */
 
-import { TASK_STATUS, CONFIG } from '../config/task-types.js';
-import taskStore from './task-store.js';
-import taskApi from './task-api.js';
+import { TASK_STATUS, CONFIG } from '../../config';
+import { taskStore } from '../index';
 
 class TaskProgress {
   constructor() {
@@ -280,63 +278,6 @@ class TaskProgress {
     if (progress && progress.status === TASK_STATUS.COMPLETED) {
       return;
     }
-
-    // Знаходимо елемент завдання
-    const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
-    if (!taskElement) return;
-
-    // Оновлюємо відображення прогресу
-    this.updateProgressUI(taskElement, progress, targetValue);
-  }
-
-  /**
-   * Оновлення інтерфейсу прогресу
-   * @param {HTMLElement} taskElement - Елемент завдання
-   * @param {Object} progress - Дані прогресу
-   * @param {number} targetValue - Цільове значення
-   */
-  updateProgressUI(taskElement, progress, targetValue) {
-    // Перевіряємо наявність прогресу
-    if (!progress) return;
-
-    // Отримуємо прогрес-бар
-    const progressFill = taskElement.querySelector('.progress-fill');
-    if (!progressFill) return;
-
-    // Розраховуємо відсоток виконання
-    const progressValue = progress.progress_value || 0;
-    const progressPercent = Math.min(100, Math.round((progressValue / targetValue) * 100));
-
-    // Оновлюємо ширину прогрес-бару
-    progressFill.style.width = progressPercent + '%';
-
-    // Якщо прогрес 100%, додаємо клас complete
-    if (progressPercent >= 100) {
-      progressFill.classList.add('complete');
-
-      // Якщо завдання ще не позначене як виконане, відзначаємо його
-      if (!taskElement.classList.contains('completed')) {
-        taskElement.classList.add('completed');
-
-        // Оновлюємо відображення кнопок дії
-        const actionDiv = taskElement.querySelector('.task-action');
-        if (actionDiv) {
-          actionDiv.innerHTML = '<div class="completed-label">Виконано</div>';
-        }
-      }
-    }
-
-    // Оновлюємо текст прогресу
-    const progressText = taskElement.querySelector('.progress-text');
-    if (progressText) {
-      const progressTextSpans = progressText.querySelectorAll('span');
-      if (progressTextSpans.length >= 2) {
-        // Визначаємо, що показувати як текст прогресу
-        const progressLabel = taskElement.getAttribute('data-progress-label') || '';
-        progressTextSpans[0].textContent = `${progressValue}/${targetValue} ${progressLabel}`;
-        progressTextSpans[1].textContent = `${progressPercent}%`;
-      }
-    }
   }
 
   /**
@@ -477,84 +418,11 @@ class TaskProgress {
       // Пробуємо отримати цільове значення з атрибуту
       const targetAttr = taskElement.getAttribute('data-target-value');
       if (targetAttr) {
-        return parseInt(targetAttr) || 1;
+        return parseInt(targetAttr) || a;
       }
     }
 
     return 1; // За замовчуванням
-  }
-
-  /**
-   * Синхронізація прогресу з сервером
-   * @param {string} taskId - ID завдання
-   * @returns {Promise<Object>} Результат операції
-   */
-  async syncTaskProgress(taskId) {
-    try {
-      // Отримуємо прогрес з сервера
-      const response = await taskApi.getTaskProgress(taskId);
-
-      if (response.status === 'success' && response.data) {
-        // Оновлюємо прогрес у сховищі
-        taskStore.setTaskProgress(taskId, response.data);
-
-        return {
-          success: true,
-          message: 'Прогрес успішно синхронізовано',
-          data: response.data
-        };
-      }
-
-      return {
-        success: false,
-        message: 'Не вдалося отримати прогрес з сервера',
-        error: response.error || response.message
-      };
-    } catch (error) {
-      console.error('Помилка синхронізації прогресу:', error);
-
-      return {
-        success: false,
-        message: 'Помилка синхронізації прогресу',
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Синхронізація всього прогресу з сервером
-   * @returns {Promise<Object>} Результат операції
-   */
-  async syncAllProgress() {
-    try {
-      // Запитуємо весь прогрес з сервера
-      const response = await taskApi.fetchWithRetry('quests/user-progress/all');
-
-      if (response.status === 'success' && response.data) {
-        // Оновлюємо прогрес у сховищі
-        taskStore.setUserProgress(response.data);
-
-        return {
-          success: true,
-          message: 'Всі дані прогресу успішно синхронізовано',
-          data: response.data
-        };
-      }
-
-      return {
-        success: false,
-        message: 'Не вдалося отримати прогрес з сервера',
-        error: response.error || response.message
-      };
-    } catch (error) {
-      console.error('Помилка синхронізації прогресу:', error);
-
-      return {
-        success: false,
-        message: 'Помилка синхронізації прогресу',
-        error: error.message
-      };
-    }
   }
 
   /**
@@ -693,6 +561,4 @@ class TaskProgress {
   }
 }
 
-// Створюємо і експортуємо єдиний екземпляр сервісу
-const taskProgress = new TaskProgress();
-export default taskProgress;
+export default TaskProgress;
