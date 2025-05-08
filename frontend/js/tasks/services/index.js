@@ -15,3 +15,6 @@ export { default as taskVerification } from './verification';
 
 // Експорт сервісів інтеграції
 export { default as taskIntegration } from './integration';
+
+// Експорт сервісу щоденних бонусів
+export { default as dailyBonusService } from './daily-bonus';

@@ -53,14 +53,16 @@ class TaskStore {
     this.CACHE_KEYS = {
       USER_PROGRESS: 'task_progress',
       ACTIVE_TAB: 'active_tasks_tab',
-      BALANCES: 'user_balances'
+      BALANCES: 'user_balances',
+      DAILY_BONUS_INFO: 'daily_bonus_info'
     };
 
     // Час життя кешу для різних типів даних
     this.CACHE_TTL = {
       TASKS: 600000, // 10 хвилин
       PROGRESS: 86400000, // 24 години
-      BALANCES: 300000 // 5 хвилин
+      BALANCES: 300000, // 5 хвилин
+      DAILY_BONUS: 43200000 // 12 годин
     };
   }
 
@@ -531,6 +533,49 @@ class TaskStore {
 
     // Сповіщаємо підписників
     this.notifySubscribers('all-progress-updated', { progress: this.userProgress });
+  }
+
+  /**
+   * Отримання інформації про щоденний бонус
+   * @returns {Object|null} Інформація про щоденний бонус
+   */
+  getDailyBonusInfo() {
+    try {
+      // Спочатку перевіряємо кеш
+      const cachedInfo = loadFromCache(this.CACHE_KEYS.DAILY_BONUS_INFO);
+
+      if (cachedInfo) {
+        return cachedInfo;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Помилка отримання інформації про щоденний бонус:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Оновлення інформації про щоденний бонус
+   * @param {Object} data - Дані щоденного бонусу
+   * @returns {boolean} Результат оновлення
+   */
+  updateDailyBonusInfo(data) {
+    try {
+      // Зберігаємо в кеш
+      saveToCache(this.CACHE_KEYS.DAILY_BONUS_INFO, data, {
+        ttl: this.CACHE_TTL.DAILY_BONUS,
+        tags: ['daily_bonus', 'user']
+      });
+
+      // Сповіщаємо підписників
+      this.notifySubscribers('daily-bonus-updated', { data });
+
+      return true;
+    } catch (error) {
+      console.error('Помилка оновлення інформації про щоденний бонус:', error);
+      return false;
+    }
   }
 
   /**

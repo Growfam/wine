@@ -5,7 +5,7 @@
  */
 
 // Імпорт конфігурації
-import * as TaskTypes from './config/task-types.js';
+import * as TaskTypes from './config';
 
 // Імпорт контейнера залежностей
 import dependencyContainer from './utils';
@@ -46,10 +46,10 @@ class TaskSystem {
   async loadModules() {
     try {
       // Динамічне завантаження модулів для уникнення циркулярних залежностей
-      const modelModule = await import('./models/task-model.js');
-      const socialModelModule = await import('./models/social-task-model.js');
-      const limitedModelModule = await import('./models/limited-task-model.js');
-      const partnerModelModule = await import('./models/partner-task-model.js');
+      const modelModule = await import('./models');
+      const socialModelModule = await import('./models');
+      const limitedModelModule = await import('./models');
+      const partnerModelModule = await import('./models');
 
       // Зберігаємо посилання на моделі
       TaskModel = modelModule.default;
@@ -58,10 +58,10 @@ class TaskSystem {
       PartnerTaskModel = partnerModelModule.default;
 
       // Завантажуємо сервіси
-      const apiModule = await import('./services/task-api.js');
-      const storeModule = await import('./services/task-store.js');
-      const verificationModule = await import('./services/task-verification.js');
-      const progressModule = await import('./services/task-progress.js');
+      const apiModule = await import('./services');
+      const storeModule = await import('./services');
+      const verificationModule = await import('./services');
+      const progressModule = await import('./services');
 
       // Зберігаємо посилання на сервіси
       taskApi = apiModule.default;

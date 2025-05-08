@@ -15,6 +15,7 @@ export const REWARD_TYPES = types.REWARD_TYPES;
 export const TASK_STATUS = types.TASK_STATUS;
 export const VERIFICATION_STATUS = types.VERIFICATION_STATUS;
 export const SOCIAL_NETWORKS = types.SOCIAL_NETWORKS;
+export const DAILY_BONUS_TYPES = types.DAILY_BONUS_TYPES;
 export { CONFIG };
 
 // Для зворотної сумісності - єдиний об'єкт
@@ -25,5 +26,6 @@ export default {
   TASK_STATUS,
   VERIFICATION_STATUS,
   SOCIAL_NETWORKS,
+  DAILY_BONUS_TYPES,
   CONFIG
 };
