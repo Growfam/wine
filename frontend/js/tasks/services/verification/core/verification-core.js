@@ -5,7 +5,7 @@
  */
 
 import { VERIFICATION_STATUS, CONFIG } from '../../../config';
-import { taskStore } from '../../index';
+import { taskStore } from '../../index.js';
 
 export class VerificationCore {
   constructor() {
@@ -410,16 +410,31 @@ export class VerificationCore {
     }
   }
 
-  // Методи для роботи з кешем та подіями будуть реалізовані в інших модулях
-  // і приєднані до цього класу під час налаштування
-
   /**
    * Кешування типу завдання
    * @param {string} taskId - ID завдання
    * @param {string} type - Тип завдання
    */
   cacheTaskType(taskId, type) {
-    // Цей метод буде перевизначено при налаштуванні кешу
+    try {
+      const cacheKey = `task_type_${taskId}`;
+      // Використовуємо localStorage для базової реалізації кешування
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(cacheKey, type);
+      }
+
+      // Якщо є глобальний сервіс кешування, використовуємо його
+      const cacheService = window.cacheService;
+      if (cacheService && typeof cacheService.set === 'function') {
+        cacheService.set(cacheKey, type, {
+          tags: ['task_type', taskId],
+        });
+      }
+
+      console.debug(`Тип завдання ${taskId} кешовано як ${type}`);
+    } catch (error) {
+      console.warn(`Помилка при кешуванні типу завдання ${taskId}:`, error);
+    }
   }
 
   /**
@@ -428,8 +443,28 @@ export class VerificationCore {
    * @returns {string|null} Тип завдання
    */
   getCachedTaskType(taskId) {
-    // Цей метод буде перевизначено при налаштуванні кешу
-    return null;
+    try {
+      const cacheKey = `task_type_${taskId}`;
+
+      // Спочатку перевіряємо глобальний сервіс кешування
+      const cacheService = window.cacheService;
+      if (cacheService && typeof cacheService.get === 'function') {
+        const cachedType = cacheService.get(cacheKey);
+        if (cachedType) {
+          return cachedType;
+        }
+      }
+
+      // Потім перевіряємо localStorage
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(cacheKey);
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`Помилка при отриманні кешованого типу завдання ${taskId}:`, error);
+      return null;
+    }
   }
 
   /**
@@ -438,7 +473,33 @@ export class VerificationCore {
    * @param {Object} result - Результат перевірки
    */
   cacheResult(taskId, result) {
-    // Цей метод буде перевизначено при налаштуванні кешу
+    try {
+      const cacheKey = `verification_result_${taskId}`;
+      const cacheData = {
+        result,
+        timestamp: Date.now(),
+        expires: Date.now() + (result.success ? this.config.cacheTTL * 2 : this.config.cacheTTL),
+      };
+
+      // Використовуємо localStorage для базової реалізації кешування
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      }
+
+      // Якщо є глобальний сервіс кешування, використовуємо його
+      const cacheService = window.cacheService;
+      if (cacheService && typeof cacheService.set === 'function') {
+        const ttl = result.success ? this.config.cacheTTL * 2 : this.config.cacheTTL;
+        cacheService.set(cacheKey, cacheData, {
+          ttl,
+          tags: ['verification', 'result', taskId],
+        });
+      }
+
+      console.debug(`Результат верифікації для завдання ${taskId} кешовано`);
+    } catch (error) {
+      console.warn(`Помилка при кешуванні результату верифікації для завдання ${taskId}:`, error);
+    }
   }
 
   /**
@@ -447,15 +508,71 @@ export class VerificationCore {
    * @returns {Object|null} Результат перевірки
    */
   getCachedResult(taskId) {
-    // Цей метод буде перевизначено при налаштуванні кешу
-    return null;
+    try {
+      const cacheKey = `verification_result_${taskId}`;
+      let cachedData = null;
+
+      // Спочатку перевіряємо глобальний сервіс кешування
+      const cacheService = window.cacheService;
+      if (cacheService && typeof cacheService.get === 'function') {
+        cachedData = cacheService.get(cacheKey);
+      }
+
+      // Потім перевіряємо localStorage, якщо не знайдено в cacheService
+      if (!cachedData && typeof localStorage !== 'undefined') {
+        const storedData = localStorage.getItem(cacheKey);
+        if (storedData) {
+          try {
+            cachedData = JSON.parse(storedData);
+          } catch (parseError) {
+            console.warn(`Помилка парсингу кешованого результату для завдання ${taskId}:`, parseError);
+          }
+        }
+      }
+
+      // Перевіряємо термін дії кешу
+      if (cachedData && cachedData.expires) {
+        if (Date.now() > cachedData.expires) {
+          console.debug(`Кеш для завдання ${taskId} застарів`);
+          return null;
+        }
+
+        return cachedData.result;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`Помилка при отриманні кешованого результату для завдання ${taskId}:`, error);
+      return null;
+    }
   }
 
   /**
    * Очищення кешу верифікації
    */
   clearCache() {
-    // Цей метод буде перевизначено при налаштуванні кешу
+    try {
+      // Очищаємо кеш через глобальний сервіс, якщо доступно
+      const cacheService = window.cacheService;
+      if (cacheService) {
+        if (typeof cacheService.removeByTags === 'function') {
+          cacheService.removeByTags(['verification']);
+        } else if (typeof cacheService.clear === 'function') {
+          cacheService.clear();
+        }
+      }
+
+      // Очищаємо локальне сховище від записів з префіксом verification_
+      if (typeof localStorage !== 'undefined') {
+        Object.keys(localStorage)
+          .filter(key => key.startsWith('verification_') || key.startsWith('task_type_'))
+          .forEach(key => localStorage.removeItem(key));
+      }
+
+      console.info('Кеш верифікації очищено');
+    } catch (error) {
+      console.error('Помилка при очищенні кешу верифікації:', error);
+    }
   }
 
   /**
@@ -465,7 +582,89 @@ export class VerificationCore {
    * @param {string} eventId - Унікальний ідентифікатор події
    */
   dispatchVerificationEvent(taskId, result, eventId) {
-    // Цей метод буде перевизначено при налаштуванні диспетчера подій
+    try {
+      // Перевіряємо, чи був ідентифікатор уже оброблений
+      if (eventId && this.state.processedEvents[eventId]) {
+        console.debug(`Подія ${eventId} вже була оброблена`);
+        return;
+      }
+
+      // Запам'ятовуємо ідентифікатор як оброблений
+      if (eventId) {
+        this.state.processedEvents[eventId] = Date.now();
+      }
+
+      // Додаємо часову мітку до результату
+      const extendedResult = {
+        ...result,
+        timestamp: Date.now(),
+      };
+
+      // Створюємо і відправляємо подію
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(
+          new CustomEvent('task-verification-result', {
+            detail: {
+              taskId,
+              result: extendedResult,
+              timestamp: Date.now(),
+              eventId,
+            },
+          })
+        );
+      }
+
+      // Якщо верифікація була успішною, викликаємо обробку
+      if (result.success) {
+        this.handleSuccessfulVerification(taskId, extendedResult, eventId);
+      }
+
+      console.debug(`Відправлено подію верифікації для завдання ${taskId}`);
+    } catch (error) {
+      console.error(`Помилка при відправці події верифікації для завдання ${taskId}:`, error);
+    }
+  }
+
+  /**
+   * Обробка успішної верифікації
+   * @param {string} taskId - ID завдання
+   * @param {Object} result - Результат перевірки
+   * @param {string} eventId - Унікальний ідентифікатор події
+   */
+  handleSuccessfulVerification(taskId, result, eventId) {
+    try {
+      // Отримуємо цільове значення завдання
+      const targetValue = this.getTaskTargetValue(taskId);
+
+      // Оновлюємо прогрес у сховищі, якщо воно доступне
+      if (taskStore && typeof taskStore.setTaskProgress === 'function') {
+        taskStore.setTaskProgress(taskId, {
+          status: 'completed',
+          progress_value: targetValue,
+          completion_date: new Date().toISOString(),
+        });
+      }
+
+      // Генеруємо подію про завершення завдання з короткою затримкою
+      setTimeout(() => {
+        if (typeof document !== 'undefined') {
+          document.dispatchEvent(
+            new CustomEvent('task-completed', {
+              detail: {
+                taskId,
+                reward: result.reward,
+                timestamp: Date.now(),
+                eventId,
+              },
+            })
+          );
+        }
+
+        console.debug(`Відправлено подію завершення для завдання ${taskId}`);
+      }, 50);
+    } catch (error) {
+      console.error(`Помилка при обробці успішної верифікації для завдання ${taskId}:`, error);
+    }
   }
 
   /**
@@ -473,7 +672,32 @@ export class VerificationCore {
    * @param {string} taskId - ID завдання
    */
   showVerificationLoader(taskId) {
-    // Цей метод буде перевизначено при налаштуванні UI
+    try {
+      // Знаходимо елемент завдання
+      const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+      if (!taskElement) return;
+
+      // Знаходимо елемент дії
+      const actionElement = taskElement.querySelector('.task-action');
+      if (actionElement) {
+        // Додаємо клас стану завантаження
+        actionElement.classList.add('loading');
+
+        // Зберігаємо оригінальний вміст
+        const originalContent = actionElement.innerHTML;
+        actionElement.setAttribute('data-original-content', originalContent);
+
+        // Замінюємо на лоадер
+        actionElement.innerHTML = `
+          <div class="loading-indicator">
+            <div class="spinner"></div>
+            <span data-lang-key="earn.verifying">Перевірка...</span>
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.warn(`Помилка при показі індикатора завантаження для завдання ${taskId}:`, error);
+    }
   }
 
   /**
@@ -481,6 +705,26 @@ export class VerificationCore {
    * @param {string} taskId - ID завдання
    */
   hideVerificationLoader(taskId) {
-    // Цей метод буде перевизначено при налаштуванні UI
+    try {
+      // Знаходимо елемент завдання
+      const taskElement = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+      if (!taskElement) return;
+
+      // Знаходимо елемент дії
+      const actionElement = taskElement.querySelector('.task-action');
+      if (actionElement) {
+        // Видаляємо клас стану завантаження
+        actionElement.classList.remove('loading');
+
+        // Відновлюємо оригінальний вміст
+        const originalContent = actionElement.getAttribute('data-original-content');
+        if (originalContent) {
+          actionElement.innerHTML = originalContent;
+          actionElement.removeAttribute('data-original-content');
+        }
+      }
+    } catch (error) {
+      console.warn(`Помилка при приховуванні індикатора завантаження для завдання ${taskId}:`, error);
+    }
   }
 }

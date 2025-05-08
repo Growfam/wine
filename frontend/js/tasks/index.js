@@ -5,6 +5,10 @@
  * @version 3.1.0
  */
 
+// Імпорт фабрики сервісів для ініціалізації
+import { serviceFactory } from './utils/index.js';
+console.log('Фабрика сервісів ініціалізована:', !!serviceFactory);
+
 // Імпорт конфігурації
 import * as TaskTypes from './config/index.js';
 import { CONFIG } from './config/settings.js';
@@ -637,3 +641,5 @@ if (typeof document !== 'undefined') {
 
 // Експортуємо для використання в модулях
 export default taskSystem;
+
+

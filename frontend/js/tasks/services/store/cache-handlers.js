@@ -1,11 +1,15 @@
 /**
  * Обробники кешування для сховища
  *
- * Надає функції для завантаження та збереження даних у кеш
+ * Інтегрує спільний адаптер кешування для роботи зі сховищем завдань
  */
 
-// ВИПРАВЛЕНО: Імпортуємо CacheService з правильного місця
-import cacheService from '../../api/core/cache.js';
+import {
+  saveToCache,
+  getFromCache,
+  removeFromCache,
+  clearCacheByTags
+} from '../../utils/cache/index.js';
 
 /**
  * Налаштування обробників кешування для сховища
@@ -32,17 +36,16 @@ export function setupCacheHandlers(store) {
  */
 export function loadFromCache(store, defaultValue = {}) {
   try {
-    // ВИПРАВЛЕНО: Використовуємо імпортований сервіс кешування
     // Якщо передано екземпляр сховища
     if (typeof store === 'object' && store !== null) {
       // Завантажуємо прогрес
-      const savedProgress = cacheService.getCachedData(store.CACHE_KEYS.USER_PROGRESS);
+      const savedProgress = getFromCache(store.CACHE_KEYS.USER_PROGRESS);
       if (savedProgress && typeof savedProgress === 'object') {
         store.userProgress = savedProgress;
       }
 
       // Завантажуємо активну вкладку
-      const activeTab = cacheService.getCachedData(store.CACHE_KEYS.ACTIVE_TAB);
+      const activeTab = getFromCache(store.CACHE_KEYS.ACTIVE_TAB);
       if (activeTab && Object.values(store.TASK_TYPES || {}).includes(activeTab)) {
         store.systemState.activeTabType = activeTab;
       }
@@ -51,7 +54,7 @@ export function loadFromCache(store, defaultValue = {}) {
     }
     // Якщо передано ключ кешу
     else if (typeof store === 'string') {
-      return cacheService.getCachedData(store) || defaultValue;
+      return getFromCache(store) || defaultValue;
     }
 
     return defaultValue;
@@ -62,63 +65,10 @@ export function loadFromCache(store, defaultValue = {}) {
 }
 
 /**
- * Збереження даних у кеш
- * @param {string} key - Ключ кешу
- * @param {*} value - Значення для збереження
- * @param {Object} [options={}] - Додаткові опції
- * @returns {boolean} Результат операції
- */
-export function saveToCache(key, value, options = {}) {
-  try {
-    // ВИПРАВЛЕНО: Використовуємо правильний метод cacheData
-    cacheService.cacheData(key, value);
-    return true;
-  } catch (error) {
-    console.warn('Помилка збереження даних у кеш:', error);
-    return false;
-  }
-}
-
-/**
- * Видалення даних з кешу
- * @param {string} key - Ключ кешу
- * @returns {boolean} Результат операції
- */
-export function removeFromCache(key) {
-  try {
-    // ВИПРАВЛЕНО: Використовуємо CacheService
-    // Перевіряємо, чи є в CacheService метод для видалення
-    if (typeof cacheService.clearCache === 'function') {
-      cacheService.clearCache(key);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.warn('Помилка видалення даних з кешу:', error);
-    return false;
-  }
-}
-
-/**
  * Очищення кешу за тегами
  * @param {string|Array} tags - Теги для очищення
  * @returns {boolean} Результат операції
  */
-export function clearCacheByTags(tags) {
-  try {
-    // ВИПРАВЛЕНО: Використовуємо clearCache з тегами або патерном
-    if (typeof cacheService.clearCache === 'function') {
-      if (Array.isArray(tags)) {
-        // Очищаємо кеш для кожного тегу окремо
-        tags.forEach(tag => cacheService.clearCache(tag));
-      } else {
-        cacheService.clearCache(tags);
-      }
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.warn('Помилка очищення кешу за тегами:', error);
-    return false;
-  }
+export function clearCacheByTagsHandler(tags) {
+  return clearCacheByTags(tags);
 }

@@ -3,13 +3,15 @@
  *
  * Відповідає за:
  * - Зберігання завдань
- * - Зберігання прогресу
  * - Управління станом системи
+ * - Координацію інших менеджерів
  */
 
 import { TASK_TYPES } from '../../config';
 import { createTaskModel } from '../../models';
-import { saveToCache, loadFromCache } from './cache-handlers';
+import { saveToCache, loadFromCache } from './cache-handlers.js';
+import balanceManager from './balance-manager.js';
+import progressManager from './progress-manager.js';
 
 class TaskStore {
   constructor() {
@@ -19,15 +21,6 @@ class TaskStore {
       [TASK_TYPES.LIMITED]: [],
       [TASK_TYPES.PARTNER]: [],
       [TASK_TYPES.REFERRAL]: [],
-    };
-
-    // Поточний прогрес користувача
-    this.userProgress = {};
-
-    // Балансы користувача
-    this.userBalances = {
-      tokens: null,
-      coins: null,
     };
 
     // Стан завантаження
@@ -51,32 +44,40 @@ class TaskStore {
 
     // Константи для кешу
     this.CACHE_KEYS = {
-      USER_PROGRESS: 'task_progress',
       ACTIVE_TAB: 'active_tasks_tab',
-      BALANCES: 'user_balances',
       DAILY_BONUS_INFO: 'daily_bonus_info',
     };
 
     // Час життя кешу для різних типів даних
     this.CACHE_TTL = {
       TASKS: 600000, // 10 хвилин
-      PROGRESS: 86400000, // 24 години
-      BALANCES: 300000, // 5 хвилин
       DAILY_BONUS: 43200000, // 12 годин
     };
+
+    // Посилання на інші менеджери
+    this.balanceManager = balanceManager;
+    this.progressManager = progressManager;
   }
 
   /**
    * Ініціалізація сховища
+   * @param {Object} options - Опції ініціалізації
    */
-  initialize() {
+  initialize(options = {}) {
     if (this.systemState.initialized) return;
 
-    // Завантажуємо прогрес з кешу
-    loadFromCache(this);
+    // Ініціалізуємо менеджери
+    this.balanceManager.initialize();
+    this.progressManager.initialize();
 
-    // Завантажуємо баланси
-    this.loadBalances();
+    // Завантажуємо прогрес з кешу
+    this.userProgress = this.progressManager.getAllProgress();
+
+    // Завантажуємо активну вкладку
+    const activeTab = loadFromCache(this.CACHE_KEYS.ACTIVE_TAB);
+    if (activeTab && Object.values(TASK_TYPES).includes(activeTab)) {
+      this.systemState.activeTabType = activeTab;
+    }
 
     // Встановлюємо стан ініціалізації
     this.systemState.initialized = true;
@@ -128,110 +129,30 @@ class TaskStore {
     });
 
     // Генеруємо подію для глобальних обробників
-    document.dispatchEvent(
-      new CustomEvent('task-store-update', {
-        detail: { action, data },
-      })
-    );
-  }
-
-  /**
-   * Завантаження балансів користувача
-   */
-  loadBalances() {
-    try {
-      // Спочатку спробуємо завантажити з кешу
-      const cachedBalances = loadFromCache(this.CACHE_KEYS.BALANCES);
-      if (cachedBalances) {
-        this.userBalances = cachedBalances;
-      }
-
-      // Далі пробуємо з DOM
-      const tokensElement = document.getElementById('user-tokens');
-      if (tokensElement) {
-        this.userBalances.tokens = parseFloat(tokensElement.textContent) || 0;
-      }
-
-      const coinsElement = document.getElementById('user-coins');
-      if (coinsElement) {
-        this.userBalances.coins = parseInt(coinsElement.textContent) || 0;
-      }
-
-      // Зберігаємо оновлені баланси в кеш
-      saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
-        ttl: this.CACHE_TTL.BALANCES,
-        tags: ['user', 'balances'],
-      });
-    } catch (error) {
-      console.warn('Помилка завантаження балансів:', error);
+    if (typeof document !== 'undefined') {
+      document.dispatchEvent(
+        new CustomEvent('task-store-update', {
+          detail: { action, data },
+        })
+      );
     }
   }
 
   /**
-   * Оновлення балансів користувача
-   * @param {string} type - Тип балансу
+   * Оновлення балансу
+   * @param {string} type - Тип балансу ('coins' або 'tokens')
    * @param {number} amount - Сума
    * @param {boolean} isIncrement - Чи є це збільшенням
    */
   updateBalance(type, amount, isIncrement = true) {
-    // Нормалізуємо суму
-    const normalizedAmount = parseFloat(amount) || 0;
-
-    // Оновлюємо відповідний баланс
-    if (type === 'tokens') {
-      if (isIncrement) {
-        this.userBalances.tokens += normalizedAmount;
-      } else {
-        this.userBalances.tokens = normalizedAmount;
-      }
-
-      // Оновлюємо DOM
-      const tokensElement = document.getElementById('user-tokens');
-      if (tokensElement) {
-        tokensElement.textContent = this.userBalances.tokens.toFixed(2);
-        tokensElement.classList.add(isIncrement ? 'increasing' : 'updated');
-        setTimeout(() => {
-          tokensElement.classList.remove(isIncrement ? 'increasing' : 'updated');
-        }, 1500);
-      }
-
-      // Зберігаємо в кеш
-      saveToCache('userTokens', this.userBalances.tokens.toString());
-      saveToCache('winix_balance', this.userBalances.tokens.toString());
-    } else if (type === 'coins') {
-      if (isIncrement) {
-        this.userBalances.coins += normalizedAmount;
-      } else {
-        this.userBalances.coins = normalizedAmount;
-      }
-
-      // Оновлюємо DOM
-      const coinsElement = document.getElementById('user-coins');
-      if (coinsElement) {
-        coinsElement.textContent = this.userBalances.coins.toString();
-        coinsElement.classList.add(isIncrement ? 'increasing' : 'updated');
-        setTimeout(() => {
-          coinsElement.classList.remove(isIncrement ? 'increasing' : 'updated');
-        }, 1500);
-      }
-
-      // Зберігаємо в кеш
-      saveToCache('userCoins', this.userBalances.coins.toString());
-      saveToCache('winix_coins', this.userBalances.coins.toString());
-    }
-
-    // Оновлюємо кеш балансів
-    saveToCache(this.CACHE_KEYS.BALANCES, this.userBalances, {
-      ttl: this.CACHE_TTL.BALANCES,
-      tags: ['user', 'balances'],
-    });
+    const result = this.balanceManager.updateBalance(type, amount, isIncrement);
 
     // Сповіщаємо підписників
     this.notifySubscribers('balance-updated', {
       type,
-      amount: normalizedAmount,
+      amount,
       isIncrement,
-      newBalance: type === 'tokens' ? this.userBalances.tokens : this.userBalances.coins,
+      newBalance: result.newBalance,
     });
   }
 
@@ -471,17 +392,7 @@ class TaskStore {
    * @param {Object} progressData - Дані прогресу
    */
   setTaskProgress(taskId, progressData) {
-    // Перевіряємо валідність даних
-    if (!taskId || !progressData) {
-      console.warn('Некоректні дані прогресу');
-      return;
-    }
-
-    // Зберігаємо прогрес
-    this.userProgress[taskId] = progressData;
-
-    // Зберігаємо в кеш
-    saveToCache(this.CACHE_KEYS.USER_PROGRESS, this.userProgress);
+    this.progressManager.setTaskProgress(taskId, progressData);
 
     // Оновлюємо статус завдання
     const task = this.findTaskById(taskId);
@@ -505,7 +416,7 @@ class TaskStore {
    * @returns {Object|null} Дані прогресу
    */
   getTaskProgress(taskId) {
-    return this.userProgress[taskId] || null;
+    return this.progressManager.getTaskProgress(taskId);
   }
 
   /**
@@ -513,7 +424,7 @@ class TaskStore {
    * @returns {Object} Прогрес користувача
    */
   getUserProgress() {
-    return { ...this.userProgress };
+    return this.progressManager.getAllProgress();
   }
 
   /**
@@ -521,20 +432,7 @@ class TaskStore {
    * @param {Object} progress - Прогрес користувача
    */
   setUserProgress(progress) {
-    // Перевіряємо валідність даних
-    if (!progress || typeof progress !== 'object') {
-      console.warn('Некоректні дані прогресу');
-      return;
-    }
-
-    // Зберігаємо прогрес
-    this.userProgress = { ...progress };
-
-    // Зберігаємо в кеш
-    saveToCache(this.CACHE_KEYS.USER_PROGRESS, this.userProgress);
-
-    // Сповіщаємо підписників
-    this.notifySubscribers('all-progress-updated', { progress: this.userProgress });
+    this.progressManager.setAllProgress(progress);
   }
 
   /**
@@ -601,9 +499,13 @@ class TaskStore {
       this.tasks[type] = [];
     }
 
+    // Скидаємо стан інших менеджерів
+    this.balanceManager.resetState();
+    this.progressManager.resetState();
+
     // Сповіщаємо підписників
     this.notifySubscribers('state-reset');
   }
 }
 
-export default TaskStore;
+export default new TaskStore();
