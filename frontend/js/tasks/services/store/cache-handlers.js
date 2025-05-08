@@ -4,6 +4,9 @@
  * Надає функції для завантаження та збереження даних у кеш
  */
 
+// ВИПРАВЛЕНО: Імпортуємо CacheService з правильного місця
+import cacheService from '../../api/core/cache.js';
+
 /**
  * Налаштування обробників кешування для сховища
  * @param {Object} store - Екземпляр сховища
@@ -29,18 +32,17 @@ export function setupCacheHandlers(store) {
  */
 export function loadFromCache(store, defaultValue = {}) {
   try {
-    const cacheService = window.cacheService || { get: () => null };
-
+    // ВИПРАВЛЕНО: Використовуємо імпортований сервіс кешування
     // Якщо передано екземпляр сховища
     if (typeof store === 'object' && store !== null) {
       // Завантажуємо прогрес
-      const savedProgress = cacheService.get(store.CACHE_KEYS.USER_PROGRESS, {});
+      const savedProgress = cacheService.getCachedData(store.CACHE_KEYS.USER_PROGRESS);
       if (savedProgress && typeof savedProgress === 'object') {
         store.userProgress = savedProgress;
       }
 
       // Завантажуємо активну вкладку
-      const activeTab = cacheService.get(store.CACHE_KEYS.ACTIVE_TAB);
+      const activeTab = cacheService.getCachedData(store.CACHE_KEYS.ACTIVE_TAB);
       if (activeTab && Object.values(store.TASK_TYPES || {}).includes(activeTab)) {
         store.systemState.activeTabType = activeTab;
       }
@@ -49,7 +51,7 @@ export function loadFromCache(store, defaultValue = {}) {
     }
     // Якщо передано ключ кешу
     else if (typeof store === 'string') {
-      return cacheService.get(store, defaultValue);
+      return cacheService.getCachedData(store) || defaultValue;
     }
 
     return defaultValue;
@@ -68,8 +70,9 @@ export function loadFromCache(store, defaultValue = {}) {
  */
 export function saveToCache(key, value, options = {}) {
   try {
-    const cacheService = window.cacheService || { set: () => false };
-    return cacheService.set(key, value, options);
+    // ВИПРАВЛЕНО: Використовуємо правильний метод cacheData
+    cacheService.cacheData(key, value);
+    return true;
   } catch (error) {
     console.warn('Помилка збереження даних у кеш:', error);
     return false;
@@ -83,8 +86,13 @@ export function saveToCache(key, value, options = {}) {
  */
 export function removeFromCache(key) {
   try {
-    const cacheService = window.cacheService || { remove: () => false };
-    return cacheService.remove(key);
+    // ВИПРАВЛЕНО: Використовуємо CacheService
+    // Перевіряємо, чи є в CacheService метод для видалення
+    if (typeof cacheService.clearCache === 'function') {
+      cacheService.clearCache(key);
+      return true;
+    }
+    return false;
   } catch (error) {
     console.warn('Помилка видалення даних з кешу:', error);
     return false;
@@ -98,8 +106,17 @@ export function removeFromCache(key) {
  */
 export function clearCacheByTags(tags) {
   try {
-    const cacheService = window.cacheService || { removeByTags: () => false };
-    return cacheService.removeByTags(tags);
+    // ВИПРАВЛЕНО: Використовуємо clearCache з тегами або патерном
+    if (typeof cacheService.clearCache === 'function') {
+      if (Array.isArray(tags)) {
+        // Очищаємо кеш для кожного тегу окремо
+        tags.forEach(tag => cacheService.clearCache(tag));
+      } else {
+        cacheService.clearCache(tags);
+      }
+      return true;
+    }
+    return false;
   } catch (error) {
     console.warn('Помилка очищення кешу за тегами:', error);
     return false;

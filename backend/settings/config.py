@@ -15,8 +15,10 @@ BASE_DIR = Path(__file__).parent.parent.parent
 # Завантажуємо змінні оточення з .env файлу в корені проекту
 load_dotenv(BASE_DIR / '.env')
 
+# ВИПРАВЛЕНО: Пріоритетно беремо JWT_SECRET з .env файлу
 JWT_SECRET = os.getenv("JWT_SECRET", "winix-secure-jwt-secret-key-2025")
 JWT_ALGORITHM = "HS256"
+
 
 # Функція для безпечного отримання змінної оточення
 def get_env(key, default=None, required=False, type_cast=None):
@@ -68,12 +70,20 @@ class Config:
     DEBUG = get_env('FLASK_DEBUG', False, type_cast=bool)
     PORT = get_env('PORT', 8080, type_cast=int)
 
-    # Секретний ключ для сесій Flask - генеруємо рандомно, якщо не вказано
+    # ВИПРАВЛЕНО: Завжди використовуємо SECRET_KEY з .env, якщо є
     SECRET_KEY = get_env('SECRET_KEY')
     if not SECRET_KEY:
-        # Для розробки генеруємо випадковий ключ
-        SECRET_KEY = secrets.token_hex(32)
-        logger.warning("SECRET_KEY не встановлено, використовується випадкове значення")
+        # Перевіряємо альтернативні назви змінних
+        for alt_key in ['FLASK_SECRET_KEY', 'APP_SECRET_KEY', 'WINIX_SECRET_KEY']:
+            SECRET_KEY = get_env(alt_key)
+            if SECRET_KEY:
+                logger.info(f"Використовуємо SECRET_KEY з {alt_key}")
+                break
+
+        # Якщо все ще немає ключа, генеруємо випадковий
+        if not SECRET_KEY:
+            SECRET_KEY = secrets.token_hex(32)
+            logger.warning("SECRET_KEY не встановлено, використовується випадкове значення")
 
     # Supabase з'єднання
     SUPABASE_URL = get_env('SUPABASE_URL')

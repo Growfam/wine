@@ -6,9 +6,10 @@
  * - Підготовку даних для відправки на сервер
  */
 
-import { DAILY_BONUS_TYPES } from 'tasks/config/types/daily-bonus-types';
-import { createDailyBonusModel } from 'tasks/models/types/daily-bonus-model';
-import { getLogger, LOG_CATEGORIES } from 'tasks/utils/core';
+// ВИПРАВЛЕНО: Змінено абсолютні шляхи на відносні
+import { DAILY_BONUS_TYPES } from '../../config/types/daily-bonus-types';
+import { createDailyBonusModel } from '../../models/types/daily-bonus-model';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core';
 
 // Створюємо логер для модуля
 const logger = getLogger('API.Models.DailyBonus');
