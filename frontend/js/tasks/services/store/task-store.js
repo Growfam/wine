@@ -9,11 +9,46 @@
 
 import { TASK_TYPES } from '../../config';
 import { createTaskModel } from '../../models';
+import { getDependencyContainer } from '../../utils/core/dependency.js';
 import { saveToCache, loadFromCache } from './cache-handlers.js';
 
-// Вирішення циклічної залежності: імпортуємо BalanceManagerClass замість екземпляра
-import { BalanceManager } from './balance-manager.js';
-import { ProgressManager } from './progress-manager.js';
+// Фабрика для отримання менеджерів (для уникнення циклічних залежностей)
+const managers = {
+  _balanceManager: null,
+  _progressManager: null,
+
+  // Ледаче завантаження BalanceManager
+  get balanceManager() {
+    if (!this._balanceManager) {
+      // Спочатку спробуємо отримати через контейнер залежностей
+      const container = getDependencyContainer();
+      if (container && container.has('balanceManager')) {
+        this._balanceManager = container.resolve('balanceManager');
+      } else {
+        // Якщо не вдалося, динамічно імпортуємо
+        const { BalanceManager } = require('./balance-manager.js');
+        this._balanceManager = new BalanceManager();
+      }
+    }
+    return this._balanceManager;
+  },
+
+  // Ледаче завантаження ProgressManager
+  get progressManager() {
+    if (!this._progressManager) {
+      // Спочатку спробуємо отримати через контейнер залежностей
+      const container = getDependencyContainer();
+      if (container && container.has('progressManager')) {
+        this._progressManager = container.resolve('progressManager');
+      } else {
+        // Якщо не вдалося, динамічно імпортуємо
+        const { ProgressManager } = require('./progress-manager.js');
+        this._progressManager = new ProgressManager();
+      }
+    }
+    return this._progressManager;
+  }
+};
 
 class TaskStore {
   constructor() {
@@ -57,12 +92,24 @@ class TaskStore {
       DAILY_BONUS: 43200000, // 12 годин
     };
 
-    // Створюємо екземпляри менеджерів безпосередньо тут, щоб уникнути циклічної залежності
-    this.balanceManager = new BalanceManager();
-    this.progressManager = new ProgressManager();
-
     // Посилання на прогрес користувача
     this.userProgress = {};
+  }
+
+  /**
+   * Отримання менеджера балансу (ледаче завантаження)
+   * @returns {Object} Менеджер балансу
+   */
+  get balanceManager() {
+    return managers.balanceManager;
+  }
+
+  /**
+   * Отримання менеджера прогресу (ледаче завантаження)
+   * @returns {Object} Менеджер прогресу
+   */
+  get progressManager() {
+    return managers.progressManager;
   }
 
   /**
@@ -73,11 +120,18 @@ class TaskStore {
     if (this.systemState.initialized) return;
 
     // Ініціалізуємо менеджери
-    this.balanceManager.initialize();
-    this.progressManager.initialize();
+    if (this.balanceManager && typeof this.balanceManager.initialize === 'function') {
+      this.balanceManager.initialize();
+    }
+
+    if (this.progressManager && typeof this.progressManager.initialize === 'function') {
+      this.progressManager.initialize();
+    }
 
     // Завантажуємо прогрес з кешу
-    this.userProgress = this.progressManager.getAllProgress();
+    if (this.progressManager) {
+      this.userProgress = this.progressManager.getAllProgress();
+    }
 
     // Завантажуємо активну вкладку
     const activeTab = loadFromCache(this.CACHE_KEYS.ACTIVE_TAB);
@@ -151,6 +205,8 @@ class TaskStore {
    * @param {boolean} isIncrement - Чи є це збільшенням
    */
   updateBalance(type, amount, isIncrement = true) {
+    if (!this.balanceManager) return;
+
     const result = this.balanceManager.updateBalance(type, amount, isIncrement);
 
     // Сповіщаємо підписників
@@ -398,6 +454,8 @@ class TaskStore {
    * @param {Object} progressData - Дані прогресу
    */
   setTaskProgress(taskId, progressData) {
+    if (!this.progressManager) return;
+
     this.progressManager.setTaskProgress(taskId, progressData);
 
     // Оновлюємо статус завдання
@@ -422,6 +480,7 @@ class TaskStore {
    * @returns {Object|null} Дані прогресу
    */
   getTaskProgress(taskId) {
+    if (!this.progressManager) return null;
     return this.progressManager.getTaskProgress(taskId);
   }
 
@@ -430,6 +489,7 @@ class TaskStore {
    * @returns {Object} Прогрес користувача
    */
   getUserProgress() {
+    if (!this.progressManager) return {};
     return this.progressManager.getAllProgress();
   }
 
@@ -442,7 +502,9 @@ class TaskStore {
     this.userProgress = progress;
 
     // Встановлюємо прогрес у менеджер
-    this.progressManager.setAllProgress(progress);
+    if (this.progressManager) {
+      this.progressManager.setAllProgress(progress);
+    }
 
     // Зберігаємо в кеш
     saveToCache(this.CACHE_KEYS.USER_PROGRESS, progress);
@@ -513,8 +575,13 @@ class TaskStore {
     }
 
     // Скидаємо стан інших менеджерів
-    this.balanceManager.resetState();
-    this.progressManager.resetState();
+    if (this.balanceManager && typeof this.balanceManager.resetState === 'function') {
+      this.balanceManager.resetState();
+    }
+
+    if (this.progressManager && typeof this.progressManager.resetState === 'function') {
+      this.progressManager.resetState();
+    }
 
     // Скидаємо прогрес користувача
     this.userProgress = {};
@@ -526,4 +593,20 @@ class TaskStore {
 
 // Створюємо і експортуємо єдиний екземпляр сховища
 const taskStore = new TaskStore();
+
+// Додаємо допоміжну функцію для отримання контейнера залежностей
+function getDependencyContainer() {
+  try {
+    // Спроба імпортувати контейнер з модуля utils
+    const { dependencyContainer } = require('../../utils/core/dependency.js');
+    return dependencyContainer;
+  } catch (error) {
+    // Якщо неможливо імпортувати, шукаємо в глобальному об'єкті
+    if (typeof window !== 'undefined' && window.dependencyContainer) {
+      return window.dependencyContainer;
+    }
+    return null;
+  }
+}
+
 export default taskStore;

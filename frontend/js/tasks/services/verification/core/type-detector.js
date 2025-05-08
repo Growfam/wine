@@ -250,9 +250,24 @@ export function determineSocialNetworkType(task) {
   }
 }
 
+/**
+ * Ініціалізація визначника типів завдань
+ */
+export function setupTypeDetector() {
+  logger.info('Визначник типів завдань ініціалізовано');
+
+  // Тут можна додати додаткову ініціалізацію
+
+  return {
+    getTaskType,
+    determineSocialNetworkType
+  };
+}
+
 export default {
   getTaskType,
   determineTypeByPrefix,
   determineTypeFromDOM,
-  determineSocialNetworkType
+  determineSocialNetworkType,
+  setupTypeDetector
 };

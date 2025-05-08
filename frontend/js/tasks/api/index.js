@@ -9,30 +9,76 @@
  * @version 3.1.0
  */
 
-// Імпорт базових компонентів - розв'язання циклічної залежності
-import requestService from './core/request.js';
-import cacheService from './core/cache.js';
-import { CONFIG, API_VERSION, API_ERROR_CODES } from './core/config.js';
+// Імпорт базових компонентів з core
+import coreModule from './core/index.js';
 
-// Імпорт сервісів
-import taskService from './services/task-service.js';
-import actionService from './services/action-service.js';
-import progressService from './services/progress-service.js';
+// Деструктуризація імпортів з базового модуля
+const {
+  request: requestService,
+  cache: cacheService,
+  config: { CONFIG, API_VERSION, API_ERROR_CODES }
+} = coreModule;
 
-// Імпорт моделей
-import taskTypesModel from './models/task-types.js';
+// Об'єкт для зберігання лінивих завантажень модулів
+const lazyModules = {
+  taskService: null,
+  actionService: null,
+  progressService: null,
+  taskTypesModel: null,
+  dailyBonusModels: null
+};
 
-// Імпорт модуля щоденних бонусів (імпортуємо безпосередньо функції, а не по дефолту)
-import {
-  getDailyBonusStatus as modelGetDailyBonusStatus,
-  claimDailyBonus as modelClaimDailyBonus,
-  getDailyBonusHistory as modelGetDailyBonusHistory
-} from './models/daily-bonus.js';
+// Функції для ледачого завантаження модулів
+const getTaskService = () => {
+  if (!lazyModules.taskService) {
+    lazyModules.taskService = require('./services/task-service.js').default;
+  }
+  return lazyModules.taskService;
+};
 
-// Експорт функцій щоденного бонусу через проміжний інтерфейс
-export const getDailyBonusStatus = (userId) => modelGetDailyBonusStatus(userId);
-export const claimDailyBonus = (userId) => modelClaimDailyBonus(userId);
-export const getDailyBonusHistory = (userId, options) => modelGetDailyBonusHistory(userId, options);
+const getActionService = () => {
+  if (!lazyModules.actionService) {
+    lazyModules.actionService = require('./services/action-service.js').default;
+  }
+  return lazyModules.actionService;
+};
+
+const getProgressService = () => {
+  if (!lazyModules.progressService) {
+    lazyModules.progressService = require('./services/progress-service.js').default;
+  }
+  return lazyModules.progressService;
+};
+
+const getTaskTypesModel = () => {
+  if (!lazyModules.taskTypesModel) {
+    lazyModules.taskTypesModel = require('./models/task-types.js').default;
+  }
+  return lazyModules.taskTypesModel;
+};
+
+// Функції щоденного бонусу з проміжним інтерфейсом
+// Використовуємо функціональний підхід для уникнення циклічних залежностей
+export const getDailyBonusStatus = async (userId) => {
+  if (!lazyModules.dailyBonusModels) {
+    lazyModules.dailyBonusModels = await import('./models/daily-bonus.js');
+  }
+  return lazyModules.dailyBonusModels.getDailyBonusStatus(userId);
+};
+
+export const claimDailyBonus = async (userId) => {
+  if (!lazyModules.dailyBonusModels) {
+    lazyModules.dailyBonusModels = await import('./models/daily-bonus.js');
+  }
+  return lazyModules.dailyBonusModels.claimDailyBonus(userId);
+};
+
+export const getDailyBonusHistory = async (userId, options) => {
+  if (!lazyModules.dailyBonusModels) {
+    lazyModules.dailyBonusModels = await import('./models/daily-bonus.js');
+  }
+  return lazyModules.dailyBonusModels.getDailyBonusHistory(userId, options);
+};
 
 /**
  * Головний клас API завдань
@@ -46,17 +92,31 @@ class TaskAPI {
     this.request = requestService;
     this.cache = cacheService;
 
-    // Сервіси
-    this.tasks = taskService;
-    this.actions = actionService;
-    this.progress = progressService;
-
-    // Моделі
-    this.types = taskTypesModel;
-
     // Конфігурація
     this.config = CONFIG;
     this.baseUrl = requestService.baseUrl;
+
+    // Прапорець ініціалізації
+    this._initialized = false;
+  }
+
+  /**
+   * Ледаче отримання сервісів (для уникнення циклічних залежностей)
+   */
+  get tasks() {
+    return getTaskService();
+  }
+
+  get actions() {
+    return getActionService();
+  }
+
+  get progress() {
+    return getProgressService();
+  }
+
+  get types() {
+    return getTaskTypesModel();
   }
 
   /**
@@ -64,6 +124,9 @@ class TaskAPI {
    * @param {Object} options - Параметри ініціалізації
    */
   init(options = {}) {
+    // Якщо вже ініціалізовано, просто повертаємо this
+    if (this._initialized) return this;
+
     // Логуємо ініціалізацію
     console.log(`🔄 Task API: Ініціалізація модуля завдань v${this.version}`);
 
@@ -83,6 +146,9 @@ class TaskAPI {
         })
       );
     }
+
+    // Позначаємо, що ініціалізовано
+    this._initialized = true;
 
     return this;
   }
@@ -287,10 +353,7 @@ export default taskApi;
 export {
   requestService,
   cacheService,
-  taskService,
-  actionService,
-  progressService,
-  taskTypesModel,
   CONFIG,
   API_VERSION,
+  API_ERROR_CODES
 };

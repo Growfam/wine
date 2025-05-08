@@ -265,11 +265,31 @@ export function setupUIEventHandlers() {
   }
 }
 
+/**
+ * Функція для ініціалізації контролера інтерфейсу
+ * @param {Object} verificationCore - Основний модуль верифікації
+ */
+export function setupUIController(verificationCore) {
+  // Реєстрація обробників подій інтерфейсу
+  setupUIEventHandlers();
+
+  logger.info('Контролер інтерфейсу верифікації ініціалізовано');
+
+  return {
+    showLoader: showVerificationLoader,
+    hideLoader: hideVerificationLoader,
+    showMessage: showVerificationMessage,
+    updateTaskUI: updateTaskUI,
+    updateProgressUI: updateProgressUI
+  };
+}
+
 export default {
   showVerificationLoader,
   hideVerificationLoader,
   showVerificationMessage,
   updateTaskUI,
   updateProgressUI,
-  setupUIEventHandlers
+  setupUIEventHandlers,
+  setupUIController
 };

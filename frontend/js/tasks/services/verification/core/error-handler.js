@@ -213,6 +213,18 @@ export function createErrorResult(taskId, message, category = ERROR_CATEGORIES.U
   };
 }
 
+// Функція для ініціалізації обробника помилок
+export function setupErrorHandler() {
+  logger.info('Обробник помилок верифікації ініціалізовано');
+
+  // Додайте додаткову ініціалізацію за необхідності
+
+  return {
+    // Повертаємо об'єкт з методами, які можуть бути корисними для зовнішнього використання
+    handleError: handleVerificationError
+  };
+}
+
 export default {
   handleVerificationError,
   categorizeError,
@@ -220,5 +232,6 @@ export default {
   createSuccessResult,
   createFailureResult,
   createErrorResult,
+  setupErrorHandler,
   ERROR_CATEGORIES
 };
