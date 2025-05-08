@@ -14,26 +14,34 @@ const logger = getLogger('UI.Animations.Core');
 
 // Конфігурація з оптимізованими значеннями за замовчуванням
 const config = {
-    enabled: true,                // Чи включені анімації
-    adaptiveMode: true,           // Адаптація під потужність пристрою
-    rewardDuration: 3000,         // Тривалість анімації нагороди (мс)
-    particleColors: [             // Кольори частинок
-        '#4EB5F7', '#00C9A7', '#AD6EE5', '#FFD700', '#52C0BD'
-    ],
-    specialColors: [              // Кольори для особливих подій
-        '#FFD700', '#FFA500', '#FF8C00'
-    ],
-    timingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+  enabled: true, // Чи включені анімації
+  adaptiveMode: true, // Адаптація під потужність пристрою
+  rewardDuration: 3000, // Тривалість анімації нагороди (мс)
+  particleColors: [
+    // Кольори частинок
+    '#4EB5F7',
+    '#00C9A7',
+    '#AD6EE5',
+    '#FFD700',
+    '#52C0BD',
+  ],
+  specialColors: [
+    // Кольори для особливих подій
+    '#FFD700',
+    '#FFA500',
+    '#FF8C00',
+  ],
+  timingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
 };
 
 // Стан анімацій
 const state = {
-    initialized: false,
-    devicePerformance: 'medium',  // 'low', 'medium', 'high'
-    highQualityEffects: true,
-    animationsInProgress: 0,
-    timers: {},                   // Кеш активних таймерів
-    lastAnimationTime: 0          // Час останньої анімації
+  initialized: false,
+  devicePerformance: 'medium', // 'low', 'medium', 'high'
+  highQualityEffects: true,
+  animationsInProgress: 0,
+  timers: {}, // Кеш активних таймерів
+  lastAnimationTime: 0, // Час останньої анімації
 };
 
 /**
@@ -41,110 +49,110 @@ const state = {
  * @param {Object} options - Опції конфігурації
  */
 export function init(options = {}) {
-    // Запобігаємо повторній ініціалізації
-    if (state.initialized) return;
+  // Запобігаємо повторній ініціалізації
+  if (state.initialized) return;
 
-    logger.info('Ініціалізація анімацій...', 'init', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.info('Ініціалізація анімацій...', 'init', {
+    category: LOG_CATEGORIES.INIT,
+  });
 
-    // Оновлюємо конфігурацію
-    Object.assign(config, options);
+  // Оновлюємо конфігурацію
+  Object.assign(config, options);
 
-    // Визначаємо продуктивність пристрою (спрощений алгоритм)
-    detectDevicePerformance();
+  // Визначаємо продуктивність пристрою (спрощений алгоритм)
+  detectDevicePerformance();
 
-    // Додаємо стилі
-    injectAnimationStyles();
+  // Додаємо стилі
+  injectAnimationStyles();
 
-    // Налаштовуємо обробники подій
-    setupEventHandlers();
+  // Налаштовуємо обробники подій
+  setupEventHandlers();
 
-    // Відзначаємо, що модуль ініціалізовано
-    state.initialized = true;
+  // Відзначаємо, що модуль ініціалізовано
+  state.initialized = true;
 
-    logger.info(`Ініціалізація завершена (режим: ${state.devicePerformance})`, 'init', {
-        category: LOG_CATEGORIES.INIT,
-        details: {
-            performanceMode: state.devicePerformance,
-            highQuality: state.highQualityEffects
-        }
-    });
+  logger.info(`Ініціалізація завершена (режим: ${state.devicePerformance})`, 'init', {
+    category: LOG_CATEGORIES.INIT,
+    details: {
+      performanceMode: state.devicePerformance,
+      highQuality: state.highQualityEffects,
+    },
+  });
 }
 
 /**
  * Визначення продуктивності пристрою (оптимізований алгоритм)
  */
 function detectDevicePerformance() {
-    try {
-        // Завантажуємо збережені налаштування, якщо є
-        const savedPerformance = localStorage.getItem('devicePerformance');
-        if (savedPerformance) {
-            state.devicePerformance = savedPerformance;
-            state.highQualityEffects = savedPerformance === 'high';
-            return;
-        }
-
-        // Швидкий тест продуктивності
-        const startTime = performance.now();
-
-        // Спрощений тест - менше ітерацій для швидкості
-        let counter = 0;
-        const iterations = 300000;
-        for (let i = 0; i < iterations; i++) {
-            counter += Math.sqrt(i);
-        }
-
-        const duration = performance.now() - startTime;
-
-        // Визначаємо продуктивність за результатами
-        if (duration > 50) {
-            state.devicePerformance = 'low';
-            state.highQualityEffects = false;
-        } else if (duration > 25) {
-            state.devicePerformance = 'medium';
-            state.highQualityEffects = window.innerWidth >= 768;
-        } else {
-            state.devicePerformance = 'high';
-            state.highQualityEffects = true;
-        }
-
-        // Додаткова корекція для мобільних пристроїв
-        if (window.innerWidth < 600 && state.devicePerformance === 'high') {
-            state.devicePerformance = 'medium';
-        }
-
-        // Зберігаємо результат
-        try {
-            localStorage.setItem('devicePerformance', state.devicePerformance);
-        } catch (e) {
-            logger.warn('Помилка збереження налаштувань продуктивності', 'detectDevicePerformance', {
-                category: LOG_CATEGORIES.STORAGE,
-                details: { error: e.message }
-            });
-        }
-    } catch (e) {
-        // Запасний варіант у випадку помилки
-        logger.warn('Помилка визначення продуктивності', 'detectDevicePerformance', {
-            category: LOG_CATEGORIES.LOGIC,
-            details: { error: e.message }
-        });
-        state.devicePerformance = 'medium';
-        state.highQualityEffects = false;
+  try {
+    // Завантажуємо збережені налаштування, якщо є
+    const savedPerformance = localStorage.getItem('devicePerformance');
+    if (savedPerformance) {
+      state.devicePerformance = savedPerformance;
+      state.highQualityEffects = savedPerformance === 'high';
+      return;
     }
+
+    // Швидкий тест продуктивності
+    const startTime = performance.now();
+
+    // Спрощений тест - менше ітерацій для швидкості
+    let counter = 0;
+    const iterations = 300000;
+    for (let i = 0; i < iterations; i++) {
+      counter += Math.sqrt(i);
+    }
+
+    const duration = performance.now() - startTime;
+
+    // Визначаємо продуктивність за результатами
+    if (duration > 50) {
+      state.devicePerformance = 'low';
+      state.highQualityEffects = false;
+    } else if (duration > 25) {
+      state.devicePerformance = 'medium';
+      state.highQualityEffects = window.innerWidth >= 768;
+    } else {
+      state.devicePerformance = 'high';
+      state.highQualityEffects = true;
+    }
+
+    // Додаткова корекція для мобільних пристроїв
+    if (window.innerWidth < 600 && state.devicePerformance === 'high') {
+      state.devicePerformance = 'medium';
+    }
+
+    // Зберігаємо результат
+    try {
+      localStorage.setItem('devicePerformance', state.devicePerformance);
+    } catch (e) {
+      logger.warn('Помилка збереження налаштувань продуктивності', 'detectDevicePerformance', {
+        category: LOG_CATEGORIES.STORAGE,
+        details: { error: e.message },
+      });
+    }
+  } catch (e) {
+    // Запасний варіант у випадку помилки
+    logger.warn('Помилка визначення продуктивності', 'detectDevicePerformance', {
+      category: LOG_CATEGORIES.LOGIC,
+      details: { error: e.message },
+    });
+    state.devicePerformance = 'medium';
+    state.highQualityEffects = false;
+  }
 }
 
 /**
  * Додавання CSS стилів (оптимізовано - винесено найважливіші стилі)
  */
 function injectAnimationStyles() {
-    if (document.getElementById('premium-animations-styles')) return;
+  if (document.getElementById('premium-animations-styles')) return;
 
-    const styleElement = document.createElement('style');
-    styleElement.id = 'premium-animations-styles';
+  const styleElement = document.createElement('style');
+  styleElement.id = 'premium-animations-styles';
 
-    // Оптимізовано - скорочено кількість CSS правил
-    styleElement.textContent = `
+  // Оптимізовано - скорочено кількість CSS правил
+  styleElement.textContent = `
         /* Контейнер анімації винагороди */
         .premium-reward-container {
             position: fixed;
@@ -289,120 +297,118 @@ function injectAnimationStyles() {
         }
     `;
 
-    document.head.appendChild(styleElement);
+  document.head.appendChild(styleElement);
 
-    logger.info('Стилі анімацій додано до документа', 'injectAnimationStyles', {
-        category: LOG_CATEGORIES.RENDERING
-    });
+  logger.info('Стилі анімацій додано до документа', 'injectAnimationStyles', {
+    category: LOG_CATEGORIES.RENDERING,
+  });
 }
 
 /**
  * Налаштування обробників подій
  */
 function setupEventHandlers() {
-    try {
-        // Обробник завершення завдання
-        document.addEventListener('task-completed', function(event) {
-            if (event.detail && event.detail.taskId) {
-                // Імпортовано з progress.js
-                const { animateSuccessfulCompletion } = require('./task/progress.js');
-                animateSuccessfulCompletion(event.detail.taskId);
-            }
-        });
+  try {
+    // Обробник завершення завдання
+    document.addEventListener('task-completed', function (event) {
+      if (event.detail && event.detail.taskId) {
+        // Імпортовано з progress.js
+        const { animateSuccessfulCompletion } = require('./task/progress.js');
+        animateSuccessfulCompletion(event.detail.taskId);
+      }
+    });
 
-        // Обробник щоденного бонусу
-        document.addEventListener('daily-bonus-claimed', function(event) {
-            if (event.detail) {
-                const { token_amount, day_reward, cycle_completed, completion_bonus } = event.detail;
+    // Обробник щоденного бонусу
+    document.addEventListener('daily-bonus-claimed', function (event) {
+      if (event.detail) {
+        const { token_amount, day_reward, cycle_completed, completion_bonus } = event.detail;
 
-                // Імпортовано з rewards.js
-                const { showDailyBonusReward } = require('./reward/display.js');
-                // Спочатку показуємо основну винагороду
-                showDailyBonusReward(
-                    day_reward || 0,
-                    token_amount || 0,
-                    cycle_completed,
-                    completion_bonus
-                );
-            }
-        });
+        // Імпортовано з rewards.js
+        const { showDailyBonusReward } = require('./reward/display.js');
+        // Спочатку показуємо основну винагороду
+        showDailyBonusReward(day_reward || 0, token_amount || 0, cycle_completed, completion_bonus);
+      }
+    });
 
-        // Обробник зміни розміру вікна
-        const { debounce } = require('../utils.js');
-        window.addEventListener('resize', debounce(function() {
-            // Адаптуємо якість ефектів залежно від розміру екрану
-            if (window.innerWidth < 768 && state.devicePerformance === 'high') {
-                state.devicePerformance = 'medium';
-                logger.info('Адаптовано режим продуктивності до розміру екрану', 'resizeHandler', {
-                    category: LOG_CATEGORIES.PERFORMANCE,
-                    details: { newMode: 'medium', width: window.innerWidth }
-                });
-            }
-        }, 300));
+    // Обробник зміни розміру вікна
+    const { debounce } = require('../utils.js');
+    window.addEventListener(
+      'resize',
+      debounce(function () {
+        // Адаптуємо якість ефектів залежно від розміру екрану
+        if (window.innerWidth < 768 && state.devicePerformance === 'high') {
+          state.devicePerformance = 'medium';
+          logger.info('Адаптовано режим продуктивності до розміру екрану', 'resizeHandler', {
+            category: LOG_CATEGORIES.PERFORMANCE,
+            details: { newMode: 'medium', width: window.innerWidth },
+          });
+        }
+      }, 300)
+    );
 
-        // Очищення ресурсів при виході зі сторінки
-        const { cleanup } = require('../utils.js');
-        window.addEventListener('beforeunload', cleanup);
+    // Очищення ресурсів при виході зі сторінки
+    const { cleanup } = require('../utils.js');
+    window.addEventListener('beforeunload', cleanup);
 
-        logger.info('Встановлено обробники подій', 'setupEventHandlers', {
-            category: LOG_CATEGORIES.INIT
-        });
-    } catch (error) {
-        logger.error(error, 'Помилка налаштування обробників подій', {
-            category: LOG_CATEGORIES.INIT
-        });
-    }
+    logger.info('Встановлено обробники подій', 'setupEventHandlers', {
+      category: LOG_CATEGORIES.INIT,
+    });
+  } catch (error) {
+    logger.error(error, 'Помилка налаштування обробників подій', {
+      category: LOG_CATEGORIES.INIT,
+    });
+  }
 }
 
 /**
  * Налаштування режиму продуктивності
  */
 export function setPerformanceMode(mode) {
-    if (['low', 'medium', 'high'].includes(mode)) {
-        state.devicePerformance = mode;
-        state.highQualityEffects = mode === 'high';
+  if (['low', 'medium', 'high'].includes(mode)) {
+    state.devicePerformance = mode;
+    state.highQualityEffects = mode === 'high';
 
-        try {
-            localStorage.setItem('devicePerformance', mode);
-        } catch (e) {
-            logger.warn('Не вдалося зберегти режим продуктивності', 'setPerformanceMode', {
-                category: LOG_CATEGORIES.STORAGE,
-                details: { error: e.message }
-            });
-        }
-
-        logger.info(`Встановлено режим продуктивності: ${mode}`, 'setPerformanceMode', {
-            category: LOG_CATEGORIES.PERFORMANCE,
-            details: { mode, highQuality: state.highQualityEffects }
-        });
-
-        return true;
+    try {
+      localStorage.setItem('devicePerformance', mode);
+    } catch (e) {
+      logger.warn('Не вдалося зберегти режим продуктивності', 'setPerformanceMode', {
+        category: LOG_CATEGORIES.STORAGE,
+        details: { error: e.message },
+      });
     }
 
-    logger.warn(`Неправильний режим продуктивності: ${mode}`, 'setPerformanceMode', {
-        category: LOG_CATEGORIES.PERFORMANCE
+    logger.info(`Встановлено режим продуктивності: ${mode}`, 'setPerformanceMode', {
+      category: LOG_CATEGORIES.PERFORMANCE,
+      details: { mode, highQuality: state.highQualityEffects },
     });
 
-    return false;
+    return true;
+  }
+
+  logger.warn(`Неправильний режим продуктивності: ${mode}`, 'setPerformanceMode', {
+    category: LOG_CATEGORIES.PERFORMANCE,
+  });
+
+  return false;
 }
 
 /**
  * Отримання поточних налаштувань
  */
 export function getConfig() {
-    return {...config};
+  return { ...config };
 }
 
 /**
  * Отримання поточного стану
  */
 export function getState() {
-    return {
-        devicePerformance: state.devicePerformance,
-        highQualityEffects: state.highQualityEffects,
-        animationsInProgress: state.animationsInProgress,
-        initialized: state.initialized
-    };
+  return {
+    devicePerformance: state.devicePerformance,
+    highQualityEffects: state.highQualityEffects,
+    animationsInProgress: state.animationsInProgress,
+    initialized: state.initialized,
+  };
 }
 
 // Експортуємо публічне API модуля

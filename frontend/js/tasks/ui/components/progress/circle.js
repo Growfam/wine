@@ -22,20 +22,20 @@ const progressCircles = new Map();
 
 // Стан модуля
 const state = {
-    idCounter: 0,      // Лічильник для генерації ID
-    activeAnimations: new Set(), // Активні анімації
-    lastUpdateTime: 0       // Час останнього оновлення
+  idCounter: 0, // Лічильник для генерації ID
+  activeAnimations: new Set(), // Активні анімації
+  lastUpdateTime: 0, // Час останнього оновлення
 };
 
 // Налаштування за замовчуванням
 const config = {
-    animationDuration: 600,     // Тривалість анімації в мс
-    defaultStyle: 'default',    // Стиль за замовчуванням
-    defaultSize: 120,           // Розмір за замовчуванням (px)
-    strokeWidth: 8,             // Товщина лінії (px)
-    autoClasses: true,          // Автоматичне додавання класів залежно від прогресу
-    useTransition: true,        // Використовувати CSS-переходи для анімації
-    radius: 45                  // Радіус кола
+  animationDuration: 600, // Тривалість анімації в мс
+  defaultStyle: 'default', // Стиль за замовчуванням
+  defaultSize: 120, // Розмір за замовчуванням (px)
+  strokeWidth: 8, // Товщина лінії (px)
+  autoClasses: true, // Автоматичне додавання класів залежно від прогресу
+  useTransition: true, // Використовувати CSS-переходи для анімації
+  radius: 45, // Радіус кола
 };
 
 // Прапорець активності модуля
@@ -46,43 +46,43 @@ let isActive = false;
  * @param {Object} options - Налаштування
  */
 function init(options = {}) {
-    // Якщо модуль вже активний, спочатку деактивуємо його
-    if (isActive) {
-        deactivate();
-    }
+  // Якщо модуль вже активний, спочатку деактивуємо його
+  if (isActive) {
+    deactivate();
+  }
 
-    logger.info('Ініціалізація модуля кругових індикаторів прогресу', 'init', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.info('Ініціалізація модуля кругових індикаторів прогресу', 'init', {
+    category: LOG_CATEGORIES.INIT,
+  });
 
-    // Відмічаємо модуль як активний
-    isActive = true;
+  // Відмічаємо модуль як активний
+  isActive = true;
 
-    // Оновлюємо налаштування
-    Object.assign(config, options);
+  // Оновлюємо налаштування
+  Object.assign(config, options);
 
-    // Додаємо стилі, якщо потрібно
-    injectCircleStyles();
+  // Додаємо стилі, якщо потрібно
+  injectCircleStyles();
 
-    // Ініціалізуємо існуючі прогрес-круги
-    initializeExistingProgressCircles();
+  // Ініціалізуємо існуючі прогрес-круги
+  initializeExistingProgressCircles();
 
-    // Налаштовуємо обробники подій
-    setupEventListeners();
+  // Налаштовуємо обробники подій
+  setupEventListeners();
 }
 
 /**
  * Ін'єкція CSS стилів для кругових прогрес-індикаторів
  */
 function injectCircleStyles() {
-    // Перевіряємо, чи стилі вже додані
-    if (document.getElementById('progress-circle-styles')) return;
+  // Перевіряємо, чи стилі вже додані
+  if (document.getElementById('progress-circle-styles')) return;
 
-    const styleElement = document.createElement('style');
-    styleElement.id = 'progress-circle-styles';
+  const styleElement = document.createElement('style');
+  styleElement.id = 'progress-circle-styles';
 
-    // Оптимізований CSS
-    styleElement.textContent = `
+  // Оптимізований CSS
+  styleElement.textContent = `
         .progress-circle-container {
             position: relative;
             display: inline-block;
@@ -138,52 +138,56 @@ function injectCircleStyles() {
         }
     `;
 
-    document.head.appendChild(styleElement);
+  document.head.appendChild(styleElement);
 
-    logger.debug('Додано стилі для кругових індикаторів', 'injectCircleStyles', {
-        category: LOG_CATEGORIES.RENDERING
-    });
+  logger.debug('Додано стилі для кругових індикаторів', 'injectCircleStyles', {
+    category: LOG_CATEGORIES.RENDERING,
+  });
 }
 
 /**
  * Ініціалізація існуючих прогрес-кругів на сторінці
  */
 function initializeExistingProgressCircles() {
-    // Знаходимо всі контейнери прогрес-кругів
-    const containers = document.querySelectorAll('.progress-circle-container');
+  // Знаходимо всі контейнери прогрес-кругів
+  const containers = document.querySelectorAll('.progress-circle-container');
 
-    if (containers.length > 0) {
-        logger.info(`Знайдено ${containers.length} кругових індикаторів на сторінці`, 'initializeExistingProgressCircles', {
-            category: LOG_CATEGORIES.INIT
-        });
+  if (containers.length > 0) {
+    logger.info(
+      `Знайдено ${containers.length} кругових індикаторів на сторінці`,
+      'initializeExistingProgressCircles',
+      {
+        category: LOG_CATEGORIES.INIT,
+      }
+    );
 
-        // Ініціалізуємо кожен прогрес-круг
-        containers.forEach(container => {
-            // Перевіряємо, чи прогрес-круг вже ініціалізований
-            if (container.hasAttribute('data-progress-id')) return;
+    // Ініціалізуємо кожен прогрес-круг
+    containers.forEach((container) => {
+      // Перевіряємо, чи прогрес-круг вже ініціалізований
+      if (container.hasAttribute('data-progress-id')) return;
 
-            // Генеруємо ID
-            const id = ++state.idCounter;
-            container.setAttribute('data-progress-id', id);
+      // Генеруємо ID
+      const id = ++state.idCounter;
+      container.setAttribute('data-progress-id', id);
 
-            // Отримуємо значення прогресу з атрибуту
-            const progress = parseFloat(container.getAttribute('data-progress') || '0');
+      // Отримуємо значення прогресу з атрибуту
+      const progress = parseFloat(container.getAttribute('data-progress') || '0');
 
-            // Створюємо або оновлюємо SVG
-            const svg = container.querySelector('svg') || createCircleSVG(container, progress);
+      // Створюємо або оновлюємо SVG
+      const svg = container.querySelector('svg') || createCircleSVG(container, progress);
 
-            // Зберігаємо прогрес-круг в колекції
-            progressCircles.set(id, {
-                container,
-                svg,
-                progress: progress,
-                options: {
-                    size: parseInt(container.getAttribute('data-size') || config.defaultSize),
-                    showText: container.getAttribute('data-show-text') !== 'false'
-                }
-            });
-        });
-    }
+      // Зберігаємо прогрес-круг в колекції
+      progressCircles.set(id, {
+        container,
+        svg,
+        progress: progress,
+        options: {
+          size: parseInt(container.getAttribute('data-size') || config.defaultSize),
+          showText: container.getAttribute('data-show-text') !== 'false',
+        },
+      });
+    });
+  }
 }
 
 /**
@@ -194,92 +198,92 @@ function initializeExistingProgressCircles() {
  * @returns {SVGElement} Створений SVG елемент
  */
 function createCircleSVG(container, progress, options = {}) {
-    const {
-        size = config.defaultSize,
-        strokeWidth = config.strokeWidth,
-        radius = config.radius,
-        showText = true
-    } = options;
+  const {
+    size = config.defaultSize,
+    strokeWidth = config.strokeWidth,
+    radius = config.radius,
+    showText = true,
+  } = options;
 
-    // Створюємо SVG елемент
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', size);
-    svg.setAttribute('height', size);
-    svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  // Створюємо SVG елемент
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
 
-    // Центр SVG
-    const cx = size / 2;
-    const cy = size / 2;
+  // Центр SVG
+  const cx = size / 2;
+  const cy = size / 2;
 
-    // Створюємо фоновий круг
-    const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    bgCircle.setAttribute('class', 'progress-circle-bg');
-    bgCircle.setAttribute('cx', cx);
-    bgCircle.setAttribute('cy', cy);
-    bgCircle.setAttribute('r', radius);
-    bgCircle.setAttribute('stroke-width', strokeWidth);
+  // Створюємо фоновий круг
+  const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  bgCircle.setAttribute('class', 'progress-circle-bg');
+  bgCircle.setAttribute('cx', cx);
+  bgCircle.setAttribute('cy', cy);
+  bgCircle.setAttribute('r', radius);
+  bgCircle.setAttribute('stroke-width', strokeWidth);
 
-    // Створюємо індикатор прогресу
-    const valueCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    valueCircle.setAttribute('class', 'progress-circle-value');
-    valueCircle.setAttribute('cx', cx);
-    valueCircle.setAttribute('cy', cy);
-    valueCircle.setAttribute('r', radius);
-    valueCircle.setAttribute('stroke-width', strokeWidth);
+  // Створюємо індикатор прогресу
+  const valueCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  valueCircle.setAttribute('class', 'progress-circle-value');
+  valueCircle.setAttribute('cx', cx);
+  valueCircle.setAttribute('cy', cy);
+  valueCircle.setAttribute('r', radius);
+  valueCircle.setAttribute('stroke-width', strokeWidth);
 
-    // Розраховуємо довжину кола
-    const circumference = 2 * Math.PI * radius;
+  // Розраховуємо довжину кола
+  const circumference = 2 * Math.PI * radius;
 
-    // Встановлюємо dasharray і dashoffset для анімації прогресу
-    valueCircle.setAttribute('stroke-dasharray', circumference);
+  // Встановлюємо dasharray і dashoffset для анімації прогресу
+  valueCircle.setAttribute('stroke-dasharray', circumference);
 
-    // Встановлюємо початковий прогрес
-    const progressValue = Math.min(100, Math.max(0, progress));
-    const dashOffset = circumference - (progressValue / 100) * circumference;
-    valueCircle.setAttribute('stroke-dashoffset', dashOffset);
+  // Встановлюємо початковий прогрес
+  const progressValue = Math.min(100, Math.max(0, progress));
+  const dashOffset = circumference - (progressValue / 100) * circumference;
+  valueCircle.setAttribute('stroke-dashoffset', dashOffset);
 
-    // Додаємо елементи до SVG
-    svg.appendChild(bgCircle);
-    svg.appendChild(valueCircle);
+  // Додаємо елементи до SVG
+  svg.appendChild(bgCircle);
+  svg.appendChild(valueCircle);
 
-    // Додаємо текст, якщо потрібно
-    if (showText) {
-        const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        textElement.setAttribute('class', 'progress-circle-text');
-        textElement.setAttribute('x', cx);
-        textElement.setAttribute('y', cy);
-        textElement.textContent = `${Math.round(progressValue)}%`;
-        svg.appendChild(textElement);
-    }
+  // Додаємо текст, якщо потрібно
+  if (showText) {
+    const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textElement.setAttribute('class', 'progress-circle-text');
+    textElement.setAttribute('x', cx);
+    textElement.setAttribute('y', cy);
+    textElement.textContent = `${Math.round(progressValue)}%`;
+    svg.appendChild(textElement);
+  }
 
-    // Додаємо клас до SVG
-    svg.classList.add('progress-circle');
+  // Додаємо клас до SVG
+  svg.classList.add('progress-circle');
 
-    // Додаємо SVG в контейнер
-    container.innerHTML = '';
-    container.appendChild(svg);
+  // Додаємо SVG в контейнер
+  container.innerHTML = '';
+  container.appendChild(svg);
 
-    return svg;
+  return svg;
 }
 
 /**
  * Налаштування обробників подій
  */
 function setupEventListeners() {
-    // Відстежуємо події оновлення прогресу
-    addEvent(document, 'progress-circle-updated', handleProgressUpdated);
+  // Відстежуємо події оновлення прогресу
+  addEvent(document, 'progress-circle-updated', handleProgressUpdated);
 
-    // Очищення ресурсів при виході зі сторінки
-    addEvent(window, 'beforeunload', cleanup);
+  // Очищення ресурсів при виході зі сторінки
+  addEvent(window, 'beforeunload', cleanup);
 }
 
 /**
  * Обробник події оновлення прогресу
  */
 function handleProgressUpdated(event) {
-    if (event.detail && event.detail.id) {
-        updateProgress(event.detail.id, event.detail.progress, event.detail.options);
-    }
+  if (event.detail && event.detail.id) {
+    updateProgress(event.detail.id, event.detail.progress, event.detail.options);
+  }
 }
 
 /**
@@ -289,87 +293,87 @@ function handleProgressUpdated(event) {
  * @returns {number} ID індикатора
  */
 function createProgressCircle(container, options = {}) {
-    // Перевіряємо активність модуля
-    if (!isActive) {
-        logger.warn('Модуль не активний. Спочатку викличте init()', 'createProgressCircle', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return -1;
-    }
-
-    // Знаходимо контейнер
-    let containerElement;
-
-    if (typeof container === 'string') {
-        containerElement = document.querySelector(container);
-    } else {
-        containerElement = container;
-    }
-
-    if (!containerElement) {
-        logger.error('Не знайдено контейнер для індикатора', 'createProgressCircle', {
-            category: LOG_CATEGORIES.RENDERING
-        });
-        return -1;
-    }
-
-    // Параметри за замовчуванням
-    const {
-        progress = 0,
-        size = config.defaultSize,
-        strokeWidth = config.strokeWidth,
-        radius = config.radius,
-        showText = true,
-        animated = true
-    } = options;
-
-    // Перевіряємо, чи є вже індикатор в контейнері
-    if (containerElement.hasAttribute('data-progress-id')) {
-        // Якщо індикатор вже є, оновлюємо його
-        const id = parseInt(containerElement.getAttribute('data-progress-id'));
-        if (progressCircles.has(id)) {
-            updateProgress(id, progress, options);
-            return id;
-        }
-    }
-
-    // Додаємо класи до контейнера
-    containerElement.classList.add('progress-circle-container');
-    containerElement.style.width = `${size}px`;
-    containerElement.style.height = `${size}px`;
-
-    // Генеруємо новий ID
-    const id = ++state.idCounter;
-    containerElement.setAttribute('data-progress-id', id);
-
-    // Створюємо SVG
-    const svg = createCircleSVG(containerElement, progress, {
-        size,
-        strokeWidth,
-        radius,
-        showText
+  // Перевіряємо активність модуля
+  if (!isActive) {
+    logger.warn('Модуль не активний. Спочатку викличте init()', 'createProgressCircle', {
+      category: LOG_CATEGORIES.LOGIC,
     });
+    return -1;
+  }
 
-    // Зберігаємо індикатор в колекції
-    progressCircles.set(id, {
-        container: containerElement,
-        svg,
-        progress,
-        options: {
-            size,
-            strokeWidth,
-            radius,
-            showText,
-            animated
-        }
+  // Знаходимо контейнер
+  let containerElement;
+
+  if (typeof container === 'string') {
+    containerElement = document.querySelector(container);
+  } else {
+    containerElement = container;
+  }
+
+  if (!containerElement) {
+    logger.error('Не знайдено контейнер для індикатора', 'createProgressCircle', {
+      category: LOG_CATEGORIES.RENDERING,
     });
+    return -1;
+  }
 
-    logger.info(`Створено круговий індикатор з ID ${id}`, 'createProgressCircle', {
-        category: LOG_CATEGORIES.RENDERING,
-        details: { progress, size }
-    });
+  // Параметри за замовчуванням
+  const {
+    progress = 0,
+    size = config.defaultSize,
+    strokeWidth = config.strokeWidth,
+    radius = config.radius,
+    showText = true,
+    animated = true,
+  } = options;
 
-    return id;
+  // Перевіряємо, чи є вже індикатор в контейнері
+  if (containerElement.hasAttribute('data-progress-id')) {
+    // Якщо індикатор вже є, оновлюємо його
+    const id = parseInt(containerElement.getAttribute('data-progress-id'));
+    if (progressCircles.has(id)) {
+      updateProgress(id, progress, options);
+      return id;
+    }
+  }
+
+  // Додаємо класи до контейнера
+  containerElement.classList.add('progress-circle-container');
+  containerElement.style.width = `${size}px`;
+  containerElement.style.height = `${size}px`;
+
+  // Генеруємо новий ID
+  const id = ++state.idCounter;
+  containerElement.setAttribute('data-progress-id', id);
+
+  // Створюємо SVG
+  const svg = createCircleSVG(containerElement, progress, {
+    size,
+    strokeWidth,
+    radius,
+    showText,
+  });
+
+  // Зберігаємо індикатор в колекції
+  progressCircles.set(id, {
+    container: containerElement,
+    svg,
+    progress,
+    options: {
+      size,
+      strokeWidth,
+      radius,
+      showText,
+      animated,
+    },
+  });
+
+  logger.info(`Створено круговий індикатор з ID ${id}`, 'createProgressCircle', {
+    category: LOG_CATEGORIES.RENDERING,
+    details: { progress, size },
+  });
+
+  return id;
 }
 
 /**
@@ -380,98 +384,99 @@ function createProgressCircle(container, options = {}) {
  * @returns {boolean} Успішність оновлення
  */
 function updateProgress(id, progress, options = {}) {
-    // Перевіряємо активність модуля
-    if (!isActive) {
-        logger.warn('Модуль не активний. Спочатку викличте init()', 'updateProgress', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return false;
-    }
-
-    // Перевіряємо наявність індикатора
-    if (!progressCircles.has(id)) {
-        logger.warn(`Індикатор з ID ${id} не знайдено`, 'updateProgress', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return false;
-    }
-
-    const circle = progressCircles.get(id);
-
-    // Отримуємо параметри
-    const {
-        animated = true,
-        pulse = true
-    } = Object.assign({}, circle.options, options);
-
-    // Обчислюємо нове значення
-    const normalizedProgress = Math.min(100, Math.max(0, progress));
-
-    // Перевіряємо, чи змінився прогрес
-    if (normalizedProgress === circle.progress) {
-        return true;
-    }
-
-    // Зберігаємо старий прогрес для порівняння
-    const oldProgress = circle.progress;
-
-    // Оновлюємо прогрес
-    circle.progress = normalizedProgress;
-
-    // Оновлюємо SVG
-    const svg = circle.svg;
-    if (!svg) return false;
-
-    // Знаходимо елементи
-    const valueCircle = svg.querySelector('.progress-circle-value');
-    const textElement = svg.querySelector('.progress-circle-text');
-
-    if (valueCircle) {
-        // Розраховуємо довжину кола
-        const radius = circle.options.radius || config.radius;
-        const circumference = 2 * Math.PI * radius;
-
-        // Обчислюємо новий dashoffset
-        const dashOffset = circumference - (normalizedProgress / 100) * circumference;
-
-        // Анімуємо зміну прогресу
-        if (config.useTransition && animated) {
-            valueCircle.style.transition = `stroke-dashoffset ${config.animationDuration}ms ease`;
-        } else {
-            valueCircle.style.transition = 'none';
-        }
-
-        valueCircle.setAttribute('stroke-dashoffset', dashOffset);
-
-        // Додаємо анімацію пульсації, якщо прогрес збільшився
-        if (animated && pulse && normalizedProgress > oldProgress) {
-            valueCircle.classList.remove('pulse');
-            // Змушуємо браузер зробити reflow
-            void valueCircle.offsetWidth;
-            valueCircle.classList.add('pulse');
-
-            // Знімаємо клас після анімації
-            setTimeout(() => {
-                valueCircle.classList.remove('pulse');
-            }, 800);
-        }
-
-        // Оновлюємо стилі в залежності від прогресу
-        if (config.autoClasses) {
-            updateClassesByProgress(valueCircle, normalizedProgress);
-        }
-    }
-
-    // Оновлюємо текстовий елемент
-    if (textElement && circle.options.showText) {
-        textElement.textContent = `${Math.round(normalizedProgress)}%`;
-    }
-
-    logger.debug(`Оновлено прогрес індикатора ${id}: ${oldProgress}% -> ${normalizedProgress}%`, 'updateProgress', {
-        category: LOG_CATEGORIES.RENDERING
+  // Перевіряємо активність модуля
+  if (!isActive) {
+    logger.warn('Модуль не активний. Спочатку викличте init()', 'updateProgress', {
+      category: LOG_CATEGORIES.LOGIC,
     });
+    return false;
+  }
 
+  // Перевіряємо наявність індикатора
+  if (!progressCircles.has(id)) {
+    logger.warn(`Індикатор з ID ${id} не знайдено`, 'updateProgress', {
+      category: LOG_CATEGORIES.LOGIC,
+    });
+    return false;
+  }
+
+  const circle = progressCircles.get(id);
+
+  // Отримуємо параметри
+  const { animated = true, pulse = true } = Object.assign({}, circle.options, options);
+
+  // Обчислюємо нове значення
+  const normalizedProgress = Math.min(100, Math.max(0, progress));
+
+  // Перевіряємо, чи змінився прогрес
+  if (normalizedProgress === circle.progress) {
     return true;
+  }
+
+  // Зберігаємо старий прогрес для порівняння
+  const oldProgress = circle.progress;
+
+  // Оновлюємо прогрес
+  circle.progress = normalizedProgress;
+
+  // Оновлюємо SVG
+  const svg = circle.svg;
+  if (!svg) return false;
+
+  // Знаходимо елементи
+  const valueCircle = svg.querySelector('.progress-circle-value');
+  const textElement = svg.querySelector('.progress-circle-text');
+
+  if (valueCircle) {
+    // Розраховуємо довжину кола
+    const radius = circle.options.radius || config.radius;
+    const circumference = 2 * Math.PI * radius;
+
+    // Обчислюємо новий dashoffset
+    const dashOffset = circumference - (normalizedProgress / 100) * circumference;
+
+    // Анімуємо зміну прогресу
+    if (config.useTransition && animated) {
+      valueCircle.style.transition = `stroke-dashoffset ${config.animationDuration}ms ease`;
+    } else {
+      valueCircle.style.transition = 'none';
+    }
+
+    valueCircle.setAttribute('stroke-dashoffset', dashOffset);
+
+    // Додаємо анімацію пульсації, якщо прогрес збільшився
+    if (animated && pulse && normalizedProgress > oldProgress) {
+      valueCircle.classList.remove('pulse');
+      // Змушуємо браузер зробити reflow
+      void valueCircle.offsetWidth;
+      valueCircle.classList.add('pulse');
+
+      // Знімаємо клас після анімації
+      setTimeout(() => {
+        valueCircle.classList.remove('pulse');
+      }, 800);
+    }
+
+    // Оновлюємо стилі в залежності від прогресу
+    if (config.autoClasses) {
+      updateClassesByProgress(valueCircle, normalizedProgress);
+    }
+  }
+
+  // Оновлюємо текстовий елемент
+  if (textElement && circle.options.showText) {
+    textElement.textContent = `${Math.round(normalizedProgress)}%`;
+  }
+
+  logger.debug(
+    `Оновлено прогрес індикатора ${id}: ${oldProgress}% -> ${normalizedProgress}%`,
+    'updateProgress',
+    {
+      category: LOG_CATEGORIES.RENDERING,
+    }
+  );
+
+  return true;
 }
 
 /**
@@ -480,19 +485,19 @@ function updateProgress(id, progress, options = {}) {
  * @param {number} progress - Значення прогресу
  */
 function updateClassesByProgress(element, progress) {
-    // Знімаємо всі стани
-    element.classList.remove('success', 'warning', 'danger');
+  // Знімаємо всі стани
+  element.classList.remove('success', 'warning', 'danger');
 
-    // Додаємо клас в залежності від прогресу
-    if (progress >= 100) {
-        element.classList.add('success');
-    } else if (progress >= 75) {
-        // Не додаємо клас для звичайного прогресу (75-99%)
-    } else if (progress >= 25) {
-        element.classList.add('warning');
-    } else {
-        element.classList.add('danger');
-    }
+  // Додаємо клас в залежності від прогресу
+  if (progress >= 100) {
+    element.classList.add('success');
+  } else if (progress >= 75) {
+    // Не додаємо клас для звичайного прогресу (75-99%)
+  } else if (progress >= 25) {
+    element.classList.add('warning');
+  } else {
+    element.classList.add('danger');
+  }
 }
 
 /**
@@ -501,22 +506,22 @@ function updateClassesByProgress(element, progress) {
  * @returns {number} Прогрес (0-100)
  */
 function getProgress(id) {
-    // Перевіряємо активність модуля
-    if (!isActive) {
-        logger.warn('Модуль не активний. Спочатку викличте init()', 'getProgress', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return 0;
-    }
+  // Перевіряємо активність модуля
+  if (!isActive) {
+    logger.warn('Модуль не активний. Спочатку викличте init()', 'getProgress', {
+      category: LOG_CATEGORIES.LOGIC,
+    });
+    return 0;
+  }
 
-    if (!progressCircles.has(id)) {
-        logger.warn(`Індикатор з ID ${id} не знайдено`, 'getProgress', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return 0;
-    }
+  if (!progressCircles.has(id)) {
+    logger.warn(`Індикатор з ID ${id} не знайдено`, 'getProgress', {
+      category: LOG_CATEGORIES.LOGIC,
+    });
+    return 0;
+  }
 
-    return progressCircles.get(id).progress;
+  return progressCircles.get(id).progress;
 }
 
 /**
@@ -524,8 +529,8 @@ function getProgress(id) {
  * @returns {Map} Колекція індикаторів
  */
 function getAllProgressCircles() {
-    // Повертаємо копію карти, а не оригінал
-    return new Map(progressCircles);
+  // Повертаємо копію карти, а не оригінал
+  return new Map(progressCircles);
 }
 
 /**
@@ -534,91 +539,91 @@ function getAllProgressCircles() {
  * @returns {boolean} Успішність видалення
  */
 function removeProgressCircle(id) {
-    // Перевіряємо активність модуля
-    if (!isActive) {
-        logger.warn('Модуль не активний. Спочатку викличте init()', 'removeProgressCircle', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return false;
-    }
-
-    if (!progressCircles.has(id)) {
-        logger.warn(`Індикатор з ID ${id} не знайдено`, 'removeProgressCircle', {
-            category: LOG_CATEGORIES.LOGIC
-        });
-        return false;
-    }
-
-    const circle = progressCircles.get(id);
-
-    // Очищаємо контейнер
-    if (circle.container) {
-        circle.container.innerHTML = '';
-        circle.container.removeAttribute('data-progress-id');
-    }
-
-    // Видаляємо з колекції
-    progressCircles.delete(id);
-
-    logger.info(`Видалено індикатор з ID ${id}`, 'removeProgressCircle', {
-        category: LOG_CATEGORIES.RENDERING
+  // Перевіряємо активність модуля
+  if (!isActive) {
+    logger.warn('Модуль не активний. Спочатку викличте init()', 'removeProgressCircle', {
+      category: LOG_CATEGORIES.LOGIC,
     });
+    return false;
+  }
 
-    return true;
+  if (!progressCircles.has(id)) {
+    logger.warn(`Індикатор з ID ${id} не знайдено`, 'removeProgressCircle', {
+      category: LOG_CATEGORIES.LOGIC,
+    });
+    return false;
+  }
+
+  const circle = progressCircles.get(id);
+
+  // Очищаємо контейнер
+  if (circle.container) {
+    circle.container.innerHTML = '';
+    circle.container.removeAttribute('data-progress-id');
+  }
+
+  // Видаляємо з колекції
+  progressCircles.delete(id);
+
+  logger.info(`Видалено індикатор з ID ${id}`, 'removeProgressCircle', {
+    category: LOG_CATEGORIES.RENDERING,
+  });
+
+  return true;
 }
 
 /**
  * Очищення ресурсів модуля
  */
 function cleanup() {
-    // Якщо модуль не активний, нічого не робимо
-    if (!isActive) return;
+  // Якщо модуль не активний, нічого не робимо
+  if (!isActive) return;
 
-    // Очищаємо активні анімації
-    state.activeAnimations.clear();
+  // Очищаємо активні анімації
+  state.activeAnimations.clear();
 
-    // Видаляємо обробники подій
-    removeEvent(document, 'progress-circle-updated', handleProgressUpdated);
-    removeEvent(window, 'beforeunload', cleanup);
+  // Видаляємо обробники подій
+  removeEvent(document, 'progress-circle-updated', handleProgressUpdated);
+  removeEvent(window, 'beforeunload', cleanup);
 
-    logger.info('Ресурси модуля очищено', 'cleanup', {
-        category: LOG_CATEGORIES.LOGIC
-    });
+  logger.info('Ресурси модуля очищено', 'cleanup', {
+    category: LOG_CATEGORIES.LOGIC,
+  });
 }
 
 /**
  * Деактивація модуля
  */
 function deactivate() {
-    // Очищаємо ресурси
-    cleanup();
+  // Очищаємо ресурси
+  cleanup();
 
-    // Знімаємо прапорець активності
-    isActive = false;
+  // Знімаємо прапорець активності
+  isActive = false;
 
-    logger.info('Модуль деактивовано', 'deactivate', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.info('Модуль деактивовано', 'deactivate', {
+    category: LOG_CATEGORIES.INIT,
+  });
 }
 
 // Ініціалізуємо модуль при завантаженні сторінки
-onDOMReady(function() {
-    if (!isActive) {
-        init();
-    }
+onDOMReady(function () {
+  if (!isActive) {
+    init();
+  }
 });
 
 // Публічний API модуля
 const ProgressCircle = {
-    init,
-    createProgressCircle,
-    updateProgress,
-    getProgress,
-    getAllProgressCircles,
-    removeProgressCircle,
-    cleanup,
-    deactivate,
-    isActive: () => isActive
+  init,
+  createProgressCircle,
+  updateProgress,
+  getProgress,
+  getAllProgressCircles,
+  removeProgressCircle,
+  cleanup,
+  deactivate,
+  isActive: () => isActive,
 };
 
 // Експортуємо API

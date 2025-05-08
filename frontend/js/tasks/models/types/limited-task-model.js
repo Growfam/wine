@@ -36,7 +36,7 @@ export class LimitedTaskModel extends TaskModel {
       end_date: apiData.end_date,
       max_completions: apiData.max_completions,
       current_completions: apiData.current_completions,
-      priority: apiData.priority
+      priority: apiData.priority,
     });
   }
 

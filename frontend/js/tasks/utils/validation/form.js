@@ -24,16 +24,16 @@ const validationHandlers = new Map();
 
 // Конфігурація за замовчуванням
 const config = {
-  debounceTime: 300,          // Час затримки перевірки при введенні (мс)
-  liveValidation: true,       // Валідація в реальному часі
-  validateOnBlur: true,       // Валідація при втраті фокусу
-  showErrorIcons: true,       // Показувати іконки помилок
-  scrollToErrors: true,       // Прокручувати до помилок
-  errorClass: 'error-field',  // Клас для поля з помилкою
-  validClass: 'valid-field',  // Клас для валідного поля
+  debounceTime: 300, // Час затримки перевірки при введенні (мс)
+  liveValidation: true, // Валідація в реальному часі
+  validateOnBlur: true, // Валідація при втраті фокусу
+  showErrorIcons: true, // Показувати іконки помилок
+  scrollToErrors: true, // Прокручувати до помилок
+  errorClass: 'error-field', // Клас для поля з помилкою
+  validClass: 'valid-field', // Клас для валідного поля
   errorMessageClass: 'error-message', // Клас для повідомлення про помилку
   formGroupClass: 'form-group', // Клас для групи полів
-  autoSubmit: false           // Автоматично відправляти форму, якщо валідна
+  autoSubmit: false, // Автоматично відправляти форму, якщо валідна
 };
 
 /**
@@ -44,7 +44,7 @@ export function init(options = {}) {
   // Оновлюємо налаштування
   Object.assign(config, options);
 
-  logger.info("Ініціалізація модуля валідації форм", "init");
+  logger.info('Ініціалізація модуля валідації форм', 'init');
 
   // Додаємо CSS стилі, якщо їх ще немає
   if (!document.getElementById('form-validation-styles')) {
@@ -55,10 +55,10 @@ export function init(options = {}) {
   const forms = document.querySelectorAll('form[data-validate]');
 
   if (forms.length > 0) {
-    logger.info(`Знайдено ${forms.length} форм для автоматичної валідації`, "init");
+    logger.info(`Знайдено ${forms.length} форм для автоматичної валідації`, 'init');
 
     // Для кожної форми додаємо обробники подій
-    forms.forEach(form => {
+    forms.forEach((form) => {
       setupFormValidation(form);
     });
   }
@@ -141,7 +141,7 @@ function injectStyles() {
   `;
 
   document.head.appendChild(styleElement);
-  logger.debug("CSS стилі для валідації форм додано", "injectStyles");
+  logger.debug('CSS стилі для валідації форм додано', 'injectStyles');
 }
 
 /**
@@ -159,18 +159,18 @@ export function setupFormValidation(form, options = {}) {
     // Параметри за замовчуванням
     const formOptions = {
       ...config,
-      ...options
+      ...options,
     };
 
     // Зберігаємо форму та її опції
     activeForms.set(form, {
       options: formOptions,
       fields: new Map(),
-      submitHandler: null
+      submitHandler: null,
     });
 
     // Додаємо обробник для відправки форми
-    const submitHandler = function(event) {
+    const submitHandler = function (event) {
       // Виконуємо валідацію перед відправкою
       const validationResult = validateForm(form);
 
@@ -188,16 +188,20 @@ export function setupFormValidation(form, options = {}) {
         }
 
         // Диспетчеризуємо подію невдалої валідації
-        form.dispatchEvent(new CustomEvent('validation:failed', {
-          bubbles: true,
-          detail: validationResult
-        }));
+        form.dispatchEvent(
+          new CustomEvent('validation:failed', {
+            bubbles: true,
+            detail: validationResult,
+          })
+        );
       } else {
         // Диспетчеризуємо подію успішної валідації
-        form.dispatchEvent(new CustomEvent('validation:success', {
-          bubbles: true,
-          detail: validationResult
-        }));
+        form.dispatchEvent(
+          new CustomEvent('validation:success', {
+            bubbles: true,
+            detail: validationResult,
+          })
+        );
 
         // Якщо автоматична відправка вимкнена, запобігаємо відправці
         if (!formOptions.autoSubmit) {
@@ -216,25 +220,28 @@ export function setupFormValidation(form, options = {}) {
     const fields = form.querySelectorAll('[data-validate]');
 
     // Додаємо обробники подій для полів
-    fields.forEach(field => {
+    fields.forEach((field) => {
       setupFieldValidation(field, form, formOptions);
     });
 
     // Додаємо обробники для кнопок відправки
     const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
-    submitButtons.forEach(button => {
+    submitButtons.forEach((button) => {
       button.classList.add('submit-button');
     });
 
     // Додаємо атрибут, щоб відмітити форму як ініціалізовану
     form.setAttribute('data-validation-initialized', 'true');
 
-    logger.debug(`Налаштовано валідацію для форми: ${form.id || 'anonymous'}`, "setupFormValidation");
+    logger.debug(
+      `Налаштовано валідацію для форми: ${form.id || 'anonymous'}`,
+      'setupFormValidation'
+    );
 
     return true;
   } catch (error) {
     logger.error('Помилка налаштування валідації форми', 'setupFormValidation', {
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -256,14 +263,18 @@ function setupFieldValidation(field, form, options = {}) {
     // Якщо форма не передана, намагаємося знайти форму-батька
     const parentForm = form || findParent(field, 'form');
     if (!parentForm) {
-      logger.warn('Не знайдено батьківську форму для поля', 'setupFieldValidation', { fieldId: field.id });
+      logger.warn('Не знайдено батьківську форму для поля', 'setupFieldValidation', {
+        fieldId: field.id,
+      });
       return;
     }
 
     // Отримуємо дані форми
     const formData = activeForms.get(parentForm);
     if (!formData) {
-      logger.warn('Форма не знайдена в активних формах', 'setupFieldValidation', { formId: parentForm.id });
+      logger.warn('Форма не знайдена в активних формах', 'setupFieldValidation', {
+        formId: parentForm.id,
+      });
       return;
     }
 
@@ -276,14 +287,14 @@ function setupFieldValidation(field, form, options = {}) {
     // Опції поля
     const fieldOptions = {
       ...formData.options,
-      ...getFieldOptions(field)
+      ...getFieldOptions(field),
     };
 
     // Зберігаємо дані поля
     formData.fields.set(field, {
       type: validationType,
       options: fieldOptions,
-      handlers: []
+      handlers: [],
     });
 
     // Створюємо контейнер для повідомлення про помилку, якщо його немає
@@ -323,16 +334,21 @@ function setupFieldValidation(field, form, options = {}) {
     }
 
     // Диспетчеризуємо подію
-    field.dispatchEvent(new CustomEvent('validation:setup', {
-      bubbles: true,
-      detail: { field, type: validationType, options: fieldOptions }
-    }));
+    field.dispatchEvent(
+      new CustomEvent('validation:setup', {
+        bubbles: true,
+        detail: { field, type: validationType, options: fieldOptions },
+      })
+    );
 
-    logger.debug(`Налаштовано валідацію для поля: ${field.name || field.id || 'anonymous'}`, "setupFieldValidation");
+    logger.debug(
+      `Налаштовано валідацію для поля: ${field.name || field.id || 'anonymous'}`,
+      'setupFieldValidation'
+    );
   } catch (error) {
     logger.error('Помилка налаштування валідації поля', 'setupFieldValidation', {
       error: error.message,
-      fieldId: field.id
+      fieldId: field.id,
     });
   }
 }
@@ -362,26 +378,19 @@ function getFieldOptions(field) {
       else if (!isNaN(value) && value !== '') value = Number(value);
 
       options[optionName] = value;
-    }
-    else if (attr.name === 'data-validate-message') {
+    } else if (attr.name === 'data-validate-message') {
       options.errorMessage = attr.value;
-    }
-    else if (attr.name === 'min') {
+    } else if (attr.name === 'min') {
       options.min = Number(attr.value);
-    }
-    else if (attr.name === 'max') {
+    } else if (attr.name === 'max') {
       options.max = Number(attr.value);
-    }
-    else if (attr.name === 'minlength' || attr.name === 'data-min-length') {
+    } else if (attr.name === 'minlength' || attr.name === 'data-min-length') {
       options.minLength = Number(attr.value);
-    }
-    else if (attr.name === 'maxlength' || attr.name === 'data-max-length') {
+    } else if (attr.name === 'maxlength' || attr.name === 'data-max-length') {
       options.maxLength = Number(attr.value);
-    }
-    else if (attr.name === 'data-match-field') {
+    } else if (attr.name === 'data-match-field') {
       options.matchField = attr.value;
-    }
-    else if (attr.name === 'pattern') {
+    } else if (attr.name === 'pattern') {
       options.pattern = attr.value;
     }
   }
@@ -484,7 +493,7 @@ export function validateForm(form) {
     const result = {
       isValid: true,
       errors: [],
-      fields: {}
+      fields: {},
     };
 
     // Валідуємо кожне поле
@@ -506,24 +515,29 @@ export function validateForm(form) {
     updateSubmitButtonState(form, result.isValid);
 
     // Диспетчеризуємо подію
-    form.dispatchEvent(new CustomEvent('validation:complete', {
-      bubbles: true,
-      detail: result
-    }));
+    form.dispatchEvent(
+      new CustomEvent('validation:complete', {
+        bubbles: true,
+        detail: result,
+      })
+    );
 
-    logger.debug(`Валідація форми: ${form.id || 'anonymous'}, результат: ${result.isValid ? 'валідна' : 'невалідна'}`, "validateForm");
+    logger.debug(
+      `Валідація форми: ${form.id || 'anonymous'}, результат: ${result.isValid ? 'валідна' : 'невалідна'}`,
+      'validateForm'
+    );
 
     return result;
   } catch (error) {
     logger.error('Помилка валідації форми', 'validateForm', {
       error: error.message,
-      formId: form.id
+      formId: form.id,
     });
 
     return {
       isValid: false,
       errors: ['Помилка виконання валідації: ' + error.message],
-      fields: {}
+      fields: {},
     };
   }
 }
@@ -538,8 +552,10 @@ export function validateField(field) {
     // Шукаємо батьківську форму
     const form = findParent(field, 'form');
     if (!form || !activeForms.has(form)) {
-      logger.warn('Батьківська форма не знайдена або не ініціалізована', 'validateField', { fieldId: field.id });
-      return { isValid: false, errorMessage: 'Поле не прив\'язане до форми' };
+      logger.warn('Батьківська форма не знайдена або не ініціалізована', 'validateField', {
+        fieldId: field.id,
+      });
+      return { isValid: false, errorMessage: "Поле не прив'язане до форми" };
     }
 
     const formData = activeForms.get(form);
@@ -582,21 +598,23 @@ export function validateField(field) {
     updateFieldValidationUI(field, result.isValid, result.errorMessage);
 
     // Диспетчеризуємо подію
-    field.dispatchEvent(new CustomEvent('validation:field', {
-      bubbles: true,
-      detail: { field, result }
-    }));
+    field.dispatchEvent(
+      new CustomEvent('validation:field', {
+        bubbles: true,
+        detail: { field, result },
+      })
+    );
 
     return result;
   } catch (error) {
     logger.error('Помилка валідації поля', 'validateField', {
       error: error.message,
-      fieldId: field.id
+      fieldId: field.id,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка виконання валідації: ' + error.message
+      errorMessage: 'Помилка виконання валідації: ' + error.message,
     };
   }
 }
@@ -623,7 +641,7 @@ function getFieldValue(field) {
 
   // Для select multiple повертаємо масив вибраних значень
   if (field.tagName === 'SELECT' && field.multiple) {
-    return Array.from(field.selectedOptions).map(option => option.value);
+    return Array.from(field.selectedOptions).map((option) => option.value);
   }
 
   // Для файлів повертаємо об'єкт File або FileList
@@ -716,7 +734,7 @@ function clearFieldValidation(field) {
 function updateSubmitButtonState(form, isValid) {
   const submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
 
-  submitButtons.forEach(button => {
+  submitButtons.forEach((button) => {
     if (isValid) {
       button.classList.remove('disabled');
       button.disabled = false;
@@ -757,7 +775,7 @@ function scrollToFirstError(form) {
     scrollToElement(firstError, {
       behavior: 'smooth',
       block: 'center',
-      offset: 50
+      offset: 50,
     });
 
     // Фокусуємося на полі через невеликий проміжок часу
@@ -777,10 +795,10 @@ function setupDOMObserver() {
   }
 
   // Створюємо спостерігач
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(mutation => {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
       // Перевіряємо додані вузли
-      mutation.addedNodes.forEach(node => {
+      mutation.addedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
           // Перевіряємо, чи це форма
           if (node.tagName === 'FORM' && node.hasAttribute('data-validate')) {
@@ -789,14 +807,14 @@ function setupDOMObserver() {
 
           // Перевіряємо, чи містить форми
           const forms = node.querySelectorAll('form[data-validate]');
-          forms.forEach(form => {
+          forms.forEach((form) => {
             setupFormValidation(form);
           });
         }
       });
 
       // Перевіряємо видалені вузли
-      mutation.removedNodes.forEach(node => {
+      mutation.removedNodes.forEach((node) => {
         if (node.nodeType === Node.ELEMENT_NODE) {
           // Якщо вузол є формою
           if (node.tagName === 'FORM' && activeForms.has(node)) {
@@ -806,7 +824,7 @@ function setupDOMObserver() {
           // Перевіряємо, чи вузол містить форми
           if (node.querySelectorAll) {
             const forms = node.querySelectorAll('form');
-            forms.forEach(form => {
+            forms.forEach((form) => {
               if (activeForms.has(form)) {
                 cleanupForm(form);
               }
@@ -820,7 +838,7 @@ function setupDOMObserver() {
   // Починаємо спостереження за всім документом
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 
   logger.debug('Налаштовано спостереження за змінами в DOM', 'setupDOMObserver');
@@ -846,7 +864,7 @@ function cleanupForm(form) {
     // Очищаємо кожне поле
     formData.fields.forEach((fieldData, field) => {
       // Видаляємо обробники подій
-      fieldData.handlers.forEach(handler => {
+      fieldData.handlers.forEach((handler) => {
         if (typeof handler.removeHandler === 'function') {
           handler.removeHandler();
         }
@@ -865,11 +883,11 @@ function cleanupForm(form) {
     // Видаляємо атрибут ініціалізації
     form.removeAttribute('data-validation-initialized');
 
-    logger.debug(`Очищено ресурси форми: ${form.id || 'anonymous'}`, "cleanupForm");
+    logger.debug(`Очищено ресурси форми: ${form.id || 'anonymous'}`, 'cleanupForm');
   } catch (error) {
     logger.error('Помилка очищення ресурсів форми', 'cleanupForm', {
       formId: form.id,
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -883,14 +901,14 @@ export function cleanup() {
     const forms = [...activeForms.keys()];
 
     // Очищаємо кожну форму
-    forms.forEach(form => {
+    forms.forEach((form) => {
       cleanupForm(form);
     });
 
     logger.info('Ресурси модуля валідації форм очищено', 'cleanup');
   } catch (error) {
     logger.error('Помилка очищення ресурсів модуля', 'cleanup', {
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -918,5 +936,5 @@ export default {
   // Експортуємо конфігурацію як readonly
   get config() {
     return { ...config };
-  }
+  },
 };

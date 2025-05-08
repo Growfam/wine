@@ -3,8 +3,20 @@
  */
 
 // Експортуємо основні компоненти
-export { default, create, updateStatus, TASK_STATUS, escapeHtml, getTaskElementById } from './base.js';
-export { setupActionButtons, handleStartTask, handleVerifyTask, updateActionStatus } from './actions.js';
+export {
+  default,
+  create,
+  updateStatus,
+  TASK_STATUS,
+  escapeHtml,
+  getTaskElementById,
+} from './base.js';
+export {
+  setupActionButtons,
+  handleStartTask,
+  handleVerifyTask,
+  updateActionStatus,
+} from './actions.js';
 export { render as renderProgress, updateProgress, getProgressElement } from './progress.js';
 
 // Експортуємо типи карток
@@ -16,11 +28,11 @@ export const Card = {
   updateStatus,
   progress: {
     render: renderProgress,
-    update: updateProgress
+    update: updateProgress,
   },
   actions: {
     setupButtons: setupActionButtons,
     handleStart: handleStartTask,
-    handleVerify: handleVerifyTask
-  }
+    handleVerify: handleVerifyTask,
+  },
 };

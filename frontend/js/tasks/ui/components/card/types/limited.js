@@ -19,47 +19,47 @@ import dependencyContainer from '../../../../utils';
  * @returns {HTMLElement} DOM елемент картки
  */
 export function create(task, progress, options = {}) {
-    // Створюємо базову картку
-    const taskElement = createBaseCard(task, progress, {
-        ...options,
-        customClass: 'limited-task'
-    });
+  // Створюємо базову картку
+  const taskElement = createBaseCard(task, progress, {
+    ...options,
+    customClass: 'limited-task',
+  });
 
-    // Додаємо додаткові атрибути
-    if (task.end_date) {
-        taskElement.dataset.endDate = task.end_date;
+  // Додаємо додаткові атрибути
+  if (task.end_date) {
+    taskElement.dataset.endDate = task.end_date;
+  }
+
+  // Перевіряємо, чи не закінчився термін
+  let isExpired = false;
+  let endDate;
+
+  if (task.end_date) {
+    // Парсимо дату
+    try {
+      endDate = new Date(task.end_date);
+      // Перевіряємо, чи не закінчився термін
+      isExpired = endDate <= new Date();
+    } catch (e) {
+      console.error('Помилка парсингу дати завдання:', e);
     }
+  }
 
-    // Перевіряємо, чи не закінчився термін
-    let isExpired = false;
-    let endDate;
+  // Додаємо статус та таймер
+  if (isExpired) {
+    taskElement.classList.add('expired');
+    addExpirationNotice(taskElement);
+  } else if (task.end_date) {
+    addCountdownTimer(taskElement, task.end_date);
+  }
 
-    if (task.end_date) {
-        // Парсимо дату
-        try {
-            endDate = new Date(task.end_date);
-            // Перевіряємо, чи не закінчився термін
-            isExpired = endDate <= new Date();
-        } catch (e) {
-            console.error('Помилка парсингу дати завдання:', e);
-        }
-    }
+  // Налаштовуємо кнопки дій
+  setupActionButtons(taskElement, task, progress, {
+    allowVerification: true,
+    isExpired: isExpired,
+  });
 
-    // Додаємо статус та таймер
-    if (isExpired) {
-        taskElement.classList.add('expired');
-        addExpirationNotice(taskElement);
-    } else if (task.end_date) {
-        addCountdownTimer(taskElement, task.end_date);
-    }
-
-    // Налаштовуємо кнопки дій
-    setupActionButtons(taskElement, task, progress, {
-        allowVerification: true,
-        isExpired: isExpired
-    });
-
-    return taskElement;
+  return taskElement;
 }
 
 /**
@@ -67,21 +67,21 @@ export function create(task, progress, options = {}) {
  * @param {HTMLElement} taskElement - Елемент завдання
  */
 function addExpirationNotice(taskElement) {
-    // Знаходимо або створюємо контейнер для таймера
-    let timerContainer = taskElement.querySelector('.timer-container');
+  // Знаходимо або створюємо контейнер для таймера
+  let timerContainer = taskElement.querySelector('.timer-container');
 
-    if (!timerContainer) {
-        timerContainer = document.createElement('div');
-        timerContainer.className = 'timer-container expired';
+  if (!timerContainer) {
+    timerContainer = document.createElement('div');
+    timerContainer.className = 'timer-container expired';
 
-        // Додаємо контейнер після заголовка
-        const headerElement = taskElement.querySelector('.task-header');
-        if (headerElement) {
-            headerElement.appendChild(timerContainer);
-        }
+    // Додаємо контейнер після заголовка
+    const headerElement = taskElement.querySelector('.task-header');
+    if (headerElement) {
+      headerElement.appendChild(timerContainer);
     }
+  }
 
-    timerContainer.innerHTML = `
+  timerContainer.innerHTML = `
         <span class="timer-icon"></span>
         <span data-lang-key="earn.expired">Закінчено</span>
     `;
@@ -93,32 +93,32 @@ function addExpirationNotice(taskElement) {
  * @param {string} endDateStr - Кінцева дата в рядковому форматі
  */
 function addCountdownTimer(taskElement, endDateStr) {
-    // Створюємо контейнер для таймера
-    const timerContainer = document.createElement('div');
-    timerContainer.className = 'timer-container';
+  // Створюємо контейнер для таймера
+  const timerContainer = document.createElement('div');
+  timerContainer.className = 'timer-container';
 
-    // Створюємо елемент відліку
-    const timerElement = document.createElement('span');
-    timerElement.className = 'timer-value';
-    timerElement.dataset.endDate = endDateStr;
-    timerElement.dataset.format = 'short';
+  // Створюємо елемент відліку
+  const timerElement = document.createElement('span');
+  timerElement.className = 'timer-value';
+  timerElement.dataset.endDate = endDateStr;
+  timerElement.dataset.format = 'short';
 
-    // Додаємо іконку
-    const timerIcon = document.createElement('span');
-    timerIcon.className = 'timer-icon';
+  // Додаємо іконку
+  const timerIcon = document.createElement('span');
+  timerIcon.className = 'timer-icon';
 
-    // Складаємо все разом
-    timerContainer.appendChild(timerIcon);
-    timerContainer.appendChild(timerElement);
+  // Складаємо все разом
+  timerContainer.appendChild(timerIcon);
+  timerContainer.appendChild(timerElement);
 
-    // Додаємо контейнер після заголовка
-    const headerElement = taskElement.querySelector('.task-header');
-    if (headerElement) {
-        headerElement.appendChild(timerContainer);
-    }
+  // Додаємо контейнер після заголовка
+  const headerElement = taskElement.querySelector('.task-header');
+  if (headerElement) {
+    headerElement.appendChild(timerContainer);
+  }
 
-    // Ініціалізуємо таймер
-    initializeTimer(timerElement, endDateStr);
+  // Ініціалізуємо таймер
+  initializeTimer(timerElement, endDateStr);
 }
 
 /**
@@ -127,33 +127,33 @@ function addCountdownTimer(taskElement, endDateStr) {
  * @param {string} endDateStr - Кінцева дата
  */
 function initializeTimer(timerElement, endDateStr) {
-    // Перевіряємо, чи доступний модуль TimeUtils
-    const timeUtils = dependencyContainer.resolve('TimeUtils');
+  // Перевіряємо, чи доступний модуль TimeUtils
+  const timeUtils = dependencyContainer.resolve('TimeUtils');
 
-    if (timeUtils && typeof timeUtils.createCountdown === 'function') {
-        // Використовуємо TimeUtils для створення таймера
-        timeUtils.createCountdown({
-            element: timerElement,
-            endDate: endDateStr,
-            format: 'short',
-            onComplete: () => {
-                // Коли час закінчився, оновлюємо статус
-                const taskElement = findParentTaskElement(timerElement);
-                if (taskElement) {
-                    taskElement.classList.add('expired');
-                    // Оновлюємо вигляд таймера
-                    const timerContainer = timerElement.parentNode;
-                    if (timerContainer) {
-                        timerContainer.classList.add('expired');
-                        timerElement.textContent = 'Закінчено';
-                    }
-                }
-            }
-        });
-    } else {
-        // Запасний варіант - простий таймер
-        initializeSimpleTimer(timerElement, endDateStr);
-    }
+  if (timeUtils && typeof timeUtils.createCountdown === 'function') {
+    // Використовуємо TimeUtils для створення таймера
+    timeUtils.createCountdown({
+      element: timerElement,
+      endDate: endDateStr,
+      format: 'short',
+      onComplete: () => {
+        // Коли час закінчився, оновлюємо статус
+        const taskElement = findParentTaskElement(timerElement);
+        if (taskElement) {
+          taskElement.classList.add('expired');
+          // Оновлюємо вигляд таймера
+          const timerContainer = timerElement.parentNode;
+          if (timerContainer) {
+            timerContainer.classList.add('expired');
+            timerElement.textContent = 'Закінчено';
+          }
+        }
+      },
+    });
+  } else {
+    // Запасний варіант - простий таймер
+    initializeSimpleTimer(timerElement, endDateStr);
+  }
 }
 
 /**
@@ -162,58 +162,58 @@ function initializeTimer(timerElement, endDateStr) {
  * @param {string} endDateStr - Кінцева дата
  */
 function initializeSimpleTimer(timerElement, endDateStr) {
-    // Парсимо дату
-    const endDate = new Date(endDateStr);
-    if (isNaN(endDate.getTime())) return;
+  // Парсимо дату
+  const endDate = new Date(endDateStr);
+  if (isNaN(endDate.getTime())) return;
 
-    // Функція для оновлення таймера
-    const updateTimer = () => {
-        const now = new Date();
-        const timeLeft = endDate - now;
+  // Функція для оновлення таймера
+  const updateTimer = () => {
+    const now = new Date();
+    const timeLeft = endDate - now;
 
-        if (timeLeft <= 0) {
-            // Час вийшов
-            timerElement.textContent = 'Закінчено';
+    if (timeLeft <= 0) {
+      // Час вийшов
+      timerElement.textContent = 'Закінчено';
 
-            // Знаходимо елемент завдання і оновлюємо його статус
-            const taskElement = findParentTaskElement(timerElement);
-            if (taskElement) {
-                taskElement.classList.add('expired');
-                // Оновлюємо вигляд таймера
-                const timerContainer = timerElement.parentNode;
-                if (timerContainer) {
-                    timerContainer.classList.add('expired');
-                }
-            }
-
-            clearInterval(timerId);
-            return;
+      // Знаходимо елемент завдання і оновлюємо його статус
+      const taskElement = findParentTaskElement(timerElement);
+      if (taskElement) {
+        taskElement.classList.add('expired');
+        // Оновлюємо вигляд таймера
+        const timerContainer = timerElement.parentNode;
+        if (timerContainer) {
+          timerContainer.classList.add('expired');
         }
+      }
 
-        // Форматуємо час
-        const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+      clearInterval(timerId);
+      return;
+    }
 
-        let formattedTime;
-        if (days > 0) {
-            formattedTime = `${days}д ${hours}г`;
-        } else if (hours > 0) {
-            formattedTime = `${hours}г ${minutes}хв`;
-        } else {
-            formattedTime = `${minutes}хв ${seconds}с`;
-        }
+    // Форматуємо час
+    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-        timerElement.textContent = formattedTime;
-    };
+    let formattedTime;
+    if (days > 0) {
+      formattedTime = `${days}д ${hours}г`;
+    } else if (hours > 0) {
+      formattedTime = `${hours}г ${minutes}хв`;
+    } else {
+      formattedTime = `${minutes}хв ${seconds}с`;
+    }
 
-    // Запускаємо таймер
-    updateTimer();
-    const timerId = setInterval(updateTimer, 1000);
+    timerElement.textContent = formattedTime;
+  };
 
-    // Зберігаємо ID таймера для можливості очищення
-    timerElement.dataset.timerId = timerId;
+  // Запускаємо таймер
+  updateTimer();
+  const timerId = setInterval(updateTimer, 1000);
+
+  // Зберігаємо ID таймера для можливості очищення
+  timerElement.dataset.timerId = timerId;
 }
 
 /**
@@ -222,11 +222,11 @@ function initializeSimpleTimer(timerElement, endDateStr) {
  * @returns {HTMLElement|null} Елемент завдання
  */
 function findParentTaskElement(element) {
-    let current = element;
-    while (current && !current.classList.contains('task-item')) {
-        current = current.parentElement;
-    }
-    return current;
+  let current = element;
+  while (current && !current.classList.contains('task-item')) {
+    current = current.parentElement;
+  }
+  return current;
 }
 
 // Експортуємо публічне API

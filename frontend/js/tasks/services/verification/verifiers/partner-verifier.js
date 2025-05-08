@@ -27,8 +27,8 @@ export class PartnerVerifier extends BaseVerifier {
         task_data: {
           partner_name: task.partner_name || '',
           action_type: task.action_type || 'visit',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       };
 
       // Додаємо трекінгові дані, якщо є
@@ -73,7 +73,7 @@ export class PartnerVerifier extends BaseVerifier {
     const params = {
       utm_source: 'winix',
       utm_medium: 'quest',
-      utm_campaign: task.id
+      utm_campaign: task.id,
     };
 
     // Додаємо ID користувача, якщо є

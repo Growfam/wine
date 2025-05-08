@@ -23,7 +23,7 @@ export class Initializer {
       failedModules: [],
       initStartTime: 0,
       initEndTime: 0,
-      conflictResolutionApplied: false
+      conflictResolutionApplied: false,
     };
 
     // Конфігурація
@@ -35,24 +35,19 @@ export class Initializer {
       safeMode: true,
       autoRetryOnFailure: true,
       monitorDomMutations: true,
-      fallbackUserMode: true
+      fallbackUserMode: true,
     };
 
     // Залежності між модулями (спрощена схема)
     this.dependencies = {
-      'taskProgress': { deps: [], priority: 1 },
-      'taskVerification': { deps: [], priority: 1 },
-      'taskStore': { deps: ['taskProgress', 'taskVerification'], priority: 2 },
-      'taskSystem': { deps: ['taskStore', 'taskProgress', 'taskVerification'], priority: 3 }
+      taskProgress: { deps: [], priority: 1 },
+      taskVerification: { deps: [], priority: 1 },
+      taskStore: { deps: ['taskProgress', 'taskVerification'], priority: 2 },
+      taskSystem: { deps: ['taskStore', 'taskProgress', 'taskVerification'], priority: 3 },
     };
 
     // Критичні модулі
-    this.criticalModules = [
-      'taskProgress',
-      'taskVerification',
-      'taskStore',
-      'taskSystem'
-    ];
+    this.criticalModules = ['taskProgress', 'taskVerification', 'taskStore', 'taskSystem'];
   }
 
   /**
@@ -65,7 +60,7 @@ export class Initializer {
       // Якщо ініціалізація вже почалася, не запускаємо знову
       if (this.state.initStarted) {
         logger.info('Ініціалізація вже розпочата', 'init', {
-          category: LOG_CATEGORIES.INIT
+          category: LOG_CATEGORIES.INIT,
         });
         return false;
       }
@@ -77,7 +72,7 @@ export class Initializer {
       this.state.initStartTime = performance.now();
 
       logger.info('Початок ініціалізації модулів системи завдань', 'init', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       // Реєструємо себе як сервіс для інших модулів
@@ -100,7 +95,7 @@ export class Initializer {
       return true;
     } catch (error) {
       logger.fatal(error, 'Критична помилка при ініціалізації TaskIntegration', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
       return false;
     }
@@ -116,7 +111,11 @@ export class Initializer {
     try {
       // Список можливих назв модулів для автореєстрації
       const moduleNames = [
-        'taskProgress', 'taskStore', 'taskVerification', 'taskApi', 'taskSystem'
+        'taskProgress',
+        'taskStore',
+        'taskVerification',
+        'taskApi',
+        'taskSystem',
       ];
 
       // Для кожного модуля
@@ -142,13 +141,16 @@ export class Initializer {
           // Якщо знайдено
           if (moduleObj) {
             dependencyContainer.register(moduleName, moduleObj);
-            logger.info(`Модуль ${moduleName} автоматично зареєстровано`, 'autoRegisterGlobalModules');
+            logger.info(
+              `Модуль ${moduleName} автоматично зареєстровано`,
+              'autoRegisterGlobalModules'
+            );
           }
         }
       }
     } catch (error) {
       logger.error(error, 'Помилка автоматичної реєстрації модулів', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
     }
   }
@@ -170,7 +172,7 @@ export class Initializer {
       }
     } catch (error) {
       logger.error(error, 'Помилка при ініціалізації модулів', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
     }
   }
@@ -182,19 +184,17 @@ export class Initializer {
   getSortedModules() {
     try {
       // Створюємо список модулів з пріоритетами
-      const modulesList = Object.keys(this.dependencies).map(name => ({
+      const modulesList = Object.keys(this.dependencies).map((name) => ({
         name,
         priority: this.dependencies[name].priority || 999,
-        deps: this.dependencies[name].deps || []
+        deps: this.dependencies[name].deps || [],
       }));
 
       // Сортуємо за пріоритетом (нижчий пріоритет = раніше ініціалізується)
-      return modulesList
-        .sort((a, b) => a.priority - b.priority)
-        .map(m => m.name);
+      return modulesList.sort((a, b) => a.priority - b.priority).map((m) => m.name);
     } catch (error) {
       logger.error(error, 'Помилка отримання відсортованого списку модулів', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
       return [];
     }
@@ -224,7 +224,7 @@ export class Initializer {
         this.state.failedModules.push(moduleName);
 
         logger.warn(`Модуль ${moduleName} не знайдено`, 'initializeModule', {
-          category: LOG_CATEGORIES.INIT
+          category: LOG_CATEGORIES.INIT,
         });
 
         return false;
@@ -257,35 +257,41 @@ export class Initializer {
         this.state.moduleStates[moduleName] = 'ready';
 
         logger.info(`Модуль ${moduleName} успішно ініціалізовано`, 'initializeModule', {
-          category: LOG_CATEGORIES.INIT
+          category: LOG_CATEGORIES.INIT,
         });
 
         return true;
       } else {
         // Якщо немає методу init, вважаємо що модуль вже ініціалізовано
         this.state.moduleStates[moduleName] = 'ready';
-        logger.info(`Модуль ${moduleName} не має методу init, вважаємо його готовим`, 'initializeModule', {
-          category: LOG_CATEGORIES.INIT
-        });
+        logger.info(
+          `Модуль ${moduleName} не має методу init, вважаємо його готовим`,
+          'initializeModule',
+          {
+            category: LOG_CATEGORIES.INIT,
+          }
+        );
         return true;
       }
     } catch (error) {
       logger.error(error, `Помилка при ініціалізації модуля ${moduleName}`, {
         category: LOG_CATEGORIES.INIT,
-        details: { moduleName }
+        details: { moduleName },
       });
 
       this.state.moduleStates[moduleName] = 'failed';
       this.state.failedModules.push(moduleName);
 
       // Генеруємо подію про помилку
-      document.dispatchEvent(new CustomEvent('module-initialization-error', {
-        detail: {
-          module: moduleName,
-          error: error,
-          timestamp: Date.now()
-        }
-      }));
+      document.dispatchEvent(
+        new CustomEvent('module-initialization-error', {
+          detail: {
+            module: moduleName,
+            error: error,
+            timestamp: Date.now(),
+          },
+        })
+      );
 
       return false;
     }
@@ -305,7 +311,7 @@ export class Initializer {
       if (deps.length === 0) return;
 
       // Для кожної залежності
-      deps.forEach(depName => {
+      deps.forEach((depName) => {
         // Отримуємо об'єкт залежності з контейнера
         const depObj = dependencyContainer.resolve(depName);
 
@@ -317,14 +323,17 @@ export class Initializer {
           // Встановлюємо залежність в об'єкт модуля
           if (typeof moduleObj === 'object' && !moduleObj[propName]) {
             moduleObj[propName] = depObj;
-            logger.info(`Ін'єктовано залежність ${depName} в модуль ${moduleName} як ${propName}`, 'injectDependencies');
+            logger.info(
+              `Ін'єктовано залежність ${depName} в модуль ${moduleName} як ${propName}`,
+              'injectDependencies'
+            );
           }
         }
       });
     } catch (error) {
       logger.error(error, `Помилка при ін'єктуванні залежностей для модуля ${moduleName}`, {
         category: LOG_CATEGORIES.LOGIC,
-        details: { moduleName }
+        details: { moduleName },
       });
     }
   }
@@ -339,7 +348,7 @@ export class Initializer {
 
       // Визначаємо успішність ініціалізації
       const allCriticalReady = this.criticalModules.every(
-        m => this.state.moduleStates[m] === 'ready' || this.state.moduleStates[m] === 'not_found'
+        (m) => this.state.moduleStates[m] === 'ready' || this.state.moduleStates[m] === 'not_found'
       );
 
       // Фіксуємо час завершення
@@ -350,34 +359,48 @@ export class Initializer {
 
       // Відправляємо подію про успішну ініціалізацію
       if (allCriticalReady) {
-        logger.info(`Всі критичні модулі успішно ініціалізовано за ${Math.round(initDuration)}мс`, 'finalizeInitialization', {
-          category: LOG_CATEGORIES.INIT,
-          details: {
-            initDuration: Math.round(initDuration),
-            moduleStates: { ...this.state.moduleStates }
+        logger.info(
+          `Всі критичні модулі успішно ініціалізовано за ${Math.round(initDuration)}мс`,
+          'finalizeInitialization',
+          {
+            category: LOG_CATEGORIES.INIT,
+            details: {
+              initDuration: Math.round(initDuration),
+              moduleStates: { ...this.state.moduleStates },
+            },
           }
-        });
+        );
 
         // Виправляємо проблеми з отриманням ID користувача у всіх модулях
         this.fixUserIdIssues();
 
         // Відправляємо подію про успішну ініціалізацію
-        document.dispatchEvent(new CustomEvent('task-system-initialized', {
-          detail: {
-            modules: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'ready'),
-            initTime: Math.round(initDuration),
-            timestamp: Date.now()
-          }
-        }));
+        document.dispatchEvent(
+          new CustomEvent('task-system-initialized', {
+            detail: {
+              modules: Object.keys(this.state.moduleStates).filter(
+                (m) => this.state.moduleStates[m] === 'ready'
+              ),
+              initTime: Math.round(initDuration),
+              timestamp: Date.now(),
+            },
+          })
+        );
       } else {
         // Якщо є невдалі критичні модулі, спробуємо їх відновити
-        const failedCritical = this.criticalModules.filter(m => this.state.moduleStates[m] === 'failed');
+        const failedCritical = this.criticalModules.filter(
+          (m) => this.state.moduleStates[m] === 'failed'
+        );
 
         if (failedCritical.length > 0) {
-          logger.error(`Не вдалося ініціалізувати критичні модулі: ${failedCritical.join(', ')}`, 'finalizeInitialization', {
-            category: LOG_CATEGORIES.INIT,
-            details: { failedModules: failedCritical }
-          });
+          logger.error(
+            `Не вдалося ініціалізувати критичні модулі: ${failedCritical.join(', ')}`,
+            'finalizeInitialization',
+            {
+              category: LOG_CATEGORIES.INIT,
+              details: { failedModules: failedCritical },
+            }
+          );
 
           // В автоматичному режимі спробуємо відновити
           if (this.config.autoRetryOnFailure) {
@@ -387,19 +410,27 @@ export class Initializer {
         }
 
         // Відправляємо подію про часткову ініціалізацію
-        document.dispatchEvent(new CustomEvent('task-system-partial-init', {
-          detail: {
-            modules: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'ready'),
-            failed: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'failed'),
-            notFound: Object.keys(this.state.moduleStates).filter(m => this.state.moduleStates[m] === 'not_found'),
-            initTime: Math.round(initDuration),
-            timestamp: Date.now()
-          }
-        }));
+        document.dispatchEvent(
+          new CustomEvent('task-system-partial-init', {
+            detail: {
+              modules: Object.keys(this.state.moduleStates).filter(
+                (m) => this.state.moduleStates[m] === 'ready'
+              ),
+              failed: Object.keys(this.state.moduleStates).filter(
+                (m) => this.state.moduleStates[m] === 'failed'
+              ),
+              notFound: Object.keys(this.state.moduleStates).filter(
+                (m) => this.state.moduleStates[m] === 'not_found'
+              ),
+              initTime: Math.round(initDuration),
+              timestamp: Date.now(),
+            },
+          })
+        );
       }
     } catch (error) {
       logger.fatal(error, 'Критична помилка завершення ініціалізації', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
     }
   }
@@ -423,7 +454,7 @@ export class Initializer {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка скидання стану інтеграції', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
       return false;
     }

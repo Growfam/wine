@@ -37,9 +37,9 @@ function setupDomObserver(progressService) {
     let needsUpdate = false;
 
     // Перевіряємо, чи з'явилися нові елементи завдань
-    mutations.forEach(mutation => {
+    mutations.forEach((mutation) => {
       if (mutation.type === 'childList' && mutation.addedNodes.length) {
-        mutation.addedNodes.forEach(node => {
+        mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             // Перевіряємо, чи є додані елементи завданнями або вони містять завдання
             if (node.classList?.contains('task-item') || node.querySelector?.('.task-item')) {
@@ -59,7 +59,7 @@ function setupDomObserver(progressService) {
   // Починаємо спостереження за всім документом
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
   });
 }
 

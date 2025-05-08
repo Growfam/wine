@@ -56,27 +56,33 @@ export function dispatchVerificationEvent(taskId, result, eventId) {
 
       // Кешуємо оброблені події
       const cacheService = window.cacheService || { set: () => {} };
-      cacheService.set(`processed_event_${eventId}`, {
-        taskId,
-        timestamp: Date.now()
-      }, {
-        ttl: 3600000, // 1 година
-        tags: ['verification', 'events']
-      });
+      cacheService.set(
+        `processed_event_${eventId}`,
+        {
+          taskId,
+          timestamp: Date.now(),
+        },
+        {
+          ttl: 3600000, // 1 година
+          tags: ['verification', 'events'],
+        }
+      );
     }
 
     // Додаємо таймстамп до результату
     result.timestamp = Date.now();
 
     // Відправляємо подію про результат верифікації
-    document.dispatchEvent(new CustomEvent('task-verification-result', {
-      detail: {
-        taskId,
-        result,
-        timestamp: Date.now(),
-        eventId
-      }
-    }));
+    document.dispatchEvent(
+      new CustomEvent('task-verification-result', {
+        detail: {
+          taskId,
+          result,
+          timestamp: Date.now(),
+          eventId,
+        },
+      })
+    );
 
     // Якщо верифікація була успішною
     if (result.success) {
@@ -104,7 +110,7 @@ export function handleSuccessfulVerification(taskId, result, eventId) {
       taskStore.setTaskProgress(taskId, {
         status: 'completed',
         progress_value: targetValue,
-        completion_date: new Date().toISOString()
+        completion_date: new Date().toISOString(),
       });
     } catch (storeError) {
       console.error(`Помилка оновлення прогресу для завдання ${taskId}:`, storeError);
@@ -114,14 +120,16 @@ export function handleSuccessfulVerification(taskId, result, eventId) {
     setTimeout(() => {
       try {
         // Відправляємо подію про завершення завдання
-        document.dispatchEvent(new CustomEvent('task-completed', {
-          detail: {
-            taskId,
-            reward: result.reward,
-            timestamp: Date.now(),
-            eventId
-          }
-        }));
+        document.dispatchEvent(
+          new CustomEvent('task-completed', {
+            detail: {
+              taskId,
+              reward: result.reward,
+              timestamp: Date.now(),
+              eventId,
+            },
+          })
+        );
       } catch (eventError) {
         console.error(`Помилка відправки події завершення завдання ${taskId}:`, eventError);
       }

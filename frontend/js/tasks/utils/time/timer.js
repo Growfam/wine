@@ -24,19 +24,19 @@ const timerElements = new Map();
 
 // Стан модуля
 const state = {
-  timerIdCounter: 0,      // Лічильник для генерації ID таймерів
-  masterTimerId: null,    // ID головного таймера
-  activeTimersCount: 0,   // Кількість активних таймерів
-  lastUpdateTime: 0,      // Час останнього оновлення
-  stylesInjected: false   // Прапорець для відстеження додавання стилів
+  timerIdCounter: 0, // Лічильник для генерації ID таймерів
+  masterTimerId: null, // ID головного таймера
+  activeTimersCount: 0, // Кількість активних таймерів
+  lastUpdateTime: 0, // Час останнього оновлення
+  stylesInjected: false, // Прапорець для відстеження додавання стилів
 };
 
 // Налаштування за замовчуванням
 const config = {
-  updateInterval: 1000,      // Інтервал оновлення в мс
-  autoCleanup: true,         // Автоматичне очищення таймерів
-  useLocalTimezone: true,    // Використовувати локальний часовий пояс
-  adjustForTimezone: true    // Коригувати відображення за часовим поясом
+  updateInterval: 1000, // Інтервал оновлення в мс
+  autoCleanup: true, // Автоматичне очищення таймерів
+  useLocalTimezone: true, // Використовувати локальний часовий пояс
+  adjustForTimezone: true, // Коригувати відображення за часовим поясом
 };
 
 /**
@@ -47,7 +47,7 @@ export function init(options = {}) {
   // Оновлюємо налаштування
   Object.assign(config, options);
 
-  logger.info("Ініціалізація модуля таймерів", "init");
+  logger.info('Ініціалізація модуля таймерів', 'init');
 
   // Додаємо CSS стилі для таймерів, якщо потрібно
   if (!state.stylesInjected) {
@@ -115,7 +115,7 @@ function injectTimerStyles() {
   `;
 
   document.head.appendChild(styleElement);
-  logger.debug("CSS стилі для таймерів додано", "injectTimerStyles");
+  logger.debug('CSS стилі для таймерів додано', 'injectTimerStyles');
 }
 
 /**
@@ -126,10 +126,10 @@ function initExistingTimers() {
   const timerElements = document.querySelectorAll('[data-end-date]:not([data-timer-initialized])');
 
   if (timerElements.length > 0) {
-    logger.info(`Знайдено ${timerElements.length} таймерів на сторінці`, "initExistingTimers");
+    logger.info(`Знайдено ${timerElements.length} таймерів на сторінці`, 'initExistingTimers');
 
     // Ініціалізуємо кожен таймер
-    timerElements.forEach(element => {
+    timerElements.forEach((element) => {
       const endDate = element.getAttribute('data-end-date');
       const format = element.getAttribute('data-format') || 'short';
       const onComplete = element.getAttribute('data-on-complete');
@@ -139,7 +139,7 @@ function initExistingTimers() {
         element,
         endDate,
         format,
-        onComplete: onComplete ? new Function(`return ${onComplete}`)() : null
+        onComplete: onComplete ? new Function(`return ${onComplete}`)() : null,
       });
 
       // Позначаємо як ініціалізований
@@ -212,7 +212,7 @@ function updateAllTimers() {
   });
 
   // Обробляємо таймери, час яких закінчився
-  expiredTimers.forEach(timerId => {
+  expiredTimers.forEach((timerId) => {
     handleExpiredTimer(timerId);
   });
 }
@@ -224,13 +224,17 @@ function updateAllTimers() {
  */
 export function calculateUpdateFrequency(timeLeft) {
   // Адаптуємо частоту оновлення залежно від залишку часу
-  if (timeLeft > 24 * 60 * 60 * 1000) { // > 24 години
+  if (timeLeft > 24 * 60 * 60 * 1000) {
+    // > 24 години
     return 60000; // 1 хвилина
-  } else if (timeLeft > 60 * 60 * 1000) { // > 1 година
+  } else if (timeLeft > 60 * 60 * 1000) {
+    // > 1 година
     return 30000; // 30 секунд
-  } else if (timeLeft > 5 * 60 * 1000) { // > 5 хвилин
+  } else if (timeLeft > 5 * 60 * 1000) {
+    // > 5 хвилин
     return 10000; // 10 секунд
-  } else if (timeLeft > 60 * 1000) { // > 1 хвилина
+  } else if (timeLeft > 60 * 1000) {
+    // > 1 хвилина
     return 1000; // 1 секунда
   } else {
     return 500; // 0.5 секунди для останньої хвилини
@@ -277,9 +281,11 @@ function updateTimerClasses(element, timeLeft) {
   element.classList.remove('warning', 'critical');
 
   // Додаємо класи залежно від залишку часу
-  if (timeLeft < 60 * 1000) { // Менше хвилини
+  if (timeLeft < 60 * 1000) {
+    // Менше хвилини
     element.classList.add('critical');
-  } else if (timeLeft < 5 * 60 * 1000) { // Менше 5 хвилин
+  } else if (timeLeft < 5 * 60 * 1000) {
+    // Менше 5 хвилин
     element.classList.add('warning');
   }
 }
@@ -299,10 +305,12 @@ function handleExpiredTimer(timerId) {
     timer.element.classList.add('expired');
 
     // Генеруємо подію закінчення таймера
-    timer.element.dispatchEvent(new CustomEvent('timer-expired', {
-      bubbles: true,
-      detail: { timerId }
-    }));
+    timer.element.dispatchEvent(
+      new CustomEvent('timer-expired', {
+        bubbles: true,
+        detail: { timerId },
+      })
+    );
 
     // Викликаємо колбек завершення
     if (typeof timer.onComplete === 'function') {
@@ -315,7 +323,7 @@ function handleExpiredTimer(timerId) {
   timerElements.delete(timerId);
   state.activeTimersCount--;
 
-  logger.debug(`Таймер #${timerId} завершено`, "handleExpiredTimer");
+  logger.debug(`Таймер #${timerId} завершено`, 'handleExpiredTimer');
 }
 
 /**
@@ -324,13 +332,7 @@ function handleExpiredTimer(timerId) {
  * @returns {number} ID таймера
  */
 export function createCountdown(options) {
-  const {
-    element,
-    endDate,
-    format = 'short',
-    onTick,
-    onComplete
-  } = options;
+  const { element, endDate, format = 'short', onTick, onComplete } = options;
 
   // Перевіряємо наявність елемента
   let targetElement = element;
@@ -384,7 +386,7 @@ export function createCountdown(options) {
     onTick,
     onComplete,
     updateFrequency,
-    lastUpdate: now
+    lastUpdate: now,
   });
 
   // Кешуємо елемент для швидкого доступу
@@ -401,9 +403,9 @@ export function createCountdown(options) {
   // Форматуємо та відображаємо поточний час
   updateTimerDisplay(timerId, true);
 
-  logger.debug(`Створено таймер #${timerId}`, "createCountdown", {
+  logger.debug(`Створено таймер #${timerId}`, 'createCountdown', {
     endDate: endDateTime.toISOString(),
-    format
+    format,
   });
 
   return timerId;
@@ -429,7 +431,7 @@ export function stopCountdown(timerId) {
   timerElements.delete(timerId);
   state.activeTimersCount--;
 
-  logger.debug(`Зупинено таймер #${timerId}`, "stopCountdown");
+  logger.debug(`Зупинено таймер #${timerId}`, 'stopCountdown');
 
   return true;
 }
@@ -454,7 +456,7 @@ export function stopAllCountdowns() {
     state.masterTimerId = null;
   }
 
-  logger.info("Зупинено всі таймери", "stopAllCountdowns");
+  logger.info('Зупинено всі таймери', 'stopAllCountdowns');
 }
 
 /**
@@ -504,8 +506,8 @@ export function createSimpleCountdown(element, endDate, onComplete) {
   // Зберігаємо ID інтервалу для подальшого очищення
   element.dataset.timerId = intervalId;
 
-  logger.debug("Створено простий таймер", "createSimpleCountdown", {
-    endDate: endDateTime.toISOString()
+  logger.debug('Створено простий таймер', 'createSimpleCountdown', {
+    endDate: endDateTime.toISOString(),
   });
 
   return intervalId;
@@ -563,7 +565,7 @@ export function getTimeLeft(timerId) {
  */
 export function updateConfig(newConfig = {}) {
   Object.assign(config, newConfig);
-  logger.debug("Оновлено конфігурацію таймерів", "updateConfig", { newConfig });
+  logger.debug('Оновлено конфігурацію таймерів', 'updateConfig', { newConfig });
   return { ...config };
 }
 
@@ -583,5 +585,5 @@ export default {
   // Експортуємо конфігурацію як readonly
   get config() {
     return { ...config };
-  }
+  },
 };

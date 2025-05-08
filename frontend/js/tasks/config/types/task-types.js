@@ -9,7 +9,7 @@ export const TASK_TYPES = {
   SOCIAL: 'social',
   LIMITED: 'limited',
   PARTNER: 'partner',
-  REFERRAL: 'referral'
+  REFERRAL: 'referral',
 };
 
 export default TASK_TYPES;

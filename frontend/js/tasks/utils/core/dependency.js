@@ -62,7 +62,7 @@ export class DependencyContainer {
     if (except && except.length > 0) {
       // Зберігаємо певні сервіси
       const preserved = new Map();
-      except.forEach(name => {
+      except.forEach((name) => {
         if (this.services.has(name)) {
           preserved.set(name, this.services.get(name));
         }

@@ -8,7 +8,7 @@
 const CACHE_KEYS = {
   VERIFICATION_PREFIX: 'verification_',
   VERIFICATION_RESULT: 'verification_result_',
-  TASK_TYPE: 'task_type_'
+  TASK_TYPE: 'task_type_',
 };
 
 // Теги для кешу
@@ -18,7 +18,7 @@ const CACHE_TAGS = {
   RESULT: 'result',
   SOCIAL: 'social',
   LIMITED: 'limited',
-  PARTNER: 'partner'
+  PARTNER: 'partner',
 };
 
 /**
@@ -43,7 +43,7 @@ export function cacheTaskType(taskId, type) {
   try {
     const cacheService = window.cacheService || { set: () => {} };
     cacheService.set(`${CACHE_KEYS.TASK_TYPE}${taskId}`, type, {
-      tags: [CACHE_TAGS.TASK, 'type']
+      tags: [CACHE_TAGS.TASK, 'type'],
     });
   } catch (error) {
     console.warn(`Помилка кешування типу завдання ${taskId}:`, error);
@@ -101,7 +101,7 @@ export function cacheResult(taskId, result) {
     // Зберігаємо результат в кеш
     cacheService.set(`${CACHE_KEYS.VERIFICATION_RESULT}${taskId}`, result, {
       ttl: ttl,
-      tags
+      tags,
     });
   } catch (error) {
     console.warn(`Помилка кешування результату для завдання ${taskId}:`, error);

@@ -114,7 +114,7 @@ function updateTabsUI(activeTab) {
   if (!tabElements.length) return;
 
   // Оновлюємо класи активності
-  tabElements.forEach(tab => {
+  tabElements.forEach((tab) => {
     const tabType = tab.getAttribute('data-tab-type');
     if (tabType === activeTab) {
       tab.classList.add('active');
@@ -125,7 +125,7 @@ function updateTabsUI(activeTab) {
 
   // Оновлюємо видимість контейнерів
   const containers = document.querySelectorAll('.tasks-container');
-  containers.forEach(container => {
+  containers.forEach((container) => {
     const containerType = container.getAttribute('data-container-type');
     if (containerType === activeTab) {
       container.style.display = 'block';

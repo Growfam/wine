@@ -40,7 +40,9 @@ export function setupSyncService(progressService) {
 export async function syncTaskProgress(progressService, taskId) {
   try {
     // Перевіряємо, чи підключено API
-    const taskApi = window.taskApi || { getTaskProgress: () => Promise.resolve({ status: 'error' }) };
+    const taskApi = window.taskApi || {
+      getTaskProgress: () => Promise.resolve({ status: 'error' }),
+    };
 
     // Отримуємо прогрес з сервера
     const response = await taskApi.getTaskProgress(taskId);
@@ -52,14 +54,14 @@ export async function syncTaskProgress(progressService, taskId) {
       return {
         success: true,
         message: 'Прогрес успішно синхронізовано',
-        data: response.data
+        data: response.data,
       };
     }
 
     return {
       success: false,
       message: 'Не вдалося отримати прогрес з сервера',
-      error: response?.error || response?.message || 'Невідома помилка'
+      error: response?.error || response?.message || 'Невідома помилка',
     };
   } catch (error) {
     console.error('Помилка синхронізації прогресу:', error);
@@ -67,7 +69,7 @@ export async function syncTaskProgress(progressService, taskId) {
     return {
       success: false,
       message: 'Помилка синхронізації прогресу',
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -80,7 +82,9 @@ export async function syncTaskProgress(progressService, taskId) {
 export async function syncAllProgress(progressService) {
   try {
     // Перевіряємо, чи підключено API
-    const taskApi = window.taskApi || { fetchWithRetry: () => Promise.resolve({ status: 'error' }) };
+    const taskApi = window.taskApi || {
+      fetchWithRetry: () => Promise.resolve({ status: 'error' }),
+    };
 
     // Запитуємо весь прогрес з сервера
     const response = await taskApi.fetchWithRetry('quests/user-progress/all');
@@ -93,14 +97,14 @@ export async function syncAllProgress(progressService) {
       return {
         success: true,
         message: 'Всі дані прогресу успішно синхронізовано',
-        data: response.data
+        data: response.data,
       };
     }
 
     return {
       success: false,
       message: 'Не вдалося отримати прогрес з сервера',
-      error: response?.error || response?.message || 'Невідома помилка'
+      error: response?.error || response?.message || 'Невідома помилка',
     };
   } catch (error) {
     console.error('Помилка синхронізації прогресу:', error);
@@ -108,7 +112,7 @@ export async function syncAllProgress(progressService) {
     return {
       success: false,
       message: 'Помилка синхронізації прогресу',
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -124,7 +128,9 @@ export async function sendProgressWithRetry(taskId, progressData, maxRetries = 3
   let lastError = null;
 
   // Перевіряємо, чи підключено API
-  const taskApi = window.taskApi || { updateTaskProgress: () => Promise.resolve({ status: 'error' }) };
+  const taskApi = window.taskApi || {
+    updateTaskProgress: () => Promise.resolve({ status: 'error' }),
+  };
 
   // Спроби відправки
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -137,23 +143,23 @@ export async function sendProgressWithRetry(taskId, progressData, maxRetries = 3
           success: true,
           message: 'Прогрес успішно відправлено на сервер',
           data: response.data,
-          attempts: attempt + 1
+          attempts: attempt + 1,
         };
       }
 
       // Зберігаємо помилку
       lastError = {
         message: response?.message || response?.error || 'Невідома помилка',
-        response
+        response,
       };
 
       // Затримка перед наступною спробою
-      await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_INTERVAL));
+      await new Promise((resolve) => setTimeout(resolve, CONFIG.RETRY_INTERVAL));
     } catch (error) {
       lastError = error;
 
       // Затримка перед наступною спробою
-      await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_INTERVAL));
+      await new Promise((resolve) => setTimeout(resolve, CONFIG.RETRY_INTERVAL));
     }
   }
 
@@ -161,6 +167,6 @@ export async function sendProgressWithRetry(taskId, progressData, maxRetries = 3
     success: false,
     message: 'Не вдалося відправити прогрес на сервер після декількох спроб',
     error: lastError,
-    attempts: maxRetries
+    attempts: maxRetries,
   };
 }

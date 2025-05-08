@@ -24,16 +24,11 @@ export class DiagnosticsService {
       lastDiagnosticResult: null,
 
       // Кількість спроб відновлення
-      recoveryAttempts: {}
+      recoveryAttempts: {},
     };
 
     // Критичні модулі
-    this.criticalModules = [
-      'taskProgress',
-      'taskVerification',
-      'taskStore',
-      'taskSystem'
-    ];
+    this.criticalModules = ['taskProgress', 'taskVerification', 'taskStore', 'taskSystem'];
   }
 
   /**
@@ -57,25 +52,25 @@ export class DiagnosticsService {
         registeredModules: dependencyContainer.getRegisteredModules(),
         browserInfo: this.getBrowserInfo(),
         performance: this.getPerformanceMetrics(),
-        userId: this.getUserIdInfo()
+        userId: this.getUserIdInfo(),
       };
 
       // Зберігаємо результат діагностики
       this.state.lastDiagnosticResult = diagnosticInfo;
 
       logger.info('Діагностична інформація зібрана', 'diagnose', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return diagnosticInfo;
     } catch (error) {
       logger.error(error, 'Помилка діагностики системи', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return {
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -94,7 +89,7 @@ export class DiagnosticsService {
         return {
           userId,
           source: 'provider',
-          success: !!userId
+          success: !!userId,
         };
       }
 
@@ -105,7 +100,7 @@ export class DiagnosticsService {
         return {
           userId,
           source: 'global',
-          success: !!userId
+          success: !!userId,
         };
       }
 
@@ -115,25 +110,25 @@ export class DiagnosticsService {
         return {
           userId: storedId,
           source: 'localStorage',
-          success: true
+          success: true,
         };
       }
 
       return {
         userId: null,
         source: 'none',
-        success: false
+        success: false,
       };
     } catch (error) {
       logger.error(error, 'Помилка отримання інформації про ID користувача', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return {
         userId: null,
         source: 'error',
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -151,20 +146,20 @@ export class DiagnosticsService {
         cookiesEnabled: navigator.cookieEnabled,
         screenSize: {
           width: window.screen.width,
-          height: window.screen.height
+          height: window.screen.height,
         },
         viewportSize: {
           width: window.innerWidth,
-          height: window.innerHeight
-        }
+          height: window.innerHeight,
+        },
       };
     } catch (error) {
       logger.error(error, 'Помилка отримання інформації про браузер', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return {
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -183,20 +178,26 @@ export class DiagnosticsService {
       // Отримуємо базові метрики
       const metrics = {
         supported: true,
-        memory: window.performance.memory ? {
-          usedJSHeapSize: window.performance.memory.usedJSHeapSize,
-          totalJSHeapSize: window.performance.memory.totalJSHeapSize
-        } : null,
-        navigation: window.performance.navigation ? {
-          type: window.performance.navigation.type,
-          redirectCount: window.performance.navigation.redirectCount
-        } : null,
-        timing: window.performance.timing ? {
-          navigationStart: window.performance.timing.navigationStart,
-          loadEventEnd: window.performance.timing.loadEventEnd,
-          domComplete: window.performance.timing.domComplete,
-          domInteractive: window.performance.timing.domInteractive
-        } : null
+        memory: window.performance.memory
+          ? {
+              usedJSHeapSize: window.performance.memory.usedJSHeapSize,
+              totalJSHeapSize: window.performance.memory.totalJSHeapSize,
+            }
+          : null,
+        navigation: window.performance.navigation
+          ? {
+              type: window.performance.navigation.type,
+              redirectCount: window.performance.navigation.redirectCount,
+            }
+          : null,
+        timing: window.performance.timing
+          ? {
+              navigationStart: window.performance.timing.navigationStart,
+              loadEventEnd: window.performance.timing.loadEventEnd,
+              domComplete: window.performance.timing.domComplete,
+              domInteractive: window.performance.timing.domInteractive,
+            }
+          : null,
       };
 
       // Якщо є timing API, розраховуємо часи завантаження
@@ -206,19 +207,19 @@ export class DiagnosticsService {
         metrics.loadTimes = {
           total: timing.loadEventEnd - timing.navigationStart,
           domReady: timing.domComplete - timing.navigationStart,
-          interactive: timing.domInteractive - timing.navigationStart
+          interactive: timing.domInteractive - timing.navigationStart,
         };
       }
 
       return metrics;
     } catch (error) {
       logger.error(error, 'Помилка отримання метрик продуктивності', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return {
         supported: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -232,20 +233,24 @@ export class DiagnosticsService {
       // Отримуємо ініціалізатор
       const initializer = dependencyContainer.resolve('TaskIntegration');
       if (!initializer) {
-        logger.error('Не вдалося отримати ініціалізатор для відновлення модулів', 'recoverFailedModules', {
-          category: LOG_CATEGORIES.LOGIC
-        });
+        logger.error(
+          'Не вдалося отримати ініціалізатор для відновлення модулів',
+          'recoverFailedModules',
+          {
+            category: LOG_CATEGORIES.LOGIC,
+          }
+        );
 
         return {
           success: false,
           message: 'Не вдалося отримати ініціалізатор',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
 
       // Отримуємо список невдалих критичних модулів
-      const failedCritical = this.criticalModules.filter(m =>
-        initializer.state.moduleStates[m] === 'failed'
+      const failedCritical = this.criticalModules.filter(
+        (m) => initializer.state.moduleStates[m] === 'failed'
       );
 
       if (failedCritical.length === 0) {
@@ -253,11 +258,14 @@ export class DiagnosticsService {
         return {
           success: true,
           message: 'Немає невдалих модулів для відновлення',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
 
-      logger.info(`Спроба відновлення модулів: ${failedCritical.join(', ')}`, 'recoverFailedModules');
+      logger.info(
+        `Спроба відновлення модулів: ${failedCritical.join(', ')}`,
+        'recoverFailedModules'
+      );
 
       // Результати відновлення
       const results = {};
@@ -266,7 +274,8 @@ export class DiagnosticsService {
       for (const moduleName of failedCritical) {
         try {
           // Оновлюємо лічильник спроб
-          this.state.recoveryAttempts[moduleName] = (this.state.recoveryAttempts[moduleName] || 0) + 1;
+          this.state.recoveryAttempts[moduleName] =
+            (this.state.recoveryAttempts[moduleName] || 0) + 1;
 
           // Скидаємо стан модуля
           initializer.state.moduleStates[moduleName] = 'pending';
@@ -282,26 +291,29 @@ export class DiagnosticsService {
 
           results[moduleName] = {
             success,
-            attempts: this.state.recoveryAttempts[moduleName]
+            attempts: this.state.recoveryAttempts[moduleName],
           };
 
-          logger.info(`${success ? 'Успішно відновлено' : 'Не вдалося відновити'} модуль ${moduleName}`, 'recoverFailedModules');
+          logger.info(
+            `${success ? 'Успішно відновлено' : 'Не вдалося відновити'} модуль ${moduleName}`,
+            'recoverFailedModules'
+          );
         } catch (moduleError) {
           logger.error(moduleError, `Помилка при спробі відновлення модуля ${moduleName}`, {
             category: LOG_CATEGORIES.INIT,
-            details: { moduleName }
+            details: { moduleName },
           });
 
           results[moduleName] = {
             success: false,
             error: moduleError.message,
-            attempts: this.state.recoveryAttempts[moduleName]
+            attempts: this.state.recoveryAttempts[moduleName],
           };
         }
       }
 
       // Перевіряємо загальний результат
-      const allSucceeded = Object.values(results).every(r => r.success);
+      const allSucceeded = Object.values(results).every((r) => r.success);
 
       return {
         success: allSucceeded,
@@ -309,18 +321,18 @@ export class DiagnosticsService {
           ? 'Всі модулі успішно відновлено'
           : 'Не вдалося відновити деякі модулі',
         results,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
       logger.error(error, 'Помилка при відновленні невдалих модулів', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return {
         success: false,
         message: 'Помилка при відновленні модулів',
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -342,20 +354,22 @@ export class DiagnosticsService {
         return {
           healthy: false,
           message: 'Ініціалізатор системи не знайдено',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
 
       // Перевіряємо стан критичних модулів
       const moduleStates = initializer.state.moduleStates;
-      const criticalModulesStatus = this.criticalModules.map(moduleName => ({
+      const criticalModulesStatus = this.criticalModules.map((moduleName) => ({
         name: moduleName,
-        state: moduleStates[moduleName] || 'unknown'
+        state: moduleStates[moduleName] || 'unknown',
       }));
 
       // Визначаємо, чи система здорова
-      const failedCritical = criticalModulesStatus.filter(m => m.state === 'failed');
-      const notFoundCritical = criticalModulesStatus.filter(m => m.state === 'not_found' || m.state === 'unknown');
+      const failedCritical = criticalModulesStatus.filter((m) => m.state === 'failed');
+      const notFoundCritical = criticalModulesStatus.filter(
+        (m) => m.state === 'not_found' || m.state === 'unknown'
+      );
 
       const healthy = failedCritical.length === 0;
       const fullFunctional = failedCritical.length === 0 && notFoundCritical.length === 0;
@@ -364,21 +378,23 @@ export class DiagnosticsService {
         healthy,
         fullFunctional,
         message: healthy
-          ? (fullFunctional ? 'Система повністю функціональна' : 'Система працює, але деякі модулі відсутні')
+          ? fullFunctional
+            ? 'Система повністю функціональна'
+            : 'Система працює, але деякі модулі відсутні'
           : 'Система містить невдалі модулі',
         criticalModules: criticalModulesStatus,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
       logger.error(error, 'Помилка перевірки стану системи', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return {
         healthy: false,
         message: 'Помилка перевірки стану системи',
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }

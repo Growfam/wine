@@ -4,594 +4,622 @@
  * @version 2.1.0
  */
 
-(function() {
-    'use strict';
+(function () {
+  'use strict';
 
-    // Перевірка наявності головного модуля розіграшів
-    if (typeof WinixRaffles === 'undefined') {
-        console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше statistics.js');
-        return;
-    }
+  // Перевірка наявності головного модуля розіграшів
+  if (typeof WinixRaffles === 'undefined') {
+    console.error(
+      '❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше statistics.js'
+    );
+    return;
+  }
 
-    // Підмодуль для статистики розіграшів
-    const statistics = {
-        // Дані статистики
-        statsData: null,
+  // Підмодуль для статистики розіграшів
+  const statistics = {
+    // Дані статистики
+    statsData: null,
 
-        // Історія статистики за періоди (для графіків)
-        statsHistory: [],
+    // Історія статистики за періоди (для графіків)
+    statsHistory: [],
 
-        // Останній час оновлення
-        lastUpdate: 0,
+    // Останній час оновлення
+    lastUpdate: 0,
 
-        // Інтервал кешування (5 хвилин)
-        cacheInterval: 5 * 60 * 1000,
+    // Інтервал кешування (5 хвилин)
+    cacheInterval: 5 * 60 * 1000,
 
-        // Статус завантаження
-        isLoading: false,
+    // Статус завантаження
+    isLoading: false,
 
-        // Чи були проблеми з останнім завантаженням
-        hasLoadingErrors: false,
+    // Чи були проблеми з останнім завантаженням
+    hasLoadingErrors: false,
 
-        // Чи потрібно оновити дані (використовується для відкладеного оновлення)
-        needsUpdate: false,
+    // Чи потрібно оновити дані (використовується для відкладеного оновлення)
+    needsUpdate: false,
 
-        // Ідентифікатор таймера оновлення
-        updateTimer: null,
+    // Ідентифікатор таймера оновлення
+    updateTimer: null,
 
-        // Таймер для автоматичного оновлення
-        autoUpdateTimer: null,
+    // Таймер для автоматичного оновлення
+    autoUpdateTimer: null,
 
-        // Ініціалізація модуля
-        init: function() {
-            console.log('📊 Ініціалізація модуля статистики розіграшів...');
+    // Ініціалізація модуля
+    init: function () {
+      console.log('📊 Ініціалізація модуля статистики розіграшів...');
 
-            // Спочатку спробуємо відновити дані з кешу
-            this.restoreFromCache();
+      // Спочатку спробуємо відновити дані з кешу
+      this.restoreFromCache();
 
-            // Перевіряємо, чи потрібно відразу завантажити статистику
-            if (WinixRaffles.state.activeTab === 'stats') {
-                this.loadStatistics();
-            }
+      // Перевіряємо, чи потрібно відразу завантажити статистику
+      if (WinixRaffles.state.activeTab === 'stats') {
+        this.loadStatistics();
+      }
 
-            // Додаємо обробники подій
-            this.setupEventListeners();
+      // Додаємо обробники подій
+      this.setupEventListeners();
 
-            // Додаємо стилі для графіків
-            this.injectChartStyles();
+      // Додаємо стилі для графіків
+      this.injectChartStyles();
 
-            // Встановлюємо автоматичне оновлення статистики кожні 5 хвилин
-            this.setupAutoUpdate();
+      // Встановлюємо автоматичне оновлення статистики кожні 5 хвилин
+      this.setupAutoUpdate();
+    },
+
+    // Налаштування автоматичного оновлення
+    setupAutoUpdate: function () {
+      // Очищаємо попередній таймер, якщо він був
+      if (this.autoUpdateTimer) {
+        clearInterval(this.autoUpdateTimer);
+      }
+
+      // Створюємо новий таймер
+      this.autoUpdateTimer = setInterval(
+        () => {
+          // Оновлюємо статистику, якщо відображається відповідна вкладка
+          if (WinixRaffles.state.activeTab === 'stats' && document.visibilityState === 'visible') {
+            this.loadStatistics(true);
+          }
         },
+        5 * 60 * 1000
+      ); // 5 хвилин
+    },
 
-        // Налаштування автоматичного оновлення
-        setupAutoUpdate: function() {
-            // Очищаємо попередній таймер, якщо він був
-            if (this.autoUpdateTimer) {
-                clearInterval(this.autoUpdateTimer);
-            }
-
-            // Створюємо новий таймер
-            this.autoUpdateTimer = setInterval(() => {
-                // Оновлюємо статистику, якщо відображається відповідна вкладка
-                if (WinixRaffles.state.activeTab === 'stats' && document.visibilityState === 'visible') {
-                    this.loadStatistics(true);
-                }
-            }, 5 * 60 * 1000); // 5 хвилин
-        },
-
-        // Налаштування обробників подій
-        setupEventListeners: function() {
-            // Обробник зміни вкладки
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.addEventListener('click', () => {
-                    const tabName = button.getAttribute('data-tab');
-                    if (tabName === 'stats') {
-                        // Запобігаємо надмірним запитам при частій зміні вкладок
-                        if (Date.now() - this.lastUpdate > 60000 || this.statsData === null) { // 1 хвилина або немає даних
-                            this.loadStatistics(true); // ВИПРАВЛЕНО: Примусове оновлення при переключенні вкладки
-                        } else {
-                            // Відображаємо кешовані дані, якщо вони існують
-                            if (this.statsData) {
-                                this.renderStatistics(this.statsData);
-                            }
-                        }
-                    }
-                });
-            });
-
-            // Обробник оновлення даних користувача
-            document.addEventListener('user-data-updated', (event) => {
-                if (event.detail && event.detail.userData) {
-                    // ВИПРАВЛЕНО: Перевіряємо, чи це активна вкладка для негайного оновлення
-                    if (WinixRaffles.state.activeTab === 'stats') {
-                        // Відкладаємо оновлення на 1 секунду для уникнення гонок між оновленнями
-                        clearTimeout(this.updateTimer);
-                        this.updateTimer = setTimeout(() => {
-                            this.loadStatistics(true);
-                        }, 1000);
-                    } else {
-                        // Просто відзначаємо, що дані потребують оновлення
-                        this.needsUpdate = true;
-                    }
-                }
-            });
-
-            // Обробник події успішної участі в розіграші
-            document.addEventListener('raffle-participation', (event) => {
-                if (event.detail && event.detail.successful) {
-                    // ВИПРАВЛЕНО: Негайно оновлюємо статистику при успішній участі
-                    if (WinixRaffles.state.activeTab === 'stats') {
-                        // Відкладаємо на 1 секунду для завершення інших оновлень
-                        clearTimeout(this.updateTimer);
-                        this.updateTimer = setTimeout(() => {
-                            this.loadStatistics(true);
-                        }, 1000);
-                    } else {
-                        this.needsUpdate = true;
-                    }
-                }
-            });
-
-            // Обробник видимості сторінки для оновлення при поверненні
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible' &&
-                    WinixRaffles.state.activeTab === 'stats' &&
-                    (Date.now() - this.lastUpdate > 300000 || this.needsUpdate)) { // 5 хвилин або потреба оновлення
-
-                    this.loadStatistics(true);
-                    this.needsUpdate = false;
-                }
-            });
-
-            // Кнопка оновлення статистики
-            const refreshButton = document.getElementById('refresh-stats-button');
-            if (refreshButton) {
-                refreshButton.addEventListener('click', () => {
-                    this.loadStatistics(true);
-                });
-            }
-        },
-
-        // Відновлення даних з кешу
-        restoreFromCache: function() {
-            try {
-                const cachedStats = localStorage.getItem('winix_raffle_statistics');
-                if (cachedStats) {
-                    const parsedStats = JSON.parse(cachedStats);
-                    if (parsedStats && parsedStats.timestamp && parsedStats.data) {
-                        // Перевіряємо актуальність даних
-                        const now = Date.now();
-                        const cacheAge = now - parsedStats.timestamp;
-
-                        if (cacheAge < 3600000) { // 1 година
-                            console.log('📊 Відновлено статистику з кешу');
-                            this.statsData = parsedStats.data;
-                            this.lastUpdate = parsedStats.timestamp;
-
-                            // Також відновлюємо історію, якщо вона є
-                            if (parsedStats.history) {
-                                this.statsHistory = parsedStats.history;
-                            }
-
-                            return true;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('⚠️ Помилка відновлення статистики з кешу:', e);
-            }
-
-            return false;
-        },
-
-        // Збереження даних у кеш
-        saveToCache: function() {
-            try {
-                const cacheData = {
-                    timestamp: this.lastUpdate,
-                    data: this.statsData,
-                    history: this.statsHistory
-                };
-
-                localStorage.setItem('winix_raffle_statistics', JSON.stringify(cacheData));
-            } catch (e) {
-                console.warn('⚠️ Помилка збереження статистики в кеш:', e);
-            }
-        },
-
-        // Завантаження статистики розіграшів
-        loadStatistics: async function(forceRefresh = false) {
-            // Запобігаємо паралельним запитам
-            if (this.isLoading) {
-                console.log('📊 Завантаження статистики вже виконується...');
-                return;
-            }
-
-            const userId = WinixRaffles.state.telegramId ||
-                          (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function' ?
-                           window.WinixAPI.getUserId() : null);
-
-            if (!userId) {
-                console.error('❌ Не вдалося визначити ID користувача для завантаження статистики');
-                this.renderEmptyStatistics();
-                return;
-            }
-
-            // ВИПРАВЛЕНО: Завжди оновлюємо при forceRefresh=true
-            const now = Date.now();
-            if (!forceRefresh && now - this.lastUpdate < this.cacheInterval && this.statsData) {
-                console.log('📊 Використовуємо кешовану статистику розіграшів');
-                this.renderStatistics(this.statsData);
-                return;
-            }
-
-            this.isLoading = true;
-            this.hasLoadingErrors = false;
-
-            // Показуємо індикатор завантаження в блоках статистики
-            this.showLoadingState();
-
-            try {
-                console.log('📊 Завантаження статистики розіграшів...');
-
-                // Блокуємо кнопку оновлення
-                const refreshButton = document.getElementById('refresh-stats-button');
-                if (refreshButton) {
-                    refreshButton.disabled = true;
-                    refreshButton.classList.add('loading');
-                }
-
-                // ВИПРАВЛЕНО: Спочатку спробуємо отримати статистику прямим запитом на спеціальний endpoint
-                let response = null;
-                try {
-                    const endpoint = `user/${userId}/statistics`;
-                    response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
-                        suppressErrors: true,
-                        hideLoader: true,
-                        timeout: 10000,
-                        retries: 1
-                    });
-
-                    if (response && response.status === 'success' && response.data) {
-                        console.log('📊 Статистику успішно отримано прямим запитом');
-                    } else {
-                        // Запасний варіант: отримуємо повні дані профілю з статистикою
-                        console.log('⚠️ Прямий запит статистики не вдався, використовуємо запасний варіант');
-                        if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
-                            response = await window.WinixAPI.getUserData(true);
-                        }
-                    }
-                } catch (error) {
-                    console.warn('⚠️ Помилка прямого запиту статистики:', error);
-                    // Запасний варіант через отримання даних користувача
-                    if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.getUserData === 'function') {
-                        response = await window.WinixAPI.getUserData(true);
-                    }
-                }
-
-                // КРАЙНІЙ ЗАПАСНИЙ ВАРІАНТ: Через fallback запит
-                if (!response || response.status !== 'success') {
-                    response = await this.fallbackStatisticsRequest(userId);
-                }
-
-                // Обробка результату
-                if (response && response.status === 'success' && response.data) {
-                    // ВИПРАВЛЕНО: Обробляємо статистику окремо від загальних даних користувача
-                    let statsData = response.data;
-
-                    // Якщо відповідь містить багато даних, а не тільки статистику, знаходимо статистику
-                    if (statsData.statistics) {
-                        statsData = statsData.statistics;
-                    } else if (statsData.user && statsData.user.statistics) {
-                        statsData = statsData.user.statistics;
-                    }
-
-                    // Зберігаємо і обробляємо дані
-                    this.processStatisticsData(statsData, now);
-                } else if (response && response.status === 'error') {
-                    console.error('❌ Помилка завантаження статистики:', response.message);
-                    this.hasLoadingErrors = true;
-
-                    // Повідомлення для користувача, якщо це не просто тайм-аут або відсутність інтернету
-                    if (response.message &&
-                        !response.message.includes('timeout') &&
-                        !response.message.includes('network')) {
-                        this.showErrorMessage(response.message);
-                    }
-
-                    // Використовуємо кешовані дані
-                    if (this.statsData) {
-                        this.renderStatistics(this.statsData);
-                    } else {
-                        this.renderEmptyStatistics('Помилка завантаження даних');
-                    }
-                } else {
-                    console.error('❌ Неправильний формат відповіді:', response);
-                    this.hasLoadingErrors = true;
-
-                    // Використовуємо кешовані дані або показуємо пусту статистику
-                    if (this.statsData) {
-                        this.renderStatistics(this.statsData);
-                    } else {
-                        this.renderEmptyStatistics('Неправильний формат відповіді');
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Помилка завантаження статистики розіграшів:', error);
-                this.hasLoadingErrors = true;
-
-                // Використовуємо кешовані дані або показуємо пусту статистику
-                if (this.statsData) {
-                    this.renderStatistics(this.statsData);
-                } else {
-                    this.renderEmptyStatistics('Помилка завантаження даних');
-                }
-            } finally {
-                this.isLoading = false;
-
-                // Розблоковуємо кнопку оновлення
-                const refreshButton = document.getElementById('refresh-stats-button');
-                if (refreshButton) {
-                    refreshButton.disabled = false;
-                    refreshButton.classList.remove('loading');
-                }
-
-                // Приховуємо індикатор завантаження
-                this.hideLoadingState();
-            }
-        },
-
-        // Запасний запит для отримання статистики
-        fallbackStatisticsRequest: async function(userId) {
-            if (!userId) return null;
-
-            try {
-                const endpoint = `/api/user/${userId}/statistics`;
-
-                if (typeof window.WinixAPI !== 'undefined' && typeof window.WinixAPI.apiRequest === 'function') {
-                    return await window.WinixAPI.apiRequest(endpoint, 'GET');
-                } else {
-                    // Прямий запит через fetch, якщо WinixAPI недоступний
-                    const response = await fetch(endpoint);
-                    return await response.json();
-                }
-            } catch (error) {
-                console.error('❌ Помилка запасного запиту статистики:', error);
-                return {
-                    status: 'error',
-                    message: error.message || 'Помилка запиту статистики'
-                };
-            }
-        },
-
-        // Обробка отриманих даних статистики
-        processStatisticsData: function(data, timestamp) {
-            if (!data) return;
-
-            // Створюємо нормалізовані дані статистики
-            const normalizedData = {
-                participations_count: 0,
-                wins_count: 0,
-                total_winnings: 0,
-                tokens_spent: 0,
-                win_rate: 0,
-                activity_data: [],
-                last_participation: null,
-                last_win: null
-            };
-
-            // Заповнюємо основні показники
-            if (data.participations_count !== undefined) {
-                normalizedData.participations_count = data.participations_count;
-            } else if (data.totalParticipations !== undefined) {
-                normalizedData.participations_count = data.totalParticipations;
-            }
-
-            if (data.wins_count !== undefined) {
-                normalizedData.wins_count = data.wins_count;
-            } else if (data.totalWins !== undefined) {
-                normalizedData.wins_count = data.totalWins;
-            }
-
-            if (data.total_winnings !== undefined) {
-                normalizedData.total_winnings = data.total_winnings;
-            } else if (data.totalWinnings !== undefined) {
-                normalizedData.total_winnings = data.totalWinnings;
-            } else if (normalizedData.wins_count > 0) {
-                // Якщо немає прямих даних, робимо розрахунок на основі кількості перемог
-                // з середнім призом 15000 WINIX за перемогу
-                normalizedData.total_winnings = normalizedData.wins_count * 15000;
-            }
-
-            if (data.tokens_spent !== undefined) {
-                normalizedData.tokens_spent = data.tokens_spent;
-            } else if (data.tokensSpent !== undefined) {
-                normalizedData.tokens_spent = data.tokensSpent;
-            } else if (normalizedData.participations_count > 0) {
-                // Приблизний розрахунок витрачених жетонів
-                // В середньому 2 жетони за участь
-                normalizedData.tokens_spent = normalizedData.participations_count * 2;
-            }
-
-            // Розрахунок відсотка перемог
-            if (normalizedData.participations_count > 0) {
-                normalizedData.win_rate = (normalizedData.wins_count / normalizedData.participations_count) * 100;
-            }
-
-            // Обробка даних активності, якщо вони є
-            if (data.activity_data && Array.isArray(data.activity_data)) {
-                normalizedData.activity_data = data.activity_data;
-            } else if (data.activityData && Array.isArray(data.activityData)) {
-                normalizedData.activity_data = data.activityData;
+    // Налаштування обробників подій
+    setupEventListeners: function () {
+      // Обробник зміни вкладки
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tabName = button.getAttribute('data-tab');
+          if (tabName === 'stats') {
+            // Запобігаємо надмірним запитам при частій зміні вкладок
+            if (Date.now() - this.lastUpdate > 60000 || this.statsData === null) {
+              // 1 хвилина або немає даних
+              this.loadStatistics(true); // ВИПРАВЛЕНО: Примусове оновлення при переключенні вкладки
             } else {
-                // Якщо немає даних активності, створюємо випадкові дані для графіка
-                // Це тимчасове рішення, в реальній системі потрібно отримати справжні дані
-                normalizedData.activity_data = this.generateSampleActivityData(normalizedData.participations_count);
+              // Відображаємо кешовані дані, якщо вони існують
+              if (this.statsData) {
+                this.renderStatistics(this.statsData);
+              }
             }
+          }
+        });
+      });
 
-            // Дані про останні події
-            if (data.last_participation) {
-                normalizedData.last_participation = data.last_participation;
+      // Обробник оновлення даних користувача
+      document.addEventListener('user-data-updated', (event) => {
+        if (event.detail && event.detail.userData) {
+          // ВИПРАВЛЕНО: Перевіряємо, чи це активна вкладка для негайного оновлення
+          if (WinixRaffles.state.activeTab === 'stats') {
+            // Відкладаємо оновлення на 1 секунду для уникнення гонок між оновленнями
+            clearTimeout(this.updateTimer);
+            this.updateTimer = setTimeout(() => {
+              this.loadStatistics(true);
+            }, 1000);
+          } else {
+            // Просто відзначаємо, що дані потребують оновлення
+            this.needsUpdate = true;
+          }
+        }
+      });
+
+      // Обробник події успішної участі в розіграші
+      document.addEventListener('raffle-participation', (event) => {
+        if (event.detail && event.detail.successful) {
+          // ВИПРАВЛЕНО: Негайно оновлюємо статистику при успішній участі
+          if (WinixRaffles.state.activeTab === 'stats') {
+            // Відкладаємо на 1 секунду для завершення інших оновлень
+            clearTimeout(this.updateTimer);
+            this.updateTimer = setTimeout(() => {
+              this.loadStatistics(true);
+            }, 1000);
+          } else {
+            this.needsUpdate = true;
+          }
+        }
+      });
+
+      // Обробник видимості сторінки для оновлення при поверненні
+      document.addEventListener('visibilitychange', () => {
+        if (
+          document.visibilityState === 'visible' &&
+          WinixRaffles.state.activeTab === 'stats' &&
+          (Date.now() - this.lastUpdate > 300000 || this.needsUpdate)
+        ) {
+          // 5 хвилин або потреба оновлення
+
+          this.loadStatistics(true);
+          this.needsUpdate = false;
+        }
+      });
+
+      // Кнопка оновлення статистики
+      const refreshButton = document.getElementById('refresh-stats-button');
+      if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+          this.loadStatistics(true);
+        });
+      }
+    },
+
+    // Відновлення даних з кешу
+    restoreFromCache: function () {
+      try {
+        const cachedStats = localStorage.getItem('winix_raffle_statistics');
+        if (cachedStats) {
+          const parsedStats = JSON.parse(cachedStats);
+          if (parsedStats && parsedStats.timestamp && parsedStats.data) {
+            // Перевіряємо актуальність даних
+            const now = Date.now();
+            const cacheAge = now - parsedStats.timestamp;
+
+            if (cacheAge < 3600000) {
+              // 1 година
+              console.log('📊 Відновлено статистику з кешу');
+              this.statsData = parsedStats.data;
+              this.lastUpdate = parsedStats.timestamp;
+
+              // Також відновлюємо історію, якщо вона є
+              if (parsedStats.history) {
+                this.statsHistory = parsedStats.history;
+              }
+
+              return true;
             }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Помилка відновлення статистики з кешу:', e);
+      }
 
-            if (data.last_win) {
-                normalizedData.last_win = data.last_win;
+      return false;
+    },
+
+    // Збереження даних у кеш
+    saveToCache: function () {
+      try {
+        const cacheData = {
+          timestamp: this.lastUpdate,
+          data: this.statsData,
+          history: this.statsHistory,
+        };
+
+        localStorage.setItem('winix_raffle_statistics', JSON.stringify(cacheData));
+      } catch (e) {
+        console.warn('⚠️ Помилка збереження статистики в кеш:', e);
+      }
+    },
+
+    // Завантаження статистики розіграшів
+    loadStatistics: async function (forceRefresh = false) {
+      // Запобігаємо паралельним запитам
+      if (this.isLoading) {
+        console.log('📊 Завантаження статистики вже виконується...');
+        return;
+      }
+
+      const userId =
+        WinixRaffles.state.telegramId ||
+        (window.WinixAPI && typeof window.WinixAPI.getUserId === 'function'
+          ? window.WinixAPI.getUserId()
+          : null);
+
+      if (!userId) {
+        console.error('❌ Не вдалося визначити ID користувача для завантаження статистики');
+        this.renderEmptyStatistics();
+        return;
+      }
+
+      // ВИПРАВЛЕНО: Завжди оновлюємо при forceRefresh=true
+      const now = Date.now();
+      if (!forceRefresh && now - this.lastUpdate < this.cacheInterval && this.statsData) {
+        console.log('📊 Використовуємо кешовану статистику розіграшів');
+        this.renderStatistics(this.statsData);
+        return;
+      }
+
+      this.isLoading = true;
+      this.hasLoadingErrors = false;
+
+      // Показуємо індикатор завантаження в блоках статистики
+      this.showLoadingState();
+
+      try {
+        console.log('📊 Завантаження статистики розіграшів...');
+
+        // Блокуємо кнопку оновлення
+        const refreshButton = document.getElementById('refresh-stats-button');
+        if (refreshButton) {
+          refreshButton.disabled = true;
+          refreshButton.classList.add('loading');
+        }
+
+        // ВИПРАВЛЕНО: Спочатку спробуємо отримати статистику прямим запитом на спеціальний endpoint
+        let response = null;
+        try {
+          const endpoint = `user/${userId}/statistics`;
+          response = await window.WinixAPI.apiRequest(endpoint, 'GET', null, {
+            suppressErrors: true,
+            hideLoader: true,
+            timeout: 10000,
+            retries: 1,
+          });
+
+          if (response && response.status === 'success' && response.data) {
+            console.log('📊 Статистику успішно отримано прямим запитом');
+          } else {
+            // Запасний варіант: отримуємо повні дані профілю з статистикою
+            console.log('⚠️ Прямий запит статистики не вдався, використовуємо запасний варіант');
+            if (
+              typeof window.WinixAPI !== 'undefined' &&
+              typeof window.WinixAPI.getUserData === 'function'
+            ) {
+              response = await window.WinixAPI.getUserData(true);
             }
+          }
+        } catch (error) {
+          console.warn('⚠️ Помилка прямого запиту статистики:', error);
+          // Запасний варіант через отримання даних користувача
+          if (
+            typeof window.WinixAPI !== 'undefined' &&
+            typeof window.WinixAPI.getUserData === 'function'
+          ) {
+            response = await window.WinixAPI.getUserData(true);
+          }
+        }
 
-            // Зберігаємо оброблені дані
-            this.statsData = normalizedData;
-            this.lastUpdate = timestamp || Date.now();
+        // КРАЙНІЙ ЗАПАСНИЙ ВАРІАНТ: Через fallback запит
+        if (!response || response.status !== 'success') {
+          response = await this.fallbackStatisticsRequest(userId);
+        }
 
-            // Оновлюємо історію показників для графіків
-            this.updateStatsHistory(normalizedData);
+        // Обробка результату
+        if (response && response.status === 'success' && response.data) {
+          // ВИПРАВЛЕНО: Обробляємо статистику окремо від загальних даних користувача
+          let statsData = response.data;
 
-            // Зберігаємо у кеш
-            this.saveToCache();
+          // Якщо відповідь містить багато даних, а не тільки статистику, знаходимо статистику
+          if (statsData.statistics) {
+            statsData = statsData.statistics;
+          } else if (statsData.user && statsData.user.statistics) {
+            statsData = statsData.user.statistics;
+          }
 
-            // Відображаємо статистику
-            this.renderStatistics(normalizedData);
-        },
+          // Зберігаємо і обробляємо дані
+          this.processStatisticsData(statsData, now);
+        } else if (response && response.status === 'error') {
+          console.error('❌ Помилка завантаження статистики:', response.message);
+          this.hasLoadingErrors = true;
 
-        // Оновлення історії статистики для графіків
-        updateStatsHistory: function(newData) {
-            if (!newData) return;
+          // Повідомлення для користувача, якщо це не просто тайм-аут або відсутність інтернету
+          if (
+            response.message &&
+            !response.message.includes('timeout') &&
+            !response.message.includes('network')
+          ) {
+            this.showErrorMessage(response.message);
+          }
 
-            // Максимальний розмір історії - 10 записів
-            const MAX_HISTORY_SIZE = 10;
+          // Використовуємо кешовані дані
+          if (this.statsData) {
+            this.renderStatistics(this.statsData);
+          } else {
+            this.renderEmptyStatistics('Помилка завантаження даних');
+          }
+        } else {
+          console.error('❌ Неправильний формат відповіді:', response);
+          this.hasLoadingErrors = true;
 
-            // Створюємо новий запис з поточною датою
-            const newEntry = {
-                timestamp: Date.now(),
-                participations: newData.participations_count,
-                wins: newData.wins_count,
-                winnings: newData.total_winnings,
-                tokens: newData.tokens_spent
-            };
+          // Використовуємо кешовані дані або показуємо пусту статистику
+          if (this.statsData) {
+            this.renderStatistics(this.statsData);
+          } else {
+            this.renderEmptyStatistics('Неправильний формат відповіді');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Помилка завантаження статистики розіграшів:', error);
+        this.hasLoadingErrors = true;
 
-            // Додаємо запис до історії
-            this.statsHistory.push(newEntry);
+        // Використовуємо кешовані дані або показуємо пусту статистику
+        if (this.statsData) {
+          this.renderStatistics(this.statsData);
+        } else {
+          this.renderEmptyStatistics('Помилка завантаження даних');
+        }
+      } finally {
+        this.isLoading = false;
 
-            // Обмежуємо розмір історії
-            if (this.statsHistory.length > MAX_HISTORY_SIZE) {
-                this.statsHistory = this.statsHistory.slice(-MAX_HISTORY_SIZE);
-            }
-        },
+        // Розблоковуємо кнопку оновлення
+        const refreshButton = document.getElementById('refresh-stats-button');
+        if (refreshButton) {
+          refreshButton.disabled = false;
+          refreshButton.classList.remove('loading');
+        }
 
-        // Створення зразкових даних активності (для тимчасового рішення)
-        generateSampleActivityData: function(totalParticipations) {
-            const data = [];
+        // Приховуємо індикатор завантаження
+        this.hideLoadingState();
+      }
+    },
 
-            // Кількість зразкових даних
-            const DAYS_COUNT = 7;
+    // Запасний запит для отримання статистики
+    fallbackStatisticsRequest: async function (userId) {
+      if (!userId) return null;
 
-            // Якщо немає участей, повертаємо порожній масив
-            if (!totalParticipations || totalParticipations <= 0) {
-                return Array(DAYS_COUNT).fill(0).map((_, i) => ({
-                    day: this.getDayName(i),
-                    count: 0
-                }));
-            }
+      try {
+        const endpoint = `/api/user/${userId}/statistics`;
 
-            // Розподіляємо загальну кількість участей на останні 7 днів
-            // з випадковим розподілом
-            let remaining = totalParticipations;
+        if (
+          typeof window.WinixAPI !== 'undefined' &&
+          typeof window.WinixAPI.apiRequest === 'function'
+        ) {
+          return await window.WinixAPI.apiRequest(endpoint, 'GET');
+        } else {
+          // Прямий запит через fetch, якщо WinixAPI недоступний
+          const response = await fetch(endpoint);
+          return await response.json();
+        }
+      } catch (error) {
+        console.error('❌ Помилка запасного запиту статистики:', error);
+        return {
+          status: 'error',
+          message: error.message || 'Помилка запиту статистики',
+        };
+      }
+    },
 
-            for (let i = 0; i < DAYS_COUNT - 1; i++) {
-                // Випадкова частка від залишку, але не більше 80%
-                const maxShare = Math.min(0.8, (DAYS_COUNT - i - 1) / (DAYS_COUNT - i));
-                const share = Math.random() * maxShare;
+    // Обробка отриманих даних статистики
+    processStatisticsData: function (data, timestamp) {
+      if (!data) return;
 
-                const count = Math.round(remaining * share);
-                remaining -= count;
+      // Створюємо нормалізовані дані статистики
+      const normalizedData = {
+        participations_count: 0,
+        wins_count: 0,
+        total_winnings: 0,
+        tokens_spent: 0,
+        win_rate: 0,
+        activity_data: [],
+        last_participation: null,
+        last_win: null,
+      };
 
-                data.push({
-                    day: this.getDayName(i),
-                    count: count
-                });
-            }
+      // Заповнюємо основні показники
+      if (data.participations_count !== undefined) {
+        normalizedData.participations_count = data.participations_count;
+      } else if (data.totalParticipations !== undefined) {
+        normalizedData.participations_count = data.totalParticipations;
+      }
 
-            // Останній день отримує залишок
-            data.push({
-                day: this.getDayName(DAYS_COUNT - 1),
-                count: remaining
-            });
+      if (data.wins_count !== undefined) {
+        normalizedData.wins_count = data.wins_count;
+      } else if (data.totalWins !== undefined) {
+        normalizedData.wins_count = data.totalWins;
+      }
 
-            return data;
-        },
+      if (data.total_winnings !== undefined) {
+        normalizedData.total_winnings = data.total_winnings;
+      } else if (data.totalWinnings !== undefined) {
+        normalizedData.total_winnings = data.totalWinnings;
+      } else if (normalizedData.wins_count > 0) {
+        // Якщо немає прямих даних, робимо розрахунок на основі кількості перемог
+        // з середнім призом 15000 WINIX за перемогу
+        normalizedData.total_winnings = normalizedData.wins_count * 15000;
+      }
 
-        // Отримання назви дня тижня за індексом
-        getDayName: function(index) {
-            const today = new Date();
-            const targetDate = new Date(today);
+      if (data.tokens_spent !== undefined) {
+        normalizedData.tokens_spent = data.tokens_spent;
+      } else if (data.tokensSpent !== undefined) {
+        normalizedData.tokens_spent = data.tokensSpent;
+      } else if (normalizedData.participations_count > 0) {
+        // Приблизний розрахунок витрачених жетонів
+        // В середньому 2 жетони за участь
+        normalizedData.tokens_spent = normalizedData.participations_count * 2;
+      }
 
-            // Обчислюємо дату, віднімаючи потрібну кількість днів
-            targetDate.setDate(today.getDate() - (6 - index));
+      // Розрахунок відсотка перемог
+      if (normalizedData.participations_count > 0) {
+        normalizedData.win_rate =
+          (normalizedData.wins_count / normalizedData.participations_count) * 100;
+      }
 
-            // Отримуємо день тижня
-            const dayOfWeek = targetDate.getDay();
+      // Обробка даних активності, якщо вони є
+      if (data.activity_data && Array.isArray(data.activity_data)) {
+        normalizedData.activity_data = data.activity_data;
+      } else if (data.activityData && Array.isArray(data.activityData)) {
+        normalizedData.activity_data = data.activityData;
+      } else {
+        // Якщо немає даних активності, створюємо випадкові дані для графіка
+        // Це тимчасове рішення, в реальній системі потрібно отримати справжні дані
+        normalizedData.activity_data = this.generateSampleActivityData(
+          normalizedData.participations_count
+        );
+      }
 
-            // Локалізовані назви днів
-            const dayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-            return dayNames[dayOfWeek];
-        },
+      // Дані про останні події
+      if (data.last_participation) {
+        normalizedData.last_participation = data.last_participation;
+      }
 
-        // Показ стану завантаження в елементах статистики
-        showLoadingState: function() {
-            // Встановлюємо клас loading для елементів статистики
-            document.querySelectorAll('.stat-value').forEach(element => {
-                element.classList.add('loading');
-                element.setAttribute('data-original-value', element.textContent);
-                element.textContent = '···';
-            });
+      if (data.last_win) {
+        normalizedData.last_win = data.last_win;
+      }
 
-            // Додаємо клас loading для контейнера графіка
-            const chartContainer = document.querySelector('.chart-container');
-            if (chartContainer) {
-                chartContainer.classList.add('loading');
-            }
-        },
+      // Зберігаємо оброблені дані
+      this.statsData = normalizedData;
+      this.lastUpdate = timestamp || Date.now();
 
-        // Приховування стану завантаження
-        hideLoadingState: function() {
-            // Видаляємо клас loading з елементів статистики
-            document.querySelectorAll('.stat-value.loading').forEach(element => {
-                element.classList.remove('loading');
+      // Оновлюємо історію показників для графіків
+      this.updateStatsHistory(normalizedData);
 
-                // Відновлюємо оригінальне значення, якщо не було оновлень
-                const originalValue = element.getAttribute('data-original-value');
-                if (originalValue && element.textContent === '···') {
-                    element.textContent = originalValue;
-                }
+      // Зберігаємо у кеш
+      this.saveToCache();
 
-                element.removeAttribute('data-original-value');
-            });
+      // Відображаємо статистику
+      this.renderStatistics(normalizedData);
+    },
 
-            // Видаляємо клас loading з контейнера графіка
-            const chartContainer = document.querySelector('.chart-container');
-            if (chartContainer) {
-                chartContainer.classList.remove('loading');
-            }
-        },
+    // Оновлення історії статистики для графіків
+    updateStatsHistory: function (newData) {
+      if (!newData) return;
 
-        // Показ повідомлення про помилку
-        showErrorMessage: function(message) {
-            // Якщо доступна функція showToast, використовуємо її
-            if (typeof window.showToast === 'function') {
-                window.showToast(message, 'error');
-                return;
-            }
+      // Максимальний розмір історії - 10 записів
+      const MAX_HISTORY_SIZE = 10;
 
-            // Альтернативний варіант - створення власного повідомлення про помилку
-            let errorContainer = document.getElementById('stats-error-message');
+      // Створюємо новий запис з поточною датою
+      const newEntry = {
+        timestamp: Date.now(),
+        participations: newData.participations_count,
+        wins: newData.wins_count,
+        winnings: newData.total_winnings,
+        tokens: newData.tokens_spent,
+      };
 
-            if (!errorContainer) {
-                errorContainer = document.createElement('div');
-                errorContainer.id = 'stats-error-message';
-                errorContainer.className = 'stats-error-message';
+      // Додаємо запис до історії
+      this.statsHistory.push(newEntry);
 
-                // Стилі для повідомлення про помилку
-                errorContainer.style.cssText = `
+      // Обмежуємо розмір історії
+      if (this.statsHistory.length > MAX_HISTORY_SIZE) {
+        this.statsHistory = this.statsHistory.slice(-MAX_HISTORY_SIZE);
+      }
+    },
+
+    // Створення зразкових даних активності (для тимчасового рішення)
+    generateSampleActivityData: function (totalParticipations) {
+      const data = [];
+
+      // Кількість зразкових даних
+      const DAYS_COUNT = 7;
+
+      // Якщо немає участей, повертаємо порожній масив
+      if (!totalParticipations || totalParticipations <= 0) {
+        return Array(DAYS_COUNT)
+          .fill(0)
+          .map((_, i) => ({
+            day: this.getDayName(i),
+            count: 0,
+          }));
+      }
+
+      // Розподіляємо загальну кількість участей на останні 7 днів
+      // з випадковим розподілом
+      let remaining = totalParticipations;
+
+      for (let i = 0; i < DAYS_COUNT - 1; i++) {
+        // Випадкова частка від залишку, але не більше 80%
+        const maxShare = Math.min(0.8, (DAYS_COUNT - i - 1) / (DAYS_COUNT - i));
+        const share = Math.random() * maxShare;
+
+        const count = Math.round(remaining * share);
+        remaining -= count;
+
+        data.push({
+          day: this.getDayName(i),
+          count: count,
+        });
+      }
+
+      // Останній день отримує залишок
+      data.push({
+        day: this.getDayName(DAYS_COUNT - 1),
+        count: remaining,
+      });
+
+      return data;
+    },
+
+    // Отримання назви дня тижня за індексом
+    getDayName: function (index) {
+      const today = new Date();
+      const targetDate = new Date(today);
+
+      // Обчислюємо дату, віднімаючи потрібну кількість днів
+      targetDate.setDate(today.getDate() - (6 - index));
+
+      // Отримуємо день тижня
+      const dayOfWeek = targetDate.getDay();
+
+      // Локалізовані назви днів
+      const dayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      return dayNames[dayOfWeek];
+    },
+
+    // Показ стану завантаження в елементах статистики
+    showLoadingState: function () {
+      // Встановлюємо клас loading для елементів статистики
+      document.querySelectorAll('.stat-value').forEach((element) => {
+        element.classList.add('loading');
+        element.setAttribute('data-original-value', element.textContent);
+        element.textContent = '···';
+      });
+
+      // Додаємо клас loading для контейнера графіка
+      const chartContainer = document.querySelector('.chart-container');
+      if (chartContainer) {
+        chartContainer.classList.add('loading');
+      }
+    },
+
+    // Приховування стану завантаження
+    hideLoadingState: function () {
+      // Видаляємо клас loading з елементів статистики
+      document.querySelectorAll('.stat-value.loading').forEach((element) => {
+        element.classList.remove('loading');
+
+        // Відновлюємо оригінальне значення, якщо не було оновлень
+        const originalValue = element.getAttribute('data-original-value');
+        if (originalValue && element.textContent === '···') {
+          element.textContent = originalValue;
+        }
+
+        element.removeAttribute('data-original-value');
+      });
+
+      // Видаляємо клас loading з контейнера графіка
+      const chartContainer = document.querySelector('.chart-container');
+      if (chartContainer) {
+        chartContainer.classList.remove('loading');
+      }
+    },
+
+    // Показ повідомлення про помилку
+    showErrorMessage: function (message) {
+      // Якщо доступна функція showToast, використовуємо її
+      if (typeof window.showToast === 'function') {
+        window.showToast(message, 'error');
+        return;
+      }
+
+      // Альтернативний варіант - створення власного повідомлення про помилку
+      let errorContainer = document.getElementById('stats-error-message');
+
+      if (!errorContainer) {
+        errorContainer = document.createElement('div');
+        errorContainer.id = 'stats-error-message';
+        errorContainer.className = 'stats-error-message';
+
+        // Стилі для повідомлення про помилку
+        errorContainer.style.cssText = `
                     color: #e74c3c;
                     background-color: rgba(231, 76, 60, 0.1);
                     border-left: 3px solid #e74c3c;
@@ -601,262 +629,265 @@
                     font-size: 14px;
                 `;
 
-                // Додаємо до контейнера статистики
-                const statsContainer = document.querySelector('.statistics-container');
-                if (statsContainer) {
-                    statsContainer.prepend(errorContainer);
-                } else {
-                    // Якщо контейнер не знайдено, додаємо до тіла документа
-                    document.body.prepend(errorContainer);
-                }
-            }
+        // Додаємо до контейнера статистики
+        const statsContainer = document.querySelector('.statistics-container');
+        if (statsContainer) {
+          statsContainer.prepend(errorContainer);
+        } else {
+          // Якщо контейнер не знайдено, додаємо до тіла документа
+          document.body.prepend(errorContainer);
+        }
+      }
 
-            // Встановлюємо текст повідомлення
-            errorContainer.textContent = message || 'Помилка завантаження статистики';
+      // Встановлюємо текст повідомлення
+      errorContainer.textContent = message || 'Помилка завантаження статистики';
 
-            // Показуємо повідомлення
-            errorContainer.style.display = 'block';
+      // Показуємо повідомлення
+      errorContainer.style.display = 'block';
 
-            // Автоматично ховаємо через 5 секунд
+      // Автоматично ховаємо через 5 секунд
+      setTimeout(() => {
+        errorContainer.style.display = 'none';
+      }, 5000);
+    },
+
+    // Відображення статистики розіграшів
+    renderStatistics: function (userData) {
+      if (!userData) {
+        this.renderEmptyStatistics();
+        return;
+      }
+
+      // Оновлюємо значення в блоках статистики з анімацією
+      this.updateStatValue('total-participated', userData.participations_count || 0);
+      this.updateStatValue('total-wins', userData.wins_count || 0);
+      this.updateStatValue('total-winix-won', userData.total_winnings || 0);
+      this.updateStatValue('total-tokens-spent', userData.tokens_spent || 0);
+
+      // Створюємо графік активності
+      this.createActivityChart(userData.activity_data);
+
+      // Перевіряємо наявність елемента win-rate і оновлюємо його, якщо він є
+      const winRateElement = document.getElementById('win-rate');
+      if (winRateElement) {
+        const winRate = userData.win_rate || 0;
+        this.updateStatValue('win-rate', winRate.toFixed(1) + '%');
+      }
+
+      // Додаємо статус оновлення
+      this.updateLastUpdateTime();
+
+      // Оновлюємо статус кнопки оновлення
+      const refreshButton = document.getElementById('refresh-stats-button');
+      if (refreshButton) {
+        refreshButton.disabled = false;
+        refreshButton.classList.remove('loading');
+      }
+    },
+
+    // Оновлення часу останнього оновлення
+    updateLastUpdateTime: function () {
+      const lastUpdateElement = document.getElementById('last-update-time');
+      if (!lastUpdateElement) return;
+
+      // Форматуємо час оновлення
+      const now = new Date();
+      const lastUpdate = new Date(this.lastUpdate);
+
+      // Якщо оновлення було сьогодні, показуємо тільки час
+      if (now.toDateString() === lastUpdate.toDateString()) {
+        const time = lastUpdate.toLocaleTimeString('uk-UA', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        lastUpdateElement.textContent = 'Оновлено о ' + time;
+      } else {
+        // Інакше показуємо і дату, і час
+        const dateTime = lastUpdate.toLocaleString('uk-UA', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        lastUpdateElement.textContent = 'Оновлено ' + dateTime;
+      }
+
+      // Показуємо елемент
+      lastUpdateElement.style.display = 'block';
+
+      // Якщо були помилки, додаємо індикатор
+      if (this.hasLoadingErrors) {
+        lastUpdateElement.classList.add('has-errors');
+        lastUpdateElement.title = 'Виникли проблеми при останньому оновленні даних';
+      } else {
+        lastUpdateElement.classList.remove('has-errors');
+        lastUpdateElement.title = '';
+      }
+    },
+
+    // Оновлення значення статистики з анімацією
+    updateStatValue: function (elementId, value) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      // Отримуємо поточне та нове значення
+      const currentValue = parseInt(element.textContent.replace(/\s+/g, '')) || 0;
+      const newValue = typeof value === 'number' ? value : parseInt(value) || 0;
+
+      // Якщо значення змінилося, запускаємо анімацію
+      if (currentValue !== newValue) {
+        // Зберігаємо початкове значення
+        const startValue = currentValue;
+
+        // Визначаємо крок анімації
+        const diff = newValue - startValue;
+        const duration = 1000; // мс
+        const steps = 20;
+        const step = diff / steps;
+
+        // Анімуємо зміну
+        let currentStep = 0;
+        const animationInterval = setInterval(() => {
+          currentStep++;
+
+          if (currentStep >= steps) {
+            clearInterval(animationInterval);
+            // Встановлюємо кінцеве значення з форматуванням
+            element.textContent = this.formatNumber(newValue);
+            element.classList.add('stat-updated');
+
+            // Видаляємо клас через 1 секунду
             setTimeout(() => {
-                errorContainer.style.display = 'none';
-            }, 5000);
-        },
+              element.classList.remove('stat-updated');
+            }, 1000);
+          } else {
+            // Встановлюємо проміжне значення
+            const intermediateValue = Math.round(startValue + step * currentStep);
+            element.textContent = this.formatNumber(intermediateValue);
+          }
+        }, duration / steps);
+      } else {
+        // Якщо значення не змінилося, просто форматуємо його
+        element.textContent = this.formatNumber(newValue);
+      }
+    },
 
-        // Відображення статистики розіграшів
-        renderStatistics: function(userData) {
-            if (!userData) {
-                this.renderEmptyStatistics();
-                return;
-            }
+    // Форматування числа з розділювачами розрядів
+    formatNumber: function (num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    },
 
-            // Оновлюємо значення в блоках статистики з анімацією
-            this.updateStatValue('total-participated', userData.participations_count || 0);
-            this.updateStatValue('total-wins', userData.wins_count || 0);
-            this.updateStatValue('total-winix-won', userData.total_winnings || 0);
-            this.updateStatValue('total-tokens-spent', userData.tokens_spent || 0);
+    // Створення графіка активності
+    createActivityChart: function (activityData) {
+      const chartContainer = document.querySelector('.chart-container');
+      if (!chartContainer) return;
 
-            // Створюємо графік активності
-            this.createActivityChart(userData.activity_data);
+      // Якщо немає даних для графіка, показуємо повідомлення
+      if (!activityData || !Array.isArray(activityData) || activityData.length === 0) {
+        chartContainer.innerHTML =
+          '<div class="chart-placeholder">Недостатньо даних для відображення графіку активності</div>';
+        return;
+      }
 
-            // Перевіряємо наявність елемента win-rate і оновлюємо його, якщо він є
-            const winRateElement = document.getElementById('win-rate');
-            if (winRateElement) {
-                const winRate = userData.win_rate || 0;
-                this.updateStatValue('win-rate', winRate.toFixed(1) + '%');
-            }
+      // Знаходимо максимальне значення для масштабування
+      const maxValue = Math.max(...activityData.map((item) => item.count || 0));
 
-            // Додаємо статус оновлення
-            this.updateLastUpdateTime();
+      // Якщо немає активності, показуємо порожній графік
+      if (maxValue === 0) {
+        chartContainer.innerHTML =
+          '<div class="chart-placeholder">Немає даних про активність</div>';
+        return;
+      }
 
-            // Оновлюємо статус кнопки оновлення
-            const refreshButton = document.getElementById('refresh-stats-button');
-            if (refreshButton) {
-                refreshButton.disabled = false;
-                refreshButton.classList.remove('loading');
-            }
-        },
+      // Очищаємо контейнер
+      chartContainer.innerHTML = '';
 
-        // Оновлення часу останнього оновлення
-        updateLastUpdateTime: function() {
-            const lastUpdateElement = document.getElementById('last-update-time');
-            if (!lastUpdateElement) return;
+      // Створюємо заголовок графіка
+      const chartTitle = document.createElement('div');
+      chartTitle.className = 'chart-title';
+      chartTitle.textContent = 'Активність за останній тиждень';
+      chartContainer.appendChild(chartTitle);
 
-            // Форматуємо час оновлення
-            const now = new Date();
-            const lastUpdate = new Date(this.lastUpdate);
+      // Створюємо контейнер для стовпців
+      const barsContainer = document.createElement('div');
+      barsContainer.className = 'chart-bars-container';
+      chartContainer.appendChild(barsContainer);
 
-            // Якщо оновлення було сьогодні, показуємо тільки час
-            if (now.toDateString() === lastUpdate.toDateString()) {
-                const time = lastUpdate.toLocaleTimeString('uk-UA', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                lastUpdateElement.textContent = 'Оновлено о ' + time;
-            } else {
-                // Інакше показуємо і дату, і час
-                const dateTime = lastUpdate.toLocaleString('uk-UA', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                lastUpdateElement.textContent = 'Оновлено ' + dateTime;
-            }
+      // Додаємо кожен стовпець
+      activityData.forEach((item) => {
+        // Створюємо групу для стовпця
+        const barGroup = document.createElement('div');
+        barGroup.className = 'chart-bar-group';
 
-            // Показуємо елемент
-            lastUpdateElement.style.display = 'block';
+        // Створюємо стовпець
+        const bar = document.createElement('div');
+        bar.className = 'chart-bar';
 
-            // Якщо були помилки, додаємо індикатор
-            if (this.hasLoadingErrors) {
-                lastUpdateElement.classList.add('has-errors');
-                lastUpdateElement.title = 'Виникли проблеми при останньому оновленні даних';
-            } else {
-                lastUpdateElement.classList.remove('has-errors');
-                lastUpdateElement.title = '';
-            }
-        },
+        // Обчислюємо висоту стовпця (у відсотках від максимального значення)
+        const heightPercent = Math.max(5, (item.count / maxValue) * 100);
+        bar.style.height = `${heightPercent}%`;
 
-        // Оновлення значення статистики з анімацією
-        updateStatValue: function(elementId, value) {
-            const element = document.getElementById(elementId);
-            if (!element) return;
+        // Додаємо анімацію появи
+        bar.style.animation = 'grow-up 1s ease-out';
 
-            // Отримуємо поточне та нове значення
-            const currentValue = parseInt(element.textContent.replace(/\s+/g, '')) || 0;
-            const newValue = typeof value === 'number' ? value : parseInt(value) || 0;
+        // Додаємо атрибут з кількістю для підказки
+        bar.setAttribute('data-count', item.count);
 
-            // Якщо значення змінилося, запускаємо анімацію
-            if (currentValue !== newValue) {
-                // Зберігаємо початкове значення
-                const startValue = currentValue;
+        // Додаємо підпис
+        const label = document.createElement('div');
+        label.className = 'chart-label';
+        label.textContent = item.day;
 
-                // Визначаємо крок анімації
-                const diff = newValue - startValue;
-                const duration = 1000; // мс
-                const steps = 20;
-                const step = diff / steps;
+        // Додаємо стовпець і підпис до групи
+        barGroup.appendChild(bar);
+        barGroup.appendChild(label);
 
-                // Анімуємо зміну
-                let currentStep = 0;
-                const animationInterval = setInterval(() => {
-                    currentStep++;
+        // Додаємо групу до контейнера
+        barsContainer.appendChild(barGroup);
+      });
+    },
 
-                    if (currentStep >= steps) {
-                        clearInterval(animationInterval);
-                        // Встановлюємо кінцеве значення з форматуванням
-                        element.textContent = this.formatNumber(newValue);
-                        element.classList.add('stat-updated');
+    // Відображення порожньої статистики
+    renderEmptyStatistics: function (errorMessage = null) {
+      // Встановлюємо нульові значення для всіх полів статистики
+      this.updateStatValue('total-participated', 0);
+      this.updateStatValue('total-wins', 0);
+      this.updateStatValue('total-winix-won', 0);
+      this.updateStatValue('total-tokens-spent', 0);
 
-                        // Видаляємо клас через 1 секунду
-                        setTimeout(() => {
-                            element.classList.remove('stat-updated');
-                        }, 1000);
-                    } else {
-                        // Встановлюємо проміжне значення
-                        const intermediateValue = Math.round(startValue + step * currentStep);
-                        element.textContent = this.formatNumber(intermediateValue);
-                    }
-                }, duration / steps);
-            } else {
-                // Якщо значення не змінилося, просто форматуємо його
-                element.textContent = this.formatNumber(newValue);
-            }
-        },
+      // Якщо є win-rate, оновлюємо і його
+      const winRateElement = document.getElementById('win-rate');
+      if (winRateElement) {
+        this.updateStatValue('win-rate', '0.0%');
+      }
 
-        // Форматування числа з розділювачами розрядів
-        formatNumber: function(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-        },
+      // Оновлюємо графік
+      const chartContainer = document.querySelector('.chart-container');
+      if (chartContainer) {
+        // Встановлюємо повідомлення залежно від наявності помилки
+        if (errorMessage) {
+          chartContainer.innerHTML = `<div class="chart-placeholder error">${errorMessage}</div>`;
+        } else {
+          chartContainer.innerHTML =
+            '<div class="chart-placeholder">Недостатньо даних для відображення графіку активності</div>';
+        }
+      }
 
-        // Створення графіка активності
-        createActivityChart: function(activityData) {
-            const chartContainer = document.querySelector('.chart-container');
-            if (!chartContainer) return;
+      // Оновлюємо статус кнопки оновлення
+      const refreshButton = document.getElementById('refresh-stats-button');
+      if (refreshButton) {
+        refreshButton.disabled = false;
+        refreshButton.classList.remove('loading');
+      }
+    },
 
-            // Якщо немає даних для графіка, показуємо повідомлення
-            if (!activityData || !Array.isArray(activityData) || activityData.length === 0) {
-                chartContainer.innerHTML = '<div class="chart-placeholder">Недостатньо даних для відображення графіку активності</div>';
-                return;
-            }
+    // Ін'єкція стилів для графіків
+    injectChartStyles: function () {
+      if (document.getElementById('statistics-chart-styles')) return;
 
-            // Знаходимо максимальне значення для масштабування
-            const maxValue = Math.max(...activityData.map(item => item.count || 0));
-
-            // Якщо немає активності, показуємо порожній графік
-            if (maxValue === 0) {
-                chartContainer.innerHTML = '<div class="chart-placeholder">Немає даних про активність</div>';
-                return;
-            }
-
-            // Очищаємо контейнер
-            chartContainer.innerHTML = '';
-
-            // Створюємо заголовок графіка
-            const chartTitle = document.createElement('div');
-            chartTitle.className = 'chart-title';
-            chartTitle.textContent = 'Активність за останній тиждень';
-            chartContainer.appendChild(chartTitle);
-
-            // Створюємо контейнер для стовпців
-            const barsContainer = document.createElement('div');
-            barsContainer.className = 'chart-bars-container';
-            chartContainer.appendChild(barsContainer);
-
-            // Додаємо кожен стовпець
-            activityData.forEach(item => {
-                // Створюємо групу для стовпця
-                const barGroup = document.createElement('div');
-                barGroup.className = 'chart-bar-group';
-
-                // Створюємо стовпець
-                const bar = document.createElement('div');
-                bar.className = 'chart-bar';
-
-                // Обчислюємо висоту стовпця (у відсотках від максимального значення)
-                const heightPercent = Math.max(5, (item.count / maxValue) * 100);
-                bar.style.height = `${heightPercent}%`;
-
-                // Додаємо анімацію появи
-                bar.style.animation = 'grow-up 1s ease-out';
-
-                // Додаємо атрибут з кількістю для підказки
-                bar.setAttribute('data-count', item.count);
-
-                // Додаємо підпис
-                const label = document.createElement('div');
-                label.className = 'chart-label';
-                label.textContent = item.day;
-
-                // Додаємо стовпець і підпис до групи
-                barGroup.appendChild(bar);
-                barGroup.appendChild(label);
-
-                // Додаємо групу до контейнера
-                barsContainer.appendChild(barGroup);
-            });
-        },
-
-        // Відображення порожньої статистики
-        renderEmptyStatistics: function(errorMessage = null) {
-            // Встановлюємо нульові значення для всіх полів статистики
-            this.updateStatValue('total-participated', 0);
-            this.updateStatValue('total-wins', 0);
-            this.updateStatValue('total-winix-won', 0);
-            this.updateStatValue('total-tokens-spent', 0);
-
-            // Якщо є win-rate, оновлюємо і його
-            const winRateElement = document.getElementById('win-rate');
-            if (winRateElement) {
-                this.updateStatValue('win-rate', '0.0%');
-            }
-
-            // Оновлюємо графік
-            const chartContainer = document.querySelector('.chart-container');
-            if (chartContainer) {
-                // Встановлюємо повідомлення залежно від наявності помилки
-                if (errorMessage) {
-                    chartContainer.innerHTML = `<div class="chart-placeholder error">${errorMessage}</div>`;
-                } else {
-                    chartContainer.innerHTML = '<div class="chart-placeholder">Недостатньо даних для відображення графіку активності</div>';
-                }
-            }
-
-            // Оновлюємо статус кнопки оновлення
-            const refreshButton = document.getElementById('refresh-stats-button');
-            if (refreshButton) {
-                refreshButton.disabled = false;
-                refreshButton.classList.remove('loading');
-            }
-        },
-
-        // Ін'єкція стилів для графіків
-        injectChartStyles: function() {
-            if (document.getElementById('statistics-chart-styles')) return;
-
-            const style = document.createElement('style');
-            style.id = 'statistics-chart-styles';
-            style.textContent = `
+      const style = document.createElement('style');
+      style.id = 'statistics-chart-styles';
+      style.textContent = `
                 /* Стилі для контейнера графіка */
                 .chart-container {
                     height: 200px;
@@ -1035,35 +1066,35 @@
                 }
             `;
 
-            document.head.appendChild(style);
-        },
+      document.head.appendChild(style);
+    },
 
-        // Оновлення даних статистики
-        refreshStatistics: function() {
-            // Блокуємо кнопку оновлення
-            const refreshButton = document.getElementById('refresh-stats-button');
-            if (refreshButton) {
-                refreshButton.disabled = true;
-                refreshButton.classList.add('loading');
-            }
+    // Оновлення даних статистики
+    refreshStatistics: function () {
+      // Блокуємо кнопку оновлення
+      const refreshButton = document.getElementById('refresh-stats-button');
+      if (refreshButton) {
+        refreshButton.disabled = true;
+        refreshButton.classList.add('loading');
+      }
 
-            // Запускаємо завантаження з примусовим оновленням
-            this.loadStatistics(true);
-        }
-    };
+      // Запускаємо завантаження з примусовим оновленням
+      this.loadStatistics(true);
+    },
+  };
 
-    // Додаємо модуль статистики до основного модуля розіграшів
-    WinixRaffles.statistics = statistics;
+  // Додаємо модуль статистики до основного модуля розіграшів
+  WinixRaffles.statistics = statistics;
 
-    // Ініціалізація модуля при завантаженні сторінки
-    document.addEventListener('DOMContentLoaded', function() {
-        if (WinixRaffles.state.isInitialized) {
-            statistics.init();
-        } else {
-            // Додаємо обробник події ініціалізації
-            document.addEventListener('winix-raffles-initialized', function() {
-                statistics.init();
-            });
-        }
-    });
+  // Ініціалізація модуля при завантаженні сторінки
+  document.addEventListener('DOMContentLoaded', function () {
+    if (WinixRaffles.state.isInitialized) {
+      statistics.init();
+    } else {
+      // Додаємо обробник події ініціалізації
+      document.addEventListener('winix-raffles-initialized', function () {
+        statistics.init();
+      });
+    }
+  });
 })();

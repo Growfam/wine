@@ -34,11 +34,11 @@ export function fadeIn(element, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,        // Тривалість анімації в мс
-    easing = 'ease',       // Функція пом'якшення
-    display = 'block',     // Стиль відображення елемента
-    onStart = null,        // Колбек початку анімації
-    onComplete = null      // Колбек завершення анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    display = 'block', // Стиль відображення елемента
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -122,11 +122,11 @@ export function fadeOut(element, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,        // Тривалість анімації в мс
-    easing = 'ease',       // Функція пом'якшення
-    hide = true,           // Приховати елемент після анімації
-    onStart = null,        // Колбек початку анімації
-    onComplete = null      // Колбек завершення анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    hide = true, // Приховати елемент після анімації
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -215,10 +215,10 @@ export function slideDown(element, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,        // Тривалість анімації в мс
-    easing = 'ease',       // Функція пом'якшення
-    onStart = null,        // Колбек початку анімації
-    onComplete = null      // Колбек завершення анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -234,7 +234,7 @@ export function slideDown(element, options = {}) {
       const originalStyle = {
         display: element.style.display,
         height: element.style.height,
-        overflow: element.style.overflow
+        overflow: element.style.overflow,
       };
 
       // Встановлюємо початковий стан
@@ -315,10 +315,10 @@ export function slideUp(element, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,        // Тривалість анімації в мс
-    easing = 'ease',       // Функція пом'якшення
-    onStart = null,        // Колбек початку анімації
-    onComplete = null      // Колбек завершення анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -333,7 +333,7 @@ export function slideUp(element, options = {}) {
       // Зберігаємо початковий стиль
       const originalStyle = {
         height: element.style.height,
-        overflow: element.style.overflow
+        overflow: element.style.overflow,
       };
 
       // Встановлюємо початковий стан
@@ -415,15 +415,15 @@ export function animate(element, keyframesName, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,               // Тривалість анімації в мс
-    easing = 'ease',              // Функція пом'якшення
-    delay = 0,                    // Затримка анімації в мс
-    iterations = 1,               // Кількість повторень анімації
-    direction = 'normal',         // Напрямок анімації
-    fillMode = 'both',            // Режим заповнення
-    onStart = null,               // Колбек початку анімації
-    onComplete = null,            // Колбек завершення анімації
-    onIteration = null            // Колбек ітерації анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    delay = 0, // Затримка анімації в мс
+    iterations = 1, // Кількість повторень анімації
+    direction = 'normal', // Напрямок анімації
+    fillMode = 'both', // Режим заповнення
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
+    onIteration = null, // Колбек ітерації анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -493,7 +493,7 @@ export function animate(element, keyframesName, options = {}) {
           element.removeEventListener('animationiteration', animationIterationHandler);
           element.removeEventListener('animationend', animationEndHandler);
           element.style.animation = originalAnimation;
-        }
+        },
       });
 
       // Запускаємо анімацію
@@ -591,12 +591,12 @@ export function transition(fromElement, toElement, options = {}) {
 
   // Параметри за замовчуванням
   const {
-    duration = 300,        // Тривалість анімації в мс
-    easing = 'ease',       // Функція пом'якшення
-    fadeOut = true,        // Затухання початкового елемента
-    fadeIn = true,         // Поява кінцевого елемента
-    onStart = null,        // Колбек початку анімації
-    onComplete = null      // Колбек завершення анімації
+    duration = 300, // Тривалість анімації в мс
+    easing = 'ease', // Функція пом'якшення
+    fadeOut = true, // Затухання початкового елемента
+    fadeIn = true, // Поява кінцевого елемента
+    onStart = null, // Колбек початку анімації
+    onComplete = null, // Колбек завершення анімації
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -613,25 +613,28 @@ export function transition(fromElement, toElement, options = {}) {
       }
 
       // Після приховання початкового елемента показуємо кінцевий
-      hidePromise.then(() => {
-        let showPromise = Promise.resolve();
-        if (fadeIn) {
-          showPromise = fadeIn(toElement, { duration, easing });
-        } else {
-          // Просто показуємо елемент
-          toElement.style.display = 'block';
-        }
+      hidePromise
+        .then(() => {
+          let showPromise = Promise.resolve();
+          if (fadeIn) {
+            showPromise = fadeIn(toElement, { duration, easing });
+          } else {
+            // Просто показуємо елемент
+            toElement.style.display = 'block';
+          }
 
-        return showPromise;
-      }).then(() => {
-        // Викликаємо колбек завершення
-        if (typeof onComplete === 'function') {
-          onComplete(fromElement, toElement);
-        }
+          return showPromise;
+        })
+        .then(() => {
+          // Викликаємо колбек завершення
+          if (typeof onComplete === 'function') {
+            onComplete(fromElement, toElement);
+          }
 
-        // Вирішуємо проміс
-        resolve({ fromElement, toElement });
-      }).catch(reject);
+          // Вирішуємо проміс
+          resolve({ fromElement, toElement });
+        })
+        .catch(reject);
     } catch (error) {
       logger.error('Помилка при виконанні переходу', 'transition', { error });
       reject(error);
@@ -645,7 +648,7 @@ export function transition(fromElement, toElement, options = {}) {
 export function cleanup() {
   try {
     // Зупиняємо всі активні анімації
-    activeAnimations.forEach(animation => {
+    activeAnimations.forEach((animation) => {
       animation.cleanup();
     });
     activeAnimations.clear();
@@ -670,5 +673,5 @@ export default {
   addKeyframes,
   stopAnimations,
   transition,
-  cleanup
+  cleanup,
 };

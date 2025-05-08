@@ -25,7 +25,7 @@ export const {
   processApiResponse,
   configureApiFormatter,
   detectFieldType,
-  parseDate
+  parseDate,
 } = formatter;
 
 // Експорт кешу
@@ -40,7 +40,7 @@ export const {
   cleanup: cacheCleanup,
   updateConfig: cacheUpdateConfig,
   CACHE_TAGS,
-  STORAGE_TYPES
+  STORAGE_TYPES,
 } = cache;
 
 // Експортуємо повні модулі
@@ -64,10 +64,10 @@ export default {
     removeByTags: cache.removeByTags,
     getStats: cache.getStats,
     cleanup: cache.cleanup,
-    updateConfig: cache.updateConfig
+    updateConfig: cache.updateConfig,
   },
 
   // Повні модулі
   Cache,
-  Formatter
+  Formatter,
 };

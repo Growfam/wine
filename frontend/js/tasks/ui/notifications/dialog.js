@@ -18,22 +18,22 @@ import { CONFIG, injectStyles } from './common.js';
 
 // Стан модуля
 const state = {
-    confirmDialogId: 'confirm-dialog',  // ID діалогу підтвердження
+  confirmDialogId: 'confirm-dialog', // ID діалогу підтвердження
 };
 
 /**
  * Ініціалізація модуля діалогових вікон
  */
 export function init() {
-    logger.info('Ініціалізація модуля діалогів', 'init', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.info('Ініціалізація модуля діалогів', 'init', {
+    category: LOG_CATEGORIES.INIT,
+  });
 
-    // Додаємо стилі тільки один раз
-    injectStyles();
+  // Додаємо стилі тільки один раз
+  injectStyles();
 
-    // Додаємо обробник для клавіші Escape
-    document.addEventListener('keydown', handleEscapeKey);
+  // Додаємо обробник для клавіші Escape
+  document.addEventListener('keydown', handleEscapeKey);
 }
 
 /**
@@ -41,18 +41,18 @@ export function init() {
  * @param {KeyboardEvent} event - Подія клавіатури
  */
 function handleEscapeKey(event) {
-    if (event.key === 'Escape') {
-        // Закриваємо активні діалоги
-        const confirmDialog = document.getElementById(state.confirmDialogId);
-        if (confirmDialog && confirmDialog.classList.contains('show')) {
-            confirmDialog.classList.remove('show');
-            event.preventDefault();
+  if (event.key === 'Escape') {
+    // Закриваємо активні діалоги
+    const confirmDialog = document.getElementById(state.confirmDialogId);
+    if (confirmDialog && confirmDialog.classList.contains('show')) {
+      confirmDialog.classList.remove('show');
+      event.preventDefault();
 
-            logger.info('Закрито діалог підтвердження за допомогою Escape', 'handleEscapeKey', {
-                category: LOG_CATEGORIES.UI
-            });
-        }
+      logger.info('Закрито діалог підтвердження за допомогою Escape', 'handleEscapeKey', {
+        category: LOG_CATEGORIES.UI,
+      });
     }
+  }
 }
 
 /**
@@ -63,39 +63,42 @@ function handleEscapeKey(event) {
  * @returns {Promise<boolean>} Результат вибору користувача
  */
 export function showConfirmDialog(options, confirmCallback, cancelCallback) {
-    // Підтримка обох форматів виклику
-    if (typeof options === 'string') {
-        if (confirmCallback || cancelCallback) {
-            // Старий формат з окремими callback'ами
-            return new Promise((resolve) => {
-                internalShowConfirmDialog({
-                    message: options,
-                    title: 'Підтвердження',
-                    confirmText: 'Підтвердити',
-                    cancelText: 'Скасувати',
-                    type: 'default',
-                    iconType: 'warning'
-                }, result => {
-                    if (result && confirmCallback) confirmCallback();
-                    if (!result && cancelCallback) cancelCallback();
-                    resolve(result);
-                });
-            });
-        } else {
-            // Простий виклик з повідомленням
-            return internalShowConfirmDialog({
-                message: options,
-                title: 'Підтвердження',
-                confirmText: 'Підтвердити',
-                cancelText: 'Скасувати',
-                type: 'default',
-                iconType: 'warning'
-            });
-        }
+  // Підтримка обох форматів виклику
+  if (typeof options === 'string') {
+    if (confirmCallback || cancelCallback) {
+      // Старий формат з окремими callback'ами
+      return new Promise((resolve) => {
+        internalShowConfirmDialog(
+          {
+            message: options,
+            title: 'Підтвердження',
+            confirmText: 'Підтвердити',
+            cancelText: 'Скасувати',
+            type: 'default',
+            iconType: 'warning',
+          },
+          (result) => {
+            if (result && confirmCallback) confirmCallback();
+            if (!result && cancelCallback) cancelCallback();
+            resolve(result);
+          }
+        );
+      });
     } else {
-        // Повний формат з опціями
-        return internalShowConfirmDialog(options);
+      // Простий виклик з повідомленням
+      return internalShowConfirmDialog({
+        message: options,
+        title: 'Підтвердження',
+        confirmText: 'Підтвердити',
+        cancelText: 'Скасувати',
+        type: 'default',
+        iconType: 'warning',
+      });
     }
+  } else {
+    // Повний формат з опціями
+    return internalShowConfirmDialog(options);
+  }
 }
 
 /**
@@ -105,46 +108,46 @@ export function showConfirmDialog(options, confirmCallback, cancelCallback) {
  * @returns {Promise<boolean>} Результат вибору користувача
  */
 function internalShowConfirmDialog(options, callback = null) {
-    // Налаштування за замовчуванням
-    const {
-        message,
-        title = 'Підтвердження',
-        confirmText = 'Підтвердити',
-        cancelText = 'Скасувати',
-        type = 'default',
-        iconType = 'warning'
-    } = options;
+  // Налаштування за замовчуванням
+  const {
+    message,
+    title = 'Підтвердження',
+    confirmText = 'Підтвердити',
+    cancelText = 'Скасувати',
+    type = 'default',
+    iconType = 'warning',
+  } = options;
 
-    logger.info('Показ діалогу підтвердження', 'showConfirmDialog', {
-        category: LOG_CATEGORIES.UI,
-        details: { title, type, iconType }
-    });
+  logger.info('Показ діалогу підтвердження', 'showConfirmDialog', {
+    category: LOG_CATEGORIES.UI,
+    details: { title, type, iconType },
+  });
 
-    return new Promise((resolve) => {
-        try {
-            // Приховуємо інші діалоги
-            hideAllDialogs();
+  return new Promise((resolve) => {
+    try {
+      // Приховуємо інші діалоги
+      hideAllDialogs();
 
-            // Створюємо діалог, якщо його немає
-            let confirmOverlay = document.getElementById(state.confirmDialogId);
+      // Створюємо діалог, якщо його немає
+      let confirmOverlay = document.getElementById(state.confirmDialogId);
 
-            if (!confirmOverlay) {
-                confirmOverlay = document.createElement('div');
-                confirmOverlay.id = state.confirmDialogId;
-                confirmOverlay.className = 'confirm-overlay';
+      if (!confirmOverlay) {
+        confirmOverlay = document.createElement('div');
+        confirmOverlay.id = state.confirmDialogId;
+        confirmOverlay.className = 'confirm-overlay';
 
-                const dialog = document.createElement('div');
-                dialog.className = 'confirm-dialog';
+        const dialog = document.createElement('div');
+        dialog.className = 'confirm-dialog';
 
-                confirmOverlay.appendChild(dialog);
-                document.body.appendChild(confirmOverlay);
-            }
+        confirmOverlay.appendChild(dialog);
+        document.body.appendChild(confirmOverlay);
+      }
 
-            // Отримуємо контейнер діалогу
-            const dialog = confirmOverlay.querySelector('.confirm-dialog');
+      // Отримуємо контейнер діалогу
+      const dialog = confirmOverlay.querySelector('.confirm-dialog');
 
-            // Оновлюємо вміст діалогу
-            dialog.innerHTML = `
+      // Оновлюємо вміст діалогу
+      dialog.innerHTML = `
                 <div class="confirm-title">${title}</div>
                 <div class="confirm-message">${message}</div>
                 <div class="confirm-buttons">
@@ -153,90 +156,89 @@ function internalShowConfirmDialog(options, callback = null) {
                 </div>
             `;
 
-            // Додаємо обробники на кнопки
-            const cancelBtn = dialog.querySelector('#confirm-cancel-button');
-            const confirmBtn = dialog.querySelector('#confirm-yes-button');
+      // Додаємо обробники на кнопки
+      const cancelBtn = dialog.querySelector('#confirm-cancel-button');
+      const confirmBtn = dialog.querySelector('#confirm-yes-button');
 
-            cancelBtn.onclick = function() {
-                confirmOverlay.classList.remove('show');
-                setTimeout(() => {
-                    const result = false;
+      cancelBtn.onclick = function () {
+        confirmOverlay.classList.remove('show');
+        setTimeout(() => {
+          const result = false;
 
-                    logger.info('Діалог скасовано користувачем', 'confirmDialog.cancel', {
-                        category: LOG_CATEGORIES.UI
-                    });
+          logger.info('Діалог скасовано користувачем', 'confirmDialog.cancel', {
+            category: LOG_CATEGORIES.UI,
+          });
 
-                    if (callback) callback(result);
-                    resolve(result);
-                }, CONFIG.animationDuration);
-            };
+          if (callback) callback(result);
+          resolve(result);
+        }, CONFIG.animationDuration);
+      };
 
-            confirmBtn.onclick = function() {
-                confirmOverlay.classList.remove('show');
-                setTimeout(() => {
-                    const result = true;
+      confirmBtn.onclick = function () {
+        confirmOverlay.classList.remove('show');
+        setTimeout(() => {
+          const result = true;
 
-                    logger.info('Діалог підтверджено користувачем', 'confirmDialog.confirm', {
-                        category: LOG_CATEGORIES.UI
-                    });
+          logger.info('Діалог підтверджено користувачем', 'confirmDialog.confirm', {
+            category: LOG_CATEGORIES.UI,
+          });
 
-                    if (callback) callback(result);
-                    resolve(result);
-                }, CONFIG.animationDuration);
-            };
+          if (callback) callback(result);
+          resolve(result);
+        }, CONFIG.animationDuration);
+      };
 
-            // Показуємо діалог
-            confirmOverlay.classList.add('show');
+      // Показуємо діалог
+      confirmOverlay.classList.add('show');
+    } catch (e) {
+      logger.error(e, 'Помилка показу діалогу підтвердження', {
+        category: LOG_CATEGORIES.UI,
+        details: { message },
+      });
 
-        } catch (e) {
-            logger.error(e, 'Помилка показу діалогу підтвердження', {
-                category: LOG_CATEGORIES.UI,
-                details: { message }
-            });
-
-            // Використовуємо стандартний confirm як запасний варіант
-            const result = confirm(message);
-            if (callback) callback(result);
-            resolve(result);
-        }
-    });
+      // Використовуємо стандартний confirm як запасний варіант
+      const result = confirm(message);
+      if (callback) callback(result);
+      resolve(result);
+    }
+  });
 }
 
 /**
  * Приховання всіх активних діалогів
  */
 export function hideAllDialogs() {
-    const existingDialogs = document.querySelectorAll('.confirm-overlay');
-    existingDialogs.forEach(dialog => {
-        if (dialog.id !== state.confirmDialogId) {
-            dialog.classList.remove('show');
+  const existingDialogs = document.querySelectorAll('.confirm-overlay');
+  existingDialogs.forEach((dialog) => {
+    if (dialog.id !== state.confirmDialogId) {
+      dialog.classList.remove('show');
 
-            logger.debug('Приховано існуючий діалог', 'hideAllDialogs', {
-                category: LOG_CATEGORIES.UI,
-                details: { dialogId: dialog.id }
-            });
-        }
-    });
+      logger.debug('Приховано існуючий діалог', 'hideAllDialogs', {
+        category: LOG_CATEGORIES.UI,
+        details: { dialogId: dialog.id },
+      });
+    }
+  });
 }
 
 /**
  * Очищення ресурсів модуля
  */
 export function cleanup() {
-    // Видаляємо обробник Escape
-    document.removeEventListener('keydown', handleEscapeKey);
+  // Видаляємо обробник Escape
+  document.removeEventListener('keydown', handleEscapeKey);
 
-    // Приховуємо всі діалоги
-    hideAllDialogs();
+  // Приховуємо всі діалоги
+  hideAllDialogs();
 
-    logger.info('Ресурси модуля діалогів очищено', 'cleanup', {
-        category: LOG_CATEGORIES.LOGIC
-    });
+  logger.info('Ресурси модуля діалогів очищено', 'cleanup', {
+    category: LOG_CATEGORIES.LOGIC,
+  });
 }
 
 export default {
-    init,
-    showConfirmDialog,
-    hideAllDialogs,
-    cleanup
+  init,
+  showConfirmDialog,
+  hideAllDialogs,
+  cleanup,
 };

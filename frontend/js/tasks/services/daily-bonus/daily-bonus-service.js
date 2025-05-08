@@ -45,7 +45,7 @@ class DailyBonusService {
       BONUS_AVAILABLE: 'daily_bonus_available',
       BONUS_CLAIMED: 'daily_bonus_claimed',
       BONUS_UPDATED: 'daily_bonus_updated',
-      CYCLE_COMPLETED: 'daily_bonus_cycle_completed'
+      CYCLE_COMPLETED: 'daily_bonus_cycle_completed',
     };
 
     // Підписники
@@ -61,7 +61,7 @@ class DailyBonusService {
 
     try {
       logger.info('Ініціалізація сервісу щоденних бонусів', 'initialize', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       // Отримуємо ID користувача
@@ -69,7 +69,7 @@ class DailyBonusService {
       if (!userIdResult.success) {
         logger.warn('Неможливо отримати ID користувача', 'initialize', {
           category: LOG_CATEGORIES.AUTH,
-          details: userIdResult
+          details: userIdResult,
         });
         return false;
       }
@@ -79,7 +79,7 @@ class DailyBonusService {
       if (cachedBonus) {
         this.currentBonus = cachedBonus;
         logger.info('Завантажено дані бонусу з кешу', 'initialize', {
-          category: LOG_CATEGORIES.CACHE
+          category: LOG_CATEGORIES.CACHE,
         });
 
         // Перевіряємо доступність
@@ -98,7 +98,7 @@ class DailyBonusService {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка ініціалізації сервісу щоденних бонусів', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return false;
@@ -142,17 +142,17 @@ class DailyBonusService {
 
       // Сповіщаємо підписників
       this._notifySubscribers(this.EVENTS.BONUS_UPDATED, {
-        bonus: this.currentBonus
+        bonus: this.currentBonus,
       });
 
       logger.info('Успішно завантажено дані бонусу з сервера', 'fetchCurrentBonus', {
-        category: LOG_CATEGORIES.API
+        category: LOG_CATEGORIES.API,
       });
 
       return this.currentBonus;
     } catch (error) {
       logger.error(error, 'Помилка завантаження бонусу з сервера', {
-        category: LOG_CATEGORIES.API
+        category: LOG_CATEGORIES.API,
       });
 
       // Якщо немає поточного бонусу, створюємо за замовчуванням
@@ -162,7 +162,7 @@ class DailyBonusService {
 
         this.currentBonus = createDailyBonusModel({
           userId: userId,
-          status: DAILY_BONUS_TYPES.STATUS.AVAILABLE
+          status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
         });
       }
 
@@ -196,9 +196,7 @@ class DailyBonusService {
     const availability = this.currentBonus.checkAvailability();
 
     // Якщо статус змінився на доступний, сповіщаємо
-    if (availability.available &&
-        this.currentBonus.status !== DAILY_BONUS_TYPES.STATUS.AVAILABLE) {
-
+    if (availability.available && this.currentBonus.status !== DAILY_BONUS_TYPES.STATUS.AVAILABLE) {
       // Оновлюємо статус
       this.currentBonus.status = DAILY_BONUS_TYPES.STATUS.AVAILABLE;
 
@@ -207,11 +205,11 @@ class DailyBonusService {
 
       // Сповіщаємо підписників
       this._notifySubscribers(this.EVENTS.BONUS_AVAILABLE, {
-        bonus: this.currentBonus
+        bonus: this.currentBonus,
       });
 
       logger.info('Бонус став доступним', '_checkAvailability', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
     }
 
@@ -252,7 +250,7 @@ class DailyBonusService {
         return {
           success: false,
           error: 'Бонус недоступний',
-          availability
+          availability,
         };
       }
 
@@ -308,14 +306,14 @@ class DailyBonusService {
         // Сповіщаємо про завершення циклу
         this._notifySubscribers(this.EVENTS.CYCLE_COMPLETED, {
           bonus: this.currentBonus,
-          completionBonus: response.reward.completion
+          completionBonus: response.reward.completion,
         });
       }
 
       // Сповіщаємо підписників
       this._notifySubscribers(this.EVENTS.BONUS_CLAIMED, {
         bonus: this.currentBonus,
-        reward: response.reward
+        reward: response.reward,
       });
 
       logger.info('Успішно отримано щоденний бонус', 'claimDailyBonus', {
@@ -323,24 +321,24 @@ class DailyBonusService {
         details: {
           tokens: response.reward.tokens,
           coins: response.reward.coins,
-          isCycleCompleted
-        }
+          isCycleCompleted,
+        },
       });
 
       return {
         success: true,
         reward: response.reward,
         isCycleCompleted,
-        completionBonus: response.reward.completion
+        completionBonus: response.reward.completion,
       };
     } catch (error) {
       logger.error(error, 'Помилка отримання щоденного бонусу', {
-        category: LOG_CATEGORIES.REWARDS
+        category: LOG_CATEGORIES.REWARDS,
       });
 
       return {
         success: false,
-        error: error.message || 'Помилка отримання бонусу'
+        error: error.message || 'Помилка отримання бонусу',
       };
     }
   }
@@ -358,13 +356,13 @@ class DailyBonusService {
 
     this.subscribers.push({
       eventType,
-      callback
+      callback,
     });
 
     // Повертаємо функцію відписки
     return () => {
       this.subscribers = this.subscribers.filter(
-        sub => sub.callback !== callback || sub.eventType !== eventType
+        (sub) => sub.callback !== callback || sub.eventType !== eventType
       );
     };
   }
@@ -378,22 +376,24 @@ class DailyBonusService {
   _notifySubscribers(eventType, data) {
     // Викликаємо підписників
     this.subscribers
-      .filter(sub => sub.eventType === eventType)
-      .forEach(sub => {
+      .filter((sub) => sub.eventType === eventType)
+      .forEach((sub) => {
         try {
           sub.callback(data);
         } catch (error) {
           logger.error(error, 'Помилка виклику підписника', {
             category: LOG_CATEGORIES.EVENTS,
-            details: { eventType }
+            details: { eventType },
           });
         }
       });
 
     // Також створюємо загальну подію
-    document.dispatchEvent(new CustomEvent(eventType, {
-      detail: data
-    }));
+    document.dispatchEvent(
+      new CustomEvent(eventType, {
+        detail: data,
+      })
+    );
   }
 
   /**
@@ -414,7 +414,7 @@ class DailyBonusService {
         status: DAILY_BONUS_TYPES.STATUS.AVAILABLE,
         currentDay: 1,
         totalDays: 0,
-        completedCycles: 0
+        completedCycles: 0,
       });
 
       // Зберігаємо в кеш
@@ -422,17 +422,17 @@ class DailyBonusService {
 
       // Сповіщаємо підписників
       this._notifySubscribers(this.EVENTS.BONUS_UPDATED, {
-        bonus: this.currentBonus
+        bonus: this.currentBonus,
       });
 
       logger.info('Цикл бонусів скинуто', 'resetBonusCycle', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return true;
     } catch (error) {
       logger.error(error, 'Помилка скидання циклу бонусів', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
 
       return false;

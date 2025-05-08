@@ -21,106 +21,94 @@ import { CONFIG, updateConfig } from './common.js';
  * @param {Object} options - Налаштування
  */
 export function init(options = {}) {
-    // Оновлюємо конфігурацію модуля
-    if (options && typeof options === 'object') {
-        updateConfig(options);
-    }
+  // Оновлюємо конфігурацію модуля
+  if (options && typeof options === 'object') {
+    updateConfig(options);
+  }
 
-    logger.info('Ініціалізація модуля сповіщень', 'init', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.info('Ініціалізація модуля сповіщень', 'init', {
+    category: LOG_CATEGORIES.INIT,
+  });
 
-    // Ініціалізуємо підмодулі
-    toasts.init(options);
-    dialog.init();
-    loading.init();
+  // Ініціалізуємо підмодулі
+  toasts.init(options);
+  dialog.init();
+  loading.init();
 
-    // Перевизначаємо глобальні функції для сумісності
-    defineGlobalFunctions();
+  // Перевизначаємо глобальні функції для сумісності
+  defineGlobalFunctions();
 
-    logger.info('Модуль сповіщень успішно ініціалізовано', 'init', {
-        category: LOG_CATEGORIES.INIT,
-        details: { position: CONFIG.position, maxNotifications: CONFIG.maxNotifications }
-    });
+  logger.info('Модуль сповіщень успішно ініціалізовано', 'init', {
+    category: LOG_CATEGORIES.INIT,
+    details: { position: CONFIG.position, maxNotifications: CONFIG.maxNotifications },
+  });
 }
 
 /**
  * Перевизначення глобальних функцій для сумісності
  */
 function defineGlobalFunctions() {
-    // Toast-повідомлення
-    window.showToast = function(message, isError) {
-        return isError ? showError(message) : showSuccess(message);
-    };
+  // Toast-повідомлення
+  window.showToast = function (message, isError) {
+    return isError ? showError(message) : showSuccess(message);
+  };
 
-    // Звичайні сповіщення
-    window.showNotification = showInfo;
+  // Звичайні сповіщення
+  window.showNotification = showInfo;
 
-    // Індикатори завантаження
-    window.showLoading = showLoading;
-    window.hideLoading = hideLoading;
+  // Індикатори завантаження
+  window.showLoading = showLoading;
+  window.hideLoading = hideLoading;
 
-    // Діалоги підтвердження
-    window.showModernConfirm = showConfirmDialog;
+  // Діалоги підтвердження
+  window.showModernConfirm = showConfirmDialog;
 
-    logger.debug('Визначено глобальні функції для сумісності', 'defineGlobalFunctions', {
-        category: LOG_CATEGORIES.INIT
-    });
+  logger.debug('Визначено глобальні функції для сумісності', 'defineGlobalFunctions', {
+    category: LOG_CATEGORIES.INIT,
+  });
 }
 
 /**
  * Очищення ресурсів модуля
  */
 export function cleanup() {
-    // Очищаємо ресурси підмодулів
-    toasts.cleanup();
-    dialog.cleanup();
-    loading.cleanup();
+  // Очищаємо ресурси підмодулів
+  toasts.cleanup();
+  dialog.cleanup();
+  loading.cleanup();
 
-    logger.info('Ресурси модуля сповіщень очищено', 'cleanup', {
-        category: LOG_CATEGORIES.LOGIC
-    });
+  logger.info('Ресурси модуля сповіщень очищено', 'cleanup', {
+    category: LOG_CATEGORIES.LOGIC,
+  });
 }
 
 // Експортуємо методи з підмодулів для зручності
-export const {
-    showInfo,
-    showSuccess,
-    showError,
-    showWarning,
-    showNotification,
-    updateBalanceUI
-} = toasts;
+export const { showInfo, showSuccess, showError, showWarning, showNotification, updateBalanceUI } =
+  toasts;
 
-export const {
-    showConfirmDialog,
-    hideAllDialogs
-} = dialog;
+export const { showConfirmDialog, hideAllDialogs } = dialog;
 
-export const {
-    showLoading,
-    hideLoading
-} = loading;
+export const { showLoading, hideLoading } = loading;
 
 // Створюємо об'єкт для експорту за замовчуванням
 const Notifications = {
-    init,
-    // Методи toast-повідомлень
-    showInfo,
-    showSuccess,
-    showError,
-    showWarning,
-    showNotification,
-    // Методи діалогових вікон
-    showConfirmDialog,
-    hideAllDialogs,
-    // Методи індикаторів завантаження
-    showLoading,
-    hideLoading,
-    // Оновлення балансу
-    updateBalanceUI,
-    // Очищення ресурсів
-    cleanup
+  init,
+  // Методи toast-повідомлень
+  showInfo,
+  showSuccess,
+  showError,
+  showWarning,
+  showNotification,
+  // Методи діалогових вікон
+  showConfirmDialog,
+  hideAllDialogs,
+  // Методи індикаторів завантаження
+  showLoading,
+  hideLoading,
+  // Оновлення балансу
+  updateBalanceUI,
+  // Очищення ресурсів
+  cleanup,
 };
 
 // Для зворотної сумісності зі старим кодом

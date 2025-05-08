@@ -22,12 +22,12 @@ const regexCache = {
   number: /^-?\d*\.?\d+$/,
   integer: /^-?\d+$/,
   alphanumeric: /^[a-zA-Z0-9]+$/,
-  username: /^[a-zA-Z0-9_-]{3,20}$/
+  username: /^[a-zA-Z0-9_-]{3,20}$/,
 };
 
 // Конфігурація за замовчуванням
 const config = {
-  customErrorMessages: true,  // Використовувати користувацькі повідомлення про помилки
+  customErrorMessages: true, // Використовувати користувацькі повідомлення про помилки
 };
 
 /**
@@ -57,7 +57,7 @@ export function validatePattern(value, regex, errorMessage) {
     else {
       return {
         isValid: false,
-        errorMessage: 'Невірний формат регулярного виразу'
+        errorMessage: 'Невірний формат регулярного виразу',
       };
     }
 
@@ -65,16 +65,16 @@ export function validatePattern(value, regex, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Значення не відповідає шаблону')
+      errorMessage: isValid ? '' : errorMessage || 'Значення не відповідає шаблону',
     };
   } catch (error) {
     logger.error('Помилка валідації за шаблоном', 'validatePattern', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -92,16 +92,16 @@ export function validateRequired(value, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Це поле обов\'язкове для заповнення')
+      errorMessage: isValid ? '' : errorMessage || "Це поле обов'язкове для заповнення",
     };
   } catch (error) {
-    logger.error('Помилка валідації обов\'язкового поля', 'validateRequired', {
-      error: error.message
+    logger.error("Помилка валідації обов'язкового поля", 'validateRequired', {
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -135,16 +135,16 @@ export function validateLength(value, minLength, maxLength, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || message)
+      errorMessage: isValid ? '' : errorMessage || message,
     };
   } catch (error) {
     logger.error('Помилка валідації довжини', 'validateLength', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -179,16 +179,16 @@ export function validatePhone(value, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Введіть коректний номер телефону')
+      errorMessage: isValid ? '' : errorMessage || 'Введіть коректний номер телефону',
     };
   } catch (error) {
     logger.error('Помилка валідації телефону', 'validatePhone', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -200,11 +200,7 @@ export function validatePhone(value, errorMessage) {
  * @returns {Object} Результат валідації {isValid, errorMessage}
  */
 export function validateUrl(value, errorMessage) {
-  return validatePattern(
-    value,
-    regexCache.url,
-    errorMessage || 'Введіть коректний URL'
-  );
+  return validatePattern(value, regexCache.url, errorMessage || 'Введіть коректний URL');
 }
 
 /**
@@ -216,21 +212,23 @@ export function validateUrl(value, errorMessage) {
 export function validateNumber(value, options = {}) {
   try {
     const {
-      min,                     // Мінімальне значення
-      max,                     // Максимальне значення
-      integer = false,         // Чи має бути цілим числом
-      errorMessage,            // Користувацьке повідомлення про помилку
-      minMessage,              // Повідомлення про помилку мінімального значення
-      maxMessage               // Повідомлення про помилку максимального значення
+      min, // Мінімальне значення
+      max, // Максимальне значення
+      integer = false, // Чи має бути цілим числом
+      errorMessage, // Користувацьке повідомлення про помилку
+      minMessage, // Повідомлення про помилку мінімального значення
+      maxMessage, // Повідомлення про помилку максимального значення
     } = options;
 
     // Перевіряємо, чи значення є числом
-    const isNumber = integer ? regexCache.integer.test(String(value)) : regexCache.number.test(String(value));
+    const isNumber = integer
+      ? regexCache.integer.test(String(value))
+      : regexCache.number.test(String(value));
 
     if (!isNumber) {
       return {
         isValid: false,
-        errorMessage: errorMessage || (integer ? 'Введіть ціле число' : 'Введіть числове значення')
+        errorMessage: errorMessage || (integer ? 'Введіть ціле число' : 'Введіть числове значення'),
       };
     }
 
@@ -241,29 +239,29 @@ export function validateNumber(value, options = {}) {
     if (min !== undefined && numValue < min) {
       return {
         isValid: false,
-        errorMessage: minMessage || `Значення повинно бути не менше ${min}`
+        errorMessage: minMessage || `Значення повинно бути не менше ${min}`,
       };
     }
 
     if (max !== undefined && numValue > max) {
       return {
         isValid: false,
-        errorMessage: maxMessage || `Значення повинно бути не більше ${max}`
+        errorMessage: maxMessage || `Значення повинно бути не більше ${max}`,
       };
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка валідації числа', 'validateNumber', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -292,16 +290,16 @@ export function validateMatch(value, targetValue, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Значення не співпадають')
+      errorMessage: isValid ? '' : errorMessage || 'Значення не співпадають',
     };
   } catch (error) {
     logger.error('Помилка валідації збігу значень', 'validateMatch', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -315,16 +313,16 @@ export function validateMatch(value, targetValue, errorMessage) {
 export function validatePassword(value, options = {}) {
   try {
     const {
-      minLength = 8,           // Мінімальна довжина
-      strength = 'medium',     // Рівень складності (low, medium, high)
-      errorMessage             // Користувацьке повідомлення про помилку
+      minLength = 8, // Мінімальна довжина
+      strength = 'medium', // Рівень складності (low, medium, high)
+      errorMessage, // Користувацьке повідомлення про помилку
     } = options;
 
     // Перевіряємо мінімальну довжину
     if (String(value).length < minLength) {
       return {
         isValid: false,
-        errorMessage: errorMessage || `Пароль повинен містити щонайменше ${minLength} символів`
+        errorMessage: errorMessage || `Пароль повинен містити щонайменше ${minLength} символів`,
       };
     }
 
@@ -346,10 +344,11 @@ export function validatePassword(value, options = {}) {
 
       case 'high':
         // Повинен містити великі та малі літери, цифри та спеціальні символи
-        isValid = /[A-Z]/.test(value) &&
-                 /[a-z]/.test(value) &&
-                 /[0-9]/.test(value) &&
-                 /[^A-Za-z0-9]/.test(value);
+        isValid =
+          /[A-Z]/.test(value) &&
+          /[a-z]/.test(value) &&
+          /[0-9]/.test(value) &&
+          /[^A-Za-z0-9]/.test(value);
         message = 'Пароль повинен містити великі та малі літери, цифри та спеціальні символи';
         break;
 
@@ -361,16 +360,16 @@ export function validatePassword(value, options = {}) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || message)
+      errorMessage: isValid ? '' : errorMessage || message,
     };
   } catch (error) {
     logger.error('Помилка валідації пароля', 'validatePassword', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -387,16 +386,16 @@ export function validateCheckbox(value, errorMessage) {
 
     return {
       isValid,
-      errorMessage: isValid ? '' : (errorMessage || 'Це поле повинно бути відмічено')
+      errorMessage: isValid ? '' : errorMessage || 'Це поле повинно бути відмічено',
     };
   } catch (error) {
     logger.error('Помилка валідації чекбокса', 'validateCheckbox', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -410,12 +409,12 @@ export function validateCheckbox(value, errorMessage) {
 export function validateDate(value, options = {}) {
   try {
     const {
-      format = 'yyyy-mm-dd',  // Формат дати
-      min,                    // Мінімальна дата
-      max,                    // Максимальна дата
-      errorMessage,           // Користувацьке повідомлення про помилку
-      minMessage,             // Повідомлення про помилку мінімальної дати
-      maxMessage              // Повідомлення про помилку максимальної дати
+      format = 'yyyy-mm-dd', // Формат дати
+      min, // Мінімальна дата
+      max, // Максимальна дата
+      errorMessage, // Користувацьке повідомлення про помилку
+      minMessage, // Повідомлення про помилку мінімальної дати
+      maxMessage, // Повідомлення про помилку максимальної дати
     } = options;
 
     // Реалізуємо простий алгоритм валідації дати
@@ -428,7 +427,7 @@ export function validateDate(value, options = {}) {
     if (parts.length !== 3) {
       return {
         isValid: false,
-        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`
+        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`,
       };
     }
 
@@ -450,7 +449,7 @@ export function validateDate(value, options = {}) {
     } else {
       return {
         isValid: false,
-        errorMessage: 'Невідомий формат дати'
+        errorMessage: 'Невідомий формат дати',
       };
     }
 
@@ -458,7 +457,7 @@ export function validateDate(value, options = {}) {
     if (isNaN(year) || isNaN(month) || isNaN(day)) {
       return {
         isValid: false,
-        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`
+        errorMessage: errorMessage || `Введіть коректну дату у форматі ${format}`,
       };
     }
 
@@ -466,16 +465,16 @@ export function validateDate(value, options = {}) {
     if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Введіть коректну дату'
+        errorMessage: errorMessage || 'Введіть коректну дату',
       };
     }
 
     // Перевіряємо кількість днів у місяці
-    const daysInMonth = [31, (isLeapYear(year) ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     if (day > daysInMonth[month - 1]) {
       return {
         isValid: false,
-        errorMessage: errorMessage || 'Невірна кількість днів у місяці'
+        errorMessage: errorMessage || 'Невірна кількість днів у місяці',
       };
     }
 
@@ -488,7 +487,7 @@ export function validateDate(value, options = {}) {
       if (dateObj < minDate) {
         return {
           isValid: false,
-          errorMessage: minMessage || `Дата повинна бути не раніше ${minDate.toLocaleDateString()}`
+          errorMessage: minMessage || `Дата повинна бути не раніше ${minDate.toLocaleDateString()}`,
         };
       }
     }
@@ -499,23 +498,24 @@ export function validateDate(value, options = {}) {
       if (dateObj > maxDate) {
         return {
           isValid: false,
-          errorMessage: maxMessage || `Дата повинна бути не пізніше ${maxDate.toLocaleDateString()}`
+          errorMessage:
+            maxMessage || `Дата повинна бути не пізніше ${maxDate.toLocaleDateString()}`,
         };
       }
     }
 
     return {
       isValid: true,
-      errorMessage: ''
+      errorMessage: '',
     };
   } catch (error) {
     logger.error('Помилка валідації дати', 'validateDate', {
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка валідації: ' + error.message
+      errorMessage: 'Помилка валідації: ' + error.message,
     };
   }
 }
@@ -526,7 +526,7 @@ export function validateDate(value, options = {}) {
  * @returns {boolean} Високосний рік чи ні
  */
 function isLeapYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 }
 
 /**
@@ -584,12 +584,12 @@ export function validate(value, validationType, options = {}) {
   } catch (error) {
     logger.error('Помилка виконання валідації', 'validate', {
       validationType,
-      error: error.message
+      error: error.message,
     });
 
     return {
       isValid: false,
-      errorMessage: 'Помилка виконання валідації: ' + error.message
+      errorMessage: 'Помилка виконання валідації: ' + error.message,
     };
   }
 }
@@ -628,5 +628,5 @@ export default {
   // Експортуємо конфігурацію як readonly
   get config() {
     return { ...config };
-  }
+  },
 };

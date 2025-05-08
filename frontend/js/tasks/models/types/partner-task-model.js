@@ -39,7 +39,7 @@ export class PartnerTaskModel extends TaskModel {
       revenue_share: apiData.revenue_share,
       category: apiData.category,
       external_tracking_id: apiData.external_tracking_id,
-      conversion_type: apiData.conversion_type
+      conversion_type: apiData.conversion_type,
     });
   }
 

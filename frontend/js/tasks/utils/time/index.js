@@ -27,7 +27,7 @@ export const {
   subtractPeriod,
   getUserTimezone,
   isDateInRange,
-  getMonthDay
+  getMonthDay,
 } = dateUtils;
 
 // Експорт функцій модуля format.js
@@ -38,7 +38,7 @@ export const {
   formatTimeLeft,
   formatDuration,
   parseIsoDuration,
-  formatIsoDuration
+  formatIsoDuration,
 } = formatUtils;
 
 // Експорт функцій модуля timer.js
@@ -51,7 +51,7 @@ export const {
   getTimeLeft,
   isExpired,
   calculateUpdateFrequency,
-  createSimpleCountdown
+  createSimpleCountdown,
 } = timerUtils;
 
 /**
@@ -60,8 +60,8 @@ export const {
  */
 export function init(options = {}) {
   const {
-    timers = {},  // Опції для таймерів
-    ...rest       // Загальні опції
+    timers = {}, // Опції для таймерів
+    ...rest // Загальні опції
   } = options;
 
   // Оновлюємо конфігурацію дат
@@ -72,7 +72,7 @@ export function init(options = {}) {
   // Ініціалізуємо таймери
   timerUtils.init({
     ...rest,
-    ...timers
+    ...timers,
   });
 }
 
@@ -82,10 +82,7 @@ export function init(options = {}) {
  * @returns {string} Відформатована поточна дата
  */
 export function now(options = {}) {
-  const {
-    format = 'datetime',
-    ...formatOptions
-  } = options;
+  const { format = 'datetime', ...formatOptions } = options;
 
   return formatDate(new Date(), format, formatOptions);
 }
@@ -119,11 +116,11 @@ export default {
   timer: {
     ...timerUtils,
     init: timerUtils.init,
-    cleanup: timerUtils.cleanup
+    cleanup: timerUtils.cleanup,
   },
 
   // Повні модулі
   DateUtils,
   FormatUtils,
-  TimerUtils
+  TimerUtils,
 };

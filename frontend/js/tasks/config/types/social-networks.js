@@ -9,7 +9,7 @@ export const SOCIAL_NETWORKS = {
   TELEGRAM: 'telegram',
   TWITTER: 'twitter',
   DISCORD: 'discord',
-  FACEBOOK: 'facebook'
+  FACEBOOK: 'facebook',
 };
 
 export default SOCIAL_NETWORKS;

@@ -11,7 +11,7 @@ export const VERIFICATION_STATUS = {
   FAILURE: 'failure',
   ERROR: 'error',
   NETWORK_ERROR: 'network_error',
-  TIMEOUT: 'timeout'
+  TIMEOUT: 'timeout',
 };
 
 export default VERIFICATION_STATUS;

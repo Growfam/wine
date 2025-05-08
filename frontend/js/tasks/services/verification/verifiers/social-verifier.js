@@ -33,8 +33,8 @@ export class SocialVerifier extends BaseVerifier {
           verification_type: 'social',
           task_data: {
             platform: socialType.toLowerCase(),
-            action_type: task.action_type || 'visit'
-          }
+            action_type: task.action_type || 'visit',
+          },
         };
 
         // Запит до API для верифікації
@@ -44,10 +44,7 @@ export class SocialVerifier extends BaseVerifier {
       // Якщо тип соціальної мережі не визначено, повертаємо помилку
       console.warn(`Не вдалося визначити тип соціальної мережі для завдання ${taskId}`);
 
-      return this.createErrorResult(
-        taskId,
-        'Не вдалося визначити тип соціальної мережі'
-      );
+      return this.createErrorResult(taskId, 'Не вдалося визначити тип соціальної мережі');
     } catch (error) {
       console.error(`Помилка при верифікації соціального завдання ${taskId}:`, error);
       return this.createErrorResult(
@@ -71,23 +68,38 @@ export class SocialVerifier extends BaseVerifier {
       const title = (task.title || '').toLowerCase();
       const description = (task.description || '').toLowerCase();
 
-      if (url.includes('t.me/') || url.includes('telegram.') ||
-          title.includes('telegram') || description.includes('telegram')) {
+      if (
+        url.includes('t.me/') ||
+        url.includes('telegram.') ||
+        title.includes('telegram') ||
+        description.includes('telegram')
+      ) {
         return SOCIAL_NETWORKS.TELEGRAM;
       }
 
-      if (url.includes('twitter.') || url.includes('x.com') ||
-          title.includes('twitter') || description.includes('twitter')) {
+      if (
+        url.includes('twitter.') ||
+        url.includes('x.com') ||
+        title.includes('twitter') ||
+        description.includes('twitter')
+      ) {
         return SOCIAL_NETWORKS.TWITTER;
       }
 
-      if (url.includes('discord.') ||
-          title.includes('discord') || description.includes('discord')) {
+      if (
+        url.includes('discord.') ||
+        title.includes('discord') ||
+        description.includes('discord')
+      ) {
         return SOCIAL_NETWORKS.DISCORD;
       }
 
-      if (url.includes('facebook.') || url.includes('fb.') ||
-          title.includes('facebook') || description.includes('facebook')) {
+      if (
+        url.includes('facebook.') ||
+        url.includes('fb.') ||
+        title.includes('facebook') ||
+        description.includes('facebook')
+      ) {
         return SOCIAL_NETWORKS.FACEBOOK;
       }
 

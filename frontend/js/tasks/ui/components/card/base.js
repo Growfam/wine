@@ -1,4 +1,4 @@
-  /**
+/**
  * TaskCard.base - базовий компонент для відображення картки завдання
  *
  * Відповідає за:
@@ -22,13 +22,13 @@ const TEMPLATE = `
 
 // Статуси завдань
 export const TASK_STATUS = {
-    IDLE: 'idle',                 // Початковий стан
-    LOADING: 'loading',           // Завантаження/обробка
-    COMPLETED: 'completed',       // Завершено
-    ERROR: 'error',               // Помилка
-    IN_PROGRESS: 'in-progress',   // В процесі виконання
-    READY_TO_VERIFY: 'ready-to-verify', // Готове до перевірки
-    EXPIRED: 'expired'            // Термін дії завдання минув
+  IDLE: 'idle', // Початковий стан
+  LOADING: 'loading', // Завантаження/обробка
+  COMPLETED: 'completed', // Завершено
+  ERROR: 'error', // Помилка
+  IN_PROGRESS: 'in-progress', // В процесі виконання
+  READY_TO_VERIFY: 'ready-to-verify', // Готове до перевірки
+  EXPIRED: 'expired', // Термін дії завдання минув
 };
 
 /**
@@ -39,32 +39,32 @@ export const TASK_STATUS = {
  * @returns {HTMLElement} DOM елемент картки
  */
 export function create(task, progress, options = {}) {
-    if (!task || !task.id) {
-        console.error('TaskCard: Отримано некоректні дані завдання');
-        return document.createElement('div');
-    }
+  if (!task || !task.id) {
+    console.error('TaskCard: Отримано некоректні дані завдання');
+    return document.createElement('div');
+  }
 
-    // Створюємо основний елемент
-    const taskElement = document.createElement('div');
-    taskElement.className = 'task-item';
-    taskElement.dataset.taskId = task.id;
-    taskElement.dataset.taskType = task.type || 'default';
+  // Створюємо основний елемент
+  const taskElement = document.createElement('div');
+  taskElement.className = 'task-item';
+  taskElement.dataset.taskId = task.id;
+  taskElement.dataset.taskType = task.type || 'default';
 
-    // Додаємо базову структуру
-    taskElement.innerHTML = TEMPLATE;
+  // Додаємо базову структуру
+  taskElement.innerHTML = TEMPLATE;
 
-    // Заповнюємо вміст
-    fillTaskContent(taskElement, task, progress);
+  // Заповнюємо вміст
+  fillTaskContent(taskElement, task, progress);
 
-    // Налаштовуємо статус
-    setupTaskStatus(taskElement, task, progress);
+  // Налаштовуємо статус
+  setupTaskStatus(taskElement, task, progress);
 
-    // Додаємо користувацькі класи
-    if (options.customClass) {
-        taskElement.classList.add(options.customClass);
-    }
+  // Додаємо користувацькі класи
+  if (options.customClass) {
+    taskElement.classList.add(options.customClass);
+  }
 
-    return taskElement;
+  return taskElement;
 }
 
 /**
@@ -74,38 +74,39 @@ export function create(task, progress, options = {}) {
  * @param {Object} progress - Прогрес виконання
  */
 function fillTaskContent(taskElement, task, progress) {
-    // Заголовок
-    const titleElement = taskElement.querySelector('.task-title');
-    if (titleElement) {
-        titleElement.textContent = task.title || '';
-    }
+  // Заголовок
+  const titleElement = taskElement.querySelector('.task-title');
+  if (titleElement) {
+    titleElement.textContent = task.title || '';
+  }
 
-    // Опис
-    const descriptionElement = taskElement.querySelector('.task-description');
-    if (descriptionElement) {
-        descriptionElement.textContent = task.description || '';
-    }
+  // Опис
+  const descriptionElement = taskElement.querySelector('.task-description');
+  if (descriptionElement) {
+    descriptionElement.textContent = task.description || '';
+  }
 
-    // Винагорода
-    const rewardElement = taskElement.querySelector('.task-reward');
-    if (rewardElement && task.reward_amount) {
-        const isCompleted = progress && progress.status === 'completed';
+  // Винагорода
+  const rewardElement = taskElement.querySelector('.task-reward');
+  if (rewardElement && task.reward_amount) {
+    const isCompleted = progress && progress.status === 'completed';
 
-        if (isCompleted) {
-            rewardElement.innerHTML = '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
-        } else {
-            const rewardType = task.reward_type === 'tokens' ? '$WINIX' : 'жетонів';
-            rewardElement.innerHTML = `${task.reward_amount} <span class="token-symbol">${rewardType}</span>`;
-        }
+    if (isCompleted) {
+      rewardElement.innerHTML =
+        '<div class="completed-label" data-lang-key="earn.completed">Виконано</div>';
+    } else {
+      const rewardType = task.reward_type === 'tokens' ? '$WINIX' : 'жетонів';
+      rewardElement.innerHTML = `${task.reward_amount} <span class="token-symbol">${rewardType}</span>`;
     }
+  }
 
-    // Додаємо прогрес, якщо потрібно
-    if (task.target_value > 1) {
-        const progressContainer = taskElement.querySelector('.task-progress-container');
-        if (progressContainer) {
-            renderTaskProgress(progressContainer, task, progress);
-        }
+  // Додаємо прогрес, якщо потрібно
+  if (task.target_value > 1) {
+    const progressContainer = taskElement.querySelector('.task-progress-container');
+    if (progressContainer) {
+      renderTaskProgress(progressContainer, task, progress);
     }
+  }
 }
 
 /**
@@ -115,15 +116,15 @@ function fillTaskContent(taskElement, task, progress) {
  * @param {Object} progress - Прогрес виконання
  */
 function renderTaskProgress(container, task, progress) {
-    // Спроба використати TaskProgress, якщо доступний
-    const TaskProgress = dependencyContainer.resolve('TaskProgress');
+  // Спроба використати TaskProgress, якщо доступний
+  const TaskProgress = dependencyContainer.resolve('TaskProgress');
 
-    if (TaskProgress && typeof TaskProgress.render === 'function') {
-        TaskProgress.render(container, task, progress);
-    } else {
-        // Запасний варіант візуалізації прогресу
-        renderDefaultProgress(container, task, progress);
-    }
+  if (TaskProgress && typeof TaskProgress.render === 'function') {
+    TaskProgress.render(container, task, progress);
+  } else {
+    // Запасний варіант візуалізації прогресу
+    renderDefaultProgress(container, task, progress);
+  }
 }
 
 /**
@@ -133,11 +134,11 @@ function renderTaskProgress(container, task, progress) {
  * @param {Object} progress - Прогрес виконання
  */
 function renderDefaultProgress(container, task, progress) {
-    const currentValue = progress?.progress_value || 0;
-    const maxValue = task.target_value || 100;
-    const percent = Math.min(100, Math.max(0, (currentValue / maxValue) * 100));
+  const currentValue = progress?.progress_value || 0;
+  const maxValue = task.target_value || 100;
+  const percent = Math.min(100, Math.max(0, (currentValue / maxValue) * 100));
 
-    container.innerHTML = `
+  container.innerHTML = `
         <div class="progress-bar">
             <div class="progress-fill" style="width: ${percent}%"></div>
         </div>
@@ -154,21 +155,21 @@ function renderDefaultProgress(container, task, progress) {
  * @param {Object} progress - Прогрес
  */
 function setupTaskStatus(taskElement, task, progress) {
-    // Визначаємо статус завдання
-    const isCompleted = progress && progress.status === 'completed';
-    const isExpired = task.end_date && new Date(task.end_date) <= new Date();
+  // Визначаємо статус завдання
+  const isCompleted = progress && progress.status === 'completed';
+  const isExpired = task.end_date && new Date(task.end_date) <= new Date();
 
-    // Додаємо відповідні класи
-    if (isCompleted) {
-        taskElement.classList.add('completed');
-    } else if (isExpired) {
-        taskElement.classList.add('expired');
-    }
+  // Додаємо відповідні класи
+  if (isCompleted) {
+    taskElement.classList.add('completed');
+  } else if (isExpired) {
+    taskElement.classList.add('expired');
+  }
 
-    // Додаємо спеціальні класи залежно від типу
-    if (task.type) {
-        taskElement.classList.add(`${task.type}-task`);
-    }
+  // Додаємо спеціальні класи залежно від типу
+  if (task.type) {
+    taskElement.classList.add(`${task.type}-task`);
+  }
 }
 
 /**
@@ -177,23 +178,27 @@ function setupTaskStatus(taskElement, task, progress) {
  * @param {string} status - Новий статус
  */
 export function updateStatus(taskElement, status) {
-    if (!taskElement) return;
+  if (!taskElement) return;
 
-    // Список всіх можливих статусів
-    const statusClasses = [
-        'loading', 'completed', 'error',
-        'in-progress', 'ready-to-verify', 'expired'
-    ];
+  // Список всіх можливих статусів
+  const statusClasses = [
+    'loading',
+    'completed',
+    'error',
+    'in-progress',
+    'ready-to-verify',
+    'expired',
+  ];
 
-    // Видаляємо всі статусні класи
-    statusClasses.forEach(cls => {
-        taskElement.classList.remove(cls);
-    });
+  // Видаляємо всі статусні класи
+  statusClasses.forEach((cls) => {
+    taskElement.classList.remove(cls);
+  });
 
-    // Додаємо новий клас статусу
-    if (status) {
-        taskElement.classList.add(status);
-    }
+  // Додаємо новий клас статусу
+  if (status) {
+    taskElement.classList.add(status);
+  }
 }
 
 /**
@@ -202,11 +207,11 @@ export function updateStatus(taskElement, status) {
  * @returns {string} Безпечний HTML
  */
 export function escapeHtml(text) {
-    if (!text) return '';
+  if (!text) return '';
 
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 /**
@@ -215,7 +220,7 @@ export function escapeHtml(text) {
  * @returns {HTMLElement|null} Елемент картки
  */
 export function getTaskElementById(taskId) {
-    return document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+  return document.querySelector(`.task-item[data-task-id="${taskId}"]`);
 }
 
 /**
@@ -224,7 +229,7 @@ export function getTaskElementById(taskId) {
  * @returns {boolean} Результат перевірки
  */
 export function isTaskRendered(taskId) {
-    return !!getTaskElementById(taskId);
+  return !!getTaskElementById(taskId);
 }
 
 /**
@@ -233,10 +238,10 @@ export function isTaskRendered(taskId) {
  * @param {string} title - Новий заголовок
  */
 export function updateTaskTitle(taskElement, title) {
-    const titleElement = taskElement.querySelector('.task-title');
-    if (titleElement) {
-        titleElement.textContent = title;
-    }
+  const titleElement = taskElement.querySelector('.task-title');
+  if (titleElement) {
+    titleElement.textContent = title;
+  }
 }
 
 /**
@@ -245,20 +250,20 @@ export function updateTaskTitle(taskElement, title) {
  * @param {string} description - Новий опис
  */
 export function updateTaskDescription(taskElement, description) {
-    const descriptionElement = taskElement.querySelector('.task-description');
-    if (descriptionElement) {
-        descriptionElement.textContent = description;
-    }
+  const descriptionElement = taskElement.querySelector('.task-description');
+  if (descriptionElement) {
+    descriptionElement.textContent = description;
+  }
 }
 
 // Експорт API модуля
 export default {
-    create,
-    updateStatus,
-    escapeHtml,
-    getTaskElementById,
-    isTaskRendered,
-    updateTaskTitle,
-    updateTaskDescription,
-    TASK_STATUS
+  create,
+  updateStatus,
+  escapeHtml,
+  getTaskElementById,
+  isTaskRendered,
+  updateTaskTitle,
+  updateTaskDescription,
+  TASK_STATUS,
 };

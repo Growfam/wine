@@ -31,7 +31,7 @@ const CONFIG = {
   TASK_APPEAR_DURATION: 350,
 
   // Затримка між появою завдань (мс)
-  TASK_APPEAR_DELAY: 50
+  TASK_APPEAR_DELAY: 50,
 };
 
 export default CONFIG;

@@ -28,11 +28,11 @@ const eventHandlers = new Map();
 export function addEvent(element, eventType, handler, options = {}) {
   // Параметри за замовчуванням
   const {
-    debounce = 0,      // Час затримки в мс
-    throttle = 0,      // Час обмеження в мс
-    once = false,      // Одноразовий обробник
-    passive = false,   // Пасивний обробник
-    capture = false    // Фаза перехоплення
+    debounce = 0, // Час затримки в мс
+    throttle = 0, // Час обмеження в мс
+    once = false, // Одноразовий обробник
+    passive = false, // Пасивний обробник
+    capture = false, // Фаза перехоплення
   } = options;
 
   try {
@@ -42,7 +42,7 @@ export function addEvent(element, eventType, handler, options = {}) {
 
     // Застосовуємо debounce, якщо потрібно
     if (debounce > 0) {
-      finalHandler = function(...args) {
+      finalHandler = function (...args) {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
           handler.apply(this, args);
@@ -51,7 +51,7 @@ export function addEvent(element, eventType, handler, options = {}) {
     }
     // Застосовуємо throttle, якщо потрібно
     else if (throttle > 0) {
-      finalHandler = function(...args) {
+      finalHandler = function (...args) {
         const now = Date.now();
         if (now - lastExecTime >= throttle) {
           lastExecTime = now;
@@ -74,14 +74,14 @@ export function addEvent(element, eventType, handler, options = {}) {
     const typeHandlers = elementHandlers.get(eventType);
     typeHandlers.set(handler, {
       finalHandler,
-      options: { once, passive, capture }
+      options: { once, passive, capture },
     });
 
     // Додаємо обробник до елемента
     element.addEventListener(eventType, finalHandler, {
       once,
       passive,
-      capture
+      capture,
     });
 
     logger.debug(`Додано обробник події ${eventType}`, 'addEvent');
@@ -93,7 +93,7 @@ export function addEvent(element, eventType, handler, options = {}) {
   } catch (error) {
     logger.error('Помилка додавання обробника події', 'addEvent', {
       eventType,
-      error: error.message
+      error: error.message,
     });
     return () => false;
   }
@@ -108,16 +108,17 @@ export function addEvent(element, eventType, handler, options = {}) {
  */
 export function removeEvent(element, eventType, handler) {
   try {
-    if (eventHandlers.has(element) &&
-        eventHandlers.get(element).has(eventType) &&
-        eventHandlers.get(element).get(eventType).has(handler)) {
-
+    if (
+      eventHandlers.has(element) &&
+      eventHandlers.get(element).has(eventType) &&
+      eventHandlers.get(element).get(eventType).has(handler)
+    ) {
       // Отримуємо фінальний обробник
       const { finalHandler, options } = eventHandlers.get(element).get(eventType).get(handler);
 
       // Видаляємо обробник з елемента
       element.removeEventListener(eventType, finalHandler, {
-        capture: options.capture
+        capture: options.capture,
       });
 
       // Видаляємо з колекції
@@ -141,7 +142,7 @@ export function removeEvent(element, eventType, handler) {
   } catch (error) {
     logger.error('Помилка видалення обробника події', 'removeEvent', {
       eventType,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -171,7 +172,7 @@ export function removeAllEvents(element, eventType = null) {
       const typeHandlers = elementHandlers.get(eventType);
       typeHandlers.forEach(({ finalHandler, options }, originalHandler) => {
         element.removeEventListener(eventType, finalHandler, {
-          capture: options.capture
+          capture: options.capture,
         });
       });
 
@@ -191,7 +192,7 @@ export function removeAllEvents(element, eventType = null) {
     elementHandlers.forEach((typeHandlers, type) => {
       typeHandlers.forEach(({ finalHandler, options }) => {
         element.removeEventListener(type, finalHandler, {
-          capture: options.capture
+          capture: options.capture,
         });
       });
     });
@@ -204,7 +205,7 @@ export function removeAllEvents(element, eventType = null) {
   } catch (error) {
     logger.error('Помилка видалення всіх обробників', 'removeAllEvents', {
       eventType,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -222,7 +223,7 @@ export function removeAllEvents(element, eventType = null) {
 export function delegateEvent(element, eventType, selector, handler, options = {}) {
   try {
     // Створюємо обробник делегування
-    const delegateHandler = function(event) {
+    const delegateHandler = function (event) {
       // Знаходимо цільовий елемент
       const target = event.target.closest(selector);
 
@@ -244,7 +245,7 @@ export function delegateEvent(element, eventType, selector, handler, options = {
 
     element._delegateHandlers.get(eventType).set(handler, {
       selector,
-      delegateHandler
+      delegateHandler,
     });
 
     // Додаємо делегований обробник
@@ -253,7 +254,7 @@ export function delegateEvent(element, eventType, selector, handler, options = {
     logger.error('Помилка делегування події', 'delegateEvent', {
       eventType,
       selector,
-      error: error.message
+      error: error.message,
     });
     return () => false;
   }
@@ -268,10 +269,11 @@ export function delegateEvent(element, eventType, selector, handler, options = {
  */
 export function removeDelegatedEvent(element, eventType, handler) {
   try {
-    if (element._delegateHandlers &&
-        element._delegateHandlers.has(eventType) &&
-        element._delegateHandlers.get(eventType).has(handler)) {
-
+    if (
+      element._delegateHandlers &&
+      element._delegateHandlers.has(eventType) &&
+      element._delegateHandlers.get(eventType).has(handler)
+    ) {
       // Отримуємо делегований обробник
       const { delegateHandler } = element._delegateHandlers.get(eventType).get(handler);
 
@@ -296,7 +298,7 @@ export function removeDelegatedEvent(element, eventType, handler) {
   } catch (error) {
     logger.error('Помилка видалення делегованого обробника', 'removeDelegatedEvent', {
       eventType,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -310,7 +312,7 @@ export function removeDelegatedEvent(element, eventType, handler) {
 export function onDOMReady(callback, options = {}) {
   // Параметри за замовчуванням
   const {
-    timeout = 5000  // Час очікування в мс
+    timeout = 5000, // Час очікування в мс
   } = options;
 
   // Якщо DOM вже завантажений
@@ -504,14 +506,14 @@ export function triggerEvent(element, eventName, detail = {}, options = {}) {
       bubbles,
       cancelable,
       composed,
-      detail
+      detail,
     });
 
     return element.dispatchEvent(event);
   } catch (error) {
     logger.error('Помилка ініціювання події', 'triggerEvent', {
       eventName,
-      error: error.message
+      error: error.message,
     });
     return false;
   }
@@ -525,7 +527,7 @@ export function cleanup() {
     // Копіюємо ключі для ітерації, щоб уникнути помилок при модифікації під час ітерації
     const elements = [...eventHandlers.keys()];
 
-    elements.forEach(element => {
+    elements.forEach((element) => {
       removeAllEvents(element);
     });
 
@@ -533,7 +535,7 @@ export function cleanup() {
     logger.info('Всі обробники подій очищено', 'cleanup');
   } catch (error) {
     logger.error('Помилка очищення обробників подій', 'cleanup', {
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -553,5 +555,5 @@ export default {
   debounce,
   throttle,
   triggerEvent,
-  cleanup
+  cleanup,
 };

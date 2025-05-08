@@ -24,7 +24,7 @@ export const {
   hasClass,
   toggleClass,
   findParent,
-  createElement
+  createElement,
 } = domCore;
 
 // Експорт функцій з events
@@ -37,7 +37,7 @@ export const {
   onDOMReady,
   debounce,
   throttle,
-  triggerEvent
+  triggerEvent,
 } = domEvents;
 
 // Експорт функцій з animation
@@ -49,7 +49,7 @@ export const {
   animate,
   addKeyframes,
   stopAnimations,
-  transition
+  transition,
 } = domAnimation;
 
 // Експорт функцій очищення з усіх модулів
@@ -77,9 +77,9 @@ export default {
 
       // Параметри за замовчуванням
       const {
-        overwrite = false,  // Перезаписати існуючі стилі
-        append = false,     // Додавати в кінець, а не на початок
-        media = ''          // Медіа-запит
+        overwrite = false, // Перезаписати існуючі стилі
+        append = false, // Додавати в кінець, а не на початок
+        media = '', // Медіа-запит
       } = options;
 
       // Якщо елемент існує
@@ -108,7 +108,7 @@ export default {
 
       return styleElement;
     } catch (error) {
-      console.error('Помилка при ін\'єкції стилів:', error);
+      console.error("Помилка при ін'єкції стилів:", error);
       return null;
     }
   },
@@ -121,5 +121,5 @@ export default {
       return true;
     }
     return false;
-  }
+  },
 };

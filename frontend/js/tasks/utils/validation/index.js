@@ -29,7 +29,7 @@ export const {
   validatePassword,
   validateCheckbox,
   validateDate,
-  regexCache
+  regexCache,
 } = coreValidation;
 
 // Експорт спеціалізованих правил валідації з rules
@@ -42,7 +42,7 @@ export const {
   validateDateExtended,
   validateFile,
   validateAddress,
-  validatePhoneExtended
+  validatePhoneExtended,
 } = rulesValidation;
 
 // Експорт функцій валідації форм
@@ -52,7 +52,7 @@ export const {
   setupFormValidation,
   validateForm,
   validateField,
-  updateConfig: updateFormConfig
+  updateConfig: updateFormConfig,
 } = formValidation;
 
 /**
@@ -62,21 +62,21 @@ export const {
 export function init(options = {}) {
   // Налаштування для різних компонентів
   const {
-    core = {},  // Налаштування для core
-    form = {},  // Налаштування для form
-    ...rest     // Загальні налаштування
+    core = {}, // Налаштування для core
+    form = {}, // Налаштування для form
+    ...rest // Загальні налаштування
   } = options;
 
   // Оновлюємо налаштування core
   coreValidation.updateConfig({
     ...rest,
-    ...core
+    ...core,
   });
 
   // Ініціалізуємо form
   formValidation.init({
     ...rest,
-    ...form
+    ...form,
   });
 }
 
@@ -115,5 +115,5 @@ export default {
   // Повні модулі
   Core,
   Rules,
-  Form
+  Form,
 };

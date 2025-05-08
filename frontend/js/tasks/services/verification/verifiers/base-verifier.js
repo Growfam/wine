@@ -33,7 +33,9 @@ export class BaseVerifier {
   async performApiVerification(taskId, verificationData = {}) {
     try {
       // Перевіряємо наявність API клієнта
-      const taskApi = window.taskApi || { verifyTask: () => Promise.resolve({ status: 'error', message: 'API не знайдено' }) };
+      const taskApi = window.taskApi || {
+        verifyTask: () => Promise.resolve({ status: 'error', message: 'API не знайдено' }),
+      };
 
       // Викликаємо API для верифікації
       const response = await taskApi.verifyTask(taskId, verificationData);
@@ -80,7 +82,7 @@ export class BaseVerifier {
       verification_details: verificationDetails || {},
       taskId: taskId,
       timestamp: Date.now(),
-      response_time_ms: 0
+      response_time_ms: 0,
     };
   }
 
@@ -98,7 +100,7 @@ export class BaseVerifier {
       message: message || 'Не вдалося перевірити виконання завдання',
       error: error,
       taskId: taskId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
   }
 
@@ -116,7 +118,7 @@ export class BaseVerifier {
       message: message || 'Сталася помилка під час перевірки завдання',
       error: error,
       taskId: taskId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
   }
 }

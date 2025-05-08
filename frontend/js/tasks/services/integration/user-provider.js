@@ -17,7 +17,7 @@ export class UserProvider {
   constructor() {
     // Конфігурація
     this.config = {
-      fallbackUserMode: true
+      fallbackUserMode: true,
     };
   }
 
@@ -38,7 +38,7 @@ export class UserProvider {
             return null;
           }
           return userIdResult.userId;
-        }
+        },
       };
 
       dependencyContainer.register('UserIdProvider', userIdProvider);
@@ -46,7 +46,7 @@ export class UserProvider {
       // Перевіряємо, чи є функція getUserId
       if (typeof window.getUserId !== 'function') {
         logger.info('Створення глобальної функції getUserId...', 'fixUserIdIssues', {
-          category: LOG_CATEGORIES.INIT
+          category: LOG_CATEGORIES.INIT,
         });
 
         // Створюємо функцію getUserId, яка використовує зареєстрований провайдер
@@ -54,7 +54,7 @@ export class UserProvider {
       }
     } catch (error) {
       logger.error(error, 'Помилка при виправленні проблем з ID користувача', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
     }
   }
@@ -81,7 +81,7 @@ export class UserProvider {
         }
       } catch (storageError) {
         logger.warn(storageError, 'Помилка доступу до localStorage', {
-          category: LOG_CATEGORIES.LOGIC
+          category: LOG_CATEGORIES.LOGIC,
         });
       }
 
@@ -94,17 +94,19 @@ export class UserProvider {
         }
       } catch (urlError) {
         logger.warn(urlError, 'Помилка парсингу URL', {
-          category: LOG_CATEGORIES.LOGIC
+          category: LOG_CATEGORIES.LOGIC,
         });
       }
 
       // Спробуємо отримати з Telegram WebApp
       try {
-        if (window.Telegram && window.Telegram.WebApp &&
+        if (
+          window.Telegram &&
+          window.Telegram.WebApp &&
           window.Telegram.WebApp.initDataUnsafe &&
           window.Telegram.WebApp.initDataUnsafe.user &&
-          window.Telegram.WebApp.initDataUnsafe.user.id) {
-
+          window.Telegram.WebApp.initDataUnsafe.user.id
+        ) {
           const telegramId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
           if (telegramId) {
             return { success: true, userId: telegramId, source: 'TelegramWebApp' };
@@ -112,24 +114,24 @@ export class UserProvider {
         }
       } catch (telegramError) {
         logger.warn(telegramError, 'Помилка доступу до Telegram WebApp', {
-          category: LOG_CATEGORIES.LOGIC
+          category: LOG_CATEGORIES.LOGIC,
         });
       }
 
       // Не знайдено ID користувача
       logger.warn('ID користувача не знайдено', 'safeGetUserId', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return {
         success: false,
         error: 'ID користувача не знайдено',
         fallbackAvailable: this.config.fallbackUserMode,
-        requiresAuth: true
+        requiresAuth: true,
       };
     } catch (error) {
       logger.error(error, 'Помилка отримання ID користувача', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return {
@@ -137,7 +139,7 @@ export class UserProvider {
         error: error.message || 'Помилка отримання ID користувача',
         originalError: error,
         fallbackAvailable: this.config.fallbackUserMode,
-        requiresAuth: true
+        requiresAuth: true,
       };
     }
   }
@@ -152,11 +154,16 @@ export class UserProvider {
       const idResult = this.safeGetUserId();
       const userInfo = {
         userId: idResult.success ? idResult.userId : null,
-        source: idResult.source || 'unknown'
+        source: idResult.source || 'unknown',
       };
 
       // Спробуємо отримати додаткову інформацію з Telegram WebApp
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+      if (
+        window.Telegram &&
+        window.Telegram.WebApp &&
+        window.Telegram.WebApp.initDataUnsafe &&
+        window.Telegram.WebApp.initDataUnsafe.user
+      ) {
         const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
         userInfo.username = telegramUser.username || null;
         userInfo.firstName = telegramUser.first_name || null;
@@ -171,13 +178,13 @@ export class UserProvider {
       return userInfo;
     } catch (error) {
       logger.error(error, 'Помилка отримання інформації про користувача', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return {
         userId: null,
         error: error.message || 'Помилка отримання інформації про користувача',
-        originalError: error
+        originalError: error,
       };
     }
   }
@@ -197,7 +204,7 @@ export class UserProvider {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка збереження ID користувача в localStorage', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return false;
@@ -216,7 +223,7 @@ export class UserProvider {
       return true;
     } catch (error) {
       logger.error(error, 'Помилка видалення ID користувача з localStorage', {
-        category: LOG_CATEGORIES.AUTH
+        category: LOG_CATEGORIES.AUTH,
       });
 
       return false;

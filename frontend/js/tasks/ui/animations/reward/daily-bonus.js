@@ -25,7 +25,7 @@ export function animateCurrentDay(dayElement, options = {}) {
   try {
     if (!dayElement) {
       logger.warn('Елемент дня не вказано', 'animateCurrentDay', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
       return;
     }
@@ -35,7 +35,7 @@ export function animateCurrentDay(dayElement, options = {}) {
       duration: 2000,
       repeat: true,
       intensity: 'medium',
-      ...options
+      ...options,
     };
 
     // Додаємо клас анімації
@@ -141,7 +141,7 @@ export function animateCurrentDay(dayElement, options = {}) {
 
     logger.debug('Анімація поточного дня', 'animateCurrentDay', {
       category: LOG_CATEGORIES.ANIMATION,
-      details: { intensity: settings.intensity, duration: settings.duration }
+      details: { intensity: settings.intensity, duration: settings.duration },
     });
 
     // Повертаємо функцію для зупинки анімації
@@ -153,7 +153,7 @@ export function animateCurrentDay(dayElement, options = {}) {
     };
   } catch (error) {
     logger.error(error, 'Помилка анімації поточного дня', {
-      category: LOG_CATEGORIES.ANIMATION
+      category: LOG_CATEGORIES.ANIMATION,
     });
 
     return () => {};
@@ -169,7 +169,7 @@ export function animateTokenDay(dayElement, options = {}) {
   try {
     if (!dayElement) {
       logger.warn('Елемент дня з жетонами не вказано', 'animateTokenDay', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
       return;
     }
@@ -178,7 +178,7 @@ export function animateTokenDay(dayElement, options = {}) {
     const settings = {
       duration: 3000,
       withParticles: true,
-      ...options
+      ...options,
     };
 
     // Додаємо клас для анімації
@@ -246,7 +246,7 @@ export function animateTokenDay(dayElement, options = {}) {
         createStarsEffect(dayElement, {
           count: 4,
           duration: [800, 1500],
-          colors: ['#FFD700', '#FFA500']
+          colors: ['#FFD700', '#FFA500'],
         });
       }, 500);
     }
@@ -267,11 +267,11 @@ export function animateTokenDay(dayElement, options = {}) {
     }, settings.duration);
 
     logger.debug('Анімація дня з жетонами', 'animateTokenDay', {
-      category: LOG_CATEGORIES.ANIMATION
+      category: LOG_CATEGORIES.ANIMATION,
     });
   } catch (error) {
     logger.error(error, 'Помилка анімації дня з жетонами', {
-      category: LOG_CATEGORIES.ANIMATION
+      category: LOG_CATEGORIES.ANIMATION,
     });
   }
 }
@@ -286,7 +286,7 @@ export function animateDayTransition(currentDayElement, nextDayElement, callback
   try {
     if (!currentDayElement || !nextDayElement) {
       logger.warn('Елементи днів не вказано', 'animateDayTransition', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
 
       if (typeof callback === 'function') {
@@ -321,11 +321,11 @@ export function animateDayTransition(currentDayElement, nextDayElement, callback
     }, 500);
 
     logger.debug('Анімація переходу до наступного дня', 'animateDayTransition', {
-      category: LOG_CATEGORIES.ANIMATION
+      category: LOG_CATEGORIES.ANIMATION,
     });
   } catch (error) {
     logger.error(error, 'Помилка анімації переходу до наступного дня', {
-      category: LOG_CATEGORIES.ANIMATION
+      category: LOG_CATEGORIES.ANIMATION,
     });
 
     // Викликаємо callback навіть у випадку помилки
@@ -352,7 +352,7 @@ export function animateDailyBonusClaim(reward, options = {}) {
         withConfetti: true,
         autoClose: true,
         duration: 3000,
-        ...options
+        ...options,
       };
 
       logger.info('Анімація отримання щоденного бонусу', 'animateDailyBonusClaim', {
@@ -360,8 +360,8 @@ export function animateDailyBonusClaim(reward, options = {}) {
         details: {
           tokens: reward.tokens,
           coins: reward.coins,
-          cycleCompleted: settings.cycleCompleted
-        }
+          cycleCompleted: settings.cycleCompleted,
+        },
       });
 
       // Показуємо анімацію через showDailyBonusReward
@@ -378,19 +378,22 @@ export function animateDailyBonusClaim(reward, options = {}) {
           createConfetti({
             count: window.innerWidth < 768 ? 40 : 80,
             colors: reward.coins > 0 ? ['#FFD700', '#FFA500', '#4eb5f7'] : ['#4eb5f7', '#00C9A7'],
-            duration: 2000
+            duration: 2000,
           });
         }, 200);
       }
 
       // Вирішуємо проміс після закінчення всіх анімацій
       // Заснуто додатковий час для всіх послідовних анімацій
-      setTimeout(() => {
-        resolve();
-      }, settings.duration * (settings.cycleCompleted ? 3 : 1) + 1000);
+      setTimeout(
+        () => {
+          resolve();
+        },
+        settings.duration * (settings.cycleCompleted ? 3 : 1) + 1000
+      );
     } catch (error) {
       logger.error(error, 'Помилка анімації отримання щоденного бонусу', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
 
       // Вирішуємо проміс навіть у випадку помилки
@@ -412,54 +415,60 @@ export function animateCycleCompletion(bonusData, options = {}) {
       const settings = {
         duration: 4000,
         withConfetti: true,
-        ...options
+        ...options,
       };
 
       logger.info('Анімація завершення циклу щоденних бонусів', 'animateCycleCompletion', {
         category: LOG_CATEGORIES.ANIMATION,
         details: {
           tokens: bonusData.tokens,
-          coins: bonusData.coins
-        }
+          coins: bonusData.coins,
+        },
       });
 
       // Показуємо анімацію через showReward з спеціальними налаштуваннями
-      showReward({
-        type: 'tokens',
-        amount: bonusData.tokens
-      }, {
-        duration: settings.duration,
-        autoClose: true,
-        showConfetti: settings.withConfetti,
-        specialDay: true,
-        title: 'Цикл завершено!',
-        message: 'Ви отримали бонус за завершення циклу',
-        onClose: () => {
-          // Якщо є жетони, показуємо їх окремо
-          if (bonusData.coins && bonusData.coins > 0) {
-            setTimeout(() => {
-              showReward({
-                type: 'coins',
-                amount: bonusData.coins
-              }, {
-                duration: 3000,
-                autoClose: true,
-                showConfetti: false,
-                specialDay: true,
-                title: 'Додатковий бонус!',
-                message: 'Ви отримали додаткові жетони',
-                onClose: resolve
-              });
-            }, 500);
-          } else {
-            // Якщо немає жетонів, відразу вирішуємо проміс
-            resolve();
-          }
+      showReward(
+        {
+          type: 'tokens',
+          amount: bonusData.tokens,
+        },
+        {
+          duration: settings.duration,
+          autoClose: true,
+          showConfetti: settings.withConfetti,
+          specialDay: true,
+          title: 'Цикл завершено!',
+          message: 'Ви отримали бонус за завершення циклу',
+          onClose: () => {
+            // Якщо є жетони, показуємо їх окремо
+            if (bonusData.coins && bonusData.coins > 0) {
+              setTimeout(() => {
+                showReward(
+                  {
+                    type: 'coins',
+                    amount: bonusData.coins,
+                  },
+                  {
+                    duration: 3000,
+                    autoClose: true,
+                    showConfetti: false,
+                    specialDay: true,
+                    title: 'Додатковий бонус!',
+                    message: 'Ви отримали додаткові жетони',
+                    onClose: resolve,
+                  }
+                );
+              }, 500);
+            } else {
+              // Якщо немає жетонів, відразу вирішуємо проміс
+              resolve();
+            }
+          },
         }
-      });
+      );
     } catch (error) {
       logger.error(error, 'Помилка анімації завершення циклу', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
 
       // Вирішуємо проміс навіть у випадку помилки
@@ -474,5 +483,5 @@ export default {
   animateTokenDay,
   animateDayTransition,
   animateDailyBonusClaim,
-  animateCycleCompletion
+  animateCycleCompletion,
 };

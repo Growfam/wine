@@ -23,7 +23,7 @@ export function formatToApiData(task) {
     reward_amount: task.reward_amount,
     target_value: task.target_value,
     status: task.status,
-    tags: task.tags
+    tags: task.tags,
   };
 
   // Додаткові дані в залежності від типу завдання
@@ -35,7 +35,7 @@ export function formatToApiData(task) {
         end_date: task.end_date,
         max_completions: task.max_completions,
         current_completions: task.current_completions,
-        priority: task.priority
+        priority: task.priority,
       };
 
     case TASK_TYPES.PARTNER:
@@ -48,7 +48,7 @@ export function formatToApiData(task) {
         revenue_share: task.revenue_share,
         category: task.category,
         external_tracking_id: task.external_tracking_id,
-        conversion_type: task.conversion_type
+        conversion_type: task.conversion_type,
       };
 
     case TASK_TYPES.SOCIAL:
@@ -59,7 +59,7 @@ export function formatToApiData(task) {
         channel_name: task.channel_name,
         channel_url: task.channel_url,
         platform_user_id: task.platform_user_id,
-        requires_verification: task.requires_verification
+        requires_verification: task.requires_verification,
       };
 
     default:
@@ -83,15 +83,15 @@ export function formatToDisplayData(task) {
     reward: {
       type: task.reward_type,
       amount: task.reward_amount,
-      formatted: `${task.reward_amount} ${task.reward_type === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів'}`
+      formatted: `${task.reward_amount} ${task.reward_type === REWARD_TYPES.TOKENS ? '$WINIX' : 'жетонів'}`,
     },
     progress: {
       current: 0,
       target: task.target_value,
       percent: 0,
-      label: task.progress_label
+      label: task.progress_label,
     },
-    status: task.status
+    status: task.status,
   };
 
   // Додаткові дані в залежності від типу завдання
@@ -129,9 +129,7 @@ function formatLimitedTaskForDisplay(task, baseData) {
       const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
 
-      timeLeftFormatted = days > 0 ?
-        `${days}д ${hours}г` :
-        `${hours}г ${minutes}хв`;
+      timeLeftFormatted = days > 0 ? `${days}д ${hours}г` : `${hours}г ${minutes}хв`;
     }
   }
 
@@ -144,7 +142,7 @@ function formatLimitedTaskForDisplay(task, baseData) {
     isExpired: task.status === TASK_STATUS.EXPIRED,
     max_completions: task.max_completions,
     current_completions: task.current_completions,
-    priority: task.priority
+    priority: task.priority,
   };
 }
 
@@ -162,7 +160,7 @@ function formatPartnerTaskForDisplay(task, baseData) {
     partner_url: task.partner_url,
     category: task.category,
     conversion_type: task.conversion_type,
-    isPartner: true
+    isPartner: true,
   };
 }
 
@@ -197,6 +195,6 @@ function formatSocialTaskForDisplay(task, baseData) {
     platform: task.platform,
     platformIcon,
     channel_name: task.channel_name,
-    action_type: task.action_type
+    action_type: task.action_type,
   };
 }

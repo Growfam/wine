@@ -13,11 +13,11 @@ import { TaskRewards } from '../../../services';
 
 // Конфігурація
 const CONFIG = {
-    tokenSymbol: '$WINIX',
-    coinLabel: 'жетонів',
-    coinLabelSingle: 'жетон',
-    coinLabelFew: 'жетони',
-    animationDuration: 2000
+  tokenSymbol: '$WINIX',
+  coinLabel: 'жетонів',
+  coinLabelSingle: 'жетон',
+  coinLabelFew: 'жетони',
+  animationDuration: 2000,
 };
 
 /**
@@ -27,33 +27,31 @@ const CONFIG = {
  * @returns {HTMLElement} DOM елемент з винагородою
  */
 export function create(reward, options = {}) {
-    if (!reward || !reward.amount) {
-        return document.createElement('div');
-    }
+  if (!reward || !reward.amount) {
+    return document.createElement('div');
+  }
 
-    const badge = document.createElement('div');
-    badge.className = 'reward-badge';
+  const badge = document.createElement('div');
+  badge.className = 'reward-badge';
 
-    if (options.compact) {
-        badge.classList.add('compact');
-    }
+  if (options.compact) {
+    badge.classList.add('compact');
+  }
 
-    if (reward.type === 'tokens') {
-        badge.classList.add('token-reward');
-    } else {
-        badge.classList.add('coin-reward');
-    }
+  if (reward.type === 'tokens') {
+    badge.classList.add('token-reward');
+  } else {
+    badge.classList.add('coin-reward');
+  }
 
-    const symbol = reward.type === 'tokens'
-        ? CONFIG.tokenSymbol
-        : getCoinsLabel(reward.amount);
+  const symbol = reward.type === 'tokens' ? CONFIG.tokenSymbol : getCoinsLabel(reward.amount);
 
-    badge.innerHTML = `
+  badge.innerHTML = `
         <span class="reward-amount">${formatNumber(reward.amount)}</span>
         <span class="reward-symbol">${symbol}</span>
     `;
 
-    return badge;
+  return badge;
 }
 
 /**
@@ -62,15 +60,14 @@ export function create(reward, options = {}) {
  * @returns {string} Правильна форма слова
  */
 export function getCoinsLabel(amount) {
-    // Спеціальні випадки для української мови
-    if (amount % 10 === 1 && amount % 100 !== 11) {
-        return CONFIG.coinLabelSingle;
-    } else if ([2, 3, 4].includes(amount % 10) &&
-              ![12, 13, 14].includes(amount % 100)) {
-        return CONFIG.coinLabelFew;
-    } else {
-        return CONFIG.coinLabel;
-    }
+  // Спеціальні випадки для української мови
+  if (amount % 10 === 1 && amount % 100 !== 11) {
+    return CONFIG.coinLabelSingle;
+  } else if ([2, 3, 4].includes(amount % 10) && ![12, 13, 14].includes(amount % 100)) {
+    return CONFIG.coinLabelFew;
+  } else {
+    return CONFIG.coinLabel;
+  }
 }
 
 /**
@@ -79,13 +76,13 @@ export function getCoinsLabel(amount) {
  * @returns {string} Відформатоване число
  */
 export function formatNumber(number) {
-    // Використовуємо форматтер з модуля task-formatter, якщо доступний
-    if (typeof import('../../utils/formatter.js').formatNumber === 'function') {
-        return import('../../utils/formatter.js').formatNumber(number);
-    }
+  // Використовуємо форматтер з модуля task-formatter, якщо доступний
+  if (typeof import('../../utils/formatter.js').formatNumber === 'function') {
+    return import('../../utils/formatter.js').formatNumber(number);
+  }
 
-    // Запасний варіант - просте форматування
-    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  // Запасний варіант - просте форматування
+  return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 /**
@@ -94,56 +91,54 @@ export function formatNumber(number) {
  * @param {Object} options - Додаткові опції
  */
 export function showAnimation(reward, options = {}) {
-    if (!reward || !reward.amount) return;
+  if (!reward || !reward.amount) return;
 
-    // Перевіряємо наявність модуля анімацій
-    if (UI && UI.Animations && UI.Animations.showReward) {
-        UI.Animations.showReward(reward);
-        return;
-    }
+  // Перевіряємо наявність модуля анімацій
+  if (UI && UI.Animations && UI.Animations.showReward) {
+    UI.Animations.showReward(reward);
+    return;
+  }
 
-    // Власна реалізація анімації
-    const symbol = reward.type === 'tokens'
-        ? CONFIG.tokenSymbol
-        : getCoinsLabel(reward.amount);
+  // Власна реалізація анімації
+  const symbol = reward.type === 'tokens' ? CONFIG.tokenSymbol : getCoinsLabel(reward.amount);
 
-    // Створюємо елемент анімації
-    const anim = document.createElement('div');
-    anim.className = 'reward-animation';
-    anim.classList.add(reward.type === 'tokens' ? 'token-reward' : 'coin-reward');
+  // Створюємо елемент анімації
+  const anim = document.createElement('div');
+  anim.className = 'reward-animation';
+  anim.classList.add(reward.type === 'tokens' ? 'token-reward' : 'coin-reward');
 
-    anim.innerHTML = `
+  anim.innerHTML = `
         <span class="animation-prefix">+</span>
         <span class="animation-amount">${formatNumber(reward.amount)}</span>
         <span class="animation-symbol">${symbol}</span>
     `;
 
-    // Додаємо до тіла документа
-    document.body.appendChild(anim);
+  // Додаємо до тіла документа
+  document.body.appendChild(anim);
 
-    // Запускаємо анімацію
+  // Запускаємо анімацію
+  setTimeout(() => {
+    anim.classList.add('show');
+
+    // Видаляємо після завершення
     setTimeout(() => {
-        anim.classList.add('show');
+      anim.classList.remove('show');
+      setTimeout(() => {
+        anim.remove();
+      }, 300);
+    }, CONFIG.animationDuration);
+  }, 10);
 
-        // Видаляємо після завершення
-        setTimeout(() => {
-            anim.classList.remove('show');
-            setTimeout(() => {
-                anim.remove();
-            }, 300);
-        }, CONFIG.animationDuration);
-    }, 10);
-
-    // Оновлюємо баланс користувача, якщо доступний сервіс
-    if (TaskRewards && TaskRewards.updateBalance) {
-        TaskRewards.updateBalance(reward);
-    }
+  // Оновлюємо баланс користувача, якщо доступний сервіс
+  if (TaskRewards && TaskRewards.updateBalance) {
+    TaskRewards.updateBalance(reward);
+  }
 }
 
 // Експортуємо об'єкт з усіма функціями для зручності використання
 export default {
-    create,
-    showAnimation,
-    formatNumber,
-    getCoinsLabel
+  create,
+  showAnimation,
+  formatNumber,
+  getCoinsLabel,
 };

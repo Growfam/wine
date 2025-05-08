@@ -19,14 +19,8 @@ export const verifiers = {
   referral: new SocialVerifier(), // Реферальні завдання використовують соціальний верифікатор
 
   // Загальний верифікатор для невідомих типів
-  generic: new GenericVerifier()
+  generic: new GenericVerifier(),
 };
 
 // Експорт класів верифікаторів
-export {
-  BaseVerifier,
-  SocialVerifier,
-  LimitedVerifier,
-  PartnerVerifier,
-  GenericVerifier
-};
+export { BaseVerifier, SocialVerifier, LimitedVerifier, PartnerVerifier, GenericVerifier };

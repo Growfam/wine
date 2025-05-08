@@ -84,14 +84,16 @@ export class TaskModel {
       id: data.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       title: data.title || 'Завдання',
       description: data.description || 'Опис відсутній',
-      type: data.type || TASK_TYPES.SOCIAL
+      type: data.type || TASK_TYPES.SOCIAL,
     };
 
     // Нормалізація типу винагороди
     if (data.reward_type) {
       const lowerType = data.reward_type.toLowerCase();
-      normalized.reward_type = (lowerType.includes('token') || lowerType.includes('winix')) ?
-        REWARD_TYPES.TOKENS : REWARD_TYPES.COINS;
+      normalized.reward_type =
+        lowerType.includes('token') || lowerType.includes('winix')
+          ? REWARD_TYPES.TOKENS
+          : REWARD_TYPES.COINS;
     } else {
       normalized.reward_type = REWARD_TYPES.TOKENS;
     }
@@ -206,7 +208,7 @@ export class TaskModel {
     }
 
     // Оновлюємо базові властивості
-    Object.keys(newData).forEach(key => {
+    Object.keys(newData).forEach((key) => {
       if (this.hasOwnProperty(key) && key !== 'id') {
         this[key] = newData[key];
       }

@@ -4,22 +4,22 @@
  * @version 3.0.0
  */
 
-(function() {
-    'use strict';
+(function () {
+  'use strict';
 
-    // Перевіряємо, чи вже є глобальна функція showModal
-    if (typeof window.showModal === 'function') {
-        console.log('✅ Функція showModal вже існує');
-        return;
-    }
+  // Перевіряємо, чи вже є глобальна функція showModal
+  if (typeof window.showModal === 'function') {
+    console.log('✅ Функція showModal вже існує');
+    return;
+  }
 
-    console.log('🔄 Ініціалізація модуля преміальних модальних вікон...');
+  console.log('🔄 Ініціалізація модуля преміальних модальних вікон...');
 
-    // Додаємо базові стилі для модальних вікон
-    if (!document.getElementById('premium-modal-styles')) {
-        const style = document.createElement('style');
-        style.id = 'premium-modal-styles';
-        style.textContent = `
+  // Додаємо базові стилі для модальних вікон
+  if (!document.getElementById('premium-modal-styles')) {
+    const style = document.createElement('style');
+    style.id = 'premium-modal-styles';
+    style.textContent = `
             /* Базові стилі модальних вікон */
             .modal-overlay {
                 position: fixed !important;
@@ -505,44 +505,46 @@
                 }
             }
         `;
-        document.head.appendChild(style);
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Функція відображення модального вікна
+   * @param {string} title - Заголовок модального вікна
+   * @param {string} content - HTML-вміст модального вікна
+   * @param {Object} options - Додаткові параметри
+   */
+  window.showModal = function (title, content, options = {}) {
+    // Опції за замовчуванням
+    const defaultOptions = {
+      width: '90%', // Ширина модального вікна
+      maxWidth: '600px', // Максимальна ширина
+      closeOnBackdrop: true, // Закривати при кліку на фон
+      closeAfter: 0, // Автоматичне закриття через N мс (0 - не закривати)
+      onClose: null, // Callback при закритті
+      premium: true, // Використовувати преміальний стиль
+      animation: true, // Використовувати анімацію
+    };
+
+    // Об'єднуємо опції за замовчуванням з переданими опціями
+    const settings = { ...defaultOptions, ...options };
+
+    // Видаляємо існуюче модальне вікно, якщо воно є
+    const existingModal = document.querySelector('.modal-overlay');
+    if (existingModal && existingModal.parentNode) {
+      existingModal.parentNode.removeChild(existingModal);
     }
 
-    /**
-     * Функція відображення модального вікна
-     * @param {string} title - Заголовок модального вікна
-     * @param {string} content - HTML-вміст модального вікна
-     * @param {Object} options - Додаткові параметри
-     */
-    window.showModal = function(title, content, options = {}) {
-        // Опції за замовчуванням
-        const defaultOptions = {
-            width: '90%',       // Ширина модального вікна
-            maxWidth: '600px',  // Максимальна ширина
-            closeOnBackdrop: true, // Закривати при кліку на фон
-            closeAfter: 0,      // Автоматичне закриття через N мс (0 - не закривати)
-            onClose: null,      // Callback при закритті
-            premium: true,      // Використовувати преміальний стиль
-            animation: true     // Використовувати анімацію
-        };
+    // Створюємо контейнер модального вікна
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
 
-        // Об'єднуємо опції за замовчуванням з переданими опціями
-        const settings = { ...defaultOptions, ...options };
-
-        // Видаляємо існуюче модальне вікно, якщо воно є
-        const existingModal = document.querySelector('.modal-overlay');
-        if (existingModal && existingModal.parentNode) {
-            existingModal.parentNode.removeChild(existingModal);
-        }
-
-        // Створюємо контейнер модального вікна
-        const modalOverlay = document.createElement('div');
-        modalOverlay.className = 'modal-overlay' + (settings.premium ? ' premium-modal' : '');
-
-        // Створюємо HTML модального вікна з обома класами кнопок закриття для сумісності
-        modalOverlay.innerHTML = `
+    // Створюємо HTML модального вікна з обома класами кнопок закриття для сумісності
+    modalOverlay.innerHTML = `
             <div class="modal-container">
-                ${title ? `
+                ${
+                  title
+                    ? `
                     <div class="modal-header">
                         <div style="width: 30px;"></div> <!-- Порожній елемент для балансу з кнопкою закриття -->
                         <h2 class="modal-title">${title}</h2>
@@ -551,94 +553,99 @@
                             <button class="modal-close modal-close-button">&times;</button>
                         </div>
                     </div>
-                ` : ''}
+                `
+                    : ''
+                }
                 <div class="modal-body">
                     ${content}
                 </div>
             </div>
         `;
 
-        // Додаємо модальне вікно до DOM
-        document.body.appendChild(modalOverlay);
+    // Додаємо модальне вікно до DOM
+    document.body.appendChild(modalOverlay);
 
-        // Застосовуємо користувацькі стилі
-        const modalContent = modalOverlay.querySelector('.modal-container');
-        modalContent.style.width = settings.width;
-        modalContent.style.maxWidth = settings.maxWidth;
+    // Застосовуємо користувацькі стилі
+    const modalContent = modalOverlay.querySelector('.modal-container');
+    modalContent.style.width = settings.width;
+    modalContent.style.maxWidth = settings.maxWidth;
 
-        // Додаємо клас show з невеликою затримкою для анімації
-        setTimeout(() => {
-            modalOverlay.classList.add('show');
-        }, 10);
+    // Додаємо клас show з невеликою затримкою для анімації
+    setTimeout(() => {
+      modalOverlay.classList.add('show');
+    }, 10);
 
-        // Запобігаємо прокрутці сторінки під модальним вікном
-        document.body.style.overflow = 'hidden';
+    // Запобігаємо прокрутці сторінки під модальним вікном
+    document.body.style.overflow = 'hidden';
 
-        // Функція для закриття модального вікна з анімацією
-        const closeModal = () => {
-            // Видаляємо клас show для анімації закриття
-            modalOverlay.classList.remove('show');
+    // Функція для закриття модального вікна з анімацією
+    const closeModal = () => {
+      // Видаляємо клас show для анімації закриття
+      modalOverlay.classList.remove('show');
 
-            // Чекаємо завершення анімації і видаляємо модальне вікно
-            setTimeout(() => {
-                // Перевіряємо чи модальне вікно все ще існує в DOM
-                if (document.body.contains(modalOverlay)) {
-                    document.body.removeChild(modalOverlay);
-                }
+      // Чекаємо завершення анімації і видаляємо модальне вікно
+      setTimeout(
+        () => {
+          // Перевіряємо чи модальне вікно все ще існує в DOM
+          if (document.body.contains(modalOverlay)) {
+            document.body.removeChild(modalOverlay);
+          }
 
-                // Відновлюємо прокрутку
-                document.body.style.overflow = '';
+          // Відновлюємо прокрутку
+          document.body.style.overflow = '';
 
-                // Викликаємо callback, якщо він переданий
-                if (typeof settings.onClose === 'function') {
-                    settings.onClose();
-                }
-            }, settings.animation ? 300 : 0); // Час анімації або 0, якщо анімація вимкнена
-        };
-
-        // Додаємо обробник кліку для закриття модального вікна
-        const closeButton = modalOverlay.querySelector('.modal-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', closeModal);
-        }
-
-        // Якщо увімкнено закриття при кліку на фон
-        if (settings.closeOnBackdrop) {
-            modalOverlay.addEventListener('click', function(e) {
-                if (e.target === modalOverlay) {
-                    closeModal();
-                }
-            });
-        }
-
-        // Додаємо обробник для кнопки Escape
-        const handleEscape = (event) => {
-            if (event.key === 'Escape') {
-                closeModal();
-                // Видаляємо обробник після закриття
-                document.removeEventListener('keydown', handleEscape);
-            }
-        };
-        document.addEventListener('keydown', handleEscape);
-
-        // Автоматичне закриття, якщо вказано
-        if (settings.closeAfter > 0) {
-            setTimeout(closeModal, settings.closeAfter);
-        }
-
-        // Повертаємо функцію закриття модального вікна
-        return closeModal;
+          // Викликаємо callback, якщо він переданий
+          if (typeof settings.onClose === 'function') {
+            settings.onClose();
+          }
+        },
+        settings.animation ? 300 : 0
+      ); // Час анімації або 0, якщо анімація вимкнена
     };
 
-    /**
-     * Функція для показу діалогового вікна підтвердження
-     * @param {string} title - Заголовок діалогу
-     * @param {string} message - Текст повідомлення
-     * @param {Function} onConfirm - Функція при підтвердженні
-     * @param {Function} onCancel - Функція при скасуванні
-     */
-    window.showConfirmModal = function(title, message, onConfirm, onCancel) {
-        const content = `
+    // Додаємо обробник кліку для закриття модального вікна
+    const closeButton = modalOverlay.querySelector('.modal-close');
+    if (closeButton) {
+      closeButton.addEventListener('click', closeModal);
+    }
+
+    // Якщо увімкнено закриття при кліку на фон
+    if (settings.closeOnBackdrop) {
+      modalOverlay.addEventListener('click', function (e) {
+        if (e.target === modalOverlay) {
+          closeModal();
+        }
+      });
+    }
+
+    // Додаємо обробник для кнопки Escape
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        closeModal();
+        // Видаляємо обробник після закриття
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+
+    // Автоматичне закриття, якщо вказано
+    if (settings.closeAfter > 0) {
+      setTimeout(closeModal, settings.closeAfter);
+    }
+
+    // Повертаємо функцію закриття модального вікна
+    return closeModal;
+  };
+
+  /**
+   * Функція для показу діалогового вікна підтвердження
+   * @param {string} title - Заголовок діалогу
+   * @param {string} message - Текст повідомлення
+   * @param {Function} onConfirm - Функція при підтвердженні
+   * @param {Function} onCancel - Функція при скасуванні
+   */
+  window.showConfirmModal = function (title, message, onConfirm, onCancel) {
+    const content = `
             <div class="confirm-modal">
                 <p class="confirm-message">${message}</p>
                 <div class="confirm-buttons">
@@ -648,120 +655,120 @@
             </div>
         `;
 
-        // Відображаємо модальне вікно
-        const closeModal = window.showModal(title, content, {
-            width: '85%',
-            maxWidth: '400px'
-        });
+    // Відображаємо модальне вікно
+    const closeModal = window.showModal(title, content, {
+      width: '85%',
+      maxWidth: '400px',
+    });
 
-        // Додаємо обробники для кнопок
-        setTimeout(() => {
-            const yesButton = document.querySelector('.confirm-button-yes');
-            const noButton = document.querySelector('.confirm-button-no');
+    // Додаємо обробники для кнопок
+    setTimeout(() => {
+      const yesButton = document.querySelector('.confirm-button-yes');
+      const noButton = document.querySelector('.confirm-button-no');
 
-            yesButton.addEventListener('click', () => {
-                closeModal();
-                if (typeof onConfirm === 'function') {
-                    onConfirm();
-                }
-            });
+      yesButton.addEventListener('click', () => {
+        closeModal();
+        if (typeof onConfirm === 'function') {
+          onConfirm();
+        }
+      });
 
-            noButton.addEventListener('click', () => {
-                closeModal();
-                if (typeof onCancel === 'function') {
-                    onCancel();
-                }
-            });
-        }, 100);
+      noButton.addEventListener('click', () => {
+        closeModal();
+        if (typeof onCancel === 'function') {
+          onCancel();
+        }
+      });
+    }, 100);
+  };
+
+  /**
+   * Функція для показу модального вікна з відображенням деталей розіграшу
+   * Оновлений преміальний дизайн, що відповідає стилю сторінки
+   * @param {Object} raffle - Об'єкт з даними розіграшу
+   * @param {boolean} isParticipating - Чи бере участь користувач
+   * @param {number} ticketCount - Кількість білетів користувача
+   */
+  window.showRaffleDetailsModal = function (raffle, isParticipating = false, ticketCount = 0) {
+    // Перевірка наявності об'єкта розіграшу
+    if (!raffle || !raffle.id) {
+      console.error("Помилка: невалідний об'єкт розіграшу");
+      window.showToast('Неможливо відобразити деталі розіграшу', 'error');
+      return;
+    }
+
+    // Формуємо випадкові дані для графіка (у реальному додатку можна отримати з API)
+    const chartData = {
+      labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'],
+      values: [
+        Math.floor(Math.random() * 300) + 50,
+        Math.floor(Math.random() * 300) + 50,
+        Math.floor(Math.random() * 300) + 50,
+        Math.floor(Math.random() * 300) + 50,
+        Math.floor(Math.random() * 300) + 50,
+      ],
     };
 
-    /**
-     * Функція для показу модального вікна з відображенням деталей розіграшу
-     * Оновлений преміальний дизайн, що відповідає стилю сторінки
-     * @param {Object} raffle - Об'єкт з даними розіграшу
-     * @param {boolean} isParticipating - Чи бере участь користувач
-     * @param {number} ticketCount - Кількість білетів користувача
-     */
-    window.showRaffleDetailsModal = function(raffle, isParticipating = false, ticketCount = 0) {
-        // Перевірка наявності об'єкта розіграшу
-        if (!raffle || !raffle.id) {
-            console.error('Помилка: невалідний об\'єкт розіграшу');
-            window.showToast('Неможливо відобразити деталі розіграшу', 'error');
-            return;
-        }
+    // Визначаємо максимальне значення для масштабування
+    const maxValue = Math.max(...chartData.values);
 
-        // Формуємо випадкові дані для графіка (у реальному додатку можна отримати з API)
-        const chartData = {
-            labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'],
-            values: [
-                Math.floor(Math.random() * 300) + 50,
-                Math.floor(Math.random() * 300) + 50,
-                Math.floor(Math.random() * 300) + 50,
-                Math.floor(Math.random() * 300) + 50,
-                Math.floor(Math.random() * 300) + 50
-            ]
-        };
-
-        // Визначаємо максимальне значення для масштабування
-        const maxValue = Math.max(...chartData.values);
-
-        // Створюємо HTML для графіка
-        let chartHtml = `
+    // Створюємо HTML для графіка
+    let chartHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Статистика участі</h3>
                 <p class="chart-title">Кількість учасників за останні 5 днів</p>
                 <div class="chart-container">
         `;
 
-        // Додаємо стовпці та підписи
-        chartData.values.forEach((value, index) => {
-            const heightPercent = (value / maxValue) * 100;
-            chartHtml += `
+    // Додаємо стовпці та підписи
+    chartData.values.forEach((value, index) => {
+      const heightPercent = (value / maxValue) * 100;
+      chartHtml += `
                 <div class="chart-bar" style="left: ${index * 17 + 5}%; height: ${heightPercent}%"></div>
                 <div class="chart-label" style="left: ${index * 17 + 5}%">${chartData.labels[index]}</div>
             `;
-        });
+    });
 
-        chartHtml += `
+    chartHtml += `
                 </div>
             </div>
         `;
 
-        // Форматуємо дату завершення
-        const formatDateTime = (dateTime) => {
-            if (!dateTime) return 'Невідомо';
-            try {
-                const date = new Date(dateTime);
-                return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-            } catch (e) {
-                return 'Невідомо';
-            }
-        };
+    // Форматуємо дату завершення
+    const formatDateTime = (dateTime) => {
+      if (!dateTime) return 'Невідомо';
+      try {
+        const date = new Date(dateTime);
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      } catch (e) {
+        return 'Невідомо';
+      }
+    };
 
-        const formattedEndDate = formatDateTime(raffle.end_time);
+    const formattedEndDate = formatDateTime(raffle.end_time);
 
-        // Використовуємо саме ті дані, що є у розіграші для розподілу призів
-        let prizeDistributionHtml = '';
+    // Використовуємо саме ті дані, що є у розіграші для розподілу призів
+    let prizeDistributionHtml = '';
 
-        // Головний приз - детальний розподіл по місцях
-        if (raffle.prize_amount && raffle.prize_currency) {
-            // Симуляція розподілу призів по місцях (в реальному додатку дані мають приходити з API)
-            const prizeDistribution = [
-                {place: 1, prize: "$80 USD + 100,000 $Winix"},
-                {place: 2, prize: "$50 USD + 80,000 $Winix"},
-                {place: 3, prize: "$40 USD + 60,000 $Winix"},
-                {place: 4, prize: "$30 USD + 40,000 $Winix"},
-                {place: 5, prize: "$20 USD + 30,000 $Winix"},
-                {place: 6, prize: "20,000 $Winix"},
-                {place: 7, prize: "15,000 $Winix"},
-                {place: 8, prize: "10,000 $Winix"},
-                {place: 9, prize: "8,000 $Winix"},
-                {place: 10, prize: "5,000 $Winix"}
-            ];
+    // Головний приз - детальний розподіл по місцях
+    if (raffle.prize_amount && raffle.prize_currency) {
+      // Симуляція розподілу призів по місцях (в реальному додатку дані мають приходити з API)
+      const prizeDistribution = [
+        { place: 1, prize: '$80 USD + 100,000 $Winix' },
+        { place: 2, prize: '$50 USD + 80,000 $Winix' },
+        { place: 3, prize: '$40 USD + 60,000 $Winix' },
+        { place: 4, prize: '$30 USD + 40,000 $Winix' },
+        { place: 5, prize: '$20 USD + 30,000 $Winix' },
+        { place: 6, prize: '20,000 $Winix' },
+        { place: 7, prize: '15,000 $Winix' },
+        { place: 8, prize: '10,000 $Winix' },
+        { place: 9, prize: '8,000 $Winix' },
+        { place: 10, prize: '5,000 $Winix' },
+      ];
 
-            let prizesListHtml = '';
-            prizeDistribution.forEach(item => {
-                prizesListHtml += `
+      let prizesListHtml = '';
+      prizeDistribution.forEach((item) => {
+        prizesListHtml += `
                     <li class="prize-item">
                         <div class="prize-place">
                             <div class="prize-icon">${item.place}</div>
@@ -770,10 +777,10 @@
                         <div class="prize-amount">${item.prize}</div>
                     </li>
                 `;
-            });
+      });
 
-            // Додаємо гарантований бонус для всіх учасників
-            prizesListHtml += `
+      // Додаємо гарантований бонус для всіх учасників
+      prizesListHtml += `
                 <li class="prize-item" style="margin-top: 15px; border-top: 1px solid rgba(78, 181, 247, 0.2); padding-top: 15px;">
                     <div class="prize-place">
                         <div class="prize-icon">🎁</div>
@@ -783,7 +790,7 @@
                 </li>
             `;
 
-            prizeDistributionHtml = `
+      prizeDistributionHtml = `
                 <div class="raffle-section">
                     <h3 class="section-title">Розподіл призів</h3>
                     <ul class="prizes-list">
@@ -791,10 +798,10 @@
                     </ul>
                 </div>
             `;
-        }
+    }
 
-        // Умови участі (без emoji)
-        const conditionsHtml = `
+    // Умови участі (без emoji)
+    const conditionsHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Умови участі</h3>
                 <ul class="conditions-list">
@@ -818,8 +825,8 @@
             </div>
         `;
 
-        // Створюємо HTML для секції "Про розіграш" (ТЕПЕР БЕЗ EMOJI)
-        const aboutHtml = `
+    // Створюємо HTML для секції "Про розіграш" (ТЕПЕР БЕЗ EMOJI)
+    const aboutHtml = `
             <div class="raffle-section">
                 <h3 class="section-title">Про розіграш</h3>
                 <p class="raffle-description">ВЕЛИКИЙ ДЖЕКПОТ РОЗІГРАШ - Головний приз: $250 USD + 550,000 $Winix токенів!</p>
@@ -829,8 +836,8 @@
             </div>
         `;
 
-        // Створюємо повний HTML для модального вікна
-        const content = `
+    // Створюємо повний HTML для модального вікна
+    const content = `
             <div class="raffle-details-modal">
                 ${aboutHtml}
                 ${chartHtml}
@@ -839,13 +846,13 @@
             </div>
         `;
 
-        // Відображаємо модальне вікно
-        window.showModal('Деталі розіграшу', content, {
-            width: '90%',
-            maxWidth: '500px',
-            premium: true
-        });
-    };
+    // Відображаємо модальне вікно
+    window.showModal('Деталі розіграшу', content, {
+      width: '90%',
+      maxWidth: '500px',
+      premium: true,
+    });
+  };
 
-    console.log('Модуль преміальних модальних вікон успішно ініціалізовано');
+  console.log('Модуль преміальних модальних вікон успішно ініціалізовано');
 })();

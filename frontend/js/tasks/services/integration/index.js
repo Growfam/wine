@@ -34,7 +34,8 @@ const taskIntegration = {
   getModule: (moduleName) => dependencyManager.getModule(moduleName),
   initModulesInOrder: () => initializer.initModulesInOrder(),
   initializeModule: (moduleName) => initializer.initializeModule(moduleName),
-  injectDependencies: (moduleObj, moduleName) => dependencyManager.injectDependencies(moduleObj, moduleName),
+  injectDependencies: (moduleObj, moduleName) =>
+    dependencyManager.injectDependencies(moduleObj, moduleName),
 
   // Методи вирішення конфліктів
   resolveModuleConflicts: () => conflictResolver.resolveModuleConflicts(),
@@ -49,7 +50,7 @@ const taskIntegration = {
   finalizeInitialization: () => initializer.finalizeInitialization(),
 
   // Методи скидання стану
-  reset: () => initializer.reset()
+  reset: () => initializer.reset(),
 };
 
 // Для зворотної сумісності зі старою системою, додаємо в глобальний простір

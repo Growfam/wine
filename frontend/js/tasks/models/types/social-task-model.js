@@ -36,7 +36,7 @@ export class SocialTaskModel extends TaskModel {
       channel_name: apiData.channel_name,
       channel_url: apiData.channel_url || apiData.action_url,
       platform_user_id: apiData.platform_user_id,
-      requires_verification: apiData.requires_verification !== false
+      requires_verification: apiData.requires_verification !== false,
     });
   }
 

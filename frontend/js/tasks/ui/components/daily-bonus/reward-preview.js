@@ -23,21 +23,21 @@ class DailyBonusRewardPreview {
   constructor(options = {}) {
     // Налаштування
     this.options = {
-      container: null,      // Контейнер для рендерингу
-      day: 1,               // День циклу (1-7)
-      tokens: 0,            // Кількість токенів
-      coins: 0,             // Кількість жетонів
-      isSpecialDay: false,  // Чи особливий день
-      theme: 'default',     // Тема оформлення
-      ...options
+      container: null, // Контейнер для рендерингу
+      day: 1, // День циклу (1-7)
+      tokens: 0, // Кількість токенів
+      coins: 0, // Кількість жетонів
+      isSpecialDay: false, // Чи особливий день
+      theme: 'default', // Тема оформлення
+      ...options,
     };
 
     // Внутрішній стан
     this.state = {
       elementId: `daily-bonus-reward-${Date.now()}`, // ID елемента
-      initialized: false,       // Чи ініціалізовано
+      initialized: false, // Чи ініціалізовано
       animationInProgress: false, // Чи відбувається анімація
-      updating: false           // Чи відбувається оновлення
+      updating: false, // Чи відбувається оновлення
     };
 
     // Ініціалізуємо, якщо є контейнер
@@ -60,7 +60,7 @@ class DailyBonusRewardPreview {
 
       if (!container) {
         logger.warn('Контейнер для відображення винагороди не знайдено', 'initialize', {
-          category: LOG_CATEGORIES.RENDERING
+          category: LOG_CATEGORIES.RENDERING,
         });
         return false;
       }
@@ -75,13 +75,13 @@ class DailyBonusRewardPreview {
       this.state.initialized = true;
 
       logger.info('Компонент відображення винагороди ініціалізовано', 'initialize', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return true;
     } catch (error) {
       logger.error(error, 'Помилка ініціалізації компонента відображення винагороди', {
-        category: LOG_CATEGORIES.INIT
+        category: LOG_CATEGORIES.INIT,
       });
 
       return false;
@@ -158,11 +158,11 @@ class DailyBonusRewardPreview {
 
       logger.debug('Компонент відображення винагороди відрендерено', 'render', {
         category: LOG_CATEGORIES.RENDERING,
-        details: { tokens, coins }
+        details: { tokens, coins },
       });
     } catch (error) {
       logger.error(error, 'Помилка рендерингу компонента відображення винагороди', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     }
   }
@@ -206,12 +206,12 @@ class DailyBonusRewardPreview {
         details: {
           day: this.options.day,
           tokens: this.options.tokens,
-          coins: this.options.coins
-        }
+          coins: this.options.coins,
+        },
       });
     } catch (error) {
       logger.error(error, 'Помилка оновлення компонента відображення винагороди', {
-        category: LOG_CATEGORIES.RENDERING
+        category: LOG_CATEGORIES.RENDERING,
       });
     } finally {
       this.state.updating = false;
@@ -245,7 +245,7 @@ class DailyBonusRewardPreview {
         window.createParticles({
           container: rewardElement,
           count: 20,
-          duration: 1500
+          duration: 1500,
         });
       }
 
@@ -271,12 +271,12 @@ class DailyBonusRewardPreview {
         category: LOG_CATEGORIES.ANIMATION,
         details: {
           tokens: this.options.tokens,
-          coins: this.options.coins
-        }
+          coins: this.options.coins,
+        },
       });
     } catch (error) {
       logger.error(error, 'Помилка анімації отримання винагороди', {
-        category: LOG_CATEGORIES.ANIMATION
+        category: LOG_CATEGORIES.ANIMATION,
       });
 
       this.state.animationInProgress = false;
@@ -304,7 +304,7 @@ class DailyBonusRewardPreview {
       logger.info('Ресурси компонента відображення винагороди очищено', 'destroy');
     } catch (error) {
       logger.error(error, 'Помилка очищення ресурсів компонента відображення винагороди', {
-        category: LOG_CATEGORIES.LOGIC
+        category: LOG_CATEGORIES.LOGIC,
       });
     }
   }
