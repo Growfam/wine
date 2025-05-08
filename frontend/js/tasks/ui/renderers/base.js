@@ -9,7 +9,7 @@
  * @version 2.0.0
  */
 
-import dependencyContainer from '../../utils/dependency-container.js';
+import dependencyContainer from '../../utils/index.js';
 
 // Статуси завдань
 export const TASK_STATUS = {
@@ -41,8 +41,8 @@ export default class BaseRenderer {
     this.notifications = null;
     this.logger = null;
 
-    // Автоматична ініціалізація при створенні
-    setTimeout(() => this.initialize(), 0);
+    // Негайна ініціалізація, щоб уникнути проблем зі setTimeout
+    this.initialize();
   }
 
   /**
@@ -376,10 +376,43 @@ export default class BaseRenderer {
 
     // Викликаємо TaskSystem, якщо доступний
     if (this.taskSystem && typeof this.taskSystem.startTask === 'function') {
-      this.taskSystem.startTask(taskId);
-    } else if (window.TaskManager && window.TaskManager.startTask) {
+      this.taskSystem.startTask(taskId)
+        .then(response => {
+          // Обробка результату
+          if (response && response.success) {
+            // Успішно запущено завдання
+            this.showSuccessMessage(response.message || 'Завдання успішно активовано');
+            this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
+          } else {
+            // Помилка запуску
+            this.showErrorMessage(response?.message || 'Помилка запуску завдання');
+            this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          }
+        })
+        .catch(error => {
+          // Помилка запиту
+          this.showErrorMessage('Помилка запуску завдання');
+          this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          this.log('error', 'Помилка запуску завдання', { error });
+        });
+    } else if (window.TaskManager && typeof window.TaskManager.startTask === 'function') {
       // Для зворотної сумісності
-      window.TaskManager.startTask(taskId);
+      window.TaskManager.startTask(taskId)
+        .then(response => {
+          // Обробка результату як вище
+          if (response && response.success) {
+            this.showSuccessMessage(response.message || 'Завдання успішно активовано');
+            this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
+          } else {
+            this.showErrorMessage(response?.message || 'Помилка запуску завдання');
+            this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          }
+        })
+        .catch(error => {
+          this.showErrorMessage('Помилка запуску завдання');
+          this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          this.log('error', 'Помилка запуску завдання', { error });
+        });
     } else {
       // Запасний варіант
       this.showErrorMessage('Неможливо запустити завдання: TaskSystem недоступний');
@@ -405,18 +438,52 @@ export default class BaseRenderer {
 
     // Викликаємо TaskSystem, якщо доступний
     if (this.taskSystem && typeof this.taskSystem.verifyTask === 'function') {
-      this.taskSystem.verifyTask(taskId);
-    } else if (window.TaskManager && window.TaskManager.verifyTask) {
-      // Для зворотної сумісності
-      window.TaskManager.verifyTask(taskId);
-    } else {
-      // Запасний варіант
-      this.showErrorMessage('Неможливо перевірити завдання: TaskSystem недоступний');
+      this.taskSystem.verifyTask(taskId)
+        .then(response => {
+          if (response && response.success) {
+            this.showSuccessMessage(response.message || 'Завдання успішно виконано');
+            this.updateTaskStatus(taskElement, TASK_STATUS.COMPLETED);
 
-      // Відновлюємо стан кнопки
-      setTimeout(() => {
-        this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
-      }, 1000);
+            // Якщо є винагорода, показуємо її
+            if (response.reward && window.RewardBadge) {
+              window.RewardBadge.showAnimation(response.reward);
+            }
+          } else {
+            this.showErrorMessage(response?.message || 'Помилка перевірки завдання');
+            this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          }
+        })
+        .catch(error => {
+          this.showErrorMessage('Помилка перевірки завдання');
+          this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          this.log('error', 'Помилка перевірки завдання', { error });
+        });
+    } else if (window.TaskManager && typeof window.TaskManager.verifyTask === 'function') {
+      // Для зворотної сумісності
+      window.TaskManager.verifyTask(taskId)
+        .then(response => {
+          if (response && response.success) {
+            this.showSuccessMessage(response.message || 'Завдання успішно виконано');
+            this.updateTaskStatus(taskElement, TASK_STATUS.COMPLETED);
+
+            // Якщо є винагорода, показуємо її
+            if (response.reward && window.RewardBadge) {
+              window.RewardBadge.showAnimation(response.reward);
+            }
+          } else {
+            this.showErrorMessage(response?.message || 'Помилка перевірки завдання');
+            this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          }
+        })
+        .catch(error => {
+          this.showErrorMessage('Помилка перевірки завдання');
+          this.updateTaskStatus(taskElement, TASK_STATUS.ERROR);
+          this.log('error', 'Помилка перевірки завдання', { error });
+        });
+    } else {
+      // Якщо TaskManager недоступний, повертаємо звичайний стан
+      this.showErrorMessage('Неможливо перевірити завдання: TaskSystem недоступний');
+      this.updateTaskStatus(taskElement, TASK_STATUS.READY_TO_VERIFY);
     }
   }
 

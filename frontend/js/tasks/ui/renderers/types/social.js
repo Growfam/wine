@@ -10,7 +10,7 @@
  */
 
 import BaseRenderer, { TASK_STATUS } from '../base.js';
-import dependencyContainer from '../../../utils';
+import dependencyContainer from '../../../utils/index.js';
 
 // Типи соціальних мереж
 export const SOCIAL_NETWORKS = {
@@ -24,6 +24,9 @@ export const SOCIAL_NETWORKS = {
   LINKEDIN: 'linkedin',
   REDDIT: 'reddit',
 };
+
+// Експортуємо як константу для сумісності з іншими частинами системи
+export const SUPPORTED_NETWORKS = SOCIAL_NETWORKS;
 
 /**
  * Визначення типу соціальної мережі за URL
@@ -66,6 +69,16 @@ export function detectNetworkType(url) {
   }
 
   return null;
+}
+
+/**
+ * Отримання іконки соціальної мережі
+ * @param {string} networkType - Тип соціальної мережі
+ * @returns {string} Клас іконки або порожній рядок
+ */
+export function getSocialIcon(networkType) {
+  if (!networkType) return '';
+  return `${networkType}-icon`;
 }
 
 /**
@@ -286,22 +299,19 @@ class Social extends BaseRenderer {
 // Створюємо єдиний екземпляр
 const socialRenderer = new Social();
 
-// Створюємо об'єкт для зворотної сумісності
-const legacyAPI = {
-  render: (...args) => socialRenderer.render(...args),
-  refreshTaskDisplay: (...args) => socialRenderer.refreshTaskDisplay(...args),
-  refreshAllTasks: (...args) => socialRenderer.refreshAllTasks(...args),
-  updateTaskStatus: (...args) => socialRenderer.updateTaskStatus(...args),
-  detectNetworkType,
-  validateSocialUrl: (...args) => socialRenderer.validateSocialUrl(...args),
-  SOCIAL_NETWORKS,
-  STATUS: TASK_STATUS,
-  initialize: (...args) => socialRenderer.initialize(...args),
-};
-
-// Експортуємо для зворотної сумісності
+// Для зворотної сумісності: створюємо об'єкт з прямим доступом до методів
 if (typeof window !== 'undefined') {
-  window.SocialRenderer = legacyAPI;
+  window.SocialRenderer = {
+    render: (task, progress, options) => socialRenderer.render(task, progress, options),
+    refreshTaskDisplay: (taskId) => socialRenderer.refreshTaskDisplay(taskId),
+    refreshAllTasks: () => socialRenderer.refreshAllTasks(),
+    updateTaskStatus: (taskElement, status) => socialRenderer.updateTaskStatus(taskElement, status),
+    detectNetworkType,
+    validateSocialUrl: (url) => socialRenderer.validateSocialUrl(url),
+    SOCIAL_NETWORKS,
+    STATUS: TASK_STATUS,
+    initialize: () => socialRenderer.initialize(),
+  };
 }
 
 // Експортуємо за замовчуванням

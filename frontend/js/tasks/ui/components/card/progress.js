@@ -7,7 +7,7 @@
  * - Анімацію змін прогресу
  */
 
-import dependencyContainer from '../../../utils';
+import dependencyContainer from '../../../utils/index.js';
 import { UI } from '../../../index.js';
 
 // Стан модуля
@@ -53,6 +53,11 @@ export function init() {
  */
 export function render(container, task, progress, options = {}) {
   if (!container || !task) return null;
+
+  // Ініціалізуємо модуль, якщо не ініціалізовано
+  if (!state.initialized) {
+    init();
+  }
 
   // Поєднуємо налаштування за замовчуванням і передані опції
   const config = { ...state.defaultConfig, ...options };
@@ -369,8 +374,8 @@ export function cleanup() {
   state.progressElements.clear();
 }
 
-// Автоматична ініціалізація
-setTimeout(init, 0);
+// Ініціалізуємо модуль
+init();
 
 // Публічний API модуля
 const exports = {

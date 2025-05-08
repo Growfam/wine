@@ -1,8 +1,25 @@
+/**
+ * Експорт модулів анімаційних ефектів
+ * Єдиний інтерфейс для всіх анімаційних ефектів системи завдань
+ */
+
+// Прямий експорт з підмодулів
 export * from './particles.js';
 export * from './transitions.js';
 
-// Додаткові іменовані експорти для зручності
+// Імпорт для агрегованого експорту
+import * as particlesModule from './particles.js';
+import * as transitionsModule from './transitions.js';
+
+// Отримання експорту за замовчуванням або модуля цілком
+const particles = particlesModule.default || particlesModule;
+const transitions = transitionsModule.default || transitionsModule;
+
+// Додатковий експорт для зручності
 export const Effects = {
-  particles: require('./particles.js').default || require('./particles.js'),
-  transitions: require('./transitions.js').default || require('./transitions.js'),
+  particles,
+  transitions,
 };
+
+// Експорт за замовчуванням
+export default Effects;

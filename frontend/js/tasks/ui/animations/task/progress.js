@@ -4,13 +4,15 @@
  * - Візуальні ефекти для успішного виконання завдань
  * - Анімацію прогрес-барів та індикаторів
  * - Ефекти переходів між станами завдань
- * @version 3.0.0
+ * @version 3.1.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
-import { state, config } from '../core.js';
-import { createSuccessParticles } from '../effects';
-import { pulseElement, highlightElement } from '../effects';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+// Імпортуємо config та state через іменований імпорт
+import { config, state } from '../core.js';
+// Імпортуємо потрібні функції з effects напряму
+import { createSuccessParticles } from '../effects/particles.js';
+import { pulseElement, highlightElement } from '../effects/transitions.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Task.Progress');
@@ -42,16 +44,20 @@ export function animateSuccessfulCompletion(taskId) {
       details: { taskId, highQuality: state.highQualityEffects },
     });
 
-    // Додаємо анімацію часток для потужних пристроїв
-    if (state.highQualityEffects) {
+    // Додаємо анімацію часток для потужних пристроїв, перевіряємо наявність функції
+    if (state.highQualityEffects && typeof createSuccessParticles === 'function') {
       createSuccessParticles(taskElement);
     }
 
-    // Додаємо ефект пульсації
-    pulseElement(taskElement, 1.03, 800);
+    // Додаємо ефект пульсації, перевіряємо наявність функції
+    if (typeof pulseElement === 'function') {
+      pulseElement(taskElement, 1.03, 800);
+    }
 
-    // Додаємо ефект підсвічування
-    highlightElement(taskElement, 'rgba(0, 201, 167, 0.6)', 1200);
+    // Додаємо ефект підсвічування, перевіряємо наявність функції
+    if (typeof highlightElement === 'function') {
+      highlightElement(taskElement, 'rgba(0, 201, 167, 0.6)', 1200);
+    }
 
     // Видаляємо клас анімації через певний час
     setTimeout(() => {
@@ -213,8 +219,10 @@ export function animateTaskStatusChange(element, newStatus, options = {}) {
     // Анімація відповідно до нового статусу
     switch (newStatus) {
       case 'completed':
-        // Анімація успіху
-        animateSuccessfulCompletion(element.dataset.taskId);
+        // Анімація успіху, використовуємо функцію з перевіркою
+        if (element.dataset.taskId) {
+          animateSuccessfulCompletion(element.dataset.taskId);
+        }
         break;
 
       case 'failed':
@@ -228,7 +236,10 @@ export function animateTaskStatusChange(element, newStatus, options = {}) {
       case 'started':
         // Анімація початку виконання
         element.classList.add('starting-pulse');
-        highlightElement(element, 'rgba(78, 181, 247, 0.6)', 1000);
+        // Використовуємо функцію з перевіркою
+        if (typeof highlightElement === 'function') {
+          highlightElement(element, 'rgba(78, 181, 247, 0.6)', 1000);
+        }
         setTimeout(() => {
           element.classList.remove('starting-pulse');
         }, 1000);
@@ -272,11 +283,11 @@ export function animateTasksAppear(elements, options = {}) {
   }
 
   try {
-    // Налаштування за замовчуванням
+    // Налаштування за замовчуванням, використовуємо config якщо доступний
     const settings = {
-      delay: 50, // Затримка між елементами (мс)
+      delay: config?.TASK_APPEAR_DELAY || 50, // Затримка між елементами (мс)
       initialY: 20, // Початкове зміщення по Y (px)
-      duration: 400, // Тривалість анімації (мс)
+      duration: config?.TASK_APPEAR_DURATION || 400, // Тривалість анімації (мс)
       highlight: true, // Підсвічування нових елементів
       easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', // Функція пом'якшення
       ...options,
