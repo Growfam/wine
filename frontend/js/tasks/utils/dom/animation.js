@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core';
+import { getLogger } from '../core/index.js';
 import { addEvent } from './events.js';
 
 // Створюємо логер для модуля

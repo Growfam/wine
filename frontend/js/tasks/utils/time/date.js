@@ -10,7 +10,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core';
+import { getLogger } from '../core/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TimeDate');

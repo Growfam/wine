@@ -18,7 +18,15 @@ import { taskService, actionService, progressService } from './services/index.js
 // Імпорт моделей
 import { taskTypesModel } from './models/index.js';
 
-export { getDailyBonusStatus, claimDailyBonus, getDailyBonusHistory } from './models/daily-bonus';
+// Імпорт функцій з daily-bonus моделі напряму (вирішення проблеми 6)
+import {
+  getDailyBonusStatus,
+  claimDailyBonus,
+  getDailyBonusHistory
+} from './models/daily-bonus.js';
+
+// Тепер можемо реекспортувати ці функції після явного імпорту
+export { getDailyBonusStatus, claimDailyBonus, getDailyBonusHistory };
 
 /**
  * Головний клас API завдань
@@ -218,6 +226,37 @@ class TaskAPI {
    */
   async analyzeTaskProgress(taskId, options = {}) {
     return this.progress.analyzeTaskProgress(taskId, options);
+  }
+
+  /**
+   * Отримання щоденного бонусу
+   * @param {string} userId - ID користувача
+   * @returns {Promise<Object>} Результат операції
+   */
+  async getDailyBonusStatus(userId) {
+    // Використовуємо імпортовану функцію
+    return getDailyBonusStatus(userId);
+  }
+
+  /**
+   * Запит на нарахування щоденного бонусу
+   * @param {string} userId - ID користувача
+   * @returns {Promise<Object>} Результат операції
+   */
+  async claimDailyBonus(userId) {
+    // Використовуємо імпортовану функцію
+    return claimDailyBonus(userId);
+  }
+
+  /**
+   * Отримання історії щоденних бонусів
+   * @param {string} userId - ID користувача
+   * @param {Object} options - Додаткові опції
+   * @returns {Promise<Object>} Результат операції
+   */
+  async getDailyBonusHistory(userId, options = {}) {
+    // Використовуємо імпортовану функцію
+    return getDailyBonusHistory(userId, options);
   }
 }
 
