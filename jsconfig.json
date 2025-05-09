@@ -4,10 +4,15 @@
     "paths": {
       "frontend/*": ["./frontend/*"],
       "js/*": ["./frontend/js/*"],
+      "/js/*": ["./frontend/js/*"],
       "tasks/*": ["./frontend/js/tasks/*"],
+      "/tasks/*": ["./frontend/js/tasks/*"],
       "config/*": ["./frontend/js/tasks/config/*"],
+      "/config/*": ["./frontend/js/tasks/config/*"],
       "models/*": ["./frontend/js/tasks/models/*"],
-      "utils/*": ["./frontend/js/tasks/utils/*"]
+      "/models/*": ["./frontend/js/tasks/models/*"],
+      "utils/*": ["./frontend/js/tasks/utils/*"],
+      "/utils/*": ["./frontend/js/tasks/utils/*"]
     }
   },
   "include": ["frontend/**/*"]
