@@ -1143,55 +1143,6 @@ body.telegram-webview .carousel-slide img {
     object-fit: cover; /* Зображення обрізається без спотворень */
 }
      </style>
-    <!-- Додати наступний код перед закриваючим тегом </head> в HTML файли -->
-
-<!-- WINIX Loader - система виправлення помилок завантаження модулів -->
-<script src="/js/winix-loader.js"></script>
-
-<!-- Захисний скрипт підключення модулів -->
-<script>
-  // Функція для безпечного завантаження модулів
-  function safeLoadModule(src, delay = 0) {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.type = 'text/javascript';
-        script.async = false;
-        script.onerror = (err) => {
-          console.error(`Помилка завантаження ${src}:`, err);
-          if (window.reportModuleError) {
-            window.reportModuleError(src, err);
-          }
-          reject(err);
-        };
-        script.onload = () => {
-          console.log(`Модуль ${src} успішно завантажено`);
-          resolve();
-        };
-        document.head.appendChild(script);
-      }, delay);
-    });
-  }
-
-  // Підключення скриптів, що забезпечують щоденні бонуси
-  document.addEventListener('winix-loader-ready', async function() {
-    console.log('💎 WINIX-LOADER готовий, підключаємо додаткові модулі');
-
-    try {
-      // Використовуємо ланцюжок промісів з затримками для правильного порядку завантаження
-      await safeLoadModule('/js/tasks/config/index.js', 100);
-      await safeLoadModule('/js/tasks/utils/index.js', 200);
-      await safeLoadModule('/js/tasks/api/index.js', 300);
-
-      console.log('✅ Всі додаткові модулі завантажено успішно');
-    } catch (error) {
-      console.error('❌ Помилка завантаження додаткових модулів:', error);
-    }
-  });
-</script>
-
-<!-- Кінець WINIX Loader -->
 </head>
 <body>
     <div class="container">
