@@ -7,11 +7,11 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+import { getLogger, LOG_CATEGORIES, debounce, cleanup  } from '../../utils/index.js';
 // Імпортуємо необхідні компоненти
 import { animateSuccessfulCompletion } from './task/progress.js';
 import { showDailyBonusReward } from './reward/display.js';
-import { debounce, cleanup } from '../../utils/index.js';
+
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Core');
