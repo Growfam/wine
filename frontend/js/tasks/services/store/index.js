@@ -4,9 +4,9 @@
  * Експортує сервіс для роботи зі сховищем завдань
  */
 
-import { TaskStore } from './task-store';
-import { setupCacheHandlers } from './cache-handlers';
-import { setupSubscribers } from './subscribers';
+import { TaskStore } from './task-store.js';
+import { setupCacheHandlers } from './cache-handlers.js';
+import { setupSubscribers } from './subscribers.js';
 
 // Створюємо єдиний екземпляр сховища
 const taskStore = new TaskStore();

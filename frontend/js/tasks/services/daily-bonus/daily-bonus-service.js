@@ -8,12 +8,12 @@
  * - Скидання циклу бонусів
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types';
-import { createDailyBonusModel } from '../../models/types/daily-bonus-model';
-import { UserProvider } from '../integration/user-provider';
-import { getDailyBonusStatus, claimDailyBonus } from '../../api';
-import DailyBonusCacheHandler from './cache-handler';
+import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
+import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
+import { UserProvider } from '../integration/user-provider.js';
+import { getDailyBonusStatus, claimDailyBonus } from '../../api/index.js';
+import DailyBonusCacheHandler from './cache-handler.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DailyBonusService');

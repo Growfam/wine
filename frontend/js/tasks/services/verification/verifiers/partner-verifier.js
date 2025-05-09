@@ -6,7 +6,7 @@
  * - Відстеження конверсій
  */
 
-import { BaseVerifier } from './base-verifier';
+import { BaseVerifier } from './base-verifier.js';
 
 export class PartnerVerifier extends BaseVerifier {
   /**

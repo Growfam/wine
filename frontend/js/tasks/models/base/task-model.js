@@ -7,9 +7,9 @@
  */
 
 import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from '../../config';
-import { isValidTask } from './validators';
-import { formatToDisplayData, formatToApiData } from './formatters';
-import { generateTrackingUrl } from './tracking';
+import { isValidTask } from './validators.js';
+import { formatToDisplayData, formatToApiData } from './formatters.js';
+import { generateTrackingUrl } from './tracking.js';
 
 export class TaskModel {
   /**

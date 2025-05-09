@@ -7,7 +7,7 @@
  * - Перевірку статусів
  */
 
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
 import { getLogger, LOG_CATEGORIES } from '../../utils';
 
 // Створюємо логер для модуля

@@ -7,7 +7,7 @@
  */
 
 import { TASK_STATUS, CONFIG } from '../../config';
-import { taskStore } from '../index';
+import { taskStore } from '../index.js';
 
 class TaskProgress {
   constructor() {

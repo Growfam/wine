@@ -4,11 +4,11 @@
  * Експортує функціональність для координації та інтеграції модулів системи завдань
  */
 
-import { Initializer } from './initializer';
-import { DependencyManager } from './dependency-manager';
-import { ConflictResolver } from './conflict-resolver';
-import { UserProvider } from './user-provider';
-import { DiagnosticsService } from './diagnostics';
+import { Initializer } from './initializer.js';
+import { DependencyManager } from './dependency-manager.js';
+import { ConflictResolver } from './conflict-resolver.js';
+import { UserProvider } from './user-provider.js';
+import { DiagnosticsService } from './diagnostics.js';
 
 // Створюємо екземпляр сервісу інтеграції
 const initializer = new Initializer();
