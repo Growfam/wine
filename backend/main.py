@@ -99,12 +99,24 @@ def create_app(config_name=None):
     # Додаємо обробник для MIME-типів
     @app.after_request
     def add_mime_types(response):
-        if response.mimetype == 'application/octet-stream':
-            path = request.path
-            if path.endswith('.js'):
-                response.mimetype = 'application/javascript'
-            elif path.endswith('.css'):
-                response.mimetype = 'text/css'
+        # Виправлений обробник MIME-типів - перевіряємо шлях, а не поточний MIME-тип
+        path = request.path
+        if path.endswith('.js'):
+            # Встановлюємо правильний MIME-тип для JavaScript файлів
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+        elif path.endswith('.css'):
+            # Встановлюємо правильний MIME-тип для CSS файлів
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+        elif path.endswith('.json'):
+            # Встановлюємо правильний MIME-тип для JSON файлів
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+
+        # Додаємо заголовки для запобігання кешування в режимі розробки
+        if app.config.get('DEBUG', False):
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+
         return response
 
     return app
@@ -265,6 +277,35 @@ def register_utility_routes(app):
             "message": "Тестовий маршрут розіграшів працює"
         })
 
+    # Обробник для логування помилок з клієнта
+    @app.route('/api/log/error', methods=['POST', 'OPTIONS'])
+    def log_client_error():
+        """Ендпоінт для логування помилок з клієнта"""
+        # Обробка OPTIONS запитів для CORS preflight
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'POST')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            return response
+
+        try:
+            error_data = request.json
+            if not error_data:
+                return jsonify({"success": False, "message": "Дані відсутні"}), 400
+
+            # Логуємо помилку
+            logger.error(f"Помилка клієнта: {json.dumps(error_data)}")
+
+            # Якщо це помилка модуля, логуємо додаткові деталі
+            if error_data.get('type') == 'module_error':
+                logger.error(f"MODULE ERROR: {error_data.get('module')} - {error_data.get('error')}")
+
+            return jsonify({"success": True, "message": "Помилка зареєстрована"})
+        except Exception as e:
+            logger.exception(f"Помилка при логуванні помилки клієнта: {str(e)}")
+            return jsonify({"success": False, "message": "Внутрішня помилка сервера"}), 500
+
     @app.route('/debug')
     def debug():
         """Діагностичний маршрут для перевірки конфігурації"""
@@ -395,7 +436,7 @@ def register_static_routes(app):
             if os.path.exists(file_path):
                 logger.info(f"JS файл знайдено: {file_path}")
                 response = send_from_directory(static_dirs['js'], filename)
-                response.mimetype = 'application/javascript'
+                response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
                 return response
             else:
                 logger.warning(f"JS файл не знайдено: {file_path}")
@@ -419,7 +460,7 @@ def register_static_routes(app):
             if os.path.exists(file_path):
                 logger.info(f"CSS файл знайдено: {file_path}")
                 response = send_from_directory(static_dirs['css'], filename)
-                response.mimetype = 'text/css'
+                response.headers['Content-Type'] = 'text/css; charset=utf-8'
                 return response
             else:
                 logger.warning(f"CSS файл не знайдено: {file_path}")
@@ -706,9 +747,9 @@ def register_error_handlers(app):
             logger.error(f"404 статичний файл не знайдено: {request.path}")
 
             if request.path.endswith('.js'):
-                return "// Файл не знайдено", 404, {'Content-Type': 'application/javascript'}
+                return "// Файл не знайдено", 404, {'Content-Type': 'application/javascript; charset=utf-8'}
             else:
-                return "/* Файл не знайдено */", 404, {'Content-Type': 'text/css'}
+                return "/* Файл не знайдено */", 404, {'Content-Type': 'text/css; charset=utf-8'}
 
         logger.error(f"404 маршрут не знайдено: {request.path}")
 
@@ -777,10 +818,10 @@ def register_error_handlers(app):
         # Перевірка чи це запит на статичні JS/CSS файли
         if request.path.endswith('.js'):
             logger.error(f"500 помилка для JS файлу: {request.path}")
-            return f"// Помилка сервера при обробці JavaScript файлу: {error_details}", 500, {'Content-Type': 'application/javascript'}
+            return f"// Помилка сервера при обробці JavaScript файлу: {error_details}", 500, {'Content-Type': 'application/javascript; charset=utf-8'}
         elif request.path.endswith('.css'):
             logger.error(f"500 помилка для CSS файлу: {request.path}")
-            return f"/* Помилка сервера при обробці CSS файлу: {error_details} */", 500, {'Content-Type': 'text/css'}
+            return f"/* Помилка сервера при обробці CSS файлу: {error_details} */", 500, {'Content-Type': 'text/css; charset=utf-8'}
 
         return jsonify({
             "error": "server_error",
