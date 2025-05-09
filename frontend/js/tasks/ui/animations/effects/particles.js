@@ -8,8 +8,8 @@
  * @version 1.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
-import { config } from '../core.js';
+import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
+import { config } from 'js/tasks/ui/animations/core.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.Animations.Effects.Particles');

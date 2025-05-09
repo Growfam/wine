@@ -4,11 +4,11 @@
  * Експортує верифікатори для всіх підтримуваних типів завдань
  */
 
-import { BaseVerifier } from './base-verifier.js';
-import { SocialVerifier } from './social-verifier.js';
-import { LimitedVerifier } from './limited-verifier.js';
-import { PartnerVerifier } from './partner-verifier.js';
-import { GenericVerifier } from './generic-verifier.js';
+import { BaseVerifier } from 'js/tasks/services/verification/verifiers/base-verifier.js';
+import { SocialVerifier } from 'js/tasks/services/verification/verifiers/social-verifier.js';
+import { LimitedVerifier } from 'js/tasks/services/verification/verifiers/limited-verifier.js';
+import { PartnerVerifier } from 'js/tasks/services/verification/verifiers/partner-verifier.js';
+import { GenericVerifier } from 'js/tasks/services/verification/verifiers/generic-verifier.js';
 
 // Створюємо і експортуємо екземпляри верифікаторів
 export const verifiers = {

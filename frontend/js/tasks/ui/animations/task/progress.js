@@ -7,12 +7,12 @@
  * @version 3.1.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
 // Імпортуємо config та state через іменований імпорт
-import { config, state } from '../core.js';
+import { config, state } from 'js/tasks/ui/animations/core.js';
 // Імпортуємо потрібні функції з effects напряму
-import { createSuccessParticles } from '../effects/particles.js';
-import { pulseElement, highlightElement } from '../effects/transitions.js';
+import { createSuccessParticles } from 'js/tasks/ui/animations/effects/particles.js';
+import { pulseElement, highlightElement } from 'js/tasks/ui/animations/effects/transitions.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Task.Progress');

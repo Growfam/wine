@@ -7,7 +7,7 @@
  * - Очищення кешу
  */
 
-import { getLogger } from '../../../utils/core/logger.js';
+import { getLogger } from 'js/tasks/utils/core/logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('VerificationCache');

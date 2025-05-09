@@ -4,12 +4,12 @@
  */
 
 // Прямий експорт з підмодулів
-export * from './particles.js';
-export * from './transitions.js';
+export * from 'js/tasks/ui/animations/effects/particles.js';
+export * from 'js/tasks/ui/animations/effects/transitions.js';
 
 // Імпорт для агрегованого експорту
-import * as particlesModule from './particles.js';
-import * as transitionsModule from './transitions.js';
+import * as particlesModule from 'js/tasks/ui/animations/effects/particles.js';
+import * as transitionsModule from 'js/tasks/ui/animations/effects/transitions.js';
 
 // Отримання експорту за замовчуванням або модуля цілком
 const particles = particlesModule.default || particlesModule;

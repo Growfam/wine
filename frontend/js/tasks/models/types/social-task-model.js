@@ -4,8 +4,8 @@
  * Розширює базову модель для соціальних завдань
  */
 
-import { TaskModel } from '../base/index.js';
-import { TASK_TYPES } from '../../config';
+import { TaskModel } from 'js/tasks/models/base/index.js';
+import { TASK_TYPES } from 'js/tasks/config';
 
 export class SocialTaskModel extends TaskModel {
   /**

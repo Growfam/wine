@@ -9,8 +9,8 @@
  * @version 4.0.0
  */
 
-import BaseRenderer, { TASK_STATUS } from '../base.js';
-import dependencyContainer from '../../../utils/index.js';
+import BaseRenderer, { TASK_STATUS } from 'js/tasks/ui//renderers/base.js';
+import dependencyContainer from 'js/tasks/utils/index.js';
 
 // Типи соціальних мереж
 export const SOCIAL_NETWORKS = {

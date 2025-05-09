@@ -6,10 +6,10 @@
  * - Спільну логіку для всіх типів завдань
  */
 
-import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from '../../config';
-import { isValidTask } from './validators.js';
-import { formatToDisplayData, formatToApiData } from './formatters.js';
-import { generateTrackingUrl } from './tracking.js';
+import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from 'js/tasks/config/index.js';
+import { isValidTask } from 'js/tasks/models/base/validators.js';
+import { formatToDisplayData, formatToApiData } from 'js/tasks/models/base/formatters.js';
+import { generateTrackingUrl } from 'js/tasks/models/base/tracking.js';
 
 export class TaskModel {
   /**

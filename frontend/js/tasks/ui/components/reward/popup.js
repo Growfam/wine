@@ -7,8 +7,8 @@
  * - Управління послідовністю показу кількох винагород
  */
 
-import { UI } from '../../../index.js';
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { UI } from 'js/tasks/index.js';
+import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
 
 // Логер для модуля
 const logger = getLogger('UI.RewardPopup');

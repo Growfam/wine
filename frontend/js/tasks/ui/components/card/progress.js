@@ -7,8 +7,8 @@
  * - Анімацію змін прогресу
  */
 
-import dependencyContainer from '../../../utils/index.js';
-import { UI } from '../../../index.js';
+import dependencyContainer from 'js/tasks/utils/index.js';
+import { UI } from 'js/tasks/index.js';
 
 // Стан модуля
 const state = {

@@ -7,11 +7,11 @@
  * - Інтеграцію з сервісом щоденних бонусів
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types.js';
-import DailyBonusCalendar from './calendar.js';
-import DailyBonusRewardPreview from './reward-preview.js';
-import { default as DailyBonusService } from '../../../services/daily-bonus/daily-bonus-service.js';
+import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'js/tasks/config/types/daily-bonus-types.js';
+import DailyBonusCalendar from 'js/tasks/ui/components/daily-bonus/calendar.js';
+import DailyBonusRewardPreview from 'js/tasks/ui/components/daily-bonus/reward-preview.js';
+import { default as DailyBonusService } from 'js/tasks/services/daily-bonus/daily-bonus-service.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.DailyBonusDialog');

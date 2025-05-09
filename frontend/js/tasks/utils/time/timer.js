@@ -9,9 +9,9 @@
  * @version 1.0.0
  */
 
-import { getLogger } from '../core/index.js';
-import { parseDate } from './date.js';
-import { formatTimeLeft } from './format.js';
+import { getLogger } from 'js/tasks/utils/core/index.js';
+import { parseDate } from 'js/tasks/utils/time/date.js';
+import { formatTimeLeft } from 'js/tasks/utils/time/format.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TimeTimer');

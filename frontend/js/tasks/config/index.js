@@ -5,8 +5,8 @@
  */
 
 // Імпорт усіх типів
-import * as types from './types/index.js';
-import CONFIG from './settings.js';
+import * as types from 'js/tasks/config/types/index.js';
+import CONFIG from 'js/tasks/config/settings.js';
 
 // Реекспорт типів для зручності
 export const TASK_TYPES = types.TASK_TYPES;

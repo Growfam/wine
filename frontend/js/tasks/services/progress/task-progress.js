@@ -6,8 +6,8 @@
  * - Оновлення прогресу в реальному часі
  */
 
-import { TASK_STATUS, CONFIG } from '../../config';
-import { taskStore } from '../index.js';
+import { TASK_STATUS, CONFIG } from 'js/tasks/config/index.js';
+import { taskStore } from 'js/tasks/services/index.js';
 
 class TaskProgress {
   constructor() {

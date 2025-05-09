@@ -5,8 +5,8 @@
  * адаптуючи різні реалізації кешування до єдиного API
  */
 
-import { getLogger } from '../core/index.js';
-import cacheService from '../../api/core/cache.js';
+import { getLogger } from 'js/tasks/utils/core/index.js';
+import cacheService from 'js/tasks/api/core/cache.js';
 
 // Отримуємо логер для модуля
 const logger = getLogger('CacheAdapter');

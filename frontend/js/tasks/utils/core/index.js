@@ -7,8 +7,8 @@
  * @version 1.0.0
  */
 
-import container, { DependencyContainer } from './dependency.js';
-import logger, * as loggerExports from './logger.js';
+import container, { DependencyContainer } from 'js/tasks/utils/core/dependency.js';
+import logger, * as loggerExports from 'js/tasks/utils/core/logger.js';
 
 // Реекспорт всіх утиліт
 export {

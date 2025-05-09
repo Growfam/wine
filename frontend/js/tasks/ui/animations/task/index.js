@@ -1,2 +1,2 @@
-export * from './completion.js';
-export * from './progress.js';
+export * from 'js/tasks/ui/animations/task/completion.js';
+export * from 'js/tasks/ui/animations/task/progress.js';

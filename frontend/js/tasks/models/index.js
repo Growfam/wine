@@ -5,17 +5,14 @@
  */
 
 // Експорт базових компонентів
-export * from './base/index.js';
+export * from 'js/tasks/models/base/index.js';
+export * from 'js/tasks/models/types/index.js';
 
-// Експорт конкретних типів моделей
-export * from './types/index.js';
-
-// Створення фабрики для зручного використання
-import { TASK_TYPES } from '../config';
-import { TaskModel } from './base/index.js';
-import { SocialTaskModel } from './types/social-task-model.js';
-import { LimitedTaskModel } from './types/limited-task-model.js';
-import { PartnerTaskModel } from './types/partner-task-model.js';
+import { TASK_TYPES } from 'js/tasks/config/index.js';
+import { TaskModel } from 'js/tasks/models/base/index.js';
+import { SocialTaskModel } from 'js/tasks/models/types/social-task-model.js';
+import { LimitedTaskModel } from 'js/tasks/models/types/limited-task-model.js';
+import { PartnerTaskModel } from 'js/tasks/models/types/partner-task-model.js';
 
 /**
  * Створює модель завдання відповідного типу
