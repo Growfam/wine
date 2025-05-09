@@ -13,7 +13,7 @@ import {
   updateProgressUI,
   showVerificationLoader,
   hideVerificationLoader
-} from './loaders.js';
+} from 'js/tasks/utils/ui/loaders.js';
 
 // Явний експорт імпортованих функцій
 export {

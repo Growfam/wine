@@ -8,7 +8,7 @@
  * @version 4.1.0
  */
 
-import BaseRenderer, { TASK_STATUS } from '../base.js';
+import BaseRenderer, { TASK_STATUS } from 'js/tasks/ui/renderers/base.js';
 
 // Налаштування безпеки для партнерських доменів
 export const ALLOWED_DOMAINS = [

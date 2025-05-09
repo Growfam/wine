@@ -8,8 +8,8 @@
  * @version 3.1.0
  */
 
-import { getLogger } from '../utils/core/logger.js';
-import taskApiFactory from '../api/index.js';
+import { getLogger } from 'js/tasks/utils/core/logger.js';
+import taskApiFactory from 'js/tasks/api/index.js';
 
 // Створюємо логер для завантажувача модулів
 const logger = getLogger('ModuleLoader');
@@ -38,9 +38,9 @@ export async function loadModules() {
 
     // Завантажуємо всі необхідні модулі паралельно з використанням динамічних імпортів
     const [modelsModule, servicesModule, uiModule] = await Promise.all([
-      import('../models/index.js'),
-      import('../services/index.js'),
-      import('../ui/index.js'),
+      import('js/tasks/models/index.js'),
+      import('js/tasks/services/index.js'),
+      import('js/tasks/ui/index.js'),
     ]);
 
     // Зберігаємо модулі в кеш

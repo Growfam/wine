@@ -7,7 +7,7 @@
  * - Оновлення елементів інтерфейсу
  */
 
-import dependencyContainer from '../../../utils/index.js';
+import dependencyContainer from 'js/tasks/utils/index.js';
 
 // Шаблон для карточки завдання
 const TEMPLATE = `

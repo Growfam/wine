@@ -9,9 +9,9 @@
  * @version 3.1.0
  */
 
-import initialize from './initialization.js';
-import * as moduleLoader from './module-loader.js';
-import * as systemMethods from './system-methods.js';
+import initialize from 'js/tasks/initialization/initialization.js';
+import * as moduleLoader from 'js/tasks/initialization/module-loader.js';
+import * as systemMethods from 'js/tasks/initialization/system-methods.js';
 
 // Реекспорт основних функцій для зручного використання
 export const initializeSystem = initialize;

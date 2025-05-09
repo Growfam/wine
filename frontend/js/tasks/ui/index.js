@@ -53,35 +53,35 @@ function handleModuleError(moduleName, error) {
 
 // Завантаження модуля анімацій
 try {
-  animations = require('./animations/index.js');
+  animations = require('js/tasks/ui/animations/index.js');
 } catch (error) {
   handleModuleError('animations', error);
 }
 
 // Завантаження модуля компонентів
 try {
-  components = require('./components/index.js');
+  components = require('js/tasks/ui/components/index.js');
 } catch (error) {
   handleModuleError('components', error);
 }
 
 // Завантаження модуля сповіщень
 try {
-  notifications = require('./notifications/index.js');
+  notifications = require('js/tasks/ui/notifications/index.js');
 } catch (error) {
   handleModuleError('notifications', error);
 }
 
 // Завантаження модуля рендерерів
 try {
-  renderers = require('./renderers/index.js');
+  renderers = require('js/tasks/ui/renderers/index.js');
 } catch (error) {
   handleModuleError('renderers', error);
 }
 
 // Завантаження модуля щоденного бонусу
 try {
-  DailyBonus = require('./components/daily-bonus/index.js').default;
+  DailyBonus = require('js/tasks/ui/components/daily-bonus/index.js').default;
 } catch (error) {
   handleModuleError('DailyBonus', error);
 }

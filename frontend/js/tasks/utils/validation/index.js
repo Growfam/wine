@@ -7,12 +7,12 @@
  */
 
 // Імпорт компонентів
-import coreValidation from './core.js';
-import * as coreValidationExports from './core.js';
-import rulesValidation from './rules.js';
-import * as rulesValidationExports from './rules.js';
-import formValidation from './form.js';
-import * as formValidationExports from './form.js';
+import coreValidation from 'js/tasks/utils/validation/core.js';
+import * as coreValidationExports from 'js/tasks/utils/validation/core.js';
+import rulesValidation from 'js/tasks/utils/validation/rules.js';
+import * as rulesValidationExports from 'js/tasks/utils/validation/rules.js';
+import formValidation from 'js/tasks/utils/validation/form.js';
+import * as formValidationExports from 'js/tasks/utils/validation/form.js';
 
 // Експорт функцій валідації даних з core
 export const {

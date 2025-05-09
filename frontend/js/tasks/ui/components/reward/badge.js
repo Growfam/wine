@@ -8,8 +8,8 @@
  */
 
 // Імпорт необхідних залежностей
-import { UI } from '../../index.js';
-import { TaskRewards } from '../../../services/index.js';
+import { UI } from 'js/tasks/index.js';
+import { TaskRewards } from 'js/tasks/services/index.js';
 
 // Конфігурація
 const CONFIG = {

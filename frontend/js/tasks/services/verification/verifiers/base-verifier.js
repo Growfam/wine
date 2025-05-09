@@ -4,7 +4,7 @@
  * Надає спільну функціональність для всіх верифікаторів
  */
 
-import { VERIFICATION_STATUS } from '../../../config';
+import { VERIFICATION_STATUS } from 'js/tasks/config/index.js';
 
 export class BaseVerifier {
   constructor() {

@@ -19,7 +19,7 @@ export {
   clearVerificationCache,
   loadProgressFromCache,
   clearCacheByTags
-} from './cache-adapter.js';
+} from 'js/tasks/utils/cache/cache-adapter.js';
 
 // Створюємо об'єкт для експорту за замовчуванням
 const cacheApi = {

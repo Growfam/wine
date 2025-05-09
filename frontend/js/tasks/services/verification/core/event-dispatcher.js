@@ -7,8 +7,8 @@
  * - Обробку успішних результатів верифікації
  */
 
-import { getLogger } from '../../../utils/core/logger.js';
-import { cacheProcessedEvent, isEventProcessed } from './cache-manager.js';
+import { getLogger } from 'js/tasks/utils/core/logger.js';
+import { cacheProcessedEvent, isEventProcessed } from 'js/tasks/services/verification/core/cache-manager.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('VerificationEvents');

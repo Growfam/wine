@@ -7,8 +7,8 @@
  * - Додатковий UI для цього типу завдань
  */
 
-import { create as createBaseCard } from '../base.js';
-import { setupActionButtons } from '../actions.js';
+import { create as createBaseCard } from 'js/tasks/ui/components/card/base.js';
+import { setupActionButtons } from 'js/tasks/ui/components/card/actions.js';
 
 // Типи соціальних мереж
 export const SOCIAL_NETWORKS = {

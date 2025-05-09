@@ -22,25 +22,25 @@ import {
   getSystemState,
   resetState,
   dispatchSystemEvent
-} from './initialization/index.js';
+} from 'js/tasks/initialization/index.js';
 
 // Імпорт фабрики сервісів для ініціалізації
-import { serviceFactory } from './utils/index.js';
+import { serviceFactory } from 'js/tasks/utils/index.js';
 console.log('Фабрика сервісів ініціалізована:', !!serviceFactory);
 
 // Імпорт конфігурації
-import * as TaskTypes from './config/index.js';
-import { CONFIG } from './config/settings.js';
+import * as TaskTypes from 'js/tasks/config/index.js';
+import { CONFIG } from 'js/tasks/config/settings.js';
 
 // Імпорт контейнера залежностей
-import dependencyContainer from './utils/core/dependency.js';
-import { getLogger } from './utils/core/logger.js';
+import dependencyContainer from 'js/tasks/utils/core/dependency.js';
+import { getLogger } from 'js/tasks/utils/core/logger.js';
 
 // Створюємо логер для основної системи
 const logger = getLogger('TaskSystem');
 
 // Імпорт API (без створення циркулярних залежностей)
-import taskApi from './api/index.js';
+import taskApi from 'js/tasks/api/index.js';
 
 // Визначення версії
 const VERSION = '3.1.0';

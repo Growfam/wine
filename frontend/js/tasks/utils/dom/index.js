@@ -7,9 +7,9 @@
  * @version 1.0.0
  */
 
-import * as domCore from './core.js';
-import * as domEvents from './events.js';
-import * as domAnimation from './animation.js';
+import * as domCore from 'js/tasks/utils/dom/core.js';
+import * as domEvents from 'js/tasks/utils/dom/events.js';
+import * as domAnimation from 'js/tasks/utils/dom/animation.js';
 
 // Експорт функцій з core
 export const {
