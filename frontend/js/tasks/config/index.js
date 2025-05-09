@@ -1,24 +1,26 @@
-/**
- * Головний файл для експорту конфігурацій
- *
- * Експортує всі типи та константи для використання в інших модулях
- */
-
-// Імпорт усіх типів
-import * as types from 'js/tasks/config/types/index.js';
+// Правильний відносний імпорт без початкового слеша
+import { TASK_TYPES } from 'js/tasks/config/types/task-types.js';
+import { ACTION_TYPES } from 'js/tasks/config/types/action-types.js';
+import { REWARD_TYPES } from 'js/tasks/config/types/reward-types.js';
+import { TASK_STATUS } from 'js/tasks/config/types/status-types.js';
+import { VERIFICATION_STATUS } from 'js/tasks/config/types/verification-status.js';
+import { SOCIAL_NETWORKS } from 'js/tasks/config/types/social-networks.js';
+import { DAILY_BONUS_TYPES } from 'js/tasks/config/types/daily-bonus-types.js';
 import CONFIG from 'js/tasks/config/settings.js';
 
-// Реекспорт типів для зручності
-export const TASK_TYPES = types.TASK_TYPES;
-export const ACTION_TYPES = types.ACTION_TYPES;
-export const REWARD_TYPES = types.REWARD_TYPES;
-export const TASK_STATUS = types.TASK_STATUS;
-export const VERIFICATION_STATUS = types.VERIFICATION_STATUS;
-export const SOCIAL_NETWORKS = types.SOCIAL_NETWORKS;
-export const DAILY_BONUS_TYPES = types.DAILY_BONUS_TYPES;
-export { CONFIG };
+// Реекспорт для зручного доступу
+export {
+  TASK_TYPES,
+  ACTION_TYPES,
+  REWARD_TYPES,
+  TASK_STATUS,
+  VERIFICATION_STATUS,
+  SOCIAL_NETWORKS,
+  DAILY_BONUS_TYPES,
+  CONFIG
+};
 
-// Для зворотної сумісності - єдиний об'єкт
+// Для зворотної сумісності
 export default {
   TASK_TYPES,
   ACTION_TYPES,
@@ -27,5 +29,5 @@ export default {
   VERIFICATION_STATUS,
   SOCIAL_NETWORKS,
   DAILY_BONUS_TYPES,
-  CONFIG,
+  CONFIG
 };

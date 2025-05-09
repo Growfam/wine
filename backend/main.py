@@ -397,7 +397,11 @@ def register_static_routes(app):
         'assets': os.path.join(BASE_DIR, 'frontend/assets'),
         'ChenelPNG': os.path.join(BASE_DIR, 'frontend/ChenelPNG'),
         'js': os.path.join(BASE_DIR, 'frontend/js'),
-        'css': os.path.join(BASE_DIR, 'frontend/css')
+        'css': os.path.join(BASE_DIR, 'frontend/css'),
+        'js_tasks': os.path.join(BASE_DIR, 'frontend/js/tasks'),
+        'js_tasks_config': os.path.join(BASE_DIR, 'frontend/js/tasks/config'),
+        'js_tasks_ui': os.path.join(BASE_DIR, 'frontend/js/tasks/ui'),
+        'js_tasks_api': os.path.join(BASE_DIR, 'frontend/js/tasks/api')
     }
 
     # Функція для обробки статичних файлів
@@ -425,6 +429,67 @@ def register_static_routes(app):
     @app.route('/ChenelPNG/<path:filename>')
     def serve_chenel_png(filename):
         return serve_static_file(static_dirs['ChenelPNG'], filename)
+
+    # НОВИЙ МАРШРУТ: Спеціальний обробник для конфігураційних JS файлів
+    @app.route('/js/tasks/config/<path:filename>')
+    def serve_config_js(filename):
+        try:
+            # Повний шлях до директорії з конфігураційними файлами
+            config_dir = static_dirs['js_tasks_config']
+
+            # Логування для діагностики
+            logger.info(f"Запит до config файлу: {filename}, шукаю у {config_dir}")
+
+            # Перевірка існування файлу
+            file_path = os.path.join(config_dir, filename)
+            if not os.path.exists(file_path):
+                logger.error(f"Файл не знайдено: {file_path}")
+                return f"// Файл {filename} не знайдено", 404, {'Content-Type': 'application/javascript; charset=utf-8'}
+
+            # Відправка файлу з правильним MIME-типом
+            response = send_from_directory(config_dir, filename)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            return response
+        except Exception as e:
+            logger.error(f"Помилка видачі config файлу {filename}: {str(e)}")
+            return f"// Помилка сервера: {str(e)}", 500, {'Content-Type': 'application/javascript; charset=utf-8'}
+
+    # Додаткові маршрути для спеціальних директорій
+    @app.route('/js/tasks/ui/<path:filename>')
+    def serve_ui_js(filename):
+        try:
+            ui_dir = static_dirs['js_tasks_ui']
+            logger.info(f"Запит до UI файлу: {filename}, шукаю у {ui_dir}")
+
+            file_path = os.path.join(ui_dir, filename)
+            if not os.path.exists(file_path):
+                logger.error(f"UI файл не знайдено: {file_path}")
+                return f"// Файл {filename} не знайдено", 404, {'Content-Type': 'application/javascript; charset=utf-8'}
+
+            response = send_from_directory(ui_dir, filename)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            return response
+        except Exception as e:
+            logger.error(f"Помилка видачі UI файлу {filename}: {str(e)}")
+            return f"// Помилка сервера: {str(e)}", 500, {'Content-Type': 'application/javascript; charset=utf-8'}
+
+    @app.route('/js/tasks/api/<path:filename>')
+    def serve_api_js(filename):
+        try:
+            api_dir = static_dirs['js_tasks_api']
+            logger.info(f"Запит до API файлу: {filename}, шукаю у {api_dir}")
+
+            file_path = os.path.join(api_dir, filename)
+            if not os.path.exists(file_path):
+                logger.error(f"API файл не знайдено: {file_path}")
+                return f"// Файл {filename} не знайдено", 404, {'Content-Type': 'application/javascript; charset=utf-8'}
+
+            response = send_from_directory(api_dir, filename)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            return response
+        except Exception as e:
+            logger.error(f"Помилка видачі API файлу {filename}: {str(e)}")
+            return f"// Помилка сервера: {str(e)}", 500, {'Content-Type': 'application/javascript; charset=utf-8'}
 
     # Спеціальне обслуговування JS файлів
     @app.route('/js/<path:filename>')
