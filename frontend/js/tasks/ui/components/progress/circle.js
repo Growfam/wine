@@ -8,8 +8,8 @@
  * @version 2.0.0
  */
 
-import { injectStyles, addEvent, removeEvent, onDOMReady } from '../../../utils';
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
+import { injectStyles, addEvent, removeEvent, onDOMReady, getLogger, LOG_CATEGORIES  } from '../../../utils/index.js';
+
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.ProgressCircle');

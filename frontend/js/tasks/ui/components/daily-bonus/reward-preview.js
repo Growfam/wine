@@ -6,8 +6,8 @@
  * - Анімацію отримання винагороди
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
-import { DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.DailyBonusRewardPreview');

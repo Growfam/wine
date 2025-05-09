@@ -4,7 +4,7 @@
  * Розширює базову модель для партнерських завдань
  */
 
-import { TaskModel } from '../base';
+import { TaskModel } from '../base/index.js';
 import { TASK_TYPES } from '../../config';
 
 export class PartnerTaskModel extends TaskModel {

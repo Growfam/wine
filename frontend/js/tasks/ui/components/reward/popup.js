@@ -8,7 +8,7 @@
  */
 
 import { UI } from '../../../index.js';
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
 
 // Логер для модуля
 const logger = getLogger('UI.RewardPopup');

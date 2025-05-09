@@ -6,7 +6,7 @@
  * - Обробку нестандартних перевірок
  */
 
-import { BaseVerifier } from './base-verifier';
+import { BaseVerifier } from './base-verifier.js';
 
 export class GenericVerifier extends BaseVerifier {
   /**

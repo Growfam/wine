@@ -7,9 +7,9 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
 import { state, config } from '../core.js';
-import { createStarsEffect, createConfetti } from '../effects';
+import { createStarsEffect, createConfetti } from '../effects/index.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Rewards.Display');

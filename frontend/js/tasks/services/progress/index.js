@@ -4,9 +4,9 @@
  * Експортує функціональність для відстеження та оновлення прогресу завдань
  */
 
-import TaskProgress from './task-progress';
-import { setupUIUpdater } from './ui-updater';
-import { setupSyncService } from './sync-service';
+import TaskProgress from './task-progress.js';
+import { setupUIUpdater } from './ui-updater.js';
+import { setupSyncService } from './sync-service.js';
 
 // Створюємо екземпляр сервісу прогресу
 const taskProgress = new TaskProgress();

@@ -6,7 +6,7 @@
  * - Взаємодію з API соціальних мереж для верифікації
  */
 
-import { BaseVerifier } from './base-verifier';
+import { BaseVerifier } from './base-verifier.js';
 import { SOCIAL_NETWORKS } from '../../../config';
 
 export class SocialVerifier extends BaseVerifier {
