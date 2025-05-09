@@ -333,25 +333,34 @@
 
     <!-- ВИПРАВЛЕНО: Оптимізована послідовність завантаження скриптів -->
     <!-- Першочергові скрипти -->
-<script type="importmap">
-{
-  "imports": {
-    "utils/": "/js/tasks/utils/",
-    "config/": "/js/tasks/config/",
-    "models/": "/js/tasks/models/",
-    "tasks/": "/js/tasks/",
-    "js/tasks/": "/js/tasks/"
-  }
-}
-</script>
     <script src="js/core.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
 
+    <!-- ВИПРАВЛЕНО: Налаштований importmap для коректного завантаження модулів -->
+    <script type="importmap">
+    {
+      "imports": {
+        "utils/": "/js/tasks/utils/",
+        "config/": "/js/tasks/config/",
+        "models/": "/js/tasks/models/",
+        "tasks/": "/js/tasks/",
+        "js/tasks/": "/js/tasks/",
+        "js/tasks/config/": "/js/tasks/config/",
+        "js/tasks/api/": "/js/tasks/api/",
+        "js/tasks/models/": "/js/tasks/models/",
+        "js/tasks/utils/": "/js/tasks/utils/",
+        "js/tasks/initialization/": "/js/tasks/initialization/",
+        "js/tasks/ui/": "/js/tasks/ui/",
+        "js/tasks/services/": "/js/tasks/services/"
+      }
+    }
+    </script>
+
     <!-- Підключення системи завдань -->
     <script type="module">
-        // Імпорт системи завдань
-        import taskSystem from './js/tasks/index.js';
+        // Імпорт системи завдань з абсолютного шляху
+        import taskSystem from '/js/tasks/index.js';
 
         // Деякі загальні змінні для роботи з UI
         let dailyBonusInitialized = false;
