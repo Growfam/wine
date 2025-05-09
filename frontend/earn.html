@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1A1A2E">
     <title>WINIX - Заробляй</title>
 
-    <!-- Критичні стилі для швидкого рендерингу -->
+    <!-- ВИПРАВЛЕНО: Оптимізовані критичні стилі для стабільного відображення -->
     <style>
         /* Базові стилі для найшвидшого рендерингу контенту */
         body {
@@ -51,7 +51,7 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Критичні стилі для вкладок і видимості контенту */
+        /* ВИПРАВЛЕНО: Критичні стилі з кращою підтримкою вкладок і видимості контенту */
         .content-section {
             display: none;
             opacity: 0;
@@ -73,7 +73,7 @@
             font-weight: bold;
         }
 
-        /* Стилі для кнопки щоденного бонусу */
+        /* ВИПРАВЛЕНО: Стилі для гарантії видимості кнопки щоденного бонусу */
         #claim-daily {
             display: block !important;
             opacity: 1 !important;
@@ -106,12 +106,11 @@
             color: rgba(255, 255, 255, 0.8) !important;
         }
 
-        /* Стилі для контейнера бонусу */
+        /* Надійна наявність кнопки бонусу */
         #daily-bonus-container {
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
-            z-index: 10 !important;
         }
 
         .daily-bonus {
@@ -121,112 +120,27 @@
             width: 100% !important;
             margin-bottom: 15px !important;
         }
-
-        /* Додаткові стилі для анімацій і станів */
-        .daily-day {
-            opacity: 1 !important;
-            transition: transform 0.3s ease, opacity 0.3s ease !important;
-        }
-
-        .day-circle {
-            position: relative !important;
-            display: flex !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 36px !important;
-            height: 36px !important;
-            border-radius: 50% !important;
-            background-color: rgba(255, 255, 255, 0.1) !important;
-            transition: background-color 0.3s ease !important;
-        }
-
-        .day-circle.active {
-            background-color: rgba(78, 181, 247, 0.5) !important;
-            box-shadow: 0 0 10px rgba(78, 181, 247, 0.7) !important;
-        }
-
-        .day-circle.completed {
-            background-color: rgba(0, 201, 167, 0.7) !important;
-            box-shadow: 0 0 10px rgba(0, 201, 167, 0.7) !important;
-        }
-
-        .day-circle.current {
-            background-color: rgba(233, 69, 96, 0.7) !important;
-            box-shadow: 0 0 10px rgba(233, 69, 96, 0.7) !important;
-        }
-
-        /* Анімація збільшення балансу */
-        .balance-increased {
-            animation: balance-increase 1.5s ease-out forwards !important;
-        }
-
-        .balance-decreased {
-            animation: balance-decrease 1.5s ease-out forwards !important;
-        }
-
-        @keyframes balance-increase {
-            0%, 100% { color: white; }
-            30%, 70% { color: #4eb5f7; }
-        }
-
-        @keyframes balance-decrease {
-            0%, 100% { color: white; }
-            30%, 70% { color: #E94560; }
-        }
-
-        /* Покращені сповіщення */
-        .toast-message {
-            position: fixed !important;
-            bottom: -100px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            background: rgba(0, 0, 0, 0.8) !important;
-            color: white !important;
-            padding: 12px 20px !important;
-            border-radius: 8px !important;
-            opacity: 0 !important;
-            transition: bottom 0.3s ease, opacity 0.3s ease !important;
-            z-index: 1000 !important;
-            text-align: center !important;
-            max-width: 90% !important;
-        }
-
-        .toast-message.show {
-            bottom: 20px !important;
-            opacity: 1 !important;
-        }
-
-        .toast-success {
-            border-left: 4px solid #00C9A7 !important;
-        }
-
-        .toast-error {
-            border-left: 4px solid #E94560 !important;
-        }
     </style>
 
     <!-- Підключення основних стилів -->
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/earn/styles.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/earn/styles.css">
 
     <!-- Попереднє завантаження критичних ресурсів -->
-    <link rel="preload" href="/css/earn/components-tasks.css" as="style">
-    <link rel="preload" href="/js/core.js" as="script">
-    <link rel="preload" href="/js/fix-module-loader.js" as="script">
+    <link rel="preload" href="css/earn/components-tasks.css" as="style">
+    <link rel="preload" href="js/core.js" as="script">
+    <link rel="preload" href="js/tasks/index.js" as="script">
 
     <!-- Стилі для завдань та анімацій -->
-    <link rel="stylesheet" href="/css/earn/components-tasks.css">
-    <link rel="stylesheet" href="/css/earn/leaderboard.css">
-    <link rel="stylesheet" href="/css/earn/animations.css">
-    <link rel="stylesheet" href="/css/earn/premium-animations.css">
-    <link rel="stylesheet" href="/css/earn/premium-theme.css">
-    <link rel="stylesheet" href="/css/earn/winix-icons.css">
+    <link rel="stylesheet" href="css/earn/components-tasks.css">
+    <link rel="stylesheet" href="css/earn/leaderboard.css">
+    <link rel="stylesheet" href="css/earn/animations.css">
+    <link rel="stylesheet" href="css/earn/premium-animations.css">
+    <link rel="stylesheet" href="css/earn/premium-theme.css">
+    <link rel="stylesheet" href="css/earn/winix-icons.css">
 
-    <!-- Підключення Telegram WebApp API -->
-    <script src="/js/telegram-web-app.js"></script>
-
-    <!-- Підключення виправленого завантажувача модулів (найперший) -->
-    <script src="/js/fix-module-loader.js"></script>
+    <!-- Підключення Telegram WebApp API негайно -->
+    <script src="js/telegram-web-app.js"></script>
 </head>
 <body>
 <!-- Індикатор завантаження -->
@@ -383,31 +297,31 @@
         <div class="nav-bar">
             <div class="nav-item" data-section="home">
                 <div class="icon-wrapper">
-                    <img src="/assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
+                    <img src="assets/home-icon.png" alt="Home" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Home'">
                 </div>
                 <span data-lang-key="home">Home</span>
             </div>
             <div class="nav-item active" data-section="earn">
                 <div class="icon-wrapper">
-                    <img src="/assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
+                    <img src="assets/earn-icon.png" alt="Earn" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Earn'">
                 </div>
                 <span data-lang-key="earn">Earn</span>
             </div>
             <div class="nav-item" data-section="referrals">
                 <div class="icon-wrapper">
-                    <img src="/assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
+                    <img src="assets/referrals-icon.png" alt="Referrals" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Referrals'">
                 </div>
                 <span data-lang-key="referrals">Referrals</span>
             </div>
             <div class="nav-item" data-section="wallet">
                 <div class="icon-wrapper">
-                    <img src="/assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
+                    <img src="assets/wallet-icon.png" alt="Wallet" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=Wallet'">
                 </div>
                 <span data-lang-key="wallet">Wallet</span>
             </div>
             <div class="nav-item" data-section="general">
                 <div class="icon-wrapper">
-                    <img src="/assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
+                    <img src="assets/general-icon.png" alt="General" loading="lazy" onerror="this.src='https://via.placeholder.com/35?text=General'">
                 </div>
                 <span data-lang-key="general">General</span>
             </div>
@@ -417,30 +331,27 @@
     <!-- Повідомлення для копіювання -->
     <div class="toast-message" id="toast-message" aria-live="assertive" role="alert">Реферальне посилання скопійовано в буфер обміну!</div>
 
-    <!-- Основні скрипти в правильному порядку -->
-    <script src="/js/core.js"></script>
-    <script src="/js/api.js"></script>
-    <script src="/js/tasks/api/index.js"></script>
-    <script src="/js/tasks/index.js"></script>
+    <!-- ВИПРАВЛЕНО: Оптимізована послідовність завантаження скриптів -->
+    <!-- Першочергові скрипти -->
+    <script src="js/core.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
 
-    <!-- Оптимізований скрипт ініціалізації сторінки -->
-    <script>
-        // Глобальні змінні та функції UI
-        window.dailyBonusInitialized = false;
+    <!-- Підключення системи завдань -->
+    <script type="module">
+        // Імпорт системи завдань
+        import taskSystem from './js/tasks/index.js';
 
-        // Оновлена функція ініціалізації системи завдань
-        window.initializeTaskSystem = function() {
-            console.log('📱 WINIX - Ініціалізація системи завдань');
+        // Деякі загальні змінні для роботи з UI
+        let dailyBonusInitialized = false;
+
+        // Після завантаження DOM
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('📱 WINIX - Ініціалізація сторінки завдань');
 
             try {
-                // Перевірка наявності API
-                if (!window.TaskAPI) {
-                    console.warn('⚠️ TaskAPI не знайдено. Перевірте підключення /js/tasks/api/index.js');
-                    return false;
-                }
-
-                // Ініціалізуємо TaskAPI
-                window.TaskAPI.init({
+                // Ініціалізуємо систему завдань
+                const initialized = await taskSystem.initialize({
                     forceRefresh: false,
                     ui: {
                         animations: {
@@ -450,24 +361,26 @@
                     }
                 });
 
-                console.log('✅ TaskAPI успішно ініціалізовано');
+                if (initialized) {
+                    console.log('✅ Система завдань успішно ініціалізована');
 
-                // Ініціалізуємо компоненти щоденного бонусу
-                initializeDailyBonus();
+                    // Ініціалізуємо компоненти щоденного бонусу
+                    initializeDailyBonus();
 
-                // Ініціалізуємо вкладки
-                initializeTabs();
+                    // Ініціалізуємо вкладки
+                    initializeTabs();
 
-                // Ховаємо індикатор завантаження
-                hideLoadingIndicator();
-
-                return true;
+                    // Ховаємо індикатор завантаження
+                    hideLoadingIndicator();
+                } else {
+                    console.error('❌ Помилка ініціалізації системи завдань');
+                    showErrorMessage('Не вдалося завантажити систему завдань. Спробуйте оновити сторінку.');
+                }
             } catch (error) {
-                console.error('❌ Помилка ініціалізації системи завдань:', error);
+                console.error('❌ Критична помилка:', error);
                 showErrorMessage('Виникла помилка при завантаженні даних');
-                return false;
             }
-        };
+        });
 
         /**
          * Ініціалізація системи вкладок
@@ -493,9 +406,8 @@
                     });
 
                     // Повідомляємо систему завдань про зміну вкладки
-                    if (window.TaskAPI) {
-                        // Використовуємо нову реалізацію API
-                        console.log(`Активована вкладка: ${tabType}`);
+                    if (taskSystem && taskSystem.setActiveTab) {
+                        taskSystem.setActiveTab(tabType);
                     }
                 });
             });
@@ -505,7 +417,7 @@
          * Ініціалізація компонента щоденного бонусу
          */
         function initializeDailyBonus() {
-            if (window.dailyBonusInitialized) return;
+            if (dailyBonusInitialized) return;
 
             // Отримуємо елементи
             const claimButton = document.getElementById('claim-daily');
@@ -526,7 +438,7 @@
             claimButton.addEventListener('click', claimDailyBonus);
 
             // Позначаємо, що ініціалізовано
-            window.dailyBonusInitialized = true;
+            dailyBonusInitialized = true;
         }
 
         /**
@@ -574,18 +486,18 @@
         async function loadDailyBonusStatus() {
             try {
                 // Перевіряємо наявність API для щоденного бонусу
-                if (!window.TaskAPI) {
-                    console.warn('⚠️ TaskAPI недоступний');
+                if (!taskSystem.dailyBonus || !taskSystem.dailyBonus.getStatus) {
+                    console.warn('⚠️ API щоденного бонусу недоступне');
                     return;
                 }
 
-                // Завантажуємо статус через нове API
-                const response = await window.TaskAPI.getDailyBonusStatus();
+                // Завантажуємо статус
+                const response = await taskSystem.dailyBonus.getStatus();
 
-                if (response && response.success) {
+                if (response.success) {
                     updateDailyBonusUI(response.data);
                 } else {
-                    console.warn('⚠️ Помилка отримання статусу щоденного бонусу:', response?.error || 'Невідома помилка');
+                    console.warn('⚠️ Помилка отримання статусу щоденного бонусу:', response.message);
                 }
             } catch (error) {
                 console.error('❌ Помилка завантаження щоденного бонусу:', error);
@@ -606,29 +518,24 @@
                 claimButton.classList.add('processing');
                 claimButton.textContent = 'Отримання...';
 
-                // Перевіряємо наявність API
-                if (!window.TaskAPI) {
-                    throw new Error('TaskAPI недоступний');
-                }
-
                 // Викликаємо API отримання бонусу
-                const result = await window.TaskAPI.claimDailyBonus();
+                const result = await taskSystem.claimDailyBonus();
 
-                if (result && result.success) {
+                if (result.success) {
                     // Оновлюємо UI
                     updateDailyBonusUI({
-                        ...(result.data || {}),
+                        ...result.data,
                         claimed_today: true
                     });
 
                     // Показуємо повідомлення про успіх
-                    showSuccessMessage(`Щоденний бонус отримано: +${result.amount || 0} жетонів!`);
+                    showSuccessMessage(`Щоденний бонус отримано: +${result.data.amount} жетонів!`);
 
                     // Оновлюємо баланс (анімовано)
-                    updateBalanceUI(result.amount || 0);
+                    updateBalanceUI(result.data.amount);
                 } else {
                     // Показуємо повідомлення про помилку
-                    showErrorMessage(result?.error || 'Не вдалося отримати щоденний бонус');
+                    showErrorMessage(result.message || 'Не вдалося отримати щоденний бонус');
                 }
             } catch (error) {
                 console.error('❌ Помилка отримання щоденного бонусу:', error);
@@ -764,29 +671,6 @@
                 }, 300);
             }
         }
-
-        // Додаємо обробники для навігації
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const section = this.getAttribute('data-section');
-                if (section && section !== 'earn') {
-                    // Перенаправляємо на іншу сторінку
-                    window.location.href = `/${section}.html`;
-                }
-            });
-        });
-
-        // Ініціалізуємо систему після завантаження DOM
-        document.addEventListener('DOMContentLoaded', function() {
-            // Запускаємо ініціалізацію з невеликою затримкою
-            setTimeout(initializeTaskSystem, 100);
-        });
-
-        // Додаємо обробник події готовності модульного завантажувача
-        document.addEventListener('module-loader-ready', function() {
-            console.log('✨ Завантажувач модулів готовий - запускаємо ініціалізацію');
-            setTimeout(initializeTaskSystem, 200);
-        });
     </script>
 </body>
 </html>
