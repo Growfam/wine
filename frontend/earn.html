@@ -340,63 +340,130 @@
    <script type="importmap">
 {
   "imports": {
-    "utils/": "/js/tasks/utils/",
-    "config/": "/js/tasks/config/",
-    "models/": "/js/tasks/models/",
-    "tasks/": "/js/tasks/",
-    "js/tasks/initialization/": "/js/tasks/initialization/",
-    "js/tasks/utils/": "/js/tasks/utils/",
-    "js/tasks/config/": "/js/tasks/config/",
-    "js/tasks/models/": "/js/tasks/models/",
-    "js/tasks/": "/js/tasks/"
+    "utils/": "./js/tasks/utils/",
+    "config/": "./js/tasks/config/",
+    "models/": "./js/tasks/models/",
+    "tasks/": "./js/tasks/",
+    "js/tasks/initialization/": "./js/tasks/initialization/",
+    "js/tasks/utils/": "./js/tasks/utils/",
+    "js/tasks/config/": "./js/tasks/config/",
+    "js/tasks/models/": "./js/tasks/models/",
+    "js/tasks/": "./js/tasks/"
   }
 }
 </script>
 
     <!-- Підключення системи завдань -->
     <script type="module">
-        // Імпорт системи завдань з абсолютного шляху
-        import taskSystem from '/js/tasks/index.js';
+    // Перевірка наявності залежностей
+    if (!window.WinixAPI) {
+        console.error('❌ WinixAPI не знайдено. Перевірте, чи завантажено api.js');
+    }
 
-        // Деякі загальні змінні для роботи з UI
-        let dailyBonusInitialized = false;
+    if (!window.WinixAuth) {
+        console.error('❌ WinixAuth не знайдено. Перевірте, чи завантажено auth.js');
+    }
 
-        // Після завантаження DOM
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('📱 WINIX - Ініціалізація сторінки завдань');
+    if (!window.dependencyContainer) {
+        console.warn('⚠️ dependencyContainer не знайдено. Це може призвести до проблем із залежностями.');
+        // Створюємо просту заглушку для DI-контейнера
+        window.dependencyContainer = {
+            register: () => {},
+            resolve: () => null,
+            has: () => false
+        };
+    }
 
+    // Визначення getUserId, якщо він відсутній
+    if (typeof window.getUserId !== 'function') {
+        window.getUserId = function() {
             try {
-                // Ініціалізуємо систему завдань
-                const initialized = await taskSystem.initialize({
-                    forceRefresh: false,
-                    ui: {
-                        animations: {
-                            enabled: true,
-                            performanceMode: window.innerWidth < 768 // Режим продуктивності на мобільних
-                        }
-                    }
-                });
-
-                if (initialized) {
-                    console.log('✅ Система завдань успішно ініціалізована');
-
-                    // Ініціалізуємо компоненти щоденного бонусу
-                    initializeDailyBonus();
-
-                    // Ініціалізуємо вкладки
-                    initializeTabs();
-
-                    // Ховаємо індикатор завантаження
-                    hideLoadingIndicator();
-                } else {
-                    console.error('❌ Помилка ініціалізації системи завдань');
-                    showErrorMessage('Не вдалося завантажити систему завдань. Спробуйте оновити сторінку.');
-                }
-            } catch (error) {
-                console.error('❌ Критична помилка:', error);
-                showErrorMessage('Виникла помилка при завантаженні даних');
+                return localStorage.getItem('telegram_user_id') ||
+                      (new URLSearchParams(window.location.search).get('id'));
+            } catch (e) {
+                console.error('❌ Помилка отримання ID користувача:', e);
+                return null;
             }
-        });
+        };
+    }
+
+    // Імпорт системи завдань з відносного шляху
+    let taskSystem;
+    let importSuccess = false;
+    try {
+        taskSystem = await import('./js/tasks/index.js').then(module => module.default);
+        console.log('✅ Систему завдань успішно імпортовано');
+        importSuccess = true;
+    } catch (error) {
+        console.error('❌ Не вдалося імпортувати систему завдань:', error);
+
+        // Показуємо повідомлення про помилку
+        const toast = document.getElementById('toast-message');
+        if (toast) {
+            toast.textContent = 'Помилка завантаження системи. Спробуйте оновити сторінку.';
+            toast.className = 'toast-message toast-error show';
+
+            setTimeout(() => {
+                toast.className = 'toast-message';
+            }, 3000);
+        }
+
+        // Ховаємо індикатор завантаження
+        const loadingIndicator = document.getElementById('initial-loading');
+        if (loadingIndicator) {
+            loadingIndicator.style.opacity = '0';
+            setTimeout(() => {
+                loadingIndicator.style.display = 'none';
+            }, 300);
+        }
+    }
+
+    // Деякі загальні змінні для роботи з UI
+    let dailyBonusInitialized = false;
+
+    // Після завантаження DOM
+    document.addEventListener('DOMContentLoaded', async () => {
+        console.log('📱 WINIX - Ініціалізація сторінки завдань');
+
+        // Перевіряємо, чи вдалося імпортувати систему завдань
+        if (!importSuccess) {
+            console.warn('⚠️ Пропускаємо ініціалізацію через помилку імпорту');
+            hideLoadingIndicator();
+            return;
+        }
+
+        try {
+            // Ініціалізуємо систему завдань
+            const initialized = await taskSystem.initialize({
+                forceRefresh: false,
+                ui: {
+                    animations: {
+                        enabled: true,
+                        performanceMode: window.innerWidth < 768 // Режим продуктивності на мобільних
+                    }
+                }
+            });
+
+            if (initialized) {
+                console.log('✅ Система завдань успішно ініціалізована');
+
+                // Ініціалізуємо компоненти щоденного бонусу
+                initializeDailyBonus();
+
+                // Ініціалізуємо вкладки
+                initializeTabs();
+
+                // Ховаємо індикатор завантаження
+                hideLoadingIndicator();
+            } else {
+                console.error('❌ Помилка ініціалізації системи завдань');
+                showErrorMessage('Не вдалося завантажити систему завдань. Спробуйте оновити сторінку.');
+            }
+        } catch (error) {
+            console.error('❌ Критична помилка:', error);
+            showErrorMessage('Виникла помилка при завантаженні даних');
+        }
+    });
 
         /**
          * Ініціалізація системи вкладок
