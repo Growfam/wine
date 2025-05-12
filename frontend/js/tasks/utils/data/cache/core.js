@@ -10,8 +10,8 @@
  * @version 2.0.0
  */
 
-import { StorageAdapter } from 'js/tasks/utils/data/cache/storage.js';
-import { getLogger } from 'js/tasks/utils/core/index.js';
+import { StorageAdapter } from '../../../utils/data/cache/storage.js';
+import { getLogger } from '../../../utils/core/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('CacheCore');

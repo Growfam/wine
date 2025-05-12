@@ -10,17 +10,17 @@ export {
   TASK_STATUS,
   escapeHtml,
   getTaskElementById,
-} from 'js/tasks/ui/components/card/base.js';
+} from './base.js';
 export {
   setupActionButtons,
   handleStartTask,
   handleVerifyTask,
   updateActionStatus,
-} from 'js/tasks/ui/components/card/actions.js';
-export { render as renderProgress, updateProgress, getProgressElement } from 'js/tasks/ui/components/card/progress.js';
+} from './actions.js';
+export { render as renderProgress, updateProgress, getProgressElement } from './progress.js';
 
 // Експортуємо типи карток
-export * from 'js/tasks/ui/components/card/types/index.js';
+export * from './types/index.js';
 
 // Експорт ключових об'єктів для зручності
 export const Card = {

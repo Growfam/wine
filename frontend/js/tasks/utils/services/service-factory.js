@@ -7,12 +7,12 @@
  * - Спрощення тестування
  */
 
-import cacheService from 'js/tasks/api/core/cache.js';
-import taskApi from 'js/tasks/api/index.js';
-import taskStore from 'js/tasks/services/store/index.js';
-import taskVerification from 'js/tasks/services/verification/index.js';
-import taskProgress from 'js/tasks/services/progress/index.js';
-import dependencyContainer from 'js/tasks/utils/core/dependency.js';
+import cacheService from '../../api/core/cache.js';
+import taskApi from '../../api/index.js';
+import taskStore from '../../services/store/index.js';
+import taskVerification from '../../services/verification/index.js';
+import taskProgress from '../../services/progress/index.js';
+import dependencyContainer from '../core/dependency.js';
 
 /**
  * Клас фабрики сервісів

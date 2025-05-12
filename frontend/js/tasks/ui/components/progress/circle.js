@@ -8,7 +8,7 @@
  * @version 2.0.0
  */
 
-import { injectStyles, addEvent, removeEvent, onDOMReady, getLogger, LOG_CATEGORIES  } from 'js/tasks/utils/index.js';
+import { injectStyles, addEvent, removeEvent, onDOMReady, getLogger, LOG_CATEGORIES  } from '../../../utils/index.js';
 
 
 // Створюємо логер для модуля

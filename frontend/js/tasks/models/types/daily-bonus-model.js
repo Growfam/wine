@@ -7,8 +7,8 @@
  * - Перевірку статусів
  */
 
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'js/tasks/config/types/daily-bonus-types.js';
-import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DailyBonusModel');

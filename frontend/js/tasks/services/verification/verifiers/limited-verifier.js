@@ -6,8 +6,8 @@
  * - Валідацію термінів
  */
 
-import { BaseVerifier } from 'js/tasks/services/verification/verifiers/base-verifier.js';
-import { TASK_STATUS } from 'js/tasks/config/index.js';
+import { BaseVerifier } from './base-verifier.js';
+import { TASK_STATUS } from '../../../config/index.js';
 
 export class LimitedVerifier extends BaseVerifier {
   /**

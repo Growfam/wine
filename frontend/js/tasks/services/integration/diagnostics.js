@@ -7,7 +7,7 @@
  * - Збір інформації про помилки
  */
 
-import { getLogger, LOG_CATEGORIES, dependencyContainer } from 'js/tasks/utils/index.js';
+import { getLogger, LOG_CATEGORIES, dependencyContainer } from '../../utils/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('Diagnostics');

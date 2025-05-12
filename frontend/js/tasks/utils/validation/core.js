@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from 'js/tasks/utils/core/index.js';
+import { getLogger } from '../core/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('ValidationCore');

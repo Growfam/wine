@@ -8,7 +8,7 @@ import {
   updateProgressUI,
   showLoadingIndicator,
   hideLoadingIndicator
-} from 'js/tasks/utils/ui/index.js';
+} from '../../utils/ui/index.js';
 
 /**
  * Налаштування оновлення UI для сервісу прогресу

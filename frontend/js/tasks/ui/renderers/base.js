@@ -9,7 +9,7 @@
  * @version 2.0.0
  */
 
-import dependencyContainer from 'js/tasks/utils/index.js';
+import dependencyContainer from '../../utils/index.js';
 
 // Статуси завдань
 export const TASK_STATUS = {

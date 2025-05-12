@@ -4,30 +4,30 @@
  * Центральний компонент сервісу верифікації, який координує процес перевірки завдань
  */
 
-import { VERIFICATION_STATUS } from 'js/tasks/config/index.js';
-import { getLogger } from 'js/tasks/utils/core/logger.js';
+import { VERIFICATION_STATUS } from '../../../config/index.js';
+import { getLogger } from '../../../utils/core/logger.js';
 import {
   cacheTaskType,
   getCachedTaskType,
   cacheVerificationResult,
   getCachedVerificationResult,
   clearCache
-} from 'js/tasks/services/verification/core/cache-manager.js';
+} from './cache-manager.js';
 import {
   handleVerificationError,
   createSuccessResult,
   createErrorResult
-} from 'js/tasks/services/verification/core/error-handler.js';
+} from './error-handler.js';
 import {
   dispatchVerificationEvent
-} from 'js/tasks/services/verification/core/event-dispatcher.js';
+} from './event-dispatcher.js';
 import {
   getTaskType
-} from 'js/tasks/services/verification/core/type-detector.js';
+} from './type-detector.js';
 import {
   showVerificationLoader,
   hideVerificationLoader
-} from 'js/tasks/services/verification/core/ui-controller.js';
+} from './ui-controller.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('VerificationCore');

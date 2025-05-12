@@ -8,13 +8,13 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.Dialog');
 
 // Імпортуємо спільні налаштування
-import { CONFIG, injectStyles } from 'js/tasks/ui/notifications/common.js';
+import { CONFIG, injectStyles } from './common.js';
 
 // Стан модуля
 const state = {

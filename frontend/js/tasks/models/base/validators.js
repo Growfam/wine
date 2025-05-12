@@ -4,7 +4,7 @@
  * Містить функції для перевірки коректності даних завдань
  */
 
-import { TASK_TYPES } from 'js/tasks/config';
+import { TASK_TYPES } from '../../config/index.js';
 
 /**
  * Перевірка обов'язкових полів завдання
