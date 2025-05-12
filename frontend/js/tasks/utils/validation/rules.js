@@ -9,9 +9,9 @@
  * @version 1.0.0
  */
 
-import { getLogger } from 'js/tasks/utils/core/index.js';
-import * as coreValidators from 'js/tasks/utils/validation/core.js';
-import { parseDate } from 'js/tasks/utils/time/date.js';
+import { getLogger } from '../core/index.js';
+import * as coreValidators from './core.js';
+import { parseDate } from '../time/date.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('ValidationRules');

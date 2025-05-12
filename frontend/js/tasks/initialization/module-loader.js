@@ -8,8 +8,8 @@
  * @version 3.1.0
  */
 
-import { getLogger } from 'js/tasks/utils/core/logger.js';
-import taskApiFactory from 'js/tasks/api/index.js';
+import { getLogger } from '../utils/core/logger.js';
+import taskApiFactory from '../api/index.js';
 
 // Створюємо логер для завантажувача модулів
 const logger = getLogger('ModuleLoader');

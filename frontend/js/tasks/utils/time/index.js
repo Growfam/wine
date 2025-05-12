@@ -8,12 +8,12 @@
  */
 
 // Імпорт компонентів
-import dateUtils from 'js/tasks/utils/time/date.js';
-import * as dateExports from 'js/tasks/utils/time/date.js';
-import formatUtils from 'js/tasks/utils/time/format.js';
-import * as formatExports from 'js/tasks/utils/time/format.js';
-import timerUtils from 'js/tasks/utils/time/timer.js';
-import * as timerExports from 'js/tasks/utils/time/timer.js';
+import dateUtils from './date.js';
+import * as dateExports from './date.js';
+import formatUtils from './format.js';
+import * as formatExports from './format.js';
+import timerUtils from './timer.js';
+import * as timerExports from './timer.js';
 
 // Експорт функцій модуля date.js
 export const {

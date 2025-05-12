@@ -4,13 +4,13 @@
  * Експортує функціональність для перевірки виконання завдань
  */
 
-import { VerificationCore } from 'js/tasks/services/verification/core/verification-core.js';
-import { setupCacheManager } from 'js/tasks/services/verification/core/cache-manager.js';
-import { setupErrorHandler } from 'js/tasks/services/verification/core/error-handler.js';
-import { setupEventDispatcher } from 'js/tasks/services/verification/core/event-dispatcher.js';
-import { setupTypeDetector } from 'js/tasks/services/verification/core/type-detector.js';
-import { setupUIController } from 'js/tasks/services/verification/core/ui-controller.js';
-import { getLogger } from 'js/tasks/utils/core/logger.js';
+import { VerificationCore } from './core/verification-core.js';
+import { setupCacheManager } from './core/cache-manager.js';
+import { setupErrorHandler } from './core/error-handler.js';
+import { setupEventDispatcher } from './core/event-dispatcher.js';
+import { setupTypeDetector } from './core/type-detector.js';
+import { setupUIController } from './core/ui-controller.js';
+import { getLogger } from '../../utils/core/logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('VerificationService');

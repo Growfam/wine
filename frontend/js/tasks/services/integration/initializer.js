@@ -6,8 +6,8 @@
  * - Координацію процесу завантаження
  */
 
-import { getLogger, LOG_CATEGORIES, dependencyContainer } from 'js/tasks/utils/index.js';
-import { CONFIG } from '../../config';
+import { getLogger, LOG_CATEGORIES, dependencyContainer } from '../../utils/index.js';
+import { CONFIG } from '../../config.index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TaskIntegration');

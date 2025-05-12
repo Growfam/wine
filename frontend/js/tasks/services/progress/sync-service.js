@@ -4,7 +4,7 @@
  * Відповідає за синхронізацію локального прогресу з серверним
  */
 
-import { CONFIG } from 'js/tasks/config/index.js';
+import { CONFIG } from '../../config/index.js';
 
 /**
  * Налаштування синхронізації з сервером

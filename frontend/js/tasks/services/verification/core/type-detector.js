@@ -7,9 +7,9 @@
  * - Використання DOM для визначення типу
  */
 
-import { TASK_TYPES, SOCIAL_NETWORKS } from 'js/tasks/config/index.js';
-import { getLogger } from 'js/tasks/utils/core/logger.js';
-import { getCachedTaskType, cacheTaskType } from 'js/tasks/services/verification/core/cache-manager.js';
+import { TASK_TYPES, SOCIAL_NETWORKS } from '../../../config/index.js';
+import { getLogger } from '../../../utils/core/logger.js';
+import { getCachedTaskType, cacheTaskType } from './cache-manager.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TypeDetector');

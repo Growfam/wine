@@ -7,9 +7,9 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
-import { state } from 'js/tasks/ui/animations/core.js';
-import { createSuccessParticles, highlightElement, pulseElement  } from 'js/tasks/ui/animations/effects/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { state } from '../core.js';
+import { createSuccessParticles, highlightElement, pulseElement  } from '../effects/index.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Task.Completion');

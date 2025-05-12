@@ -8,9 +8,9 @@
  */
 
 // Імпорт компонентів
-import formatter from 'js/tasks/utils/data/formatter.js';
+import formatter from './formatter.js';
 import * as formatterExports from './formatter.js';
-import cache from 'js/tasks/utils/data/cache/index.js';
+import cache from './cache/index.js';
 import * as cacheExports from './cache/index.js';
 
 // Експорт форматтера

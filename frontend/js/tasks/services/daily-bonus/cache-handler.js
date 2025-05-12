@@ -7,9 +7,9 @@
  * - Синхронізацію з localStorage
  */
 
-import { getLogger, LOG_CATEGORIES } from 'js/tasks/utils/index.js';
-import { createDailyBonusModel } from 'js/tasks/models/types/daily-bonus-model.js';
-import { DAILY_BONUS_CONFIG } from 'js/tasks/config/types/daily-bonus-types.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
+import { DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DailyBonusCacheHandler');

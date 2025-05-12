@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { getLogger } from 'js/tasks/utils/core/index.js';
+import { getLogger } from '../../utils/core/index.js';
 import { addEvent } from './events.js';
 
 // Створюємо логер для модуля

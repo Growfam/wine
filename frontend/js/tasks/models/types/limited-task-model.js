@@ -4,8 +4,8 @@
  * Розширює базову модель для завдань з обмеженим часом
  */
 
-import { TaskModel } from 'js/tasks/models/base/index.js';
-import { TASK_TYPES } from 'js/tasks/config/index.js';
+import { TaskModel } from '../base/index.js';
+import { TASK_TYPES } from '../../config/index.js';
 
 export class LimitedTaskModel extends TaskModel {
   /**

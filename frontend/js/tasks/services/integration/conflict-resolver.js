@@ -6,7 +6,7 @@
  * - Делегування функціональності між модулями
  */
 
-import { getLogger, LOG_CATEGORIES, dependencyContainer } from 'js/tasks/utils/index.js';
+import { getLogger, LOG_CATEGORIES, dependencyContainer } from '../../utils/index.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('ConflictResolver');

@@ -5,10 +5,10 @@
  * @version 3.0.0
  */
 
-import socialRenderer from 'js/tasks/ui/renderers/types/social.js';
-import limitedRenderer from 'js/tasks/ui/renderers/types/limited.js';
-import partnerRenderer from 'js/tasks/ui/renderers/types/partner.js';
-import factory from 'js/tasks/ui/renderers/factory.js';
+import socialRenderer from './types/social.js';
+import limitedRenderer from './types/limited.js';
+import partnerRenderer from './types/partner.js';
+import factory from './factory.js';
 
 // Реекспортуємо API фабрики
 export const {
@@ -20,7 +20,7 @@ export const {
 } = factory;
 
 // Експортуємо базовий клас для інтеграцій
-export { default as BaseRenderer, TASK_STATUS } from 'js/tasks/ui/renderers/base.js';
+export { default as BaseRenderer, TASK_STATUS } from './base.js';
 
 // Експортуємо доступні рендерери
 export const renderers = {

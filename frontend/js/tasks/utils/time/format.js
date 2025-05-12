@@ -10,8 +10,8 @@
  * @version 1.0.0
  */
 
-import { getLogger } from 'js/tasks/utils/core/index.js';
-import { parseDate } from 'js/tasks/utils/time/date.js';
+import { getLogger } from '../core/index.js';
+import { parseDate } from './date.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('TimeFormat');

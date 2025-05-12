@@ -4,7 +4,7 @@
  * Функції для перетворення даних у різні формати
  */
 
-import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from 'js/tasks/config/index.js';
+import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from '../../config/index.js';
 
 /**
  * Форматування в формат для API

@@ -9,8 +9,8 @@
  * @version 2.1.0
  */
 
-import BaseRenderer, { TASK_STATUS } from 'js/tasks/ui/renderers/base.js';
-import dependencyContainer from 'js/tasks/utils/index.js';
+import BaseRenderer, { TASK_STATUS } from '../base.js';
+import dependencyContainer from '../../../utils/index.js';
 
 /**
  * Рендерер для лімітованих завдань

@@ -7,9 +7,9 @@
  * - Додатковий UI для цього типу завдань
  */
 
-import { create as createBaseCard } from 'js/tasks/ui/components/card/base.js';
-import { setupActionButtons } from 'js/tasks/ui/components/card/actions.js';
-import dependencyContainer from 'js/tasks/utils/index.js';
+import { create as createBaseCard } from '../base.js';
+import { setupActionButtons } from '../actions.js';
+import dependencyContainer from '../../../../utils/index.js';
 
 /**
  * Створення картки обмеженого завдання

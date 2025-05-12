@@ -8,7 +8,7 @@
  */
 
 import { saveToCache, loadFromCache } from './cache-handlers.js';
-import { TASK_STATUS } from '../../config';
+import { TASK_STATUS } from '../../config/index.js';
 
 // Ключі для кешу
 const CACHE_KEYS = {

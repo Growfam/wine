@@ -9,8 +9,8 @@
  * @version 3.1.0
  */
 
-import { TASK_TYPES } from 'js/tasks/config/index.js';
-import { getLogger } from 'js/tasks/utils/core/logger.js';
+import { TASK_TYPES } from '../config/index.js';
+import { getLogger } from '../utils/core/logger.js';
 
 // Створюємо логер для методів системи
 const logger = getLogger('SystemMethods');
