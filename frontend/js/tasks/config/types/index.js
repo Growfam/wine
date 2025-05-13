@@ -19,5 +19,16 @@ export {
   TASK_STATUS,
   VERIFICATION_STATUS,
   SOCIAL_NETWORKS,
-  DAILY_BONUS_TYPES, // Додати цей експорт
+  DAILY_BONUS_TYPES
+};
+
+// Додаємо експорт за замовчуванням для сумісності
+export default {
+  TASK_TYPES,
+  ACTION_TYPES,
+  REWARD_TYPES,
+  TASK_STATUS,
+  VERIFICATION_STATUS,
+  SOCIAL_NETWORKS,
+  DAILY_BONUS_TYPES
 };

@@ -36,17 +36,39 @@ export async function loadModules() {
       return moduleCache;
     }
 
-    // Завантажуємо всі необхідні модулі паралельно з використанням динамічних імпортів
-    const [modelsModule, servicesModule, uiModule] = await Promise.all([
-      import('js/tasks/models/index.js'),
-      import('js/tasks/services/index.js'),
-      import('js/tasks/ui/index.js'),
-    ]);
+    // ВИПРАВЛЕНО: використовуємо повні шляхи та додаємо обробку помилок
+    try {
+      // Завантажуємо всі необхідні модулі паралельно з використанням динамічних імпортів
+      const [modelsModule, servicesModule, uiModule] = await Promise.all([
+        import('../models/index.js').catch(e => {
+          logger.error('Помилка імпорту моделей', e);
+          return {};
+        }),
+        import('../services/index.js').catch(e => {
+          logger.error('Помилка імпорту сервісів', e);
+          return {};
+        }),
+        import('../ui/index.js').catch(e => {
+          logger.error('Помилка імпорту UI', e);
+          return {};
+        }),
+      ]);
 
-    // Зберігаємо модулі в кеш
-    moduleCache.models = modelsModule;
-    moduleCache.services = servicesModule;
-    moduleCache.ui = uiModule;
+      // Зберігаємо модулі в кеш
+      moduleCache.models = modelsModule;
+      moduleCache.services = servicesModule;
+      moduleCache.ui = uiModule;
+    } catch (importError) {
+      logger.error('Критична помилка під час динамічного імпорту', importError);
+
+      // Спробуємо резервний метод завантаження
+      logger.info('Спроба використання резервного методу завантаження модулів');
+
+      // Встановлюємо порожні об'єкти для запобігання помилкам null-reference
+      moduleCache.models = moduleCache.models || {};
+      moduleCache.services = moduleCache.services || {};
+      moduleCache.ui = moduleCache.ui || {};
+    }
 
     // Ініціалізуємо API (створюємо один раз)
     if (!moduleCache.api) {
@@ -58,7 +80,14 @@ export async function loadModules() {
     return moduleCache;
   } catch (error) {
     logger.error('Помилка завантаження модулів', 'loadModules', { error });
-    throw error;
+
+    // Повертаємо частково ініціалізований кеш, щоб уникнути null-reference
+    return {
+      models: moduleCache.models || {},
+      api: moduleCache.api || taskApiFactory,
+      services: moduleCache.services || {},
+      ui: moduleCache.ui || {}
+    };
   }
 }
 
