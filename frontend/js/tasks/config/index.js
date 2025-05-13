@@ -6,7 +6,7 @@ import { TASK_STATUS } from './types/status-types.js';
 import { VERIFICATION_STATUS } from './types/verification-status.js';
 import { SOCIAL_NETWORKS } from './types/social-networks.js';
 import { DAILY_BONUS_TYPES } from './types/daily-bonus-types.js';
-import CONFIG from '../config/settings.js';
+import CONFIG from './settings.js';
 
 // Реекспорт для зручного доступу
 export {
