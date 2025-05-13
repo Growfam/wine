@@ -28,8 +28,8 @@ import {
 import { serviceFactory } from './utils/index.js';
 console.log('Фабрика сервісів ініціалізована:', !!serviceFactory);
 
-// Імпорт конфігурації
-import * as TaskTypes from './config/index.js';
+// ВИПРАВЛЕНО: імпорт конфігурації з правильним шляхом
+import * as TaskTypes from './config/types/index.js';
 import { CONFIG } from './config/settings.js';
 
 // Імпорт контейнера залежностей
