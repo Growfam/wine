@@ -4,56 +4,8 @@
  */
 
 /* Загальні стилі для секції бейджів та завдань */
-.badges-tasks-container {
-    width: 100%;
-    margin-bottom: 1.25rem;
-}
-
-/* Вкладки для перемикання між бейджами і завданнями */
-.badges-tasks-tabs {
-    display: flex;
-    width: 100%;
-    margin-bottom: 1rem;
-    background: rgba(15, 23, 42, 0.4);
-    border-radius: 0.75rem;
-    padding: 0.25rem;
-    border: none;
-}
-
-.badges-tasks-tab {
-    flex: 1;
-    text-align: center;
-    padding: 0.625rem;
-    font-size: 0.9375rem;
-    font-weight: bold;
-    color: var(--text-secondary);
-    cursor: pointer;
-    border-radius: 0.625rem;
-    transition: all 0.3s ease;
-}
-
-.badges-tasks-tab.active {
-    background: var(--primary-gradient);
-    color: white;
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.3);
-}
-
-/* Контент вкладок */
-.badges-tasks-content {
-    width: 100%;
-}
-
-.badges-tasks-pane {
-    display: none;
-}
-
-.badges-tasks-pane.active {
-    display: block;
-    animation: fade-in 0.3s ease-out;
-}
-
-/* Загальна статистика бейджів */
-.badges-stats-container {
+.badges-stats-container,
+.tasks-stats-container {
     display: flex;
     justify-content: space-between;
     gap: 0.75rem;
@@ -61,7 +13,8 @@
     margin-bottom: 1rem;
 }
 
-.badges-stats-item {
+.badges-stats-item,
+.tasks-stats-item {
     flex: 1;
     background: var(--bg-item);
     border-radius: var(--border-radius-md);
@@ -69,23 +22,134 @@
     text-align: center;
     border: 1px solid var(--border-color);
     transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
 }
 
-.badges-stats-item:hover {
+.badges-stats-item::before,
+.tasks-stats-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.badges-stats-item:hover,
+.tasks-stats-item:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-.badges-stats-label {
+.badges-stats-item:hover::before,
+.tasks-stats-item:hover::before {
+    opacity: 1;
+}
+
+.badges-stats-label,
+.tasks-stats-label {
     font-size: 0.875rem;
     color: var(--text-secondary);
     margin-bottom: 0.5rem;
 }
 
-.badges-stats-value {
+.badges-stats-value,
+.tasks-stats-value {
     font-size: 1.25rem;
     font-weight: bold;
     color: var(--text-color);
+}
+
+.badges-stats-icon,
+.tasks-stats-icon {
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: white;
+}
+
+/* Іконки бейджів */
+.bronze-badge-icon {
+    background: linear-gradient(135deg, #CD7F32, #8B4513);
+    box-shadow: 0 0 15px rgba(205, 127, 50, 0.5);
+    animation: bronze-glow 3s infinite ease-in-out;
+}
+
+.bronze-badge-icon::before {
+    content: 'B';
+}
+
+.silver-badge-icon {
+    background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+    box-shadow: 0 0 15px rgba(192, 192, 192, 0.5);
+    animation: silver-glow 3s infinite ease-in-out;
+}
+
+.silver-badge-icon::before {
+    content: 'S';
+}
+
+.gold-badge-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: gold-glow 3s infinite ease-in-out;
+}
+
+.gold-badge-icon::before {
+    content: 'G';
+}
+
+.platinum-badge-icon {
+    background: linear-gradient(135deg, #E5E4E2, #C9C0BB);
+    box-shadow: 0 0 15px rgba(229, 228, 226, 0.5);
+    animation: platinum-glow 3s infinite ease-in-out;
+}
+
+.platinum-badge-icon::before {
+    content: 'P';
+}
+
+/* Іконки завдань */
+.completed-task-icon {
+    background: linear-gradient(135deg, #00C9A7, #4CAF50);
+    box-shadow: 0 0 15px rgba(0, 201, 167, 0.5);
+    animation: completed-task-glow 3s infinite ease-in-out;
+}
+
+.completed-task-icon::before {
+    content: '✓';
+}
+
+.total-tasks-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2196F3);
+    box-shadow: 0 0 15px rgba(78, 181, 247, 0.5);
+    animation: total-tasks-glow 3s infinite ease-in-out;
+}
+
+.total-tasks-icon::before {
+    content: '#';
+}
+
+.task-reward-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: task-reward-glow 3s infinite ease-in-out;
+}
+
+.task-reward-icon::before {
+    content: '₿';
 }
 
 /* Інформація про наступний бейдж */
@@ -94,7 +158,7 @@
     border-radius: var(--border-radius-md);
     padding: var(--space-md);
     border: 1px solid var(--border-color);
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
     position: relative;
@@ -130,7 +194,7 @@
 }
 
 .next-badge-title {
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: bold;
     color: var(--text-color);
 }
@@ -242,6 +306,7 @@
 
 .bronze-icon {
     background: linear-gradient(135deg, #CD7F32, #8B4513);
+    animation: bronze-glow 3s infinite ease-in-out;
 }
 
 .bronze-icon::before {
@@ -250,6 +315,7 @@
 
 .silver-icon {
     background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+    animation: silver-glow 3s infinite ease-in-out;
 }
 
 .silver-icon::before {
@@ -258,6 +324,7 @@
 
 .gold-icon {
     background: linear-gradient(135deg, #FFD700, #FFA500);
+    animation: gold-glow 3s infinite ease-in-out;
 }
 
 .gold-icon::before {
@@ -266,6 +333,7 @@
 
 .platinum-icon {
     background: linear-gradient(135deg, #E5E4E2, #C9C0BB);
+    animation: platinum-glow 3s infinite ease-in-out;
 }
 
 .platinum-icon::before {
@@ -385,42 +453,6 @@
     background: rgba(244, 67, 54, 0.2);
     color: #F44336;
     border: 1px solid rgba(244, 67, 54, 0.3);
-}
-
-/* Загальна статистика завдань */
-.tasks-stats-container {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    width: 100%;
-    margin-bottom: 1rem;
-}
-
-.tasks-stats-item {
-    flex: 1;
-    background: var(--bg-item);
-    border-radius: var(--border-radius-md);
-    padding: 0.875rem;
-    text-align: center;
-    border: 1px solid var(--border-color);
-    transition: all 0.3s ease;
-}
-
-.tasks-stats-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
-}
-
-.tasks-stats-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-
-.tasks-stats-value {
-    font-size: 1.25rem;
-    font-weight: bold;
-    color: var(--text-color);
 }
 
 /* Список завдань */
@@ -594,14 +626,6 @@
     }
 }
 
-.badge-icon {
-    animation: badge-glow 3s infinite ease-in-out;
-}
-
-.bronze-icon {
-    animation: bronze-glow 3s infinite ease-in-out;
-}
-
 @keyframes bronze-glow {
     0% {
         box-shadow: 0 0 5px rgba(205, 127, 50, 0.5);
@@ -612,10 +636,6 @@
     100% {
         box-shadow: 0 0 5px rgba(205, 127, 50, 0.5);
     }
-}
-
-.silver-icon {
-    animation: silver-glow 3s infinite ease-in-out;
 }
 
 @keyframes silver-glow {
@@ -630,10 +650,6 @@
     }
 }
 
-.gold-icon {
-    animation: gold-glow 3s infinite ease-in-out;
-}
-
 @keyframes gold-glow {
     0% {
         box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
@@ -644,10 +660,6 @@
     100% {
         box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
     }
-}
-
-.platinum-icon {
-    animation: platinum-glow 3s infinite ease-in-out;
 }
 
 @keyframes platinum-glow {
@@ -662,20 +674,40 @@
     }
 }
 
-/* Анімація появи елемента */
-@keyframes item-appear {
+@keyframes completed-task-glow {
     0% {
-        opacity: 0;
-        transform: translateY(20px);
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(0, 201, 167, 0.8);
     }
     100% {
-        opacity: 1;
-        transform: translateY(0);
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
     }
 }
 
-.badge-item, .task-item {
-    animation: item-appear 0.5s ease-out;
+@keyframes total-tasks-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+}
+
+@keyframes task-reward-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
 }
 
 /* Анімація для виділення нового бейджа */
@@ -751,11 +783,6 @@
 }
 
 @media (max-width: 350px) {
-    .badges-tasks-tab {
-        font-size: 0.875rem;
-        padding: 0.5rem;
-    }
-
     .task-title,
     .badge-title {
         font-size: 1rem;

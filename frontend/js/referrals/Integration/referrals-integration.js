@@ -53,7 +53,7 @@ import {
   initialReferralActivityState,
   ReferralActivityActionTypes,
 
-  // НОВІ ІМПОРТИ: Функції для бейджів та завдань (Етап 6)
+  // Функції для бейджів та завдань (Етап 6)
   fetchUserBadges,
   fetchUserTasks,
   claimBadgeReward,
@@ -70,7 +70,41 @@ import {
   REFERRAL_TASK_REWARD,
   badgeReducer,
   initialBadgeState,
-  BadgeActionTypes
+  BadgeActionTypes,
+
+  // Функції для аналітики та рейтингу (Етап 7)
+  getReferralRanking,
+  getTopReferrals,
+  findUserRankPosition,
+  generateLeaderboard,
+  analyzeEarningsStructure,
+  sortReferralsByEarnings,
+  sortByInvitedCount,
+  sortByDrawsParticipation,
+  filterAndSortReferrals,
+  formatWinixAmount,
+
+  // Функції для участі в розіграшах (Етап 7)
+  fetchReferralDrawsAction,
+  fetchDrawsStatsAction,
+  fetchDrawsRankingAction,
+  analyzeDrawsParticipationAction,
+  getDrawsParticipationRecommendations,
+  getReferralsByDrawsRanking,
+  getDrawsParticipationSummary,
+  drawParticipationReducer,
+  initialDrawParticipationState,
+  DrawParticipationActionTypes,
+
+  // Функції для підсумкового розрахунку (Етап 8)
+  calculateTotalRewardsAction,
+  predictFutureRewardsAction,
+  calculateROIAction,
+  analyzeRewardsDistributionAction,
+  comprehensiveRewardsAnalysisAction,
+  calculateRewardsReducer,
+  initialCalculateRewardsState,
+  CalculateRewardsActionTypes
 } from '../index.js';
 
 // Стан додатку
@@ -80,7 +114,9 @@ let appState = {
   referralLevels: initialReferralLevelsState,
   levelRewards: initialLevelRewardsState,       // Відсоткові винагороди
   referralActivity: initialReferralActivityState, // Активність рефералів
-  badges: initialBadgeState,                    // НОВИЙ СТАН: Бейджі та завдання
+  badges: initialBadgeState,                    // Бейджі та завдання
+  drawParticipation: initialDrawParticipationState, // Участь у розіграшах
+  rewardsCalculation: initialCalculateRewardsState, // Обчислення винагород
   userId: null
 };
 
@@ -117,13 +153,34 @@ const dispatch = (action) => {
     // Оновлюємо UI активності рефералів
     renderReferralActivityUI();
   }
-  // НОВА ЛОГІКА: Обробка дій бейджів та завдань (Етап 6)
+  // Обробка дій бейджів та завдань (Етап 6)
   else if (action.type.startsWith('FETCH_BADGES') || action.type.startsWith('FETCH_TASKS') ||
            action.type.startsWith('CLAIM_BADGE') || action.type.startsWith('CLAIM_TASK')) {
     // Оновлюємо стан бейджів та завдань
     appState.badges = badgeReducer(appState.badges, action);
     // Оновлюємо UI бейджів та завдань
     renderBadgesAndTasksUI();
+  }
+  // Обробка дій участі в розіграшах (Етап 7)
+  else if (action.type.startsWith('FETCH_REFERRAL_DRAWS') ||
+           action.type.startsWith('FETCH_DRAWS_STATS') ||
+           action.type.startsWith('FETCH_DRAWS_RANKING') ||
+           action.type.startsWith('ANALYZE_DRAWS_PARTICIPATION')) {
+    // Оновлюємо стан участі в розіграшах
+    appState.drawParticipation = drawParticipationReducer(appState.drawParticipation, action);
+    // Оновлюємо UI участі в розіграшах
+    renderDrawParticipationUI();
+  }
+  // Обробка дій обчислення винагород (Етап 8)
+  else if (action.type.startsWith('CALCULATE_TOTAL_REWARDS') ||
+           action.type.startsWith('PREDICT_FUTURE_REWARDS') ||
+           action.type.startsWith('CALCULATE_ROI') ||
+           action.type.startsWith('ANALYZE_REWARDS_DISTRIBUTION') ||
+           action.type.startsWith('COMPREHENSIVE_REWARDS_ANALYSIS')) {
+    // Оновлюємо стан обчислення винагород
+    appState.rewardsCalculation = calculateRewardsReducer(appState.rewardsCalculation, action);
+    // Оновлюємо UI обчислення винагород
+    renderTotalEarningsUI();
   }
 };
 
@@ -153,12 +210,12 @@ export const initReferralSystem = () => {
   // Отримуємо дані про активність рефералів (Етап 5)
   getReferralActivity(userId);
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо дані про бейджі та завдання (Етап 6)
+  // Автоматично обробляємо реферальний параметр з URL
+autoProcessReferral();
+
+  // Отримуємо дані про бейджі та завдання (Етап 6)
   getUserBadges(userId);
   getUserTasks(userId);
-
-  // Налаштовуємо обробник для форми реєстрації реферала
-  setupReferralRegistrationForm();
 
   // Налаштовуємо вкладки для структури рефералів
   setupReferralTabs();
@@ -166,15 +223,18 @@ export const initReferralSystem = () => {
   // Налаштовуємо обробник для деталей реферала
   setupReferralDetails();
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Налаштовуємо обробники для бейджів та завдань
+  // Налаштовуємо обробники для бейджів та завдань
   setupBadgesAndTasksHandlers();
+
   // Отримуємо дані про участь у розіграшах (Етап 7)
+  getReferralDrawsData(userId);
+  getDrawsRanking(userId);
 
-getReferralDrawsData(userId);
-getDrawsRanking(userId);
+  // Налаштовуємо обробники для рейтингу та аналітики
+  setupReferralRankingHandlers();
 
-// Налаштовуємо обробники для рейтингу та аналітики
-setupReferralRankingHandlers();
+  // Отримуємо загальні дані про винагороди (Етап 8)
+  calculateTotalEarnings(userId);
 };
 
 /**
@@ -226,7 +286,7 @@ const setupUIElements = () => {
     element.textContent = MIN_INVITED_REFERRALS;
   });
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображаємо пороги та винагороди за бейджі
+  // Відображаємо пороги та винагороди за бейджі
   const bronzeThresholdElements = document.querySelectorAll('.bronze-threshold');
   bronzeThresholdElements.forEach(element => {
     element.textContent = BRONZE_BADGE_THRESHOLD;
@@ -280,52 +340,17 @@ const setupUIElements = () => {
 };
 
 /**
- * Налаштовує форму реєстрації реферала
- */
-const setupReferralRegistrationForm = () => {
-  const registerForm = document.querySelector('#referral-registration-form');
-  if (!registerForm) return;
-
-  registerForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const referralId = registerForm.querySelector('#referral-id').value.trim();
-    if (!referralId) {
-      showToast('Будь ласка, введіть ID реферала', 'error');
-      return;
-    }
-
-    try {
-      // Реєструємо реферала і нараховуємо бонус
-      await registerNewReferral(appState.userId, referralId);
-
-      // Оновлюємо статистику рефералів після реєстрації
-      await getReferralStats(appState.userId);
-
-      // Оновлюємо статистику винагород
-      await getLevelRewards(appState.userId);
-
-      // Оновлюємо статистику активності
-      await getReferralActivity(appState.userId);
-
-      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлюємо статистику бейджів та завдань
-      await getUserBadges(appState.userId);
-      await getUserTasks(appState.userId);
-    } catch (error) {
-      console.error('Error registering referral:', error);
-      showToast(error.message || 'Помилка реєстрації реферала', 'error');
-    }
-  });
-};
-
-/**
  * Налаштовує вкладки для структури рефералів
  */
 const setupReferralTabs = () => {
+  console.log("Setting up tabs...");
   const tabs = document.querySelectorAll('.referral-tab');
+  console.log("Found tabs:", tabs.length);
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
+      console.log("Tab clicked:", tab.dataset.tab);
+
       // Видаляємо клас active з усіх вкладок
       tabs.forEach(t => t.classList.remove('active'));
 
@@ -343,28 +368,52 @@ const setupReferralTabs = () => {
       const activePane = document.getElementById(`${tabId}-tab`);
       if (activePane) {
         activePane.classList.add('active');
-      }
-
-      // Якщо це вкладка ієрархії, будуємо ієрархію рефералів
-      if (tabId === 'hierarchy') {
-        renderReferralHierarchy();
-      }
-
-      // Відображення винагород та активності на відповідних вкладках
-      if (tabId === 'rewards') {
-        renderReferralRewardsDetails();
-      }
-
-      if (tabId === 'activity') {
-        renderReferralActivityDetails();
-      }
-
-      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображення бейджів та завдань на відповідній вкладці
-      if (tabId === 'badges') {
-        renderBadgesDetails();
+        console.log("Activated pane:", tabId);
+      } else {
+        console.error("Pane not found:", `${tabId}-tab`);
       }
     });
   });
+};
+
+/**
+ * Автоматично обробляє реферальний параметр з URL
+ */
+const autoProcessReferral = async () => {
+  // Отримуємо реферальний параметр з URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const referrerId = urlParams.get('ref') || urlParams.get('referrer_id');
+
+  // Перевіряємо наявність параметра та чи не є поточний користувач сам своїм рефералом
+  if (referrerId && referrerId !== appState.userId) {
+    try {
+      // Зберігаємо referrerId в localStorage, щоб використати його при реєстрації
+      localStorage.setItem('referrer_id', referrerId);
+
+      // Перевіряємо, чи не було вже зараховано цього реферала
+      const isProcessed = localStorage.getItem('referral_processed');
+
+      if (!isProcessed) {
+        // Реєструємо реферала і нараховуємо бонус
+        await registerNewReferral(referrerId, appState.userId);
+
+        // Позначаємо, що реферал був зарахований
+        localStorage.setItem('referral_processed', 'true');
+
+        // Оновлюємо статистику
+        await getReferralStats(appState.userId);
+        await getLevelRewards(appState.userId);
+        await getReferralActivity(appState.userId);
+        await getUserBadges(appState.userId);
+        await getUserTasks(appState.userId);
+
+        console.log(`Користувач автоматично зареєстрований як реферал користувача ${referrerId}`);
+      }
+    } catch (error) {
+      console.error('Error auto-processing referral:', error);
+      // Не показуємо помилку користувачу, оскільки процес відбувається автоматично
+    }
+  }
 };
 
 /**
@@ -403,7 +452,7 @@ const setupReferralDetails = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Налаштовує обробники для бейджів та завдань
+ * Налаштовує обробники для бейджів та завдань
  */
 const setupBadgesAndTasksHandlers = () => {
   // Налаштовуємо обробники для кнопок отримання винагороди за бейджі
@@ -416,6 +465,9 @@ const setupBadgesAndTasksHandlers = () => {
         showToast(`Бейдж ${badgeType} успішно отримано!`);
         await getUserBadges(appState.userId);
         updateUserBalance(getBadgeReward(badgeType));
+
+        // Оновлюємо загальний заробіток після нарахування винагороди
+        calculateTotalEarnings(appState.userId);
       } catch (error) {
         console.error('Error claiming badge reward:', error);
         showToast(error.message || 'Помилка отримання винагороди за бейдж', 'error');
@@ -433,6 +485,9 @@ const setupBadgesAndTasksHandlers = () => {
         showToast(`Винагороду за завдання успішно отримано!`);
         await getUserTasks(appState.userId);
         updateUserBalance(getTaskReward(taskType));
+
+        // Оновлюємо загальний заробіток після нарахування винагороди
+        calculateTotalEarnings(appState.userId);
       } catch (error) {
         console.error('Error claiming task reward:', error);
         showToast(error.message || 'Помилка отримання винагороди за завдання', 'error');
@@ -769,7 +824,7 @@ const getReferralActivity = async (userId) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про бейджі користувача
+ * Отримує дані про бейджі користувача
  * @param {string} userId - ID користувача
  */
 const getUserBadges = async (userId) => {
@@ -792,7 +847,7 @@ const getUserBadges = async (userId) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про завдання користувача
+ * Отримує дані про завдання користувача
  * @param {string} userId - ID користувача
  */
 const getUserTasks = async (userId) => {
@@ -812,7 +867,159 @@ const getUserTasks = async (userId) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає деталі бейджів
+ * Отримує дані про участь у розіграшах для конкретного реферала
+ * @param {string} userId - ID користувача
+ */
+const getReferralDrawsData = async (userId) => {
+  try {
+    // Використовуємо дію для отримання даних про участь у розіграшах
+    const drawsData = await fetchReferralDrawsAction(userId)(dispatch);
+
+    // Оновлюємо інтерфейс
+    renderDrawParticipationUI();
+
+    return drawsData;
+  } catch (error) {
+    console.error('Error fetching referral draws data:', error);
+    showToast('Помилка при отриманні даних про участь у розіграшах', 'error');
+  }
+};
+
+/**
+ * Отримує рейтинг рефералів за участю в розіграшах
+ * @param {string} ownerId - ID власника рефералів
+ */
+const getDrawsRanking = async (ownerId) => {
+  try {
+    // Використовуємо дію для отримання рейтингу
+    const rankingData = await fetchDrawsRankingAction(ownerId)(dispatch);
+
+    // Отримуємо аналіз участі
+    const analysisData = await analyzeDrawsParticipationAction(ownerId, { includeDetails: true })(dispatch);
+
+    // Оновлюємо інтерфейс
+    renderDrawsRankingUI(rankingData, analysisData);
+
+    return { rankingData, analysisData };
+  } catch (error) {
+    console.error('Error fetching draws ranking:', error);
+    showToast('Помилка при отриманні рейтингу за участю в розіграшах', 'error');
+  }
+};
+
+/**
+ * Обчислює загальний заробіток від реферальної програми
+ * @param {string} userId - ID користувача
+ */
+const calculateTotalEarnings = async (userId) => {
+  try {
+    // Використовуємо дію для розрахунку загальних винагород
+    const totalRewardsData = await calculateTotalRewardsAction(userId)(dispatch);
+
+    // Оновлюємо інтерфейс
+    renderTotalEarningsUI();
+
+    return totalRewardsData;
+  } catch (error) {
+    console.error('Error calculating total earnings:', error);
+    showToast('Помилка при розрахунку загального заробітку', 'error');
+  }
+};
+
+/**
+ * Налаштовує обробники для рейтингу та аналітики рефералів
+ */
+const setupReferralRankingHandlers = () => {
+  // Налаштовуємо кнопки сортування рейтингу
+  const sortButtons = document.querySelectorAll('.sort-ranking-button');
+  if (sortButtons.length > 0) {
+    sortButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const sortBy = button.dataset.sortBy || 'earnings';
+        renderReferralRankingUI(sortBy);
+      });
+    });
+  }
+
+  // Налаштовуємо перемикач для показу/приховання неактивних рефералів
+  const showInactiveToggle = document.getElementById('show-inactive-toggle');
+  if (showInactiveToggle) {
+    showInactiveToggle.addEventListener('change', () => {
+      renderReferralRankingUI();
+    });
+  }
+
+  // Налаштовуємо кнопку аналізу заробітку
+  const analyzeEarningsButton = document.getElementById('analyze-earnings-button');
+  if (analyzeEarningsButton) {
+    analyzeEarningsButton.addEventListener('click', async () => {
+      try {
+        await analyzeReferralEarnings();
+      } catch (error) {
+        console.error('Error analyzing earnings:', error);
+        showToast('Помилка при аналізі заробітку', 'error');
+      }
+    });
+  }
+
+  // Налаштовуємо кнопку перегляду лідерської дошки
+  const viewMoreButton = document.querySelector('.view-more-button');
+  if (viewMoreButton) {
+    viewMoreButton.addEventListener('click', () => {
+      generateAndDisplayLeaderboard();
+    });
+  }
+};
+
+/**
+ * Аналізує заробіток рефералів
+ */
+const analyzeReferralEarnings = async () => {
+  try {
+    // Об'єднуємо усіх рефералів
+    const allReferrals = [...appState.referralLevels.level1Data, ...appState.referralLevels.level2Data];
+
+    // Отримуємо аналіз заробітку
+    const earningsData = await analyzeEarningsStructure(appState.userId, allReferrals);
+
+    // Відображаємо аналіз
+    renderEarningsAnalysisUI(earningsData);
+
+    return earningsData;
+  } catch (error) {
+    console.error('Error analyzing referral earnings:', error);
+    showToast('Помилка при аналізі заробітку рефералів', 'error');
+    throw error;
+  }
+};
+
+/**
+ * Генерує та відображає лідерську дошку
+ */
+const generateAndDisplayLeaderboard = async () => {
+  try {
+    // Об'єднуємо усіх рефералів
+    const allReferrals = [...appState.referralLevels.level1Data, ...appState.referralLevels.level2Data];
+
+    // Отримуємо дані для лідерської дошки
+    const leaderboardData = await generateLeaderboard(appState.userId, allReferrals, {
+      topCount: 10,
+      includeUserPosition: true,
+      sortBy: 'earnings'
+    });
+
+    // Відображаємо лідерську дошку
+    renderLeaderboardUI(leaderboardData);
+
+    return leaderboardData;
+  } catch (error) {
+    console.error('Error generating leaderboard:', error);
+    showToast('Помилка при генерації лідерської дошки', 'error');
+  }
+};
+
+/**
+ * Відображає деталі бейджів
  */
 const renderBadgesDetails = () => {
   // Якщо дані про бейджі відсутні, отримуємо їх
@@ -1194,7 +1401,7 @@ const renderReferralActivityDetails = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює інтерфейс даними про бейджі та завдання
+ * Оновлює інтерфейс даними про бейджі та завдання
  */
 const renderBadgesAndTasksUI = () => {
   renderBadgesUI(appState.badges);
@@ -1202,7 +1409,7 @@ const renderBadgesAndTasksUI = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про бейджі в інтерфейсі
+ * Відображає дані про бейджі в інтерфейсі
  * @param {Object} badgesData - Дані про бейджі
  */
 const renderBadgesUI = (badgesData) => {
@@ -1278,7 +1485,7 @@ const renderBadgesUI = (badgesData) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає список бейджів
+ * Відображає список бейджів
  * @param {Object} badgesData - Дані про бейджі
  */
 const renderBadgesList = (badgesData) => {
@@ -1336,7 +1543,7 @@ const renderBadgesList = (badgesData) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про завдання в інтерфейсі
+ * Відображає дані про завдання в інтерфейсі
  * @param {Object} tasksData - Дані про завдання
  */
 const renderTasksUI = (tasksData) => {
@@ -1387,7 +1594,7 @@ const renderTasksUI = (tasksData) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає список завдань
+ * Відображає список завдань
  * @param {Object} tasksData - Дані про завдання
  */
 const renderTasksList = (tasksData) => {
@@ -1593,6 +1800,207 @@ const renderActivityRecommendations = (recommendations) => {
 };
 
 /**
+ * Відображає інтерфейс участі в розіграшах
+ */
+const renderDrawParticipationUI = () => {
+  // Оновлюємо дані про участь у розіграшах, якщо вони доступні
+  if (appState.drawParticipation.referralDraws.data) {
+    // Тут можна додати оновлення елементів інтерфейсу для даних про розіграші
+    // Наприклад, показати кількість розіграшів у відповідних елементах
+  }
+
+  // Оновлюємо статистику по розіграшах
+  if (appState.drawParticipation.drawsStats.data) {
+    // Оновлюємо статистику розіграшів
+  }
+
+  // Оновлюємо рейтинг рефералів по розіграшах
+  if (appState.drawParticipation.drawsRanking.data) {
+    // Оновлюємо таблицю рейтингу
+  }
+};
+
+/**
+ * Відображає рейтинг участі в розіграшах
+ * @param {Array} rankingData - Дані про рейтинг
+ * @param {Object} analysisData - Дані аналізу
+ */
+const renderDrawsRankingUI = (rankingData, analysisData) => {
+  // Тут можна реалізувати відображення рейтингу рефералів за участю в розіграшах
+};
+
+/**
+ * Відображає інтерфейс загального заробітку
+ */
+const renderTotalEarningsUI = () => {
+  // Оновлюємо загальний заробіток, якщо є дані
+  if (appState.rewardsCalculation.totalRewards.data) {
+    const totalEarnings = appState.rewardsCalculation.totalRewards.data.totalEarnings || 0;
+    const totalEarningsElement = document.querySelector('#total-earnings-stats .stats-value');
+    if (totalEarningsElement) {
+      totalEarningsElement.textContent = totalEarnings;
+    }
+  }
+};
+
+/**
+ * Відображає рейтинг рефералів
+ * @param {string} sortBy - Критерій сортування
+ */
+const renderReferralRankingUI = (sortBy = 'earnings') => {
+  // Отримуємо дані рефералів
+  const referrals = [...appState.referralLevels.level1Data, ...appState.referralLevels.level2Data];
+
+  // Перевіряємо, чи показувати неактивних рефералів
+  const showInactiveToggle = document.getElementById('show-inactive-toggle');
+  const showInactive = showInactiveToggle ? showInactiveToggle.checked : true;
+
+  // Фільтруємо реферали, якщо потрібно
+  const filteredReferrals = showInactive
+    ? referrals
+    : referrals.filter(ref => ref.active);
+
+  // Сортуємо реферали за вибраним критерієм
+  const sortedReferrals = filterAndSortReferrals(filteredReferrals, {}, { by: sortBy });
+
+  // Відображаємо рейтинг в контейнері
+  const rankingContainer = document.getElementById('referrals-ranking-container');
+  if (!rankingContainer) return;
+
+  // Очищуємо контейнер
+  rankingContainer.innerHTML = '';
+
+  if (sortedReferrals.length === 0) {
+    rankingContainer.innerHTML = '<div class="empty-list">Немає даних про рефералів</div>';
+    return;
+  }
+
+  // Створюємо таблицю рейтингу
+  const table = document.createElement('table');
+  table.className = 'referrals-ranking-table';
+
+  // Створюємо заголовок таблиці
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr>
+      <th class="rank-col">Місце</th>
+      <th class="id-col">ID реферала</th>
+      <th class="level-col">Рівень</th>
+      <th class="earnings-col">Заробіток</th>
+      <th class="invited-col">Запрошено</th>
+      <th class="draws-col">Розіграші</th>
+      <th class="status-col">Статус</th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  // Створюємо тіло таблиці
+  const tbody = document.createElement('tbody');
+
+  sortedReferrals.forEach((referral, index) => {
+    const row = document.createElement('tr');
+    row.className = referral.active ? 'active-row' : '';
+    row.dataset.id = referral.id;
+
+    // Форматуємо заробіток
+    const formattedEarnings = formatWinixAmount(referral.totalEarnings || 0, { showCurrency: false });
+
+    row.innerHTML = `
+      <td class="rank-col">${index + 1}</td>
+      <td class="id-col">${referral.id}</td>
+      <td class="level-col">${referral.level || 1}</td>
+      <td class="earnings-col">${formattedEarnings}</td>
+      <td class="invited-col">${referral.invitedCount || 0}</td>
+      <td class="draws-col">${referral.drawsParticipation || 0}</td>
+      <td class="status-col">
+        <span class="status-badge ${referral.active ? 'active' : 'inactive'}">
+          ${referral.active ? 'Активний' : 'Неактивний'}
+        </span>
+      </td>
+    `;
+
+    tbody.appendChild(row);
+  });
+
+  table.appendChild(tbody);
+  rankingContainer.appendChild(table);
+
+  // Додаємо обробники кліків на рядки таблиці
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    row.addEventListener('click', () => {
+      const referralId = row.dataset.id;
+      if (referralId) {
+        showReferralDetails(referralId);
+      }
+    });
+  });
+};
+
+/**
+ * Відображає лідерську дошку
+ * @param {Object} leaderboardData - Дані для лідерської дошки
+ */
+const renderLeaderboardUI = (leaderboardData) => {
+  const leaderboardContainer = document.querySelector('.leaderboard-items');
+  if (!leaderboardContainer) return;
+
+  // Очищуємо контейнер
+  leaderboardContainer.innerHTML = '';
+
+  // Якщо немає даних, показуємо повідомлення
+  if (!leaderboardData || !leaderboardData.topUsers || leaderboardData.topUsers.length === 0) {
+    leaderboardContainer.innerHTML = '<div class="empty-list">Немає даних для лідерської дошки</div>';
+    return;
+  }
+
+  // Додаємо топ користувачів
+  leaderboardData.topUsers.forEach((user, index) => {
+    const position = index + 1;
+    const isTopThree = position <= 3;
+
+    const userItem = document.createElement('div');
+    userItem.className = 'leaderboard-item';
+
+    userItem.innerHTML = `
+      <div class="position ${isTopThree ? 'top-3' : ''}">${position}</div>
+      <div class="user-info">
+        <div class="username">${user.id}</div>
+        <div class="referral-count">${user.referralCount || 0} рефералів</div>
+      </div>
+      <div class="user-reward">${formatWinixAmount(user.totalEarnings || 0)}</div>
+    `;
+
+    leaderboardContainer.appendChild(userItem);
+  });
+
+  // Додаємо поточного користувача, якщо він не в топі
+  if (leaderboardData.userEntry && !leaderboardData.topUsers.some(user => user.id === leaderboardData.userEntry.id)) {
+    const userItem = document.createElement('div');
+    userItem.className = 'leaderboard-item current-user';
+
+    userItem.innerHTML = `
+      <div class="position">${leaderboardData.userPosition || '-'}</div>
+      <div class="user-info">
+        <div class="username">Ви</div>
+        <div class="referral-count">${leaderboardData.userEntry.referralCount || 0} рефералів</div>
+      </div>
+      <div class="user-reward">${formatWinixAmount(leaderboardData.userEntry.totalEarnings || 0)}</div>
+    `;
+
+    leaderboardContainer.appendChild(userItem);
+  }
+};
+
+/**
+ * Відображає аналіз заробітку
+ * @param {Object} earningsData - Дані аналізу заробітку
+ */
+const renderEarningsAnalysisUI = (earningsData) => {
+  // Тут можна реалізувати відображення аналізу заробітку
+};
+
+/**
  * Оновлює загальний заробіток з урахуванням різних джерел доходу
  */
 const updateTotalEarnings = () => {
@@ -1604,7 +2012,7 @@ const updateTotalEarnings = () => {
     ? appState.levelRewards.summary.totalPercentageReward || 0
     : 0;
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо суму винагород за бейджі та завдання
+  // Отримуємо суму винагород за бейджі та завдання
   const badgesRewardAmount = appState.badges.earnedBadgesReward || 0;
   const tasksRewardAmount = appState.badges.totalTasksReward || 0;
 
@@ -1626,7 +2034,7 @@ const updateTotalEarnings = () => {
 
 /**
  * Реєструє нового реферала і нараховує бонус
- * @param {string} referrerId - ID реферера (поточного користувача)
+ * @param {string} referrerId - ID користувача, який запросив
  * @param {string} userId - ID нового користувача (реферала)
  */
 const registerNewReferral = async (referrerId, userId) => {
@@ -1785,17 +2193,6 @@ const renderDirectBonusUI = () => {
   if (userReward) {
     userReward.textContent = totalBonus;
   }
-
-  // Відображаємо індикатор завантаження, якщо потрібно
-  if (isLoading) {
-    // Тут можна додати логіку для відображення індикатора завантаження
-  }
-
-  // Відображаємо помилку, якщо вона є
-  if (error) {
-    console.error('Direct bonus error:', error);
-    // Тут можна додати логіку для відображення помилки
-  }
 };
 
 /**
@@ -1875,349 +2272,21 @@ const renderReferralLevelsUI = () => {
       card.classList.remove('loading');
     });
   }
-
-  // Відображаємо помилку, якщо вона є
-  if (error) {
-    console.error('Referral levels error:', error);
-    // Тут можна додати логіку для відображення помилки
-  }
 };
 
 /**
- * Оновлює інтерфейс користувача відповідно до стану відсоткових винагород
+ * Допоміжна функція для вибору правильної форми слова "реферал"
+ * @param {number} count - Кількість
+ * @returns {string} Відмінювана форма слова
  */
-const renderLevelRewardsUI = () => {
-  const { level1Rewards, level2Rewards, summary, isLoading, error } = appState.levelRewards;
-
-  // Оновлюємо загальний заробіток з урахуванням прямих бонусів та відсоткових винагород
-  updateTotalEarnings();
-
-  // Оновлюємо винагороди в елементах інтерфейсу, якщо вони є
-  const level1RewardElement = document.querySelector('.level1-reward');
-  if (level1RewardElement) {
-    level1RewardElement.textContent = level1Rewards.totalReward || 0;
-  }
-
-  const level2RewardElement = document.querySelector('.level2-reward');
-  if (level2RewardElement) {
-    level2RewardElement.textContent = level2Rewards.totalReward || 0;
-  }
-
-  // Відображаємо індикатор завантаження, якщо потрібно
-  if (isLoading) {
-    const rewardsElements = document.querySelectorAll('.rewards-section');
-    rewardsElements.forEach(element => {
-      element.classList.add('loading');
-    });
+const pluralizeReferral = (count) => {
+  if (count === 1) {
+    return 'реферал';
+  } else if (count >= 2 && count <= 4) {
+    return 'реферали';
   } else {
-    const rewardsElements = document.querySelectorAll('.rewards-section');
-    rewardsElements.forEach(element => {
-      element.classList.remove('loading');
-    });
+    return 'рефералів';
   }
-
-  // Відображаємо помилку, якщо вона є
-  if (error) {
-    console.error('Level rewards error:', error);
-    // Тут можна додати логіку для відображення помилки
-  }
-
-  // Оновлюємо деталі винагород, якщо відкрита відповідна вкладка
-  const rewardsTab = document.querySelector('.referral-tab[data-tab="rewards"]');
-  if (rewardsTab && rewardsTab.classList.contains('active')) {
-    renderReferralRewardsDetails();
-  }
-};
-
-/**
- * Оновлює інтерфейс користувача відповідно до стану активності рефералів
- */
-const renderReferralActivityUI = () => {
-  const { activeReferrals, activityStats, isLoading, error } = appState.referralActivity;
-
-  // Оновлюємо кількість активних рефералів
-  const activeReferralsCountElement = document.querySelector('.active-referrals-count');
-  if (activeReferralsCountElement) {
-    activeReferralsCountElement.textContent = activityStats.activeReferralsCount || 0;
-  }
-
-  // Оновлюємо відсоток конверсії
-  const conversionRateElement = document.querySelector('.conversion-rate');
-  if (conversionRateElement) {
-    const formattedRate = ((activityStats.conversionRate || 0) * 100).toFixed(1);
-    conversionRateElement.textContent = `${formattedRate}%`;
-  }
-
-  // Оновлюємо статус для рефералів у списках
-  updateReferralStatusInLists();
-
-  // Відображаємо індикатор завантаження, якщо потрібно
-  if (isLoading) {
-    const activityElements = document.querySelectorAll('.activity-section');
-    activityElements.forEach(element => {
-      element.classList.add('loading');
-    });
-  } else {
-    const activityElements = document.querySelectorAll('.activity-section');
-    activityElements.forEach(element => {
-      element.classList.remove('loading');
-    });
-  }
-
-  // Відображаємо помилку, якщо вона є
-  if (error) {
-    console.error('Referral activity error:', error);
-    // Тут можна додати логіку для відображення помилки
-  }
-
-  // Оновлюємо деталі активності, якщо відкрита відповідна вкладка
-  const activityTab = document.querySelector('.referral-tab[data-tab="activity"]');
-  if (activityTab && activityTab.classList.contains('active')) {
-    renderReferralActivityDetails();
-  }
-};
-
-/**
- * Оновлює статус активності рефералів у списках
- */
-const updateReferralStatusInLists = () => {
-  // Отримуємо ID активних рефералів 1-го рівня
-  const activeLevel1Ids = appState.referralActivity.activeReferrals.level1.map(ref => ref.id);
-
-  // Оновлюємо статус для рефералів 1-го рівня
-  const level1Items = document.querySelectorAll('.referral-item.level-1');
-  level1Items.forEach(item => {
-    const referralId = item.dataset.id;
-    const statusElement = item.querySelector('.referral-status');
-
-    if (statusElement) {
-      if (activeLevel1Ids.includes(referralId)) {
-        // Реферал активний
-        statusElement.classList.remove('inactive');
-        statusElement.classList.add('active');
-        statusElement.textContent = 'Активний';
-      } else {
-        // Реферал неактивний
-        statusElement.classList.remove('active');
-        statusElement.classList.add('inactive');
-        statusElement.textContent = 'Неактивний';
-      }
-    }
-  });
-
-  // Отримуємо ID активних рефералів 2-го рівня
-  const activeLevel2Ids = appState.referralActivity.activeReferrals.level2.map(ref => ref.id);
-
-  // Оновлюємо статус для рефералів 2-го рівня
-  const level2Items = document.querySelectorAll('.referral-item.level-2');
-  level2Items.forEach(item => {
-    const referralId = item.dataset.id;
-    const statusElement = item.querySelector('.referral-status');
-
-    if (statusElement) {
-      if (activeLevel2Ids.includes(referralId)) {
-        // Реферал активний
-        statusElement.classList.remove('inactive');
-        statusElement.classList.add('active');
-        statusElement.textContent = 'Активний';
-      } else {
-        // Реферал неактивний
-        statusElement.classList.remove('active');
-        statusElement.classList.add('inactive');
-        statusElement.textContent = 'Неактивний';
-      }
-    }
-  });
-};
-
-// Ініціалізуємо реферальну систему при завантаженні сторінки
-document.addEventListener('DOMContentLoaded', initReferralSystem);
-
-/**
- * Отримує дані про участь у розіграшах для конкретного реферала
- * @param {string} referralId - ID реферала
- */
-const getReferralDrawsData = async (referralId) => {
-  try {
-    // Використовуємо дію для отримання даних про участь у розіграшах
-    const drawsData = await fetchReferralDrawsAction(referralId)(dispatch);
-
-    // Оновлюємо інтерфейс
-    renderDrawParticipationUI();
-  } catch (error) {
-    console.error('Error fetching referral draws data:', error);
-    showToast('Помилка при отриманні даних про участь у розіграшах', 'error');
-  }
-};
-
-/**
- * Отримує рейтинг рефералів за участю в розіграшах
- * @param {string} ownerId - ID власника рефералів
- */
-const getDrawsRanking = async (ownerId) => {
-  try {
-    // Використовуємо дію для отримання рейтингу
-    const rankingData = await fetchDrawsRankingAction(ownerId, 10)(dispatch);
-
-    // Отримуємо аналіз участі
-    const analysisData = await analyzeDrawsParticipationAction(ownerId, { includeDetails: true })(dispatch);
-
-    // Оновлюємо інтерфейс
-    renderDrawsRankingUI(rankingData, analysisData);
-  } catch (error) {
-    console.error('Error fetching draws ranking:', error);
-    showToast('Помилка при отриманні рейтингу за участю в розіграшах', 'error');
-  }
-};
-
-/**
- * Налаштовує обробники для рейтингу та аналітики рефералів
- */
-const setupReferralRankingHandlers = () => {
-  // Налаштовуємо кнопки сортування рейтингу
-  const sortButtons = document.querySelectorAll('.sort-ranking-button');
-  if (sortButtons.length > 0) {
-    sortButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const sortBy = button.dataset.sortBy || 'earnings';
-        renderReferralRankingUI(sortBy);
-      });
-    });
-  }
-
-  // Налаштовуємо перемикач для показу/приховання неактивних рефералів
-  const showInactiveToggle = document.getElementById('show-inactive-toggle');
-  if (showInactiveToggle) {
-    showInactiveToggle.addEventListener('change', () => {
-      renderReferralRankingUI();
-    });
-  }
-
-  // Налаштовуємо кнопку аналізу заробітку
-  const analyzeEarningsButton = document.getElementById('analyze-earnings-button');
-  if (analyzeEarningsButton) {
-    analyzeEarningsButton.addEventListener('click', async () => {
-      try {
-        await analyzeReferralEarnings();
-      } catch (error) {
-        console.error('Error analyzing earnings:', error);
-        showToast('Помилка при аналізі заробітку', 'error');
-      }
-    });
-  }
-};
-
-/**
- * Аналізує заробіток рефералів
- */
-const analyzeReferralEarnings = async () => {
-  try {
-    // Отримуємо аналіз заробітку
-    const earningsData = await analyzeEarningsStructure(appState.userId, appState.referralLevels.level1Data.concat(appState.referralLevels.level2Data));
-
-    // Відображаємо аналіз
-    renderEarningsAnalysisUI(earningsData);
-
-    return earningsData;
-  } catch (error) {
-    console.error('Error analyzing referral earnings:', error);
-    showToast('Помилка при аналізі заробітку рефералів', 'error');
-    throw error;
-  }
-};
-
-/**
- * Відображає рейтинг рефералів
- * @param {string} sortBy - Критерій сортування
- */
-const renderReferralRankingUI = (sortBy = 'earnings') => {
-  // Отримуємо дані рефералів
-  const referrals = [...appState.referralLevels.level1Data, ...appState.referralLevels.level2Data];
-
-  // Перевіряємо, чи показувати неактивних рефералів
-  const showInactiveToggle = document.getElementById('show-inactive-toggle');
-  const showInactive = showInactiveToggle ? showInactiveToggle.checked : true;
-
-  // Фільтруємо реферали, якщо потрібно
-  const filteredReferrals = showInactive
-    ? referrals
-    : referrals.filter(ref => ref.active);
-
-  // Сортуємо реферали за вибраним критерієм
-  const sortedReferrals = filterAndSortReferrals(filteredReferrals, {}, { by: sortBy });
-
-  // Відображаємо рейтинг в контейнері
-  const rankingContainer = document.getElementById('referrals-ranking-container');
-  if (!rankingContainer) return;
-
-  // Очищуємо контейнер
-  rankingContainer.innerHTML = '';
-
-  if (sortedReferrals.length === 0) {
-    rankingContainer.innerHTML = '<div class="empty-list">Немає даних про рефералів</div>';
-    return;
-  }
-
-  // Створюємо таблицю рейтингу
-  const table = document.createElement('table');
-  table.className = 'referrals-ranking-table';
-
-  // Створюємо заголовок таблиці
-  const thead = document.createElement('thead');
-  thead.innerHTML = `
-    <tr>
-      <th class="rank-col">Місце</th>
-      <th class="id-col">ID реферала</th>
-      <th class="level-col">Рівень</th>
-      <th class="earnings-col">Заробіток</th>
-      <th class="invited-col">Запрошено</th>
-      <th class="draws-col">Розіграші</th>
-      <th class="status-col">Статус</th>
-    </tr>
-  `;
-  table.appendChild(thead);
-
-  // Створюємо тіло таблиці
-  const tbody = document.createElement('tbody');
-
-  sortedReferrals.forEach((referral, index) => {
-    const row = document.createElement('tr');
-    row.className = referral.active ? 'active-row' : '';
-    row.dataset.id = referral.id;
-
-    // Форматуємо заробіток
-    const formattedEarnings = formatWinixAmount(referral.totalEarnings || 0, { showCurrency: false });
-
-    row.innerHTML = `
-      <td class="rank-col">${index + 1}</td>
-      <td class="id-col">${referral.id}</td>
-      <td class="level-col">${referral.level || 1}</td>
-      <td class="earnings-col">${formattedEarnings}</td>
-      <td class="invited-col">${referral.invitedCount || 0}</td>
-      <td class="draws-col">${referral.drawsParticipation || 0}</td>
-      <td class="status-col">
-        <span class="status-badge ${referral.active ? 'active' : 'inactive'}">
-          ${referral.active ? 'Активний' : 'Неактивний'}
-        </span>
-      </td>
-    `;
-
-    tbody.appendChild(row);
-  });
-
-  table.appendChild(tbody);
-  rankingContainer.appendChild(table);
-
-  // Додаємо обробники кліків на рядки таблиці
-  const rows = tbody.querySelectorAll('tr');
-  rows.forEach(row => {
-    row.addEventListener('click', () => {
-      const referralId = row.dataset.id;
-      if (referralId) {
-        showReferralDetails(referralId);
-      }
-    });
-  });
 };
 
 // Експортуємо функції для можливого використання з інших файлів
@@ -2232,5 +2301,6 @@ export {
   getUserTasks,
   getReferralDrawsData,
   getDrawsRanking,
-  analyzeReferralEarnings
+  analyzeReferralEarnings,
+  calculateTotalEarnings
 };
