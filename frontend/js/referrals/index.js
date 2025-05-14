@@ -2,7 +2,7 @@
  * Оновлений індексний файл модуля реферальної системи
  *
  * Експортує всі необхідні функції, константи та компоненти для зовнішнього використання.
- * Додано експорт компонентів для перевірки активності рефералів за етапом 5.
+ * Додано експорт компонентів для роботи з бейджами та завданнями за етапом 6.
  *
  * @module referral
  */
@@ -27,10 +27,15 @@ export { calculatePercentage, formatPercentageResult } from './utils/calculatePe
 export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward';
 export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward';
 
-// НОВИЙ ЕКСПОРТ: Компоненти для перевірки активності рефералів (етап 5)
+// Експортуємо компоненти для перевірки активності рефералів (етап 5)
 export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveReferral';
 export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity';
 export { checkReferralsActivity, checkReferralActivity, analyzeReferralsActivity } from './services/checkReferralActivity';
+
+// НОВИЙ ЕКСПОРТ: Компоненти для роботи з бейджами та завданнями (етап 6)
+export { isEligibleForBadge, getHighestEligibleBadge, getAllEligibleBadges, getNextBadgeTarget, checkBadgesProgress } from './services/checkBadgeEligibility';
+export { convertBadgeToWinix, calculateTotalBadgeReward, calculateEligibleBadgesReward, getTotalPotentialBadgeRewards } from './services/convertBadgeToWinix';
+export { isTaskCompleted, calculateTaskProgress, calculateTaskReward, getCompletedTasks, calculateTotalTasksReward, checkAllTasksCompletion, checkTaskProgress } from './services/checkTaskCompletion';
 
 // Експортуємо дії для роботи із станом реферального посилання
 export {
@@ -64,7 +69,7 @@ export {
   clearLevelRewardsError
 } from './store/levelRewardsActions';
 
-// НОВИЙ ЕКСПОРТ: Дії для роботи з активністю рефералів (етап 5)
+// Експортуємо дії для роботи з активністю рефералів (етап 5)
 export {
   fetchReferralActivity as fetchAndCheckReferralActivity,
   checkReferralsActivityWithAnalysis,
@@ -73,6 +78,16 @@ export {
   updateActivityRecommendations,
   clearReferralActivityError
 } from './store/referralActivityActions';
+
+// НОВИЙ ЕКСПОРТ: Дії для роботи з бейджами та завданнями (етап 6)
+export {
+  fetchUserBadges,
+  fetchUserTasks,
+  claimBadgeReward,
+  claimTaskReward,
+  updateBadgesProgress,
+  clearBadgeError
+} from './store/badgeActions';
 
 // Експортуємо редуктор і початковий стан для реферального посилання
 export {
@@ -102,17 +117,47 @@ export {
   LevelRewardsActionTypes
 } from './store/levelRewardsState';
 
-// НОВИЙ ЕКСПОРТ: Редуктор і початковий стан для активності рефералів (етап 5)
+// Експортуємо редуктор і початковий стан для активності рефералів (етап 5)
 export {
   referralActivityReducer,
   initialReferralActivityState,
   ReferralActivityActionTypes
 } from './store/referralActivityState';
 
+// НОВИЙ ЕКСПОРТ: Редуктор і початковий стан для бейджів та завдань (етап 6)
+export {
+  badgeReducer,
+  initialBadgeState,
+  BadgeActionTypes
+} from './store/badgeState';
+
 // Експортуємо константи
 export { REFERRAL_URL_PATTERN } from './constants/urlPatterns';
 export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
 export { LEVEL_1_REWARD_RATE, LEVEL_2_REWARD_RATE } from './constants/rewardRates';
-
-// НОВИЙ ЕКСПОРТ: Константи порогів активності (етап 5)
 export { MIN_DRAWS_PARTICIPATION, MIN_INVITED_REFERRALS } from './constants/activityThresholds';
+
+// НОВИЙ ЕКСПОРТ: Константи для бейджів та завдань (етап 6)
+export {
+  BRONZE_BADGE_THRESHOLD,
+  SILVER_BADGE_THRESHOLD,
+  GOLD_BADGE_THRESHOLD,
+  PLATINUM_BADGE_THRESHOLD,
+  BADGE_THRESHOLDS,
+  BADGE_TYPES
+} from './constants/badgeThresholds';
+
+export {
+  BRONZE_BADGE_REWARD,
+  SILVER_BADGE_REWARD,
+  GOLD_BADGE_REWARD,
+  PLATINUM_BADGE_REWARD,
+  BADGE_REWARDS
+} from './constants/badgeRewards';
+
+export {
+  REFERRAL_TASK_THRESHOLD,
+  REFERRAL_TASK_REWARD,
+  TASK_THRESHOLDS,
+  TASK_TYPES
+} from './constants/taskThresholds';

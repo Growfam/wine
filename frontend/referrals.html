@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/referrals/referral-structure.css">
     <link rel="stylesheet" href="css/referrals/percentage-rewards.css">
     <link rel="stylesheet" href="css/referrals/referral-activity.css">
+    <link rel="stylesheet" href="css/referrals/badges-tasks.css">
 </head>
 <body>
     <!-- SVG фільтри для іконок -->
@@ -130,7 +131,156 @@
                 </p>
             </div>
 
-            <!-- НОВИЙ РОЗДІЛ: Відсоткові винагороди -->
+            <!-- НОВИЙ РОЗДІЛ: Бейджі та досягнення -->
+            <div class="badges-container">
+                <h3 class="referral-subtitle">Бейджі та досягнення</h3>
+                <div class="badges-stats-container">
+                    <div class="badges-stats-card">
+                        <div class="badges-stats-icon bronze-badge-icon"></div>
+                        <div class="badges-stats-value" id="earned-badges-count">0</div>
+                        <div class="badges-stats-label">Зароблені бейджі</div>
+                    </div>
+                    <div class="badges-stats-card">
+                        <div class="badges-stats-icon gold-badge-icon"></div>
+                        <div class="badges-stats-value" id="total-badges-count">4</div>
+                        <div class="badges-stats-label">Всього бейджів</div>
+                    </div>
+                    <div class="badges-stats-card">
+                        <div class="badges-stats-icon silver-badge-icon"></div>
+                        <div class="badges-stats-value" id="remaining-badges-count">4</div>
+                        <div class="badges-stats-label">Залишилось зібрати</div>
+                    </div>
+                </div>
+
+                <div class="next-badge-container">
+                    <div class="next-badge-info">
+                        <div class="next-badge-title">Наступний бейдж: Бронзовий</div>
+                        <div class="next-badge-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-text">0% (0/25)</div>
+                        </div>
+                        <div class="next-badge-remaining">Залишилось: 25 рефералів</div>
+                    </div>
+                </div>
+
+                <div class="badges-list-container">
+                    <div class="badges-list" id="badges-list">
+                        <!-- Бронзовий бейдж -->
+                        <div class="badge-item not-eligible">
+                            <div class="badge-icon bronze-icon"></div>
+                            <div class="badge-info">
+                                <div class="badge-title">Бронзовий бейдж</div>
+                                <div class="badge-description">Залучіть <span class="bronze-threshold">25</span> рефералів</div>
+                                <div class="badge-reward">Винагорода: <span class="bronze-reward">2500</span> winix</div>
+                                <div class="badge-progress-container">
+                                    <div class="badge-progress-bar">
+                                        <div class="badge-progress-fill bronze-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="badge-progress-text">0% (0/25)</div>
+                                </div>
+                                <button class="claim-badge-button" data-badge="BRONZE" disabled>Недоступно</button>
+                            </div>
+                        </div>
+
+                        <!-- Срібний бейдж -->
+                        <div class="badge-item not-eligible">
+                            <div class="badge-icon silver-icon"></div>
+                            <div class="badge-info">
+                                <div class="badge-title">Срібний бейдж</div>
+                                <div class="badge-description">Залучіть <span class="silver-threshold">50</span> рефералів</div>
+                                <div class="badge-reward">Винагорода: <span class="silver-reward">5000</span> winix</div>
+                                <div class="badge-progress-container">
+                                    <div class="badge-progress-bar">
+                                        <div class="badge-progress-fill silver-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="badge-progress-text">0% (0/50)</div>
+                                </div>
+                                <button class="claim-badge-button" data-badge="SILVER" disabled>Недоступно</button>
+                            </div>
+                        </div>
+
+                        <!-- Золотий бейдж -->
+                        <div class="badge-item not-eligible">
+                            <div class="badge-icon gold-icon"></div>
+                            <div class="badge-info">
+                                <div class="badge-title">Золотий бейдж</div>
+                                <div class="badge-description">Залучіть <span class="gold-threshold">100</span> рефералів</div>
+                                <div class="badge-reward">Винагорода: <span class="gold-reward">10000</span> winix</div>
+                                <div class="badge-progress-container">
+                                    <div class="badge-progress-bar">
+                                        <div class="badge-progress-fill gold-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="badge-progress-text">0% (0/100)</div>
+                                </div>
+                                <button class="claim-badge-button" data-badge="GOLD" disabled>Недоступно</button>
+                            </div>
+                        </div>
+
+                        <!-- Платиновий бейдж -->
+                        <div class="badge-item not-eligible">
+                            <div class="badge-icon platinum-icon"></div>
+                            <div class="badge-info">
+                                <div class="badge-title">Платиновий бейдж</div>
+                                <div class="badge-description">Залучіть <span class="platinum-threshold">500</span> рефералів</div>
+                                <div class="badge-reward">Винагорода: <span class="platinum-reward">20000</span> winix</div>
+                                <div class="badge-progress-container">
+                                    <div class="badge-progress-bar">
+                                        <div class="badge-progress-fill platinum-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="badge-progress-text">0% (0/500)</div>
+                                </div>
+                                <button class="claim-badge-button" data-badge="PLATINUM" disabled>Недоступно</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- НОВИЙ РОЗДІЛ: Завдання -->
+            <div class="tasks-container">
+                <h3 class="referral-subtitle">Завдання реферальної програми</h3>
+                <div class="tasks-stats-container">
+                    <div class="tasks-stats-card">
+                        <div class="tasks-stats-icon completed-task-icon"></div>
+                        <div class="tasks-stats-value" id="completed-tasks-count">0</div>
+                        <div class="tasks-stats-label">Виконані завдання</div>
+                    </div>
+                    <div class="tasks-stats-card">
+                        <div class="tasks-stats-icon total-tasks-icon"></div>
+                        <div class="tasks-stats-value" id="total-tasks-count">1</div>
+                        <div class="tasks-stats-label">Всього завдань</div>
+                    </div>
+                    <div class="tasks-stats-card">
+                        <div class="tasks-stats-icon task-reward-icon"></div>
+                        <div class="tasks-stats-value" id="total-tasks-reward">0</div>
+                        <div class="tasks-stats-label">Загальна винагорода</div>
+                    </div>
+                </div>
+
+                <div class="tasks-list-container">
+                    <div class="tasks-list" id="tasks-list">
+                        <!-- Завдання: 100 рефералів -->
+                        <div class="task-item in-progress">
+                            <div class="task-info">
+                                <div class="task-title">Запросити 100 рефералів</div>
+                                <div class="task-description">Запросіть <span class="task-threshold">100</span> нових користувачів</div>
+                                <div class="task-reward">Винагорода: <span class="task-reward">12000</span> winix</div>
+                                <div class="task-progress-container">
+                                    <div class="task-progress-bar">
+                                        <div class="task-progress-fill REFERRAL_COUNT-progress" style="width: 0%"></div>
+                                    </div>
+                                    <div class="task-progress-text">0% (0/100)</div>
+                                </div>
+                                <button class="claim-task-button" data-task="REFERRAL_COUNT" disabled>Недоступно</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Відсоткові винагороди -->
             <div class="percentage-rewards-container">
                 <h3 class="referral-subtitle">Відсоткові винагороди</h3>
                 <div class="percentage-rewards-box">
@@ -204,7 +354,7 @@
                 </div>
             </div>
 
-            <!-- НОВИЙ РОЗДІЛ: Активність рефералів -->
+            <!-- Активність рефералів -->
             <div class="referral-activity-container">
                 <h3 class="referral-subtitle">Активність рефералів</h3>
 
@@ -290,6 +440,9 @@
                     <div class="referral-tab active" data-tab="level1">1-й рівень</div>
                     <div class="referral-tab" data-tab="level2">2-й рівень</div>
                     <div class="referral-tab" data-tab="hierarchy">Ієрархія</div>
+                    <div class="referral-tab" data-tab="rewards">Винагороди</div>
+                    <div class="referral-tab" data-tab="activity">Активність</div>
+                    <div class="referral-tab" data-tab="badges">Бейджі</div>
                 </div>
 
                 <!-- Контент вкладок -->
@@ -312,6 +465,110 @@
                     <div class="tab-pane" id="hierarchy-tab">
                         <div class="referral-hierarchy" id="referral-hierarchy">
                             <!-- Сюди буде додана ієрархія рефералів -->
+                        </div>
+                    </div>
+
+                    <!-- Вкладка винагород -->
+                    <div class="tab-pane" id="rewards-tab">
+                        <div class="referral-rewards" id="rewards-details">
+                            <!-- Сюди будуть додані деталі про винагороди -->
+                        </div>
+                    </div>
+
+                    <!-- Вкладка активності -->
+                    <div class="tab-pane" id="activity-tab">
+                        <div class="referral-activity-details" id="activity-details">
+                            <!-- Сюди будуть додані деталі про активність -->
+                        </div>
+                    </div>
+
+                    <!-- Вкладка бейджів -->
+                    <div class="tab-pane" id="badges-tab">
+                        <div class="badges-details" id="badges-details">
+                            <div class="badges-section">
+                                <h4>Прогрес бейджів</h4>
+                                <div class="badges-progress-list">
+                                    <!-- Бронзовий бейдж -->
+                                    <div class="badge-progress-item">
+                                        <div class="badge-progress-icon bronze-icon"></div>
+                                        <div class="badge-progress-info">
+                                            <div class="badge-progress-title">Бронзовий бейдж</div>
+                                            <div class="badge-progress-container">
+                                                <div class="badge-progress-bar">
+                                                    <div class="badge-progress-fill bronze-progress" style="width: 0%"></div>
+                                                </div>
+                                                <div class="badge-progress-text">0% (0/25)</div>
+                                            </div>
+                                        </div>
+                                        <div class="badge-progress-status bronze-status">Недоступний</div>
+                                    </div>
+
+                                    <!-- Срібний бейдж -->
+                                    <div class="badge-progress-item">
+                                        <div class="badge-progress-icon silver-icon"></div>
+                                        <div class="badge-progress-info">
+                                            <div class="badge-progress-title">Срібний бейдж</div>
+                                            <div class="badge-progress-container">
+                                                <div class="badge-progress-bar">
+                                                    <div class="badge-progress-fill silver-progress" style="width: 0%"></div>
+                                                </div>
+                                                <div class="badge-progress-text">0% (0/50)</div>
+                                            </div>
+                                        </div>
+                                        <div class="badge-progress-status silver-status">Недоступний</div>
+                                    </div>
+
+                                    <!-- Золотий бейдж -->
+                                    <div class="badge-progress-item">
+                                        <div class="badge-progress-icon gold-icon"></div>
+                                        <div class="badge-progress-info">
+                                            <div class="badge-progress-title">Золотий бейдж</div>
+                                            <div class="badge-progress-container">
+                                                <div class="badge-progress-bar">
+                                                    <div class="badge-progress-fill gold-progress" style="width: 0%"></div>
+                                                </div>
+                                                <div class="badge-progress-text">0% (0/100)</div>
+                                            </div>
+                                        </div>
+                                        <div class="badge-progress-status gold-status">Недоступний</div>
+                                    </div>
+
+                                    <!-- Платиновий бейдж -->
+                                    <div class="badge-progress-item">
+                                        <div class="badge-progress-icon platinum-icon"></div>
+                                        <div class="badge-progress-info">
+                                            <div class="badge-progress-title">Платиновий бейдж</div>
+                                            <div class="badge-progress-container">
+                                                <div class="badge-progress-bar">
+                                                    <div class="badge-progress-fill platinum-progress" style="width: 0%"></div>
+                                                </div>
+                                                <div class="badge-progress-text">0% (0/500)</div>
+                                            </div>
+                                        </div>
+                                        <div class="badge-progress-status platinum-status">Недоступний</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tasks-section">
+                                <h4>Прогрес завдань</h4>
+                                <div class="tasks-progress-list">
+                                    <!-- Завдання: 100 рефералів -->
+                                    <div class="task-progress-item">
+                                        <div class="task-progress-icon task-icon"></div>
+                                        <div class="task-progress-info">
+                                            <div class="task-progress-title">Запросити 100 рефералів</div>
+                                            <div class="task-progress-container">
+                                                <div class="task-progress-bar">
+                                                    <div class="task-progress-fill REFERRAL_COUNT-progress" style="width: 0%"></div>
+                                                </div>
+                                                <div class="task-progress-text">0% (0/100)</div>
+                                            </div>
+                                        </div>
+                                        <div class="task-progress-status REFERRAL_COUNT-status">В процесі</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -348,6 +605,18 @@
                         <div class="detail-label">Кількість рефералів</div>
                         <div class="detail-value" id="detail-referral-count">-</div>
                     </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Участь в розіграшах</div>
+                        <div class="detail-value" id="detail-draws">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Запрошені реферали</div>
+                        <div class="detail-value" id="detail-invited">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Причина активності</div>
+                        <div class="detail-value" id="detail-activity-reason">-</div>
+                    </div>
                 </div>
             </div>
 
@@ -372,8 +641,8 @@
                     <div class="reward-item">
                         <div class="reward-icon badge-icon"></div>
                         <div class="reward-details">
-                            <div class="reward-title">Бейджі за досягнення</div>
-                            <div class="reward-description">Отримуйте додаткові бонуси за кількість рефералів</div>
+                            <div class="reward-title">Бейджі та завдання</div>
+                            <div class="reward-description">Отримуйте винагороди за бейджі та виконані завдання</div>
                         </div>
                     </div>
                 </div>
@@ -449,7 +718,7 @@
                         <div class="step-number">3</div>
                         <div class="step-details">
                             <div class="step-title">Отримуйте винагороди</div>
-                            <div class="step-description">Заробляйте <span class="bonus-amount">50</span> winix за кожного реферала і відсотки від їхнього прибутку</div>
+                            <div class="step-description">Заробляйте <span class="bonus-amount">50</span> winix за кожного реферала, відсотки від їхнього прибутку та винагороди за бейджі</div>
                         </div>
                     </div>
                 </div>
