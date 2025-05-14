@@ -10,7 +10,7 @@
  */
 
 import BaseRenderer, { TASK_STATUS } from '../base.js';
-import dependencyContainer from '../../../utils/index.js';
+import dependencyContainer from '../../../utils/core/dependency.js';
 
 // Типи соціальних мереж
 export const SOCIAL_NETWORKS = {
