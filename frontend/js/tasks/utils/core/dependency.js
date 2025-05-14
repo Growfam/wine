@@ -97,12 +97,12 @@ export class DependencyContainer {
 }
 
 // Створюємо глобальний екземпляр контейнера
-const container = new DependencyContainer();
+const dependencyContainer = new DependencyContainer();
 
 // Додаємо в глобальний скоп для доступу з інших модулів
 if (typeof window !== 'undefined') {
-  window.dependencyContainer = container;
+  window.dependencyContainer = dependencyContainer;
 }
 
 // Експорт глобального контейнера
-export default container;
+export default dependencyContainer;
