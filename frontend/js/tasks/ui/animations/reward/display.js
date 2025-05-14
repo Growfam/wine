@@ -7,7 +7,7 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 import { state, config } from '../core.js';
 import { createStarsEffect, createConfetti } from '../effects/index.js';
 

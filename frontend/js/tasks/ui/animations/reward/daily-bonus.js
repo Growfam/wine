@@ -8,10 +8,10 @@
  * - Анімацію завершення циклу
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
-import { state, config } from '../../../ui/animations/core.js';
-import { createStarsEffect, createConfetti } from '../../../ui/animations/effects/index.js';
-import { showReward, showDailyBonusReward, updateUserBalance } from '../../../ui/animations/reward/display.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
+import { state, config } from '../core.js';
+import { createStarsEffect, createConfetti } from '../effects/index.js';
+import { showReward, showDailyBonusReward, updateUserBalance } from '../reward/display.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.Animations.DailyBonus');

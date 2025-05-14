@@ -6,7 +6,7 @@
  * - Анімацію отримання винагороди
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 import { DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types.js';
 
 // Створюємо логер для модуля
