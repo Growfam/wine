@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <!-- Іконка "Сміливець" -->
+  <symbol id="badge-brave" viewBox="0 0 24 24">
+    <defs>
+      <linearGradient id="brave-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ff7e5f" />
+        <stop offset="100%" stop-color="#feb47b" />
+      </linearGradient>
+      <filter id="brave-glow">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feFlood flood-color="#ff7e5f" flood-opacity="0.5" result="color" />
+        <feComposite in="color" in2="blur" operator="in" result="glow" />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="12" cy="12" r="10" fill="url(#brave-gradient)" filter="url(#brave-glow)" />
+    <path d="M12.8 7L8 12.5H11.2L10.5 17L15.4 11.5H12.2z" fill="white" />
+  </symbol>
+
+  <!-- Іконка "Новатор" -->
+  <symbol id="badge-innovator" viewBox="0 0 24 24">
+    <defs>
+      <linearGradient id="innovator-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#4eb5f7" />
+        <stop offset="100%" stop-color="#2b6ecf" />
+      </linearGradient>
+      <filter id="innovator-glow">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feFlood flood-color="#4eb5f7" flood-opacity="0.5" result="color" />
+        <feComposite in="color" in2="blur" operator="in" result="glow" />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="12" cy="12" r="10" fill="url(#innovator-gradient)" filter="url(#innovator-glow)" />
+    <path d="M12 6.5C9.24 6.5 7 8.74 7 11.5C7 13.47 8.17 15.17 9.91 15.91V16.5C9.91 16.78 10.14 17 10.41 17H13.58C13.86 17 14.09 16.78 14.09 16.5V15.91C15.83 15.17 17 13.47 17 11.5C17 8.74 14.76 6.5 12 6.5ZM13.5 15.5H10.5V14.5H13.5V15.5ZM12 13.5C10.07 13.5 8.5 11.93 8.5 10C8.5 8.07 10.07 6.5 12 6.5C13.93 6.5 15.5 8.07 15.5 10C15.5 11.93 13.93 13.5 12 13.5Z" fill="white" />
+  </symbol>
+
+  <!-- Іконка "Легенда" -->
+  <symbol id="badge-legend" viewBox="0 0 24 24">
+    <defs>
+      <linearGradient id="legend-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#FFD700" />
+        <stop offset="100%" stop-color="#FFA500" />
+      </linearGradient>
+      <filter id="legend-glow">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feFlood flood-color="#FFD700" flood-opacity="0.5" result="color" />
+        <feComposite in="color" in2="blur" operator="in" result="glow" />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="12" cy="12" r="10" fill="url(#legend-gradient)" filter="url(#legend-glow)" />
+    <path d="M7 14l2.4-5.2 2.6 2.6 2.6-2.6L16.9 14H7z" fill="white" />
+    <path d="M7 14.5h10v1H7z" fill="white" />
+  </symbol>
+
+  <!-- Іконка "Візіонер" -->
+  <symbol id="badge-visionary" viewBox="0 0 24 24">
+    <defs>
+      <linearGradient id="visionary-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8E24AA" />
+        <stop offset="100%" stop-color="#3F51B5" />
+      </linearGradient>
+      <filter id="visionary-glow">
+        <feGaussianBlur stdDeviation="1.5" result="blur" />
+        <feFlood flood-color="#8E24AA" flood-opacity="0.5" result="color" />
+        <feComposite in="color" in2="blur" operator="in" result="glow" />
+        <feMerge>
+          <feMergeNode in="glow" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <circle cx="12" cy="12" r="10" fill="url(#visionary-gradient)" filter="url(#visionary-glow)" />
+    <path d="M12 8.5C9 8.5 6.3 10 4.5 12.5 6.3 15 9 16.5 12 16.5c3 0 5.7-1.5 7.5-4C17.7 10 15 8.5 12 8.5z" fill="white" />
+    <circle cx="12" cy="12.5" r="2" fill="#8E24AA" />
+  </symbol>
+</svg>

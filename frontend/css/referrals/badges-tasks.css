@@ -793,3 +793,132 @@
         font-size: 0.875rem;
     }
 }
+
+/* Оновлені CSS стилі для нових бейджів */
+
+/* Іконки бейджів */
+.brave-badge-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    box-shadow: 0 0 15px rgba(255, 126, 95, 0.5);
+    animation: brave-glow 3s infinite ease-in-out;
+}
+
+.brave-badge-icon::before {
+    content: 'С';  /* С від "Сміливець" */
+}
+
+.innovator-badge-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    box-shadow: 0 0 15px rgba(78, 181, 247, 0.5);
+    animation: innovator-glow 3s infinite ease-in-out;
+}
+
+.innovator-badge-icon::before {
+    content: 'Н';  /* Н від "Новатор" */
+}
+
+.legend-badge-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    animation: legend-glow 3s infinite ease-in-out;
+}
+
+.legend-badge-icon::before {
+    content: 'Л';  /* Л від "Легенда" */
+}
+
+.visionary-badge-icon {
+    background: linear-gradient(135deg, #8E24AA, #3F51B5);
+    box-shadow: 0 0 15px rgba(142, 36, 170, 0.5);
+    animation: visionary-glow 3s infinite ease-in-out;
+}
+
+.visionary-badge-icon::before {
+    content: 'В';  /* В від "Візіонер" */
+}
+
+/* Іконки для окремих бейджів */
+.brave-icon {
+    background: linear-gradient(135deg, #ff7e5f, #feb47b);
+    animation: brave-glow 3s infinite ease-in-out;
+}
+
+.brave-icon::before {
+    content: 'С';
+}
+
+.innovator-icon {
+    background: linear-gradient(135deg, #4eb5f7, #2b6ecf);
+    animation: innovator-glow 3s infinite ease-in-out;
+}
+
+.innovator-icon::before {
+    content: 'Н';
+}
+
+.legend-icon {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    animation: legend-glow 3s infinite ease-in-out;
+}
+
+.legend-icon::before {
+    content: 'Л';
+}
+
+.visionary-icon {
+    background: linear-gradient(135deg, #8E24AA, #3F51B5);
+    animation: visionary-glow 3s infinite ease-in-out;
+}
+
+.visionary-icon::before {
+    content: 'В';
+}
+
+/* Анімації світіння */
+@keyframes brave-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 126, 95, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 126, 95, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 126, 95, 0.5);
+    }
+}
+
+@keyframes innovator-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+}
+
+@keyframes legend-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    }
+}
+
+@keyframes visionary-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(142, 36, 170, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(142, 36, 170, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(142, 36, 170, 0.5);
+    }
+}
