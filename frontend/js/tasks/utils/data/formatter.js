@@ -10,7 +10,7 @@
  * @version 3.0.0
  */
 
-import { getLogger } from '../../utils/core//index.js';
+import { getLogger } from '../core//logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('Formatter');

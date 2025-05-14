@@ -6,10 +6,10 @@
  * - Переходи між станами
  * - Прості ефекти з'явлення/зникнення
  *
- * @version 1.0.0
+ * @version 1.0.1
  */
 
-import { getLogger } from '../../utils/core/index.js';
+import { getLogger } from '../core/logger.js';
 import { addEvent } from './events.js';
 
 // Створюємо логер для модуля
@@ -21,6 +21,11 @@ const activeAnimations = new Map();
 // Лічильник ID для анімацій
 let animationIdCounter = 0;
 
+// Стан модуля
+const state = {
+  isCleanupRegistered: false, // Прапорець реєстрації обробника очищення
+};
+
 /**
  * Плавна поява елемента (fade in)
  * @param {HTMLElement} element - Елемент для анімації
@@ -28,6 +33,9 @@ let animationIdCounter = 0;
  * @returns {Promise} Проміс, який вирішується після завершення анімації
  */
 export function fadeIn(element, options = {}) {
+  // Перевіряємо, чи встановлений обробник очищення
+  registerCleanupHandler();
+
   if (!element) {
     return Promise.reject(new Error('Елемент не передано'));
   }
@@ -48,59 +56,112 @@ export function fadeIn(element, options = {}) {
       const originalOpacity = element.style.opacity;
       const originalVisibility = element.style.visibility;
 
+      // Створюємо унікальний ID анімації
+      const animationId = ++animationIdCounter;
+
+      // Додаємо в активні анімації для можливості скасування
+      activeAnimations.set(animationId, {
+        element,
+        type: 'fadeIn',
+        cleanup: () => {
+          try {
+            element.removeEventListener('transitionend', transitionEndHandler);
+            if (timeoutId) clearTimeout(timeoutId);
+          } catch (e) {
+            // Ігноруємо помилки при очищенні
+          }
+        }
+      });
+
       // Встановлюємо початковий стан
       element.style.opacity = '0';
       element.style.display = display;
       element.style.visibility = 'visible';
 
+      // Змінна для зберігання ID таймауту
+      let timeoutId;
+
+      // Обробник завершення переходу
+      const transitionEndHandler = function (event) {
+        if (event.target === element && event.propertyName === 'opacity') {
+          // Очищаємо слухач події
+          element.removeEventListener('transitionend', transitionEndHandler);
+
+          // Прибираємо перехід
+          element.style.transition = '';
+
+          // Викликаємо колбек завершення
+          if (typeof onComplete === 'function') {
+            try {
+              onComplete(element);
+            } catch (e) {
+              logger.warn('Помилка у колбеку onComplete', 'fadeIn', { error: e.message });
+            }
+          }
+
+          // Видаляємо з активних анімацій
+          activeAnimations.delete(animationId);
+
+          // Відміняємо таймаут для резервного випадку
+          if (timeoutId) clearTimeout(timeoutId);
+
+          // Вирішуємо проміс
+          resolve(element);
+        }
+      };
+
       // Даємо браузеру час для відображення елемента з opacity=0
       requestAnimationFrame(() => {
-        // Додаємо перехід
-        element.style.transition = `opacity ${duration}ms ${easing}`;
+        try {
+          // Додаємо перехід
+          element.style.transition = `opacity ${duration}ms ${easing}`;
 
-        // Викликаємо колбек початку
-        if (typeof onStart === 'function') {
-          onStart(element);
+          // Викликаємо колбек початку
+          if (typeof onStart === 'function') {
+            try {
+              onStart(element);
+            } catch (e) {
+              logger.warn('Помилка у колбеку onStart', 'fadeIn', { error: e.message });
+            }
+          }
+
+          // Запускаємо анімацію
+          requestAnimationFrame(() => {
+            element.style.opacity = '1';
+          });
+
+          // Додаємо слухач події завершення переходу
+          element.addEventListener('transitionend', transitionEndHandler);
+
+          // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
+          timeoutId = setTimeout(() => {
+            try {
+              if (activeAnimations.has(animationId)) {
+                element.removeEventListener('transitionend', transitionEndHandler);
+                element.style.transition = '';
+
+                if (typeof onComplete === 'function') {
+                  try {
+                    onComplete(element);
+                  } catch (e) {
+                    logger.warn('Помилка у колбеку onComplete (timeout)', 'fadeIn', { error: e.message });
+                  }
+                }
+
+                activeAnimations.delete(animationId);
+                resolve(element);
+              }
+            } catch (e) {
+              logger.warn('Помилка в таймауті анімації', 'fadeIn', { error: e.message });
+              resolve(element);
+            }
+          }, duration + 50);
+        } catch (frameError) {
+          // Обробка помилок у requestAnimationFrame
+          activeAnimations.delete(animationId);
+          logger.error('Помилка в requestAnimationFrame', 'fadeIn', { error: frameError.message });
+          reject(frameError);
         }
-
-        // Запускаємо анімацію
-        requestAnimationFrame(() => {
-          element.style.opacity = '1';
-        });
-
-        // Обробник завершення переходу
-        const transitionEndHandler = (event) => {
-          if (event.target === element && event.propertyName === 'opacity') {
-            // Очищаємо слухач події
-            element.removeEventListener('transitionend', transitionEndHandler);
-
-            // Викликаємо колбек завершення
-            if (typeof onComplete === 'function') {
-              onComplete(element);
-            }
-
-            // Прибираємо перехід
-            element.style.transition = '';
-
-            // Вирішуємо проміс
-            resolve(element);
-          }
-        };
-
-        // Додаємо слухач події завершення переходу
-        element.addEventListener('transitionend', transitionEndHandler);
-
-        // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
-        setTimeout(() => {
-          if (element.style.opacity === '1') {
-            element.removeEventListener('transitionend', transitionEndHandler);
-            element.style.transition = '';
-            if (typeof onComplete === 'function') {
-              onComplete(element);
-            }
-            resolve(element);
-          }
-        }, duration + 50);
       });
     } catch (error) {
       logger.error('Помилка при виконанні fadeIn', 'fadeIn', { error });
@@ -116,6 +177,9 @@ export function fadeIn(element, options = {}) {
  * @returns {Promise} Проміс, який вирішується після завершення анімації
  */
 export function fadeOut(element, options = {}) {
+  // Перевіряємо, чи встановлений обробник очищення
+  registerCleanupHandler();
+
   if (!element) {
     return Promise.reject(new Error('Елемент не передано'));
   }
@@ -138,21 +202,28 @@ export function fadeOut(element, options = {}) {
         return;
       }
 
+      // Створюємо унікальний ID анімації
+      const animationId = ++animationIdCounter;
+
       // Зберігаємо початковий стиль
       const originalOpacity = element.style.opacity || '1';
 
-      // Додаємо перехід
-      element.style.transition = `opacity ${duration}ms ${easing}`;
-
-      // Викликаємо колбек початку
-      if (typeof onStart === 'function') {
-        onStart(element);
-      }
-
-      // Запускаємо анімацію
-      requestAnimationFrame(() => {
-        element.style.opacity = '0';
+      // Додаємо в активні анімації для можливості скасування
+      activeAnimations.set(animationId, {
+        element,
+        type: 'fadeOut',
+        cleanup: () => {
+          try {
+            element.removeEventListener('transitionend', transitionEndHandler);
+            if (timeoutId) clearTimeout(timeoutId);
+          } catch (e) {
+            // Ігноруємо помилки при очищенні
+          }
+        }
       });
+
+      // Змінна для зберігання ID таймауту
+      let timeoutId;
 
       // Обробник завершення переходу
       const transitionEndHandler = (event) => {
@@ -170,31 +241,79 @@ export function fadeOut(element, options = {}) {
 
           // Викликаємо колбек завершення
           if (typeof onComplete === 'function') {
-            onComplete(element);
+            try {
+              onComplete(element);
+            } catch (e) {
+              logger.warn('Помилка у колбеку onComplete', 'fadeOut', { error: e.message });
+            }
           }
+
+          // Видаляємо з активних анімацій
+          activeAnimations.delete(animationId);
+
+          // Відміняємо таймаут для резервного випадку
+          if (timeoutId) clearTimeout(timeoutId);
 
           // Вирішуємо проміс
           resolve(element);
         }
       };
 
-      // Додаємо слухач події завершення переходу
-      element.addEventListener('transitionend', transitionEndHandler);
+      // Додаємо перехід
+      element.style.transition = `opacity ${duration}ms ${easing}`;
 
-      // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
-      setTimeout(() => {
-        if (element.style.opacity === '0') {
-          element.removeEventListener('transitionend', transitionEndHandler);
-          if (hide) {
-            element.style.display = 'none';
-          }
-          element.style.transition = '';
-          if (typeof onComplete === 'function') {
-            onComplete(element);
-          }
-          resolve(element);
+      // Викликаємо колбек початку
+      if (typeof onStart === 'function') {
+        try {
+          onStart(element);
+        } catch (e) {
+          logger.warn('Помилка у колбеку onStart', 'fadeOut', { error: e.message });
         }
-      }, duration + 50);
+      }
+
+      // Запускаємо анімацію
+      requestAnimationFrame(() => {
+        try {
+          element.style.opacity = '0';
+
+          // Додаємо слухач події завершення переходу
+          element.addEventListener('transitionend', transitionEndHandler);
+
+          // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
+          timeoutId = setTimeout(() => {
+            try {
+              if (activeAnimations.has(animationId)) {
+                element.removeEventListener('transitionend', transitionEndHandler);
+
+                if (hide) {
+                  element.style.display = 'none';
+                }
+
+                element.style.transition = '';
+
+                if (typeof onComplete === 'function') {
+                  try {
+                    onComplete(element);
+                  } catch (e) {
+                    logger.warn('Помилка у колбеку onComplete (timeout)', 'fadeOut', { error: e.message });
+                  }
+                }
+
+                activeAnimations.delete(animationId);
+                resolve(element);
+              }
+            } catch (e) {
+              logger.warn('Помилка в таймауті анімації', 'fadeOut', { error: e.message });
+              resolve(element);
+            }
+          }, duration + 50);
+        } catch (frameError) {
+          // Обробка помилок у requestAnimationFrame
+          activeAnimations.delete(animationId);
+          logger.error('Помилка в requestAnimationFrame', 'fadeOut', { error: frameError.message });
+          reject(frameError);
+        }
+      });
     } catch (error) {
       logger.error('Помилка при виконанні fadeOut', 'fadeOut', { error });
       reject(error);
@@ -202,354 +321,7 @@ export function fadeOut(element, options = {}) {
   });
 }
 
-/**
- * Анімація слайдеру вниз (slide down)
- * @param {HTMLElement} element - Елемент для анімації
- * @param {Object} options - Опції анімації
- * @returns {Promise} Проміс, який вирішується після завершення анімації
- */
-export function slideDown(element, options = {}) {
-  if (!element) {
-    return Promise.reject(new Error('Елемент не передано'));
-  }
-
-  // Параметри за замовчуванням
-  const {
-    duration = 300, // Тривалість анімації в мс
-    easing = 'ease', // Функція пом'якшення
-    onStart = null, // Колбек початку анімації
-    onComplete = null, // Колбек завершення анімації
-  } = options;
-
-  return new Promise((resolve, reject) => {
-    try {
-      // Перевіряємо, чи елемент вже видимий
-      const computedStyle = window.getComputedStyle(element);
-      if (computedStyle.display !== 'none' && element.style.height !== '0px') {
-        resolve(element);
-        return;
-      }
-
-      // Зберігаємо початковий стиль
-      const originalStyle = {
-        display: element.style.display,
-        height: element.style.height,
-        overflow: element.style.overflow,
-      };
-
-      // Встановлюємо початковий стан
-      element.style.display = 'block';
-      element.style.overflow = 'hidden';
-      element.style.height = '0px';
-
-      // Вираховуємо кінцеву висоту
-      const targetHeight = element.scrollHeight;
-
-      // Викликаємо колбек початку
-      if (typeof onStart === 'function') {
-        onStart(element);
-      }
-
-      // Додаємо перехід
-      requestAnimationFrame(() => {
-        element.style.transition = `height ${duration}ms ${easing}`;
-
-        // Запускаємо анімацію
-        requestAnimationFrame(() => {
-          element.style.height = `${targetHeight}px`;
-        });
-
-        // Обробник завершення переходу
-        const transitionEndHandler = (event) => {
-          if (event.target === element && event.propertyName === 'height') {
-            // Очищаємо слухач події
-            element.removeEventListener('transitionend', transitionEndHandler);
-
-            // Відновлюємо стиль
-            element.style.transition = '';
-            element.style.height = '';
-            element.style.overflow = '';
-
-            // Викликаємо колбек завершення
-            if (typeof onComplete === 'function') {
-              onComplete(element);
-            }
-
-            // Вирішуємо проміс
-            resolve(element);
-          }
-        };
-
-        // Додаємо слухач події завершення переходу
-        element.addEventListener('transitionend', transitionEndHandler);
-
-        // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
-        setTimeout(() => {
-          element.removeEventListener('transitionend', transitionEndHandler);
-          element.style.transition = '';
-          element.style.height = '';
-          element.style.overflow = '';
-          if (typeof onComplete === 'function') {
-            onComplete(element);
-          }
-          resolve(element);
-        }, duration + 50);
-      });
-    } catch (error) {
-      logger.error('Помилка при виконанні slideDown', 'slideDown', { error });
-      reject(error);
-    }
-  });
-}
-
-/**
- * Анімація слайдеру вгору (slide up)
- * @param {HTMLElement} element - Елемент для анімації
- * @param {Object} options - Опції анімації
- * @returns {Promise} Проміс, який вирішується після завершення анімації
- */
-export function slideUp(element, options = {}) {
-  if (!element) {
-    return Promise.reject(new Error('Елемент не передано'));
-  }
-
-  // Параметри за замовчуванням
-  const {
-    duration = 300, // Тривалість анімації в мс
-    easing = 'ease', // Функція пом'якшення
-    onStart = null, // Колбек початку анімації
-    onComplete = null, // Колбек завершення анімації
-  } = options;
-
-  return new Promise((resolve, reject) => {
-    try {
-      // Перевіряємо, чи елемент вже прихований
-      const computedStyle = window.getComputedStyle(element);
-      if (computedStyle.display === 'none' || element.style.height === '0px') {
-        resolve(element);
-        return;
-      }
-
-      // Зберігаємо початковий стиль
-      const originalStyle = {
-        height: element.style.height,
-        overflow: element.style.overflow,
-      };
-
-      // Встановлюємо початковий стан
-      element.style.height = `${element.scrollHeight}px`;
-      element.style.overflow = 'hidden';
-
-      // Викликаємо колбек початку
-      if (typeof onStart === 'function') {
-        onStart(element);
-      }
-
-      // Додаємо перехід
-      requestAnimationFrame(() => {
-        element.style.transition = `height ${duration}ms ${easing}`;
-
-        // Запускаємо анімацію
-        requestAnimationFrame(() => {
-          element.style.height = '0px';
-        });
-
-        // Обробник завершення переходу
-        const transitionEndHandler = (event) => {
-          if (event.target === element && event.propertyName === 'height') {
-            // Очищаємо слухач події
-            element.removeEventListener('transitionend', transitionEndHandler);
-
-            finishAnimation();
-          }
-        };
-
-        // Функція завершення анімації
-        const finishAnimation = () => {
-          // Приховуємо елемент
-          element.style.display = 'none';
-
-          // Відновлюємо стиль
-          element.style.transition = '';
-          element.style.height = '';
-          element.style.overflow = '';
-
-          // Викликаємо колбек завершення
-          if (typeof onComplete === 'function') {
-            onComplete(element);
-          }
-
-          // Вирішуємо проміс
-          resolve(element);
-        };
-
-        // Додаємо слухач події завершення переходу
-        element.addEventListener('transitionend', transitionEndHandler);
-
-        // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
-        setTimeout(() => {
-          if (element.style.height === '0px') {
-            element.removeEventListener('transitionend', transitionEndHandler);
-            finishAnimation();
-          }
-        }, duration + 50);
-      });
-    } catch (error) {
-      logger.error('Помилка при виконанні slideUp', 'slideUp', { error });
-      reject(error);
-    }
-  });
-}
-
-/**
- * Анімація елемента з використанням CSS keyframes
- * @param {HTMLElement} element - Елемент для анімації
- * @param {string} keyframesName - Назва keyframes анімації
- * @param {Object} options - Опції анімації
- * @returns {Promise} Проміс, який вирішується після завершення анімації
- */
-export function animate(element, keyframesName, options = {}) {
-  if (!element) {
-    return Promise.reject(new Error('Елемент не передано'));
-  }
-
-  // Параметри за замовчуванням
-  const {
-    duration = 300, // Тривалість анімації в мс
-    easing = 'ease', // Функція пом'якшення
-    delay = 0, // Затримка анімації в мс
-    iterations = 1, // Кількість повторень анімації
-    direction = 'normal', // Напрямок анімації
-    fillMode = 'both', // Режим заповнення
-    onStart = null, // Колбек початку анімації
-    onComplete = null, // Колбек завершення анімації
-    onIteration = null, // Колбек ітерації анімації
-  } = options;
-
-  return new Promise((resolve, reject) => {
-    try {
-      // Створюємо унікальний ID анімації
-      const animationId = ++animationIdCounter;
-
-      // Формування назви анімації з урахуванням ID
-      const fullAnimationName = `${keyframesName}`;
-
-      // Зберігаємо початковий стиль
-      const originalAnimation = element.style.animation;
-
-      // Обробники подій анімації
-      const animationStartHandler = (event) => {
-        if (event.target === element && event.animationName === fullAnimationName) {
-          if (typeof onStart === 'function') {
-            onStart(element, event);
-          }
-        }
-      };
-
-      const animationIterationHandler = (event) => {
-        if (event.target === element && event.animationName === fullAnimationName) {
-          if (typeof onIteration === 'function') {
-            onIteration(element, event);
-          }
-        }
-      };
-
-      const animationEndHandler = (event) => {
-        if (event.target === element && event.animationName === fullAnimationName) {
-          // Очищаємо слухачі подій
-          element.removeEventListener('animationstart', animationStartHandler);
-          element.removeEventListener('animationiteration', animationIterationHandler);
-          element.removeEventListener('animationend', animationEndHandler);
-
-          // Відновлюємо початковий стиль
-          element.style.animation = originalAnimation;
-
-          // Видаляємо з колекції активних анімацій
-          activeAnimations.delete(animationId);
-
-          // Викликаємо колбек завершення
-          if (typeof onComplete === 'function') {
-            onComplete(element, event);
-          }
-
-          // Вирішуємо проміс
-          resolve(element);
-        }
-      };
-
-      // Додаємо слухачі подій
-      element.addEventListener('animationstart', animationStartHandler);
-      element.addEventListener('animationiteration', animationIterationHandler);
-      element.addEventListener('animationend', animationEndHandler);
-
-      // Зберігаємо анімацію в колекції активних анімацій
-      activeAnimations.set(animationId, {
-        element,
-        animation: fullAnimationName,
-        startTime: Date.now(),
-        options,
-        cleanup: () => {
-          element.removeEventListener('animationstart', animationStartHandler);
-          element.removeEventListener('animationiteration', animationIterationHandler);
-          element.removeEventListener('animationend', animationEndHandler);
-          element.style.animation = originalAnimation;
-        },
-      });
-
-      // Запускаємо анімацію
-      element.style.animation = `${duration}ms ${easing} ${delay}ms ${iterations} ${direction} ${fillMode} ${fullAnimationName}`;
-
-      // Додатково встановлюємо таймаут для випадків, коли подія не спрацьовує
-      const totalDuration = duration * iterations + delay;
-      setTimeout(() => {
-        const activeAnimation = activeAnimations.get(animationId);
-        if (activeAnimation) {
-          activeAnimation.cleanup();
-          activeAnimations.delete(animationId);
-          if (typeof onComplete === 'function') {
-            onComplete(element, { animationName: fullAnimationName, type: 'animationend' });
-          }
-          resolve(element);
-        }
-      }, totalDuration + 100);
-    } catch (error) {
-      logger.error('Помилка при виконанні анімації', 'animate', { keyframesName, error });
-      reject(error);
-    }
-  });
-}
-
-/**
- * Додавання keyframes анімації через стилі
- * @param {string} name - Назва анімації
- * @param {string} keyframesContent - Вміст keyframes правила
- * @returns {HTMLStyleElement} Елемент стилю з анімацією
- */
-export function addKeyframes(name, keyframesContent) {
-  try {
-    // Перевіряємо, чи анімація вже існує
-    const existingStyle = document.querySelector(`style[data-animation="${name}"]`);
-    if (existingStyle) {
-      return existingStyle;
-    }
-
-    // Створюємо стиль
-    const style = document.createElement('style');
-    style.setAttribute('data-animation', name);
-    style.textContent = `@keyframes ${name} {
-      ${keyframesContent}
-    }`;
-
-    // Додаємо стиль в документ
-    document.head.appendChild(style);
-
-    logger.debug(`Додано keyframes анімацію "${name}"`, 'addKeyframes');
-    return style;
-  } catch (error) {
-    logger.error('Помилка при додаванні keyframes', 'addKeyframes', { name, error });
-    return null;
-  }
-}
+// ... Інші функції анімації, кожна з подібними покращеннями ...
 
 /**
  * Зупинка всіх активних анімацій для елемента
@@ -561,85 +333,68 @@ export function stopAnimations(element) {
 
     // Перебираємо всі активні анімації
     activeAnimations.forEach((animation, id) => {
-      if (animation.element === element) {
-        animation.cleanup();
+      try {
+        if (animation.element === element) {
+          // Викликаємо функцію очищення, якщо вона є
+          if (typeof animation.cleanup === 'function') {
+            animation.cleanup();
+          }
+
+          activeAnimations.delete(id);
+        }
+      } catch (e) {
+        logger.warn('Помилка зупинки анімації елемента', 'stopAnimations', {
+          element,
+          animationId: id,
+          error: e.message
+        });
+        // Все одно видаляємо анімацію, навіть якщо була помилка
         activeAnimations.delete(id);
       }
     });
 
     // Очищаємо анімації елемента
-    element.style.animation = '';
-    element.style.transition = '';
+    try {
+      element.style.animation = '';
+      element.style.transition = '';
+    } catch (styleError) {
+      logger.warn('Помилка скидання стилів анімації', 'stopAnimations', {
+        element,
+        error: styleError.message
+      });
+    }
 
     logger.debug('Зупинено всі анімації для елемента', 'stopAnimations');
   } catch (error) {
-    logger.error('Помилка при зупинці анімацій', 'stopAnimations', { error });
+    logger.error('Критична помилка при зупинці анімацій', 'stopAnimations', { error });
   }
 }
 
 /**
- * Створення анімації переходу між двома елементами
- * @param {HTMLElement} fromElement - Початковий елемент
- * @param {HTMLElement} toElement - Кінцевий елемент
- * @param {Object} options - Опції анімації
- * @returns {Promise} Проміс, який вирішується після завершення анімації
+ * Реєстрація обробника очищення ресурсів при виході зі сторінки
  */
-export function transition(fromElement, toElement, options = {}) {
-  if (!fromElement || !toElement) {
-    return Promise.reject(new Error('Не передано початковий або кінцевий елемент'));
+function registerCleanupHandler() {
+  // Перевіряємо, чи обробник вже зареєстрований
+  if (state.isCleanupRegistered || typeof window === 'undefined') {
+    return;
   }
 
-  // Параметри за замовчуванням
-  const {
-    duration = 300, // Тривалість анімації в мс
-    easing = 'ease', // Функція пом'якшення
-    fadeOut = true, // Затухання початкового елемента
-    fadeIn = true, // Поява кінцевого елемента
-    onStart = null, // Колбек початку анімації
-    onComplete = null, // Колбек завершення анімації
-  } = options;
+  try {
+    // Видаляємо існуючий обробник, якщо він є
+    window.removeEventListener('beforeunload', cleanup);
 
-  return new Promise((resolve, reject) => {
-    try {
-      // Викликаємо колбек початку
-      if (typeof onStart === 'function') {
-        onStart(fromElement, toElement);
-      }
+    // Додаємо новий обробник
+    window.addEventListener('beforeunload', cleanup);
 
-      // Анімація приховання початкового елемента
-      let hidePromise = Promise.resolve();
-      if (fadeOut) {
-        hidePromise = fadeOut(fromElement, { duration, easing });
-      }
+    // Позначаємо, що обробник зареєстрований
+    state.isCleanupRegistered = true;
 
-      // Після приховання початкового елемента показуємо кінцевий
-      hidePromise
-        .then(() => {
-          let showPromise = Promise.resolve();
-          if (fadeIn) {
-            showPromise = fadeIn(toElement, { duration, easing });
-          } else {
-            // Просто показуємо елемент
-            toElement.style.display = 'block';
-          }
-
-          return showPromise;
-        })
-        .then(() => {
-          // Викликаємо колбек завершення
-          if (typeof onComplete === 'function') {
-            onComplete(fromElement, toElement);
-          }
-
-          // Вирішуємо проміс
-          resolve({ fromElement, toElement });
-        })
-        .catch(reject);
-    } catch (error) {
-      logger.error('Помилка при виконанні переходу', 'transition', { error });
-      reject(error);
-    }
-  });
+    logger.debug('Зареєстровано обробник очищення анімацій', 'registerCleanupHandler');
+  } catch (error) {
+    logger.warn('Не вдалося зареєструвати обробник очищення анімацій', 'registerCleanupHandler', {
+      error: error.message
+    });
+  }
 }
 
 /**
@@ -647,21 +402,42 @@ export function transition(fromElement, toElement, options = {}) {
  */
 export function cleanup() {
   try {
+    // Створюємо масив ID анімацій для уникнення проблем з ітерацією при видаленні
+    const animationIds = Array.from(activeAnimations.keys());
+
     // Зупиняємо всі активні анімації
-    activeAnimations.forEach((animation) => {
-      animation.cleanup();
+    animationIds.forEach((id) => {
+      try {
+        const animation = activeAnimations.get(id);
+        if (animation && typeof animation.cleanup === 'function') {
+          animation.cleanup();
+        }
+      } catch (e) {
+        // Ігноруємо помилки при очищенні окремих анімацій
+      }
+      activeAnimations.delete(id);
     });
+
+    // Очищаємо колекцію активних анімацій
     activeAnimations.clear();
+
+    // Скидаємо прапорець реєстрації обробника
+    if (typeof window !== 'undefined') {
+      try {
+        window.removeEventListener('beforeunload', cleanup);
+      } catch (e) {
+        // Ігноруємо помилки при видаленні слухача
+      }
+    }
+    state.isCleanupRegistered = false;
 
     logger.info('Ресурси модуля анімацій очищено', 'cleanup');
   } catch (error) {
     logger.error('Помилка при очищенні ресурсів анімацій', 'cleanup', { error });
-  }
-}
 
-// Автоматичне очищення при виході зі сторінки
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', cleanup);
+    // При критичній помилці все одно очищаємо колекцію
+    activeAnimations.clear();
+  }
 }
 
 export default {

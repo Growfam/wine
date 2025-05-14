@@ -6,16 +6,24 @@
  * - Делегування подій
  * - Обмеження частоти викликів (debounce, throttle)
  *
- * @version 1.0.0
+ * @version 1.0.1
  */
 
-import { getLogger } from '../../utils/core/index.js';
+import { getLogger } from '../core/logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DOMEvents');
 
 // Колекція обробників подій
 const eventHandlers = new Map();
+
+// Колекція делегованих обробників
+const delegatedHandlers = new WeakMap();
+
+// Стан модуля
+const state = {
+  isCleanupRegistered: false, // Прапорець реєстрації обробника очищення
+};
 
 /**
  * Додавання обробника події з можливістю відкладеного виконання
@@ -26,6 +34,9 @@ const eventHandlers = new Map();
  * @returns {Function} Функція для видалення обробника
  */
 export function addEvent(element, eventType, handler, options = {}) {
+  // Перевіряємо, чи встановлений обробник очищення
+  registerCleanupHandler();
+
   // Параметри за замовчуванням
   const {
     debounce = 0, // Час затримки в мс
@@ -36,6 +47,16 @@ export function addEvent(element, eventType, handler, options = {}) {
   } = options;
 
   try {
+    // Перевірка вхідних даних
+    if (!element || !eventType || typeof handler !== 'function') {
+      logger.warn('Неправильні аргументи при додаванні обробника події', 'addEvent', {
+        hasElement: !!element,
+        eventType,
+        hasHandler: typeof handler === 'function',
+      });
+      return () => false;
+    }
+
     let finalHandler = handler;
     let timeoutId;
     let lastExecTime = 0;
@@ -45,7 +66,14 @@ export function addEvent(element, eventType, handler, options = {}) {
       finalHandler = function (...args) {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
-          handler.apply(this, args);
+          try {
+            handler.apply(this, args);
+          } catch (e) {
+            logger.error('Помилка виконання обробника події (debounce)', 'addEvent', {
+              eventType,
+              error: e.message,
+            });
+          }
         }, debounce);
       };
     }
@@ -55,7 +83,14 @@ export function addEvent(element, eventType, handler, options = {}) {
         const now = Date.now();
         if (now - lastExecTime >= throttle) {
           lastExecTime = now;
-          handler.apply(this, args);
+          try {
+            handler.apply(this, args);
+          } catch (e) {
+            logger.error('Помилка виконання обробника події (throttle)', 'addEvent', {
+              eventType,
+              error: e.message,
+            });
+          }
         }
       };
     }
@@ -78,11 +113,18 @@ export function addEvent(element, eventType, handler, options = {}) {
     });
 
     // Додаємо обробник до елемента
-    element.addEventListener(eventType, finalHandler, {
-      once,
-      passive,
-      capture,
-    });
+    try {
+      element.addEventListener(eventType, finalHandler, {
+        once,
+        passive,
+        capture,
+      });
+    } catch (eventError) {
+      logger.error('Помилка при додаванні слухача події', 'addEvent', {
+        eventType,
+        error: eventError.message,
+      });
+    }
 
     logger.debug(`Додано обробник події ${eventType}`, 'addEvent');
 
@@ -108,6 +150,11 @@ export function addEvent(element, eventType, handler, options = {}) {
  */
 export function removeEvent(element, eventType, handler) {
   try {
+    // Перевірка вхідних даних
+    if (!element || !eventType || typeof handler !== 'function') {
+      return false;
+    }
+
     if (
       eventHandlers.has(element) &&
       eventHandlers.get(element).has(eventType) &&
@@ -117,9 +164,16 @@ export function removeEvent(element, eventType, handler) {
       const { finalHandler, options } = eventHandlers.get(element).get(eventType).get(handler);
 
       // Видаляємо обробник з елемента
-      element.removeEventListener(eventType, finalHandler, {
-        capture: options.capture,
-      });
+      try {
+        element.removeEventListener(eventType, finalHandler, {
+          capture: options.capture,
+        });
+      } catch (eventError) {
+        logger.warn('Помилка при видаленні слухача події', 'removeEvent', {
+          eventType,
+          error: eventError.message,
+        });
+      }
 
       // Видаляємо з колекції
       eventHandlers.get(element).get(eventType).delete(handler);
@@ -156,6 +210,11 @@ export function removeEvent(element, eventType, handler) {
  */
 export function removeAllEvents(element, eventType = null) {
   try {
+    // Перевірка вхідних даних
+    if (!element) {
+      return false;
+    }
+
     if (!eventHandlers.has(element)) {
       return false;
     }
@@ -170,10 +229,19 @@ export function removeAllEvents(element, eventType = null) {
 
       // Видаляємо всі обробники цього типу
       const typeHandlers = elementHandlers.get(eventType);
+      const removePromises = [];
+
       typeHandlers.forEach(({ finalHandler, options }, originalHandler) => {
-        element.removeEventListener(eventType, finalHandler, {
-          capture: options.capture,
-        });
+        try {
+          element.removeEventListener(eventType, finalHandler, {
+            capture: options.capture,
+          });
+        } catch (eventError) {
+          logger.warn('Помилка при видаленні слухача події', 'removeAllEvents', {
+            eventType,
+            error: eventError.message,
+          });
+        }
       });
 
       // Очищаємо колекцію
@@ -191,9 +259,16 @@ export function removeAllEvents(element, eventType = null) {
     // Видаляємо всі обробники для елемента
     elementHandlers.forEach((typeHandlers, type) => {
       typeHandlers.forEach(({ finalHandler, options }) => {
-        element.removeEventListener(type, finalHandler, {
-          capture: options.capture,
-        });
+        try {
+          element.removeEventListener(type, finalHandler, {
+            capture: options.capture,
+          });
+        } catch (eventError) {
+          logger.warn('Помилка при видаленні слухача події', 'removeAllEvents', {
+            eventType: type,
+            error: eventError.message,
+          });
+        }
       });
     });
 
@@ -222,28 +297,49 @@ export function removeAllEvents(element, eventType = null) {
  */
 export function delegateEvent(element, eventType, selector, handler, options = {}) {
   try {
+    // Перевірка вхідних даних
+    if (!element || !eventType || !selector || typeof handler !== 'function') {
+      logger.warn('Неправильні аргументи при делегуванні події', 'delegateEvent', {
+        hasElement: !!element,
+        eventType,
+        selector,
+        hasHandler: typeof handler === 'function',
+      });
+      return () => false;
+    }
+
     // Створюємо обробник делегування
     const delegateHandler = function (event) {
-      // Знаходимо цільовий елемент
-      const target = event.target.closest(selector);
+      try {
+        // Знаходимо цільовий елемент
+        const target = event.target.closest(selector);
 
-      // Якщо цільовий елемент знайдено і він є нащадком елемента-контейнера
-      if (target && element.contains(target)) {
-        // Викликаємо обробник з правильним контекстом
-        handler.call(target, event, target);
+        // Якщо цільовий елемент знайдено і він є нащадком елемента-контейнера
+        if (target && element.contains(target)) {
+          // Викликаємо обробник з правильним контекстом
+          handler.call(target, event, target);
+        }
+      } catch (e) {
+        logger.error('Помилка в обробнику делегованої події', 'delegateEvent', {
+          eventType,
+          selector,
+          error: e.message,
+        });
       }
     };
 
     // Зберігаємо зв'язок між оригінальним обробником і делегованим
-    if (!element._delegateHandlers) {
-      element._delegateHandlers = new Map();
+    if (!delegatedHandlers.has(element)) {
+      delegatedHandlers.set(element, new Map());
     }
 
-    if (!element._delegateHandlers.has(eventType)) {
-      element._delegateHandlers.set(eventType, new Map());
+    const elementDelegated = delegatedHandlers.get(element);
+
+    if (!elementDelegated.has(eventType)) {
+      elementDelegated.set(eventType, new Map());
     }
 
-    element._delegateHandlers.get(eventType).set(handler, {
+    elementDelegated.get(eventType).set(handler, {
       selector,
       delegateHandler,
     });
@@ -269,25 +365,31 @@ export function delegateEvent(element, eventType, selector, handler, options = {
  */
 export function removeDelegatedEvent(element, eventType, handler) {
   try {
+    // Перевірка вхідних даних
+    if (!element || !eventType || typeof handler !== 'function') {
+      return false;
+    }
+
     if (
-      element._delegateHandlers &&
-      element._delegateHandlers.has(eventType) &&
-      element._delegateHandlers.get(eventType).has(handler)
+      delegatedHandlers.has(element) &&
+      delegatedHandlers.get(element).has(eventType) &&
+      delegatedHandlers.get(element).get(eventType).has(handler)
     ) {
       // Отримуємо делегований обробник
-      const { delegateHandler } = element._delegateHandlers.get(eventType).get(handler);
+      const { delegateHandler } = delegatedHandlers.get(element).get(eventType).get(handler);
 
       // Видаляємо обробник
       const success = removeEvent(element, eventType, delegateHandler);
 
       // Видаляємо з колекції
-      element._delegateHandlers.get(eventType).delete(handler);
+      delegatedHandlers.get(element).get(eventType).delete(handler);
 
       // Очищаємо колекцію, якщо вона порожня
-      if (element._delegateHandlers.get(eventType).size === 0) {
-        element._delegateHandlers.delete(eventType);
-        if (element._delegateHandlers.size === 0) {
-          delete element._delegateHandlers;
+      if (delegatedHandlers.get(element).get(eventType).size === 0) {
+        delegatedHandlers.get(element).delete(eventType);
+
+        if (delegatedHandlers.get(element).size === 0) {
+          delegatedHandlers.delete(element);
         }
       }
 
@@ -310,14 +412,28 @@ export function removeDelegatedEvent(element, eventType, handler) {
  * @param {Object} options - Додаткові опції
  */
 export function onDOMReady(callback, options = {}) {
+  // Перевірка вхідних даних
+  if (typeof callback !== 'function') {
+    logger.warn('onDOMReady викликано без функції зворотного виклику', 'onDOMReady');
+    return;
+  }
+
   // Параметри за замовчуванням
   const {
     timeout = 5000, // Час очікування в мс
   } = options;
 
   // Якщо DOM вже завантажений
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(callback, 1);
+  const domLoaded = document && (document.readyState === 'complete' || document.readyState === 'interactive');
+
+  if (domLoaded) {
+    setTimeout(() => {
+      try {
+        callback();
+      } catch (e) {
+        logger.error('Помилка виконання колбека onDOMReady', 'onDOMReady', { error: e.message });
+      }
+    }, 1);
     return;
   }
 
@@ -329,23 +445,53 @@ export function onDOMReady(callback, options = {}) {
     // Очищаємо таймер
     if (timeoutId) {
       clearTimeout(timeoutId);
+      timeoutId = null;
     }
 
     // Видаляємо обробники
-    document.removeEventListener('DOMContentLoaded', readyHandler);
-    window.removeEventListener('load', readyHandler);
+    try {
+      document.removeEventListener('DOMContentLoaded', readyHandler);
+      window.removeEventListener('load', readyHandler);
+    } catch (e) {
+      // Ігноруємо помилки при видаленні слухачів
+    }
 
     // Викликаємо колбек
-    callback();
+    try {
+      callback();
+    } catch (e) {
+      logger.error('Помилка виконання колбека onDOMReady', 'onDOMReady', { error: e.message });
+    }
   };
 
   // Додаємо обробники подій
-  document.addEventListener('DOMContentLoaded', readyHandler);
-  window.addEventListener('load', readyHandler);
+  try {
+    document.addEventListener('DOMContentLoaded', readyHandler);
+    window.addEventListener('load', readyHandler);
+  } catch (e) {
+    logger.warn('Помилка при додаванні обробників DOMContentLoaded/load', 'onDOMReady', {
+      error: e.message
+    });
+
+    // Викликаємо колбек з затримкою при помилці
+    setTimeout(() => {
+      try {
+        callback();
+      } catch (callbackError) {
+        logger.error('Помилка виконання колбека onDOMReady (fallback)', 'onDOMReady', {
+          error: callbackError.message
+        });
+      }
+    }, 100);
+    return;
+  }
 
   // Додаємо таймер для обмеження часу очікування
   if (timeout > 0) {
-    timeoutId = setTimeout(readyHandler, timeout);
+    timeoutId = setTimeout(() => {
+      logger.warn('Таймаут очікування завантаження DOM', 'onDOMReady');
+      readyHandler();
+    }, timeout);
   }
 }
 
@@ -357,6 +503,12 @@ export function onDOMReady(callback, options = {}) {
  * @returns {Function} Функція з затримкою
  */
 export function debounce(func, wait, options = {}) {
+  // Перевірка вхідних даних
+  if (typeof func !== 'function') {
+    logger.warn('debounce викликано без функції', 'debounce');
+    return () => {};
+  }
+
   const { leading = false, trailing = true } = options;
 
   let timeout;
@@ -368,7 +520,11 @@ export function debounce(func, wait, options = {}) {
 
   function invokeFunc(time) {
     lastInvokeTime = time;
-    result = func.apply(lastThis, lastArgs);
+    try {
+      result = func.apply(lastThis, lastArgs);
+    } catch (e) {
+      logger.error('Помилка виконання debounced функції', 'debounce', { error: e.message });
+    }
     lastThis = lastArgs = null;
     return result;
   }
@@ -431,6 +587,12 @@ export function debounce(func, wait, options = {}) {
  * @returns {Function} Функція з обмеженням
  */
 export function throttle(func, limit, options = {}) {
+  // Перевірка вхідних даних
+  if (typeof func !== 'function') {
+    logger.warn('throttle викликано без функції', 'throttle');
+    return () => {};
+  }
+
   const { leading = true, trailing = true } = options;
 
   let timeout;
@@ -441,7 +603,11 @@ export function throttle(func, limit, options = {}) {
 
   function invokeFunc() {
     lastCallTime = Date.now();
-    result = func.apply(lastThis, lastArgs);
+    try {
+      result = func.apply(lastThis, lastArgs);
+    } catch (e) {
+      logger.error('Помилка виконання throttled функції', 'throttle', { error: e.message });
+    }
     lastThis = lastArgs = null;
     return result;
   }
@@ -500,15 +666,43 @@ export function throttle(func, limit, options = {}) {
  */
 export function triggerEvent(element, eventName, detail = {}, options = {}) {
   try {
+    // Перевірка вхідних даних
+    if (!element || !eventName) {
+      return false;
+    }
+
     const { bubbles = true, cancelable = true, composed = false } = options;
 
-    const event = new CustomEvent(eventName, {
-      bubbles,
-      cancelable,
-      composed,
-      detail,
-    });
+    let event;
 
+    // Створюємо подію
+    try {
+      event = new CustomEvent(eventName, {
+        bubbles,
+        cancelable,
+        composed,
+        detail,
+      });
+    } catch (eventError) {
+      // Резервний варіант для старих браузерів
+      logger.warn('Помилка створення CustomEvent, використовуємо document.createEvent', 'triggerEvent', {
+        eventName,
+        error: eventError.message
+      });
+
+      try {
+        event = document.createEvent('CustomEvent');
+        event.initCustomEvent(eventName, bubbles, cancelable, detail);
+      } catch (fallbackError) {
+        logger.error('Помилка створення події через document.createEvent', 'triggerEvent', {
+          eventName,
+          error: fallbackError.message
+        });
+        return false;
+      }
+    }
+
+    // Запускаємо подію
     return element.dispatchEvent(event);
   } catch (error) {
     logger.error('Помилка ініціювання події', 'triggerEvent', {
@@ -520,29 +714,71 @@ export function triggerEvent(element, eventName, detail = {}, options = {}) {
 }
 
 /**
+ * Реєстрація обробника очищення ресурсів при виході зі сторінки
+ */
+function registerCleanupHandler() {
+  // Перевіряємо, чи обробник вже зареєстрований
+  if (state.isCleanupRegistered || typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    // Видаляємо існуючий обробник, якщо він є
+    window.removeEventListener('beforeunload', cleanup);
+
+    // Додаємо новий обробник
+    window.addEventListener('beforeunload', cleanup);
+
+    // Позначаємо, що обробник зареєстрований
+    state.isCleanupRegistered = true;
+
+    logger.debug('Зареєстровано обробник очищення подій', 'registerCleanupHandler');
+  } catch (error) {
+    logger.warn('Не вдалося зареєструвати обробник очищення подій', 'registerCleanupHandler', {
+      error: error.message
+    });
+  }
+}
+
+/**
  * Очищення всіх обробників подій
  */
 export function cleanup() {
   try {
-    // Копіюємо ключі для ітерації, щоб уникнути помилок при модифікації під час ітерації
+    // Копіюємо ключі для ітерації, щоб уникнути проблем з модифікацією під час ітерації
     const elements = [...eventHandlers.keys()];
 
+    // Очищаємо кожен елемент
     elements.forEach((element) => {
-      removeAllEvents(element);
+      try {
+        removeAllEvents(element);
+      } catch (e) {
+        // Ігноруємо помилки при очищенні окремих елементів
+      }
     });
 
+    // Очищаємо Map з обробниками
     eventHandlers.clear();
+
+    // Скидаємо прапорець реєстрації обробника
+    if (typeof window !== 'undefined') {
+      try {
+        window.removeEventListener('beforeunload', cleanup);
+      } catch (e) {
+        // Ігноруємо помилки при видаленні слухача
+      }
+    }
+    state.isCleanupRegistered = false;
+
     logger.info('Всі обробники подій очищено', 'cleanup');
   } catch (error) {
     logger.error('Помилка очищення обробників подій', 'cleanup', {
       error: error.message,
     });
-  }
-}
 
-// Автоматичне очищення при виході зі сторінки
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', cleanup);
+    // При критичній помилці все одно очищаємо колекцію
+    eventHandlers.clear();
+  }
 }
 
 export default {

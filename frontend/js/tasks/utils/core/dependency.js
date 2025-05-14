@@ -100,8 +100,22 @@ export class DependencyContainer {
 const dependencyContainer = new DependencyContainer();
 
 // Додаємо в глобальний скоп для доступу з інших модулів
+// ВИПРАВЛЕНО: Додаємо безпечну перевірку існування window та властивості
 if (typeof window !== 'undefined') {
-  window.dependencyContainer = dependencyContainer;
+  try {
+    // Безпечно перевіряємо наявність властивості
+    if (!window.hasOwnProperty('dependencyContainer')) {
+      Object.defineProperty(window, 'dependencyContainer', {
+        value: dependencyContainer,
+        writable: false,
+        configurable: true
+      });
+    } else {
+      console.warn('Властивість "dependencyContainer" вже визначена у глобальному об\'єкті window');
+    }
+  } catch (error) {
+    console.error('Помилка при спробі реєстрації dependencyContainer у глобальному об\'єкті:', error);
+  }
 }
 
 // Експорт глобального контейнера
