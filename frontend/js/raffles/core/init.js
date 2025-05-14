@@ -347,7 +347,7 @@
   // Запускаємо створення об'єкту WinixRaffles (без виклику WinixRaffles.init())
   initWinixRaffles()
     .then((rafflesModule) => {
-      // НЕ ініціалізуємо автоматично - це буде зроблено в index.js
+      // НЕ ініціалізуємо автоматично - це буде зроблено в api.js
       console.log('✅ Модуль ініціалізації raffles/init.js завантажено');
     })
     .catch((error) => {

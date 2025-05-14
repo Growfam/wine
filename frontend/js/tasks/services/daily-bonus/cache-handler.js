@@ -11,7 +11,7 @@
 import { getLogger } from '../../utils/core/logger.js';
 import { LOG_CATEGORIES } from '../../utils/core/logger.js';
 import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
-import { DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
+import { DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DailyBonusCacheHandler');

@@ -9,7 +9,7 @@
  */
 
 import { getLogger } from '../utils/core/logger.js';
-import taskApiFactory from '../api/index.js';
+import taskApiFactory from '../api/api.js';
 
 // Створюємо логер для завантажувача модулів
 const logger = getLogger('ModuleLoader');

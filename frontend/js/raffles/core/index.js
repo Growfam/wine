@@ -1,5 +1,5 @@
 /**
- * WINIX - Система розіграшів (index.js)
+ * WINIX - Система розіграшів (api.js)
  * Точка входу для системи розіграшів, підключає всі необхідні модулі
  * Очищена версія без компонентів інтерфейсу
  * @version 1.3.0
@@ -261,7 +261,7 @@
       if (typeof window.WinixRaffles.init === 'function') {
         window.WinixRaffles.init();
         window.__winixInitialized = true;
-        console.log('✅ Система розіграшів WINIX успішно ініціалізована з index.js');
+        console.log('✅ Система розіграшів WINIX успішно ініціалізована з api.js');
         return true;
       } else {
         console.error('❌ Функція ініціалізації WinixRaffles не знайдена!');

@@ -9,10 +9,10 @@
  */
 
 import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
 import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
 import { UserProvider } from '../integration/user-provider.js';
-import { getDailyBonusStatus, claimDailyBonus } from '../../api/index.js';
+import { getDailyBonusStatus, claimDailyBonus } from '../../api/api.js';
 import DailyBonusCacheHandler from './cache-handler.js';
 
 // Створюємо логер для модуля

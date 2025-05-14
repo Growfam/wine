@@ -9,7 +9,7 @@
 
 import { getLogger } from '../core/logger.js';
 import cacheService from '../../api/core/cache.js';
-import taskApi from '../../api/index.js';
+import taskApi from '../../api/api.js';
 import dependencyContainer from '../core/dependency.js';
 
 // Створюємо логер для модуля

@@ -333,7 +333,7 @@ def register_utility_routes(app):
         # Перевіряємо JS файли, які викликають проблеми
         js_dir = os.path.join(BASE_DIR, 'frontend/js')
         settings_js_path = os.path.join(js_dir, 'tasks/config/settings.js')
-        ui_index_js_path = os.path.join(js_dir, 'tasks/ui/index.js')
+        ui_index_js_path = os.path.join(js_dir, 'tasks/ui/api.js')
         daily_bonus_js_path = os.path.join(js_dir, 'tasks/api/models/daily-bonus.js')
 
         settings_js_exists = os.path.exists(settings_js_path)
@@ -654,7 +654,7 @@ def register_page_routes(app):
                 <script src="/js/api.js"></script>
                 <script src="/js/core.js"></script>
                 <script src="/js/raffles/init.js"></script>
-                <script src="/js/raffles/index.js"></script>
+                <script src="/js/raffles/api.js"></script>
             </body>
             </html>
             """
