@@ -136,14 +136,6 @@
                         </div>
                     </div>
 
-                    <!-- Історія бонусів -->
-                    <div class="bonus-history-container">
-                        <h3 class="referral-subtitle">Історія бонусів</h3>
-                        <div class="bonus-history-items">
-                            <!-- Динамічне заповнення історії бонусів -->
-                        </div>
-                    </div>
-
                     <!-- Інструкція -->
                     <div class="instructions-container">
                         <h3 class="referral-subtitle">Як це працює?</h3>
@@ -281,48 +273,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Завдання -->
-                    <div class="tasks-container">
-                        <h3 class="referral-subtitle">Завдання реферальної програми</h3>
-                        <div class="tasks-stats-container">
-                            <div class="tasks-stats-item">
-                                <div class="tasks-stats-icon completed-task-icon"></div>
-                                <div class="tasks-stats-value" id="completed-tasks-count">0</div>
-                                <div class="tasks-stats-label">Виконані завдання</div>
-                            </div>
-                            <div class="tasks-stats-item">
-                                <div class="tasks-stats-icon total-tasks-icon"></div>
-                                <div class="tasks-stats-value" id="total-tasks-count">1</div>
-                                <div class="tasks-stats-label">Всього завдань</div>
-                            </div>
-                            <div class="tasks-stats-item">
-                                <div class="tasks-stats-icon task-reward-icon"></div>
-                                <div class="tasks-stats-value" id="total-tasks-reward">0</div>
-                                <div class="tasks-stats-label">Загальна винагорода</div>
-                            </div>
-                        </div>
-
-                        <div class="tasks-list-container">
-                            <div class="tasks-list" id="tasks-list">
-                                <!-- Завдання: 100 рефералів -->
-                                <div class="task-item in-progress">
-                                    <div class="task-info">
-                                        <div class="task-title">Запросити 100 рефералів</div>
-                                        <div class="task-description">Запросіть <span class="task-threshold">100</span> нових користувачів</div>
-                                        <div class="task-reward">Винагорода: <span class="task-reward">12000</span> winix</div>
-                                        <div class="task-progress-container">
-                                            <div class="task-progress-bar">
-                                                <div class="task-progress-fill REFERRAL_COUNT-progress" style="width: 0%"></div>
-                                            </div>
-                                            <div class="task-progress-text">0% (0/100)</div>
-                                        </div>
-                                        <button class="claim-task-button" data-task="REFERRAL_COUNT" disabled>Недоступно</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- ВКЛАДКА 3: СТАТИСТИКА -->
@@ -377,37 +327,19 @@
                         </div>
                     </div>
 
-                    <!-- Рекомендації щодо активності -->
-                    <div class="activity-recommendations">
-                        <div class="recommendations-title">Рекомендації</div>
-                        <div class="recommendations-list" id="activity-recommendations">
-                            <!-- Тут будуть додані рекомендації -->
-                        </div>
-                    </div>
-
-                    <!-- Структура рефералів -->
-                    <div class="referral-structure-container">
-                        <h3 class="referral-subtitle">Структура рефералів</h3>
-                        <div class="structure-info">
-                            <div class="structure-item">
-                                <div class="structure-label">Загальна кількість</div>
-                                <div class="structure-value total-referrals-count">0</div>
-                            </div>
-                            <div class="structure-item">
-                                <div class="structure-label">Активні реферали</div>
-                                <div class="structure-value active-referrals-count">0</div>
-                            </div>
-                            <div class="structure-item">
-                                <div class="structure-label">% конверсії</div>
-                                <div class="structure-value conversion-rate">0%</div>
-                            </div>
-                        </div>
-
+                  <!-- Рекомендації щодо активності -->
+<div class="activity-recommendations">
+    <div class="recommendations-title">Рекомендації</div>
+    <div class="recommendations-list" id="activity-recommendations">
+        <p style="color: white; margin-bottom: 10px;">Заохочуйте рефералів брати участь у розіграшах (мінімум 3 для активності).</p>
+        <p style="color: white;">Мотивуйте рефералів запрошувати інших користувачів (достатньо 1 запрошення для активності).</p>
+    </div>
+</div>
                         <!-- Вкладки для перегляду рефералів -->
                         <div class="referral-tabs">
                             <div class="referral-tab active" data-tab="level1">1-й рівень</div>
                             <div class="referral-tab" data-tab="level2">2-й рівень</div>
-                            <div class="referral-tab" data-tab="hierarchy">Ієрархія</div>
+                            <div class="referral-tab" data-tab="hierarchy">Ланцюжок</div>
                         </div>
 
                         <!-- Контент вкладок -->
@@ -434,7 +366,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
             </div>
 
             <!-- Деталі реферала (показується при кліку на реферала) -->
@@ -524,8 +455,153 @@
         Посилання скопійовано!
     </div>
 
-    <!-- Підключення скриптів -->
-    <script src="js/telegram-web-app.js"></script>
-    <script type="module" src="js/referrals/Integration/referrals-integration.js"></script>
+   <script src="js/telegram-web-app.js"></script>
+<script type="module" src="js/referrals/Integration/referrals-integration.js"></script>
+    <script type="module">
+  // Імпортуємо і запускаємо ініціалізацію
+  import { initReferralSystem } from './js/referrals/Integration/referrals-integration.js';
+  document.addEventListener('DOMContentLoaded', initReferralSystem);
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Ініціалізація базових обробників подій...");
+
+    // 1. Обробник для кнопки копіювання посилання
+    const copyButton = document.querySelector('.copy-button');
+    if (copyButton) {
+        copyButton.addEventListener('click', function() {
+            const linkText = document.querySelector('.link-display').textContent;
+            navigator.clipboard.writeText(linkText)
+                .then(() => {
+                    // Показуємо повідомлення про успішне копіювання
+                    const toast = document.getElementById('copy-toast');
+                    toast.textContent = 'Посилання скопійовано!';
+                    toast.classList.add('show');
+
+                    // Додаємо анімацію натискання
+                    copyButton.classList.add('clicked');
+
+                    // Видаляємо класи після затримки
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                        copyButton.classList.remove('clicked');
+                    }, 3000);
+                })
+                .catch(err => {
+                    console.error('Помилка при копіюванні:', err);
+                });
+        });
+        console.log("✓ Обробник для кнопки копіювання встановлено");
+    } else {
+        console.error("✗ Кнопка копіювання не знайдена");
+    }
+
+    // 2. Обробники для вкладок
+    const tabs = document.querySelectorAll('.referral-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            console.log("Натиснуто вкладку:", tab.dataset.tab);
+
+            // Видаляємо клас active з усіх вкладок
+            tabs.forEach(t => t.classList.remove('active'));
+
+            // Додаємо клас active до обраної вкладки
+            tab.classList.add('active');
+
+            // Отримуємо ідентифікатор вкладки
+            const tabId = tab.dataset.tab;
+
+            // Приховуємо всі панелі
+            const panes = document.querySelectorAll('.tab-pane');
+            panes.forEach(pane => pane.classList.remove('active'));
+
+            // Показуємо відповідну панель
+            const activePane = document.getElementById(`${tabId}-tab`);
+            if (activePane) {
+                activePane.classList.add('active');
+                console.log("✓ Активовано панель:", tabId);
+            } else {
+                console.error("✗ Панель не знайдена:", `${tabId}-tab`);
+            }
+        });
+    });
+    console.log("✓ Обробники для вкладок встановлено");
+
+    // 3. Обробники для головних вкладок
+    const mainTabs = document.querySelectorAll('.main-tabs .tab-button');
+    mainTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            console.log("Натиснуто головну вкладку:", tab.dataset.tab);
+
+            // Видаляємо клас active з усіх вкладок
+            mainTabs.forEach(t => t.classList.remove('active'));
+
+            // Додаємо клас active до обраної вкладки
+            tab.classList.add('active');
+
+            // Отримуємо ідентифікатор вкладки
+            const tabId = tab.dataset.tab;
+
+            // Приховуємо всі панелі
+            const panes = document.querySelectorAll('.main-tab-pane');
+            panes.forEach(pane => pane.classList.remove('active'));
+
+            // Показуємо відповідну панель
+            const activePane = document.getElementById(`${tabId}-tab`);
+            if (activePane) {
+                activePane.classList.add('active');
+                console.log("✓ Активовано головну панель:", tabId);
+            } else {
+                console.error("✗ Головна панель не знайдена:", `${tabId}-tab`);
+            }
+        });
+    });
+    console.log("✓ Обробники для головних вкладок встановлено");
+
+    // 4. Обробник для кнопки закриття деталей реферала
+    const closeButton = document.querySelector('.referral-details-close');
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            const detailsContainer = document.getElementById('referral-details');
+            if (detailsContainer) {
+                detailsContainer.classList.remove('show');
+                console.log("✓ Закрито деталі реферала");
+            }
+        });
+        console.log("✓ Обробник для кнопки закриття деталей встановлено");
+    }
+
+    // 5. Симуляція даних для реферального посилання
+    const linkDisplay = document.querySelector('.link-display');
+    if (linkDisplay && linkDisplay.textContent === 'Завантаження...') {
+        const userIdElement = document.querySelector('.user-id-value');
+        const userId = userIdElement ? userIdElement.textContent : 'WX54321';
+        linkDisplay.textContent = `https://winix.app/referral/${userId}`;
+        console.log("✓ Згенеровано реферальне посилання");
+    }
+
+    // 6. Оновлення відображення у статистиці
+    const totalReferralsElement = document.querySelector('.total-referrals-count');
+    if (totalReferralsElement) {
+        totalReferralsElement.textContent = '0';
+    }
+
+    const activeReferralsElement = document.querySelector('.active-referrals-count');
+    if (activeReferralsElement) {
+        activeReferralsElement.textContent = '0';
+    }
+
+    const conversionRateElement = document.querySelector('.conversion-rate');
+    if (conversionRateElement) {
+        conversionRateElement.textContent = '0%';
+    }
+
+    // Виведення інформації про успішну ініціалізацію
+    console.log("✅ Базові обробники подій успішно ініціалізовано");
+
+    // Тестування кнопки копіювання (автоматичне спрацювання)
+    console.log("🔍 Для тестування, клікніть на кнопку 'Копіювати'");
+});
+</script>
 </body>
 </html>
