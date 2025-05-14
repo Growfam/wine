@@ -1712,7 +1712,7 @@
                 };
 
                 // Перевіряємо, чи завантажено скрипт API
-                const apiScript = document.querySelector('script[src*="api.js"]');
+                const apiScript = document.querySelector('script[src*="tasks-api.js"]');
                 if (apiScript) {
                     results.apiModuleState.scriptLoaded = true;
                     console.log('📜 API скрипт завантажено, але модуль не ініціалізовано');
@@ -1809,7 +1809,7 @@
             }
 
             if (!results.apiAvailable) {
-                results.recommendations.push('API модуль не доступний. Перевірте завантаження скрипту api.js');
+                results.recommendations.push('API модуль не доступний. Перевірте завантаження скрипту tasks-api.js');
             }
 
             if (results.mockDataIndicatorPresent) {

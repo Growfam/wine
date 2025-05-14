@@ -1,0 +1,258 @@
+Етап 1: Основа системи - Генерація реферального посилання
+Мета: Користувач отримує своє унікальне реферальне посилання.
+Файли для розробки:
+
+js/referral/constants/urlPatterns.js
+javascript// Шаблон реферального посилання 'Winix/referral/{id}'
+export const REFERRAL_URL_PATTERN = 'Winix/referral/{id}';
+
+js/referral/utils/formatReferralUrl.js
+javascript// Функція форматування URL з ID користувача
+// Приймає userId, повертає посилання формату REFERRAL_URL_PATTERN
+
+js/referral/api/fetchReferralLink.js
+javascript// Функція отримання даних для посилання з бекенду
+// При тестуванні може використовувати моковані дані
+
+js/referral/services/generateReferralLink.js
+javascript// Сервіс, що координує створення посилання
+// Викликає API і форматує результат
+
+js/referral/store/referralLinkState.js
+javascript// Сховище для зберігання стану посилання
+// Має поля: link, isLoading, error
+
+js/referral/store/fetchReferralLinkAction.js
+javascript// Дія для отримання посилання
+// Диспатчить стани REQUEST, SUCCESS, FAILURE
+
+js/referral/constants/index.js
+javascript// Експортує всі константи
+export * from './urlPatterns';
+
+js/referral/utils/index.js
+javascript// Експортує всі утиліти
+export * from './formatReferralUrl';
+
+js/referral/api/index.js
+javascript// Експортує всі API
+export * from './fetchReferralLink';
+
+js/referral/services/index.js
+javascript// Експортує всі сервіси
+export * from './generateReferralLink';
+
+
+Етап 2: Прямі бонуси за запрошення рефералів
+Мета: Система нараховує бонус 50 winix за кожного запрошеного реферала.
+Файли для розробки:
+
+js/referral/constants/directBonuses.js
+javascript// Константа бонусу за реферала (50 winix)
+export const DIRECT_BONUS_AMOUNT = 50;
+
+js/referral/api/registerReferral.js
+javascript// Функція реєстрації нового реферала
+// Приймає referrerID і userID
+
+js/referral/services/calculateDirectBonus.js
+javascript// Розрахунок бонусу за нового реферала
+// Використовує DIRECT_BONUS_AMOUNT
+
+js/referral/store/directBonusState.js
+javascript// Сховище для зберігання стану бонусів
+// Має поля: totalBonus, history, isLoading, error
+
+js/referral/store/registerReferralAction.js
+javascript// Дія реєстрації реферала і нарахування бонусу
+// Викликає API та сервіс calculateDirectBonus
+
+Оновлення в index.js файлах:
+javascript// js/referral/constants/index.js - додати export для directBonuses
+// js/referral/api/index.js - додати export для registerReferral
+// js/referral/services/index.js - додати export для calculateDirectBonus
+
+
+Етап 3: Реферальна структура та рівні рефералів
+Мета: Користувач бачить кількість своїх рефералів 1-го та 2-го рівня.
+Файли для розробки:
+
+js/referral/api/fetchReferralStats.js
+javascript// Отримання загальної статистики по рефералах
+// Повертає дані про кількість рефералів різних рівнів
+
+js/referral/services/calculateLevel1Count.js
+javascript// Підрахунок кількості прямих рефералів (1-й рівень)
+// Обробляє дані, отримані з API
+
+js/referral/services/calculateLevel2Count.js
+javascript// Підрахунок кількості непрямих рефералів (2-й рівень)
+// Обробляє дані, отримані з API
+
+js/referral/store/referralLevelsState.js
+javascript// Зберігає кількість рефералів по рівнях
+// Має поля: level1Count, level2Count, isLoading, error
+
+js/referral/store/updateStatsAction.js
+javascript// Дія для оновлення статистики рефералів
+// Викликає API та відповідні сервіси
+
+
+Етап 4: Відсоткові винагороди за рівнями
+Мета: Система розраховує винагороди 10% від рефералів 1-го рівня і 5% від 2-го рівня.
+Файли для розробки:
+
+js/referral/constants/rewardRates.js
+javascript// Константи ставок винагород (10% і 5%)
+export const LEVEL_1_REWARD_RATE = 0.1;
+export const LEVEL_2_REWARD_RATE = 0.05;
+
+js/referral/utils/calculatePercentage.js
+javascript// Функція розрахунку відсотків
+// Приймає суму та відсотковий коефіцієнт
+
+js/referral/api/fetchReferralEarnings.js
+javascript// Отримання даних про заробітки рефералів
+// Повертає суми заробітків по рефералах
+
+js/referral/services/calculateLevel1Reward.js
+javascript// Розрахунок винагороди з 1-го рівня (10%)
+// Використовує LEVEL_1_REWARD_RATE і calculatePercentage
+
+js/referral/services/calculateLevel2Reward.js
+javascript// Розрахунок винагороди з 2-го рівня (5%)
+// Використовує LEVEL_2_REWARD_RATE і calculatePercentage
+
+js/referral/store/levelRewardsState.js
+javascript// Зберігає стан винагород за рівнями
+// Має поля: level1Rewards, level2Rewards, isLoading, error
+
+
+Етап 5: Перевірка активності рефералів
+Мета: Система визначає активних рефералів за критеріями (мінімум 3 розіграші або 1 запрошений).
+Файли для розробки:
+
+js/referral/constants/activityThresholds.js
+javascript// Пороги для визначення активності
+export const MIN_DRAWS_PARTICIPATION = 3;
+export const MIN_INVITED_REFERRALS = 1;
+
+js/referral/utils/isActiveReferral.js
+javascript// Перевірка критеріїв активності реферала
+// Використовує пороги з констант
+
+js/referral/api/fetchReferralActivity.js
+javascript// Отримання даних про активність рефералів
+// Повертає кількість розіграшів та запрошених для кожного реферала
+
+js/referral/services/checkReferralActivity.js
+javascript// Логіка визначення активності реферала
+// Викликає API і використовує утиліту isActiveReferral
+
+js/referral/store/referralActivityState.js
+javascript// Зберігає статус активності рефералів
+// Має поля: activeReferrals, isLoading, error
+
+
+Етап 6: Бейджі та завдання
+Мета: Система відстежує досягнення порогів для бейджів і завдань.
+Файли для розробки:
+
+js/referral/constants/badgeThresholds.js
+javascript// Пороги для отримання бейджів (25, 50, 100, 500 рефералів)
+export const BRONZE_BADGE_THRESHOLD = 25;
+export const SILVER_BADGE_THRESHOLD = 50;
+// ...
+
+js/referral/constants/badgeRewards.js
+javascript// Винагороди за бейджі (2500, 5000, 10000, 20000 winix)
+export const BRONZE_BADGE_REWARD = 2500;
+export const SILVER_BADGE_REWARD = 5000;
+// ...
+
+js/referral/constants/taskThresholds.js
+javascript// Пороги для завдань (100 рефералів = 12000 winix)
+export const REFERRAL_TASK_THRESHOLD = 100;
+export const REFERRAL_TASK_REWARD = 12000;
+
+js/referral/services/checkBadgeEligibility.js
+javascript// Перевірка права на бейджі на основі кількості рефералів
+// Використовує константи порогів
+
+js/referral/services/convertBadgeToWinix.js
+javascript// Конвертація бейджів у winix
+// Використовує константи винагород за бейджі
+
+js/referral/services/checkTaskCompletion.js
+javascript// Перевірка виконання завдань
+// Використовує константи порогів завдань
+
+js/referral/store/badgeState.js
+javascript// Зберігає стан бейджів користувача
+// Має поля: earnedBadges, availableBadges, isLoading, error
+
+
+Етап 7: Аналітика та рейтинг рефералів
+Мета: Користувач бачить рейтинг своїх рефералів та аналітику їхньої активності.
+Файли для розробки:
+
+js/referral/utils/sortReferralsByEarnings.js
+javascript// Сортування рефералів за принесеним заробітком
+// Функція сортування масиву рефералів
+
+js/referral/utils/formatWinixAmount.js
+javascript// Форматування суми winix для відображення
+// Додає роздільники тисяч, скорочує великі числа
+
+js/referral/services/getReferralRanking.js
+javascript// Формування рейтингу рефералів за заробітком
+// Використовує утиліту сортування
+
+js/referral/services/calculateTotalEarnedForUser.js
+javascript// Розрахунок заробітку від конкретного реферала
+// Сумує всі види винагород від одного реферала
+
+js/referral/api/fetchReferralDraws.js
+javascript// Отримання даних про участь рефералів у розіграшах
+// Повертає кількість та деталі участі
+
+js/referral/services/trackDrawParticipation.js
+javascript// Відстеження участі рефералів у розіграшах
+// Обробляє дані, отримані з API
+
+js/referral/store/drawParticipationState.js
+javascript// Зберігає дані про участь у розіграшах
+// Має поля: participationByReferral, isLoading, error
+
+
+Етап 8: Підсумковий розрахунок та інтеграція
+Мета: Система підраховує загальний заробіток від реферальної програми.
+Файли для розробки:
+
+js/referral/api/fetchReferralHistory.js
+javascript// Отримання історії реферальної активності
+// Повертає часову лінію подій
+
+js/referral/services/calculateTotalEarnings.js
+javascript// Розрахунок загального заробітку від реферальної програми
+// Інтегрує всі види винагород (прямі, рівневі, бейджі, завдання)
+
+js/referral/store/calculateRewardsAction.js
+javascript// Дія для комплексного розрахунку винагород
+// Координує роботу різних сервісів
+
+js/referral/index.js
+javascript// Головна точка входу, що експортує всі функції системи
+// Організовує публічне API реферальної системи
+
+
+Загальні рекомендації для розробки кожного файлу:
+
+Одна функція - одна відповідальність: кожен файл повинен виконувати лише одне завдання
+Детальні коментарі: документуйте призначення та параметри всіх функцій
+Обробка помилок: передбачте всі можливі помилки та крайні випадки
+Тестування: створюйте тести для різних сценаріїв та граничних випадків
+Стандарти коду: дотримуйтесь єдиного стилю коду в усіх файлах
+Оптимізація: уникайте зайвих обчислень та викликів API
+
+Цей план забезпечує поступову розробку повнофункціональної реферальної системи, де кожен етап будується на попередньому, а кожен файл має чітке призначення і відповідальність.
