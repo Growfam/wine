@@ -1,7 +1,7 @@
 """
 Модель для відстеження прогресу користувача у виконанні завдань.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid
 import logging
 
@@ -76,8 +76,8 @@ class UserProgress:
         self.progress_value = progress_value
         self.max_progress = max_progress
 
-        # Встановлення дат з використанням UTC для стандартизації
-        now = datetime.now(timezone.utc)
+        # Встановлення дат
+        now = datetime.now()
         self.start_date = start_date if start_date else now
         self.completion_date = completion_date
         self.last_updated = now
@@ -133,22 +133,24 @@ class UserProgress:
             attempts=data.get("attempts", 0)
         )
 
-        # Обробка дат - стандартизоване перетворення ISO 8601 до datetime з UTC
-        def parse_date(date_str):
-            if not date_str:
-                return None
+        # Обробка дат
+        if "start_date" in data and data["start_date"]:
+            if isinstance(data["start_date"], str):
+                progress.start_date = datetime.fromisoformat(data["start_date"].replace("Z", "+00:00"))
+            else:
+                progress.start_date = data["start_date"]
 
-            if isinstance(date_str, str):
-                # Додаємо UTC якщо часовий пояс не вказано
-                if 'Z' not in date_str and '+' not in date_str and '-' not in date_str[-6:]:
-                    date_str += 'Z'
-                return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            return date_str
+        if "completion_date" in data and data["completion_date"]:
+            if isinstance(data["completion_date"], str):
+                progress.completion_date = datetime.fromisoformat(data["completion_date"].replace("Z", "+00:00"))
+            else:
+                progress.completion_date = data["completion_date"]
 
-        # Обробляємо дати
-        progress.start_date = parse_date(data.get("start_date"))
-        progress.completion_date = parse_date(data.get("completion_date"))
-        progress.last_updated = parse_date(data.get("last_updated")) or datetime.now(timezone.utc)
+        if "last_updated" in data and data["last_updated"]:
+            if isinstance(data["last_updated"], str):
+                progress.last_updated = datetime.fromisoformat(data["last_updated"].replace("Z", "+00:00"))
+            else:
+                progress.last_updated = data["last_updated"]
 
         return progress
 
@@ -173,13 +175,13 @@ class UserProgress:
         # Оновлюємо статус, якщо прогрес досягнув максимуму
         if self.progress_value >= self.max_progress and self.status == STATUS_IN_PROGRESS:
             self.status = STATUS_COMPLETED
-            self.completion_date = datetime.now(timezone.utc)
+            self.completion_date = datetime.now()
         # Якщо прогрес розпочато, але ще не завершено
         elif self.progress_value > 0 and self.status == STATUS_NOT_STARTED:
             self.status = STATUS_IN_PROGRESS
 
         # Оновлюємо дату останнього оновлення
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now()
 
         return self
 
@@ -209,7 +211,7 @@ class UserProgress:
         self.status = status
 
         # Оновлюємо відповідні поля залежно від статусу
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
 
         if status == STATUS_COMPLETED and not self.completion_date:
             self.completion_date = now
@@ -244,7 +246,7 @@ class UserProgress:
             UserProgress: Оновлений об'єкт прогресу
         """
         self.attempts += 1
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now()
         return self
 
     def claim_reward(self):
@@ -255,7 +257,7 @@ class UserProgress:
             UserProgress: Оновлений об'єкт прогресу
         """
         self.reward_claimed = True
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now()
         return self
 
     def add_verification_data(self, data):
@@ -269,7 +271,7 @@ class UserProgress:
             UserProgress: Оновлений об'єкт прогресу
         """
         self.verification_data.update(data)
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = datetime.now()
         return self
 
     def __str__(self):
