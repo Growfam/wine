@@ -444,7 +444,7 @@ def register_page_routes(app):
             <body>
                 <h1>WINIX Розіграші</h1>
                 <p>Сторінка розіграшів завантажується...</p>
-                <script src="/js/api.js"></script>
+                <script src="/js/tasks-api.js"></script>
                 <script src="/js/core.js"></script>
                 <script src="/js/raffles/init.js"></script>
                 <script src="/js/raffles/index.js"></script>

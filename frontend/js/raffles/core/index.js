@@ -46,7 +46,7 @@
 
                 attempts++;
                 if (attempts >= maxAttempts) {
-                    console.error('❌ WinixAPI не знайдено! Переконайтеся, що api.js підключено на сторінці.');
+                    console.error('❌ WinixAPI не знайдено! Переконайтеся, що tasks-api.js підключено на сторінці.');
                     reject(new Error('API модуль не доступний'));
                     return;
                 }
