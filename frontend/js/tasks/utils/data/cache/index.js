@@ -6,8 +6,8 @@
  * @version 2.0.0
  */
 
-import cacheCore, { CACHE_TAGS } from '../../../utils/data/cache/core.js';
-import { StorageAdapter, STORAGE_TYPES, storageCompat } from '../../../utils/data/cache/storage.js';
+import cacheCore, { CACHE_TAGS } from './core.js';
+import { StorageAdapter, STORAGE_TYPES, storageCompat } from './storage.js';
 
 // Експорт для зручного імпорту
 export { CACHE_TAGS, StorageAdapter, STORAGE_TYPES, storageCompat };

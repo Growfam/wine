@@ -4,7 +4,7 @@
  * Відповідає за показ/приховування індикаторів завантаження та прогресу в UI
  */
 
-import { getLogger } from '../core/index.js';
+import { getLogger } from '../core/logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UILoaders');
