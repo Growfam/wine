@@ -8,7 +8,7 @@
  * @version 1.0.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 import { config } from '../core.js';
 
 // Створюємо логер для модуля

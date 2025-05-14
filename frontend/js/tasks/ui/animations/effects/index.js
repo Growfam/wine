@@ -9,7 +9,7 @@ export * from './transitions.js';
 
 // Імпорт для агрегованого експорту
 import * as particlesModule from './particles.js';
-import * as transitionsModule from '../../../ui/animations/effects/transitions.js';
+import * as transitionsModule from './transitions.js';
 
 // Отримання експорту за замовчуванням або модуля цілком
 const particles = particlesModule.default || particlesModule;

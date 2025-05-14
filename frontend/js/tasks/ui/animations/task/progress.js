@@ -11,8 +11,8 @@ import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
 // Імпортуємо config та state через іменований імпорт
 import { config, state } from '../core.js';
 // Імпортуємо потрібні функції з effects напряму
-import { createSuccessParticles } from '../../../ui/animations/effects/particles.js';
-import { pulseElement, highlightElement } from '../../../ui/animations/effects/transitions.js';
+import { createSuccessParticles } from '../effects/particles.js';
+import { pulseElement, highlightElement } from '../effects/transitions.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Task.Progress');

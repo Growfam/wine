@@ -32,35 +32,84 @@ console.log('Фабрика сервісів ініціалізована:', !!s
 import * as TaskTypes from './config/types/index.js';
 import { CONFIG } from './config/settings.js';
 
-// Використовуємо змінну, яку заповнимо асинхронно
-let dependencyContainer = {
-  register: () => {},
-  resolve: () => null,
-  has: () => false
-};
+// Оголошуємо глобальну змінну для використання в інших модулях
+let dependencyContainer = null;
 
-// Асинхронна функція для ініціалізації
-async function initializeDependencies() {
+/**
+ * Асинхронна функція для ініціалізації контейнера залежностей
+ * @returns {Promise<Object>} Проміс, що повертає контейнер залежностей
+ */
+export async function initializeDependencies() {
   try {
+    // Перевіряємо, чи контейнер вже був ініціалізований
+    if (dependencyContainer !== null) {
+      console.log('✅ DependencyContainer вже завантажено');
+      return dependencyContainer;
+    }
+
     // Динамічний імпорт для розриву циклу
     const module = await import('./utils/core/dependency.js');
     dependencyContainer = module.default;
     console.log('✅ DependencyContainer успішно завантажено');
+
+    // Реєструємо TaskManager і TaskSystem у контейнері
+    registerTaskSystemInContainer();
+
+    return dependencyContainer;
   } catch (e) {
     console.error('❌ Помилка завантаження DependencyContainer:', e);
+    throw e;
   }
 }
 
-// Виклик функції ініціалізації
+/**
+ * Функція для реєстрації системи завдань у контейнері залежностей
+ */
+function registerTaskSystemInContainer() {
+  if (!dependencyContainer || typeof dependencyContainer.register !== 'function') {
+    console.error('❌ DependencyContainer не ініціалізований або не має методу register');
+    return;
+  }
+
+  try {
+    // Реєструємо TaskManager у контейнері залежностей
+    if (window.TaskManager) {
+      dependencyContainer.register('TaskManager', window.TaskManager);
+      console.log('✅ TaskManager зареєстровано в контейнері залежностей');
+    }
+
+    // Реєструємо TaskSystem у контейнері залежностей
+    if (window.WINIX && window.WINIX.tasks) {
+      dependencyContainer.register('TaskSystem', window.WINIX.tasks);
+      console.log('✅ TaskSystem зареєстровано в контейнері залежностей');
+    }
+  } catch (e) {
+    console.error('❌ Помилка реєстрації систем у контейнері залежностей:', e);
+  }
+}
+
+// Виклик функції ініціалізації відразу з синхронним обробником
 initializeDependencies().then(() => {
   console.log('✅ Залежності ініціалізовано, можна продовжувати');
+}).catch(error => {
+  console.error('❌ Помилка ініціалізації залежностей:', error);
+  // Спробуємо ще раз через деякий час
+  setTimeout(() => {
+    initializeDependencies().catch(e =>
+      console.error('❌ Повторна спроба ініціалізації залежностей невдала:', e)
+    );
+  }, 1000);
 });
+
+// Експортуємо контейнер залежностей
+export { dependencyContainer };
+
 import { getLogger } from './utils/core/logger.js';
 
 // Створюємо логер для основної системи
 const logger = getLogger('TaskSystem');
 
-// Імпорт API (без створення циркулярних залежностей)
+// Імпорт API (без створення циклічних залежностей)
 import taskApi from './api/index.js';
 
 // Визначення версії
@@ -151,9 +200,6 @@ window.TaskManager = {
   },
   REWARD_TYPES: TaskTypes.REWARD_TYPES,
 };
-
-// Реєструємо TaskManager у контейнері залежностей
-dependencyContainer.register('TaskManager', window.TaskManager);
 
 // Для використання в сучасному синтаксисі
 window.WINIX = window.WINIX || {};
