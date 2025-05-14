@@ -6,3 +6,6 @@
 
 // Експортуємо функцію отримання реферального посилання
 export * from './fetchReferralLink';
+
+// Експортуємо функцію реєстрації реферала
+export * from './registerReferral';

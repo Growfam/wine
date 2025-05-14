@@ -90,7 +90,7 @@
                 </div>
                 <div class="stats-card">
                     <div class="stats-icon total-earnings-icon"></div>
-                    <div class="stats-value">0</div>
+                    <div class="stats-value total-bonus-amount">0</div>
                     <div class="stats-label">Загальний заробіток</div>
                 </div>
             </div>
@@ -110,6 +110,21 @@
                 </p>
             </div>
 
+            <!-- Форма реєстрації реферала -->
+            <div class="referral-registration-container">
+                <h3 class="referral-subtitle">Зареєструвати реферала</h3>
+                <form id="referral-registration-form" class="referral-form">
+                    <div class="form-group">
+                        <label for="referral-id">ID реферала</label>
+                        <input type="text" id="referral-id" placeholder="Введіть ID реферала" required>
+                    </div>
+                    <button type="submit" class="register-button">Зареєструвати</button>
+                </form>
+                <p class="referral-info">
+                    Отримайте <span class="bonus-amount">50</span> winix бонусу за кожного нового реферала
+                </p>
+            </div>
+
             <!-- Винагороди -->
             <div class="rewards-container">
                 <h3 class="referral-subtitle">Ваші винагороди</h3>
@@ -118,7 +133,7 @@
                         <div class="reward-icon direct-bonus-icon"></div>
                         <div class="reward-details">
                             <div class="reward-title">Бонус за реферала</div>
-                            <div class="reward-description">50 winix за кожного нового реферала</div>
+                            <div class="reward-description"><span class="bonus-amount">50</span> winix за кожного нового реферала</div>
                         </div>
                     </div>
                     <div class="reward-item">
@@ -135,6 +150,14 @@
                             <div class="reward-description">Отримуйте додаткові бонуси за кількість рефералів</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Історія бонусів -->
+            <div class="bonus-history-container">
+                <h3 class="referral-subtitle">Історія бонусів</h3>
+                <div class="bonus-history-items">
+                    <!-- Тут будуть динамічно додані елементи історії бонусів -->
                 </div>
             </div>
 
@@ -200,7 +223,7 @@
                         <div class="step-number">3</div>
                         <div class="step-details">
                             <div class="step-title">Отримуйте винагороди</div>
-                            <div class="step-description">Заробляйте бонуси за кожного реферала і відсотки від їхнього прибутку</div>
+                            <div class="step-description">Заробляйте <span class="bonus-amount">50</span> winix за кожного реферала і відсотки від їхнього прибутку</div>
                         </div>
                     </div>
                 </div>
@@ -211,31 +234,31 @@
         <nav class="nav-bar">
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/icons/home.svg" alt="Головна">
+                    <img src="assets/home-icon.png" alt="Головна">
                 </div>
                 <span>Головна</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/icons/tasks.svg" alt="Завдання">
+                    <img src="assets/earn-icon.png" alt="Завдання">
                 </div>
                 <span>Завдання</span>
             </div>
             <div class="nav-item active">
                 <div class="icon-wrapper">
-                    <img src="assets/icons/referral.svg" alt="Реферали">
+                    <img src="assets/referrals-icon.png" alt="Реферали">
                 </div>
                 <span>Реферали</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/icons/profile.svg" alt="Профіль">
+                    <img src="assets/wallet-icon.png" alt="Wallet">
                 </div>
-                <span>Профіль</span>
+                <span>Гаманець</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/icons/settings.svg" alt="Налаштування">
+                    <img src="assets/general-icon.png" alt="Налаштування">
                 </div>
                 <span>Налаштування</span>
             </div>

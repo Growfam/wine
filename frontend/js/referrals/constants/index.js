@@ -6,3 +6,6 @@
 
 // Експортуємо всі константи з urlPatterns
 export * from './urlPatterns';
+
+// Експортуємо константи прямих бонусів
+export * from './directBonuses';

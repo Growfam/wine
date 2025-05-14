@@ -6,3 +6,6 @@
 
 // Експортуємо сервіс генерації реферального посилання
 export * from './generateReferralLink';
+
+// Експортуємо сервіс розрахунку прямих бонусів
+export * from './calculateDirectBonus';
