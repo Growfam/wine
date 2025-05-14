@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="css/referrals/referrals-form.css">
     <link rel="stylesheet" href="css/referrals/referral-levels.css">
     <link rel="stylesheet" href="css/referrals/referral-structure.css">
+    <link rel="stylesheet" href="css/referrals/percentage-rewards.css">
+    <link rel="stylesheet" href="css/referrals/referral-activity.css">
 </head>
 <body>
     <!-- SVG фільтри для іконок -->
@@ -126,6 +128,143 @@
                 <p class="referral-info">
                     Отримайте <span class="bonus-amount">50</span> winix бонусу за кожного нового реферала
                 </p>
+            </div>
+
+            <!-- НОВИЙ РОЗДІЛ: Відсоткові винагороди -->
+            <div class="percentage-rewards-container">
+                <h3 class="referral-subtitle">Відсоткові винагороди</h3>
+                <div class="percentage-rewards-box">
+                    <!-- Картка відсоткових винагород 1-го рівня -->
+                    <div class="percentage-reward-card">
+                        <div class="percentage-card-header">
+                            <div class="percentage-card-icon level1-percentage-icon"></div>
+                            <div class="percentage-card-title">Винагорода 1-го рівня</div>
+                        </div>
+                        <div class="percentage-card-content">
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Відсоток винагороди</div>
+                                <div class="percentage-card-value">10%</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Кількість рефералів</div>
+                                <div class="percentage-card-value" id="level1-referrals-count">0</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Активні реферали</div>
+                                <div class="percentage-card-value" id="level1-active-count">0</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Загальний заробіток</div>
+                                <div class="percentage-card-value" id="level1-total-earnings">0</div>
+                            </div>
+                        </div>
+                        <div class="percentage-card-total">
+                            <div class="percentage-card-total-label">Винагорода</div>
+                            <div class="percentage-card-total-value" id="level1-total-reward">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Картка відсоткових винагород 2-го рівня -->
+                    <div class="percentage-reward-card">
+                        <div class="percentage-card-header">
+                            <div class="percentage-card-icon level2-percentage-icon"></div>
+                            <div class="percentage-card-title">Винагорода 2-го рівня</div>
+                        </div>
+                        <div class="percentage-card-content">
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Відсоток винагороди</div>
+                                <div class="percentage-card-value">5%</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Кількість рефералів</div>
+                                <div class="percentage-card-value" id="level2-referrals-count">0</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Активні реферали</div>
+                                <div class="percentage-card-value" id="level2-active-count">0</div>
+                            </div>
+                            <div class="percentage-card-row">
+                                <div class="percentage-card-label">Загальний заробіток</div>
+                                <div class="percentage-card-value" id="level2-total-earnings">0</div>
+                            </div>
+                        </div>
+                        <div class="percentage-card-total">
+                            <div class="percentage-card-total-label">Винагорода</div>
+                            <div class="percentage-card-total-value" id="level2-total-reward">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Історія відсоткових нарахувань -->
+                <div class="percentage-history-container">
+                    <div class="percentage-history-title">Історія нарахувань</div>
+                    <div class="percentage-history-items" id="percentage-history">
+                        <!-- Сюди будуть додані елементи історії нарахувань -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- НОВИЙ РОЗДІЛ: Активність рефералів -->
+            <div class="referral-activity-container">
+                <h3 class="referral-subtitle">Активність рефералів</h3>
+
+                <!-- Картки статистики активності -->
+                <div class="activity-stats-container">
+                    <div class="activity-stats-card">
+                        <div class="activity-stats-icon active-referrals-icon"></div>
+                        <div class="activity-stats-value" id="active-referrals-count">0</div>
+                        <div class="activity-stats-label">Активні реферали</div>
+                    </div>
+                    <div class="activity-stats-card">
+                        <div class="activity-stats-icon inactive-referrals-icon"></div>
+                        <div class="activity-stats-value" id="inactive-referrals-count">0</div>
+                        <div class="activity-stats-label">Неактивні реферали</div>
+                    </div>
+                    <div class="activity-stats-card">
+                        <div class="activity-stats-icon conversion-rate-icon"></div>
+                        <div class="activity-stats-value" id="conversion-rate">0%</div>
+                        <div class="activity-stats-label">Відсоток активності</div>
+                    </div>
+                </div>
+
+                <!-- Критерії активності -->
+                <div class="activity-criteria-container">
+                    <div class="activity-criteria-title">Критерії активності рефералів</div>
+                    <div class="activity-criteria-items">
+                        <div class="activity-criteria-item">
+                            <div class="activity-criteria-label">Мінімальна кількість розіграшів</div>
+                            <div class="activity-criteria-value">3</div>
+                        </div>
+                        <div class="activity-criteria-item">
+                            <div class="activity-criteria-label">Мінімальна кількість запрошених</div>
+                            <div class="activity-criteria-value">1</div>
+                        </div>
+                        <div class="activity-criteria-item">
+                            <div class="activity-criteria-label">Достатньо виконання хоча б одного критерію</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Таблиця активності рефералів -->
+                <div class="referral-activity-table">
+                    <div class="activity-table-header">
+                        <div class="activity-table-col activity-col-id">ID реферала</div>
+                        <div class="activity-table-col activity-col-draws">Розіграші</div>
+                        <div class="activity-table-col activity-col-invited">Запрошені</div>
+                        <div class="activity-table-col activity-col-status">Статус</div>
+                    </div>
+                    <div class="activity-table-body" id="activity-table-body">
+                        <!-- Сюди будуть додані рядки таблиці -->
+                    </div>
+                </div>
+
+                <!-- Рекомендації щодо активності -->
+                <div class="activity-recommendations">
+                    <div class="recommendations-title">Рекомендації</div>
+                    <div class="recommendations-list" id="activity-recommendations">
+                        <!-- Сюди будуть додані рекомендації -->
+                    </div>
+                </div>
             </div>
 
             <!-- Структура рефералів -->
@@ -357,7 +496,8 @@
         Посилання скопійовано!
     </div>
 
-    <!-- Підключення скриптів з підтримкою ES модулів -->
+    <!-- Підключення скриптів -->
+    <script src="js/telegram-web-app.js"></script>
     <script type="module" src="js/referrals/Integration/referrals-integration.js"></script>
 </body>
 </html>
