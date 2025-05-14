@@ -1,683 +1,463 @@
 /**
- * Точка входу системи завдань WINIX
+ * Головна точка входу для системи завдань
  *
- * Єдина точка імпорту для всієї системи завдань.
- * Уникає індексних файлів у підмодулях для запобігання циклічним залежностям.
+ * Експортує всі необхідні компоненти системи для використання в інших модулях
  *
- * @version 4.0.0
+ * @version 1.1.0
  */
 
-// ================================================================
-// ІМПОРТ API (все API в одному файлі)
-// ================================================================
-import taskApi, {
-  cacheService, requestService, actionService, taskService, progressService,
-  dailyBonusApi, CONFIG as API_CONFIG, API_VERSION, API_ERROR_CODES,
-  TASK_TYPES, TASK_STATUSES, VERIFICATION_ACTIONS, VERIFICATION_ACTION_PARAMS
+// Експорт конфігурації
+export { default as ACTION_TYPES } from './config/action-types.js';
+export { default as TASK_STATUS } from './config/status-types.js';
+export { default as TASK_TYPES } from './config/task-types.js';
+export { default as REWARD_TYPES } from './config/reward-types.js';
+export { default as VERIFICATION_STATUS } from './config/verification-status.js';
+export { default as SOCIAL_NETWORKS } from './config/social-networks.js';
+export {
+  DAILY_BONUS_TYPES,
+  DAILY_BONUS_CONFIG,
+  createDailyBonusModel
+} from './config/daily-bonus-types.js';
+export { default as CONFIG } from './config/settings.js';
+
+// Експорт базових моделей
+export { TaskModel } from './models/base/task-model.js';
+export { formatToApiData, formatToDisplayData } from './models/base/formatters.js';
+export { isValidTask } from './models/base/validators.js';
+export { generateTrackingUrl, hasTrackingParams, removeTrackingParams } from './models/base/tracking.js';
+
+// Експорт моделей типів завдань
+export { default as LimitedTaskModel } from './models/types/limited-task-model.js';
+export { default as PartnerTaskModel } from './models/types/partner-task-model.js';
+export { default as SocialTaskModel } from './models/types/social-task-model.js';
+export { default as DailyBonusModel } from './models/types/daily-bonus-model.js';
+
+// Експорт сервісів
+export { default as dailyBonusService } from './services/daily-bonus/daily-bonus-service.js';
+export { default as DailyBonusCacheHandler } from './services/daily-bonus/cache-handler.js';
+
+// Експорт API модулів
+export { default as taskApi } from './api/api.js';
+export {
+  cacheService,
+  requestService,
+  actionService,
+  taskService,
+  progressService,
+  dailyBonusApi,
+  CONFIG as API_CONFIG,
+  API_VERSION,
+  API_ERROR_CODES,
 } from './api/api.js';
 
-// ================================================================
-// ПРЯМІ ІМПОРТИ КОНФІГУРАЦІЇ
-// ================================================================
-import { CONFIG as SystemConfig } from './config/settings.js';
-import { ACTION_TYPES } from 'config/action-types.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
-import { REWARD_TYPES } from 'config/reward-types.js';
-import { SOCIAL_NETWORKS } from 'config/social-networks.js';
-import { TASK_STATUS } from 'config/status-types.js';
-import { VERIFICATION_STATUS } from 'config/verification-status.js';
+// Експорт сховища та менеджерів даних
+export { default as taskStore } from './services/store/task-store.js';
+export { default as balanceManager } from './services/store/balance-manager.js';
+export { default as progressManager } from './services/store/progress-manager.js';
+export {
+  setupCacheHandlers,
+  loadFromCache,
+  clearCacheByTagsHandler
+} from './services/store/cache-handlers.js';
+export { setupSubscribers } from './services/store/subscribers.js';
 
-// ================================================================
-// ПРЯМІ ІМПОРТИ ІНІЦІАЛІЗАЦІЇ
-// ================================================================
+// Експорт верифікаторів
+export { VerificationCore } from './services/verification/core/verification-core.js';
+export { BaseVerifier } from './services/verification/verifiers/base-verifier.js';
+export { GenericVerifier } from './services/verification/verifiers/generic-verifier.js';
+export { SocialVerifier } from './services/verification/verifiers/social-verifier.js';
+export { LimitedVerifier } from './services/verification/verifiers/limited-verifier.js';
+export { PartnerVerifier } from './services/verification/verifiers/partner-verifier.js';
+
+// Експорт утиліт для роботи з DOM
+export { default as domCore } from './utils/dom/core.js';
+export { default as domEvents } from './utils/dom/events.js';
+export { default as domAnimation } from './utils/dom/animation.js';
+
+// Експорт утиліт для роботи з часом
+export { default as dateUtils } from './utils/time/date.js';
+export { default as formatUtils } from './utils/time/format.js';
+export { default as timerUtils } from './utils/time/timer.js';
+
+// Експорт утиліт для валідації
+export { default as validationCore } from './utils/validation/core.js';
+export { default as validationRules } from './utils/validation/rules.js';
+export { default as validationForm } from './utils/validation/form.js';
+
+// Експорт утиліт для роботи з даними
+export { default as formatterUtils } from './utils/data/formatter.js';
+
+// Експорт утиліт для кешування
+export {
+  getFromCache,
+  saveToCache,
+  removeFromCache,
+  clearCacheByPattern,
+  CACHE_KEYS,
+  CACHE_TAGS
+} from './utils/cache/cache-adapter.js';
+export { default as cacheCore } from './utils/data/cache/core.js';
+export { default as storageAdapter } from './utils/data/cache/storage.js';
+
+// Експорт утиліт для сервісів
+export { default as serviceFactory } from './utils/services/service-factory.js';
+
+// Експорт утиліт для інтеграції та прогресу
+export { default as syncService } from './services/progress/sync-service.js';
+export {
+  showLoadingIndicator,
+  hideLoadingIndicator,
+  showVerificationMessage,
+  updateProgressUI
+} from './utils/ui/loaders.js';
+
+// Експорт сервісів інтеграції
+export { ConflictResolver } from './services/integration/conflict-resolver.js';
+export { DependencyManager } from './services/integration/dependency-manager.js';
+export { DiagnosticsService } from './services/integration/diagnostics.js';
+export { Initializer } from './services/integration/initializer.js';
+export { UserProvider } from './services/integration/user-provider.js';
+
+// Експорт логгера
+export {
+  getLogger,
+  LOG_LEVELS,
+  LOG_CATEGORIES,
+  ERROR_LEVELS,
+  ERROR_CATEGORIES
+} from './utils/core/logger.js';
+
+// Експорт контейнера залежностей
+export { default as dependencyContainer } from './utils/core/dependency.js';
+
+// Експорт UI компонентів
+export { default as UIAnimations } from './ui/animations/core.js';
+export { default as UIParticles } from './ui/animations/effects/particles.js';
+export { default as UITransitions } from './ui/animations/effects/transitions.js';
+
+// Експорт компонентів карток завдань
+export { default as TaskCard } from './ui/components/card/base.js';
+export { default as TaskCardActions } from './ui/components/card/actions.js';
+export { default as TaskCardProgress } from './ui/components/card/progress.js';
+
+// Експорт типів карток
+export { default as LimitedTaskCard } from './ui/components/card/types/limited.js';
+export { default as PartnerTaskCard } from './ui/components/card/types/partner.js';
+export { default as SocialTaskCard } from './ui/components/card/types/social.js';
+
+// Експорт анімацій винагород
+export { default as RewardBadge } from './ui/components/reward/badge.js';
+export { default as RewardPopup } from './ui/components/reward/popup.js';
+
+// Експорт компонентів щоденного бонусу
+export { default as DailyBonusCalendar } from './ui/components/daily-bonus/calendar.js';
+export { default as DailyBonusDialog } from './ui/components/daily-bonus/dialog.js';
+export { default as DailyBonusRewardPreview } from './ui/components/daily-bonus/reward-preview.js';
+
+// Експорт компонентів сповіщень
+export { default as Notifications } from './ui/notifications/toast.js';
+export { default as ConfirmDialog } from './ui/notifications/dialog.js';
+export { default as LoadingIndicator } from './ui/notifications/loading.js';
+
+// Експорт компонентів прогресу
+export { default as ProgressBar } from './ui/components/progress/bar.js';
+export { default as ProgressCircle } from './ui/components/progress/circle.js';
+
+// Експорт рендерерів завдань
+export { default as RenderersFactory } from './ui/renderers/factory.js';
+export { default as BaseRenderer } from './ui/renderers/base.js';
+export { default as SocialRenderer } from './ui/renderers/types/social.js';
+export { default as LimitedRenderer } from './ui/renderers/types/limited.js';
+export { default as PartnerRenderer } from './ui/renderers/types/partner.js';
+
+// Експорт модулів ініціалізації
+export { default as TaskInitializer } from './initialization/initialization.js';
+export { default as ModuleLoader } from './initialization/module-loader.js';
+export { default as SystemMethods } from './initialization/system-methods.js';
+
+// Ініціалізація основних компонентів при імпорті
+import { getLogger } from './utils/core/logger.js';
+import dailyBonusService from './services/daily-bonus/daily-bonus-service.js';
 import { Initializer } from './initialization/initialization.js';
-import {
-  loadModules, getModuleCache, areModulesLoaded, clearModuleCache
-} from './initialization/module-loader.js';
-import {
-  getTasks, findTaskById, startTask, verifyTask, updateTaskProgress,
-  getTaskProgress, syncProgress, claimDailyBonusFn, setActiveTab,
-  updateBalance, getSystemState, resetState, dispatchSystemEvent
-} from './initialization/system-methods.js';
+import * as moduleLoader from './initialization/module-loader.js';
+import systemMethods from './initialization/system-methods.js';
+import dependencyContainer from './utils/core/dependency.js';
 
-// ================================================================
-// ПРЯМІ ІМПОРТИ МОДЕЛЕЙ
-// ================================================================
-// Базові моделі
-import { TaskModel } from './models/base/task-model.js';
-import {
-  validateRequiredFields, validateDates, validatePartnerData,
-  validateSocialData, isValidTask
-} from './models/base/validators.js';
-import { formatToApiData, formatToDisplayData } from './models/base/formatters.js';
-import { generateTrackingUrl, hasTrackingParams, removeTrackingParams } from './models/base/tracking.js';
+// Імпорт API компонентів
+import taskApi from './api/api.js';
+import requestService from './api/core/request.js';
+import cacheService from './api/core/cache.js';
+import actionService from './api/services/action-service.js';
+import taskService from './api/services/task-service.js';
+import progressService from './api/services/progress-service.js';
 
-// Типи моделей
-import { DailyBonusModel, createDailyBonusModel } from './models/types/daily-bonus-model.js';
-import { LimitedTaskModel } from './models/types/limited-task-model.js';
-import { PartnerTaskModel } from './models/types/partner-task-model.js';
-import { SocialTaskModel } from './models/types/social-task-model.js';
-
-// ================================================================
-// ПРЯМІ ІМПОРТИ СЕРВІСІВ
-// ================================================================
-// Щоденний бонус
-import { DailyBonusCacheHandler } from './services/daily-bonus/cache-handler.js';
-import DailyBonusService from './services/daily-bonus/daily-bonus-service.js';
-
-// Інтеграція
-import { ConflictResolver } from './services/integration/conflict-resolver.js';
-import { DependencyManager } from './services/integration/dependency-manager.js';
-import { DiagnosticsService } from './services/integration/diagnostics.js';
-import { UserProvider } from './services/integration/user-provider.js';
-
-// Прогрес
-import TaskProgress from './services/progress/task-progress.js';
-import { setupUIUpdater } from './services/progress/ui-updater.js';
-import { setupSyncService, syncTaskProgress, syncAllProgress } from './services/progress/sync-service.js';
-
-// Сховище
-import { TaskStore } from './services/store/task-store.js';
-import { BalanceManager } from './services/store/balance-manager.js';
-import { ProgressManager } from './services/store/progress-manager.js';
-import { setupCacheHandlers, loadFromCache, clearCacheByTagsHandler } from './services/store/cache-handlers.js';
+// Імпорт сховища та менеджерів даних
+import taskStore from './services/store/task-store.js';
+import balanceManager from './services/store/balance-manager.js';
+import progressManager from './services/store/progress-manager.js';
 import { setupSubscribers } from './services/store/subscribers.js';
+import { setupCacheHandlers } from './services/store/cache-handlers.js';
 
-// Верифікація
+// Імпорт верифікаторів
 import { VerificationCore } from './services/verification/core/verification-core.js';
 import { setupCacheManager } from './services/verification/core/cache-manager.js';
 import { setupErrorHandler } from './services/verification/core/error-handler.js';
 import { setupEventDispatcher } from './services/verification/core/event-dispatcher.js';
 import { setupTypeDetector } from './services/verification/core/type-detector.js';
 import { setupUIController } from './services/verification/core/ui-controller.js';
-import { BaseVerifier } from './services/verification/verifiers/base-verifier.js';
 import { GenericVerifier } from './services/verification/verifiers/generic-verifier.js';
+import { SocialVerifier } from './services/verification/verifiers/social-verifier.js';
 import { LimitedVerifier } from './services/verification/verifiers/limited-verifier.js';
 import { PartnerVerifier } from './services/verification/verifiers/partner-verifier.js';
-import { SocialVerifier } from './services/verification/verifiers/social-verifier.js';
-import { setupUIHandlers, showVerificationLoader, hideVerificationLoader } from './services/verification/ui/loaders.js';
 
-// ================================================================
-// ПРЯМІ ІМПОРТИ UI
-// ================================================================
-// Анімації
-import {
-  init as initAnimations, setPerformanceMode, getConfig as getAnimationConfig,
-  getState as getAnimationState, state as animationsState, config as animationsConfig
-} from './ui/animations/core.js';
-import {
-  createSuccessParticles, createConfetti, createStarsEffect, createEmojiRain
-} from './ui/animations/effects/particles.js';
-import {
-  highlightElement, pulseElement, createRippleEffect, fadeIn, fadeOut,
-  animateSequence, animateNumber, animateTextChange
-} from './ui/animations/effects/transitions.js';
-import {
-  animateCurrentDay, animateTokenDay, animateDayTransition,
-  animateDailyBonusClaim, animateCycleCompletion
-} from './ui/animations/reward/daily-bonus.js';
-import {
-  showReward, showDailyBonusReward, showCycleCompletionAnimation,
-  updateUserBalance, animateTokenDay as animateTokenDayReward
-} from './ui/animations/reward/display.js';
-import {
-  animateTaskCompletion, animateTaskError, animateTaskExpiration, animateTaskStart
-} from './ui/animations/task/completion.js';
-import {
-  animateSuccessfulCompletion, showProgressAnimation, animateTaskStatusChange,
-  animateTasksAppear, animateTasksFiltering
-} from './ui/animations/task/progress.js';
+// Імпорт UI компонентів для ініціалізації
+import UIAnimations from './ui/animations/core.js';
+import ProgressBar from './ui/components/progress/bar.js';
+import ProgressCircle from './ui/components/progress/circle.js';
+import Notifications from './ui/notifications/toast.js';
+import ConfirmDialog from './ui/notifications/dialog.js';
+import LoadingIndicator from './ui/notifications/loading.js';
+import RenderersFactory from './ui/renderers/factory.js';
 
-// Компоненти: Картки
-import {
-  create as createCard, updateStatus, escapeHtml, getTaskElementById, isTaskRendered,
-  updateTaskTitle, updateTaskDescription
-} from './ui/components/card/base.js';
-import {
-  init as initCardActions, setupActionButtons, handleStartTask,
-  handleVerifyTask, updateActionStatus
-} from './ui/components/card/actions.js';
-import {
-  init as initCardProgress, render as renderProgressBar, updateProgress as updateCardProgress,
-  getProgressElement, updateAllProgress, cleanup as cleanupCardProgress
-} from './ui/components/card/progress.js';
-import { create as createLimitedCard } from './ui/components/card/types/limited.js';
-import {
-  create as createPartnerCard, isUrlSafe, generateCsrfToken,
-  ALLOWED_DOMAINS, BLOCKED_SCHEMES
-} from './ui/components/card/types/partner.js';
-import {
-  create as createSocialCard, detectNetworkType, SOCIAL_NETWORKS as UI_SOCIAL_NETWORKS
-} from './ui/components/card/types/social.js';
-
-// Компоненти: Щоденний бонус
-import { DailyBonusCalendar } from './ui/components/daily-bonus/calendar.js';
-import { DailyBonusDialog } from './ui/components/daily-bonus/dialog.js';
-import { DailyBonusRewardPreview } from './ui/components/daily-bonus/reward-preview.js';
-
-// Компоненти: Прогрес
-import {
-  init as initProgressBar, createProgressBar, updateProgress, getProgress,
-  getAllProgressBars, removeProgressBar, cleanup as cleanupProgressBar, deactivate
-} from './ui/components/progress/bar.js';
-import {
-  init as initProgressCircle, createProgressCircle, updateProgress as updateProgressCircle,
-  getProgress as getProgressCircle, getAllProgressCircles, removeProgressCircle,
-  cleanup as cleanupProgressCircle, deactivate as deactivateCircle
-} from './ui/components/progress/circle.js';
-
-// Компоненти: Винагорода
-import {
-  create as createRewardBadge, showAnimation as showRewardAnimation,
-  formatNumber, getCoinsLabel
-} from './ui/components/reward/badge.js';
-import {
-  showRewardPopup, showRewardSequence
-} from './ui/components/reward/popup.js';
-
-// Сповіщення
-import {
-  CONFIG as NotificationConfig, injectStyles, ensureContainer, updateConfig as updateNotificationConfig
-} from './ui/notifications/common.js';
-import {
-  init as initDialog, showConfirmDialog, hideAllDialogs, cleanup as cleanupDialog
-} from './ui/notifications/dialog.js';
-import {
-  init as initNotifications, cleanup as cleanupNotifications, showInfo, showSuccess,
-  showError, showWarning, showNotification, updateBalanceUI
-} from './ui/notifications/index.js';
-import {
-  init as initLoading, showLoading, hideLoading, cleanup as cleanupLoading
-} from './ui/notifications/loading.js';
-import {
-  init as initToast, showInfo as showInfoToast, showSuccess as showSuccessToast,
-  showError as showErrorToast, showWarning as showWarningToast, showNotification as showToastNotification,
-  updateBalanceUI as updateBalanceToast, cleanup as cleanupToast
-} from './ui/notifications/toast.js';
-
-// Рендерери
-import { BaseRenderer, TASK_STATUS as RENDERER_TASK_STATUS } from './ui/renderers/base.js';
-import {
-  getRendererByType, renderTask, refreshTaskDisplay, refreshAllTasks, registerRenderer
-} from './ui/renderers/factory.js';
-import { Limited as LimitedRenderer } from './ui/renderers/types/limited.js';
-import {
-  Partner as PartnerRenderer, ALLOWED_DOMAINS as RENDERER_ALLOWED_DOMAINS,
-  BLOCKED_SCHEMES as RENDERER_BLOCKED_SCHEMES, generateCsrfToken as rendererGenerateCsrfToken,
-  isUrlSafe as rendererIsUrlSafe
-} from './ui/renderers/types/partner.js';
-import {
-  Social as SocialRenderer, SOCIAL_NETWORKS as RENDERER_SOCIAL_NETWORKS,
-  SUPPORTED_NETWORKS, detectNetworkType as rendererDetectNetworkType,
-  getSocialIcon, isUrlSafe as socialIsUrlSafe, escapeHTML
-} from './ui/renderers/types/social.js';
-
-// ================================================================
-// ПРЯМІ ІМПОРТИ УТИЛІТ (ВСІ ФАЙЛИ З ДИРЕКТОРІЇ utils/)
-// ================================================================
-// Кешування
-import {
-  CACHE_KEYS, CACHE_TAGS, getFromCache, saveToCache, removeFromCache,
-  clearCacheByPattern, cacheTaskType, getCachedTaskType, cacheVerificationResult,
-  getCachedVerificationResult, clearVerificationCache, loadProgressFromCache, clearCacheByTags
-} from './utils/cache/cache-adapter.js';
-
-// Ядро
-import { getLogger, LOG_CATEGORIES, LOG_LEVELS } from './utils/core/logger.js';
-import dependencyContainer, { DependencyContainer } from './utils/core/dependency.js';
-
-// Дані
-import {
-  formatNumber as dataFormatNumber, formatCurrency, formatText, formatDateForApi,
-  formatJson, formatFileSize, prepareDataForApi, processApiResponse,
-  configureApiFormatter, detectFieldType, parseDate as dataParseDate
-} from './utils/data/formatter.js';
-import {
-  STORAGE_TYPES, StorageAdapter, storageCompat
-} from './utils/data/cache/storage.js';
-import {
-  CACHE_TAGS as dataCacheTags
-} from './utils/data/cache/core.js';
-
-// DOM
-import {
-  createFromHTML, escapeHTML as domEscapeHTML, getElementPosition, scrollToElement,
-  isElementInViewport, loadImage, addClass, removeClass, hasClass, toggleClass,
-  findParent, createElement
-} from './utils/dom/core.js';
-import {
-  addEvent, removeEvent, removeAllEvents, delegateEvent, removeDelegatedEvent,
-  onDOMReady, debounce, throttle, triggerEvent
-} from './utils/dom/events.js';
-import {
-  fadeIn as domFadeIn, fadeOut as domFadeOut, slideDown, slideUp,
-  animate, addKeyframes, stopAnimations, transition
-} from './utils/dom/animation.js';
-
-// Час
-import {
-  parseDate, isValidDate, isLeapYear, formatDateForApi as timeFormatDateForApi,
-  parseApiDate, getDateDifference, addPeriod, subtractPeriod, getUserTimezone,
-  isDateInRange, getMonthDay
-} from './utils/time/date.js';
-import {
-  formatDate, getRelativeTimeString, pluralize, formatTimeLeft,
-  formatDuration, parseIsoDuration, formatIsoDuration
-} from './utils/time/format.js';
-import {
-  init as initTimers, cleanup as cleanupTimers, createCountdown, stopCountdown,
-  stopAllCountdowns, getTimeLeft, isExpired, calculateUpdateFrequency, createSimpleCountdown
-} from './utils/time/timer.js';
-
-// Валідація
-import {
-  validate, validateRequired, validatePattern, validateLength, validateEmail,
-  validatePhone, validateUrl, validateNumber, validateInteger, validateMatch,
-  validatePassword, validateCheckbox, validateDate, regexCache
-} from './utils/validation/core.js';
-import {
-  validateUsername, validatePersonName, validateEmailExtended, validateNistPassword,
-  validateCreditCard, validateDateExtended, validateFile, validateAddress, validatePhoneExtended
-} from './utils/validation/rules.js';
-import {
-  init as initFormValidation, cleanup as cleanupFormValidation, setupFormValidation,
-  validateForm, validateField, updateConfig as updateFormConfig
-} from './utils/validation/form.js';
-
-// Сервіси
-import serviceFactory from './utils/services/service-factory.js';
-
-// UI утиліти
-import {
-  showLoadingIndicator, hideLoadingIndicator, showVerificationMessage,
-  updateProgressUI, showVerificationLoader as uiShowVerificationLoader,
-  hideVerificationLoader as uiHideVerificationLoader
-} from './utils/ui/loaders.js';
-
-// ================================================================
-// СТВОРЕННЯ ЕКЗЕМПЛЯРІВ ОСНОВНИХ КОМПОНЕНТІВ
-// ================================================================
-
-// Створюємо логер для основної системи
+// Створюємо логер для головного модуля
 const logger = getLogger('TaskSystem');
 
-// Створюємо екземпляри необхідних сервісів
-const taskStore = new TaskStore();
-const dailyBonusService = new DailyBonusService();
-const initializer = new Initializer();
+// Основний об'єкт UI для зручного доступу
+export const UI = {
+  Animations: UIAnimations,
+  ProgressBar,
+  ProgressCircle,
+  Notifications,
+  ConfirmDialog,
+  LoadingIndicator,
 
-// Визначення версії
-const VERSION = '4.0.0';
+  // Метод для ініціалізації всіх UI компонентів
+  initialize() {
+    UIAnimations.init();
+    ProgressBar.init();
+    ProgressCircle.init();
+    Notifications.init();
+    ConfirmDialog.init();
+    LoadingIndicator.init();
 
-// ================================================================
-// МОДИФІКАЦІЯ СИСТЕМИ ІНІЦІАЛІЗАЦІЇ
-// ================================================================
+    logger.info('UI компоненти успішно ініціалізовано');
+    return this;
+  }
+};
 
 /**
- * Асинхронна функція для ініціалізації контейнера залежностей
- * @returns {Promise<Object>} Проміс, що повертає контейнер залежностей
- */
-export async function initializeDependencies() {
-  try {
-    logger.info('Ініціалізація контейнера залежностей');
-
-    // Реєструємо TaskManager і TaskSystem у контейнері
-    registerTaskSystemInContainer();
-
-    return dependencyContainer;
-  } catch (e) {
-    logger.error('Помилка завантаження DependencyContainer:', e);
-    throw e;
-  }
-}
-
-/**
- * Функція для реєстрації системи завдань у контейнері залежностей
- */
-function registerTaskSystemInContainer() {
-  if (!dependencyContainer || typeof dependencyContainer.register !== 'function') {
-    logger.error('DependencyContainer не ініціалізований або не має методу register');
-    return;
-  }
-
-  try {
-    // Реєструємо TaskManager у контейнері залежностей
-    if (window.TaskManager) {
-      dependencyContainer.register('TaskManager', window.TaskManager);
-      logger.info('TaskManager зареєстровано в контейнері залежностей');
-    }
-
-    // Реєструємо TaskSystem у контейнері залежностей
-    if (window.WINIX && window.WINIX.tasks) {
-      dependencyContainer.register('TaskSystem', window.WINIX.tasks);
-      logger.info('TaskSystem зареєстровано в контейнері залежностей');
-    }
-
-    // Реєструємо сервіси
-    dependencyContainer.register('cacheService', cacheService);
-    dependencyContainer.register('requestService', requestService);
-    dependencyContainer.register('taskService', taskService);
-    dependencyContainer.register('actionService', actionService);
-    dependencyContainer.register('progressService', progressService);
-    dependencyContainer.register('taskStore', taskStore);
-    dependencyContainer.register('dailyBonusService', dailyBonusService);
-
-  } catch (e) {
-    logger.error('Помилка реєстрації систем у контейнері залежностей:', e);
-  }
-}
-
-// ================================================================
-// МОДИФІКОВАНИЙ ІНІЦІАЛІЗАТОР СИСТЕМИ
-// ================================================================
-
-/**
- * Ініціалізація системи завдань
- * @param {Object} options Опції ініціалізації
+ * Функція ініціалізації системи
+ * @param {Object} options - Опції ініціалізації
  * @returns {Promise<boolean>} Результат ініціалізації
  */
-async function initializeSystem(options = {}) {
+export async function initializeTaskSystem(options = {}) {
   try {
-    logger.info('Ініціалізація системи завдань', options);
+    logger.info('Ініціалізація системи завдань');
+
+    // Реєструємо основні модулі в контейнері залежностей
+    registerCoreModules();
+
+    // Ініціалізуємо UI компоненти
+    UI.initialize();
 
     // Ініціалізуємо API
-    taskApi.init(options);
+    taskApi.init(options.apiOptions || {});
 
-    // Ініціалізуємо залежності
-    await initializeDependencies();
+    // Ініціалізуємо сховище та підписників
+    await taskStore.initialize(options.storeOptions || {});
+    setupSubscribers(taskStore);
+    setupCacheHandlers(taskStore);
 
-    // Ініціалізуємо підсистеми
-    const uiOptions = options.ui || {};
+    // Ініціалізуємо менеджери даних
+    balanceManager.initialize();
+    progressManager.initialize();
 
-    // Ініціалізуємо анімації
-    if (uiOptions.animations) {
-      initAnimations(uiOptions.animations);
-    }
+    // Ініціалізуємо верифікацію
+    const verificationCore = initializeVerification();
 
-    // Ініціалізуємо сповіщення
-    initNotifications();
+    // Ініціалізуємо сервіс щоденних бонусів
+    await dailyBonusService.initialize();
 
-    // Ініціалізуємо сховище
-    taskStore.initialize();
+    // Завантажуємо необхідні модулі
+    const modules = await moduleLoader.loadModules();
 
-    // Ініціалізуємо прогрес
-    TaskProgress.prototype.initialize();
+    // Ініціалізуємо систему через Initializer
+    const initializer = new Initializer();
+    await initializer.init(options);
 
-    // Ініціалізуємо щоденні бонуси
-    dailyBonusService.initialize();
+    // Реєструємо додаткові компоненти після ініціалізації
+    registerRenderers();
 
-    // Завантажуємо завдання, якщо потрібно
-    if (options.loadTasks !== false) {
-      await taskService.loadAllTasks({ forceRefresh: options.forceRefresh });
-    }
-
-    logger.info('Систему завдань успішно ініціалізовано');
-
-    // Генеруємо подію про ініціалізацію
-    dispatchSystemEvent('system-initialized', {
-      timestamp: Date.now(),
-      version: VERSION
-    });
-
+    logger.info('Система завдань успішно ініціалізована');
     return true;
   } catch (error) {
-    logger.error('Помилка ініціалізації системи завдань:', error);
+    logger.error(error, 'Помилка ініціалізації системи завдань');
     return false;
   }
 }
 
-// ================================================================
-// СТВОРЕННЯ ПУБЛІЧНОГО API
-// ================================================================
+/**
+ * Ініціалізація системи верифікації
+ * @returns {VerificationCore} Ядро системи верифікації
+ */
+function initializeVerification() {
+  try {
+    // Створюємо ядро верифікації
+    const verificationCore = new VerificationCore();
 
-// Експортуємо API для модульного використання
-const taskSystem = {
-  // Дані про версію
-  version: VERSION,
+    // Ініціалізуємо ядро зі сховищем завдань
+    verificationCore.initialize(taskStore);
 
-  // Методи ініціалізації
-  initialize: initializeSystem,
-  loadModules,
+    // Налаштовуємо компоненти верифікації
+    setupCacheManager(verificationCore);
+    setupErrorHandler();
+    setupEventDispatcher(verificationCore);
+    setupTypeDetector();
+    setupUIController(verificationCore);
 
-  // Основні методи роботи з завданнями
-  getTasks,
-  findTaskById,
-  startTask,
-  verifyTask,
-  updateTaskProgress,
-  getTaskProgress,
-  syncProgress,
+    // Реєструємо верифікатори
+    verificationCore.registerVerifier('generic', new GenericVerifier());
+    verificationCore.registerVerifier('social', new SocialVerifier());
+    verificationCore.registerVerifier('limited', new LimitedVerifier());
+    verificationCore.registerVerifier('partner', new PartnerVerifier());
 
-  // Методи для щоденних бонусів
-  claimDailyBonus: claimDailyBonusFn,
+    // Реєструємо ядро верифікації у контейнері залежностей
+    dependencyContainer.register('verificationCore', verificationCore);
 
-  // Методи роботи з UI та станом
-  setActiveTab,
-  updateBalance,
-  getSystemState,
-  resetState,
-  dispatchSystemEvent,
+    logger.info('Система верифікації успішно ініціалізована');
+    return verificationCore;
+  } catch (error) {
+    logger.error('Помилка ініціалізації системи верифікації:', error);
+    return null;
+  }
+}
 
-  // Доступ до ключових компонентів
+/**
+ * Реєстрація ключових модулів в контейнері залежностей
+ */
+function registerCoreModules() {
+  // Реєструємо ядро системи
+  dependencyContainer.register('TaskSystem', TaskSystem);
+
+  // Реєструємо UI компоненти
+  dependencyContainer.register('UI', UI);
+  dependencyContainer.register('UI.Animations', UIAnimations);
+  dependencyContainer.register('UI.ProgressBar', ProgressBar);
+  dependencyContainer.register('UI.ProgressCircle', ProgressCircle);
+  dependencyContainer.register('UI.Notifications', Notifications);
+
+  // Реєструємо API сервіси
+  dependencyContainer.register('taskApi', taskApi);
+  dependencyContainer.register('requestService', requestService);
+  dependencyContainer.register('cacheService', cacheService);
+  dependencyContainer.register('actionService', actionService);
+  dependencyContainer.register('taskService', taskService);
+  dependencyContainer.register('progressService', progressService);
+
+  // Реєструємо сховище та менеджери
+  dependencyContainer.register('taskStore', taskStore);
+  dependencyContainer.register('balanceManager', balanceManager);
+  dependencyContainer.register('progressManager', progressManager);
+
+  // Реєструємо сервіси
+  dependencyContainer.register('dailyBonusService', dailyBonusService);
+
+  // Реєструємо рендерери
+  dependencyContainer.register('RenderersFactory', RenderersFactory);
+
+  logger.info('Ключові модулі зареєстровані в контейнері залежностей');
+}
+
+/**
+ * Реєстрація рендерерів в фабриці
+ */
+function registerRenderers() {
+  // Рендерери вже підключені через фабрику (RenderersFactory)
+  // Але можемо додати додаткові якщо потрібно
+  logger.info('Рендерери завдань зареєстровані');
+}
+
+// Основний об'єкт системи завдань
+const TaskSystem = {
+  initialize: initializeTaskSystem,
+  dailyBonus: dailyBonusService,
+  UI,
   api: taskApi,
+  store: taskStore,
 
-  // Доступ до основних моделей
+  // Додаємо методи з SystemMethods
+  startTask: systemMethods.startTask,
+  verifyTask: systemMethods.verifyTask,
+  updateTaskProgress: systemMethods.updateTaskProgress,
+  getTaskProgress: systemMethods.getTaskProgress,
+  syncProgress: systemMethods.syncProgress,
+  claimDailyBonus: systemMethods.claimDailyBonus,
+  setActiveTab: systemMethods.setActiveTab,
+  updateBalance: systemMethods.updateBalance,
+  getSystemState: systemMethods.getSystemState,
+  resetState: systemMethods.resetState,
+
+  // Експортовані типи та конфігурації для зручного доступу
+  types: {
+    TASK_TYPES: TASK_TYPES,
+    TASK_STATUS: TASK_STATUS,
+    ACTION_TYPES: ACTION_TYPES,
+    REWARD_TYPES: REWARD_TYPES,
+    VERIFICATION_STATUS: VERIFICATION_STATUS,
+    DAILY_BONUS_TYPES: DAILY_BONUS_TYPES
+  },
+
+  // Утиліти для роботи з UI
+  ui: {
+    showLoadingIndicator,
+    hideLoadingIndicator,
+    showVerificationMessage,
+    updateProgressUI
+  },
+
+  // Модулі
+  modules: {
+    loadModules: moduleLoader.loadModules,
+    getModuleCache: moduleLoader.getModuleCache,
+    areModulesLoaded: moduleLoader.areModulesLoaded
+  },
+
+  // Моделі
   models: {
     TaskModel,
     LimitedTaskModel,
     PartnerTaskModel,
     SocialTaskModel,
-    DailyBonusModel,
-    createTaskModel: function(type, data = {}) {
-      switch (type) {
-        case TASK_TYPES.SOCIAL:
-          return new SocialTaskModel(data);
-        case TASK_TYPES.LIMITED:
-          return new LimitedTaskModel(data);
-        case TASK_TYPES.PARTNER:
-          return new PartnerTaskModel(data);
-        case TASK_TYPES.REFERRAL:
-          return new SocialTaskModel(data);
-        default:
-          return new TaskModel(data);
-      }
-    },
     createDailyBonusModel
   },
 
-  // Доступ до сервісів
-  services: {
-    store: taskStore,
-    dailyBonus: dailyBonusService,
-    verification: {
-      verifyTask: verifyTask,
-      showLoader: showVerificationLoader,
-      hideLoader: hideVerificationLoader
-    }
+  // Рендерери
+  renderers: RenderersFactory,
+
+  // Менеджери
+  managers: {
+    balanceManager,
+    progressManager
   },
 
-  // Доступ до UI компонентів
-  ui: {
-    animations: {
-      init: initAnimations,
-      setPerformanceMode,
-      effects: {
-        createSuccessParticles,
-        createConfetti,
-        createStarsEffect,
-        pulseElement,
-        highlightElement,
-        fadeIn,
-        fadeOut
+  // Верифікація
+  verification: {
+    verifyTask: (taskId) => {
+      const verificationCore = dependencyContainer.resolve('verificationCore');
+      if (verificationCore) {
+        return verificationCore.verifyTask(taskId);
       }
-    },
-    components: {
-      card: {
-        create: createCard,
-        updateStatus,
-        createLimitedCard,
-        createPartnerCard,
-        createSocialCard
-      },
-      progress: {
-        createProgressBar,
-        updateProgress,
-        createProgressCircle
-      },
-      reward: {
-        createRewardBadge,
-        showRewardAnimation,
-        showRewardPopup
-      },
-      dailyBonus: {
-        Calendar: DailyBonusCalendar,
-        Dialog: DailyBonusDialog,
-        RewardPreview: DailyBonusRewardPreview
-      }
-    },
-    notifications: {
-      showSuccess,
-      showError,
-      showInfo,
-      showWarning,
-      showConfirmDialog,
-      showLoading,
-      hideLoading,
-      updateBalanceUI
-    },
-    renderers: {
-      renderTask,
-      refreshTaskDisplay,
-      refreshAllTasks
+      return Promise.reject(new Error('Ядро верифікації не ініціалізовано'));
     }
-  },
-
-  // Доступ до утиліт
-  utils: {
-    logger: {
-      getLogger,
-      LOG_CATEGORIES,
-      LOG_LEVELS
-    },
-    dependency: dependencyContainer,
-    data: {
-      formatNumber: dataFormatNumber,
-      formatCurrency,
-      formatText,
-      parseDate: dataParseDate
-    },
-    dom: {
-      addClass,
-      removeClass,
-      hasClass,
-      addEvent,
-      removeEvent,
-      onDOMReady,
-      debounce,
-      throttle
-    },
-    time: {
-      formatDate,
-      getRelativeTimeString,
-      parseDate,
-      isValidDate,
-      formatDuration
-    },
-    validation: {
-      validate,
-      validateEmail,
-      validatePhone,
-      validateUrl
-    },
-    services: serviceFactory
-  },
-
-  // Ключові типи та константи
-  types: {
-    TASK_TYPES,
-    TASK_STATUSES,
-    TASK_STATUS,
-    ACTION_TYPES,
-    REWARD_TYPES,
-    SOCIAL_NETWORKS,
-    VERIFICATION_STATUS,
-    DAILY_BONUS_TYPES
-  },
-
-  // Конфігурація
-  config: SystemConfig
+  }
 };
 
-// ================================================================
-// АВТОІНІЦІАЛІЗАЦІЯ ТА ГЛОБАЛЬНІ ОБ'ЄКТИ
-// ================================================================
-
-// Автоматична ініціалізація при завантаженні сторінки
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      logger.debug('DOM завантажено, автоматична ініціалізація TaskSystem');
-      setTimeout(() => initializeSystem(), 100);
-    });
-  } else {
-    // DOM вже завантажено
-    logger.debug('DOM вже завантажено, автоматична ініціалізація TaskSystem');
-    setTimeout(() => initializeSystem(), 100);
-  }
+// Встановлення глобальних об'єктів для можливості доступу з інших модулів
+if (typeof window !== 'undefined') {
+  window.TaskSystem = TaskSystem;
+  window.UI = UI;
+  window.taskApi = taskApi;
 }
 
-// Для зворотної сумісності з глобальним namespace
-window.TaskManager = {
-  // Основні методи
-  init: initializeSystem,
-  loadTasks: () => initializeSystem({ forceRefresh: true }),
-  findTaskById,
-  startTask,
-  verifyTask,
-  updateTaskProgress,
-  getTaskProgress,
-  claimDailyBonus: claimDailyBonusFn,
-
-  // Додаткові методи
-  diagnoseSystemState: getSystemState,
-  refreshAllTasks: () => initializeSystem({ forceRefresh: true }),
-  showErrorMessage: (message) => {
-    console.error(message);
-    return false;
-  },
-  showSuccessMessage: (message) => {
-    console.log(message);
-    return true;
-  },
-
-  // Властивості
-  get initialized() {
-    return getSystemState().initialized;
-  },
-  get version() {
-    return VERSION;
-  },
-  REWARD_TYPES: REWARD_TYPES,
-};
-
-// Для використання в сучасному синтаксисі
-window.WINIX = window.WINIX || {};
-window.WINIX.tasks = taskSystem;
-
-// Експортуємо для використання в модулях
-export default taskSystem;
-
-// Експортуємо ключові компоненти для розширеного використання
-export {
-  taskApi,
-  cacheService,
-  requestService,
-  taskService,
-  actionService,
-  progressService,
-  taskStore,
-  dailyBonusService
-};
-
-// Експортуємо dependencyContainer для підтримки інших модулів
-export { dependencyContainer };
+// Експорт за замовчуванням
+export default TaskSystem;
