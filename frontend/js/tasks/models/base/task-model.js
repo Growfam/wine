@@ -6,7 +6,9 @@
  * - Спільну логіку для всіх типів завдань
  */
 
-import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from '../../config/index.js';
+import { REWARD_TYPES } from '../../config/reward-types.js';
+import { TASK_TYPES } from '../../config/task-types.js';
+import { TASK_STATUS } from '../../config/status-types.js';
 import { isValidTask } from './validators.js';
 import { formatToDisplayData, formatToApiData } from './formatters.js';
 import { generateTrackingUrl } from './tracking.js';

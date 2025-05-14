@@ -8,7 +8,7 @@
  */
 
 import dependencyContainer from '../../../utils/core/dependency.js';
-import { TASK_STATUS } from 'config/status-types.js';
+import { TASK_STATUS } from '../../../config/status-types.js';
 
 // Стан системи дій
 const state = {

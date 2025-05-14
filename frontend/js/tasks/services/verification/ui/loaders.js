@@ -8,7 +8,7 @@ import {
   showLoadingIndicator,
   hideLoadingIndicator,
   showVerificationMessage
-} from '../../../utils/ui/index.js';
+} from '../../../utils/ui/';
 
 /**
  * Налаштування UI обробників для сервісу верифікації

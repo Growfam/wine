@@ -7,7 +7,7 @@
  * - Генерацію людиночитаних повідомлень про помилки
  */
 
-import { VERIFICATION_STATUS } from '../../../config/index.js';
+import { VERIFICATION_STATUS } from '../../../config/verification-status.js';
 import { getLogger } from '../../../utils/core/logger.js';
 
 // Створюємо логер для модуля

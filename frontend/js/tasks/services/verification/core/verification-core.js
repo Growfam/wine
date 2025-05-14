@@ -4,7 +4,7 @@
  * Центральний компонент сервісу верифікації, який координує процес перевірки завдань
  */
 
-import { VERIFICATION_STATUS } from '../../../config/index.js';
+import { VERIFICATION_STATUS } from '../../../config/verification-status.js';
 import { getLogger } from '../../../utils/core/logger.js';
 import {
   cacheTaskType,

@@ -7,7 +7,7 @@
  */
 
 import { BaseVerifier } from './base-verifier.js';
-import { SOCIAL_NETWORKS } from '../../../config/index.js';
+import { SOCIAL_NETWORKS } from '../../../config/social-networks.js';
 
 export class SocialVerifier extends BaseVerifier {
   /**

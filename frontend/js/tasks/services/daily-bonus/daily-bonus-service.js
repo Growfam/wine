@@ -8,8 +8,8 @@
  * - Скидання циклу бонусів
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils/core/logger.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/daily-bonus-types.js';
 import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
 import { UserProvider } from '../integration/user-provider.js';
 import { getDailyBonusStatus, claimDailyBonus } from '../../api/api.js';

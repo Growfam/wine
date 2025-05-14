@@ -4,7 +4,7 @@
  * Відповідає за синхронізацію локального прогресу з серверним
  */
 
-import { CONFIG } from '../../config/index.js';
+import { CONFIG } from '../../config/settings.js';
 
 /**
  * Налаштування синхронізації з сервером
