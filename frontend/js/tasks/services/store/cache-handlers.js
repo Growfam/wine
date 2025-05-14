@@ -9,7 +9,7 @@ import {
   getFromCache,
   removeFromCache,
   clearCacheByTags
-} from '../../utils/cache/index.js';
+} from '../../utils/cache/cache-adapter.js';
 
 /**
  * Налаштування обробників кешування для сховища

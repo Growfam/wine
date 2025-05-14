@@ -4,8 +4,9 @@
  * Функції для перетворення даних у різні формати
  */
 
-import { TASK_TYPES, REWARD_TYPES, TASK_STATUS } from '../../config/index.js';
-
+import { REWARD_TYPES } from '../../config/reward-types.js';
+import { TASK_TYPES } from '../../config/task-types.js';
+import { TASK_STATUS } from '../../config/status-types.js';
 /**
  * Форматування в формат для API
  * @param {Object} task - Завдання

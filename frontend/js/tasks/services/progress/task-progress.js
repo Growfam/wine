@@ -6,7 +6,8 @@
  * - Оновлення прогресу в реальному часі
  */
 
-import { TASK_STATUS, CONFIG } from '../../config/index.js';
+import { TASK_STATUS } from '../../config/status-types.js';
+import { CONFIG } from '../../config/settings.js';
 // Видаляємо пряму залежність від taskStore
 // import { taskStore } from '../api.js';
 

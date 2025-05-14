@@ -8,7 +8,7 @@
  */
 
 import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/daily-bonus-types.js';
 import DailyBonusCalendar from './calendar.js';
 import DailyBonusRewardPreview from './reward-preview.js';
 import { default as DailyBonusService } from '../../../services/daily-bonus/daily-bonus-service.js';

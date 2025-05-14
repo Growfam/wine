@@ -7,7 +7,8 @@
  * - Використання DOM для визначення типу
  */
 
-import { TASK_TYPES, SOCIAL_NETWORKS } from '../../../config/index.js';
+import { TASK_TYPES } from '../../../config/task-types.js';
+import { SOCIAL_NETWORKS } from '../../../config/social-networks.js';
 import { getLogger } from '../../../utils/core/logger.js';
 import { getCachedTaskType, cacheTaskType } from './cache-manager.js';
 

@@ -7,7 +7,8 @@
  * @version 3.0.0
  */
 
-import { getLogger, LOG_CATEGORIES, debounce, cleanup  } from '../../utils/index.js';
+import { getLogger, LOG_CATEGORIES, debounce, cleanup  } from '../../utils/core/logger.js';
+import { debounce, cleanup  } from '../../utils/dom/events.js';
 // Імпортуємо необхідні компоненти
 import { animateSuccessfulCompletion } from './task/progress.js';
 import { showDailyBonusReward } from './reward/display.js';

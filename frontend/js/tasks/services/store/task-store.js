@@ -7,8 +7,8 @@
  * - Координацію інших менеджерів
  */
 
-import { TASK_TYPES } from '../../config/index.js';
-import { createTaskModel } from '../../models/index.js';
+import { TASK_TYPES } from '../../config/task-types.js';
+import { createTaskModel } from '../../models/base/task-model.js';
 import { dependencyContainer } from '../../utils/core/dependency.js';
 import { saveToCache, loadFromCache } from './cache-handlers.js';
 

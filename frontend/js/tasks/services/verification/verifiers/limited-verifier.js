@@ -7,7 +7,7 @@
  */
 
 import { BaseVerifier } from './base-verifier.js';
-import { TASK_STATUS } from '../../../config/index.js';
+import { TASK_STATUS } from '../../../config/status-types.js';
 
 export class LimitedVerifier extends BaseVerifier {
   /**

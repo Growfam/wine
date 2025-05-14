@@ -6,8 +6,9 @@
  * - Вирішення проблем з отриманням ID користувача
  */
 
-import { getLogger, LOG_CATEGORIES, dependencyContainer } from '../../utils/index.js';
-import { CONFIG } from '../../config/index.js';
+import { getLogger, LOG_CATEGORIES,  } from '../../utils/core/logger.js';
+import { dependencyContainer } from '../../utils/core/dependency.js';
+import { CONFIG } from '../../config/settings.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UserProvider');
