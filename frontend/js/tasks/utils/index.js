@@ -12,7 +12,7 @@ import * as Data from './data/index.js';
 import * as DOM from './dom/index.js';
 import * as Time from './time/index.js';
 import * as Validation from './validation/index.js';
-import * as Services from '../utils/services/index.js'; // Додали імпорт сервісів
+import * as Services from './services/index.js'; // Додали імпорт сервісів
 
 export { Core, Data, DOM, Time, Validation, Services }; // Додали Services
 

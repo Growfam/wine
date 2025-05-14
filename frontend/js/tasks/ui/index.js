@@ -18,6 +18,7 @@ const dummyComponents = {
   createComponent: () => ({}),
   renderComponent: () => {},
   updateComponent: () => {},
+  initComponents: async () => false,
 };
 
 const dummyNotifications = {
@@ -46,45 +47,88 @@ let notifications = dummyNotifications;
 let renderers = dummyRenderers;
 let DailyBonus = dummyDailyBonus;
 
-// Функція обробки помилок у модулях
+// Стан ініціалізації
+let initialized = false;
+let initPromise = null;
+
+/**
+ * Функція обробки помилок у модулях
+ * @param {string} moduleName - Назва модуля
+ * @param {Error} error - Об'єкт помилки
+ */
 function handleModuleError(moduleName, error) {
   console.warn(`Не вдалося завантажити модуль ${moduleName}:`, error.message);
 }
 
-// Завантаження модуля анімацій
-try {
-  animations = require('./animations/index.js');
-} catch (error) {
-  handleModuleError('animations', error);
+/**
+ * Асинхронна ініціалізація всіх UI модулів
+ * @returns {Promise<boolean>} Результат ініціалізації
+ */
+export async function init() {
+  if (initialized) {
+    return true;
+  }
+
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = new Promise(async (resolve) => {
+    try {
+      // Завантажуємо всі модулі асинхронно
+      const [animationsModule, componentsModule, notificationsModule, renderersModule, dailyBonusModule] =
+        await Promise.allSettled([
+          import('./animations/index.js').catch(error => {
+            handleModuleError('animations', error);
+            return dummyAnimations;
+          }),
+          import('./components/index.js').catch(error => {
+            handleModuleError('components', error);
+            return dummyComponents;
+          }),
+          import('./notifications/index.js').catch(error => {
+            handleModuleError('notifications', error);
+            return dummyNotifications;
+          }),
+          import('./renderers/index.js').catch(error => {
+            handleModuleError('renderers', error);
+            return dummyRenderers;
+          }),
+          import('./components/daily-bonus/index.js').catch(error => {
+            handleModuleError('DailyBonus', error);
+            return { default: dummyDailyBonus };
+          })
+        ]);
+
+      // Присвоюємо значення модулів, перевіряючи успішність їх завантаження
+      animations = animationsModule.status === 'fulfilled' ? animationsModule.value : dummyAnimations;
+      components = componentsModule.status === 'fulfilled' ? componentsModule.value : dummyComponents;
+      notifications = notificationsModule.status === 'fulfilled' ? notificationsModule.value : dummyNotifications;
+      renderers = renderersModule.status === 'fulfilled' ? renderersModule.value : dummyRenderers;
+      DailyBonus = dailyBonusModule.status === 'fulfilled' ? dailyBonusModule.value.default : dummyDailyBonus;
+
+      // Ініціалізуємо компоненти, якщо є метод init
+      if (components.initComponents) {
+        await components.initComponents();
+      }
+
+      initialized = true;
+      resolve(true);
+    } catch (error) {
+      console.error('Помилка ініціалізації UI модулів:', error);
+      resolve(false);
+    }
+  });
+
+  return initPromise;
 }
 
-// Завантаження модуля компонентів
-try {
-  components = require('./components/index.js');
-} catch (error) {
-  handleModuleError('components', error);
-}
-
-// Завантаження модуля сповіщень
-try {
-  notifications = require('./notifications/index.js');
-} catch (error) {
-  handleModuleError('notifications', error);
-}
-
-// Завантаження модуля рендерерів
-try {
-  renderers = require('./renderers/index.js');
-} catch (error) {
-  handleModuleError('renderers', error);
-}
-
-// Завантаження модуля щоденного бонусу
-try {
-  DailyBonus = require('./components/daily-bonus/index.js').default;
-} catch (error) {
-  handleModuleError('DailyBonus', error);
-}
+// Запускаємо ініціалізацію автоматично з невеликою затримкою
+setTimeout(() => {
+  init().catch(error => {
+    console.error('Помилка автоініціалізації UI:', error);
+  });
+}, 100);
 
 // Експортуємо модулі
 export {
@@ -92,7 +136,8 @@ export {
   components,
   notifications,
   renderers,
-  DailyBonus
+  DailyBonus,
+  init
 };
 
 // Експорт за замовчуванням
@@ -101,5 +146,6 @@ export default {
   components,
   notifications,
   renderers,
-  DailyBonus
+  DailyBonus,
+  init
 };

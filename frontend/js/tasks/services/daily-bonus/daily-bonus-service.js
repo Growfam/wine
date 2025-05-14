@@ -1,5 +1,5 @@
 /**
- * DailyBonusService - сервіс для управління щоденними бонусами
+ * Сервіс управління щоденними бонусами
  *
  * Відповідає за:
  * - Отримання поточного стану бонусу
@@ -285,25 +285,25 @@ class DailyBonusService {
       // Оновлюємо баланс користувача через динамічний імпорт
       // для уникнення циклічних залежностей
       try {
-        const { default: taskStore } = await import('../store/index.js');
+        const { default: taskStoreModule } = await import('../store/index.js');
 
         if (response.reward.tokens > 0) {
-          taskStore.updateBalance('tokens', response.reward.tokens, true);
+          taskStoreModule.updateBalance('tokens', response.reward.tokens, true);
         }
 
         if (response.reward.coins > 0) {
-          taskStore.updateBalance('coins', response.reward.coins, true);
+          taskStoreModule.updateBalance('coins', response.reward.coins, true);
         }
 
         // Якщо є бонус за завершення циклу
         if (response.reward.completion) {
           // Оновлюємо баланс
           if (response.reward.completion.tokens > 0) {
-            taskStore.updateBalance('tokens', response.reward.completion.tokens, true);
+            taskStoreModule.updateBalance('tokens', response.reward.completion.tokens, true);
           }
 
           if (response.reward.completion.coins > 0) {
-            taskStore.updateBalance('coins', response.reward.completion.coins, true);
+            taskStoreModule.updateBalance('coins', response.reward.completion.coins, true);
           }
         }
       } catch (error) {

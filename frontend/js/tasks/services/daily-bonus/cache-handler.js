@@ -7,7 +7,9 @@
  * - Синхронізацію з localStorage
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+// Змінено імпорт для розривання циклічної залежності
+import { getLogger } from '../../utils/core/logger.js';
+import { LOG_CATEGORIES } from '../../utils/core/logger.js';
 import { createDailyBonusModel } from '../../models/types/daily-bonus-model.js';
 import { DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
 

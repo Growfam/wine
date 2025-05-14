@@ -9,9 +9,6 @@
 
 import cacheService from '../../api/core/cache.js';
 import taskApi from '../../api/index.js';
-import taskStore from '../../services/store/index.js';
-import taskVerification from '../../services/verification/index.js';
-import taskProgress from '../../services/progress/index.js';
 import dependencyContainer from '../core/dependency.js';
 
 /**
@@ -20,24 +17,64 @@ import dependencyContainer from '../core/dependency.js';
 class ServiceFactory {
   constructor() {
     this.services = new Map();
-    this.initialize();
+    this.initialized = false;
+    this.initPromise = null;
+
+    // Виконуємо ініціалізацію з невеликою затримкою,
+    // щоб уникнути циклічних залежностей
+    setTimeout(() => {
+      this.initialize();
+    }, 100);
   }
 
   /**
    * Ініціалізація фабрики
+   * @returns {Promise<void>}
    */
-  initialize() {
-    // Реєстрація основних сервісів
-    this.register('cacheService', cacheService);
-    this.register('taskApi', taskApi);
-    this.register('taskStore', taskStore);
-    this.register('taskVerification', taskVerification);
-    this.register('taskProgress', taskProgress);
+  async initialize() {
+    if (this.initialized || this.initPromise) {
+      return this.initPromise;
+    }
 
-    // Зареєструвати сервіси в контейнері залежностей
-    Object.entries(this.getAll()).forEach(([name, service]) => {
-      dependencyContainer.register(name, service);
-    });
+    this.initPromise = (async () => {
+      try {
+        // Реєстрація базових сервісів, які не мають залежностей
+        this.register('cacheService', cacheService);
+        this.register('taskApi', taskApi);
+
+        // Динамічний імпорт сервісів із залежностями
+        try {
+          // Ініціалізація taskStore
+          const { default: taskStore } = await import('../../services/store/index.js');
+          this.register('taskStore', taskStore);
+
+          // Ініціалізація taskVerification
+          const { default: taskVerification } = await import('../../services/verification/index.js');
+          this.register('taskVerification', taskVerification);
+
+          // Ініціалізація taskProgress
+          const { default: taskProgress } = await import('../../services/progress/index.js');
+          this.register('taskProgress', taskProgress);
+        } catch (importError) {
+          console.error('Помилка динамічного імпорту сервісів:', importError);
+        }
+
+        // Зареєструвати сервіси в контейнері залежностей
+        Object.entries(this.getAll()).forEach(([name, service]) => {
+          if (service) {
+            dependencyContainer.register(name, service);
+          }
+        });
+
+        this.initialized = true;
+        console.log('Фабрика сервісів успішно ініціалізована');
+      } catch (error) {
+        console.error('Помилка при ініціалізації фабрики сервісів:', error);
+        throw error;
+      }
+    })();
+
+    return this.initPromise;
   }
 
   /**
@@ -52,9 +89,22 @@ class ServiceFactory {
   /**
    * Отримання сервісу за назвою
    * @param {string} name - Назва сервісу
+   * @returns {Promise<Object|null>} Екземпляр сервісу або null
+   */
+  async get(name) {
+    // Переконуємося, що ініціалізація завершена
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.services.get(name) || null;
+  }
+
+  /**
+   * Синхронне отримання сервісу без очікування ініціалізації
+   * @param {string} name - Назва сервісу
    * @returns {Object|null} Екземпляр сервісу або null
    */
-  get(name) {
+  getSync(name) {
     return this.services.get(name) || null;
   }
 
@@ -72,41 +122,41 @@ class ServiceFactory {
 
   /**
    * Отримання кеш-сервісу
-   * @returns {Object} Кеш-сервіс
+   * @returns {Promise<Object>} Кеш-сервіс
    */
-  getCacheService() {
+  async getCacheService() {
     return this.get('cacheService');
   }
 
   /**
    * Отримання API сервісу
-   * @returns {Object} API сервіс
+   * @returns {Promise<Object>} API сервіс
    */
-  getTaskApi() {
+  async getTaskApi() {
     return this.get('taskApi');
   }
 
   /**
    * Отримання сервісу сховища
-   * @returns {Object} Сервіс сховища
+   * @returns {Promise<Object>} Сервіс сховища
    */
-  getTaskStore() {
+  async getTaskStore() {
     return this.get('taskStore');
   }
 
   /**
    * Отримання сервісу верифікації
-   * @returns {Object} Сервіс верифікації
+   * @returns {Promise<Object>} Сервіс верифікації
    */
-  getTaskVerification() {
+  async getTaskVerification() {
     return this.get('taskVerification');
   }
 
   /**
    * Отримання сервісу прогресу
-   * @returns {Object} Сервіс прогресу
+   * @returns {Promise<Object>} Сервіс прогресу
    */
-  getTaskProgress() {
+  async getTaskProgress() {
     return this.get('taskProgress');
   }
 }

@@ -7,7 +7,8 @@
  */
 
 import { TASK_STATUS, CONFIG } from '../../config/index.js';
-import { taskStore } from '../index.js';
+// Видаляємо пряму залежність від taskStore
+// import { taskStore } from '../index.js';
 
 class TaskProgress {
   constructor() {
@@ -184,26 +185,34 @@ class TaskProgress {
    * Обробник події оновлення прогресу
    * @param {CustomEvent} event - Подія
    */
-  handleProgressUpdated(event) {
+  async handleProgressUpdated(event) {
     // Перевіряємо активність модуля
     if (!this.isActive) return;
 
     const { taskId, progressData } = event.detail;
 
-    // Оновлюємо прогрес у сховищі
-    taskStore.setTaskProgress(taskId, progressData);
+    try {
+      // Використовуємо динамічний імпорт для taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
 
-    // Якщо завдання завершено, припиняємо відстеження
-    if (progressData.status === TASK_STATUS.COMPLETED) {
-      this.tracking.trackedTasks.delete(taskId);
+      // Оновлюємо прогрес у сховищі
+      taskStore.setTaskProgress(taskId, progressData);
+
+      // Якщо завдання завершено, припиняємо відстеження
+      if (progressData.status === TASK_STATUS.COMPLETED) {
+        this.tracking.trackedTasks.delete(taskId);
+      }
+
+      // Повідомляємо слухачів
+      this.notifyListeners('onProgressUpdate', {
+        taskId,
+        progressData,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error('Помилка при обробці події оновлення прогресу:', error);
     }
-
-    // Повідомляємо слухачів
-    this.notifyListeners('onProgressUpdate', {
-      taskId,
-      progressData,
-      timestamp: Date.now(),
-    });
   }
 
   /**
@@ -262,23 +271,31 @@ class TaskProgress {
    * Перевірка прогресу завдання
    * @param {string} taskId - ID завдання
    */
-  checkTaskProgress(taskId) {
+  async checkTaskProgress(taskId) {
     // Перевіряємо активність модуля
     if (!this.isActive) return;
 
-    // Отримуємо поточний прогрес
-    const progress = taskStore.getTaskProgress(taskId);
+    try {
+      // Динамічний імпорт taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
 
-    // Отримуємо дані завдання
-    const task = taskStore.findTaskById(taskId);
-    if (!task) return;
+      // Отримуємо поточний прогрес
+      const progress = taskStore.getTaskProgress(taskId);
 
-    // Отримуємо цільове значення
-    const targetValue = task.target_value;
+      // Отримуємо дані завдання
+      const task = taskStore.findTaskById(taskId);
+      if (!task) return;
 
-    // Якщо прогрес завершено, не оновлюємо
-    if (progress && progress.status === TASK_STATUS.COMPLETED) {
-      return;
+      // Отримуємо цільове значення
+      const targetValue = task.target_value;
+
+      // Якщо прогрес завершено, не оновлюємо
+      if (progress && progress.status === TASK_STATUS.COMPLETED) {
+        return;
+      }
+    } catch (error) {
+      console.error('Помилка при перевірці прогресу завдання:', error);
     }
   }
 
@@ -288,7 +305,7 @@ class TaskProgress {
    * @param {Object} progressData - Дані прогресу
    * @returns {boolean} Результат оновлення
    */
-  updateTaskProgress(taskId, progressData) {
+  async updateTaskProgress(taskId, progressData) {
     // Перевіряємо активність модуля
     if (!this.isActive) {
       console.warn('TaskProgress: Сервіс не активний');
@@ -318,8 +335,16 @@ class TaskProgress {
       data: progressData,
     });
 
-    // Оновлюємо прогрес у сховищі
-    taskStore.setTaskProgress(taskId, progressData);
+    try {
+      // Динамічний імпорт taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
+
+      // Оновлюємо прогрес у сховищі
+      taskStore.setTaskProgress(taskId, progressData);
+    } catch (error) {
+      console.error('Помилка при оновленні прогресу в сховищі:', error);
+    }
 
     // Генеруємо подію про оновлення прогресу
     document.dispatchEvent(
@@ -335,25 +360,31 @@ class TaskProgress {
     // Перевіряємо, чи потрібно генерувати подію про виконання завдання
     if (progressData.status === TASK_STATUS.COMPLETED) {
       // Додаємо затримку для уникнення гонки подій
-      setTimeout(() => {
-        // Отримуємо дані завдання для пошуку винагороди
-        const task = taskStore.findTaskById(taskId);
+      setTimeout(async () => {
+        try {
+          // Отримуємо дані завдання для пошуку винагороди
+          const storeModule = await import('../store/index.js');
+          const taskStore = storeModule.default;
+          const task = taskStore.findTaskById(taskId);
 
-        // Генеруємо подію про виконання завдання
-        document.dispatchEvent(
-          new CustomEvent('task-completed', {
-            detail: {
-              taskId,
-              reward: task
-                ? {
-                    type: task.reward_type,
-                    amount: task.reward_amount,
-                  }
-                : null,
-              timestamp: Date.now(),
-            },
-          })
-        );
+          // Генеруємо подію про виконання завдання
+          document.dispatchEvent(
+            new CustomEvent('task-completed', {
+              detail: {
+                taskId,
+                reward: task
+                  ? {
+                      type: task.reward_type,
+                      amount: task.reward_amount,
+                    }
+                  : null,
+                timestamp: Date.now(),
+              },
+            })
+          );
+        } catch (error) {
+          console.error('Помилка при генерації події завершення завдання:', error);
+        }
       }, 50);
     }
 
@@ -365,8 +396,16 @@ class TaskProgress {
    * @param {string} taskId - ID завдання
    * @returns {Object|null} Прогрес завдання
    */
-  getTaskProgress(taskId) {
-    return taskStore.getTaskProgress(taskId);
+  async getTaskProgress(taskId) {
+    try {
+      // Динамічний імпорт taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
+      return taskStore.getTaskProgress(taskId);
+    } catch (error) {
+      console.error('Помилка при отриманні прогресу завдання:', error);
+      return null;
+    }
   }
 
   /**
@@ -374,33 +413,42 @@ class TaskProgress {
    * @param {string} taskId - ID завдання
    * @returns {boolean} Результат операції
    */
-  resetTaskProgress(taskId) {
+  async resetTaskProgress(taskId) {
     // Перевіряємо активність модуля
     if (!this.isActive) {
       console.warn('TaskProgress: Сервіс не активний');
       return false;
     }
 
-    // Скидаємо прогрес у сховищі
-    taskStore.setTaskProgress(taskId, {
-      status: TASK_STATUS.PENDING,
-      progress_value: 0,
-    });
+    try {
+      // Динамічний імпорт taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
 
-    // Видаляємо з відстежуваних
-    this.tracking.trackedTasks.delete(taskId);
+      // Скидаємо прогрес у сховищі
+      taskStore.setTaskProgress(taskId, {
+        status: TASK_STATUS.PENDING,
+        progress_value: 0,
+      });
 
-    // Генеруємо подію про скидання прогресу
-    document.dispatchEvent(
-      new CustomEvent('task-progress-reset', {
-        detail: {
-          taskId,
-          timestamp: Date.now(),
-        },
-      })
-    );
+      // Видаляємо з відстежуваних
+      this.tracking.trackedTasks.delete(taskId);
 
-    return true;
+      // Генеруємо подію про скидання прогресу
+      document.dispatchEvent(
+        new CustomEvent('task-progress-reset', {
+          detail: {
+            taskId,
+            timestamp: Date.now(),
+          },
+        })
+      );
+
+      return true;
+    } catch (error) {
+      console.error('Помилка при скиданні прогресу завдання:', error);
+      return false;
+    }
   }
 
   /**
@@ -408,17 +456,25 @@ class TaskProgress {
    * @param {string} taskId - ID завдання
    * @returns {number} Цільове значення
    */
-  getTaskTargetValue(taskId) {
-    // Отримуємо дані завдання зі сховища
-    const task = taskStore.findTaskById(taskId);
-    if (task) {
-      return task.target_value;
-    }
+  async getTaskTargetValue(taskId) {
+    try {
+      // Динамічний імпорт taskStore
+      const storeModule = await import('../store/index.js');
+      const taskStore = storeModule.default;
 
-    // Перевіряємо прогрес
-    const progress = taskStore.getTaskProgress(taskId);
-    if (progress && progress.max_progress) {
-      return parseInt(progress.max_progress) || 1;
+      // Отримуємо дані завдання зі сховища
+      const task = taskStore.findTaskById(taskId);
+      if (task) {
+        return task.target_value;
+      }
+
+      // Перевіряємо прогрес
+      const progress = taskStore.getTaskProgress(taskId);
+      if (progress && progress.max_progress) {
+        return parseInt(progress.max_progress) || 1;
+      }
+    } catch (error) {
+      console.error('Помилка при отриманні цільового значення завдання:', error);
     }
 
     // Знаходимо елемент завдання
@@ -427,7 +483,7 @@ class TaskProgress {
       // Пробуємо отримати цільове значення з атрибуту
       const targetAttr = taskElement.getAttribute('data-target-value');
       if (targetAttr) {
-        return parseInt(targetAttr) || a;
+        return parseInt(targetAttr) || 1;
       }
     }
 
