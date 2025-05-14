@@ -35,7 +35,7 @@ import {
   initialReferralLevelsState,
   ReferralLevelsActionTypes,
 
-  // НОВІ ІМПОРТИ: Функції для відсоткових винагород (Етап 4)
+  // Функції для відсоткових винагород (Етап 4)
   fetchLevelRewards,
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
@@ -43,7 +43,7 @@ import {
   initialLevelRewardsState,
   LevelRewardsActionTypes,
 
-  // НОВІ ІМПОРТИ: Функції для перевірки активності рефералів (Етап 5)
+  // Функції для перевірки активності рефералів (Етап 5)
   fetchAndCheckReferralActivity,
   checkReferralsActivityWithAnalysis,
   checkSingleReferralActivity,
@@ -51,7 +51,26 @@ import {
   MIN_INVITED_REFERRALS,
   referralActivityReducer,
   initialReferralActivityState,
-  ReferralActivityActionTypes
+  ReferralActivityActionTypes,
+
+  // НОВІ ІМПОРТИ: Функції для бейджів та завдань (Етап 6)
+  fetchUserBadges,
+  fetchUserTasks,
+  claimBadgeReward,
+  claimTaskReward,
+  BRONZE_BADGE_THRESHOLD,
+  SILVER_BADGE_THRESHOLD,
+  GOLD_BADGE_THRESHOLD,
+  PLATINUM_BADGE_THRESHOLD,
+  BRONZE_BADGE_REWARD,
+  SILVER_BADGE_REWARD,
+  GOLD_BADGE_REWARD,
+  PLATINUM_BADGE_REWARD,
+  REFERRAL_TASK_THRESHOLD,
+  REFERRAL_TASK_REWARD,
+  badgeReducer,
+  initialBadgeState,
+  BadgeActionTypes
 } from '../index.js';
 
 // Стан додатку
@@ -59,8 +78,9 @@ let appState = {
   referralLink: initialReferralLinkState,
   directBonus: initialDirectBonusState,
   referralLevels: initialReferralLevelsState,
-  levelRewards: initialLevelRewardsState,       // НОВИЙ СТАН: Відсоткові винагороди
-  referralActivity: initialReferralActivityState, // НОВИЙ СТАН: Активність рефералів
+  levelRewards: initialLevelRewardsState,       // Відсоткові винагороди
+  referralActivity: initialReferralActivityState, // Активність рефералів
+  badges: initialBadgeState,                    // НОВИЙ СТАН: Бейджі та завдання
   userId: null
 };
 
@@ -83,19 +103,27 @@ const dispatch = (action) => {
     // Оновлюємо UI після зміни стану
     renderReferralLevelsUI();
   }
-  // НОВА ЛОГІКА: Обробка дій відсоткових винагород (Етап 4)
+  // Обробка дій відсоткових винагород (Етап 4)
   else if (action.type.startsWith('FETCH_LEVEL_REWARDS') || action.type.startsWith('UPDATE_LEVEL')) {
     // Оновлюємо стан відсоткових винагород
     appState.levelRewards = levelRewardsReducer(appState.levelRewards, action);
     // Оновлюємо UI відсоткових винагород
     renderLevelRewardsUI();
   }
-  // НОВА ЛОГІКА: Обробка дій активності рефералів (Етап 5)
+  // Обробка дій активності рефералів (Етап 5)
   else if (action.type.startsWith('FETCH_REFERRAL_ACTIVITY') || action.type.startsWith('CHECK_REFERRAL_ACTIVITY')) {
     // Оновлюємо стан активності рефералів
     appState.referralActivity = referralActivityReducer(appState.referralActivity, action);
     // Оновлюємо UI активності рефералів
     renderReferralActivityUI();
+  }
+  // НОВА ЛОГІКА: Обробка дій бейджів та завдань (Етап 6)
+  else if (action.type.startsWith('FETCH_BADGES') || action.type.startsWith('FETCH_TASKS') ||
+           action.type.startsWith('CLAIM_BADGE') || action.type.startsWith('CLAIM_TASK')) {
+    // Оновлюємо стан бейджів та завдань
+    appState.badges = badgeReducer(appState.badges, action);
+    // Оновлюємо UI бейджів та завдань
+    renderBadgesAndTasksUI();
   }
 };
 
@@ -119,11 +147,15 @@ export const initReferralSystem = () => {
   // Отримуємо статистику рефералів
   getReferralStats(userId);
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо відсоткові винагороди (Етап 4)
+  // Отримуємо відсоткові винагороди (Етап 4)
   getLevelRewards(userId);
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо дані про активність рефералів (Етап 5)
+  // Отримуємо дані про активність рефералів (Етап 5)
   getReferralActivity(userId);
+
+  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо дані про бейджі та завдання (Етап 6)
+  getUserBadges(userId);
+  getUserTasks(userId);
 
   // Налаштовуємо обробник для форми реєстрації реферала
   setupReferralRegistrationForm();
@@ -133,6 +165,9 @@ export const initReferralSystem = () => {
 
   // Налаштовуємо обробник для деталей реферала
   setupReferralDetails();
+
+  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Налаштовуємо обробники для бейджів та завдань
+  setupBadgesAndTasksHandlers();
 };
 
 /**
@@ -162,7 +197,7 @@ const setupUIElements = () => {
     element.textContent = DIRECT_BONUS_AMOUNT;
   });
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображаємо ставки відсоткових винагород у відповідних елементах
+  // Відображаємо ставки відсоткових винагород у відповідних елементах
   const level1RateElements = document.querySelectorAll('.level1-rate');
   level1RateElements.forEach(element => {
     element.textContent = `${LEVEL_1_REWARD_RATE * 100}%`;
@@ -173,7 +208,7 @@ const setupUIElements = () => {
     element.textContent = `${LEVEL_2_REWARD_RATE * 100}%`;
   });
 
-  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображаємо пороги активності
+  // Відображаємо пороги активності
   const drawsThresholdElements = document.querySelectorAll('.draws-threshold');
   drawsThresholdElements.forEach(element => {
     element.textContent = MIN_DRAWS_PARTICIPATION;
@@ -182,6 +217,58 @@ const setupUIElements = () => {
   const invitedThresholdElements = document.querySelectorAll('.invited-threshold');
   invitedThresholdElements.forEach(element => {
     element.textContent = MIN_INVITED_REFERRALS;
+  });
+
+  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображаємо пороги та винагороди за бейджі
+  const bronzeThresholdElements = document.querySelectorAll('.bronze-threshold');
+  bronzeThresholdElements.forEach(element => {
+    element.textContent = BRONZE_BADGE_THRESHOLD;
+  });
+
+  const silverThresholdElements = document.querySelectorAll('.silver-threshold');
+  silverThresholdElements.forEach(element => {
+    element.textContent = SILVER_BADGE_THRESHOLD;
+  });
+
+  const goldThresholdElements = document.querySelectorAll('.gold-threshold');
+  goldThresholdElements.forEach(element => {
+    element.textContent = GOLD_BADGE_THRESHOLD;
+  });
+
+  const platinumThresholdElements = document.querySelectorAll('.platinum-threshold');
+  platinumThresholdElements.forEach(element => {
+    element.textContent = PLATINUM_BADGE_THRESHOLD;
+  });
+
+  const bronzeRewardElements = document.querySelectorAll('.bronze-reward');
+  bronzeRewardElements.forEach(element => {
+    element.textContent = BRONZE_BADGE_REWARD;
+  });
+
+  const silverRewardElements = document.querySelectorAll('.silver-reward');
+  silverRewardElements.forEach(element => {
+    element.textContent = SILVER_BADGE_REWARD;
+  });
+
+  const goldRewardElements = document.querySelectorAll('.gold-reward');
+  goldRewardElements.forEach(element => {
+    element.textContent = GOLD_BADGE_REWARD;
+  });
+
+  const platinumRewardElements = document.querySelectorAll('.platinum-reward');
+  platinumRewardElements.forEach(element => {
+    element.textContent = PLATINUM_BADGE_REWARD;
+  });
+
+  // Відображаємо пороги та винагороди за завдання
+  const taskThresholdElements = document.querySelectorAll('.task-threshold');
+  taskThresholdElements.forEach(element => {
+    element.textContent = REFERRAL_TASK_THRESHOLD;
+  });
+
+  const taskRewardElements = document.querySelectorAll('.task-reward');
+  taskRewardElements.forEach(element => {
+    element.textContent = REFERRAL_TASK_REWARD;
   });
 };
 
@@ -208,11 +295,15 @@ const setupReferralRegistrationForm = () => {
       // Оновлюємо статистику рефералів після реєстрації
       await getReferralStats(appState.userId);
 
-      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлюємо статистику винагород
+      // Оновлюємо статистику винагород
       await getLevelRewards(appState.userId);
 
-      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлюємо статистику активності
+      // Оновлюємо статистику активності
       await getReferralActivity(appState.userId);
+
+      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлюємо статистику бейджів та завдань
+      await getUserBadges(appState.userId);
+      await getUserTasks(appState.userId);
     } catch (error) {
       console.error('Error registering referral:', error);
       showToast(error.message || 'Помилка реєстрації реферала', 'error');
@@ -252,13 +343,18 @@ const setupReferralTabs = () => {
         renderReferralHierarchy();
       }
 
-      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображення винагород та активності на відповідних вкладках
+      // Відображення винагород та активності на відповідних вкладках
       if (tabId === 'rewards') {
         renderReferralRewardsDetails();
       }
 
       if (tabId === 'activity') {
         renderReferralActivityDetails();
+      }
+
+      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображення бейджів та завдань на відповідній вкладці
+      if (tabId === 'badges') {
+        renderBadgesDetails();
       }
     });
   });
@@ -300,6 +396,72 @@ const setupReferralDetails = () => {
 };
 
 /**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Налаштовує обробники для бейджів та завдань
+ */
+const setupBadgesAndTasksHandlers = () => {
+  // Налаштовуємо обробники для кнопок отримання винагороди за бейджі
+  document.addEventListener('click', async (event) => {
+    const claimBadgeButton = event.target.closest('.claim-badge-button');
+    if (claimBadgeButton && claimBadgeButton.dataset.badge) {
+      const badgeType = claimBadgeButton.dataset.badge;
+      try {
+        await claimBadgeReward(appState.userId, badgeType)(dispatch);
+        showToast(`Бейдж ${badgeType} успішно отримано!`);
+        await getUserBadges(appState.userId);
+        updateUserBalance(getBadgeReward(badgeType));
+      } catch (error) {
+        console.error('Error claiming badge reward:', error);
+        showToast(error.message || 'Помилка отримання винагороди за бейдж', 'error');
+      }
+    }
+  });
+
+  // Налаштовуємо обробники для кнопок отримання винагороди за завдання
+  document.addEventListener('click', async (event) => {
+    const claimTaskButton = event.target.closest('.claim-task-button');
+    if (claimTaskButton && claimTaskButton.dataset.task) {
+      const taskType = claimTaskButton.dataset.task;
+      try {
+        await claimTaskReward(appState.userId, taskType)(dispatch);
+        showToast(`Винагороду за завдання успішно отримано!`);
+        await getUserTasks(appState.userId);
+        updateUserBalance(getTaskReward(taskType));
+      } catch (error) {
+        console.error('Error claiming task reward:', error);
+        showToast(error.message || 'Помилка отримання винагороди за завдання', 'error');
+      }
+    }
+  });
+};
+
+/**
+ * Отримує винагороду за бейдж за його типом
+ * @param {string} badgeType - Тип бейджа
+ * @returns {number} Винагорода за бейдж
+ */
+const getBadgeReward = (badgeType) => {
+  switch (badgeType) {
+    case 'BRONZE': return BRONZE_BADGE_REWARD;
+    case 'SILVER': return SILVER_BADGE_REWARD;
+    case 'GOLD': return GOLD_BADGE_REWARD;
+    case 'PLATINUM': return PLATINUM_BADGE_REWARD;
+    default: return 0;
+  }
+};
+
+/**
+ * Отримує винагороду за завдання за його типом
+ * @param {string} taskType - Тип завдання
+ * @returns {number} Винагорода за завдання
+ */
+const getTaskReward = (taskType) => {
+  switch (taskType) {
+    case 'REFERRAL_COUNT': return REFERRAL_TASK_REWARD;
+    default: return 0;
+  }
+};
+
+/**
  * Відображає деталі реферала
  * @param {string} referralId - ID реферала
  */
@@ -308,7 +470,7 @@ const showReferralDetails = async (referralId) => {
   try {
     const details = await fetchReferralDetails(referralId);
 
-    // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо дані про активність реферала
+    // Отримуємо дані про активність реферала
     const activityDetails = await checkSingleReferralActivity(referralId);
 
     // Оновлюємо елементи інтерфейсу
@@ -342,7 +504,7 @@ const showReferralDetails = async (referralId) => {
     document.getElementById('detail-referral-count').textContent =
       details.referralCount || 0;
 
-    // НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображаємо дані про активність
+    // Відображаємо дані про активність
     if (activityDetails) {
       // Додаємо інформацію про участь у розіграшах
       const drawsElement = document.getElementById('detail-draws');
@@ -557,7 +719,7 @@ const getReferralStats = async (userId) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про відсоткові винагороди (Етап 4)
+ * Отримує дані про відсоткові винагороди
  * @param {string} userId - ID користувача
  */
 const getLevelRewards = async (userId) => {
@@ -577,7 +739,7 @@ const getLevelRewards = async (userId) => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про активність рефералів (Етап 5)
+ * Отримує дані про активність рефералів
  * @param {string} userId - ID користувача
  */
 const getReferralActivity = async (userId) => {
@@ -597,6 +759,66 @@ const getReferralActivity = async (userId) => {
     console.error('Error fetching referral activity:', error);
     showToast('Помилка при отриманні даних про активність рефералів', 'error');
   }
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про бейджі користувача
+ * @param {string} userId - ID користувача
+ */
+const getUserBadges = async (userId) => {
+  try {
+    // Отримуємо кількість рефералів користувача
+    const referralsCount = appState.referralLevels.totalReferralsCount || 0;
+
+    // Отримуємо дані про бейджі
+    const badgesData = await fetchUserBadges(userId, referralsCount)(dispatch);
+
+    // Додаткова обробка даних про бейджі
+    console.log('Badges data loaded:', badgesData);
+
+    // Оновлюємо інтерфейс даними про бейджі
+    renderBadgesUI(badgesData);
+  } catch (error) {
+    console.error('Error fetching user badges:', error);
+    showToast('Помилка при отриманні даних про бейджі', 'error');
+  }
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримує дані про завдання користувача
+ * @param {string} userId - ID користувача
+ */
+const getUserTasks = async (userId) => {
+  try {
+    // Отримуємо дані про завдання
+    const tasksData = await fetchUserTasks(userId)(dispatch);
+
+    // Додаткова обробка даних про завдання
+    console.log('Tasks data loaded:', tasksData);
+
+    // Оновлюємо інтерфейс даними про завдання
+    renderTasksUI(tasksData);
+  } catch (error) {
+    console.error('Error fetching user tasks:', error);
+    showToast('Помилка при отриманні даних про завдання', 'error');
+  }
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає деталі бейджів
+ */
+const renderBadgesDetails = () => {
+  // Якщо дані про бейджі відсутні, отримуємо їх
+  if (!appState.badges.badgesProgress || appState.badges.badgesProgress.length === 0) {
+    getUserBadges(appState.userId);
+    return;
+  }
+
+  const badgesContainer = document.getElementById('badges-details');
+  if (!badgesContainer) return;
+
+  // Оновлюємо контент
+  renderBadgesAndTasksUI();
 };
 
 /**
@@ -760,7 +982,7 @@ const renderReferralHierarchy = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає деталі про відсоткові винагороди (Етап 4)
+ * Відображає деталі про відсоткові винагороди
  */
 const renderReferralRewardsDetails = () => {
   const { level1Rewards, level2Rewards, summary } = appState.levelRewards;
@@ -858,7 +1080,7 @@ const renderReferralRewardsDetails = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає деталі про активність рефералів (Етап 5)
+ * Відображає деталі про активність рефералів
  */
 const renderReferralActivityDetails = () => {
   const { activeReferrals, activityStats, activityReasons, recommendations } = appState.referralActivity;
@@ -961,6 +1183,437 @@ const renderReferralActivityDetails = () => {
     `;
 
     activityContainer.appendChild(potentialSection);
+  }
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює інтерфейс даними про бейджі та завдання
+ */
+const renderBadgesAndTasksUI = () => {
+  renderBadgesUI(appState.badges);
+  renderTasksUI(appState.badges);
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про бейджі в інтерфейсі
+ * @param {Object} badgesData - Дані про бейджі
+ */
+const renderBadgesUI = (badgesData) => {
+  const { badgesProgress, earnedBadges, availableBadges } = badgesData;
+
+  // Оновлюємо прогрес для бейджів у розділі бейджів
+  if (badgesProgress && badgesProgress.length > 0) {
+    badgesProgress.forEach(badge => {
+      // Оновлюємо прогрес
+      const progressElement = document.querySelector(`.${badge.type.toLowerCase()}-progress`);
+      if (progressElement) {
+        progressElement.style.width = `${badge.progress}%`;
+      }
+
+      // Оновлюємо статус
+      const statusElement = document.querySelector(`.${badge.type.toLowerCase()}-status`);
+      if (statusElement) {
+        statusElement.textContent = badge.isEligible ? 'Доступний' : 'Недоступний';
+        statusElement.className = `badge-status ${badge.isEligible ? 'available' : 'unavailable'}`;
+      }
+
+      // Оновлюємо кнопку отримання
+      const claimButton = document.querySelector(`.claim-badge-button[data-badge="${badge.type}"]`);
+      if (claimButton) {
+        // Кнопка активна, якщо бейдж доступний і ще не отриманий
+        const isAvailable = availableBadges && availableBadges.includes(badge.type);
+        const isDisabled = !isAvailable || (appState.badges.claimedBadges && appState.badges.claimedBadges.includes(badge.type));
+
+        claimButton.disabled = isDisabled;
+        claimButton.textContent = isDisabled ? (isAvailable ? 'Отримано' : 'Недоступно') : 'Отримати винагороду';
+      }
+    });
+  }
+
+  // Оновлюємо наступний бейдж (якщо є)
+  const nextBadge = badgesData.nextBadge;
+  if (nextBadge) {
+    const nextBadgeElement = document.querySelector('.next-badge-info');
+    if (nextBadgeElement) {
+      nextBadgeElement.innerHTML = `
+        <div class="next-badge-title">Наступний бейдж: ${nextBadge.type}</div>
+        <div class="next-badge-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${nextBadge.progress}%"></div>
+          </div>
+          <div class="progress-text">${nextBadge.progress.toFixed(1)}% (${appState.referralLevels.totalReferralsCount || 0}/${nextBadge.threshold})</div>
+        </div>
+        <div class="next-badge-remaining">Залишилось: ${nextBadge.remaining} рефералів</div>
+      `;
+    }
+  }
+
+  // Оновлюємо загальну статистику бейджів
+  const totalElement = document.querySelector('.total-badges-count');
+  if (totalElement) {
+    totalElement.textContent = badgesData.totalBadgesCount || 0;
+  }
+
+  const earnedElement = document.querySelector('.earned-badges-count');
+  if (earnedElement) {
+    earnedElement.textContent = (earnedBadges && earnedBadges.length) || 0;
+  }
+
+  const remainingElement = document.querySelector('.remaining-badges-count');
+  if (remainingElement) {
+    const total = badgesData.totalBadgesCount || 0;
+    const earned = (earnedBadges && earnedBadges.length) || 0;
+    remainingElement.textContent = total - earned;
+  }
+
+  // Вставляємо на сторінку бейджі
+  renderBadgesList(badgesData);
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає список бейджів
+ * @param {Object} badgesData - Дані про бейджі
+ */
+const renderBadgesList = (badgesData) => {
+  const badgesListContainer = document.getElementById('badges-list');
+  if (!badgesListContainer) return;
+
+  // Очищуємо контейнер
+  badgesListContainer.innerHTML = '';
+
+  // Порядок бейджів
+  const badgeOrder = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
+
+  // Формуємо HTML для кожного бейджа
+  badgeOrder.forEach(badgeType => {
+    const badge = badgesData.badgesProgress.find(b => b.type === badgeType);
+    if (!badge) return;
+
+    const isEligible = badge.isEligible;
+    const isClaimed = badgesData.claimedBadges && badgesData.claimedBadges.includes(badgeType);
+
+    const badgeElement = document.createElement('div');
+    badgeElement.className = `badge-item ${isEligible ? 'eligible' : 'not-eligible'} ${isClaimed ? 'claimed' : ''}`;
+
+    // Визначаємо винагороду за бейдж
+    const reward = getBadgeReward(badgeType);
+
+    // Визначаємо поріг бейджа
+    const threshold = badge.threshold;
+
+    badgeElement.innerHTML = `
+      <div class="badge-icon ${badgeType.toLowerCase()}-icon"></div>
+      <div class="badge-info">
+        <div class="badge-title">${getBadgeName(badgeType)}</div>
+        <div class="badge-description">Залучіть ${threshold} рефералів</div>
+        <div class="badge-reward">Винагорода: ${reward} winix</div>
+        <div class="badge-progress-container">
+          <div class="badge-progress-bar">
+            <div class="badge-progress-fill" style="width: ${badge.progress}%"></div>
+          </div>
+          <div class="badge-progress-text">${badge.progress.toFixed(1)}% (${appState.referralLevels.totalReferralsCount || 0}/${threshold})</div>
+        </div>
+        <button class="claim-badge-button" data-badge="${badgeType}" ${!isEligible || isClaimed ? 'disabled' : ''}>
+          ${isClaimed ? 'Отримано' : (isEligible ? 'Отримати винагороду' : 'Недоступно')}
+        </button>
+      </div>
+    `;
+
+    badgesListContainer.appendChild(badgeElement);
+  });
+
+  // Якщо немає бейджів, показуємо повідомлення
+  if (badgeOrder.length === 0) {
+    badgesListContainer.innerHTML = '<div class="empty-list">Немає доступних бейджів</div>';
+  }
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про завдання в інтерфейсі
+ * @param {Object} tasksData - Дані про завдання
+ */
+const renderTasksUI = (tasksData) => {
+  const { tasksProgress, completedTasks } = tasksData;
+
+  // Оновлюємо прогрес для завдань
+  if (tasksProgress) {
+    for (const [taskType, progress] of Object.entries(tasksProgress)) {
+      // Оновлюємо прогрес
+      const progressElement = document.querySelector(`.${taskType.toLowerCase()}-progress`);
+      if (progressElement) {
+        progressElement.style.width = `${progress.progress}%`;
+      }
+
+      // Оновлюємо статус
+      const statusElement = document.querySelector(`.${taskType.toLowerCase()}-status`);
+      if (statusElement) {
+        statusElement.textContent = progress.completed ? 'Виконано' : 'В процесі';
+        statusElement.className = `task-status ${progress.completed ? 'completed' : 'in-progress'}`;
+      }
+
+      // Оновлюємо кнопку отримання
+      const claimButton = document.querySelector(`.claim-task-button[data-task="${taskType}"]`);
+      if (claimButton) {
+        // Кнопка активна, якщо завдання виконано і винагорода ще не отримана
+        const isCompleted = progress.completed;
+        const isDisabled = !isCompleted;
+
+        claimButton.disabled = isDisabled;
+        claimButton.textContent = isCompleted ? 'Отримати винагороду' : 'Недоступно';
+      }
+    }
+  }
+
+  // Оновлюємо загальну статистику завдань
+  const totalElement = document.querySelector('.total-tasks-count');
+  if (totalElement) {
+    totalElement.textContent = tasksData.allTasks ? tasksData.allTasks.length : 0;
+  }
+
+  const completedElement = document.querySelector('.completed-tasks-count');
+  if (completedElement) {
+    completedElement.textContent = completedTasks ? completedTasks.length : 0;
+  }
+
+  // Вставляємо на сторінку завдання
+  renderTasksList(tasksData);
+};
+
+/**
+ * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає список завдань
+ * @param {Object} tasksData - Дані про завдання
+ */
+const renderTasksList = (tasksData) => {
+  const tasksListContainer = document.getElementById('tasks-list');
+  if (!tasksListContainer) return;
+
+  // Очищуємо контейнер
+  tasksListContainer.innerHTML = '';
+
+  // Інформація про завдання
+  const tasksInfo = {
+    REFERRAL_COUNT: {
+      title: 'Запросити 100 рефералів',
+      description: 'Запросіть 100 нових користувачів',
+      reward: REFERRAL_TASK_REWARD,
+      threshold: REFERRAL_TASK_THRESHOLD
+    }
+    // Додайте інші типи завдань тут
+  };
+
+  // Формуємо HTML для кожного завдання
+  if (tasksData.tasksProgress) {
+    for (const [taskType, progress] of Object.entries(tasksData.tasksProgress)) {
+      const taskInfo = tasksInfo[taskType];
+      if (!taskInfo) continue;
+
+      const isCompleted = progress.completed;
+
+      const taskElement = document.createElement('div');
+      taskElement.className = `task-item ${isCompleted ? 'completed' : 'in-progress'}`;
+
+      taskElement.innerHTML = `
+        <div class="task-info">
+          <div class="task-title">${taskInfo.title}</div>
+          <div class="task-description">${taskInfo.description}</div>
+          <div class="task-reward">Винагорода: ${taskInfo.reward} winix</div>
+          <div class="task-progress-container">
+            <div class="task-progress-bar">
+              <div class="task-progress-fill" style="width: ${progress.progress}%"></div>
+            </div>
+            <div class="task-progress-text">${progress.progress.toFixed(1)}% (${progress.current}/${progress.threshold})</div>
+          </div>
+          <button class="claim-task-button" data-task="${taskType}" ${!isCompleted ? 'disabled' : ''}>
+            ${isCompleted ? 'Отримати винагороду' : 'Недоступно'}
+          </button>
+        </div>
+      `;
+
+      tasksListContainer.appendChild(taskElement);
+    }
+  }
+
+  // Якщо немає завдань, показуємо повідомлення
+  if (!tasksData.tasksProgress || Object.keys(tasksData.tasksProgress).length === 0) {
+    tasksListContainer.innerHTML = '<div class="empty-list">Немає доступних завдань</div>';
+  }
+};
+
+/**
+ * Повертає назву бейджа за його типом
+ * @param {string} badgeType - Тип бейджа
+ * @returns {string} Назва бейджа
+ */
+const getBadgeName = (badgeType) => {
+  switch (badgeType) {
+    case 'BRONZE': return 'Бронзовий бейдж';
+    case 'SILVER': return 'Срібний бейдж';
+    case 'GOLD': return 'Золотий бейдж';
+    case 'PLATINUM': return 'Платиновий бейдж';
+    default: return 'Невідомий бейдж';
+  }
+};
+
+/**
+ * Заповнює інтерфейс даними про винагороди
+ * @param {Object} rewardsData - Дані про винагороди
+ */
+const renderRewardsUI = (rewardsData) => {
+  if (!rewardsData) return;
+
+  // Оновлюємо елементи статистики
+  const level1RewardElement = document.querySelector('.level1-reward');
+  if (level1RewardElement) {
+    level1RewardElement.textContent = rewardsData.level1Rewards.totalReward || 0;
+  }
+
+  const level2RewardElement = document.querySelector('.level2-reward');
+  if (level2RewardElement) {
+    level2RewardElement.textContent = rewardsData.level2Rewards.totalReward || 0;
+  }
+
+  // Оновлюємо загальний заробіток
+  updateTotalEarnings();
+};
+
+/**
+ * Відображає дані про активність рефералів в інтерфейсі
+ * @param {Object} activityData - Дані про активність
+ * @param {Object} analysisData - Результат аналізу активності
+ */
+const renderActivityUI = (activityData, analysisData) => {
+  if (!activityData) return;
+
+  // Оновлюємо елементи статистики активності
+  const activeReferralsElement = document.querySelector('.active-referrals-count');
+  if (activeReferralsElement) {
+    activeReferralsElement.textContent = activityData.summary.active || 0;
+  }
+
+  const conversionRateElement = document.querySelector('.conversion-rate');
+  if (conversionRateElement) {
+    const formattedRate = ((activityData.summary.conversionRate || 0) * 100).toFixed(1);
+    conversionRateElement.textContent = `${formattedRate}%`;
+  }
+
+  // Оновлюємо статус активності для рефералів у списках
+  updateReferralItemsStatus(activityData);
+
+  // Відображаємо рекомендації, якщо є відповідний контейнер
+  if (analysisData && analysisData.recommendations) {
+    renderActivityRecommendations(analysisData.recommendations);
+  }
+};
+
+/**
+ * Оновлює статус елементів рефералів у списках
+ * @param {Object} activityData - Дані про активність рефералів
+ */
+const updateReferralItemsStatus = (activityData) => {
+  if (!activityData || !activityData.level1 || !activityData.level2) return;
+
+  // Створюємо мапу активних рефералів 1-го рівня
+  const activeLevel1Map = {};
+  activityData.level1.referrals.forEach(ref => {
+    activeLevel1Map[ref.id] = ref.isActive;
+  });
+
+  // Оновлюємо елементи рефералів 1-го рівня
+  const level1Items = document.querySelectorAll('.referral-item.level-1');
+  level1Items.forEach(item => {
+    const referralId = item.dataset.id;
+    const statusElement = item.querySelector('.referral-status');
+
+    if (statusElement && referralId in activeLevel1Map) {
+      const isActive = activeLevel1Map[referralId];
+
+      statusElement.classList.toggle('active', isActive);
+      statusElement.classList.toggle('inactive', !isActive);
+      statusElement.textContent = isActive ? 'Активний' : 'Неактивний';
+    }
+  });
+
+  // Створюємо мапу активних рефералів 2-го рівня
+  const activeLevel2Map = {};
+  activityData.level2.referrals.forEach(ref => {
+    activeLevel2Map[ref.id] = ref.isActive;
+  });
+
+  // Оновлюємо елементи рефералів 2-го рівня
+  const level2Items = document.querySelectorAll('.referral-item.level-2');
+  level2Items.forEach(item => {
+    const referralId = item.dataset.id;
+    const statusElement = item.querySelector('.referral-status');
+
+    if (statusElement && referralId in activeLevel2Map) {
+      const isActive = activeLevel2Map[referralId];
+
+      statusElement.classList.toggle('active', isActive);
+      statusElement.classList.toggle('inactive', !isActive);
+      statusElement.textContent = isActive ? 'Активний' : 'Неактивний';
+    }
+  });
+};
+
+/**
+ * Відображає рекомендації щодо активності рефералів
+ * @param {Array} recommendations - Масив рекомендацій
+ */
+const renderActivityRecommendations = (recommendations) => {
+  const recommendationsContainer = document.querySelector('.activity-recommendations');
+  if (!recommendationsContainer) return;
+
+  // Очищуємо контейнер
+  recommendationsContainer.innerHTML = '';
+
+  // Додаємо заголовок
+  const header = document.createElement('h4');
+  header.textContent = 'Рекомендації';
+  recommendationsContainer.appendChild(header);
+
+  // Додаємо рекомендації
+  recommendations.forEach(recommendation => {
+    const recommendationItem = document.createElement('div');
+    recommendationItem.className = `recommendation-item ${recommendation.priority}`;
+
+    recommendationItem.innerHTML = `
+      <div class="recommendation-title">${recommendation.title}</div>
+      <div class="recommendation-description">${recommendation.description}</div>
+    `;
+
+    recommendationsContainer.appendChild(recommendationItem);
+  });
+};
+
+/**
+ * Оновлює загальний заробіток з урахуванням різних джерел доходу
+ */
+const updateTotalEarnings = () => {
+  // Отримуємо суму прямих бонусів
+  const directBonusAmount = appState.directBonus.totalBonus || 0;
+
+  // Отримуємо суму відсоткових винагород
+  const percentageRewardAmount = appState.levelRewards.summary
+    ? appState.levelRewards.summary.totalPercentageReward || 0
+    : 0;
+
+  // НОВА ФУНКЦІОНАЛЬНІСТЬ: Отримуємо суму винагород за бейджі та завдання
+  const badgesRewardAmount = appState.badges.earnedBadgesReward || 0;
+  const tasksRewardAmount = appState.badges.totalTasksReward || 0;
+
+  // Розраховуємо загальний заробіток
+  const totalEarnings = directBonusAmount + percentageRewardAmount + badgesRewardAmount + tasksRewardAmount;
+
+  // Оновлюємо елемент інтерфейсу
+  const totalEarningsElement = document.querySelector('#total-earnings-stats .stats-value');
+  if (totalEarningsElement) {
+    totalEarningsElement.textContent = totalEarnings;
+  }
+
+  // Оновлюємо винагороду в лідерській дошці
+  const userRewardElement = document.querySelector('.current-user .user-reward');
+  if (userRewardElement) {
+    userRewardElement.textContent = totalEarnings;
   }
 };
 
@@ -1085,12 +1738,7 @@ const renderDirectBonusUI = () => {
   }
 
   // Оновлюємо дані в статистиці
-  const totalEarningsElement = document.querySelector('.stats-card:nth-child(3) .stats-value');
-  if (totalEarningsElement) {
-    // Тут можемо оновити загальний заробіток з урахуванням всіх джерел доходу
-    // У наступних етапах це буде сума бонусів та відсоткових винагород
-    totalEarningsElement.textContent = totalBonus;
-  }
+  updateTotalEarnings();
 
   // Оновлюємо історію бонусів (якщо є відповідний контейнер)
   const historyContainer = document.querySelector('.bonus-history-items');
@@ -1229,20 +1877,13 @@ const renderReferralLevelsUI = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює інтерфейс користувача відповідно до стану відсоткових винагород (Етап 4)
+ * Оновлює інтерфейс користувача відповідно до стану відсоткових винагород
  */
 const renderLevelRewardsUI = () => {
   const { level1Rewards, level2Rewards, summary, isLoading, error } = appState.levelRewards;
 
   // Оновлюємо загальний заробіток з урахуванням прямих бонусів та відсоткових винагород
-  const totalEarningsElement = document.querySelector('#total-earnings-stats .stats-value');
-  if (totalEarningsElement) {
-    const totalDirectBonus = appState.directBonus.totalBonus || 0;
-    const totalPercentageReward = summary.totalPercentageReward || 0;
-    const totalEarnings = totalDirectBonus + totalPercentageReward;
-
-    totalEarningsElement.textContent = totalEarnings;
-  }
+  updateTotalEarnings();
 
   // Оновлюємо винагороди в елементах інтерфейсу, якщо вони є
   const level1RewardElement = document.querySelector('.level1-reward');
@@ -1282,7 +1923,7 @@ const renderLevelRewardsUI = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює інтерфейс користувача відповідно до стану активності рефералів (Етап 5)
+ * Оновлює інтерфейс користувача відповідно до стану активності рефералів
  */
 const renderReferralActivityUI = () => {
   const { activeReferrals, activityStats, isLoading, error } = appState.referralActivity;
@@ -1330,7 +1971,7 @@ const renderReferralActivityUI = () => {
 };
 
 /**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює статус активності рефералів у списках
+ * Оновлює статус активності рефералів у списках
  */
 const updateReferralStatusInLists = () => {
   // Отримуємо ID активних рефералів 1-го рівня
@@ -1382,165 +2023,6 @@ const updateReferralStatusInLists = () => {
   });
 };
 
-/**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про винагороди в інтерфейсі (Етап 4)
- * @param {Object} rewardsData - Дані про винагороди
- */
-const renderRewardsUI = (rewardsData) => {
-  if (!rewardsData) return;
-
-  // Оновлюємо елементи статистики
-  const level1RewardElement = document.querySelector('.level1-reward');
-  if (level1RewardElement) {
-    level1RewardElement.textContent = rewardsData.level1Rewards.totalReward || 0;
-  }
-
-  const level2RewardElement = document.querySelector('.level2-reward');
-  if (level2RewardElement) {
-    level2RewardElement.textContent = rewardsData.level2Rewards.totalReward || 0;
-  }
-
-  // Оновлюємо загальний заробіток
-  updateTotalEarnings();
-};
-
-/**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає дані про активність рефералів в інтерфейсі (Етап 5)
- * @param {Object} activityData - Дані про активність
- * @param {Object} analysisData - Результат аналізу активності
- */
-const renderActivityUI = (activityData, analysisData) => {
-  if (!activityData) return;
-
-  // Оновлюємо елементи статистики активності
-  const activeReferralsElement = document.querySelector('.active-referrals-count');
-  if (activeReferralsElement) {
-    activeReferralsElement.textContent = activityData.summary.active || 0;
-  }
-
-  const conversionRateElement = document.querySelector('.conversion-rate');
-  if (conversionRateElement) {
-    const formattedRate = ((activityData.summary.conversionRate || 0) * 100).toFixed(1);
-    conversionRateElement.textContent = `${formattedRate}%`;
-  }
-
-  // Оновлюємо статус активності для рефералів у списках
-  updateReferralItemsStatus(activityData);
-
-  // Відображаємо рекомендації, якщо є відповідний контейнер
-  if (analysisData && analysisData.recommendations) {
-    renderActivityRecommendations(analysisData.recommendations);
-  }
-};
-
-/**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює статус елементів рефералів у списках
- * @param {Object} activityData - Дані про активність рефералів
- */
-const updateReferralItemsStatus = (activityData) => {
-  if (!activityData || !activityData.level1 || !activityData.level2) return;
-
-  // Створюємо мапу активних рефералів 1-го рівня
-  const activeLevel1Map = {};
-  activityData.level1.referrals.forEach(ref => {
-    activeLevel1Map[ref.id] = ref.isActive;
-  });
-
-  // Оновлюємо елементи рефералів 1-го рівня
-  const level1Items = document.querySelectorAll('.referral-item.level-1');
-  level1Items.forEach(item => {
-    const referralId = item.dataset.id;
-    const statusElement = item.querySelector('.referral-status');
-
-    if (statusElement && referralId in activeLevel1Map) {
-      const isActive = activeLevel1Map[referralId];
-
-      statusElement.classList.toggle('active', isActive);
-      statusElement.classList.toggle('inactive', !isActive);
-      statusElement.textContent = isActive ? 'Активний' : 'Неактивний';
-    }
-  });
-
-  // Створюємо мапу активних рефералів 2-го рівня
-  const activeLevel2Map = {};
-  activityData.level2.referrals.forEach(ref => {
-    activeLevel2Map[ref.id] = ref.isActive;
-  });
-
-  // Оновлюємо елементи рефералів 2-го рівня
-  const level2Items = document.querySelectorAll('.referral-item.level-2');
-  level2Items.forEach(item => {
-    const referralId = item.dataset.id;
-    const statusElement = item.querySelector('.referral-status');
-
-    if (statusElement && referralId in activeLevel2Map) {
-      const isActive = activeLevel2Map[referralId];
-
-      statusElement.classList.toggle('active', isActive);
-      statusElement.classList.toggle('inactive', !isActive);
-      statusElement.textContent = isActive ? 'Активний' : 'Неактивний';
-    }
-  });
-};
-
-/**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Відображає рекомендації щодо активності рефералів
- * @param {Array} recommendations - Масив рекомендацій
- */
-const renderActivityRecommendations = (recommendations) => {
-  const recommendationsContainer = document.querySelector('.activity-recommendations');
-  if (!recommendationsContainer) return;
-
-  // Очищуємо контейнер
-  recommendationsContainer.innerHTML = '';
-
-  // Додаємо заголовок
-  const header = document.createElement('h4');
-  header.textContent = 'Рекомендації';
-  recommendationsContainer.appendChild(header);
-
-  // Додаємо рекомендації
-  recommendations.forEach(recommendation => {
-    const recommendationItem = document.createElement('div');
-    recommendationItem.className = `recommendation-item ${recommendation.priority}`;
-
-    recommendationItem.innerHTML = `
-      <div class="recommendation-title">${recommendation.title}</div>
-      <div class="recommendation-description">${recommendation.description}</div>
-    `;
-
-    recommendationsContainer.appendChild(recommendationItem);
-  });
-};
-
-/**
- * НОВА ФУНКЦІОНАЛЬНІСТЬ: Оновлює загальний заробіток з урахуванням різних джерел доходу
- */
-const updateTotalEarnings = () => {
-  // Отримуємо суму прямих бонусів
-  const directBonusAmount = appState.directBonus.totalBonus || 0;
-
-  // Отримуємо суму відсоткових винагород
-  const percentageRewardAmount = appState.levelRewards.summary
-    ? appState.levelRewards.summary.totalPercentageReward || 0
-    : 0;
-
-  // Розраховуємо загальний заробіток
-  const totalEarnings = directBonusAmount + percentageRewardAmount;
-
-  // Оновлюємо елемент інтерфейсу
-  const totalEarningsElement = document.querySelector('#total-earnings-stats .stats-value');
-  if (totalEarningsElement) {
-    totalEarningsElement.textContent = totalEarnings;
-  }
-
-  // Оновлюємо винагороду в лідерській дошці
-  const userRewardElement = document.querySelector('.current-user .user-reward');
-  if (userRewardElement) {
-    userRewardElement.textContent = totalEarnings;
-  }
-};
-
 // Ініціалізуємо реферальну систему при завантаженні сторінки
 document.addEventListener('DOMContentLoaded', initReferralSystem);
 
@@ -1550,6 +2032,8 @@ export {
   registerNewReferral,
   getDirectBonusHistory,
   getReferralStats,
-  getLevelRewards,      // НОВА ФУНКЦІОНАЛЬНІСТЬ: Експорт функції для отримання відсоткових винагород
-  getReferralActivity   // НОВА ФУНКЦІОНАЛЬНІСТЬ: Експорт функції для отримання даних про активність
+  getLevelRewards,
+  getReferralActivity,
+  getUserBadges,
+  getUserTasks
 };
