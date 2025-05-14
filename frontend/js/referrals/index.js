@@ -16,6 +16,11 @@ export { fetchReferralLink as fetchReferralLinkFromAPI } from './api/fetchReferr
 export { registerReferral, checkIfReferral } from './api/registerReferral';
 export { calculateDirectBonus, calculatePotentialDirectBonus } from './services/calculateDirectBonus';
 
+// Експортуємо компоненти для рівнів рефералів
+export { fetchReferralStats, fetchReferralDetails } from './api/fetchReferralStats';
+export { calculateLevel1Count, analyzeLevel1Growth } from './services/calculateLevel1Count';
+export { calculateLevel2Count, groupLevel2ByReferrers, analyzeLevel1Effectiveness } from './services/calculateLevel2Count';
+
 // Експортуємо дії для роботи із станом реферального посилання
 export {
   fetchReferralLink,
@@ -32,6 +37,13 @@ export {
   clearDirectBonusError
 } from './store/registerReferralAction';
 
+// Експортуємо дії для роботи із рівнями рефералів
+export {
+  fetchReferralLevels,
+  updateReferralLevelCounts,
+  clearReferralLevelsError
+} from './store/updateStatsAction';
+
 // Експортуємо редуктор і початковий стан для реферального посилання
 export {
   referralLinkReducer,
@@ -46,6 +58,13 @@ export {
   DirectBonusActionTypes
 } from './store/directBonusState';
 
+// Експортуємо редуктор і початковий стан для рівнів рефералів
+export {
+  referralLevelsReducer,
+  initialReferralLevelsState,
+  ReferralLevelsActionTypes
+} from './store/referralLevelsState';
+
 // Експортуємо константи
 export { REFERRAL_URL_PATTERN } from './constants/urlPatterns';
 export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
@@ -56,7 +75,8 @@ export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
  * ```js
  * import {
  *   generateReferralLink,
- *   registerReferralAndAwardBonus
+ *   registerReferralAndAwardBonus,
+ *   fetchReferralLevels
  * } from './referral';
  *
  * // Отримання реферального посилання
@@ -78,6 +98,18 @@ export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
  *     return result;
  *   } catch (error) {
  *     console.error('Помилка при реєстрації реферала:', error);
+ *   }
+ * };
+ *
+ * // Отримання статистики рефералів
+ * const getReferralStats = async (userId) => {
+ *   try {
+ *     const stats = await fetchReferralLevels(userId);
+ *     console.log(`Рефералів 1-го рівня: ${stats.level1Count}`);
+ *     console.log(`Рефералів 2-го рівня: ${stats.level2Count}`);
+ *     return stats;
+ *   } catch (error) {
+ *     console.error('Помилка при отриманні статистики рефералів:', error);
  *   }
  * };
  * ```

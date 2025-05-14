@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="css/earn/winix-icons.css">
     <link rel="stylesheet" href="css/referrals/referrals.css">
     <link rel="stylesheet" href="css/referrals/referrals-animations.css">
+    <link rel="stylesheet" href="css/referrals/referrals-form.css">
+    <link rel="stylesheet" href="css/referrals/referral-levels.css">
 </head>
 <body>
     <!-- SVG фільтри для іконок -->
@@ -78,17 +80,17 @@
 
             <!-- Статистика рефералів -->
             <div class="referral-stats">
-                <div class="stats-card">
+                <div class="stats-card" id="level1-stats">
                     <div class="stats-icon level-1-icon"></div>
                     <div class="stats-value">0</div>
                     <div class="stats-label">Рефералів 1 рівня</div>
                 </div>
-                <div class="stats-card">
+                <div class="stats-card" id="level2-stats">
                     <div class="stats-icon level-2-icon"></div>
                     <div class="stats-value">0</div>
                     <div class="stats-label">Рефералів 2 рівня</div>
                 </div>
-                <div class="stats-card">
+                <div class="stats-card" id="total-earnings-stats">
                     <div class="stats-icon total-earnings-icon"></div>
                     <div class="stats-value total-bonus-amount">0</div>
                     <div class="stats-label">Загальний заробіток</div>
@@ -123,6 +125,90 @@
                 <p class="referral-info">
                     Отримайте <span class="bonus-amount">50</span> winix бонусу за кожного нового реферала
                 </p>
+            </div>
+
+            <!-- Структура рефералів -->
+            <div class="referral-structure-container">
+                <h3 class="referral-subtitle">Структура рефералів</h3>
+                <div class="structure-info">
+                    <div class="structure-item">
+                        <div class="structure-label">Загальна кількість</div>
+                        <div class="structure-value total-referrals-count">0</div>
+                    </div>
+                    <div class="structure-item">
+                        <div class="structure-label">Активні реферали</div>
+                        <div class="structure-value active-referrals-count">0</div>
+                    </div>
+                    <div class="structure-item">
+                        <div class="structure-label">% конверсії</div>
+                        <div class="structure-value conversion-rate">0%</div>
+                    </div>
+                </div>
+
+                <!-- Вкладки для перегляду рефералів -->
+                <div class="referral-tabs">
+                    <div class="referral-tab active" data-tab="level1">1-й рівень</div>
+                    <div class="referral-tab" data-tab="level2">2-й рівень</div>
+                    <div class="referral-tab" data-tab="hierarchy">Ієрархія</div>
+                </div>
+
+                <!-- Контент вкладок -->
+                <div class="referral-tab-content">
+                    <!-- Вкладка рефералів 1-го рівня -->
+                    <div class="tab-pane active" id="level1-tab">
+                        <div class="referral-list" id="level1-list">
+                            <!-- Сюди будуть додані елементи рефералів 1-го рівня -->
+                        </div>
+                    </div>
+
+                    <!-- Вкладка рефералів 2-го рівня -->
+                    <div class="tab-pane" id="level2-tab">
+                        <div class="referral-list" id="level2-list">
+                            <!-- Сюди будуть додані елементи рефералів 2-го рівня -->
+                        </div>
+                    </div>
+
+                    <!-- Вкладка ієрархії рефералів -->
+                    <div class="tab-pane" id="hierarchy-tab">
+                        <div class="referral-hierarchy" id="referral-hierarchy">
+                            <!-- Сюди буде додана ієрархія рефералів -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Деталі реферала (показується при кліку на реферала) -->
+            <div class="referral-details" id="referral-details">
+                <div class="referral-details-header">
+                    <div class="referral-details-title">Інформація про реферала</div>
+                    <div class="referral-details-close">&times;</div>
+                </div>
+                <div class="referral-details-content">
+                    <div class="detail-item">
+                        <div class="detail-label">ID</div>
+                        <div class="detail-value" id="detail-id">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Дата реєстрації</div>
+                        <div class="detail-value" id="detail-date">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Статус</div>
+                        <div class="detail-value" id="detail-status">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Заробіток</div>
+                        <div class="detail-value" id="detail-earnings">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Останнє відвідування</div>
+                        <div class="detail-value" id="detail-last-activity">-</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Кількість рефералів</div>
+                        <div class="detail-value" id="detail-referral-count">-</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Винагороди -->
@@ -234,31 +320,31 @@
         <nav class="nav-bar">
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/home-icon.png" alt="Головна">
+                    <img src="assets/icons/home.svg" alt="Головна">
                 </div>
                 <span>Головна</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/earn-icon.png" alt="Завдання">
+                    <img src="assets/icons/tasks.svg" alt="Завдання">
                 </div>
                 <span>Завдання</span>
             </div>
             <div class="nav-item active">
                 <div class="icon-wrapper">
-                    <img src="assets/referrals-icon.png" alt="Реферали">
+                    <img src="assets/icons/referral.svg" alt="Реферали">
                 </div>
                 <span>Реферали</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/wallet-icon.png" alt="Wallet">
+                    <img src="assets/icons/profile.svg" alt="Профіль">
                 </div>
-                <span>Гаманець</span>
+                <span>Профіль</span>
             </div>
             <div class="nav-item">
                 <div class="icon-wrapper">
-                    <img src="assets/general-icon.png" alt="Налаштування">
+                    <img src="assets/icons/settings.svg" alt="Налаштування">
                 </div>
                 <span>Налаштування</span>
             </div>

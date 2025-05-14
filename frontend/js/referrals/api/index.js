@@ -9,3 +9,6 @@ export * from './fetchReferralLink';
 
 // Експортуємо функцію реєстрації реферала
 export * from './registerReferral';
+
+// Експортуємо функцію отримання статистики рефералів
+export * from './fetchReferralStats';
