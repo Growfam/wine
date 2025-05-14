@@ -1,8 +1,8 @@
 /**
- * Головна точка входу в модуль реферальної системи
+ * Оновлений індексний файл модуля реферальної системи
  *
  * Експортує всі необхідні функції, константи та компоненти для зовнішнього використання.
- * Забезпечує зручний інтерфейс для інтеграції з іншими частинами додатка.
+ * Додано експорт компонентів для перевірки активності рефералів за етапом 5.
  *
  * @module referral
  */
@@ -20,6 +20,17 @@ export { calculateDirectBonus, calculatePotentialDirectBonus } from './services/
 export { fetchReferralStats, fetchReferralDetails } from './api/fetchReferralStats';
 export { calculateLevel1Count, analyzeLevel1Growth } from './services/calculateLevel1Count';
 export { calculateLevel2Count, groupLevel2ByReferrers, analyzeLevel1Effectiveness } from './services/calculateLevel2Count';
+
+// Експортуємо компоненти для відсоткових винагород (етап 4)
+export { fetchReferralEarnings, fetchReferralDetailedEarnings } from './api/fetchReferralEarnings';
+export { calculatePercentage, formatPercentageResult } from './utils/calculatePercentage';
+export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward';
+export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward';
+
+// НОВИЙ ЕКСПОРТ: Компоненти для перевірки активності рефералів (етап 5)
+export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveReferral';
+export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity';
+export { checkReferralsActivity, checkReferralActivity, analyzeReferralsActivity } from './services/checkReferralActivity';
 
 // Експортуємо дії для роботи із станом реферального посилання
 export {
@@ -44,6 +55,25 @@ export {
   clearReferralLevelsError
 } from './store/updateStatsAction';
 
+// Експортуємо дії для роботи з відсотковими винагородами (етап 4)
+export {
+  fetchLevelRewards,
+  fetchRewardsHistory,
+  updateLevel1Rewards,
+  updateLevel2Rewards,
+  clearLevelRewardsError
+} from './store/levelRewardsActions';
+
+// НОВИЙ ЕКСПОРТ: Дії для роботи з активністю рефералів (етап 5)
+export {
+  fetchReferralActivity as fetchAndCheckReferralActivity,
+  checkReferralsActivityWithAnalysis,
+  checkSingleReferralActivity,
+  updateActivityStats,
+  updateActivityRecommendations,
+  clearReferralActivityError
+} from './store/referralActivityActions';
+
 // Експортуємо редуктор і початковий стан для реферального посилання
 export {
   referralLinkReducer,
@@ -65,52 +95,24 @@ export {
   ReferralLevelsActionTypes
 } from './store/referralLevelsState';
 
+// Експортуємо редуктор і початковий стан для відсоткових винагород (етап 4)
+export {
+  levelRewardsReducer,
+  initialLevelRewardsState,
+  LevelRewardsActionTypes
+} from './store/levelRewardsState';
+
+// НОВИЙ ЕКСПОРТ: Редуктор і початковий стан для активності рефералів (етап 5)
+export {
+  referralActivityReducer,
+  initialReferralActivityState,
+  ReferralActivityActionTypes
+} from './store/referralActivityState';
+
 // Експортуємо константи
 export { REFERRAL_URL_PATTERN } from './constants/urlPatterns';
 export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
+export { LEVEL_1_REWARD_RATE, LEVEL_2_REWARD_RATE } from './constants/rewardRates';
 
-/**
- * Приклад використання модуля:
- *
- * ```js
- * import {
- *   generateReferralLink,
- *   registerReferralAndAwardBonus,
- *   fetchReferralLevels
- * } from './referral';
- *
- * // Отримання реферального посилання
- * const getReferralLink = async (userId) => {
- *   try {
- *     const link = await generateReferralLink(userId);
- *     console.log('Ваше реферальне посилання:', link);
- *     return link;
- *   } catch (error) {
- *     console.error('Помилка при отриманні реферального посилання:', error);
- *   }
- * };
- *
- * // Реєстрація нового реферала і нарахування бонусу
- * const registerNewReferral = async (referrerId, userId) => {
- *   try {
- *     const result = await registerReferralAndAwardBonus(referrerId, userId);
- *     console.log(`Бонус ${result.bonusAmount} winix нараховано!`);
- *     return result;
- *   } catch (error) {
- *     console.error('Помилка при реєстрації реферала:', error);
- *   }
- * };
- *
- * // Отримання статистики рефералів
- * const getReferralStats = async (userId) => {
- *   try {
- *     const stats = await fetchReferralLevels(userId);
- *     console.log(`Рефералів 1-го рівня: ${stats.level1Count}`);
- *     console.log(`Рефералів 2-го рівня: ${stats.level2Count}`);
- *     return stats;
- *   } catch (error) {
- *     console.error('Помилка при отриманні статистики рефералів:', error);
- *   }
- * };
- * ```
- */
+// НОВИЙ ЕКСПОРТ: Константи порогів активності (етап 5)
+export { MIN_DRAWS_PARTICIPATION, MIN_INVITED_REFERRALS } from './constants/activityThresholds';
