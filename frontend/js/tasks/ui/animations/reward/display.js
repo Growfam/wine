@@ -9,7 +9,7 @@
 
 import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 import { state, config } from '../core.js';
-import { createStarsEffect, createConfetti } from '../effects/index.js';
+import { createStarsEffect, createConfetti } from '../effects/particles.js';
 
 // Ініціалізуємо логер для модуля
 const logger = getLogger('UI.Animations.Rewards.Display');

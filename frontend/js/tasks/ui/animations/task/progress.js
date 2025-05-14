@@ -7,7 +7,7 @@
  * @version 3.1.0
  */
 
-import { getLogger, LOG_CATEGORIES } from '../../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 // Імпортуємо config та state через іменований імпорт
 import { config, state } from '../core.js';
 // Імпортуємо потрібні функції з effects напряму

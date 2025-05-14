@@ -10,7 +10,7 @@
 
 import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
 import { state, config } from '../core.js';
-import { createStarsEffect, createConfetti } from '../effects/index.js';
+import { createStarsEffect, createConfetti } from '../effects/particles.js';
 import { showReward, showDailyBonusReward, updateUserBalance } from '../reward/display.js';
 
 // Створюємо логер для модуля

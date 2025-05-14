@@ -8,8 +8,8 @@
  * @version 3.0.0
  */
 
-import { injectStyles, addEvent, removeEvent, onDOMReady } from '../../../utils/index.js';
-
+import { addEvent, removeEvent, onDOMReady } from '../../../utils/dom/events.js';
+import { injectStyles } from '../../../utils/validation/form.js';
 // Ініціалізуємо глобальний об'єкт UI, якщо його немає
 window.UI = window.UI || {};
 
