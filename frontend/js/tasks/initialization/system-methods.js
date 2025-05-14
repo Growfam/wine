@@ -10,7 +10,7 @@
  */
 
 // ВИПРАВЛЕНО: правильний шлях імпорту файлу конфігурації
-import { TASK_TYPES } from '../config/types/task-types.js';
+import { TASK_TYPES } from 'config/task-types.js';
 import { getLogger } from '../utils/core/logger.js';
 
 // Створюємо логер для методів системи

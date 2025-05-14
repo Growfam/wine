@@ -8,7 +8,7 @@
  */
 
 import { getLogger, LOG_CATEGORIES } from '../../../utils/core/logger.js';
-import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../../config/types/daily-bonus-types.js';
+import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from 'config/daily-bonus-types.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('UI.DailyBonusCalendar');

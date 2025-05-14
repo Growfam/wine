@@ -6,7 +6,7 @@
  * - Бізнес-логіку для роботи з моделлю
  */
 
-import { DAILY_BONUS_TYPES } from '../../config/types/daily-bonus-types.js';
+import { DAILY_BONUS_TYPES } from 'config/daily-bonus-types.js';
 import { getLogger } from '../../utils/core/logger.js';
 
 // Створюємо логер для модуля

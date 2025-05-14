@@ -8,7 +8,7 @@
 
 import { TASK_STATUS, CONFIG } from '../../config/index.js';
 // Видаляємо пряму залежність від taskStore
-// import { taskStore } from '../index.js';
+// import { taskStore } from '../api.js';
 
 class TaskProgress {
   constructor() {
