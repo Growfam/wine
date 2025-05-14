@@ -2304,3 +2304,5 @@ export {
   analyzeReferralEarnings,
   calculateTotalEarnings
 };
+// Автоматично ініціалізуємо систему при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', initReferralSystem);
