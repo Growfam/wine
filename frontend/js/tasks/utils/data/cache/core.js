@@ -10,7 +10,7 @@
  * @version 2.0.0
  */
 
-import { StorageAdapter } from '../../../utils/data/cache/storage.js';
+import { StorageAdapter } from './storage.js';
 import { getLogger } from '../../../utils/core/index.js';
 
 // Створюємо логер для модуля

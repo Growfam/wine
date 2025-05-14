@@ -32,8 +32,29 @@ console.log('Фабрика сервісів ініціалізована:', !!s
 import * as TaskTypes from './config/types/index.js';
 import { CONFIG } from './config/settings.js';
 
-// Імпорт контейнера залежностей
-import dependencyContainer from './utils/core/dependency.js';
+// Використовуємо змінну, яку заповнимо асинхронно
+let dependencyContainer = {
+  register: () => {},
+  resolve: () => null,
+  has: () => false
+};
+
+// Асинхронна функція для ініціалізації
+async function initializeDependencies() {
+  try {
+    // Динамічний імпорт для розриву циклу
+    const module = await import('./utils/core/dependency.js');
+    dependencyContainer = module.default;
+    console.log('✅ DependencyContainer успішно завантажено');
+  } catch (e) {
+    console.error('❌ Помилка завантаження DependencyContainer:', e);
+  }
+}
+
+// Виклик функції ініціалізації
+initializeDependencies().then(() => {
+  console.log('✅ Залежності ініціалізовано, можна продовжувати');
+});
 import { getLogger } from './utils/core/logger.js';
 
 // Створюємо логер для основної системи

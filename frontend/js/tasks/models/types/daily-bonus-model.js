@@ -8,7 +8,7 @@
  */
 
 import { DAILY_BONUS_TYPES, DAILY_BONUS_CONFIG } from '../../config/types/daily-bonus-types.js';
-import { getLogger, LOG_CATEGORIES } from '../../utils/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../utils/core/logger.js';
 
 // Створюємо логер для модуля
 const logger = getLogger('DailyBonusModel');
