@@ -31,11 +31,31 @@
     align-items: center;
     justify-content: center;
     text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.activity-stats-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(78, 181, 247, 0.1), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
 }
 
 .activity-stats-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.activity-stats-card:hover::before {
+    opacity: 1;
 }
 
 .activity-stats-icon {
@@ -46,11 +66,14 @@
     align-items: center;
     justify-content: center;
     margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
 }
 
 .active-referrals-icon {
     background: linear-gradient(135deg, #00C9A7, #4CAF50);
     box-shadow: 0 0 10px rgba(0, 201, 167, 0.5);
+    animation: active-referrals-glow 3s infinite ease-in-out;
 }
 
 .active-referrals-icon::before {
@@ -63,6 +86,7 @@
 .inactive-referrals-icon {
     background: linear-gradient(135deg, #F44336, #D32F2F);
     box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    animation: inactive-referrals-glow 3s infinite ease-in-out;
 }
 
 .inactive-referrals-icon::before {
@@ -75,6 +99,7 @@
 .conversion-rate-icon {
     background: linear-gradient(135deg, #4eb5f7, #2196F3);
     box-shadow: 0 0 10px rgba(78, 181, 247, 0.5);
+    animation: conversion-rate-glow 3s infinite ease-in-out;
 }
 
 .conversion-rate-icon::before {
@@ -103,10 +128,30 @@
     padding: var(--space-md);
     border: 1px solid var(--border-color);
     margin-bottom: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.activity-criteria-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 50%, rgba(78, 181, 247, 0.05), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.activity-criteria-container:hover::before {
+    opacity: 1;
 }
 
 .activity-criteria-title {
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 500;
     color: var(--text-color);
     margin-bottom: 0.75rem;
@@ -126,8 +171,8 @@
 
 .activity-criteria-item::before {
     content: '';
-    width: 1rem;
-    height: 1rem;
+    width: 0.75rem;
+    height: 0.75rem;
     border-radius: 50%;
     background: rgba(78, 181, 247, 0.2);
     border: 1px solid rgba(78, 181, 247, 0.5);
@@ -159,11 +204,12 @@
     border: 1px solid var(--border-color);
     overflow: hidden;
     margin-bottom: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .activity-table-header {
     display: flex;
-    padding: 0.75rem;
+    padding: 0.875rem 0.75rem;
     border-bottom: 1px solid rgba(78, 181, 247, 0.2);
     background: rgba(78, 181, 247, 0.1);
 }
@@ -171,7 +217,7 @@
 .activity-table-col {
     flex: 1;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-color);
 }
 
@@ -193,6 +239,7 @@
 .activity-table-body {
     max-height: 300px;
     overflow-y: auto;
+    color: var(--text-color);
 }
 
 .activity-table-row {
@@ -241,18 +288,19 @@
     border-radius: 1rem;
     font-size: 0.75rem;
     font-weight: 500;
+    color: white;
 }
 
 .status-active {
-    background-color: rgba(0, 201, 167, 0.2);
-    color: #00C9A7;
-    border: 1px solid rgba(0, 201, 167, 0.3);
+    background-color: rgba(0, 201, 167, 0.6);
+    border: 1px solid rgba(0, 201, 167, 0.8);
+    box-shadow: 0 0 5px rgba(0, 201, 167, 0.3);
 }
 
 .status-inactive {
-    background-color: rgba(244, 67, 54, 0.2);
-    color: #F44336;
-    border: 1px solid rgba(244, 67, 54, 0.3);
+    background-color: rgba(244, 67, 54, 0.6);
+    border: 1px solid rgba(244, 67, 54, 0.8);
+    box-shadow: 0 0 5px rgba(244, 67, 54, 0.3);
 }
 
 /* Рекомендації */
@@ -261,10 +309,30 @@
     border-radius: var(--border-radius-md);
     padding: var(--space-md);
     border: 1px solid var(--border-color);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.activity-recommendations::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 70% 50%, rgba(78, 181, 247, 0.05), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.activity-recommendations:hover::before {
+    opacity: 1;
 }
 
 .recommendations-title {
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 500;
     color: var(--text-color);
     margin-bottom: 0.75rem;
@@ -277,10 +345,16 @@
 }
 
 .recommendation-item {
-    padding: 0.75rem;
+    padding: 0.875rem 0.75rem;
     border-radius: var(--border-radius-sm);
     position: relative;
     padding-left: 2.5rem;
+    transition: all 0.3s ease;
+}
+
+.recommendation-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .recommendation-item::before {
@@ -291,6 +365,7 @@
     width: 1rem;
     height: 1rem;
     border-radius: 50%;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
 }
 
 .recommendation-item.high-priority {
@@ -333,6 +408,42 @@
 }
 
 /* Анімації */
+@keyframes active-referrals-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(0, 201, 167, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(0, 201, 167, 0.5);
+    }
+}
+
+@keyframes inactive-referrals-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(244, 67, 54, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(244, 67, 54, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(244, 67, 54, 0.5);
+    }
+}
+
+@keyframes conversion-rate-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(78, 181, 247, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(78, 181, 247, 0.5);
+    }
+}
+
 .activity-stats-value.animate {
     animation: stats-value-pulse 1.5s ease-in-out;
 }
@@ -370,6 +481,7 @@
 @media (max-width: 450px) {
     .activity-stats-container {
         flex-direction: column;
+        gap: 0.75rem;
     }
 
     .activity-stats-card {
