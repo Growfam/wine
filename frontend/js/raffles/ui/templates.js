@@ -3,92 +3,87 @@
  * Модуль з шаблонами та генераторами HTML для відображення розіграшів
  */
 
-(function () {
-  'use strict';
+(function() {
+    'use strict';
 
-  // Перевірка наявності головного модуля розіграшів
-  if (typeof WinixRaffles === 'undefined') {
-    console.error(
-      '❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше templates.js'
-    );
-    return;
-  }
+    // Перевірка наявності головного модуля розіграшів
+    if (typeof WinixRaffles === 'undefined') {
+        console.error('❌ WinixRaffles не знайдено! Переконайтеся, що core.js підключено раніше templates.js');
+        return;
+    }
 
-  // Підмодуль шаблонів
-  const templates = {
-    // Форматування чисел з розділювачами розрядів
-    formatNumber: function (num) {
-      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    },
+    // Підмодуль шаблонів
+    const templates = {
+        // Форматування чисел з розділювачами розрядів
+        formatNumber: function(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+        },
 
-    // Форматування дати
-    formatDate: function (date) {
-      if (!(date instanceof Date)) {
-        date = new Date(date);
-      }
+        // Форматування дати
+        formatDate: function(date) {
+            if (!(date instanceof Date)) {
+                date = new Date(date);
+            }
 
-      if (isNaN(date.getTime())) {
-        return 'Невідома дата';
-      }
+            if (isNaN(date.getTime())) {
+                return 'Невідома дата';
+            }
 
-      return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
-    },
+            return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
+        },
 
-    // Форматування часу
-    formatTime: function (date) {
-      if (!(date instanceof Date)) {
-        date = new Date(date);
-      }
+        // Форматування часу
+        formatTime: function(date) {
+            if (!(date instanceof Date)) {
+                date = new Date(date);
+            }
 
-      if (isNaN(date.getTime())) {
-        return '00:00';
-      }
+            if (isNaN(date.getTime())) {
+                return '00:00';
+            }
 
-      return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    },
+            return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        },
 
-    // Форматування дати та часу
-    formatDateTime: function (date) {
-      return `${this.formatDate(date)} ${this.formatTime(date)}`;
-    },
+        // Форматування дати та часу
+        formatDateTime: function(date) {
+            return `${this.formatDate(date)} ${this.formatTime(date)}`;
+        },
 
-    // Форматування часу до завершення
-    formatTimeLeft: function (endTime) {
-      const now = new Date();
-      const end = new Date(endTime);
-      const diff = end - now;
+        // Форматування часу до завершення
+        formatTimeLeft: function(endTime) {
+            const now = new Date();
+            const end = new Date(endTime);
+            const diff = end - now;
 
-      // Якщо час вийшов, повертаємо "Завершено"
-      if (diff <= 0) {
-        return 'Завершено';
-      }
+            // Якщо час вийшов, повертаємо "Завершено"
+            if (diff <= 0) {
+                return 'Завершено';
+            }
 
-      // Розрахунок днів, годин, хвилин
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            // Розрахунок днів, годин, хвилин
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-      // Форматування результату
-      if (days > 0) {
-        return `${days} дн. ${hours} год.`;
-      } else if (hours > 0) {
-        return `${hours} год. ${minutes} хв.`;
-      } else {
-        return `${minutes} хв.`;
-      }
-    },
+            // Форматування результату
+            if (days > 0) {
+                return `${days} дн. ${hours} год.`;
+            } else if (hours > 0) {
+                return `${hours} год. ${minutes} хв.`;
+            } else {
+                return `${minutes} хв.`;
+            }
+        },
 
-    // Шаблон для головного розіграшу
-    mainRaffleTemplate: function (raffle) {
-      if (!raffle) return '';
+        // Шаблон для головного розіграшу
+        mainRaffleTemplate: function(raffle) {
+            if (!raffle) return '';
 
-      const endTime = new Date(raffle.end_time);
-      const progress = Math.min(
-        Math.round((raffle.participants_count / (raffle.max_participants || 1000)) * 100),
-        100
-      );
+            const endTime = new Date(raffle.end_time);
+            const progress = Math.min(Math.round((raffle.participants_count / (raffle.max_participants || 1000)) * 100), 100);
 
-      return `
+            return `
                 <img src="${raffle.image_url || 'assets/prize-poster.gif'}" alt="${raffle.title}" class="main-raffle-image">
                 <div class="main-raffle-content">
                     <div class="main-raffle-header">
@@ -138,25 +133,24 @@
                     </button>
                 </div>
             `;
-    },
+        },
 
-    // Шаблон для міні-розіграшу
-    miniRaffleTemplate: function (raffle) {
-      if (!raffle) return '';
+        // Шаблон для міні-розіграшу
+        miniRaffleTemplate: function(raffle) {
+            if (!raffle) return '';
 
-      // Форматування часу завершення
-      const endTime = new Date(raffle.end_time);
-      const now = new Date();
-      const isToday =
-        endTime.getDate() === now.getDate() &&
-        endTime.getMonth() === now.getMonth() &&
-        endTime.getFullYear() === now.getFullYear();
+            // Форматування часу завершення
+            const endTime = new Date(raffle.end_time);
+            const now = new Date();
+            const isToday = endTime.getDate() === now.getDate() &&
+                            endTime.getMonth() === now.getMonth() &&
+                            endTime.getFullYear() === now.getFullYear();
 
-      const endTimeText = isToday
-        ? `сьогодні о ${this.formatTime(endTime)}`
-        : `${this.formatDate(endTime)} о ${this.formatTime(endTime)}`;
+            const endTimeText = isToday
+                ? `сьогодні о ${this.formatTime(endTime)}`
+                : `${this.formatDate(endTime)} о ${this.formatTime(endTime)}`;
 
-      return `
+            return `
                 <div class="mini-raffle-info">
                     <h3 class="mini-raffle-title">${raffle.title}</h3>
                     <div class="mini-raffle-cost">
@@ -168,11 +162,11 @@
                 </div>
                 <button class="mini-raffle-button" data-raffle-id="${raffle.id}" data-raffle-type="daily">Взяти участь</button>
             `;
-    },
+        },
 
-    // Шаблон для пустого стану активних розіграшів
-    emptyActiveRafflesTemplate: function () {
-      return `
+        // Шаблон для пустого стану активних розіграшів
+        emptyActiveRafflesTemplate: function() {
+            return `
                 <div class="main-raffle">
                     <div class="main-raffle-content">
                         <h3 class="main-raffle-title">На даний момент немає активних розіграшів</h3>
@@ -210,65 +204,61 @@
                     </div>
                 </div>
             `;
-    },
+        },
 
-    // Шаблон для порожньої історії розіграшів
-    emptyHistoryTemplate: function () {
-      return `
+        // Шаблон для порожньої історії розіграшів
+        emptyHistoryTemplate: function() {
+            return `
                 <div class="history-card">
                     <div class="history-date">Історія відсутня</div>
                     <div class="history-prize">У вас ще немає історії участі в розіграшах</div>
                     <div class="history-winners">Візьміть участь у розіграшах, щоб побачити їх тут</div>
                 </div>
             `;
-    },
+        },
 
-    // Шаблон для картки історії
-    historyCardTemplate: function (raffle) {
-      if (!raffle) return '';
+        // Шаблон для картки історії
+        historyCardTemplate: function(raffle) {
+            if (!raffle) return '';
 
-      let statusText = 'Завершено';
-      if (raffle.status === 'won') {
-        statusText = 'Ви виграли!';
-      } else if (raffle.status === 'participated') {
-        statusText = 'Ви брали участь';
-      }
+            let statusText = 'Завершено';
+            if (raffle.status === 'won') {
+                statusText = 'Ви виграли!';
+            } else if (raffle.status === 'participated') {
+                statusText = 'Ви брали участь';
+            }
 
-      return `
+            return `
                 <div class="history-date">${raffle.date}</div>
                 <div class="history-prize">${raffle.title || 'Розіграш'}: ${raffle.prize}</div>
                 <div class="history-winners">${raffle.result || 'Переможці визначені'}</div>
                 <div class="history-status ${raffle.status || ''}">${statusText}</div>
                 <div class="view-details-hint">Натисніть для деталей</div>
             `;
-    },
+        },
 
-    // Шаблон для деталей розіграшу
-    raffleDetailsTemplate: function (raffle) {
-      if (!raffle) return '';
+        // Шаблон для деталей розіграшу
+        raffleDetailsTemplate: function(raffle) {
+            if (!raffle) return '';
 
-      // Формування списку переможців
-      let winnersHtml = '';
-      if (raffle.winners && raffle.winners.length > 0) {
-        winnersHtml = `
+            // Формування списку переможців
+            let winnersHtml = '';
+            if (raffle.winners && raffle.winners.length > 0) {
+                winnersHtml = `
                     <div class="winners-list">
                         <h4>Переможці розіграшу:</h4>
                         <ul>
-                            ${raffle.winners
-                              .map(
-                                (winner) => `
+                            ${raffle.winners.map(winner => `
                                 <li class="${winner.isCurrentUser ? 'current-user' : ''}">
                                     ${winner.place}. ${winner.username} - ${winner.prize}
                                 </li>
-                            `
-                              )
-                              .join('')}
+                            `).join('')}
                         </ul>
                     </div>
                 `;
-      }
+            }
 
-      return `
+            return `
                 <div class="raffle-details-modal">
                     <h3>${raffle.title || 'Розіграш'}</h3>
                     <div class="raffle-info">
@@ -280,19 +270,19 @@
                     ${winnersHtml}
                 </div>
             `;
-    },
+        },
 
-    // Шаблон для статистики
-    statisticsTemplate: function (stats) {
-      if (!stats) return '';
+        // Шаблон для статистики
+        statisticsTemplate: function(stats) {
+            if (!stats) return '';
 
-      // Отримання значень статистики з безпечними значеннями за замовчуванням
-      const participated = stats.participations_count || 0;
-      const wins = stats.wins_count || 0;
-      const winixWon = stats.total_winnings || 0;
-      const tokensSpent = stats.tokens_spent || participated * 2;
+            // Отримання значень статистики з безпечними значеннями за замовчуванням
+            const participated = stats.participations_count || 0;
+            const wins = stats.wins_count || 0;
+            const winixWon = stats.total_winnings || 0;
+            const tokensSpent = stats.tokens_spent || participated * 2;
 
-      return `
+            return `
                 <div class="statistics-container">
                     <div class="statistics-title">Ваша статистика участі</div>
                     <div class="stats-grid">
@@ -315,30 +305,30 @@
                     </div>
                 </div>
             `;
-    },
+        },
 
-    // Оновлення елемента статистики
-    updateStatElement: function (id, value) {
-      const element = document.getElementById(id);
-      if (element) {
-        element.textContent = this.formatNumber(value);
+        // Оновлення елемента статистики
+        updateStatElement: function(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = this.formatNumber(value);
 
-        // Додаємо анімацію оновлення
-        element.classList.add('stat-updated');
-        setTimeout(() => {
-          element.classList.remove('stat-updated');
-        }, 1000);
-      }
-    },
-  };
+                // Додаємо анімацію оновлення
+                element.classList.add('stat-updated');
+                setTimeout(() => {
+                    element.classList.remove('stat-updated');
+                }, 1000);
+            }
+        }
+    };
 
-  // Додаємо модуль шаблонів до основного модуля розіграшів
-  WinixRaffles.templates = templates;
+    // Додаємо модуль шаблонів до основного модуля розіграшів
+    WinixRaffles.templates = templates;
 
-  // Ініціалізація стилів для анімацій
-  const addTemplateStyles = function () {
-    const style = document.createElement('style');
-    style.textContent = `
+    // Ініціалізація стилів для анімацій
+    const addTemplateStyles = function() {
+        const style = document.createElement('style');
+        style.textContent = `
             /* Анімація оновлення статистики */
             @keyframes stat-pulse {
                 0% { transform: scale(1); }
@@ -353,11 +343,11 @@
             }
         `;
 
-    document.head.appendChild(style);
-  };
+        document.head.appendChild(style);
+    };
 
-  // Додаємо стилі при завантаженні сторінки
-  document.addEventListener('DOMContentLoaded', addTemplateStyles);
+    // Додаємо стилі при завантаженні сторінки
+    document.addEventListener('DOMContentLoaded', addTemplateStyles);
 
-  console.log('📝 Модуль шаблонів успішно ініціалізовано');
+    console.log('📝 Модуль шаблонів успішно ініціалізовано');
 })();
