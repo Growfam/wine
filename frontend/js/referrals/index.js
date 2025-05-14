@@ -1,8 +1,8 @@
 /**
- * Оновлений індексний файл модуля реферальної системи
+ * Головна точка входу модуля реферальної системи
  *
  * Експортує всі необхідні функції, константи та компоненти для зовнішнього використання.
- * Додано експорт компонентів для роботи з бейджами та завданнями за етапом 6.
+ * Інтегрує всі компоненти системи в єдиний інтерфейс.
  *
  * @module referral
  */
@@ -32,10 +32,22 @@ export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveRef
 export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity';
 export { checkReferralsActivity, checkReferralActivity, analyzeReferralsActivity } from './services/checkReferralActivity';
 
-// НОВИЙ ЕКСПОРТ: Компоненти для роботи з бейджами та завданнями (етап 6)
+// Експортуємо компоненти для роботи з бейджами та завданнями (етап 6)
 export { isEligibleForBadge, getHighestEligibleBadge, getAllEligibleBadges, getNextBadgeTarget, checkBadgesProgress } from './services/checkBadgeEligibility';
 export { convertBadgeToWinix, calculateTotalBadgeReward, calculateEligibleBadgesReward, getTotalPotentialBadgeRewards } from './services/convertBadgeToWinix';
 export { isTaskCompleted, calculateTaskProgress, calculateTaskReward, getCompletedTasks, calculateTotalTasksReward, checkAllTasksCompletion, checkTaskProgress } from './services/checkTaskCompletion';
+
+// Експортуємо компоненти для аналітики та рейтингу (етап 7)
+export { sortReferralsByEarnings, sortByPercentageRewards, sortByInvitedCount, sortByDrawsParticipation, sortByActivity, filterAndSortReferrals } from './utils/sortReferralsByEarnings';
+export { formatWinixAmount, abbreviateWinixAmount, formatWinixWithTrend, formatWinixCompact, normalizeWinixAmount } from './utils/formatWinixAmount';
+export { getReferralRanking, getTopReferrals, findUserRankPosition, generateLeaderboard } from './services/getReferralRanking';
+export { calculateTotalEarnedForUser, predictEarningsForReferral, classifyReferralsByEarnings, analyzeEarningsStructure } from './services/calculateTotalEarnedForUser';
+export { fetchReferralDraws, fetchDrawDetails, fetchDrawsParticipationStats, fetchTotalDrawsCount, fetchMostActiveInDraws } from './api/fetchReferralDraws';
+export { checkDrawsParticipationCriteria, analyzeDrawsParticipation, getDrawsParticipationRecommendations, getReferralsByDrawsRanking, getDrawsParticipationSummary } from './services/trackDrawParticipation';
+
+// Експортуємо компоненти для підсумкового розрахунку (етап 8)
+export { fetchReferralHistory, fetchReferralEventHistory, fetchReferralActivitySummary, fetchReferralActivityTrend } from './api/fetchReferralHistory';
+export { calculateTotalEarnings, predictFutureEarnings, calculateReferralROI, analyzeEarningsDistribution } from './services/calculateTotalEarnings';
 
 // Експортуємо дії для роботи із станом реферального посилання
 export {
@@ -79,7 +91,7 @@ export {
   clearReferralActivityError
 } from './store/referralActivityActions';
 
-// НОВИЙ ЕКСПОРТ: Дії для роботи з бейджами та завданнями (етап 6)
+// Експортуємо дії для роботи з бейджами та завданнями (етап 6)
 export {
   fetchUserBadges,
   fetchUserTasks,
@@ -88,6 +100,25 @@ export {
   updateBadgesProgress,
   clearBadgeError
 } from './store/badgeActions';
+
+// Експортуємо дії для роботи з участю в розіграшах (етап 7)
+export {
+  fetchReferralDrawsAction,
+  fetchDrawsStatsAction,
+  fetchDrawsRankingAction,
+  analyzeDrawsParticipationAction,
+  clearDrawParticipationError
+} from './store/drawParticipationState';
+
+// Експортуємо дії для комплексного розрахунку винагород (етап 8)
+export {
+  calculateTotalRewardsAction,
+  predictFutureRewardsAction,
+  calculateROIAction,
+  analyzeRewardsDistributionAction,
+  comprehensiveRewardsAnalysisAction,
+  clearRewardsCalculationError
+} from './store/calculateRewardsAction';
 
 // Експортуємо редуктор і початковий стан для реферального посилання
 export {
@@ -124,12 +155,26 @@ export {
   ReferralActivityActionTypes
 } from './store/referralActivityState';
 
-// НОВИЙ ЕКСПОРТ: Редуктор і початковий стан для бейджів та завдань (етап 6)
+// Експортуємо редуктор і початковий стан для бейджів та завдань (етап 6)
 export {
   badgeReducer,
   initialBadgeState,
   BadgeActionTypes
 } from './store/badgeState';
+
+// Експортуємо редуктор і початковий стан для участі в розіграшах (етап 7)
+export {
+  drawParticipationReducer,
+  initialDrawParticipationState,
+  DrawParticipationActionTypes
+} from './store/drawParticipationState';
+
+// Експортуємо редуктор і початковий стан для комплексного розрахунку винагород (етап 8)
+export {
+  calculateRewardsReducer,
+  initialCalculateRewardsState,
+  CalculateRewardsActionTypes
+} from './store/calculateRewardsAction';
 
 // Експортуємо константи
 export { REFERRAL_URL_PATTERN } from './constants/urlPatterns';
@@ -137,7 +182,7 @@ export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
 export { LEVEL_1_REWARD_RATE, LEVEL_2_REWARD_RATE } from './constants/rewardRates';
 export { MIN_DRAWS_PARTICIPATION, MIN_INVITED_REFERRALS } from './constants/activityThresholds';
 
-// НОВИЙ ЕКСПОРТ: Константи для бейджів та завдань (етап 6)
+// Експортуємо константи для бейджів та завдань (етап 6)
 export {
   BRONZE_BADGE_THRESHOLD,
   SILVER_BADGE_THRESHOLD,
@@ -161,3 +206,76 @@ export {
   TASK_THRESHOLDS,
   TASK_TYPES
 } from './constants/taskThresholds';
+
+// Експортуємо утилітарні функції
+export {
+  combineReducers,
+  configureReferralStore
+} from './utils/storeUtils';
+
+/**
+ * Інтегратор реферальної системи
+ * Ініціалізує всі компоненти системи та створює єдину точку входу
+ *
+ * @returns {Object} Інтегрований API реферальної системи
+ */
+export const initReferralSystem = () => {
+  // Створюємо сховище для стану реферальної системи
+  const referralStore = configureReferralStore({
+    referralLink: referralLinkReducer,
+    directBonus: directBonusReducer,
+    referralLevels: referralLevelsReducer,
+    levelRewards: levelRewardsReducer,
+    referralActivity: referralActivityReducer,
+    badges: badgeReducer,
+    drawParticipation: drawParticipationReducer,
+    rewardsCalculation: calculateRewardsReducer
+  });
+
+  // Повертаємо API для використання в додатку
+  return {
+    // Функції для роботи з реферальним посиланням
+    getReferralLink: (userId) => referralStore.dispatch(fetchReferralLink(userId)),
+
+    // Функції для роботи з прямими бонусами
+    registerReferral: (referrerId, userId) => referralStore.dispatch(registerReferralAndAwardBonus(referrerId, userId)),
+    getDirectBonusHistory: (userId) => referralStore.dispatch(fetchDirectBonusHistory(userId)),
+
+    // Функції для роботи з рівнями рефералів
+    getReferralStats: (userId) => referralStore.dispatch(fetchReferralLevels(userId)),
+
+    // Функції для роботи з відсотковими винагородами
+    getLevelRewards: (userId) => referralStore.dispatch(fetchLevelRewards(userId)),
+
+    // Функції для роботи з активністю рефералів
+    checkReferralActivity: (userId) => referralStore.dispatch(fetchAndCheckReferralActivity(userId)),
+    analyzeReferralActivity: (userId) => referralStore.dispatch(checkReferralsActivityWithAnalysis(userId)),
+
+    // Функції для роботи з бейджами та завданнями
+    getUserBadges: (userId) => referralStore.dispatch(fetchUserBadges(userId)),
+    getUserTasks: (userId) => referralStore.dispatch(fetchUserTasks(userId)),
+    claimBadge: (userId, badgeType) => referralStore.dispatch(claimBadgeReward(userId, badgeType)),
+    claimTask: (userId, taskType) => referralStore.dispatch(claimTaskReward(userId, taskType)),
+
+    // Функції для роботи з розіграшами
+    getReferralDraws: (referralId) => referralStore.dispatch(fetchReferralDrawsAction(referralId)),
+    getDrawsRanking: (userId) => referralStore.dispatch(fetchDrawsRankingAction(userId)),
+
+    // Функції для комплексного розрахунку
+    calculateTotalRewards: (userId) => referralStore.dispatch(calculateTotalRewardsAction(userId)),
+    analyzeRewards: (userId) => referralStore.dispatch(comprehensiveRewardsAnalysisAction(userId)),
+
+    // Доступ до сховища
+    getState: () => referralStore.getState(),
+    subscribe: (listener) => referralStore.subscribe(listener),
+    dispatch: (action) => referralStore.dispatch(action)
+  };
+};
+
+/**
+ * Готовий до використання екземпляр реферальної системи
+ */
+export const WinixReferralSystem = initReferralSystem();
+
+// За замовчуванням експортуємо повністю інтегровану систему
+export default WinixReferralSystem;
