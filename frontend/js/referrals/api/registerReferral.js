@@ -29,28 +29,20 @@ export const registerReferral = async (referrerId, userId) => {
   }
 
   try {
-    // Імітація запиту до API
-    // В реальному додатку тут був би код для відправки запиту на сервер
-    // const response = await fetch('/api/referrals/register', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ referrerId, userId })
-    // });
-    // const data = await response.json();
-    // if (!response.ok) throw new Error(data.message || 'Failed to register referral');
-    // return data;
+    // Відправляємо запит на API для реєстрації реферала
+    const response = await fetch('/api/referrals/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referrer_id: referrerId, referee_id: userId })
+    });
 
-    // Для тестування, імітуємо затримку мережі і повертаємо тестові дані
-    await new Promise(resolve => setTimeout(resolve, 300));
+    const data = await response.json();
 
-    // Імітація відповіді від сервера
-    return {
-      success: true,
-      referrerId,
-      userId,
-      timestamp: new Date().toISOString(),
-      bonusAmount: 50 // Це значення в реальності має повертатись від бекенду
-    };
+    if (!response.ok) {
+      throw new Error(data.error || data.details || 'Failed to register referral');
+    }
+
+    return data;
   } catch (error) {
     console.error('Error registering referral:', error);
     throw new Error('Failed to register referral: ' + (error.message || 'Unknown error'));
@@ -68,12 +60,21 @@ export const checkIfReferral = async (userId) => {
   }
 
   try {
-    // Імітація запиту до API
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Отримуємо статистику користувача для перевірки наявності реферера
+    const response = await fetch(`/api/referrals/stats/${userId}`);
+    const data = await response.json();
 
-    // В реальному додатку тут був би запит до API
-    // Для тестування повертаємо випадковий результат
-    return Math.random() > 0.5;
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to check referral status');
+    }
+
+    // Перевіряємо наявність реферера у відповіді
+    if (data && data.referrals) {
+      // Користувач є рефералом, якщо у нього є реферер
+      return true;
+    }
+
+    return false;
   } catch (error) {
     console.error('Error checking referral status:', error);
     throw new Error('Failed to check referral status');

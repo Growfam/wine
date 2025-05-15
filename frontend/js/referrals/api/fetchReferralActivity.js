@@ -25,21 +25,20 @@ export const fetchReferralActivity = async (userId, options = {}) => {
   }
 
   try {
-    // В реальному додатку тут був би запит до API
-    // const response = await fetch(`/api/referrals/activity/${userId}`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(options)
-    // });
-    // const data = await response.json();
-    // if (!response.ok) throw new Error(data.message || 'Помилка отримання даних про активність');
-    // return data;
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/activity/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options)
+    });
 
-    // Імітуємо затримку мережі
-    await new Promise(resolve => setTimeout(resolve, 350));
+    const data = await response.json();
 
-    // Моковані дані для тестування
-    return generateMockActivityData(userId, options);
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Помилка отримання даних про активність');
+    }
+
+    return data;
   } catch (error) {
     console.error('Помилка отримання даних про активність рефералів:', error);
     throw new Error(`Не вдалося отримати дані про активність: ${error.message || 'Невідома помилка'}`);
@@ -61,11 +60,24 @@ export const fetchReferralDetailedActivity = async (referralId, options = {}) =>
   }
 
   try {
-    // Імітуємо затримку мережі
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // Формуємо URL з параметрами, якщо вони надані
+    let url = `/api/referrals/activity/detailed/${referralId}`;
+    if (options.startDate || options.endDate) {
+      const params = new URLSearchParams();
+      if (options.startDate) params.append('startDate', options.startDate);
+      if (options.endDate) params.append('endDate', options.endDate);
+      url += `?${params.toString()}`;
+    }
 
-    // Моковані детальні дані про активність для тестування
-    return generateMockDetailedActivity(referralId, options);
+    // Виконуємо запит до API
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Помилка отримання детальних даних про активність');
+    }
+
+    return data;
   } catch (error) {
     console.error('Помилка отримання детальних даних про активність:', error);
     throw new Error(`Не вдалося отримати детальні дані: ${error.message || 'Невідома помилка'}`);
@@ -84,44 +96,15 @@ export const fetchActivitySummary = async (userId) => {
   }
 
   try {
-    // Імітуємо затримку мережі
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/activity/summary/${userId}`);
+    const data = await response.json();
 
-    // Отримуємо дані про активність
-    const activityData = await fetchReferralActivity(userId);
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Помилка отримання зведених даних про активність');
+    }
 
-    // Підраховуємо загальну кількість рефералів
-    const totalReferrals = activityData.level1Activity.length + activityData.level2Activity.length;
-
-    // Підраховуємо кількість активних рефералів
-    const activeLevel1 = activityData.level1Activity.filter(ref => ref.isActive).length;
-    const activeLevel2 = activityData.level2Activity.filter(ref => ref.isActive).length;
-    const totalActive = activeLevel1 + activeLevel2;
-
-    // Розраховуємо конверсію (відсоток активних рефералів)
-    const conversionRate = totalReferrals > 0
-      ? totalActive / totalReferrals
-      : 0;
-
-    // Формуємо результат
-    return {
-      userId,
-      timestamp: activityData.timestamp,
-      totalReferrals,
-      activeReferrals: totalActive,
-      inactiveReferrals: totalReferrals - totalActive,
-      level1Total: activityData.level1Activity.length,
-      level1Active: activeLevel1,
-      level2Total: activityData.level2Activity.length,
-      level2Active: activeLevel2,
-      conversionRate,
-      activityByReason: {
-        drawsCriteria: countByReason(activityData, 'draws_criteria'),
-        invitedCriteria: countByReason(activityData, 'invited_criteria'),
-        bothCriteria: countByReason(activityData, 'both_criteria'),
-        manualActivation: countByReason(activityData, 'manual_activation')
-      }
-    };
+    return data;
   } catch (error) {
     console.error('Помилка отримання зведених даних про активність:', error);
     throw new Error(`Не вдалося отримати зведені дані: ${error.message || 'Невідома помилка'}`);
@@ -129,182 +112,77 @@ export const fetchActivitySummary = async (userId) => {
 };
 
 /**
- * Допоміжна функція для підрахунку рефералів за причиною активності
- * @param {Object} activityData - Дані про активність
- * @param {string} reason - Причина активності
- * @returns {number} Кількість рефералів
- * @private
+ * Оновлює активність реферала
+ * @param {string|number} userId - ID користувача (реферала)
+ * @param {number} [drawsParticipation] - Кількість участей в розіграшах
+ * @param {number} [invitedReferrals] - Кількість запрошених рефералів
+ * @returns {Promise<Object>} Результат оновлення активності
+ * @throws {Error} Помилка при оновленні даних
  */
-function countByReason(activityData, reason) {
-  const level1Count = activityData.level1Activity.filter(ref => ref.reasonForActivity === reason).length;
-  const level2Count = activityData.level2Activity.filter(ref => ref.reasonForActivity === reason).length;
-  return level1Count + level2Count;
-}
-
-/**
- * Генерує моковані дані про активність для тестування
- * @param {string|number} userId - ID користувача
- * @param {Object} options - Опції для генерації даних
- * @returns {Object} Об'єкт з мокованими даними
- * @private
- */
-function generateMockActivityData(userId, options) {
-  // Генеруємо випадкову кількість рефералів
-  const level1Count = Math.floor(Math.random() * 10) + 5;
-  const level2Count = Math.floor(Math.random() * 15) + 5;
-
-  // Генеруємо дані для рефералів 1-го рівня
-  const level1Activity = Array.from({ length: level1Count }, (_, index) => {
-    // Генеруємо випадкові значення для активності
-    const drawsParticipation = Math.floor(Math.random() * 6); // 0-5 розіграшів
-    const invitedReferrals = Math.floor(Math.random() * 3); // 0-2 запрошених
-    const manuallyActivated = Math.random() < 0.1; // 10% шанс ручної активації
-
-    // Визначаємо статус активності
-    const meetsDrawsCriteria = drawsParticipation >= 3;
-    const meetsInvitedCriteria = invitedReferrals >= 1;
-    const isActive = manuallyActivated || meetsDrawsCriteria || meetsInvitedCriteria;
-
-    // Визначаємо причину активності
-    let reasonForActivity = null;
-    if (manuallyActivated) {
-      reasonForActivity = 'manual_activation';
-    } else if (meetsDrawsCriteria && meetsInvitedCriteria) {
-      reasonForActivity = 'both_criteria';
-    } else if (meetsDrawsCriteria) {
-      reasonForActivity = 'draws_criteria';
-    } else if (meetsInvitedCriteria) {
-      reasonForActivity = 'invited_criteria';
-    }
-
-    return {
-      id: `WX${1000 + index}`,
-      drawsParticipation,
-      invitedReferrals,
-      lastActivityDate: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
-      isActive,
-      manuallyActivated,
-      meetsDrawsCriteria,
-      meetsInvitedCriteria,
-      reasonForActivity
-    };
-  });
-
-  // Генеруємо дані для рефералів 2-го рівня
-  const level2Activity = Array.from({ length: level2Count }, (_, index) => {
-    // Вибираємо випадкового реферала 1-го рівня як реферера
-    const referrerId = level1Activity[Math.floor(Math.random() * level1Count)].id;
-
-    // Генеруємо випадкові значення для активності
-    const drawsParticipation = Math.floor(Math.random() * 6); // 0-5 розіграшів
-    const invitedReferrals = Math.floor(Math.random() * 3); // 0-2 запрошених
-    const manuallyActivated = Math.random() < 0.1; // 10% шанс ручної активації
-
-    // Визначаємо статус активності
-    const meetsDrawsCriteria = drawsParticipation >= 3;
-    const meetsInvitedCriteria = invitedReferrals >= 1;
-    const isActive = manuallyActivated || meetsDrawsCriteria || meetsInvitedCriteria;
-
-    // Визначаємо причину активності
-    let reasonForActivity = null;
-    if (manuallyActivated) {
-      reasonForActivity = 'manual_activation';
-    } else if (meetsDrawsCriteria && meetsInvitedCriteria) {
-      reasonForActivity = 'both_criteria';
-    } else if (meetsDrawsCriteria) {
-      reasonForActivity = 'draws_criteria';
-    } else if (meetsInvitedCriteria) {
-      reasonForActivity = 'invited_criteria';
-    }
-
-    return {
-      id: `WX${2000 + index}`,
-      referrerId,
-      drawsParticipation,
-      invitedReferrals,
-      lastActivityDate: new Date(Date.now() - Math.floor(Math.random() * 45) * 24 * 60 * 60 * 1000).toISOString(),
-      isActive,
-      manuallyActivated,
-      meetsDrawsCriteria,
-      meetsInvitedCriteria,
-      reasonForActivity
-    };
-  });
-
-  // Формуємо результат
-  return {
-    userId,
-    timestamp: new Date().toISOString(),
-    level1Activity,
-    level2Activity
-  };
-}
-
-/**
- * Генерує моковані детальні дані про активність для тестування
- * @param {string|number} referralId - ID реферала
- * @param {Object} options - Опції для генерації даних
- * @returns {Object} Об'єкт з мокованими детальними даними
- * @private
- */
-function generateMockDetailedActivity(referralId, options) {
-  // Генеруємо випадкові значення для активності
-  const drawsParticipation = Math.floor(Math.random() * 6); // 0-5 розіграшів
-  const invitedReferrals = Math.floor(Math.random() * 3); // 0-2 запрошених
-  const manuallyActivated = Math.random() < 0.1; // 10% шанс ручної активації
-
-  // Визначаємо статус активності
-  const meetsDrawsCriteria = drawsParticipation >= 3;
-  const meetsInvitedCriteria = invitedReferrals >= 1;
-  const isActive = manuallyActivated || meetsDrawsCriteria || meetsInvitedCriteria;
-
-  // Визначаємо причину активності
-  let reasonForActivity = null;
-  if (manuallyActivated) {
-    reasonForActivity = 'manual_activation';
-  } else if (meetsDrawsCriteria && meetsInvitedCriteria) {
-    reasonForActivity = 'both_criteria';
-  } else if (meetsDrawsCriteria) {
-    reasonForActivity = 'draws_criteria';
-  } else if (meetsInvitedCriteria) {
-    reasonForActivity = 'invited_criteria';
+export const updateReferralActivity = async (userId, drawsParticipation, invitedReferrals) => {
+  if (!userId) {
+    throw new Error('ID користувача обов\'язковий для оновлення активності');
   }
 
-  // Генеруємо дані про останні розіграші
-  const drawsHistory = Array.from({ length: drawsParticipation }, (_, index) => ({
-    drawId: `DRAW${1000 + index}`,
-    date: new Date(Date.now() - (index + 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
-    prizeName: ['Winix', 'Tokens', 'Bonus', 'Gift Card'][Math.floor(Math.random() * 4)],
-    prizeAmount: Math.floor(Math.random() * 1000) + 100
-  }));
+  try {
+    // Виконуємо запит до API
+    const response = await fetch('/api/referrals/activity/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        draws_participation: drawsParticipation,
+        invited_referrals: invitedReferrals
+      })
+    });
 
-  // Генеруємо дані про запрошених рефералів
-  const invitedReferralsList = Array.from({ length: invitedReferrals }, (_, index) => ({
-    id: `WX${3000 + index}`,
-    registrationDate: new Date(Date.now() - (index + 1) * 10 * 24 * 60 * 60 * 1000).toISOString(),
-    isActive: Math.random() > 0.3 // 70% шанс активності
-  }));
+    const data = await response.json();
 
-  // Формуємо результат
-  return {
-    id: referralId,
-    timestamp: new Date().toISOString(),
-    drawsParticipation,
-    invitedReferrals,
-    lastActivityDate: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
-    isActive,
-    manuallyActivated,
-    meetsDrawsCriteria,
-    meetsInvitedCriteria,
-    reasonForActivity,
-    drawsHistory,
-    invitedReferralsList,
-    manualActivationInfo: manuallyActivated ? {
-      activatedBy: 'admin',
-      activationDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-      reason: 'Special program'
-    } : null
-  };
-}
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Помилка оновлення даних про активність');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Помилка оновлення даних про активність:', error);
+    throw new Error(`Не вдалося оновити дані про активність: ${error.message || 'Невідома помилка'}`);
+  }
+};
+
+/**
+ * Ручна активація реферала адміністратором
+ * @param {string|number} userId - ID користувача (реферала)
+ * @param {string|number} adminId - ID адміністратора
+ * @returns {Promise<Object>} Результат активації
+ * @throws {Error} Помилка при активації
+ */
+export const manuallyActivateReferral = async (userId, adminId) => {
+  if (!userId || !adminId) {
+    throw new Error('ID користувача та адміністратора обов\'язкові для ручної активації');
+  }
+
+  try {
+    // Виконуємо запит до API
+    const response = await fetch('/api/referrals/activity/activate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        admin_id: adminId
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Помилка ручної активації реферала');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Помилка ручної активації реферала:', error);
+    throw new Error(`Не вдалося активувати реферала: ${error.message || 'Невідома помилка'}`);
+  }
+};
 
 export default fetchReferralActivity;

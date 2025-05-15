@@ -2,7 +2,6 @@
  * API функція отримання реферальних даних
  *
  * Отримує дані для реферального посилання з бекенду
- * При тестуванні можна використовувати моковані дані
  *
  * @param {string|number} userId - ID користувача
  * @returns {Promise<string>} Реферальний ID
@@ -21,18 +20,16 @@ export const fetchReferralLink = async (userId) => {
   }
 
   try {
-    // В реальному додатку тут був би запит до API
-    // const response = await fetch(`/api/referral/link/${userId}`);
-    // const data = await response.json();
-    // return data.referralId;
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/link/${userId}`);
+    const data = await response.json();
 
-    // Для тестування використовуємо моковані дані
-    // Імітуємо затримку мережі
-    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to fetch referral link from server');
+    }
 
-    // Моковані дані - просто повертаємо userId як referralId
-    // В реальному додатку referralId буде отриманий з бекенду
-    return userId.toString();
+    // Повертаємо реферальне посилання або ID, якщо посилання відсутнє
+    return data.referral_link || userId.toString();
   } catch (error) {
     console.error('Error fetching referral link:', error);
     throw new Error('Failed to fetch referral link from server');
