@@ -129,36 +129,17 @@ export const fetchDirectBonusHistory = (userId) => {
     dispatch(fetchDirectBonusHistoryRequest());
 
     try {
-      // В реальному додатку тут був би запит до API
-      // Імітуємо затримку і відповідь сервера
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Викликаємо реальний API-запит до бекенду
+      const response = await fetch(`/api/referrals/direct-bonus/history/${userId}`);
 
-      // Імітація історії бонусів
-      const mockHistory = [
-        {
-          referrerId: userId,
-          userId: 'WX12345',
-          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          bonusAmount: 50,
-          type: 'direct_bonus'
-        },
-        {
-          referrerId: userId,
-          userId: 'WX67890',
-          timestamp: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-          bonusAmount: 50,
-          type: 'direct_bonus'
-        }
-      ];
+      // Перевіряємо відповідь
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch bonus history');
+      }
 
-      // Рахуємо загальну суму
-      const totalBonus = mockHistory.reduce((sum, item) => sum + item.bonusAmount, 0);
-
-      // Формуємо дані про історію бонусів
-      const historyData = {
-        totalBonus,
-        history: mockHistory
-      };
+      // Отримуємо дані
+      const historyData = await response.json();
 
       // Диспатчимо успішне отримання історії
       dispatch(fetchDirectBonusHistorySuccess(historyData));
