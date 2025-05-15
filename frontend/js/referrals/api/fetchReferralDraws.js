@@ -16,9 +16,15 @@ export const fetchReferralDraws = async (referralId) => {
   }
 
   try {
-    // Тут буде запит до API, для прикладу використовуємо моковані дані
-    // В реальному додатку тут буде запит до бекенду
-    return mockFetchReferralDraws(referralId);
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/draws/${referralId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to fetch referral draws data');
+    }
+
+    return data;
   } catch (error) {
     console.error('Error fetching referral draws:', error);
     throw new Error('Failed to fetch referral draws data');
@@ -38,9 +44,15 @@ export const fetchDrawDetails = async (referralId, drawId) => {
   }
 
   try {
-    // Тут буде запит до API, для прикладу використовуємо моковані дані
-    // В реальному додатку тут буде запит до бекенду
-    return mockFetchDrawDetails(referralId, drawId);
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/draws/details/${referralId}/${drawId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to fetch draw details');
+    }
+
+    return data;
   } catch (error) {
     console.error('Error fetching draw details:', error);
     throw new Error('Failed to fetch draw details');
@@ -62,9 +74,35 @@ export const fetchDrawsParticipationStats = async (ownerId, options = {}) => {
   }
 
   try {
-    // Тут буде запит до API, для прикладу використовуємо моковані дані
-    // В реальному додатку тут буде запит до бекенду
-    return mockFetchDrawsParticipationStats(ownerId, options);
+    // Формуємо URL з параметрами, якщо вони надані
+    let url = `/api/referrals/draws/stats/${ownerId}`;
+    const params = new URLSearchParams();
+
+    if (options.startDate) {
+      params.append('startDate', options.startDate instanceof Date
+        ? options.startDate.toISOString()
+        : options.startDate);
+    }
+
+    if (options.endDate) {
+      params.append('endDate', options.endDate instanceof Date
+        ? options.endDate.toISOString()
+        : options.endDate);
+    }
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    // Виконуємо запит до API
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to fetch draws participation stats');
+    }
+
+    return data;
   } catch (error) {
     console.error('Error fetching draws participation stats:', error);
     throw new Error('Failed to fetch draws participation stats');
@@ -83,10 +121,15 @@ export const fetchTotalDrawsCount = async (ownerId) => {
   }
 
   try {
-    // Тут буде запит до API, для прикладу використовуємо моковані дані
-    // В реальному додатку тут буде запит до бекенду
-    const stats = await mockFetchDrawsParticipationStats(ownerId);
-    return stats.totalDrawsCount || 0;
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/draws/count/${ownerId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to fetch total draws count');
+    }
+
+    return data.totalDrawsCount || 0;
   } catch (error) {
     console.error('Error fetching total draws count:', error);
     throw new Error('Failed to fetch total draws count');
@@ -106,134 +149,17 @@ export const fetchMostActiveInDraws = async (ownerId, limit = 10) => {
   }
 
   try {
-    // Тут буде запит до API, для прикладу використовуємо моковані дані
-    // В реальному додатку тут буде запит до бекенду
-    return mockFetchMostActiveInDraws(ownerId, limit);
+    // Виконуємо запит до API
+    const response = await fetch(`/api/referrals/draws/active/${ownerId}?limit=${limit}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Failed to fetch most active referrals in draws');
+    }
+
+    return data;
   } catch (error) {
     console.error('Error fetching most active referrals in draws:', error);
     throw new Error('Failed to fetch most active referrals in draws');
   }
-};
-
-// Моковані функції для тестування (в реальному додатку їх не буде)
-// =========================================================================
-
-const mockFetchReferralDraws = (referralId) => {
-  // Генеруємо випадкові дані для тестування
-  const participationCount = Math.floor(Math.random() * 10) + 1;
-  const winCount = Math.floor(Math.random() * participationCount);
-
-  const draws = [];
-  for (let i = 0; i < participationCount; i++) {
-    const drawDate = new Date();
-    drawDate.setDate(drawDate.getDate() - Math.floor(Math.random() * 30));
-
-    draws.push({
-      drawId: `draw_${i + 1}`,
-      date: drawDate.toISOString(),
-      name: `Draw #${i + 1}`,
-      isWon: i < winCount,
-      prize: i < winCount ? Math.floor(Math.random() * 1000) + 100 : 0,
-      ticketsCount: Math.floor(Math.random() * 5) + 1
-    });
-  }
-
-  return {
-    referralId,
-    totalParticipation: participationCount,
-    winCount,
-    draws
-  };
-};
-
-const mockFetchDrawDetails = (referralId, drawId) => {
-  return {
-    drawId,
-    referralId,
-    date: new Date().toISOString(),
-    name: `Draw ${drawId}`,
-    ticketsCount: Math.floor(Math.random() * 5) + 1,
-    ticketNumbers: Array.from({ length: Math.floor(Math.random() * 5) + 1 },
-                            () => Math.floor(Math.random() * 9000) + 1000),
-    isWon: Math.random() > 0.7,
-    prize: Math.random() > 0.7 ? Math.floor(Math.random() * 1000) + 100 : 0,
-    totalParticipants: Math.floor(Math.random() * 1000) + 100,
-    winningTicket: Math.floor(Math.random() * 9000) + 1000
-  };
-};
-
-const mockFetchDrawsParticipationStats = (ownerId, options = {}) => {
-  // Масив з ID рефералів - для прикладу
-  const referralIds = Array.from({ length: 20 }, (_, i) => `ref_${i + 1}`);
-
-  // Створюємо статистику по розіграшах для кожного реферала
-  const referralsStats = referralIds.map(refId => {
-    const participationCount = Math.floor(Math.random() * 15);
-    const winCount = Math.floor(Math.random() * participationCount);
-
-    return {
-      referralId: refId,
-      participationCount,
-      winCount,
-      totalPrize: winCount * (Math.floor(Math.random() * 500) + 100),
-      lastParticipationDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
-    };
-  });
-
-  // Фільтруємо статистику за датами, якщо вказані
-  let filteredStats = [...referralsStats];
-  if (options.startDate) {
-    const startDate = new Date(options.startDate);
-    filteredStats = filteredStats.filter(stat =>
-      new Date(stat.lastParticipationDate) >= startDate
-    );
-  }
-
-  if (options.endDate) {
-    const endDate = new Date(options.endDate);
-    filteredStats = filteredStats.filter(stat =>
-      new Date(stat.lastParticipationDate) <= endDate
-    );
-  }
-
-  // Рахуємо загальну статистику
-  const totalParticipationCount = filteredStats.reduce((sum, stat) => sum + stat.participationCount, 0);
-  const totalWinCount = filteredStats.reduce((sum, stat) => sum + stat.winCount, 0);
-  const totalPrize = filteredStats.reduce((sum, stat) => sum + stat.totalPrize, 0);
-
-  return {
-    ownerId,
-    totalDrawsCount: 30, // Припустимо, що було 30 розіграшів
-    totalParticipationCount,
-    totalWinCount,
-    totalPrize,
-    winRate: totalParticipationCount > 0 ? (totalWinCount / totalParticipationCount) * 100 : 0,
-    referralsStats: filteredStats,
-    period: {
-      startDate: options.startDate || null,
-      endDate: options.endDate || null
-    }
-  };
-};
-
-const mockFetchMostActiveInDraws = (ownerId, limit) => {
-  const referralsWithStats = Array.from({ length: 20 }, (_, i) => {
-    const participationCount = Math.floor(Math.random() * 20);
-    const winCount = Math.floor(Math.random() * participationCount);
-
-    return {
-      referralId: `ref_${i + 1}`,
-      participationCount,
-      winCount,
-      winRate: participationCount > 0 ? (winCount / participationCount) * 100 : 0,
-      totalPrize: winCount * (Math.floor(Math.random() * 500) + 100),
-      lastParticipationDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
-    };
-  });
-
-  // Сортуємо за кількістю участі (від найбільшої до найменшої)
-  const sorted = referralsWithStats.sort((a, b) => b.participationCount - a.participationCount);
-
-  // Повертаємо топ-N
-  return sorted.slice(0, limit);
 };
