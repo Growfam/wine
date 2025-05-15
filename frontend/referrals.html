@@ -58,7 +58,7 @@
 
     <div class="container">
         <!-- Шапка сторінки -->
-        <header class="header">
+        <header class="header" style="color: white;">
             <div class="user-profile">
                 <div class="profile-avatar">W</div>
                 <div class="user-id-container">
@@ -521,120 +521,162 @@
 
     <!-- Підключення скриптів -->
     <script src="js/telegram-web-app.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/core.js"></script>
+
     <script type="module" src="js/referrals/Integration/referrals-integration.js"></script>
 
     <!-- Вбудований скрипт для ініціалізації функціональності -->
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("Ініціалізація базових обробників подій...");
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Ініціалізація базових обробників подій...");
 
-        // 1. Обробник для кнопки копіювання посилання
-        const copyButton = document.querySelector('.copy-button');
-        if (copyButton) {
-            copyButton.addEventListener('click', function() {
-                const linkText = document.querySelector('.link-display').textContent;
-                navigator.clipboard.writeText(linkText)
-                    .then(() => {
-                        // Показуємо повідомлення про успішне копіювання
-                        const toast = document.getElementById('copy-toast');
-                        toast.textContent = 'Посилання скопійовано!';
-                        toast.classList.add('show');
+    // 1. Обробник для кнопки копіювання посилання
+    const copyButton = document.querySelector('.copy-button');
+    if (copyButton) {
+        copyButton.addEventListener('click', function() {
+            const linkText = document.querySelector('.link-display').textContent;
+            navigator.clipboard.writeText(linkText)
+                .then(() => {
+                    // Показуємо повідомлення про успішне копіювання
+                    const toast = document.getElementById('copy-toast');
+                    toast.textContent = 'Посилання скопійовано!';
+                    toast.classList.add('show');
 
-                        // Додаємо анімацію натискання
-                        copyButton.classList.add('clicked');
+                    // Додаємо анімацію натискання
+                    copyButton.classList.add('clicked');
 
-                        // Видаляємо класи після затримки
-                        setTimeout(() => {
-                            toast.classList.remove('show');
-                            copyButton.classList.remove('clicked');
-                        }, 3000);
-                    })
-                    .catch(err => {
-                        console.error('Помилка при копіюванні:', err);
-                    });
-            });
-            console.log("✓ Обробник для кнопки копіювання встановлено");
-        } else {
-            console.error("✗ Кнопка копіювання не знайдена");
-        }
-
-        // 2. Обробники для вкладок
-        const tabs = document.querySelectorAll('.referral-tab');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                console.log("Натиснуто вкладку:", tab.dataset.tab);
-
-                // Видаляємо клас active з усіх вкладок
-                tabs.forEach(t => t.classList.remove('active'));
-
-                // Додаємо клас active до обраної вкладки
-                tab.classList.add('active');
-
-                // Отримуємо ідентифікатор вкладки
-                const tabId = tab.dataset.tab;
-
-                // Приховуємо всі панелі
-                const panes = document.querySelectorAll('.tab-pane');
-                panes.forEach(pane => pane.classList.remove('active'));
-
-                // Показуємо відповідну панель
-                const activePane = document.getElementById(`${tabId}-tab`);
-                if (activePane) {
-                    activePane.classList.add('active');
-                    console.log("✓ Активовано панель:", tabId);
-                } else {
-                    console.error("✗ Панель не знайдена:", `${tabId}-tab`);
-                }
-            });
+                    // Видаляємо класи після затримки
+                    setTimeout(() => {
+                        toast.classList.remove('show');
+                        copyButton.classList.remove('clicked');
+                    }, 3000);
+                })
+                .catch(err => {
+                    console.error('Помилка при копіюванні:', err);
+                });
         });
-        console.log("✓ Обробники для вкладок встановлено");
+        console.log("✓ Обробник для кнопки копіювання встановлено");
+    } else {
+        console.error("✗ Кнопка копіювання не знайдена");
+    }
 
-        // 3. Обробники для головних вкладок
-        const mainTabs = document.querySelectorAll('.main-tabs .tab-button');
-        mainTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                console.log("Натиснуто головну вкладку:", tab.dataset.tab);
+    // 2. Обробники для вкладок
+    const tabs = document.querySelectorAll('.referral-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            console.log("Натиснуто вкладку:", tab.dataset.tab);
 
-                // Видаляємо клас active з усіх вкладок
-                mainTabs.forEach(t => t.classList.remove('active'));
+            // Видаляємо клас active з усіх вкладок
+            tabs.forEach(t => t.classList.remove('active'));
 
-                // Додаємо клас active до обраної вкладки
-                tab.classList.add('active');
+            // Додаємо клас active до обраної вкладки
+            tab.classList.add('active');
 
-                // Отримуємо ідентифікатор вкладки
-                const tabId = tab.dataset.tab;
+            // Отримуємо ідентифікатор вкладки
+            const tabId = tab.dataset.tab;
 
-                // Приховуємо всі панелі
-                const panes = document.querySelectorAll('.main-tab-pane');
-                panes.forEach(pane => pane.classList.remove('active'));
+            // Приховуємо всі панелі
+            const panes = document.querySelectorAll('.tab-pane');
+            panes.forEach(pane => pane.classList.remove('active'));
 
-                // Показуємо відповідну панель
-                const activePane = document.getElementById(`${tabId}-tab`);
-                if (activePane) {
-                    activePane.classList.add('active');
-                    console.log("✓ Активовано головну панель:", tabId);
-                } else {
-                    console.error("✗ Головна панель не знайдена:", `${tabId}-tab`);
-                }
-            });
+            // Показуємо відповідну панель
+            const activePane = document.getElementById(`${tabId}-tab`);
+            if (activePane) {
+                activePane.classList.add('active');
+                console.log("✓ Активовано панель:", tabId);
+            } else {
+                console.error("✗ Панель не знайдена:", `${tabId}-tab`);
+            }
         });
-        console.log("✓ Обробники для головних вкладок встановлено");
-
-        // 4. Обробник для кнопки закриття деталей реферала
-        const closeButton = document.querySelector('.referral-details-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
-                const detailsContainer = document.getElementById('referral-details');
-                if (detailsContainer) {
-                    detailsContainer.classList.remove('show');
-                    console.log("✓ Закрито деталі реферала");
-                }
-            });
-            console.log("✓ Обробник для кнопки закриття деталей встановлено");
-        }
-
-        console.log("✅ Базові обробники подій успішно ініціалізовано");
     });
-    </script>
+    console.log("✓ Обробники для вкладок встановлено");
+
+    // 3. Обробники для головних вкладок
+    const mainTabs = document.querySelectorAll('.main-tabs .tab-button');
+    mainTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            console.log("Натиснуто головну вкладку:", tab.dataset.tab);
+
+            // Видаляємо клас active з усіх вкладок
+            mainTabs.forEach(t => t.classList.remove('active'));
+
+            // Додаємо клас active до обраної вкладки
+            tab.classList.add('active');
+
+            // Отримуємо ідентифікатор вкладки
+            const tabId = tab.dataset.tab;
+
+            // Приховуємо всі панелі
+            const panes = document.querySelectorAll('.main-tab-pane');
+            panes.forEach(pane => pane.classList.remove('active'));
+
+            // Показуємо відповідну панель
+            const activePane = document.getElementById(`${tabId}-tab`);
+            if (activePane) {
+                activePane.classList.add('active');
+                console.log("✓ Активовано головну панель:", tabId);
+            } else {
+                console.error("✗ Головна панель не знайдена:", `${tabId}-tab`);
+            }
+        });
+    });
+    console.log("✓ Обробники для головних вкладок встановлено");
+
+    // 4. Обробник для кнопки закриття деталей реферала
+    const closeButton = document.querySelector('.referral-details-close');
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            const detailsContainer = document.getElementById('referral-details');
+            if (detailsContainer) {
+                detailsContainer.classList.remove('show');
+                console.log("✓ Закрито деталі реферала");
+            }
+        });
+        console.log("✓ Обробник для кнопки закриття деталей встановлено");
+    }
+
+    // 5. Обробники для нижньої навігації
+    const navItems = document.querySelectorAll('.nav-bar .nav-item');
+    navItems.forEach(item => {
+        item.addEventListener('click', function() {
+            // Отримуємо назву секції з тексту елемента
+            const sectionName = this.querySelector('span').textContent.toLowerCase();
+
+            // Визначаємо URL для перенаправлення
+            let targetUrl = '';
+            switch(sectionName) {
+                case 'home':
+                    targetUrl = 'original-index.html';
+                    break;
+                case 'earn':
+                    targetUrl = 'earn.html';
+                    break;
+                case 'referral':
+                    targetUrl = 'referrals.html'; // поточна сторінка
+                    break;
+                case 'wallet':
+                    targetUrl = 'wallet.html';
+                    break;
+                case 'general':
+                    targetUrl = 'general.html';
+                    break;
+                default:
+                    console.log(`Невідома секція: ${sectionName}`);
+                    return; // якщо секція невідома, не перенаправляємо
+            }
+
+            // Перенаправляємо на відповідну сторінку
+            if (targetUrl && targetUrl !== 'referrals.html') {
+                console.log(`Перехід на сторінку: ${targetUrl}`);
+                window.location.href = targetUrl;
+            }
+        });
+    });
+    console.log("✓ Обробники для нижньої навігації встановлено");
+
+    console.log("✅ Базові обробники подій успішно ініціалізовано");
+});
+</script>
 </body>
 </html>
