@@ -606,7 +606,7 @@ def register_utility_routes(app):
         test_supabase_connection = lambda: {"status": "error", "message": "Функція недоступна"}
         supabase = None
 
-    @app.route('/ping')
+    @app.route('/api/ping')
     def ping():
         """Найпростіший маршрут для перевірки стану додатка"""
         return "pong"

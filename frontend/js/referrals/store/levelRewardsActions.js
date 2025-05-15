@@ -1,4 +1,4 @@
- /**
+/**
  * Дії для роботи з відсотковими винагородами
  *
  * Містить дії (actions) для отримання та оновлення відсоткових винагород
@@ -164,17 +164,46 @@ export const fetchRewardsHistory = (userId, options = {}) => {
     dispatch(fetchRewardsHistoryRequest());
 
     try {
-      // В реальному додатку тут був би запит до API
-      // Тут імітуємо отримання даних
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Формуємо URL з опціями
+      let url = `/api/referrals/rewards/history/${userId}`;
+      const params = new URLSearchParams();
 
-      // Створюємо моковані дані для історії нарахувань
-      const mockHistory = generateMockHistory(userId, options);
+      if (options.startDate) {
+        params.append('startDate', typeof options.startDate === 'object'
+          ? options.startDate.toISOString()
+          : options.startDate);
+      }
+
+      if (options.endDate) {
+        params.append('endDate', typeof options.endDate === 'object'
+          ? options.endDate.toISOString()
+          : options.endDate);
+      }
+
+      if (options.limit) {
+        params.append('limit', options.limit.toString());
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      // Викликаємо реальний API-запит до бекенду
+      const response = await fetch(url);
+
+      // Перевіряємо відповідь
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Помилка отримання історії нарахувань');
+      }
+
+      // Отримуємо дані
+      const historyData = await response.json();
 
       // Диспатчимо успішне отримання даних
-      dispatch(fetchRewardsHistorySuccess(mockHistory));
+      dispatch(fetchRewardsHistorySuccess(historyData));
 
-      return mockHistory;
+      return historyData;
     } catch (error) {
       // Диспатчимо помилку
       dispatch(fetchRewardsHistoryFailure(error));
@@ -184,42 +213,6 @@ export const fetchRewardsHistory = (userId, options = {}) => {
     }
   };
 };
-
-/**
- * Генерує моковані дані історії нарахувань для тестування
- * @param {string|number} userId - ID користувача
- * @param {Object} options - Опції для генерації
- * @returns {Array} Масив мокованих записів історії
- * @private
- */
-function generateMockHistory(userId, options) {
-  const { limit = 10 } = options;
-  const currentDate = new Date();
-
-  return Array.from({ length: limit }, (_, index) => {
-    // Генеруємо випадкові суми
-    const level1Amount = Math.floor(Math.random() * 200) + 50;
-    const level2Amount = Math.floor(Math.random() * 100) + 20;
-    const totalAmount = level1Amount + level2Amount;
-
-    // Генеруємо дату (кожен запис раніше на 5-10 днів від попереднього)
-    const days = 5 + Math.floor(Math.random() * 5);
-    const recordDate = new Date(currentDate);
-    recordDate.setDate(recordDate.getDate() - (index + 1) * days);
-
-    return {
-      id: `reward_${Date.now()}_${index}`,
-      userId,
-      timestamp: recordDate.toISOString(),
-      level1Amount,
-      level2Amount,
-      totalAmount,
-      level1Rate: 0.1,
-      level2Rate: 0.05,
-      paymentStatus: 'completed'
-    };
-  });
-}
 
 export default {
   fetchLevelRewards,
