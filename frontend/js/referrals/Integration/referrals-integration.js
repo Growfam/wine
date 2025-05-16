@@ -188,9 +188,17 @@ const dispatch = (action) => {
  * Ініціалізує функціонал реферальної системи
  */
 export const initReferralSystem = () => {
-  // Отримуємо ID користувача (в реальному додатку це могло б бути з API або localStorage)
-  const userId = getUserId();
-  appState.userId = userId;
+    console.log("Ініціалізація реферальної системи з таймаутом...");
+
+    // Отримуємо ID користувача
+    const userId = getUserId();
+    console.log("Отримано ID користувача:", userId);
+    appState.userId = userId;
+
+    const userIdElements = document.querySelectorAll('.user-id-value');
+    userIdElements.forEach(element => {
+      element.textContent = userId;
+    });
 
   // Елементи інтерфейсу
   setupUIElements();
