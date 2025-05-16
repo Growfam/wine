@@ -242,10 +242,32 @@ autoProcessReferral();
  * @returns {string} ID користувача
  */
 const getUserId = () => {
-  // В реальному додатку це могло б бути з API або localStorage
-  // Отримуємо ID з елемента інтерфейсу (для демонстрації)
+  // Спочатку пробуємо отримати з WinixAuth
+  if (window.WinixAuth && typeof window.WinixAuth.getUserIdFromAllSources === 'function') {
+    const id = window.WinixAuth.getUserIdFromAllSources();
+    if (id) return id;
+  }
+
+  // Потім пробуємо localStorage
+  const storedId = localStorage.getItem('telegram_user_id');
+  if (storedId && storedId !== 'undefined' && storedId !== 'null') {
+    return storedId;
+  }
+
+  // Пробуємо отримати з Telegram WebApp напряму
+  if (window.Telegram && window.Telegram.WebApp &&
+      window.Telegram.WebApp.initDataUnsafe &&
+      window.Telegram.WebApp.initDataUnsafe.user) {
+    return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+  }
+
+  // Потім пробуємо елемент на сторінці
   const userIdElement = document.querySelector('.user-id-value');
-  return userIdElement ? userIdElement.textContent : 'WX54321';
+  const elementId = userIdElement ? userIdElement.textContent : null;
+  if (elementId && elementId !== 'WX54321') return elementId;
+
+  // Якщо ніде не знайдено, повертаємо запасний варіант
+  return 'WX54321';
 };
 
 /**
