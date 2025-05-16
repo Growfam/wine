@@ -44,8 +44,8 @@ BASE_DIR = os.path.dirname(BACKEND_DIR)
 if BACKEND_DIR not in sys.path:
     sys.path.append(BACKEND_DIR)
 
-# Ініціалізація SQLAlchemy
-db = SQLAlchemy()
+# Імпорт ініціалізації бази даних
+from database import db, init_db
 
 # Перевірка валідності UUID
 def is_valid_uuid(uuid_string):
@@ -62,7 +62,8 @@ def create_app(config_name=None):
     app = Flask(
         __name__,
         template_folder=os.path.join(BASE_DIR, 'frontend'),
-        static_folder=os.path.join(BASE_DIR, 'frontend')
+        static_folder=os.path.join(BASE_DIR, 'frontend'),
+        static_url_path=''  # Порожній шлях дозволяє доступ до файлів напряму
     )
 
     # Завантажуємо конфігурацію
@@ -77,7 +78,7 @@ def create_app(config_name=None):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Ініціалізація SQLAlchemy з додатком
-    db.init_app(app)
+    init_db(app)
 
     # Налаштовуємо CORS
     setup_cors(app)
@@ -105,6 +106,13 @@ def create_app(config_name=None):
 
     # Налаштовуємо обробники помилок
     register_error_handlers(app)
+
+    # Додаємо after_request обробник для JS файлів
+    @app.after_request
+    def add_js_headers(response):
+        if request.path.endswith('.js'):
+            response.headers['Content-Type'] = 'application/javascript'
+        return response
 
     # Створення таблиць БД при запуску
     with app.app_context():
@@ -680,6 +688,34 @@ def register_utility_routes(app):
         logger.info(f"DEBUG DATA: {json.dumps(data)}")
         return jsonify({"status": "ok"})
 
+    # Додаємо новий діагностичний ендпоінт для JS файлів
+    @app.route('/debug/js-files')
+    def debug_js_files():
+        """Діагностичний ендпоінт для перевірки JS файлів"""
+        js_dir = os.path.join(BASE_DIR, 'frontend/js')
+        referrals_dir = os.path.join(js_dir, 'referrals')
+        api_dir = os.path.join(referrals_dir, 'api') if os.path.exists(referrals_dir) else None
+
+        result = {
+            'js_dir_exists': os.path.exists(js_dir),
+            'js_files': [],
+            'referrals_dir_exists': os.path.exists(referrals_dir),
+            'referrals_files': [],
+            'api_dir_exists': os.path.exists(api_dir) if api_dir else False,
+            'api_files': []
+        }
+
+        if os.path.exists(js_dir):
+            result['js_files'] = os.listdir(js_dir)
+
+        if os.path.exists(referrals_dir):
+            result['referrals_files'] = os.listdir(referrals_dir)
+
+        if api_dir and os.path.exists(api_dir):
+            result['api_files'] = os.listdir(api_dir)
+
+        return jsonify(result)
+
 
 def register_static_routes(app):
     """Реєстрація маршрутів для статичних файлів"""
@@ -690,13 +726,31 @@ def register_static_routes(app):
         'css': os.path.join(BASE_DIR, 'frontend/css')
     }
 
-    # Функція для обробки статичних файлів
+    # Покращена функція для обробки статичних файлів
     def serve_static_file(directory, filename):
         try:
-            if os.path.exists(os.path.join(directory, filename)):
-                return send_from_directory(directory, filename)
+            # Повний шлях до файлу
+            full_path = os.path.join(directory, filename)
+            logger.info(f"Запит на статичний файл: {full_path}")
+
+            # Перевірка існування файлу
+            if os.path.exists(full_path):
+                logger.info(f"Файл знайдено: {full_path}")
+
+                # Визначення MIME типу для JS файлів
+                mimetype = None
+                if filename.endswith('.js'):
+                    mimetype = 'application/javascript'
+
+                return send_from_directory(directory, filename, mimetype=mimetype)
             else:
                 logger.warning(f"Файл не знайдено: {directory}/{filename}")
+
+                # Перевіряємо, чи є файл з .js розширенням
+                if not filename.endswith('.js') and os.path.exists(f"{full_path}.js"):
+                    logger.info(f"Знайдено файл з .js розширенням: {full_path}.js")
+                    return send_from_directory(directory, f"{filename}.js", mimetype='application/javascript')
+
                 return jsonify({"error": f"Файл не знайдено: {filename}"}), 404
         except Exception as e:
             logger.error(f"Помилка видачі статичного файлу {filename}: {str(e)}")
@@ -711,9 +765,31 @@ def register_static_routes(app):
     def serve_chenel_png(filename):
         return serve_static_file(static_dirs['ChenelPNG'], filename)
 
+    # Покращений обробник для JS файлів
     @app.route('/js/<path:filename>')
     def serve_js(filename):
+        # Надаємо більше інформації про запит для відлагодження
+        logger.info(f"JS файл запитано: {filename}")
         return serve_static_file(static_dirs['js'], filename)
+
+    # Додаємо спеціальні маршрути для модулів реферальної системи
+    @app.route('/js/referrals/api/<path:filename>')
+    def serve_referrals_api_js(filename):
+        referrals_api_dir = os.path.join(static_dirs['js'], 'referrals/api')
+        logger.info(f"Запит JS API файлу реферальної системи: {filename}")
+        return serve_static_file(referrals_api_dir, filename)
+
+    @app.route('/js/referrals/constants/<path:filename>')
+    def serve_referrals_constants_js(filename):
+        referrals_constants_dir = os.path.join(static_dirs['js'], 'referrals/constants')
+        logger.info(f"Запит JS константи реферальної системи: {filename}")
+        return serve_static_file(referrals_constants_dir, filename)
+
+    @app.route('/js/referrals/utils/<path:filename>')
+    def serve_referrals_utils_js(filename):
+        referrals_utils_dir = os.path.join(static_dirs['js'], 'referrals/utils')
+        logger.info(f"Запит JS утиліти реферальної системи: {filename}")
+        return serve_static_file(referrals_utils_dir, filename)
 
     @app.route('/css/<path:filename>')
     def serve_css(filename):

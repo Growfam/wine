@@ -3,7 +3,7 @@ from models.direct_bonus import DirectBonus
 from models.percentage_reward import PercentageReward
 from models.activity import ReferralActivity
 from models.draw import Draw, DrawParticipant
-from main import db
+from database import db
 from flask import current_app
 from sqlalchemy import func, desc
 from datetime import datetime, timedelta
