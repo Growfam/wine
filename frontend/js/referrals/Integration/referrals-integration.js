@@ -811,28 +811,22 @@ const getReferralStats = async (userId) => {
 };
 
 /**
- * Отримує відсоткові винагороди
+ * Отримує дані про відсоткові винагороди
  * @param {string} userId - ID користувача
  */
 const getLevelRewards = async (userId) => {
   try {
-    // Перевіряємо чи доступна функція в WinixReferral
-    if (window.WinixReferral && typeof window.WinixReferral.fetchLevelRewards === 'function') {
-      // Використовуємо функцію з глобального об'єкта
-      const rewardsData = await window.WinixReferral.fetchLevelRewards(userId)(dispatch);
-      console.log('Level rewards data loaded:', rewardsData);
-      renderRewardsUI(rewardsData);
-      return rewardsData;
-    } else {
-      // Якщо функція недоступна, показуємо помилку
-      console.error('fetchLevelRewards not found in WinixReferral object');
-      showToast('Помилка при отриманні даних про винагороди', 'error');
-      return { level1Rewards: {}, level2Rewards: {} };
-    }
+    // Отримуємо дані про відсоткові винагороди
+    const rewardsData = await fetchLevelRewards(userId)(dispatch);
+
+    // Додаткова обробка даних про винагороди
+    console.log('Level rewards data loaded:', rewardsData);
+
+    // Заповнюємо інтерфейс даними про винагороди
+    renderRewardsUI(rewardsData);
   } catch (error) {
     console.error('Error fetching level rewards:', error);
     showToast('Помилка при отриманні даних про винагороди', 'error');
-    return { level1Rewards: {}, level2Rewards: {} };
   }
 };
 
