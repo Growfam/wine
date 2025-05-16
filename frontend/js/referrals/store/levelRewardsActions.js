@@ -7,7 +7,7 @@
  * @module levelRewardsActions
  */
 
-import { LevelRewardsActionTypes } from './levelRewardsState';
+import { LevelRewardsActionTypes } from '../constants/actionTypes';
 import { fetchReferralEarnings } from '../api/fetchReferralEarnings';
 import { calculateLevel1Reward } from '../services/calculateLevel1Reward';
 import { calculateLevel2Reward } from '../services/calculateLevel2Reward';
