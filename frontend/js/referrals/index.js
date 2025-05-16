@@ -8,46 +8,46 @@
  */
 
 // Експортуємо основні компоненти системи
-export { generateReferralLink } from './services/generateReferralLink';
-export { formatReferralUrl } from './utils/formatReferralUrl';
-export { fetchReferralLink as fetchReferralLinkFromAPI } from './api/fetchReferralLink';
+export { generateReferralLink } from './services/generateReferralLink.js';
+export { formatReferralUrl } from './utils/formatReferralUrl.js';
+export { fetchReferralLink as fetchReferralLinkFromAPI } from './api/fetchReferralLink.js';
 
 // Експортуємо компоненти для прямих бонусів
-export { registerReferral, checkIfReferral } from './api/registerReferral';
-export { calculateDirectBonus, calculatePotentialDirectBonus } from './services/calculateDirectBonus';
+export { registerReferral, checkIfReferral } from './api/registerReferral.js';
+export { calculateDirectBonus, calculatePotentialDirectBonus } from './services/calculateDirectBonus.js';
 
 // Експортуємо компоненти для рівнів рефералів
-export { fetchReferralStats, fetchReferralDetails } from './api/fetchReferralStats';
-export { calculateLevel1Count, analyzeLevel1Growth } from './services/calculateLevel1Count';
-export { calculateLevel2Count, groupLevel2ByReferrers, analyzeLevel1Effectiveness } from './services/calculateLevel2Count';
+export { fetchReferralStats, fetchReferralDetails } from './api/fetchReferralStats.js';
+export { calculateLevel1Count, analyzeLevel1Growth } from './services/calculateLevel1Count.js';
+export { calculateLevel2Count, groupLevel2ByReferrers, analyzeLevel1Effectiveness } from './services/calculateLevel2Count.js';
 
 // Експортуємо компоненти для відсоткових винагород (етап 4)
-export { fetchReferralEarnings, fetchReferralDetailedEarnings } from './api/fetchReferralEarnings';
-export { calculatePercentage, formatPercentageResult } from './utils/calculatePercentage';
-export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward';
-export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward';
+export { fetchReferralEarnings, fetchReferralDetailedEarnings } from './api/fetchReferralEarnings.js';
+export { calculatePercentage, formatPercentageResult } from './utils/calculatePercentage.js';
+export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward.js';
+export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward.js';
 
 // Експортуємо компоненти для перевірки активності рефералів (етап 5)
-export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveReferral';
-export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity';
-export { checkReferralsActivity, checkReferralActivity, analyzeReferralsActivity } from './services/checkReferralActivity';
+export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveReferral.js';
+export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity.js';
+export { checkReferralsActivity, checkReferralActivity, analyzeReferralsActivity } from './services/checkReferralActivity.js';
 
 // Експортуємо компоненти для роботи з бейджами та завданнями (етап 6)
-export { isEligibleForBadge, getHighestEligibleBadge, getAllEligibleBadges, getNextBadgeTarget, checkBadgesProgress } from './services/checkBadgeEligibility';
-export { convertBadgeToWinix, calculateTotalBadgeReward, calculateEligibleBadgesReward, getTotalPotentialBadgeRewards } from './services/convertBadgeToWinix';
-export { isTaskCompleted, calculateTaskProgress, calculateTaskReward, getCompletedTasks, calculateTotalTasksReward, checkAllTasksCompletion, checkTaskProgress } from './services/checkTaskCompletion';
+export { isEligibleForBadge, getHighestEligibleBadge, getAllEligibleBadges, getNextBadgeTarget, checkBadgesProgress } from './services/checkBadgeEligibility.js';
+export { convertBadgeToWinix, calculateTotalBadgeReward, calculateEligibleBadgesReward, getTotalPotentialBadgeRewards } from './services/convertBadgeToWinix.js';
+export { isTaskCompleted, calculateTaskProgress, calculateTaskReward, getCompletedTasks, calculateTotalTasksReward, checkAllTasksCompletion, checkTaskProgress } from './services/checkTaskCompletion.js';
 
 // Експортуємо компоненти для аналітики та рейтингу (етап 7)
-export { sortReferralsByEarnings, sortByPercentageRewards, sortByInvitedCount, sortByDrawsParticipation, sortByActivity, filterAndSortReferrals } from './utils/sortReferralsByEarnings';
-export { formatWinixAmount, abbreviateWinixAmount, formatWinixWithTrend, formatWinixCompact, normalizeWinixAmount } from './utils/formatWinixAmount';
-export { getReferralRanking, getTopReferrals, findUserRankPosition, generateLeaderboard } from './services/getReferralRanking';
-export { calculateTotalEarnedForUser, predictEarningsForReferral, classifyReferralsByEarnings, analyzeEarningsStructure } from './services/calculateTotalEarnedForUser';
-export { fetchReferralDraws, fetchDrawDetails, fetchDrawsParticipationStats, fetchTotalDrawsCount, fetchMostActiveInDraws } from './api/fetchReferralDraws';
-export { checkDrawsParticipationCriteria, analyzeDrawsParticipation, getDrawsParticipationRecommendations, getReferralsByDrawsRanking, getDrawsParticipationSummary } from './services/trackDrawParticipation';
+export { sortReferralsByEarnings, sortByPercentageRewards, sortByInvitedCount, sortByDrawsParticipation, sortByActivity, filterAndSortReferrals } from './utils/sortReferralsByEarnings.js';
+export { formatWinixAmount, abbreviateWinixAmount, formatWinixWithTrend, formatWinixCompact, normalizeWinixAmount } from './utils/formatWinixAmount.js';
+export { getReferralRanking, getTopReferrals, findUserRankPosition, generateLeaderboard } from './services/getReferralRanking.js';
+export { calculateTotalEarnedForUser, predictEarningsForReferral, classifyReferralsByEarnings, analyzeEarningsStructure } from './services/calculateTotalEarnedForUser.js';
+export { fetchReferralDraws, fetchDrawDetails, fetchDrawsParticipationStats, fetchTotalDrawsCount, fetchMostActiveInDraws } from './api/fetchReferralDraws.js';
+export { checkDrawsParticipationCriteria, analyzeDrawsParticipation, getDrawsParticipationRecommendations, getReferralsByDrawsRanking, getDrawsParticipationSummary } from './services/trackDrawParticipation.js';
 
 // Експортуємо компоненти для підсумкового розрахунку (етап 8)
-export { fetchReferralHistory, fetchReferralEventHistory, fetchReferralActivitySummary, fetchReferralActivityTrend } from './api/fetchReferralHistory';
-export { calculateTotalEarnings, predictFutureEarnings, calculateReferralROI, analyzeEarningsDistribution } from './services/calculateTotalEarnings';
+export { fetchReferralHistory, fetchReferralEventHistory, fetchReferralActivitySummary, fetchReferralActivityTrend } from './api/fetchReferralHistory.js';
+export { calculateTotalEarnings, predictFutureEarnings, calculateReferralROI, analyzeEarningsDistribution } from './services/calculateTotalEarnings.js';
 
 // Експортуємо дії для роботи із станом реферального посилання
 export {
@@ -139,48 +139,48 @@ export {
   referralLevelsReducer,
   initialReferralLevelsState,
   ReferralLevelsActionTypes
-} from './store/referralLevelsState';
+} from './store/referralLevelsState.js';
 
 // Експортуємо редуктор і початковий стан для відсоткових винагород (етап 4)
 export {
   levelRewardsReducer,
   initialLevelRewardsState,
   LevelRewardsActionTypes
-} from './store/levelRewardsState';
+} from './store/levelRewardsState.js';
 
 // Експортуємо редуктор і початковий стан для активності рефералів (етап 5)
 export {
   referralActivityReducer,
   initialReferralActivityState,
   ReferralActivityActionTypes
-} from './store/referralActivityState';
+} from './store/referralActivityState.js';
 
 // Експортуємо редуктор і початковий стан для бейджів та завдань (етап 6)
 export {
   badgeReducer,
   initialBadgeState,
   BadgeActionTypes
-} from './store/badgeState';
+} from './store/badgeState.js';
 
 // Експортуємо редуктор і початковий стан для участі в розіграшах (етап 7)
 export {
   drawParticipationReducer,
   initialDrawParticipationState,
   DrawParticipationActionTypes
-} from './store/drawParticipationState';
+} from './store/drawParticipationState.js';
 
 // Експортуємо редуктор і початковий стан для комплексного розрахунку винагород (етап 8)
 export {
   calculateRewardsReducer,
   initialCalculateRewardsState,
   CalculateRewardsActionTypes
-} from './store/calculateRewardsAction';
+} from './store/calculateRewardsAction.js';
 
 // Експортуємо константи
-export { REFERRAL_URL_PATTERN } from './constants/urlPatterns';
-export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses';
-export { LEVEL_1_REWARD_RATE, LEVEL_2_REWARD_RATE } from './constants/rewardRates';
-export { MIN_DRAWS_PARTICIPATION, MIN_INVITED_REFERRALS } from './constants/activityThresholds';
+export { REFERRAL_URL_PATTERN } from './constants/urlPatterns.js';
+export { DIRECT_BONUS_AMOUNT } from './constants/directBonuses.js';
+export { LEVEL_1_REWARD_RATE, LEVEL_2_REWARD_RATE } from './constants/rewardRates.js';
+export { MIN_DRAWS_PARTICIPATION, MIN_INVITED_REFERRALS } from './constants/activityThresholds.js';
 
 // Експортуємо константи для бейджів та завдань (етап 6)
 export {
@@ -190,7 +190,7 @@ export {
   PLATINUM_BADGE_THRESHOLD,
   BADGE_THRESHOLDS,
   BADGE_TYPES
-} from './constants/badgeThresholds';
+} from './constants/badgeThresholds.js';
 
 export {
   BRONZE_BADGE_REWARD,
@@ -198,20 +198,20 @@ export {
   GOLD_BADGE_REWARD,
   PLATINUM_BADGE_REWARD,
   BADGE_REWARDS
-} from './constants/badgeRewards';
+} from './constants/badgeRewards.js';
 
 export {
   REFERRAL_TASK_THRESHOLD,
   REFERRAL_TASK_REWARD,
   TASK_THRESHOLDS,
   TASK_TYPES
-} from './constants/taskThresholds';
+} from './constants/taskThresholds.js';
 
 // Експортуємо утилітарні функції
 export {
   combineReducers,
   configureReferralStore
-} from './utils/storeUtils';
+} from './utils/storeUtils.js';
 
 /**
  * Інтегратор реферальної системи
