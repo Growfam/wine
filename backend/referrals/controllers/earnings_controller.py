@@ -1,7 +1,7 @@
 from models.referral import Referral
 from models.direct_bonus import DirectBonus
 from models.percentage_reward import PercentageReward
-from main import db
+from database import db
 from flask import jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime

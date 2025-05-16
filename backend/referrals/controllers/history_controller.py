@@ -5,7 +5,7 @@ from models.activity import ReferralActivity
 from models.badge import UserBadge
 from models.task import UserTask
 from models.draw import DrawParticipant, Draw
-from main import db
+from database import db
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta

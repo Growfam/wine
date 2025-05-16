@@ -1,6 +1,6 @@
 from models.direct_bonus import DirectBonus
 from models.referral import Referral
-from main import db
+from database import db
 from flask import jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime

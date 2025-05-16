@@ -1,7 +1,6 @@
 from models.referral import Referral
-from models.direct_bonus import DirectBonus
-from main import db
-from flask import jsonify, current_app
+from database import db
+from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -132,17 +131,17 @@ class ReferralController:
                     'registrationDate': '2024-01-15T10:30:00Z'  # У реальному додатку беремо з БД
                 },
                 'referrals': {
-                    'level1': [self._format_referral_data(ref) for ref in level1_referrals],
-                    'level2': [self._format_referral_data(ref, with_referrer_id=True) for ref in level2_referrals]
+                    'level1': [ReferralController._format_referral_data(ref) for ref in level1_referrals],
+                    'level2': [ReferralController._format_referral_data(ref, with_referrer_id=True) for ref in level2_referrals]
                 },
                 'statistics': {
                     'totalReferrals': len(level1_referrals) + len(level2_referrals),
                     'level1Count': len(level1_referrals),
                     'level2Count': len(level2_referrals),
-                    'activeReferrals': self._count_active_referrals(level1_referrals, level2_referrals),
+                    'activeReferrals': ReferralController._count_active_referrals(level1_referrals, level2_referrals),
                     'inactiveReferrals': len(level1_referrals) + len(level2_referrals) -
-                                         self._count_active_referrals(level1_referrals, level2_referrals),
-                    'conversionRate': self._calculate_conversion_rate(level1_referrals, level2_referrals)
+                                         ReferralController._count_active_referrals(level1_referrals, level2_referrals),
+                    'conversionRate': ReferralController._calculate_conversion_rate(level1_referrals, level2_referrals)
                 }
             }
         except Exception as e:

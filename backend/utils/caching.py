@@ -173,13 +173,13 @@ def batch_update(func):
     def wrapper(*args, **kwargs):
         try:
             # Запуск транзакції
-            from main import db
+            from database import db
             result = func(*args, **kwargs)
             db.session.commit()
             return result
         except Exception as e:
             # Відкат транзакції у випадку помилки
-            from main import db
+            from database import db
             db.session.rollback()
             current_app.logger.error(f"Error in batch update: {str(e)}")
             raise

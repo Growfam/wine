@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
-from main import db
+from database import db
 
 
 class DirectBonus(db.Model):

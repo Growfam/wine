@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from main import db
+from database import db
 
 
 class PercentageReward(db.Model):
