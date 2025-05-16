@@ -213,11 +213,3 @@ export const fetchRewardsHistory = (userId, options = {}) => {
     }
   };
 };
-
-export default {
-  fetchLevelRewards,
-  fetchRewardsHistory,
-  updateLevel1Rewards,
-  updateLevel2Rewards,
-  clearLevelRewardsError
-};
