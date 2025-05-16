@@ -56,21 +56,21 @@ export {
   fetchReferralLinkSuccess,
   fetchReferralLinkFailure,
   clearReferralLinkError
-} from './store/fetchReferralLinkAction';
+} from './store/fetchReferralLinkAction.js';
 
 // Експортуємо дії для роботи із станом прямих бонусів
 export {
   registerReferralAndAwardBonus,
   fetchDirectBonusHistory,
   clearDirectBonusError
-} from './store/registerReferralAction';
+} from './store/registerReferralAction.js';
 
 // Експортуємо дії для роботи із рівнями рефералів
 export {
   fetchReferralLevels,
   updateReferralLevelCounts,
   clearReferralLevelsError
-} from './store/updateStatsAction';
+} from './store/updateStatsAction.js';
 
 // Експортуємо дії для роботи з відсотковими винагородами (етап 4)
 export {
@@ -79,7 +79,7 @@ export {
   updateLevel1Rewards,
   updateLevel2Rewards,
   clearLevelRewardsError
-} from './store/levelRewardsActions';
+} from './store/levelRewardsActions.js';
 
 // Експортуємо дії для роботи з активністю рефералів (етап 5)
 export {
@@ -89,7 +89,7 @@ export {
   updateActivityStats,
   updateActivityRecommendations,
   clearReferralActivityError
-} from './store/referralActivityActions';
+} from './store/referralActivityActions.js';
 
 // Експортуємо дії для роботи з бейджами та завданнями (етап 6)
 export {
@@ -99,7 +99,7 @@ export {
   claimTaskReward,
   updateBadgesProgress,
   clearBadgeError
-} from './store/badgeActions';
+} from './store/badgeActions.js';
 
 // Експортуємо дії для роботи з участю в розіграшах (етап 7)
 export {
@@ -108,7 +108,7 @@ export {
   fetchDrawsRankingAction,
   analyzeDrawsParticipationAction,
   clearDrawParticipationError
-} from './store/drawParticipationState';
+} from './store/drawParticipationState.js';
 
 // Експортуємо дії для комплексного розрахунку винагород (етап 8)
 export {
@@ -118,21 +118,21 @@ export {
   analyzeRewardsDistributionAction,
   comprehensiveRewardsAnalysisAction,
   clearRewardsCalculationError
-} from './store/calculateRewardsAction';
+} from './store/calculateRewardsAction.js';
 
 // Експортуємо редуктор і початковий стан для реферального посилання
 export {
   referralLinkReducer,
   initialReferralLinkState,
   ReferralLinkActionTypes
-} from './store/referralLinkState';
+} from './store/referralLinkState.js';
 
 // Експортуємо редуктор і початковий стан для прямих бонусів
 export {
   directBonusReducer,
   initialDirectBonusState,
   DirectBonusActionTypes
-} from './store/directBonusState';
+} from './store/directBonusState.js';
 
 // Експортуємо редуктор і початковий стан для рівнів рефералів
 export {
