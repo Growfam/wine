@@ -25,6 +25,7 @@ import {
   groupLevel2ByReferrers,
 
   // Функції для відсоткових винагород
+  // ВАЖЛИВО: fetchLevelRewards не імпортуємо звідси!
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
 
@@ -80,21 +81,19 @@ import {
 
   // Константи та шаблони
   REFERRAL_URL_PATTERN,
-
-  // Ця функція створена в integration.js, але не імпортується правильно
-  // Оскільки вона не експортується з index.js, імпортуємо її напряму
 } from '../index.js';
 
 // Імпортуємо функцію ініціалізації напряму з файлу інтеграції
 import { initReferralSystem } from './referrals-integration.js';
 
-// Реалізуємо fetchLevelRewards тут, щоб уникнути проблем з імпортом
+// Імпортуємо напряму залежності для fetchLevelRewards
 import { fetchReferralEarnings } from '../api/fetchReferralEarnings.js';
 import { calculateLevel1Reward } from '../services/calculateLevel1Reward.js';
 import { calculateLevel2Reward } from '../services/calculateLevel2Reward.js';
 
 /**
- * Отримує дані про відсоткові винагороди користувача
+ * Локальна реалізація fetchLevelRewards, щоб обійти проблему імпорту
+ *
  * @param {string|number} userId - ID користувача
  * @param {Object} [options] - Додаткові опції для запиту
  * @returns {Function} Функція thunk
@@ -102,6 +101,8 @@ import { calculateLevel2Reward } from '../services/calculateLevel2Reward.js';
 const fetchLevelRewards = (userId, options = {}) => {
   return async (dispatch) => {
     try {
+      console.log('Виконується fetchLevelRewards з adapter.js');
+
       // Отримуємо дані про заробітки рефералів
       const earningsData = await fetchReferralEarnings(userId, options);
 
@@ -175,7 +176,7 @@ window.WinixReferral = {
   groupLevel2ByReferrers,
 
   // Функції для відсоткових винагород
-  fetchLevelRewards, // Додано власну реалізацію
+  fetchLevelRewards, // Використовуємо нашу локальну реалізацію
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
 
