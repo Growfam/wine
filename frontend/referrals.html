@@ -63,7 +63,7 @@
                 <div class="profile-avatar">W</div>
                 <div class="user-id-container">
                     <div class="user-id-label">Ваш ID</div>
-                    <div class="user-id-value">WX54321</div>
+                    <div class="user-id-value" id="header-user-id"></div>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
@@ -523,9 +523,9 @@
     <script src="js/telegram-web-app.js"></script>
 
     <script>
-    // Ініціалізація та перевірка Telegram WebApp
+// Ініціалізація та перевірка Telegram WebApp
 (function() {
-  console.log("🔄 Ініціалізація Telegram WebApp...");
+  console.log("🔄 Ініціалізація Telegram WebApp в referrals...");
 
   if (!window.Telegram || !window.Telegram.WebApp) {
     console.error("❌ Telegram WebApp API не завантажено");
@@ -541,6 +541,14 @@
       const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
       localStorage.setItem('telegram_user_id', userId);
       console.log("✅ Отримано Telegram ID:", userId);
+
+      // Одразу встановлюємо ID в DOM
+      setTimeout(function() {
+        const userIdElements = document.querySelectorAll('.user-id-value');
+        userIdElements.forEach(element => {
+          element.textContent = userId;
+        });
+      }, 100);
     } else {
       console.warn("⚠️ Дані користувача відсутні в Telegram WebApp");
     }
@@ -548,7 +556,8 @@
     console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
   }
 })();
-    </script>
+</script>
+
     <script src="js/auth.js"></script>
     <script src="js/core.js"></script>
 
