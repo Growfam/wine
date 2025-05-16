@@ -16,7 +16,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 # Імпорт моделей та сервісів
-from models.task import Task, TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY, TASK_TAG_REFERRAL
+from models.task import UserTask as Task
 from models.user_progress import UserProgress, STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_VERIFIED
 from quests.task_service import TaskService
 from quests.verification_service import VerificationService
@@ -55,7 +55,7 @@ def create_new_task(data):
             return api_validation_error(errors)
 
         # Перевірка типу завдання
-        valid_task_types = [TASK_TYPE_SOCIAL, TASK_TYPE_PARTNER, TASK_TYPE_LIMITED, TASK_TYPE_DAILY]
+
         if data.get("task_type") not in valid_task_types:
             return api_error(message="Невідомий тип завдання", details={"task_type": "Невідомий тип завдання"})
 

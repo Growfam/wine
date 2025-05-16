@@ -1,5 +1,13 @@
-from flask import Blueprint, request, jsonify, current_app
-from referrals.controllers import ReferralController, BonusController, EarningsController
+from flask import Blueprint, request, jsonify
+from referrals.controllers import (
+    ReferralController,
+    BonusController,
+    EarningsController,
+    ActivityController,
+    AnalyticsController,
+    DrawController,
+    HistoryController
+)
 
 referrals_bp = Blueprint('referrals', __name__)
 
@@ -161,7 +169,7 @@ def get_percentage_rewards(user_id):
     return jsonify(result)
 
 
-# Маршрути для активності рефералів (заглушки для початкової реалізації)
+# Маршрути для активності рефералів
 @referrals_bp.route('/api/referrals/activity/<int:user_id>', methods=['GET', 'POST'])
 def get_referral_activity(user_id):
     """Отримання даних про активність рефералів користувача"""
@@ -176,7 +184,6 @@ def get_referral_activity(user_id):
             'activeOnly': request.args.get('activeOnly') == 'true'
         }
 
-    from referrals.controllers import ActivityController
     result = ActivityController.get_referral_activity(user_id, options)
     return jsonify(result)
 
@@ -184,7 +191,6 @@ def get_referral_activity(user_id):
 @referrals_bp.route('/api/referrals/activity/detailed/<int:referral_id>', methods=['GET'])
 def get_referral_detailed_activity(referral_id):
     """Отримання детальних даних про активність конкретного реферала"""
-    from referrals.controllers import ActivityController
     result = ActivityController.get_referral_detailed_activity(referral_id)
     return jsonify(result)
 
@@ -192,7 +198,6 @@ def get_referral_detailed_activity(referral_id):
 @referrals_bp.route('/api/referrals/activity/summary/<int:user_id>', methods=['GET'])
 def get_activity_summary(user_id):
     """Отримання зведеної інформації про активність"""
-    from referrals.controllers import ActivityController
     result = ActivityController.get_activity_summary(user_id)
     return jsonify(result)
 
@@ -214,7 +219,6 @@ def update_activity():
     draws_participation = data.get('draws_participation')
     invited_referrals = data.get('invited_referrals')
 
-    from referrals.controllers import ActivityController
     result = ActivityController.update_activity(user_id, draws_participation, invited_referrals)
     return jsonify(result)
 
@@ -235,15 +239,98 @@ def manually_activate_referral():
     user_id = data['user_id']
     admin_id = data['admin_id']
 
-    from referrals.controllers import ActivityController
     result = ActivityController.manually_activate(user_id, admin_id)
     return jsonify(result)
 
 
-# Ініціалізація Blueprint для маршрутів реферальної системи
-def init_app(app):
-    """Реєстрація blueprint в додатку Flask"""
-    app.register_blueprint(referrals_bp)
+# Додані маршрути для розіграшів
+@referrals_bp.route('/api/referrals/draws/<int:referral_id>', methods=['GET'])
+def get_referral_draws(referral_id):
+    """Отримує дані про участь реферала у розіграшах"""
+    result = DrawController.get_referral_draws(referral_id)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/draws/details/<int:referral_id>/<int:draw_id>', methods=['GET'])
+def get_draw_details(referral_id, draw_id):
+    """Отримує детальні дані про участь реферала у конкретному розіграші"""
+    result = DrawController.get_draw_details(referral_id, draw_id)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/draws/stats/<int:owner_id>', methods=['GET'])
+def get_draws_participation_stats(owner_id):
+    """Отримує статистику участі рефералів у розіграшах за період"""
+    options = {
+        'startDate': request.args.get('startDate'),
+        'endDate': request.args.get('endDate')
+    }
+    result = DrawController.get_draws_participation_stats(owner_id, options)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/draws/count/<int:owner_id>', methods=['GET'])
+def get_total_draws_count(owner_id):
+    """Отримує загальну кількість розіграшів, у яких брали участь реферали"""
+    result = DrawController.get_total_draws_count(owner_id)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/draws/active/<int:owner_id>', methods=['GET'])
+def get_most_active_in_draws(owner_id):
+    """Отримує список найактивніших рефералів за участю в розіграшах"""
+    limit = int(request.args.get('limit', 10))
+    result = DrawController.get_most_active_in_draws(owner_id, limit)
+    return jsonify(result)
+
+
+# Додані маршрути для історії реферальної активності
+@referrals_bp.route('/api/referrals/history/<int:user_id>', methods=['GET'])
+def get_referral_history(user_id):
+    """Отримує повну історію реферальної активності користувача"""
+    options = {
+        'startDate': request.args.get('startDate'),
+        'endDate': request.args.get('endDate'),
+        'limit': int(request.args.get('limit')) if request.args.get('limit') else None,
+        'type': request.args.get('type')
+    }
+    result = HistoryController.get_referral_history(user_id, options)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/history/event/<int:user_id>/<string:event_type>', methods=['GET'])
+def get_referral_event_history(user_id, event_type):
+    """Отримує історію конкретного типу реферальної активності"""
+    options = {
+        'startDate': request.args.get('startDate'),
+        'endDate': request.args.get('endDate'),
+        'limit': int(request.args.get('limit')) if request.args.get('limit') else None
+    }
+    result = HistoryController.get_referral_event_history(user_id, event_type, options)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/history/summary/<int:user_id>', methods=['GET'])
+def get_referral_activity_summary(user_id):
+    """Отримує агреговану статистику реферальної активності за період"""
+    options = {
+        'startDate': request.args.get('startDate'),
+        'endDate': request.args.get('endDate')
+    }
+    result = HistoryController.get_referral_activity_summary(user_id, options)
+    return jsonify(result)
+
+
+@referrals_bp.route('/api/referrals/history/trend/<int:user_id>/<string:period>', methods=['GET'])
+def get_referral_activity_trend(user_id, period):
+    """Отримує статистику реферальної активності по періодах"""
+    options = {
+        'startDate': request.args.get('startDate'),
+        'endDate': request.args.get('endDate'),
+        'limit': int(request.args.get('limit')) if request.args.get('limit') else None
+    }
+    result = HistoryController.get_referral_activity_trend(user_id, period, options)
+    return jsonify(result)
 
 
 # Маршрути для аналітики та рейтингу рефералів
@@ -251,8 +338,6 @@ def init_app(app):
 def get_referrals_ranking(user_id):
     """Отримання рейтингу рефералів"""
     sort_by = request.args.get('sortBy', 'earnings')
-
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.get_referrals_ranking(user_id, sort_by=sort_by)
     return jsonify(result)
 
@@ -261,8 +346,6 @@ def get_referrals_ranking(user_id):
 def get_top_referrals(user_id, limit):
     """Отримання топ-N рефералів"""
     metric = request.args.get('metric', 'earnings')
-
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.get_top_referrals(user_id, limit=limit, metric=metric)
     return jsonify(result)
 
@@ -270,7 +353,6 @@ def get_top_referrals(user_id, limit):
 @referrals_bp.route('/api/analytics/earnings/total/<int:user_id>', methods=['GET'])
 def get_total_earnings(user_id):
     """Отримання загального заробітку"""
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.get_total_earnings(user_id)
     return jsonify(result)
 
@@ -278,7 +360,6 @@ def get_total_earnings(user_id):
 @referrals_bp.route('/api/analytics/earnings/predict/<int:user_id>', methods=['GET'])
 def predict_earnings(user_id):
     """Отримання прогнозу майбутніх заробітків"""
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.predict_earnings(user_id)
     return jsonify(result)
 
@@ -286,7 +367,6 @@ def predict_earnings(user_id):
 @referrals_bp.route('/api/analytics/earnings/roi/<int:user_id>', methods=['GET'])
 def get_earnings_roi(user_id):
     """Отримання рентабельності реферальної програми"""
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.get_earnings_roi(user_id)
     return jsonify(result)
 
@@ -294,6 +374,11 @@ def get_earnings_roi(user_id):
 @referrals_bp.route('/api/analytics/earnings/distribution/<int:user_id>', methods=['GET'])
 def get_earnings_distribution(user_id):
     """Отримання розподілу заробітку за категоріями"""
-    from referrals.controllers import AnalyticsController
     result = AnalyticsController.get_earnings_distribution(user_id)
     return jsonify(result)
+
+
+# Ініціалізація Blueprint для маршрутів реферальної системи
+def init_app(app):
+    """Реєстрація blueprint в додатку Flask"""
+    app.register_blueprint(referrals_bp)
