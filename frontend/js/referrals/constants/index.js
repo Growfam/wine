@@ -26,4 +26,3 @@ export * from './badgeRewards';
 // Експортуємо константи порогів завдань
 export * from './taskThresholds';
 
-export * from './actionTypes.js';
