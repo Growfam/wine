@@ -25,7 +25,6 @@ import {
   groupLevel2ByReferrers,
 
   // Функції для відсоткових винагород
-  fetchLevelRewards,
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
 
@@ -89,6 +88,74 @@ import {
 // Імпортуємо функцію ініціалізації напряму з файлу інтеграції
 import { initReferralSystem } from './referrals-integration.js';
 
+// Реалізуємо fetchLevelRewards тут, щоб уникнути проблем з імпортом
+import { fetchReferralEarnings } from '../api/fetchReferralEarnings.js';
+import { calculateLevel1Reward } from '../services/calculateLevel1Reward.js';
+import { calculateLevel2Reward } from '../services/calculateLevel2Reward.js';
+
+/**
+ * Отримує дані про відсоткові винагороди користувача
+ * @param {string|number} userId - ID користувача
+ * @param {Object} [options] - Додаткові опції для запиту
+ * @returns {Function} Функція thunk
+ */
+const fetchLevelRewards = (userId, options = {}) => {
+  return async (dispatch) => {
+    try {
+      // Отримуємо дані про заробітки рефералів
+      const earningsData = await fetchReferralEarnings(userId, options);
+
+      // Розраховуємо винагороду для рефералів 1-го рівня
+      const level1RewardsData = calculateLevel1Reward(
+        earningsData.level1Referrals,
+        options
+      );
+
+      // Розраховуємо винагороду для рефералів 2-го рівня
+      const level2RewardsData = calculateLevel2Reward(
+        earningsData.level2Referrals,
+        {
+          ...options,
+          groupByReferrers: true // Включаємо групування за рефералами 1-го рівня
+        }
+      );
+
+      // Формуємо результат
+      const rewardsData = {
+        level1Rewards: level1RewardsData,
+        level2Rewards: level2RewardsData,
+        summary: {
+          totalPercentageReward: level1RewardsData.totalReward + level2RewardsData.totalReward,
+          totalReferralsEarnings: level1RewardsData.totalEarnings + level2RewardsData.totalEarnings,
+          lastUpdated: new Date().toISOString()
+        }
+      };
+
+      // Якщо є диспатч, викликаємо його з результатом
+      if (typeof dispatch === 'function') {
+        dispatch({
+          type: 'FETCH_LEVEL_REWARDS_SUCCESS',
+          payload: rewardsData
+        });
+      }
+
+      return rewardsData;
+    } catch (error) {
+      console.error('Error fetching level rewards:', error);
+
+      // Якщо є диспатч, викликаємо його з помилкою
+      if (typeof dispatch === 'function') {
+        dispatch({
+          type: 'FETCH_LEVEL_REWARDS_FAILURE',
+          payload: { error: error.message || 'Failed to fetch level rewards' }
+        });
+      }
+
+      throw error;
+    }
+  };
+};
+
 // Створюємо глобальний об'єкт для доступу до функцій реферальної системи
 window.WinixReferral = {
   // Основні функції
@@ -108,7 +175,7 @@ window.WinixReferral = {
   groupLevel2ByReferrers,
 
   // Функції для відсоткових винагород
-  fetchLevelRewards,
+  fetchLevelRewards, // Додано власну реалізацію
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
 
