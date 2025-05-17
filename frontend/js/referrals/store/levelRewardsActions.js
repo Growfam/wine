@@ -213,3 +213,12 @@ export const fetchRewardsHistory = (userId, options = {}) => {
     }
   };
 };
+
+// Експорт за замовчуванням для сумісності
+export default {
+  fetchLevelRewards,
+  fetchRewardsHistory,
+  updateLevel1Rewards,
+  updateLevel2Rewards,
+  clearLevelRewardsError
+};
