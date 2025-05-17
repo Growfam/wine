@@ -72,15 +72,13 @@ export {
   clearReferralLevelsError
 } from './store/updateStatsAction.js';
 
-// Експортуємо дії для роботи з відсотковими винагородами (етап 4)
-import * as levelRewardsActions from './store/levelRewardsActions.js';
-
-// Потім експортуйте через деструктуризацію
-export const fetchLevelRewards = levelRewardsActions.fetchLevelRewards;
-export const fetchRewardsHistory = levelRewardsActions.fetchRewardsHistory;
-export const updateLevel1Rewards = levelRewardsActions.updateLevel1Rewards;
-export const updateLevel2Rewards = levelRewardsActions.updateLevel2Rewards;
-export const clearLevelRewardsError = levelRewardsActions.clearLevelRewardsError;
+export {
+  fetchLevelRewards,
+  fetchRewardsHistory,
+  updateLevel1Rewards,
+  updateLevel2Rewards,
+  clearLevelRewardsError
+} from './store/levelRewardsActions.js';
 
 // Експортуємо дії для роботи з активністю рефералів (етап 5)
 export {
