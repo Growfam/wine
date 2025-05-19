@@ -11,9 +11,9 @@ import logging
 import json
 import time
 import uuid
+import traceback
 from datetime import datetime
 from pathlib import Path
-import traceback
 
 # Сторонні бібліотеки
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
@@ -538,6 +538,129 @@ def register_utility_routes(app):
             return jsonify({
                 "status": "error",
                 "message": "Referral test failed",
+                "error": str(e)
+            }), 500
+
+    # ===== НОВІ ДІАГНОСТИЧНІ ЕНДПОІНТИ =====
+
+    @app.route('/api/diagnose/user-data/<telegram_id>')
+    def diagnose_user_data(telegram_id):
+        """Діагностичний ендпоінт для перевірки формату даних користувача"""
+        try:
+            from users.controllers import diagnose_user_data_format
+            result = diagnose_user_data_format(telegram_id)
+            return jsonify({"status": "success", "data": result})
+        except Exception as e:
+            logger.error(f"Diagnose user data error: {str(e)}")
+            return jsonify({"status": "error", "error": str(e)}), 500
+
+    @app.route('/api/test/user-creation-detailed')
+    def test_user_creation_detailed():
+        """Детальний тест створення користувача з діагностикою"""
+        try:
+            test_user_id = "test_detailed_" + str(int(time.time()))
+
+            logger.info(f"Starting detailed user creation test with ID: {test_user_id}")
+
+            # Імпортуємо функції
+            from users.controllers import create_user_profile, diagnose_user_data_format
+
+            # Спочатку перевіряємо, чи користувач не існує
+            logger.info("Checking if user exists before creation...")
+            existing_check = diagnose_user_data_format(test_user_id)
+
+            # Спробуємо створити користувача
+            logger.info("Creating new user...")
+            result = create_user_profile(test_user_id, "Test User Detailed", None)
+            logger.info(f"Creation result: {result}")
+
+            # Діагностуємо результат
+            final_check = None
+            if result and result.get('status') == 'success':
+                logger.info("Diagnosing final state...")
+                final_check = diagnose_user_data_format(test_user_id)
+
+            # Очищаємо тестового користувача
+            try:
+                if result and result.get('status') == 'success':
+                    logger.info("Cleaning up test user...")
+                    supabase.table("winix").delete().eq("telegram_id", test_user_id).execute()
+                    logger.info("Test user cleaned up successfully")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup test user: {str(cleanup_error)}")
+
+            return jsonify({
+                "status": "success",
+                "test_user_id": test_user_id,
+                "existing_check": existing_check,
+                "creation_result": result,
+                "final_check": final_check,
+                "cleanup_performed": True
+            })
+        except Exception as e:
+            logger.error(f"Detailed user creation test failed: {str(e)}", exc_info=True)
+            return jsonify({
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc() if os.getenv("DEBUG") == "true" else None
+            }), 500
+
+    @app.route('/api/diagnose/supabase-response-format')
+    def diagnose_supabase_response_format():
+        """Діагностичний ендпоінт для аналізу формату відповідей Supabase"""
+        try:
+            if not supabase:
+                return jsonify({
+                    "status": "error",
+                    "message": "Supabase client not initialized"
+                }), 500
+
+            # Тестовий запит для перевірки формату
+            logger.info("Testing Supabase response format...")
+
+            # Пробуємо зробити простий select запит
+            try:
+                res = supabase.table("winix").select("telegram_id,username,balance").limit(1).execute()
+
+                response_info = {
+                    "response_type": str(type(res)),
+                    "has_data_attr": hasattr(res, 'data'),
+                    "has_error_attr": hasattr(res, 'error'),
+                    "data_type": str(type(res.data)) if hasattr(res, 'data') else None,
+                    "data_is_list": isinstance(res.data, list) if hasattr(res, 'data') else False,
+                    "data_length": len(res.data) if hasattr(res, 'data') and res.data else 0
+                }
+
+                # Аналізуємо перший елемент, якщо є дані
+                if hasattr(res, 'data') and res.data and len(res.data) > 0:
+                    first_item = res.data[0]
+                    response_info.update({
+                        "first_item_type": str(type(first_item)),
+                        "first_item_is_dict": isinstance(first_item, dict),
+                        "first_item_is_tuple": isinstance(first_item, tuple),
+                        "first_item_is_list": isinstance(first_item, list),
+                        "first_item_keys": list(first_item.keys()) if isinstance(first_item, dict) else None,
+                        "first_item_length": len(first_item) if hasattr(first_item, '__len__') else None,
+                        "first_item_sample": str(first_item)[:200] + "..." if len(str(first_item)) > 200 else str(first_item)
+                    })
+
+                return jsonify({
+                    "status": "success",
+                    "supabase_response_analysis": response_info,
+                    "recommendation": "dict" if response_info.get("first_item_is_dict") else "tuple conversion needed"
+                })
+
+            except Exception as query_error:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Query error: {str(query_error)}",
+                    "error_type": str(type(query_error))
+                }), 500
+
+        except Exception as e:
+            logger.error(f"Supabase response format diagnosis error: {str(e)}")
+            return jsonify({
+                "status": "error",
                 "error": str(e)
             }), 500
 
