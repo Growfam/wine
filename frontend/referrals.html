@@ -615,11 +615,11 @@ async function safeInitReferralModules() {
         }
 
         // Додаємо глобальні функції для налагодження
-        window.debugReferrals = {
-            fetchLevelRewards: fetchLevelRewardsModule.fetchLevelRewards,
-            mainModule: mainModule,
-            integration: integration,
-            adapter: adapter
+       window.debugReferrals = {
+    fetchLevelRewardsModule: fetchLevelRewardsModule,
+    mainModule: mainModule,
+    integration: integration,
+    adapter: adapter
         };
         console.log("🔍 [MAIN] Налагоджувальні функції додано в window.debugReferrals");
         console.log("✅ [MAIN] Повне завантаження завершено успішно!");
