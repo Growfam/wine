@@ -519,6 +519,23 @@
         Посилання скопійовано!
     </div>
 
+    <style>
+        .toast-message.warning {
+            background-color: #ff9800;
+            color: white;
+        }
+
+        .toast-message.error {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .toast-message.success {
+            background-color: #4caf50;
+            color: white;
+        }
+    </style>
+
     <!-- Основні скрипти -->
     <script src="js/telegram-web-app.js"></script>
 
@@ -577,55 +594,40 @@
                 console.log("🕐 [MAIN] Час:", new Date().toLocaleTimeString());
 
                 // Перевіряємо чи всі модулі завантажені
-                if (!window.ReferralConstants) {
-                    throw new Error("ReferralConstants не завантажено");
-                }
-                if (!window.ReferralUtils) {
-                    throw new Error("ReferralUtils не завантажено");
-                }
-                if (!window.ReferralServices) {
-                    throw new Error("ReferralServices не завантажено");
-                }
-                if (!window.ReferralAPI) {
-                    throw new Error("ReferralAPI не завантажено");
-                }
-                if (!window.ReferralStore) {
-                    throw new Error("ReferralStore не завантажено");
-                }
-                if (!window.initReferralSystem) {
-                    throw new Error("initReferralSystem функція не знайдена");
+                const missingModules = [];
+                if (!window.ReferralConstants) missingModules.push("ReferralConstants");
+                if (!window.ReferralUtils) missingModules.push("ReferralUtils");
+                if (!window.ReferralServices) missingModules.push("ReferralServices");
+                if (!window.ReferralAPI) missingModules.push("ReferralAPI");
+                if (!window.ReferralStore) missingModules.push("ReferralStore");
+                if (!window.initReferralSystem) missingModules.push("initReferralSystem");
+
+                if (missingModules.length > 0) {
+                    console.warn("⚠️ [MAIN] Деякі модулі недоступні:", missingModules);
+
+                    // Спробуємо ініціалізувати базову функціональність без повної реферальної системи
+                    initBasicReferralFunctionality();
+                    return;
                 }
 
                 console.log("✅ [MAIN] Усі модулі завантажено успішно");
 
-                // Запускаємо ініціалізацію реферальної системи
-                window.initReferralSystem()
-                    .then(function(integration) {
-                        console.log("🎉 [MAIN] Реферальна система успішно ініціалізована!");
-
-                        // Додаємо глобальні функції для налагодження
-                        window.debugReferrals = {
-                            integration: integration,
-                            constants: window.ReferralConstants,
-                            utils: window.ReferralUtils,
-                            services: window.ReferralServices,
-                            api: window.ReferralAPI,
-                            store: window.ReferralStore
-                        };
-                        console.log("🔍 [MAIN] Налагоджувальні функції додано в window.debugReferrals");
-                    })
-                    .catch(function(error) {
-                        console.error("❌ [MAIN] Помилка ініціалізації реферальної системи:", error);
-                        // Показуємо користувачу повідомлення про помилку
-                        const toast = document.getElementById('copy-toast');
-                        if (toast) {
-                            toast.textContent = 'Помилка завантаження реферальної системи';
-                            toast.classList.add('show', 'error');
-                            setTimeout(function() {
-                                toast.classList.remove('show', 'error');
-                            }, 5000);
-                        }
-                    });
+                // Перевіряємо наявність API
+                if (window.ReferralAPI && window.ReferralAPI.checkAPIHealth) {
+                    window.ReferralAPI.checkAPIHealth()
+                        .then(function(isHealthy) {
+                            if (!isHealthy) {
+                                console.warn("⚠️ [MAIN] API недоступний, використовуємо demo режим");
+                            }
+                            startReferralSystem();
+                        })
+                        .catch(function() {
+                            console.warn("⚠️ [MAIN] Не вдалося перевірити API, продовжуємо ініціалізацію");
+                            startReferralSystem();
+                        });
+                } else {
+                    startReferralSystem();
+                }
 
             } catch (error) {
                 console.error("❌ [MAIN] КРИТИЧНА ПОМИЛКА завантаження:", error);
@@ -647,16 +649,91 @@
                 console.log("initReferralSystem:", !!window.initReferralSystem);
                 console.groupEnd();
 
-                // Показуємо користувачу повідомлення про помилку
-                const toast = document.getElementById('copy-toast');
-                if (toast) {
-                    toast.textContent = 'Помилка завантаження реферальної системи';
-                    toast.classList.add('show', 'error');
-                    setTimeout(function() {
-                        toast.classList.remove('show', 'error');
-                    }, 5000);
-                }
+                // Ініціалізуємо мінімальну функціональність
+                initBasicReferralFunctionality();
             }
+        }
+
+        function startReferralSystem() {
+            // Запускаємо ініціалізацію реферальної системи
+            window.initReferralSystem()
+                .then(function(integration) {
+                    console.log("🎉 [MAIN] Реферальна система успішно ініціалізована!");
+
+                    // Додаємо глобальні функції для налагодження
+                    window.debugReferrals = {
+                        integration: integration,
+                        constants: window.ReferralConstants,
+                        utils: window.ReferralUtils,
+                        services: window.ReferralServices,
+                        api: window.ReferralAPI,
+                        store: window.ReferralStore
+                    };
+                    console.log("🔍 [MAIN] Налагоджувальні функції додано в window.debugReferrals");
+                })
+                .catch(function(error) {
+                    console.error("❌ [MAIN] Помилка ініціалізації реферальної системи:", error);
+
+                    // Спробуємо ініціалізувати базову функціональність
+                    initBasicReferralFunctionality();
+
+                    // Показуємо користувачу повідомлення про демо режим
+                    const toast = document.getElementById('copy-toast');
+                    if (toast) {
+                        toast.textContent = 'Демо режим: обмежена функціональність';
+                        toast.classList.add('show', 'warning');
+                        setTimeout(function() {
+                            toast.classList.remove('show', 'warning');
+                        }, 5000);
+                    }
+                });
+        }
+
+        function initBasicReferralFunctionality() {
+            console.log("🔧 [MAIN] Ініціалізація базової функціональності...");
+
+            // Встановлюємо базові значення
+            const userId = getUserId();
+            if (userId) {
+                document.querySelector('.user-id-value').textContent = userId;
+                document.querySelector('.link-display').textContent = 'Winix/referral/' + userId;
+            }
+
+            // Встановлюємо базові числа для бейджів
+            document.querySelector('.bronze-threshold').textContent = '25';
+            document.querySelector('.silver-threshold').textContent = '50';
+            document.querySelector('.gold-threshold').textContent = '100';
+            document.querySelector('.platinum-threshold').textContent = '500';
+
+            document.querySelector('.bronze-reward').textContent = '2500';
+            document.querySelector('.silver-reward').textContent = '5000';
+            document.querySelector('.gold-reward').textContent = '10000';
+            document.querySelector('.platinum-reward').textContent = '20000';
+
+            // Встановлюємо початкові значення статистики
+            document.querySelector('#earned-badges-count').textContent = '0';
+            document.querySelector('#remaining-badges-count').textContent = '4';
+            document.querySelector('#active-referrals-count').textContent = '0';
+            document.querySelector('#inactive-referrals-count').textContent = '0';
+            document.querySelector('#conversion-rate').textContent = '0%';
+
+            console.log("✅ [MAIN] Базова функціональність ініціалізована");
+        }
+
+        function getUserId() {
+            // Спочатку пробуємо з Telegram
+            if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+                return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+            }
+
+            // Потім з localStorage
+            const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
+            if (storedId) {
+                return storedId;
+            }
+
+            // Якщо нічого немає, використовуємо тестовий ID
+            return 'demo_user_123';
         }
 
         // Запускаємо ініціалізацію після завантаження DOM
