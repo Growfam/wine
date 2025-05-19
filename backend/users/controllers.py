@@ -30,7 +30,7 @@ try:
     # Імпорт клієнта Supabase та утиліт
     from supabase_client import (
         get_user, create_user, update_user, update_balance, update_coins,
-        check_and_update_badges, cache_get, cache_set, supabase
+        check_and_update_badges, cache_get, cache_set, supabase, invalidate_cache_for_entity
     )
 except ImportError as e:
     logger.critical(f"Критична помилка імпорту: {str(e)}")
@@ -157,7 +157,7 @@ def get_user_info(telegram_id):
 @handle_exceptions
 def create_new_user(telegram_id, username, referrer_id=None):
     """
-    Створення нового користувача.
+    Створення нового користувача з автоматичною реєстрацією реферального зв'язку.
 
     Args:
         telegram_id (str): Telegram ID користувача
@@ -172,17 +172,50 @@ def create_new_user(telegram_id, username, referrer_id=None):
     # Перевіряємо, чи вже існує користувач
     existing_user = get_user(telegram_id)
     if existing_user:
-        logger.info(f"Користувач з ID {telegram_id} вже існує")
+        logger.info(f"create_new_user: Користувач з ID {telegram_id} вже існує")
         return existing_user
 
     # Створюємо нового користувача через функцію з supabase_client
+    # Тепер функція create_user автоматично обробляє реферальний зв'язок
     user = create_user(telegram_id, username, referrer_id)
 
     if not user:
-        logger.error(f"Помилка створення користувача з ID {telegram_id}")
+        logger.error(f"create_new_user: Помилка створення користувача з ID {telegram_id}")
         raise ValueError(f"Не вдалося створити користувача з ID {telegram_id}")
 
-    logger.info(f"Успішно створено нового користувача з ID {telegram_id}")
+    # Перевіряємо та оновлюємо бейджі
+    try:
+        check_and_update_badges(telegram_id)
+    except Exception as e:
+        logger.warning(f"create_new_user: Помилка оновлення бейджів: {str(e)}")
+
+    # Якщо є реферер, додатково логуємо це та інвалідуємо його кеш
+    if referrer_id:
+        logger.info(f"create_new_user: Користувач {telegram_id} створений з реферером {referrer_id}")
+
+        # Інвалідуємо кеш для реферера (щоб оновити його статистику)
+        try:
+            invalidate_cache_for_entity(referrer_id)
+            logger.info(f"create_new_user: Кеш реферера {referrer_id} інвалідовано")
+        except Exception as e:
+            logger.warning(f"create_new_user: Помилка інвалідації кешу: {str(e)}")
+
+        # Додатково перевіряємо, чи успішно створився реферальний зв'язок
+        try:
+            # Імпортуємо модель для перевірки
+            from models.referral import Referral
+            verification_referral = Referral.query.filter_by(referee_id=telegram_id).first()
+
+            if verification_referral:
+                logger.info(f"create_new_user: ✅ Підтверджено створення реферального зв'язку: {referrer_id} -> {telegram_id}")
+            else:
+                logger.warning(f"create_new_user: ⚠️ Реферальний зв'язок не знайдено в БД після створення")
+        except ImportError as e:
+            logger.warning(f"create_new_user: Не вдалося імпортувати модель Referral для перевірки: {str(e)}")
+        except Exception as e:
+            logger.warning(f"create_new_user: Помилка перевірки реферального зв'язку: {str(e)}")
+
+    logger.info(f"create_new_user: Успішно створено нового користувача з ID {telegram_id}")
     return user
 
 
@@ -220,6 +253,32 @@ def get_user_profile(telegram_id):
     except Exception as e:
         logger.warning(f"Помилка отримання даних стейкінгу: {str(e)}")
 
+    # Отримання даних реферальної системи
+    referral_data = None
+    try:
+        # Спробуємо отримати базову статистику рефералів
+        from referrals.controllers.referral_controller import ReferralController
+        from referrals.controllers.earnings_controller import EarningsController
+
+        # Отримуємо структуру рефералів
+        referral_structure = ReferralController.get_referral_structure(telegram_id)
+        if referral_structure.get('success'):
+            referral_data = {
+                'total_referrals': referral_structure['statistics']['totalReferrals'],
+                'level1_count': referral_structure['statistics']['level1Count'],
+                'level2_count': referral_structure['statistics']['level2Count'],
+                'active_referrals': referral_structure['statistics']['activeReferrals']
+            }
+
+            # Додаємо загальні заробітки від рефералів
+            earnings_summary = EarningsController.get_earnings_summary(telegram_id)
+            if earnings_summary.get('success'):
+                referral_data['total_earnings'] = earnings_summary['total_earnings']['total']
+    except ImportError:
+        logger.debug("Модулі реферальної системи не доступні")
+    except Exception as e:
+        logger.warning(f"Помилка отримання даних реферальної системи: {str(e)}")
+
     # Формування даних профілю
     user_data = {
         "telegram_id": user["telegram_id"],
@@ -227,6 +286,7 @@ def get_user_profile(telegram_id):
         "balance": float(user.get("balance", 0)),
         "coins": int(user.get("coins", 0)),
         "staking_data": staking_data,
+        "referral_data": referral_data,
         "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
         "participations_count": user.get("participations_count", 0),
         "wins_count": user.get("wins_count", 0),
@@ -238,7 +298,10 @@ def get_user_profile(telegram_id):
         "badges": {
             "winner_completed": user.get("badge_winner", False),
             "beginner_completed": user.get("badge_beginner", False),
-            "rich_completed": user.get("badge_rich", False)
+            "rich_completed": user.get("badge_rich", False),
+            "winner_reward_claimed": user.get("badge_winner_reward_claimed", False),
+            "beginner_reward_claimed": user.get("badge_beginner_reward_claimed", False),
+            "rich_reward_claimed": user.get("badge_rich_reward_claimed", False)
         }
     }
 
@@ -295,11 +358,15 @@ def get_user_init_data(telegram_id):
         "badges": {
             "winner_completed": user.get("badge_winner", False),
             "beginner_completed": user.get("badge_beginner", False),
-            "rich_completed": user.get("badge_rich", False)
+            "rich_completed": user.get("badge_rich", False),
+            "winner_reward_claimed": user.get("badge_winner_reward_claimed", False),
+            "beginner_reward_claimed": user.get("badge_beginner_reward_claimed", False),
+            "rich_reward_claimed": user.get("badge_rich_reward_claimed", False)
         },
 
         # Дані про бонуси
-        "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False)
+        "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
+        "page1_completed": user.get("page1_completed", False)
     }
 
     # Отримуємо дані стейкінгу
@@ -311,6 +378,33 @@ def get_user_init_data(telegram_id):
     except Exception as e:
         logger.debug(f"Помилка отримання даних стейкінгу: {str(e)}")
         init_data["staking_data"] = None
+
+    # Отримуємо базові дані реферальної системи
+    try:
+        from referrals.controllers.referral_controller import ReferralController
+        referral_structure = ReferralController.get_referral_structure(telegram_id)
+        if referral_structure.get('success'):
+            init_data["referral_data"] = {
+                'total_referrals': referral_structure['statistics']['totalReferrals'],
+                'level1_count': referral_structure['statistics']['level1Count'],
+                'level2_count': referral_structure['statistics']['level2Count'],
+                'active_referrals': referral_structure['statistics']['activeReferrals']
+            }
+        else:
+            init_data["referral_data"] = {
+                'total_referrals': 0,
+                'level1_count': 0,
+                'level2_count': 0,
+                'active_referrals': 0
+            }
+    except Exception as e:
+        logger.debug(f"Помилка отримання даних реферальної системи: {str(e)}")
+        init_data["referral_data"] = {
+            'total_referrals': 0,
+            'level1_count': 0,
+            'level2_count': 0,
+            'active_referrals': 0
+        }
 
     # Збираємо кількість активних розіграшів (для інформації)
     try:
