@@ -1,4 +1,4 @@
-// api.js - Виправлена версія з обробкою помилок
+// api.js - Виправлена версія без mock даних
 /**
  * API функції для реферальної системи
  */
@@ -66,60 +66,7 @@ window.ReferralAPI = (function() {
       });
   }
 
-  // Функція для створення mock даних коли API недоступний
-  function createMockResponse(type, data) {
-    console.warn('[REFERRAL_API] Використовуємо mock дані для:', type);
-
-    switch (type) {
-      case 'badges':
-        return Promise.resolve({
-          success: true,
-          earnedBadges: [],
-          availableBadges: ['BRONZE'],
-          badgesProgress: [
-            { type: 'BRONZE', threshold: 25, progress: 0, isEligible: false },
-            { type: 'SILVER', threshold: 50, progress: 0, isEligible: false },
-            { type: 'GOLD', threshold: 100, progress: 0, isEligible: false },
-            { type: 'PLATINUM', threshold: 500, progress: 0, isEligible: false }
-          ],
-          totalBadgesCount: 4,
-          earnedBadgesReward: 0,
-          availableBadgesReward: 0
-        });
-
-      case 'stats':
-        return Promise.resolve({
-          success: true,
-          statistics: {
-            totalReferralsCount: 0,
-            activeReferralsCount: 0,
-            level1Count: 0,
-            level2Count: 0
-          }
-        });
-
-      case 'link':
-        return Promise.resolve({
-          success: true,
-          referral_link: 'Winix/referral/' + (data || 'demo_user')
-        });
-
-      case 'history':
-        return Promise.resolve({
-          success: true,
-          history: [],
-          totalBonus: 0
-        });
-
-      default:
-        return Promise.resolve({
-          success: true,
-          message: 'Mock відповідь для ' + type
-        });
-    }
-  }
-
-  // Основні API функції з fallback логікою
+  // Основні API функції
 
   // fetchBadges.js
   function fetchUserBadges(userId) {
@@ -127,11 +74,13 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про бейджі'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/badges/' + userId)
-      .catch(function(error) {
-        console.warn('Помилка отримання даних про бейджі:', error.message);
-        return createMockResponse('badges');
-      });
+    // Переконуємося що userId це число
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/badges/' + numericUserId);
   }
 
   function checkBadges(userId) {
@@ -139,12 +88,13 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для перевірки бейджів'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/badges/check/' + userId, {
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/badges/check/' + numericUserId, {
       method: 'POST'
-    })
-    .catch(function(error) {
-      console.warn('Помилка перевірки бейджів:', error.message);
-      return createMockResponse('badges');
     });
   }
 
@@ -153,10 +103,15 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача та тип бейджа обов\'язкові для отримання винагороди'));
     }
 
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
     return apiRequest(API_CONFIG.baseUrl + '/badges/claim', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: userId,
+        user_id: numericUserId,
         badge_type: badgeType
       })
     })
@@ -171,59 +126,50 @@ window.ReferralAPI = (function() {
         }
       }
       return data;
-    })
-    .catch(function(error) {
-      console.warn('Помилка отримання винагороди за бейдж:', error.message);
-      // Повертаємо помилку, але не mock дані для цієї операції
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
   // fetchReferralStats.js
   function fetchReferralStats(userId) {
     if (!userId) {
-      return Promise.reject(new Error('User ID is required for fetching referral statistics'));
+      return Promise.reject(new Error('ID користувача обов\'язковий для отримання статистики рефералів'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + userId)
-      .catch(function(error) {
-        console.warn('Помилка отримання статистики рефералів:', error.message);
-        return createMockResponse('stats');
-      });
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/stats/' + numericUserId);
   }
 
   function fetchReferralDetails(referralId) {
     if (!referralId) {
-      return Promise.reject(new Error('Referral ID is required'));
+      return Promise.reject(new Error('ID реферала обов\'язковий'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + referralId)
-      .catch(function(error) {
-        console.warn('Помилка отримання деталей реферала:', error.message);
-        return {
-          success: false,
-          error: error.message
-        };
-      });
+    const numericReferralId = parseInt(referralId);
+    if (isNaN(numericReferralId)) {
+      return Promise.reject(new Error('ID реферала повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/details/' + numericReferralId);
   }
 
   // fetchReferralLink.js
   function fetchReferralLink(userId) {
     if (!userId) {
-      return Promise.reject(new Error('User ID is required for fetching referral link'));
+      return Promise.reject(new Error('ID користувача обов\'язковий для отримання реферального посилання'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + userId)
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
       .then(function(data) {
-        return data.referral_link || userId.toString();
-      })
-      .catch(function(error) {
-        console.warn('Помилка отримання реферального посилання:', error.message);
-        // Повертаємо fallback посилання
-        return 'Winix/referral/' + userId;
+        return data.referral_link || numericUserId.toString();
       });
   }
 
@@ -234,18 +180,14 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про заробітки'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/' + userId, {
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/' + numericUserId, {
       method: 'POST',
       body: JSON.stringify(options)
-    })
-    .catch(function(error) {
-      console.warn('Помилка отримання даних про заробітки:', error.message);
-      return {
-        success: true,
-        level1Earnings: [],
-        level2Earnings: [],
-        totalEarnings: 0
-      };
     });
   }
 
@@ -255,7 +197,12 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID реферала обов\'язковий для отримання детальних даних'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/earnings/detailed/' + referralId;
+    const numericReferralId = parseInt(referralId);
+    if (isNaN(numericReferralId)) {
+      return Promise.reject(new Error('ID реферала повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/earnings/detailed/' + numericReferralId;
     if (options.startDate || options.endDate) {
       const params = new URLSearchParams();
       if (options.startDate) params.append('startDate', options.startDate);
@@ -263,15 +210,7 @@ window.ReferralAPI = (function() {
       url += '?' + params.toString();
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання детальних даних про заробітки:', error.message);
-        return {
-          success: true,
-          earnings: [],
-          totalEarnings: 0
-        };
-      });
+    return apiRequest(url);
   }
 
   function fetchEarningsSummary(userId) {
@@ -279,16 +218,12 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання зведених даних'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/summary/' + userId)
-      .catch(function(error) {
-        console.warn('Помилка отримання зведених даних про заробітки:', error.message);
-        return {
-          success: true,
-          totalEarnings: 0,
-          level1Earnings: 0,
-          level2Earnings: 0
-        };
-      });
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/earnings/summary/' + numericUserId);
   }
 
   // fetchReferralActivity.js
@@ -298,17 +233,14 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про активність'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/' + userId, {
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/' + numericUserId, {
       method: 'POST',
       body: JSON.stringify(options)
-    })
-    .catch(function(error) {
-      console.warn('Помилка отримання даних про активність рефералів:', error.message);
-      return {
-        success: true,
-        activities: [],
-        totalActivities: 0
-      };
     });
   }
 
@@ -318,7 +250,12 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID реферала обов\'язковий для отримання детальних даних'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/activity/detailed/' + referralId;
+    const numericReferralId = parseInt(referralId);
+    if (isNaN(numericReferralId)) {
+      return Promise.reject(new Error('ID реферала повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/activity/detailed/' + numericReferralId;
     if (options.startDate || options.endDate) {
       const params = new URLSearchParams();
       if (options.startDate) params.append('startDate', options.startDate);
@@ -326,15 +263,7 @@ window.ReferralAPI = (function() {
       url += '?' + params.toString();
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання детальних даних про активність:', error.message);
-        return {
-          success: true,
-          activities: [],
-          totalActivities: 0
-        };
-      });
+    return apiRequest(url);
   }
 
   function fetchActivitySummary(userId) {
@@ -342,17 +271,12 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про активність'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/summary/' + userId)
-      .catch(function(error) {
-        console.warn('Помилка отримання зведених даних про активність:', error.message);
-        return {
-          success: true,
-          summary: {
-            totalActivities: 0,
-            activeReferrals: 0
-          }
-        };
-      });
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/summary/' + numericUserId);
   }
 
   function updateReferralActivity(userId, drawsParticipation, invitedReferrals) {
@@ -360,20 +284,18 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для оновлення активності'));
     }
 
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
     return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/update', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: userId,
+        user_id: numericUserId,
         draws_participation: drawsParticipation,
         invited_referrals: invitedReferrals
       })
-    })
-    .catch(function(error) {
-      console.warn('Помилка оновлення даних про активність:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
@@ -382,19 +304,18 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача та адміністратора обов\'язкові для ручної активації'));
     }
 
+    const numericUserId = parseInt(userId);
+    const numericAdminId = parseInt(adminId);
+    if (isNaN(numericUserId) || isNaN(numericAdminId)) {
+      return Promise.reject(new Error('ID користувача та адміністратора повинні бути числами'));
+    }
+
     return apiRequest(API_CONFIG.baseUrl + '/referrals/activity/activate', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: userId,
-        admin_id: adminId
+        user_id: numericUserId,
+        admin_id: numericAdminId
       })
-    })
-    .catch(function(error) {
-      console.warn('Помилка ручної активації реферала:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
@@ -404,16 +325,12 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання даних про завдання'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/tasks/' + userId)
-      .catch(function(error) {
-        console.warn('Помилка отримання даних про завдання:', error.message);
-        return {
-          success: true,
-          tasks: [],
-          completedTasks: [],
-          tasksProgress: {}
-        };
-      });
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/tasks/' + numericUserId);
   }
 
   function updateTasks(userId) {
@@ -421,15 +338,13 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача обов\'язковий для оновлення завдань'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/tasks/update/' + userId, {
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/tasks/update/' + numericUserId, {
       method: 'POST'
-    })
-    .catch(function(error) {
-      console.warn('Помилка оновлення завдань:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
@@ -438,10 +353,15 @@ window.ReferralAPI = (function() {
       return Promise.reject(new Error('ID користувача та тип завдання обов\'язкові для отримання винагороди'));
     }
 
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
     return apiRequest(API_CONFIG.baseUrl + '/tasks/claim', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: userId,
+        user_id: numericUserId,
         task_type: taskType
       })
     })
@@ -456,58 +376,52 @@ window.ReferralAPI = (function() {
         }
       }
       return data;
-    })
-    .catch(function(error) {
-      console.warn('Помилка отримання винагороди за завдання:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
   // registerReferral.js
   function registerReferral(referrerId, userId) {
     if (!referrerId) {
-      return Promise.reject(new Error('Referrer ID is required'));
+      return Promise.reject(new Error('ID реферера обов\'язковий'));
     }
 
     if (!userId) {
-      return Promise.reject(new Error('User ID is required'));
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
     }
 
-    if (referrerId === userId) {
-      return Promise.reject(new Error('User cannot refer themselves'));
+    const numericReferrerId = parseInt(referrerId);
+    const numericUserId = parseInt(userId);
+
+    if (isNaN(numericReferrerId) || isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID реферера та користувача повинні бути числами'));
+    }
+
+    if (numericReferrerId === numericUserId) {
+      return Promise.reject(new Error('Користувач не може запросити себе'));
     }
 
     return apiRequest(API_CONFIG.baseUrl + '/referrals/register', {
       method: 'POST',
       body: JSON.stringify({
-        referrer_id: referrerId,
-        referee_id: userId
+        referrer_id: numericReferrerId,
+        referee_id: numericUserId
       })
-    })
-    .catch(function(error) {
-      console.warn('Помилка реєстрації реферала:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     });
   }
 
   function checkIfReferral(userId) {
     if (!userId) {
-      return Promise.reject(new Error('User ID is required'));
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
     }
 
-    return fetchReferralStats(userId)
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    return fetchReferralStats(numericUserId)
       .then(function(data) {
         return !!(data && data.referrals);
-      })
-      .catch(function(error) {
-        console.warn('Помилка перевірки статусу реферала:', error.message);
-        return false;
       });
   }
 
@@ -515,10 +429,15 @@ window.ReferralAPI = (function() {
   function fetchReferralHistory(userId, options) {
     options = options || {};
     if (!userId) {
-      return Promise.reject(new Error('userId is required'));
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/history/' + userId;
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/history/' + numericUserId;
 
     const queryParams = new URLSearchParams();
     if (options.startDate) {
@@ -543,45 +462,49 @@ window.ReferralAPI = (function() {
       url += '?' + queryString;
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання історії рефералів:', error.message);
-        return createMockResponse('history');
-      });
+    return apiRequest(url);
   }
 
-  // Додаткові функції з fallback
+  // Додаткові функції
   function fetchReferralDraws(referralId) {
     if (!referralId) {
-      return Promise.reject(new Error('referralId is required'));
+      return Promise.reject(new Error('ID реферала обов\'язковий'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/' + referralId)
-      .catch(function(error) {
-        console.warn('Помилка отримання даних про розіграші:', error.message);
-        return { success: true, draws: [] };
-      });
+    const numericReferralId = parseInt(referralId);
+    if (isNaN(numericReferralId)) {
+      return Promise.reject(new Error('ID реферала повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/' + numericReferralId);
   }
 
   function fetchDrawDetails(referralId, drawId) {
     if (!referralId || !drawId) {
-      return Promise.reject(new Error('referralId and drawId are required'));
+      return Promise.reject(new Error('ID реферала та розіграшу обов\'язкові'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/details/' + referralId + '/' + drawId)
-      .catch(function(error) {
-        console.warn('Помилка отримання деталей розіграшу:', error.message);
-        return { success: true, details: {} };
-      });
+    const numericReferralId = parseInt(referralId);
+    const numericDrawId = parseInt(drawId);
+    if (isNaN(numericReferralId) || isNaN(numericDrawId)) {
+      return Promise.reject(new Error('ID реферала та розіграшу повинні бути числами'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/details/' + numericReferralId + '/' + numericDrawId);
   }
 
   function fetchDrawsParticipationStats(ownerId, options) {
     options = options || {};
     if (!ownerId) {
-      return Promise.reject(new Error('ownerId is required'));
+      return Promise.reject(new Error('ID власника обов\'язковий'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/draws/stats/' + ownerId;
+    const numericOwnerId = parseInt(ownerId);
+    if (isNaN(numericOwnerId)) {
+      return Promise.reject(new Error('ID власника повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/draws/stats/' + numericOwnerId;
     const params = new URLSearchParams();
 
     if (options.startDate) {
@@ -600,49 +523,52 @@ window.ReferralAPI = (function() {
       url += '?' + params.toString();
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання статистики участі в розіграшах:', error.message);
-        return { success: true, stats: {} };
-      });
+    return apiRequest(url);
   }
 
   function fetchTotalDrawsCount(ownerId) {
     if (!ownerId) {
-      return Promise.reject(new Error('ownerId is required'));
+      return Promise.reject(new Error('ID власника обов\'язковий'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/count/' + ownerId)
+    const numericOwnerId = parseInt(ownerId);
+    if (isNaN(numericOwnerId)) {
+      return Promise.reject(new Error('ID власника повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/count/' + numericOwnerId)
       .then(function(data) {
         return data.totalDrawsCount || 0;
-      })
-      .catch(function(error) {
-        console.warn('Помилка отримання загальної кількості розіграшів:', error.message);
-        return 0;
       });
   }
 
   function fetchMostActiveInDraws(ownerId, limit) {
     limit = limit || 10;
     if (!ownerId) {
-      return Promise.reject(new Error('ownerId is required'));
+      return Promise.reject(new Error('ID власника обов\'язковий'));
     }
 
-    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/active/' + ownerId + '?limit=' + limit)
-      .catch(function(error) {
-        console.warn('Помилка отримання найактивніших в розіграшах:', error.message);
-        return { success: true, activeUsers: [] };
-      });
+    const numericOwnerId = parseInt(ownerId);
+    if (isNaN(numericOwnerId)) {
+      return Promise.reject(new Error('ID власника повинен бути числом'));
+    }
+
+    return apiRequest(API_CONFIG.baseUrl + '/referrals/draws/active/' + numericOwnerId + '?limit=' + limit);
   }
 
   // Інші функції історії
   function fetchReferralEventHistory(userId, eventType, options) {
     options = options || {};
     if (!userId || !eventType) {
-      return Promise.reject(new Error('userId and eventType are required'));
+      return Promise.reject(new Error('ID користувача та тип події обов\'язкові'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/history/event/' + userId + '/' + eventType;
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/history/event/' + numericUserId + '/' + eventType;
 
     const queryParams = new URLSearchParams();
     if (options.startDate) {
@@ -664,20 +590,21 @@ window.ReferralAPI = (function() {
       url += '?' + queryString;
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання історії події ' + eventType + ':', error.message);
-        return { success: true, events: [] };
-      });
+    return apiRequest(url);
   }
 
   function fetchReferralActivitySummary(userId, options) {
     options = options || {};
     if (!userId) {
-      return Promise.reject(new Error('userId is required'));
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/history/summary/' + userId;
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/history/summary/' + numericUserId;
 
     const queryParams = new URLSearchParams();
     if (options.startDate) {
@@ -696,21 +623,22 @@ window.ReferralAPI = (function() {
       url += '?' + queryString;
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання зведеної активності рефералів:', error.message);
-        return { success: true, summary: {} };
-      });
+    return apiRequest(url);
   }
 
   function fetchReferralActivityTrend(userId, period, options) {
     period = period || 'monthly';
     options = options || {};
     if (!userId) {
-      return Promise.reject(new Error('userId is required'));
+      return Promise.reject(new Error('ID користувача обов\'язковий'));
     }
 
-    let url = API_CONFIG.baseUrl + '/referrals/history/trend/' + userId + '/' + period;
+    const numericUserId = parseInt(userId);
+    if (isNaN(numericUserId)) {
+      return Promise.reject(new Error('ID користувача повинен бути числом'));
+    }
+
+    let url = API_CONFIG.baseUrl + '/referrals/history/trend/' + numericUserId + '/' + period;
 
     const queryParams = new URLSearchParams();
     if (options.startDate) {
@@ -732,11 +660,7 @@ window.ReferralAPI = (function() {
       url += '?' + queryString;
     }
 
-    return apiRequest(url)
-      .catch(function(error) {
-        console.warn('Помилка отримання тренду активності рефералів:', error.message);
-        return { success: true, trend: [] };
-      });
+    return apiRequest(url);
   }
 
   // Функція для перевірки доступності API
@@ -759,7 +683,6 @@ window.ReferralAPI = (function() {
 
     // Утиліти
     apiRequest: apiRequest,
-    createMockResponse: createMockResponse,
     checkAPIHealth: checkAPIHealth,
 
     // Основні API функції

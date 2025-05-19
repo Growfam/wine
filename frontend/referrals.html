@@ -63,7 +63,7 @@
                 <div class="profile-avatar">W</div>
                 <div class="user-id-container">
                     <div class="user-id-label">Ваш ID</div>
-                    <div class="user-id-value" id="header-user-id"></div>
+                    <div class="user-id-value" id="header-user-id">Loading...</div>
                 </div>
             </div>
             <div class="winix-title">WINIX</div>
@@ -100,7 +100,7 @@
                         <div class="rewards-box" style="flex-direction: column;">
                             <div class="reward-item">
                                 <div style="width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                                    <div class="link-display" style="width: 100%; margin-bottom: 15px;"></div>
+                                    <div class="link-display" style="width: 100%; margin-bottom: 15px;">Завантаження...</div>
                                     <button class="copy-button" style="margin-top: 10px; width: 100%; display: flex; justify-content: center;">
                                         <span class="copy-icon"></span>
                                         <span class="button-text">Копіювати</span>
@@ -145,7 +145,7 @@
                     <div class="bonus-history-container">
                         <h3 class="referral-subtitle">Історія бонусів</h3>
                         <div class="bonus-history-items">
-                            <!-- Динамічне заповнення історії бонусів -->
+                            <p style="color: #888; text-align: center;">Завантаження історії бонусів...</p>
                         </div>
                     </div>
 
@@ -367,7 +367,7 @@
                             <div class="activity-table-col activity-col-status">Статус</div>
                         </div>
                         <div class="activity-table-body" id="activity-table-body">
-                            <!-- Тут будуть динамічно додані рядки таблиці -->
+                            <p style="color: #888; text-align: center; padding: 20px;">Завантаження даних про активність...</p>
                         </div>
                     </div>
 
@@ -410,21 +410,21 @@
                             <!-- Вкладка рефералів 1-го рівня -->
                             <div class="tab-pane active" id="level1-tab">
                                 <div class="referral-list" id="level1-list">
-                                    <!-- Сюди будуть додані елементи рефералів 1-го рівня -->
+                                    <p style="color: #888; text-align: center;">Завантаження рефералів 1-го рівня...</p>
                                 </div>
                             </div>
 
                             <!-- Вкладка рефералів 2-го рівня -->
                             <div class="tab-pane" id="level2-tab">
                                 <div class="referral-list" id="level2-list">
-                                    <!-- Сюди будуть додані елементи рефералів 2-го рівня -->
+                                    <p style="color: #888; text-align: center;">Завантаження рефералів 2-го рівня...</p>
                                 </div>
                             </div>
 
                             <!-- Вкладка ієрархії рефералів -->
                             <div class="tab-pane" id="hierarchy-tab">
                                 <div class="referral-hierarchy" id="referral-hierarchy">
-                                    <!-- Сюди буде додана ієрархія рефералів -->
+                                    <p style="color: #888; text-align: center;">Завантаження ієрархії рефералів...</p>
                                 </div>
                             </div>
                         </div>
@@ -555,8 +555,8 @@
                 console.log("✅ Telegram WebApp успішно ініціалізовано");
 
                 if (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-                    const userId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
-                    localStorage.setItem('telegram_user_id', userId);
+                    const userId = parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
+                    localStorage.setItem('telegram_user_id', userId.toString());
                     console.log("✅ Отримано Telegram ID:", userId);
 
                     // Одразу встановлюємо ID в DOM
@@ -578,7 +578,7 @@
     <script src="js/auth.js"></script>
     <script src="js/core.js"></script>
 
-    <!-- Реферальні модулі - традиційні JS файли -->
+    <!-- Реферальні модулі - виправлені JS файли -->
     <script src="js/referrals/constants.js"></script>
     <script src="js/referrals/utils.js"></script>
     <script src="js/referrals/services.js"></script>
@@ -603,10 +603,8 @@
                 if (!window.initReferralSystem) missingModules.push("initReferralSystem");
 
                 if (missingModules.length > 0) {
-                    console.warn("⚠️ [MAIN] Деякі модулі недоступні:", missingModules);
-
-                    // Спробуємо ініціалізувати базову функціональність без повної реферальної системи
-                    initBasicReferralFunctionality();
+                    console.error("❌ [MAIN] Відсутні модулі:", missingModules);
+                    showErrorToast('Помилка завантаження модулів: ' + missingModules.join(', '));
                     return;
                 }
 
@@ -617,13 +615,14 @@
                     window.ReferralAPI.checkAPIHealth()
                         .then(function(isHealthy) {
                             if (!isHealthy) {
-                                console.warn("⚠️ [MAIN] API недоступний, використовуємо demo режим");
+                                console.warn("⚠️ [MAIN] API недоступний");
+                                showErrorToast('API сервер недоступний. Перевірте підключення.');
                             }
                             startReferralSystem();
                         })
                         .catch(function() {
-                            console.warn("⚠️ [MAIN] Не вдалося перевірити API, продовжуємо ініціалізацію");
-                            startReferralSystem();
+                            console.warn("⚠️ [MAIN] Не вдалося перевірити API");
+                            showErrorToast('Не вдалося підключитися до сервера.');
                         });
                 } else {
                     startReferralSystem();
@@ -631,26 +630,7 @@
 
             } catch (error) {
                 console.error("❌ [MAIN] КРИТИЧНА ПОМИЛКА завантаження:", error);
-                console.error("📁 [MAIN] Файл помилки:", error.fileName || 'невідомий');
-                console.error("📍 [MAIN] Рядок помилки:", error.lineNumber || 'невідомий');
-                console.error("🔗 [MAIN] Повідомлення:", error.message);
-                console.error("📚 [MAIN] Стек:", error.stack);
-
-                // Детальна діагностика
-                console.group("🔍 [MAIN] Діагностика стану:");
-                console.log("DOM готовність:", document.readyState);
-                console.log("Telegram WebApp:", !!window.Telegram?.WebApp);
-                console.log("WinixAuth:", !!window.WinixAuth);
-                console.log("ReferralConstants:", !!window.ReferralConstants);
-                console.log("ReferralUtils:", !!window.ReferralUtils);
-                console.log("ReferralServices:", !!window.ReferralServices);
-                console.log("ReferralAPI:", !!window.ReferralAPI);
-                console.log("ReferralStore:", !!window.ReferralStore);
-                console.log("initReferralSystem:", !!window.initReferralSystem);
-                console.groupEnd();
-
-                // Ініціалізуємо мінімальну функціональність
-                initBasicReferralFunctionality();
+                showErrorToast('Критична помилка ініціалізації');
             }
         }
 
@@ -673,67 +653,40 @@
                 })
                 .catch(function(error) {
                     console.error("❌ [MAIN] Помилка ініціалізації реферальної системи:", error);
-
-                    // Спробуємо ініціалізувати базову функціональність
-                    initBasicReferralFunctionality();
-
-                    // Показуємо користувачу повідомлення про демо режим
-                    const toast = document.getElementById('copy-toast');
-                    if (toast) {
-                        toast.textContent = 'Демо режим: обмежена функціональність';
-                        toast.classList.add('show', 'warning');
-                        setTimeout(function() {
-                            toast.classList.remove('show', 'warning');
-                        }, 5000);
-                    }
+                    showErrorToast('Помилка ініціалізації системи: ' + error.message);
                 });
-        }
-
-        function initBasicReferralFunctionality() {
-            console.log("🔧 [MAIN] Ініціалізація базової функціональності...");
-
-            // Встановлюємо базові значення
-            const userId = getUserId();
-            if (userId) {
-                document.querySelector('.user-id-value').textContent = userId;
-                document.querySelector('.link-display').textContent = 'Winix/referral/' + userId;
-            }
-
-            // Встановлюємо базові числа для бейджів
-            document.querySelector('.bronze-threshold').textContent = '25';
-            document.querySelector('.silver-threshold').textContent = '50';
-            document.querySelector('.gold-threshold').textContent = '100';
-            document.querySelector('.platinum-threshold').textContent = '500';
-
-            document.querySelector('.bronze-reward').textContent = '2500';
-            document.querySelector('.silver-reward').textContent = '5000';
-            document.querySelector('.gold-reward').textContent = '10000';
-            document.querySelector('.platinum-reward').textContent = '20000';
-
-            // Встановлюємо початкові значення статистики
-            document.querySelector('#earned-badges-count').textContent = '0';
-            document.querySelector('#remaining-badges-count').textContent = '4';
-            document.querySelector('#active-referrals-count').textContent = '0';
-            document.querySelector('#inactive-referrals-count').textContent = '0';
-            document.querySelector('#conversion-rate').textContent = '0%';
-
-            console.log("✅ [MAIN] Базова функціональність ініціалізована");
         }
 
         function getUserId() {
             // Спочатку пробуємо з Telegram
             if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
-                return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                return parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
             }
 
             // Потім з localStorage
             const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
             if (storedId) {
-                return storedId;
+                const numericId = parseInt(storedId);
+                if (!isNaN(numericId)) {
+                    return numericId;
+                }
             }
 
-            // Якщо нічого немає, використовуємо тестовий ID
-            return 'demo_user_123';
+            // Демо режим - показуємо попередження
+            console.warn('[MAIN] ID користувача не знайдено');
+            showErrorToast('Не вдалося отримати дані користувача');
+            return null;
+        }
+
+        function showErrorToast(message) {
+            const toast = document.getElementById('copy-toast');
+            if (toast) {
+                toast.textContent = message;
+                toast.classList.add('show', 'error');
+                setTimeout(function() {
+                    toast.classList.remove('show', 'error');
+                }, 5000);
+            }
         }
 
         // Запускаємо ініціалізацію після завантаження DOM
@@ -754,48 +707,58 @@
             if (copyButton) {
                 copyButton.addEventListener('click', function() {
                     const linkText = document.querySelector('.link-display').textContent;
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(linkText)
-                            .then(function() {
-                                showCopyToast('Посилання скопійовано!');
-                                copyButton.classList.add('clicked');
-                                setTimeout(function() {
-                                    copyButton.classList.remove('clicked');
-                                }, 300);
-                            })
-                            .catch(function(err) {
+                    if (linkText && linkText !== 'Завантаження...') {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(linkText)
+                                .then(function() {
+                                    showSuccessToast('Посилання скопійовано!');
+                                    copyButton.classList.add('clicked');
+                                    setTimeout(function() {
+                                        copyButton.classList.remove('clicked');
+                                    }, 300);
+                                })
+                                .catch(function(err) {
+                                    console.error('Помилка при копіюванні:', err);
+                                    showErrorToast('Помилка копіювання');
+                                });
+                        } else {
+                            // Fallback для старих браузерів
+                            try {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = linkText;
+                                document.body.appendChild(textArea);
+                                textArea.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(textArea);
+                                showSuccessToast('Посилання скопійовано!');
+                            } catch (err) {
                                 console.error('Помилка при копіюванні:', err);
-                                showCopyToast('Помилка копіювання', 'error');
-                            });
-                    } else {
-                        // Fallback для старих браузерів
-                        try {
-                            const textArea = document.createElement('textarea');
-                            textArea.value = linkText;
-                            document.body.appendChild(textArea);
-                            textArea.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(textArea);
-                            showCopyToast('Посилання скопійовано!');
-                        } catch (err) {
-                            console.error('Помилка при копіюванні:', err);
-                            showCopyToast('Помилка копіювання', 'error');
+                                showErrorToast('Помилка копіювання');
+                            }
                         }
+                    } else {
+                        showErrorToast('Посилання ще завантажується');
                     }
                 });
                 console.log("✓ Обробник для кнопки копіювання встановлено");
-            } else {
-                console.error("✗ Кнопка копіювання не знайдена");
             }
 
-            function showCopyToast(message, type) {
+            function showSuccessToast(message) {
                 const toast = document.getElementById('copy-toast');
                 if (toast) {
                     toast.textContent = message;
-                    toast.classList.add('show');
-                    if (type === 'error') {
-                        toast.classList.add('error');
-                    }
+                    toast.classList.add('show', 'success');
+                    setTimeout(function() {
+                        toast.classList.remove('show', 'success');
+                    }, 3000);
+                }
+            }
+
+            function showErrorToast(message) {
+                const toast = document.getElementById('copy-toast');
+                if (toast) {
+                    toast.textContent = message;
+                    toast.classList.add('show', 'error');
                     setTimeout(function() {
                         toast.classList.remove('show', 'error');
                     }, 3000);
@@ -830,8 +793,6 @@
                     if (activePane) {
                         activePane.classList.add('active');
                         console.log("✓ Активовано панель:", tabId);
-                    } else {
-                        console.error("✗ Панель не знайдена:", tabId + '-tab');
                     }
                 });
             });
@@ -865,8 +826,6 @@
                     if (activePane) {
                         activePane.classList.add('active');
                         console.log("✓ Активовано головну панель:", tabId);
-                    } else {
-                        console.error("✗ Головна панель не знайдена:", tabId + '-tab');
                     }
                 });
             });
@@ -912,7 +871,7 @@
                             break;
                         default:
                             console.log('Невідома секція:', sectionName);
-                            return; // якщо секція невідома, не перенаправляємо
+                            return;
                     }
 
                     // Перенаправляємо на відповідну сторінку

@@ -1,6 +1,6 @@
-// store.js - Виправлена версія з кращою обробкою помилок
+// store.js - Виправлена версія без fallback на mock дані
 /**
- * Redux-подібний стор для реферальної системи з покращеною обробкою помилок
+ * Redux-подібний стор для реферальної системи з кращою обробкою помилок
  */
 window.ReferralStore = (function() {
   'use strict';
@@ -76,7 +76,7 @@ window.ReferralStore = (function() {
     };
   }
 
-  // Reducers (без змін у структурі, тільки initial states)
+  // Reducers
 
   // ReferralLink Reducer
   const initialReferralLinkState = {
@@ -377,7 +377,7 @@ window.ReferralStore = (function() {
     }
   }
 
-  // Покращені Action Creators з кращою обробкою помилок
+  // Action Creators
 
   // ReferralLink Actions
   function fetchReferralLinkRequest() {
@@ -410,26 +410,18 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch(fetchReferralLinkRequest());
 
-      // Перевіряємо чи доступний ReferralUtils
-      if (!window.ReferralUtils || !window.ReferralUtils.generateReferralLink) {
-        console.warn('[STORE] ReferralUtils недоступний, використовуємо API напряму');
-
-        return window.ReferralAPI.fetchReferralLink(userId)
-          .then(function(link) {
-            const formattedLink = 'Winix/referral/' + link.replace('Winix/referral/', '');
-            dispatch(fetchReferralLinkSuccess(formattedLink));
-            return formattedLink;
-          })
-          .catch(function(error) {
-            dispatch(fetchReferralLinkFailure(error));
-            throw error;
-          });
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        dispatch(fetchReferralLinkFailure(new Error('Некоректний ID користувача')));
+        return Promise.reject(new Error('Некоректний ID користувача'));
       }
 
-      return window.ReferralUtils.generateReferralLink(userId)
+      return window.ReferralAPI.fetchReferralLink(numericUserId)
         .then(function(link) {
-          dispatch(fetchReferralLinkSuccess(link));
-          return link;
+          const formattedLink = 'Winix/referral/' + link.replace('Winix/referral/', '');
+          dispatch(fetchReferralLinkSuccess(formattedLink));
+          return formattedLink;
         })
         .catch(function(error) {
           dispatch(fetchReferralLinkFailure(error));
@@ -489,16 +481,25 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch(registerReferralRequest());
 
-      return window.ReferralAPI.registerReferral(referrerId, userId)
+      // Переконуємося що ID це числа
+      const numericReferrerId = parseInt(referrerId);
+      const numericUserId = parseInt(userId);
+
+      if (isNaN(numericReferrerId) || isNaN(numericUserId)) {
+        const error = new Error('Некоректні ID користувачів');
+        dispatch(registerReferralFailure(error));
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.registerReferral(numericReferrerId, numericUserId)
         .then(function(registrationData) {
-          // Перевіряємо наявність ReferralServices
-          const bonusAmount = window.ReferralServices && window.ReferralServices.calculateDirectBonus
-            ? window.ReferralServices.calculateDirectBonus(1)
-            : (window.ReferralConstants && window.ReferralConstants.DIRECT_BONUS_AMOUNT ? window.ReferralConstants.DIRECT_BONUS_AMOUNT : 50);
+          const bonusAmount = window.ReferralConstants && window.ReferralConstants.DIRECT_BONUS_AMOUNT
+            ? window.ReferralConstants.DIRECT_BONUS_AMOUNT
+            : 50;
 
           const bonusData = {
-            referrerId: referrerId,
-            userId: userId,
+            referrerId: numericReferrerId,
+            userId: numericUserId,
             timestamp: registrationData.timestamp || new Date().toISOString(),
             bonusAmount: bonusAmount,
             type: 'direct_bonus'
@@ -518,43 +519,28 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch(fetchDirectBonusHistoryRequest());
 
-      // Спробуємо спочатку загальний API, потім специфічний endpoint
-      return window.ReferralAPI.fetchReferralHistory(userId, { type: 'direct_bonus' })
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch(fetchDirectBonusHistoryFailure(error));
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.fetchReferralHistory(numericUserId, { type: 'bonus' })
         .then(function(historyData) {
           // Нормалізуємо дані
           const normalizedData = {
             totalBonus: historyData.totalBonus || 0,
-            history: historyData.history || historyData.data || []
+            history: historyData.history || historyData.bonuses || []
           };
 
           dispatch(fetchDirectBonusHistorySuccess(normalizedData));
           return normalizedData;
         })
         .catch(function(error) {
-          // Якщо основний API не працює, спробуємо запасний endpoint
-          return fetch('/api/referrals/direct-bonus/history/' + userId)
-            .then(function(response) {
-              if (!response.ok) {
-                throw new Error('HTTP ' + response.status);
-              }
-              return response.json();
-            })
-            .then(function(historyData) {
-              const normalizedData = {
-                totalBonus: historyData.totalBonus || 0,
-                history: historyData.history || []
-              };
-
-              dispatch(fetchDirectBonusHistorySuccess(normalizedData));
-              return normalizedData;
-            })
-            .catch(function(secondError) {
-              // Якщо обидва запити невдалі, повертаємо порожні дані
-              console.warn('[STORE] Не вдалося завантажити історію бонусів:', secondError.message);
-              const emptyData = { totalBonus: 0, history: [] };
-              dispatch(fetchDirectBonusHistorySuccess(emptyData));
-              return emptyData;
-            });
+          dispatch(fetchDirectBonusHistoryFailure(error));
+          throw error;
         });
     };
   }
@@ -597,7 +583,15 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch(fetchLevelRewardsRequest());
 
-      return window.ReferralAPI.fetchReferralEarnings(userId, options)
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch(fetchLevelRewardsFailure(error));
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.fetchReferralEarnings(numericUserId, options)
         .then(function(data) {
           dispatch(fetchLevelRewardsSuccess(data));
           return data;
@@ -609,24 +603,35 @@ window.ReferralStore = (function() {
     };
   }
 
-  // Badge Actions з покращеною обробкою помилок
+  // Badge Actions
   function fetchUserBadges(userId) {
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.FETCH_BADGES_REQUEST });
 
-      return window.ReferralAPI.fetchUserBadges(userId)
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch({
+          type: BadgeActionTypes.FETCH_BADGES_FAILURE,
+          payload: { error: error.message }
+        });
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.fetchUserBadges(numericUserId)
         .then(function(badgesData) {
-          // Нормалізуємо дані, навіть якщо API повертає неповні дані
+          // Нормалізуємо дані
           const normalizedData = {
-            success: badgesData.success !== false, // success по умолчанню true, якщо не вказано
-            earnedBadges: badgesData.earnedBadges || [],
-            availableBadges: badgesData.availableBadges || [],
-            badgesProgress: badgesData.badgesProgress || [],
-            totalBadgesCount: badgesData.totalBadgesCount || 4,
-            totalAvailableBadgesCount: badgesData.totalAvailableBadgesCount || 0,
-            earnedBadgesReward: badgesData.earnedBadgesReward || 0,
-            availableBadgesReward: badgesData.availableBadgesReward || 0,
-            totalPotentialReward: badgesData.totalPotentialReward || 37500
+            success: badgesData.success !== false,
+            earnedBadges: badgesData.badges || [],
+            availableBadges: badgesData.available_badges || [],
+            badgesProgress: badgesData.badges_progress || [],
+            totalBadgesCount: 4,
+            totalAvailableBadgesCount: (badgesData.available_badges || []).length,
+            earnedBadgesReward: 0,
+            availableBadgesReward: 0,
+            totalPotentialReward: 37500
           };
 
           dispatch({
@@ -641,15 +646,7 @@ window.ReferralStore = (function() {
             type: BadgeActionTypes.FETCH_BADGES_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні бейджів' }
           });
-
-          // Повертаємо базові дані, а не помилку
-          return {
-            success: false,
-            error: error.message,
-            earnedBadges: [],
-            availableBadges: [],
-            badgesProgress: []
-          };
+          throw error;
         });
     };
   }
@@ -658,14 +655,25 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.FETCH_TASKS_REQUEST });
 
-      return window.ReferralAPI.fetchUserTasks(userId)
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch({
+          type: BadgeActionTypes.FETCH_TASKS_FAILURE,
+          payload: { error: error.message }
+        });
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.fetchUserTasks(numericUserId)
         .then(function(tasksData) {
           // Нормалізуємо дані
           const normalizedData = {
             success: tasksData.success !== false,
-            completedTasks: tasksData.completedTasks || [],
-            tasksProgress: tasksData.tasksProgress || {},
-            totalReward: tasksData.totalReward || tasksData.totalTasksReward || 0
+            completedTasks: tasksData.tasks || [],
+            tasksProgress: {},
+            totalReward: 0
           };
 
           dispatch({
@@ -680,13 +688,7 @@ window.ReferralStore = (function() {
             type: BadgeActionTypes.FETCH_TASKS_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні завдань' }
           });
-
-          return {
-            success: false,
-            error: error.message,
-            completedTasks: [],
-            tasksProgress: {}
-          };
+          throw error;
         });
     };
   }
@@ -695,21 +697,32 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.CLAIM_BADGE_REQUEST });
 
-      return window.ReferralAPI.claimBadgeReward(userId, badgeType)
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch({
+          type: BadgeActionTypes.CLAIM_BADGE_FAILURE,
+          payload: { error: error.message }
+        });
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.claimBadgeReward(numericUserId, badgeType)
         .then(function(claimResult) {
           if (claimResult.success !== false) {
             dispatch({
               type: BadgeActionTypes.CLAIM_BADGE_SUCCESS,
               payload: {
                 badgeType: badgeType,
-                badge_type: badgeType, // підтримка обох варіантів
+                badge_type: badgeType,
                 success: true
               }
             });
 
-            // Перезавантажуємо bадже дані після успішного claim
+            // Перезавантажуємо дані про бейджі після успішного claim
             setTimeout(function() {
-              dispatch(fetchUserBadges(userId));
+              dispatch(fetchUserBadges(numericUserId));
             }, 500);
 
             return { success: true, badgeType: badgeType };
@@ -722,8 +735,7 @@ window.ReferralStore = (function() {
             type: BadgeActionTypes.CLAIM_BADGE_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні винагороди за бейдж' }
           });
-
-          return { success: false, error: error.message };
+          throw error;
         });
     };
   }
@@ -732,7 +744,18 @@ window.ReferralStore = (function() {
     return function(dispatch) {
       dispatch({ type: BadgeActionTypes.CLAIM_TASK_REQUEST });
 
-      return window.ReferralAPI.claimTaskReward(userId, taskType)
+      // Переконуємося що userId це число
+      const numericUserId = parseInt(userId);
+      if (isNaN(numericUserId)) {
+        const error = new Error('Некоректний ID користувача');
+        dispatch({
+          type: BadgeActionTypes.CLAIM_TASK_FAILURE,
+          payload: { error: error.message }
+        });
+        return Promise.reject(error);
+      }
+
+      return window.ReferralAPI.claimTaskReward(numericUserId, taskType)
         .then(function(claimResult) {
           if (claimResult.success !== false) {
             dispatch({
@@ -743,9 +766,9 @@ window.ReferralStore = (function() {
               }
             });
 
-            // Перезавантажуємо данних завдань після успішного claim
+            // Перезавантажуємо дані про завдання після успішного claim
             setTimeout(function() {
-              dispatch(fetchUserTasks(userId));
+              dispatch(fetchUserTasks(numericUserId));
             }, 500);
 
             return { success: true, taskType: taskType };
@@ -758,8 +781,7 @@ window.ReferralStore = (function() {
             type: BadgeActionTypes.CLAIM_TASK_FAILURE,
             payload: { error: error.message || 'Невідома помилка при отриманні винагороди за завдання' }
           });
-
-          return { success: false, error: error.message };
+          throw error;
         });
     };
   }
