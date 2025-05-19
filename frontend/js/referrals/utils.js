@@ -1,375 +1,421 @@
-// calculatePercentage.js
-export const calculatePercentage = (amount, rate, round = true) => {
-  if (typeof amount !== 'number' || isNaN(amount)) {
-    throw new Error('Сума повинна бути числом');
-  }
+// utils.js - Традиційна версія без ES6 модулів
+/**
+ * Утиліти для реферальної системи
+ */
+window.ReferralUtils = (function() {
+  'use strict';
 
-  if (typeof rate !== 'number' || isNaN(rate) || rate < 0) {
-    throw new Error('Ставка повинна бути додатнім числом');
-  }
+  // calculatePercentage.js
+  function calculatePercentage(amount, rate, round) {
+    round = round !== false; // default true
 
-  const result = amount * rate;
-  return round ? Math.round(result) : result;
-};
-
-export const formatPercentageResult = (amount, rate, options = {}) => {
-  const {
-    prefix = '',
-    suffix = '',
-    showPercentage = false
-  } = options;
-
-  const calculatedAmount = calculatePercentage(amount, rate);
-
-  const percentageString = showPercentage
-    ? ` (${(rate * 100).toFixed(1)}%)`
-    : '';
-
-  return `${prefix}${calculatedAmount}${suffix}${percentageString}`;
-};
-
-export const calculateMultiplePercentages = (amount, rates) => {
-  if (!Array.isArray(rates)) {
-    throw new Error('Ставки повинні бути передані масивом');
-  }
-
-  return rates.map(rate => calculatePercentage(amount, rate));
-};
-
-// formatReferralUrl.js
-export const formatReferralUrl = (userId) => {
-  if (!userId) {
-    throw new Error('User ID is required for generating referral link');
-  }
-
-  if (typeof userId !== 'string' && typeof userId !== 'number') {
-    throw new Error('User ID must be a string or number');
-  }
-
-  const REFERRAL_URL_PATTERN = 'Winix/referral/{id}';
-  return REFERRAL_URL_PATTERN.replace('{id}', userId);
-};
-
-// formatWinixAmount.js
-export const formatWinixAmount = (amount, options = {}) => {
-  const numAmount = parseFloat(amount);
-  if (isNaN(numAmount)) {
-    console.warn('formatWinixAmount: Invalid amount provided', amount);
-    return '0';
-  }
-
-  const {
-    separator = ' ',
-    decimals = 2,
-    showCurrency = false,
-    currencySymbol = 'winix'
-  } = options;
-
-  const roundedAmount = Number(numAmount.toFixed(decimals));
-  const formatted = roundedAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, separator);
-
-  return showCurrency ? `${formatted} ${currencySymbol}` : formatted;
-};
-
-export const abbreviateWinixAmount = (amount, options = {}) => {
-  const numAmount = parseFloat(amount);
-  if (isNaN(numAmount)) {
-    console.warn('abbreviateWinixAmount: Invalid amount provided', amount);
-    return '0';
-  }
-
-  const {
-    decimals = 1,
-    showCurrency = false,
-    currencySymbol = 'winix'
-  } = options;
-
-  let result;
-  if (numAmount >= 1000000000) {
-    result = (numAmount / 1000000000).toFixed(decimals) + 'B';
-  } else if (numAmount >= 1000000) {
-    result = (numAmount / 1000000).toFixed(decimals) + 'M';
-  } else if (numAmount >= 1000) {
-    result = (numAmount / 1000).toFixed(decimals) + 'K';
-  } else {
-    result = numAmount.toFixed(decimals);
-  }
-
-  result = result.replace(/\.0+([KMBT])?$/, '$1');
-
-  return showCurrency ? `${result} ${currencySymbol}` : result;
-};
-
-export const formatWinixWithTrend = (amount, options = {}) => {
-  const numAmount = parseFloat(amount);
-  if (isNaN(numAmount)) {
-    console.warn('formatWinixWithTrend: Invalid amount provided', amount);
-    return '0';
-  }
-
-  const {
-    showPlus = true,
-    colorize = false,
-    separator = ' ',
-    showCurrency = false
-  } = options;
-
-  const formatted = formatWinixAmount(Math.abs(numAmount), {
-    separator,
-    showCurrency
-  });
-
-  let result;
-  if (numAmount > 0) {
-    result = showPlus ? `+${formatted}` : formatted;
-    if (colorize) {
-      result = `<span class="positive-trend">${result}</span>`;
+    if (typeof amount !== 'number' || isNaN(amount)) {
+      throw new Error('Сума повинна бути числом');
     }
-  } else if (numAmount < 0) {
-    result = `-${formatted}`;
-    if (colorize) {
-      result = `<span class="negative-trend">${result}</span>`;
+
+    if (typeof rate !== 'number' || isNaN(rate) || rate < 0) {
+      throw new Error('Ставка повинна бути додатнім числом');
     }
-  } else {
-    result = formatted;
+
+    const result = amount * rate;
+    return round ? Math.round(result) : result;
   }
 
-  return result;
-};
+  function formatPercentageResult(amount, rate, options) {
+    options = options || {};
+    const prefix = options.prefix || '';
+    const suffix = options.suffix || '';
+    const showPercentage = options.showPercentage || false;
 
-export const formatWinixCompact = (amount, maxLength = 6) => {
-  const numAmount = parseFloat(amount);
-  if (isNaN(numAmount)) {
-    console.warn('formatWinixCompact: Invalid amount provided', amount);
-    return '0';
+    const calculatedAmount = calculatePercentage(amount, rate);
+
+    const percentageString = showPercentage
+      ? ' (' + (rate * 100).toFixed(1) + '%)'
+      : '';
+
+    return prefix + calculatedAmount + suffix + percentageString;
   }
 
-  let formatted = abbreviateWinixAmount(numAmount);
-
-  if (formatted.length > maxLength) {
-    const hasLetter = /[KMBT]$/.test(formatted);
-    if (hasLetter) {
-      const letter = formatted.slice(-1);
-      formatted = parseFloat(formatted).toFixed(0) + letter;
-    } else {
-      formatted = parseFloat(formatted).toFixed(0);
+  function calculateMultiplePercentages(amount, rates) {
+    if (!Array.isArray(rates)) {
+      throw new Error('Ставки повинні бути передані масивом');
     }
-  }
 
-  return formatted;
-};
-
-export const normalizeWinixAmount = (amount) => {
-  if (typeof amount === 'number') {
-    return amount;
-  }
-
-  if (typeof amount !== 'string') {
-    console.warn('normalizeWinixAmount: Invalid amount provided', amount);
-    return 0;
-  }
-
-  const cleaned = amount.replace(/[^\d.-]/g, '');
-  const numAmount = parseFloat(cleaned);
-
-  return isNaN(numAmount) ? 0 : numAmount;
-};
-
-// isActiveReferral.js
-export const isActiveReferral = (referralData, options = {}) => {
-  if (!referralData) {
-    return false;
-  }
-
-  const {
-    drawsParticipation = 0,
-    invitedReferrals = 0,
-    manuallyActivated = false
-  } = referralData;
-
-  const {
-    drawsThreshold = 3, // MIN_DRAWS_PARTICIPATION
-    invitedThreshold = 1, // MIN_INVITED_REFERRALS
-    requireAllCriteria = false
-  } = options;
-
-  if (manuallyActivated) {
-    return true;
-  }
-
-  const meetsDrawsCriteria = drawsParticipation >= drawsThreshold;
-  const meetsInvitedCriteria = invitedReferrals >= invitedThreshold;
-
-  if (requireAllCriteria) {
-    return meetsDrawsCriteria && meetsInvitedCriteria;
-  } else {
-    return meetsDrawsCriteria || meetsInvitedCriteria;
-  }
-};
-
-export const getDetailedActivityStatus = (referralData, options = {}) => {
-  if (!referralData) {
-    return {
-      isActive: false,
-      drawsParticipation: 0,
-      invitedReferrals: 0,
-      meetsDrawsCriteria: false,
-      meetsInvitedCriteria: false,
-      manuallyActivated: false,
-      reasonForActivity: null
-    };
-  }
-
-  const {
-    drawsParticipation = 0,
-    invitedReferrals = 0,
-    manuallyActivated = false
-  } = referralData;
-
-  const {
-    drawsThreshold = 3, // MIN_DRAWS_PARTICIPATION
-    invitedThreshold = 1 // MIN_INVITED_REFERRALS
-  } = options;
-
-  const meetsDrawsCriteria = drawsParticipation >= drawsThreshold;
-  const meetsInvitedCriteria = invitedReferrals >= invitedThreshold;
-
-  let reasonForActivity = null;
-
-  if (manuallyActivated) {
-    reasonForActivity = 'manual_activation';
-  } else if (meetsDrawsCriteria && meetsInvitedCriteria) {
-    reasonForActivity = 'both_criteria';
-  } else if (meetsDrawsCriteria) {
-    reasonForActivity = 'draws_criteria';
-  } else if (meetsInvitedCriteria) {
-    reasonForActivity = 'invited_criteria';
-  }
-
-  const isActive = manuallyActivated || meetsDrawsCriteria || meetsInvitedCriteria;
-
-  return {
-    isActive,
-    drawsParticipation,
-    invitedReferrals,
-    requiredDraws: drawsThreshold,
-    requiredInvited: invitedThreshold,
-    meetsDrawsCriteria,
-    meetsInvitedCriteria,
-    manuallyActivated,
-    reasonForActivity
-  };
-};
-
-// sortReferralsByEarnings.js
-export const sortReferralsByEarnings = (referrals, options = {}) => {
-  if (!Array.isArray(referrals)) {
-    console.error('sortReferralsByEarnings: referrals must be an array');
-    return [];
-  }
-
-  const { ascending = false, earningsField = 'totalEarnings' } = options;
-
-  return [...referrals].sort((a, b) => {
-    const aEarnings = parseFloat(a[earningsField] || 0);
-    const bEarnings = parseFloat(b[earningsField] || 0);
-
-    return ascending ? aEarnings - bEarnings : bEarnings - aEarnings;
-  });
-};
-
-export const sortByPercentageRewards = (referrals, ascending = false) => {
-  return sortReferralsByEarnings(referrals, {
-    ascending,
-    earningsField: 'percentageEarnings'
-  });
-};
-
-export const sortByInvitedCount = (referrals, ascending = false) => {
-  return sortReferralsByEarnings(referrals, {
-    ascending,
-    earningsField: 'invitedCount'
-  });
-};
-
-export const sortByDrawsParticipation = (referrals, ascending = false) => {
-  return sortReferralsByEarnings(referrals, {
-    ascending,
-    earningsField: 'drawsParticipation'
-  });
-};
-
-export const sortByActivity = (referrals) => {
-  if (!Array.isArray(referrals)) {
-    console.error('sortByActivity: referrals must be an array');
-    return [];
-  }
-
-  return [...referrals].sort((a, b) => {
-    if (a.active && !b.active) return -1;
-    if (!a.active && b.active) return 1;
-
-    const aEarnings = parseFloat(a.totalEarnings || 0);
-    const bEarnings = parseFloat(b.totalEarnings || 0);
-
-    return bEarnings - aEarnings;
-  });
-};
-
-export const filterAndSortReferrals = (referrals, filters = {}, sortOptions = {}) => {
-  if (!Array.isArray(referrals)) {
-    console.error('filterAndSortReferrals: referrals must be an array');
-    return [];
-  }
-
-  const { onlyActive, minEarnings = 0 } = filters;
-  const { by = 'earnings', ascending = false } = sortOptions;
-
-  let filtered = [...referrals];
-
-  if (onlyActive) {
-    filtered = filtered.filter(referral => referral.active);
-  }
-
-  if (minEarnings > 0) {
-    filtered = filtered.filter(referral => {
-      const earnings = parseFloat(referral.totalEarnings || 0);
-      return earnings >= minEarnings;
+    return rates.map(function(rate) {
+      return calculatePercentage(amount, rate);
     });
   }
 
-  switch (by) {
-    case 'invites':
-      return sortByInvitedCount(filtered, ascending);
-    case 'draws':
-      return sortByDrawsParticipation(filtered, ascending);
-    case 'activity':
-      return sortByActivity(filtered);
-    case 'percentage':
-      return sortByPercentageRewards(filtered, ascending);
-    case 'earnings':
-    default:
-      return sortReferralsByEarnings(filtered, { ascending });
-  }
-};
+  // formatReferralUrl.js
+  function formatReferralUrl(userId) {
+    if (!userId) {
+      throw new Error('User ID is required for generating referral link');
+    }
 
-// generateReferralLink.js
-export const generateReferralLink = async (userId) => {
-  if (!userId) {
-    throw new Error('User ID is required');
+    if (typeof userId !== 'string' && typeof userId !== 'number') {
+      throw new Error('User ID must be a string or number');
+    }
+
+    const REFERRAL_URL_PATTERN = window.ReferralConstants.REFERRAL_URL_PATTERN;
+    return REFERRAL_URL_PATTERN.replace('{id}', userId);
   }
 
-  try {
-    // Викликаємо API функцію через глобальну змінну
-    const referralId = await window.ReferralAPI.fetchReferralLink(userId);
+  // formatWinixAmount.js
+  function formatWinixAmount(amount, options) {
+    options = options || {};
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      console.warn('formatWinixAmount: Invalid amount provided', amount);
+      return '0';
+    }
 
-    // Форматуємо URL через утиліту
-    return formatReferralUrl(referralId);
-  } catch (error) {
-    console.error('Error generating referral link:', error);
-    throw new Error('Failed to generate referral link');
+    const separator = options.separator || ' ';
+    const decimals = options.decimals !== undefined ? options.decimals : 2;
+    const showCurrency = options.showCurrency || false;
+    const currencySymbol = options.currencySymbol || 'winix';
+
+    const roundedAmount = Number(numAmount.toFixed(decimals));
+    const formatted = roundedAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, separator);
+
+    return showCurrency ? formatted + ' ' + currencySymbol : formatted;
   }
-};
 
-// стора/редуктори скопіюю в наступний файл
-// storeUtils.js можна включити в store.js
+  function abbreviateWinixAmount(amount, options) {
+    options = options || {};
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      console.warn('abbreviateWinixAmount: Invalid amount provided', amount);
+      return '0';
+    }
+
+    const decimals = options.decimals !== undefined ? options.decimals : 1;
+    const showCurrency = options.showCurrency || false;
+    const currencySymbol = options.currencySymbol || 'winix';
+
+    let result;
+    if (numAmount >= 1000000000) {
+      result = (numAmount / 1000000000).toFixed(decimals) + 'B';
+    } else if (numAmount >= 1000000) {
+      result = (numAmount / 1000000).toFixed(decimals) + 'M';
+    } else if (numAmount >= 1000) {
+      result = (numAmount / 1000).toFixed(decimals) + 'K';
+    } else {
+      result = numAmount.toFixed(decimals);
+    }
+
+    result = result.replace(/\.0+([KMBT])?$/, '$1');
+
+    return showCurrency ? result + ' ' + currencySymbol : result;
+  }
+
+  function formatWinixWithTrend(amount, options) {
+    options = options || {};
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      console.warn('formatWinixWithTrend: Invalid amount provided', amount);
+      return '0';
+    }
+
+    const showPlus = options.showPlus !== false;
+    const colorize = options.colorize || false;
+    const separator = options.separator || ' ';
+    const showCurrency = options.showCurrency || false;
+
+    const formatted = formatWinixAmount(Math.abs(numAmount), {
+      separator: separator,
+      showCurrency: showCurrency
+    });
+
+    let result;
+    if (numAmount > 0) {
+      result = showPlus ? '+' + formatted : formatted;
+      if (colorize) {
+        result = '<span class="positive-trend">' + result + '</span>';
+      }
+    } else if (numAmount < 0) {
+      result = '-' + formatted;
+      if (colorize) {
+        result = '<span class="negative-trend">' + result + '</span>';
+      }
+    } else {
+      result = formatted;
+    }
+
+    return result;
+  }
+
+  function formatWinixCompact(amount, maxLength) {
+    maxLength = maxLength || 6;
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      console.warn('formatWinixCompact: Invalid amount provided', amount);
+      return '0';
+    }
+
+    let formatted = abbreviateWinixAmount(numAmount);
+
+    if (formatted.length > maxLength) {
+      const hasLetter = /[KMBT]$/.test(formatted);
+      if (hasLetter) {
+        const letter = formatted.slice(-1);
+        formatted = parseFloat(formatted).toFixed(0) + letter;
+      } else {
+        formatted = parseFloat(formatted).toFixed(0);
+      }
+    }
+
+    return formatted;
+  }
+
+  function normalizeWinixAmount(amount) {
+    if (typeof amount === 'number') {
+      return amount;
+    }
+
+    if (typeof amount !== 'string') {
+      console.warn('normalizeWinixAmount: Invalid amount provided', amount);
+      return 0;
+    }
+
+    const cleaned = amount.replace(/[^\d.-]/g, '');
+    const numAmount = parseFloat(cleaned);
+
+    return isNaN(numAmount) ? 0 : numAmount;
+  }
+
+  // isActiveReferral.js
+  function isActiveReferral(referralData, options) {
+    options = options || {};
+    if (!referralData) {
+      return false;
+    }
+
+    const drawsParticipation = referralData.drawsParticipation || 0;
+    const invitedReferrals = referralData.invitedReferrals || 0;
+    const manuallyActivated = referralData.manuallyActivated || false;
+
+    const drawsThreshold = options.drawsThreshold !== undefined
+      ? options.drawsThreshold
+      : window.ReferralConstants.MIN_DRAWS_PARTICIPATION;
+    const invitedThreshold = options.invitedThreshold !== undefined
+      ? options.invitedThreshold
+      : window.ReferralConstants.MIN_INVITED_REFERRALS;
+    const requireAllCriteria = options.requireAllCriteria || false;
+
+    if (manuallyActivated) {
+      return true;
+    }
+
+    const meetsDrawsCriteria = drawsParticipation >= drawsThreshold;
+    const meetsInvitedCriteria = invitedReferrals >= invitedThreshold;
+
+    if (requireAllCriteria) {
+      return meetsDrawsCriteria && meetsInvitedCriteria;
+    } else {
+      return meetsDrawsCriteria || meetsInvitedCriteria;
+    }
+  }
+
+  function getDetailedActivityStatus(referralData, options) {
+    options = options || {};
+    if (!referralData) {
+      return {
+        isActive: false,
+        drawsParticipation: 0,
+        invitedReferrals: 0,
+        meetsDrawsCriteria: false,
+        meetsInvitedCriteria: false,
+        manuallyActivated: false,
+        reasonForActivity: null
+      };
+    }
+
+    const drawsParticipation = referralData.drawsParticipation || 0;
+    const invitedReferrals = referralData.invitedReferrals || 0;
+    const manuallyActivated = referralData.manuallyActivated || false;
+
+    const drawsThreshold = options.drawsThreshold !== undefined
+      ? options.drawsThreshold
+      : window.ReferralConstants.MIN_DRAWS_PARTICIPATION;
+    const invitedThreshold = options.invitedThreshold !== undefined
+      ? options.invitedThreshold
+      : window.ReferralConstants.MIN_INVITED_REFERRALS;
+
+    const meetsDrawsCriteria = drawsParticipation >= drawsThreshold;
+    const meetsInvitedCriteria = invitedReferrals >= invitedThreshold;
+
+    let reasonForActivity = null;
+
+    if (manuallyActivated) {
+      reasonForActivity = 'manual_activation';
+    } else if (meetsDrawsCriteria && meetsInvitedCriteria) {
+      reasonForActivity = 'both_criteria';
+    } else if (meetsDrawsCriteria) {
+      reasonForActivity = 'draws_criteria';
+    } else if (meetsInvitedCriteria) {
+      reasonForActivity = 'invited_criteria';
+    }
+
+    const isActive = manuallyActivated || meetsDrawsCriteria || meetsInvitedCriteria;
+
+    return {
+      isActive: isActive,
+      drawsParticipation: drawsParticipation,
+      invitedReferrals: invitedReferrals,
+      requiredDraws: drawsThreshold,
+      requiredInvited: invitedThreshold,
+      meetsDrawsCriteria: meetsDrawsCriteria,
+      meetsInvitedCriteria: meetsInvitedCriteria,
+      manuallyActivated: manuallyActivated,
+      reasonForActivity: reasonForActivity
+    };
+  }
+
+  // sortReferralsByEarnings.js
+  function sortReferralsByEarnings(referrals, options) {
+    options = options || {};
+    if (!Array.isArray(referrals)) {
+      console.error('sortReferralsByEarnings: referrals must be an array');
+      return [];
+    }
+
+    const ascending = options.ascending || false;
+    const earningsField = options.earningsField || 'totalEarnings';
+
+    return referrals.slice().sort(function(a, b) {
+      const aEarnings = parseFloat(a[earningsField] || 0);
+      const bEarnings = parseFloat(b[earningsField] || 0);
+
+      return ascending ? aEarnings - bEarnings : bEarnings - aEarnings;
+    });
+  }
+
+  function sortByPercentageRewards(referrals, ascending) {
+    return sortReferralsByEarnings(referrals, {
+      ascending: ascending,
+      earningsField: 'percentageEarnings'
+    });
+  }
+
+  function sortByInvitedCount(referrals, ascending) {
+    return sortReferralsByEarnings(referrals, {
+      ascending: ascending,
+      earningsField: 'invitedCount'
+    });
+  }
+
+  function sortByDrawsParticipation(referrals, ascending) {
+    return sortReferralsByEarnings(referrals, {
+      ascending: ascending,
+      earningsField: 'drawsParticipation'
+    });
+  }
+
+  function sortByActivity(referrals) {
+    if (!Array.isArray(referrals)) {
+      console.error('sortByActivity: referrals must be an array');
+      return [];
+    }
+
+    return referrals.slice().sort(function(a, b) {
+      if (a.active && !b.active) return -1;
+      if (!a.active && b.active) return 1;
+
+      const aEarnings = parseFloat(a.totalEarnings || 0);
+      const bEarnings = parseFloat(b.totalEarnings || 0);
+
+      return bEarnings - aEarnings;
+    });
+  }
+
+  function filterAndSortReferrals(referrals, filters, sortOptions) {
+    filters = filters || {};
+    sortOptions = sortOptions || {};
+
+    if (!Array.isArray(referrals)) {
+      console.error('filterAndSortReferrals: referrals must be an array');
+      return [];
+    }
+
+    const onlyActive = filters.onlyActive;
+    const minEarnings = filters.minEarnings || 0;
+    const by = sortOptions.by || 'earnings';
+    const ascending = sortOptions.ascending || false;
+
+    let filtered = referrals.slice();
+
+    if (onlyActive) {
+      filtered = filtered.filter(function(referral) {
+        return referral.active;
+      });
+    }
+
+    if (minEarnings > 0) {
+      filtered = filtered.filter(function(referral) {
+        const earnings = parseFloat(referral.totalEarnings || 0);
+        return earnings >= minEarnings;
+      });
+    }
+
+    switch (by) {
+      case 'invites':
+        return sortByInvitedCount(filtered, ascending);
+      case 'draws':
+        return sortByDrawsParticipation(filtered, ascending);
+      case 'activity':
+        return sortByActivity(filtered);
+      case 'percentage':
+        return sortByPercentageRewards(filtered, ascending);
+      case 'earnings':
+      default:
+        return sortReferralsByEarnings(filtered, { ascending: ascending });
+    }
+  }
+
+  // generateReferralLink.js
+  function generateReferralLink(userId) {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    return new Promise(function(resolve, reject) {
+      try {
+        // Викликаємо API функцію через глобальну змінну
+        window.ReferralAPI.fetchReferralLink(userId)
+          .then(function(referralId) {
+            // Форматуємо URL через утиліту
+            resolve(formatReferralUrl(referralId));
+          })
+          .catch(function(error) {
+            console.error('Error generating referral link:', error);
+            reject(new Error('Failed to generate referral link'));
+          });
+      } catch (error) {
+        console.error('Error generating referral link:', error);
+        reject(new Error('Failed to generate referral link'));
+      }
+    });
+  }
+
+  // Публічний API
+  return {
+    calculatePercentage: calculatePercentage,
+    formatPercentageResult: formatPercentageResult,
+    calculateMultiplePercentages: calculateMultiplePercentages,
+    formatReferralUrl: formatReferralUrl,
+    formatWinixAmount: formatWinixAmount,
+    abbreviateWinixAmount: abbreviateWinixAmount,
+    formatWinixWithTrend: formatWinixWithTrend,
+    formatWinixCompact: formatWinixCompact,
+    normalizeWinixAmount: normalizeWinixAmount,
+    isActiveReferral: isActiveReferral,
+    getDetailedActivityStatus: getDetailedActivityStatus,
+    sortReferralsByEarnings: sortReferralsByEarnings,
+    sortByPercentageRewards: sortByPercentageRewards,
+    sortByInvitedCount: sortByInvitedCount,
+    sortByDrawsParticipation: sortByDrawsParticipation,
+    sortByActivity: sortByActivity,
+    filterAndSortReferrals: filterAndSortReferrals,
+    generateReferralLink: generateReferralLink
+  };
+})();
