@@ -26,9 +26,14 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
+import sys
+import os
+
+# Додати шлях до батьківської директорії
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 try:
-    # Імпорт клієнта Supabase та утиліт
-    from supabase_client import (
+    from ..supabase_client import (
         get_user, create_user, update_user, update_balance, update_coins,
         check_and_update_badges, cache_get, cache_set, supabase
     )
