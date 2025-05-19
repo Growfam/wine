@@ -519,7 +519,7 @@
         Посилання скопійовано!
     </div>
 
-    <!-- Підключення скриптів -->
+  <!-- Спочатку основні скрипти -->
     <script src="js/telegram-web-app.js"></script>
 
     <script>
@@ -556,12 +556,87 @@
     console.error("❌ Помилка ініціалізації Telegram WebApp:", e);
   }
 })();
-</script>
+    </script>
 
     <script src="js/auth.js"></script>
     <script src="js/core.js"></script>
 
-    <script type="module" src="js/referrals/Integration/referrals-integration.js"></script>
+    <!-- Динамічне завантаження реферальної системи -->
+    <script type="module">
+    // Функція безпечного динамічного завантаження реферальної системи
+    async function safeInitReferralModules() {
+        try {
+            console.log("🔄 Початок завантаження реферального модуля...");
+
+            // Перевіряємо готовність DOM
+            if (document.readyState === 'loading') {
+                console.log("⏳ Очікуємо завантаження DOM...");
+                await new Promise(resolve => {
+                    document.addEventListener('DOMContentLoaded', resolve);
+                });
+            }
+
+            console.log("✅ DOM готовий, завантажуємо модулі...");
+
+            // Завантажуємо окремо fetchLevelRewards
+            console.log("📦 Завантаження fetchLevelRewards...");
+            const fetchLevelRewardsModule = await import('./js/referrals/fetchLevelRewards.js');
+            console.log("✅ fetchLevelRewards завантажено");
+
+            // Завантажуємо головний модуль
+            console.log("📦 Завантаження головного модуля...");
+            const mainModule = await import('./js/referrals/index.js');
+            console.log("✅ Головний модуль завантажено");
+
+            // Завантажуємо адаптер
+            console.log("📦 Завантаження адаптера...");
+            const adapter = await import('./js/referrals/Integration/referral-adapter.js');
+            console.log("✅ Адаптер завантажено");
+
+            // Завантажуємо інтеграцію
+            console.log("📦 Завантаження інтеграції...");
+            const integration = await import('./js/referrals/Integration/referrals-integration.js');
+            console.log("✅ Інтеграція завантажена");
+
+            // Ініціалізуємо систему
+            if (integration.initReferralSystem && typeof integration.initReferralSystem === 'function') {
+                console.log("🔧 Ініціалізація реферальної системи...");
+                await integration.initReferralSystem();
+                console.log("🎉 Реферальна система успішно ініціалізована!");
+            } else {
+                console.warn("⚠️ Функція ініціалізації не знайдена");
+            }
+
+            // Додаємо глобальні функції для налагодження
+            window.debugReferrals = {
+                fetchLevelRewards: fetchLevelRewardsModule.fetchLevelRewards,
+                mainModule: mainModule,
+                integration: integration
+            };
+            console.log("🔍 Налагоджувальні функції додано в window.debugReferrals");
+
+        } catch (error) {
+            console.error("❌ Критична помилка завантаження реферального модуля:", error);
+            console.error("📊 Деталі помилки:");
+            console.error("- Повідомлення:", error.message);
+            console.error("- Стек:", error.stack);
+            console.error("- Джерело:", error.source || 'невідоме');
+
+            // Показуємо користувачу повідомлення про помилку
+            const toast = document.getElementById('copy-toast');
+            if (toast) {
+                toast.textContent = 'Помилка завантаження реферальної системи';
+                toast.classList.add('show', 'error');
+                setTimeout(() => {
+                    toast.classList.remove('show', 'error');
+                }, 5000);
+            }
+        }
+    }
+
+    // Запускаємо ініціалізацію
+    safeInitReferralModules();
+    </script>
 
     <!-- Вбудований скрипт для ініціалізації функціональності -->
     <script>
