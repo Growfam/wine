@@ -2,7 +2,12 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 require('dotenv').config({ path: '../.env' }); // Шукаємо .env в корені проекту
 
-const token = process.env.TELEGRAM_BOT_TOKEN || '7566480696:AAG9F6ZIpiQZZvM6R6ZxhenzxgfGE6IX62o';
+const token = process.env.TELEGRAM_BOT_TOKEN;
+
+if (!token) {
+  console.error('❌ TELEGRAM_BOT_TOKEN не встановлений в змінних середовища!');
+  process.exit(1);
+}
 const bot = new TelegramBot(token, {polling: true});
 
 // URL вашого бекенду (змініть на ваш актуальний URL)
