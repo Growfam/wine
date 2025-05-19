@@ -272,6 +272,22 @@ def register_api_routes(app):
 
     logger.info("Реєстрація API маршрутів завершена")
 
+    # Реєстрація маршрутів Telegram webhook
+    try:
+        from telegram_webhook import register_telegram_routes
+        register_telegram_routes(app)
+        log_registration_result("Telegram webhook", True)
+    except Exception as e:
+        log_registration_result("Telegram webhook", False, str(e))
+
+        # Реєстрація маршрутів Telegram API
+        try:
+            from telegram_api import register_telegram_api_routes
+            register_telegram_api_routes(app)
+            log_registration_result("Telegram API", True)
+        except Exception as e:
+            log_registration_result("Telegram API", False, str(e))
+
 
 def register_utility_routes(app):
     """Реєстрація діагностичних та утилітарних маршрутів"""
