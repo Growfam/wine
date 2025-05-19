@@ -4,7 +4,7 @@
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from . import controllers
+from backend.users import controllers
 import logging
 
 # Налаштування логування

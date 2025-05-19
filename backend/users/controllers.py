@@ -33,7 +33,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from ..supabase_client import (
+    from backend.supabase_client import (
         get_user, create_user, update_user, update_balance, update_coins,
         check_and_update_badges, cache_get, cache_set, supabase
     )

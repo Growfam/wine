@@ -2,13 +2,14 @@
 language = "python"
 
 [phases.setup]
-nixPkgs = ["python311", "nodejs_18", "gcc"]
+nixPkgs = ["python311", "python311Packages.pip", "nodejs_18", "gcc"]
 
 [phases.install]
 cmds = [
-  "pip install -r requirements.txt",
+  "python311 -m pip install --upgrade pip",
+  "python311 -m pip install -r requirements.txt",
   "cd telegram-bot && npm install"
 ]
 
 [start]
-cmd = "python3 -m gunicorn -w 4 -b 0.0.0.0:8080 backend.main:app & cd telegram-bot && npm start"
+cmd = "cd backend && python311 -m gunicorn -w 4 -b 0.0.0.0:8080 --pythonpath . main:app"
