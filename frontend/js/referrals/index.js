@@ -27,6 +27,105 @@ export { calculatePercentage, formatPercentageResult } from './utils/calculatePe
 export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward.js';
 export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward.js';
 
+// Імпорти для функції fetchLevelRewards
+import { fetchReferralEarnings } from './api/fetchReferralEarnings.js';
+import { calculateLevel1Reward } from './services/calculateLevel1Reward.js';
+import { calculateLevel2Reward } from './services/calculateLevel2Reward.js';
+import { LevelRewardsActionTypes } from './constants/actionTypes.js';
+
+/**
+ * Створює дію початку запиту відсоткових винагород
+ * @returns {Object} Об'єкт дії REQUEST
+ */
+const fetchLevelRewardsRequest = () => ({
+  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_REQUEST
+});
+
+/**
+ * Створює дію успішного отримання відсоткових винагород
+ * @param {Object} data - Дані про відсоткові винагороди
+ * @returns {Object} Об'єкт дії SUCCESS з даними
+ */
+const fetchLevelRewardsSuccess = (data) => ({
+  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_SUCCESS,
+  payload: data
+});
+
+/**
+ * Створює дію невдалого отримання відсоткових винагород
+ * @param {Error} error - Об'єкт помилки
+ * @returns {Object} Об'єкт дії FAILURE з помилкою
+ */
+const fetchLevelRewardsFailure = (error) => ({
+  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_FAILURE,
+  payload: { error: error.message || 'Помилка отримання даних про винагороди' }
+});
+
+/**
+ * Асинхронна дія для отримання та розрахунку відсоткових винагород
+ *
+ * @param {string|number} userId - ID користувача
+ * @param {Object} [options] - Додаткові опції для запиту
+ * @param {boolean} [options.activeOnly=true] - Враховувати тільки активних рефералів
+ * @returns {Function} Функція thunk, яка диспатчить дії
+ */
+export const fetchLevelRewards = (userId, options = {}) => {
+  return async (dispatch) => {
+    // Диспатчимо початок запиту
+    dispatch(fetchLevelRewardsRequest());
+
+    try {
+      // Отримуємо дані про заробітки рефералів
+      const earningsData = await fetchReferralEarnings(userId, options);
+
+      // Розраховуємо винагороду для рефералів 1-го рівня
+      const level1RewardsData = calculateLevel1Reward(
+        earningsData.level1Referrals,
+        options
+      );
+
+      // Розраховуємо винагороду для рефералів 2-го рівня
+      const level2RewardsData = calculateLevel2Reward(
+        earningsData.level2Referrals,
+        {
+          ...options,
+          groupByReferrers: true // Включаємо групування за рефералами 1-го рівня
+        }
+      );
+
+      // Формуємо результат
+      const rewardsData = {
+        level1Rewards: level1RewardsData,
+        level2Rewards: level2RewardsData,
+        summary: {
+          totalPercentageReward: level1RewardsData.totalReward + level2RewardsData.totalReward,
+          totalReferralsEarnings: level1RewardsData.totalEarnings + level2RewardsData.totalEarnings,
+          lastUpdated: new Date().toISOString()
+        }
+      };
+
+      // Диспатчимо успішне отримання даних
+      dispatch(fetchLevelRewardsSuccess(rewardsData));
+
+      return rewardsData;
+    } catch (error) {
+      // Диспатчимо помилку
+      dispatch(fetchLevelRewardsFailure(error));
+
+      // Перекидаємо помилку далі для обробки в компоненті
+      throw error;
+    }
+  };
+};
+
+// Експортуємо інші дії для роботи з відсотковими винагородами
+export {
+  fetchRewardsHistory,
+  updateLevel1Rewards,
+  updateLevel2Rewards,
+  clearLevelRewardsError
+} from './store/levelRewardsActions.js';
+
 // Експортуємо компоненти для перевірки активності рефералів (етап 5)
 export { isActiveReferral, getDetailedActivityStatus } from './utils/isActiveReferral.js';
 export { fetchReferralActivity, fetchReferralDetailedActivity, fetchActivitySummary } from './api/fetchReferralActivity.js';
@@ -71,14 +170,6 @@ export {
   updateReferralLevelCounts,
   clearReferralLevelsError
 } from './store/updateStatsAction.js';
-
-export {
-  fetchLevelRewards,
-  fetchRewardsHistory,
-  updateLevel1Rewards,
-  updateLevel2Rewards,
-  clearLevelRewardsError
-} from './store/levelRewardsActions.js';
 
 // Експортуємо дії для роботи з активністю рефералів (етап 5)
 export {
