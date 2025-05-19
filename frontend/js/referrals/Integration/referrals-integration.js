@@ -36,7 +36,6 @@ import {
   ReferralLevelsActionTypes,
 
   // Функції для відсоткових винагород (Етап 4)
-  fetchLevelRewards,
   LEVEL_1_REWARD_RATE,
   LEVEL_2_REWARD_RATE,
   levelRewardsReducer,
@@ -106,6 +105,7 @@ import {
   initialCalculateRewardsState,
   CalculateRewardsActionTypes
 } from '../index.js';
+import { fetchLevelRewards } from '../fetchLevelRewards.js';
 
 // Стан додатку
 let appState = {
