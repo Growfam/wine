@@ -1,4 +1,4 @@
-// Integration.js - Традиційна версія без ES6 модулів
+// Integration.js - Виправлена версія без fallback на mock дані
 /**
  * Головний інтеграційний модуль для реферальної системи
  * Ініціалізує всі компоненти та забезпечує взаємодію з DOM
@@ -64,18 +64,21 @@ window.ReferralIntegration = (function() {
   ReferralIntegration.prototype.getUserId = function() {
     // Спочатку пробуємо з Telegram
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user && window.Telegram.WebApp.initDataUnsafe.user.id) {
-      return window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+      return parseInt(window.Telegram.WebApp.initDataUnsafe.user.id);
     }
 
     // Потім з localStorage
     const storedId = localStorage.getItem('telegram_user_id') || localStorage.getItem('user_id');
     if (storedId) {
-      return storedId;
+      const numericId = parseInt(storedId);
+      if (!isNaN(numericId)) {
+        return numericId;
+      }
     }
 
     // Якщо нічого немає, використовуємо тестовий ID
     console.warn('[INTEGRATION] ID користувача не знайдено, використовуємо тестовий');
-    return 'test_user_123';
+    return 123; // Числове значення замість строки
   };
 
   /**
@@ -169,15 +172,13 @@ window.ReferralIntegration = (function() {
           })
           .catch(function(error) {
             console.error('❌ [INTEGRATION] Помилка генерації реферального посилання:', error);
-            // Встановлюємо fallback посилання
-            self.updateReferralLinkDisplay('Winix/referral/' + self.userId);
-            resolve();
+            self.showErrorMessage('Не вдалося отримати реферальне посилання. Спробуйте пізніше.');
+            reject(error);
           });
       } catch (error) {
         console.error('❌ [INTEGRATION] Помилка генерації реферального посилання:', error);
-        // Встановлюємо fallback посилання
-        self.updateReferralLinkDisplay('Winix/referral/' + self.userId);
-        resolve();
+        self.showErrorMessage('Не вдалося отримати реферальне посилання. Спробуйте пізніше.');
+        reject(error);
       }
     });
   };
@@ -200,7 +201,7 @@ window.ReferralIntegration = (function() {
     // Встановлюємо базові значення винагород
     const bonusAmountElements = document.querySelectorAll('.bonus-amount');
     bonusAmountElements.forEach(function(element) {
-      element.textContent = window.DIRECT_BONUS_AMOUNT || '50';
+      element.textContent = window.ReferralConstants.DIRECT_BONUS_AMOUNT || '50';
     });
 
     // Встановлюємо пороги для бейджів
@@ -212,10 +213,10 @@ window.ReferralIntegration = (function() {
    */
   ReferralIntegration.prototype.updateBadgeThresholds = function() {
     const thresholdElements = {
-      '.bronze-threshold': window.BRONZE_BADGE_THRESHOLD || 25,
-      '.silver-threshold': window.SILVER_BADGE_THRESHOLD || 50,
-      '.gold-threshold': window.GOLD_BADGE_THRESHOLD || 100,
-      '.platinum-threshold': window.PLATINUM_BADGE_THRESHOLD || 500
+      '.bronze-threshold': window.ReferralConstants.BRONZE_BADGE_THRESHOLD || 25,
+      '.silver-threshold': window.ReferralConstants.SILVER_BADGE_THRESHOLD || 50,
+      '.gold-threshold': window.ReferralConstants.GOLD_BADGE_THRESHOLD || 100,
+      '.platinum-threshold': window.ReferralConstants.PLATINUM_BADGE_THRESHOLD || 500
     };
 
     Object.keys(thresholdElements).forEach(function(selector) {
@@ -227,10 +228,10 @@ window.ReferralIntegration = (function() {
     });
 
     const rewardElements = {
-      '.bronze-reward': window.BRONZE_BADGE_REWARD || 2500,
-      '.silver-reward': window.SILVER_BADGE_REWARD || 5000,
-      '.gold-reward': window.GOLD_BADGE_REWARD || 10000,
-      '.platinum-reward': window.PLATINUM_BADGE_REWARD || 20000
+      '.bronze-reward': window.ReferralConstants.BRONZE_BADGE_REWARD || 2500,
+      '.silver-reward': window.ReferralConstants.SILVER_BADGE_REWARD || 5000,
+      '.gold-reward': window.ReferralConstants.GOLD_BADGE_REWARD || 10000,
+      '.platinum-reward': window.ReferralConstants.PLATINUM_BADGE_REWARD || 20000
     };
 
     Object.keys(rewardElements).forEach(function(selector) {
@@ -263,8 +264,8 @@ window.ReferralIntegration = (function() {
       })
       .catch(function(error) {
         console.error('❌ [INTEGRATION] Помилка завантаження даних:', error);
-        // Не перериваємо ініціалізацію, показуємо базовий UI
-        resolve();
+        self.showErrorMessage('Не вдалося завантажити дані. Перевірте підключення до інтернету.');
+        reject(error);
       });
     });
   };
@@ -281,6 +282,7 @@ window.ReferralIntegration = (function() {
       })
       .catch(function(error) {
         console.error('Помилка завантаження статистики рефералів:', error);
+        throw error;
       });
   };
 
@@ -291,6 +293,7 @@ window.ReferralIntegration = (function() {
     return this.store.dispatch(window.ReferralStore.fetchUserBadges(this.userId))
       .catch(function(error) {
         console.error('Помилка завантаження бейджів:', error);
+        throw error;
       });
   };
 
@@ -301,6 +304,7 @@ window.ReferralIntegration = (function() {
     return this.store.dispatch(window.ReferralStore.fetchDirectBonusHistory(this.userId))
       .catch(function(error) {
         console.error('Помилка завантаження історії бонусів:', error);
+        throw error;
       });
   };
 
@@ -308,32 +312,46 @@ window.ReferralIntegration = (function() {
    * Оновлює відображення статистики рефералів
    */
   ReferralIntegration.prototype.updateReferralStatsDisplay = function(statsData) {
-    if (!statsData || !statsData.statistics) return;
+    if (!statsData || !statsData.statistics) {
+      // Якщо немає даних, показуємо нулі
+      this.updateElement('.total-referrals-count', 0);
+      this.updateElement('.active-referrals-count', 0);
+      this.updateElement('.conversion-rate', '0%');
+      this.updateElement('#active-referrals-count', 0);
+      this.updateElement('#inactive-referrals-count', 0);
+      this.updateElement('#conversion-rate', '0%');
+      return;
+    }
 
     const stats = statsData.statistics;
 
     // Оновлюємо загальні показники
-    this.updateElement('.total-referrals-count', stats.totalReferralsCount || 0);
-    this.updateElement('.active-referrals-count', stats.activeReferralsCount || 0);
+    this.updateElement('.total-referrals-count', stats.totalReferrals || 0);
+    this.updateElement('.active-referrals-count', stats.activeReferrals || 0);
 
-    const conversionRate = stats.totalReferralsCount > 0
-      ? ((stats.activeReferralsCount / stats.totalReferralsCount) * 100).toFixed(1)
+    const conversionRate = stats.totalReferrals > 0
+      ? ((stats.activeReferrals / stats.totalReferrals) * 100).toFixed(1)
       : '0';
     this.updateElement('.conversion-rate', conversionRate + '%');
 
     // Оновлюємо статистику активності
-    this.updateElement('#active-referrals-count', stats.activeReferralsCount || 0);
-    this.updateElement('#inactive-referrals-count', (stats.totalReferralsCount || 0) - (stats.activeReferralsCount || 0));
+    this.updateElement('#active-referrals-count', stats.activeReferrals || 0);
+    this.updateElement('#inactive-referrals-count', (stats.totalReferrals || 0) - (stats.activeReferrals || 0));
     this.updateElement('#conversion-rate', conversionRate + '%');
 
     // Оновлюємо прогрес бейджів
-    this.updateBadgeProgress(stats.totalReferralsCount || 0);
+    this.updateBadgeProgress(stats.totalReferrals || 0);
   };
 
   /**
    * Оновлює прогрес бейджів
    */
   ReferralIntegration.prototype.updateBadgeProgress = function(referralsCount) {
+    if (!window.ReferralServices || !window.ReferralServices.checkBadgesProgress) {
+      console.warn('ReferralServices недоступний для розрахунку прогресу бейджів');
+      return;
+    }
+
     const badgeProgress = window.ReferralServices.checkBadgesProgress(referralsCount);
 
     if (badgeProgress) {
@@ -564,7 +582,7 @@ window.ReferralIntegration = (function() {
         '<div class="bonus-history-icon"></div>',
         '<div class="bonus-history-details">',
         '<div class="bonus-history-title">Реферальний бонус</div>',
-        '<div class="bonus-history-amount">+' + (item.bonusAmount || window.DIRECT_BONUS_AMOUNT) + ' winix</div>',
+        '<div class="bonus-history-amount">+' + (item.bonusAmount || window.ReferralConstants.DIRECT_BONUS_AMOUNT) + ' winix</div>',
         '<div class="bonus-history-date">' + date + '</div>',
         '</div>'
       ].join('');

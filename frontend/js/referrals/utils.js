@@ -1,4 +1,4 @@
-// utils.js - Традиційна версія без ES6 модулів
+// utils.js - Виправлена версія (валідація userId як числа)
 /**
  * Утиліти для реферальної системи
  */
@@ -49,15 +49,17 @@ window.ReferralUtils = (function() {
   // formatReferralUrl.js
   function formatReferralUrl(userId) {
     if (!userId) {
-      throw new Error('User ID is required for generating referral link');
+      throw new Error('User ID обов\'язковий для генерації реферального посилання');
     }
 
-    if (typeof userId !== 'string' && typeof userId !== 'number') {
-      throw new Error('User ID must be a string or number');
+    // Переконуємося що userId це число або можна конвертувати
+    const numericUserId = typeof userId === 'number' ? userId : parseInt(userId);
+    if (isNaN(numericUserId)) {
+      throw new Error('User ID повинен бути числом');
     }
 
     const REFERRAL_URL_PATTERN = window.ReferralConstants.REFERRAL_URL_PATTERN;
-    return REFERRAL_URL_PATTERN.replace('{id}', userId);
+    return REFERRAL_URL_PATTERN.replace('{id}', numericUserId.toString());
   }
 
   // formatWinixAmount.js
@@ -372,27 +374,33 @@ window.ReferralUtils = (function() {
     }
   }
 
-  // generateReferralLink.js
+  // generateReferralLink.js (виправлено для числових ID)
   function generateReferralLink(userId) {
     if (!userId) {
-      throw new Error('User ID is required');
+      throw new Error('User ID обов\'язковий');
+    }
+
+    // Переконуємося що userId це число
+    const numericUserId = typeof userId === 'number' ? userId : parseInt(userId);
+    if (isNaN(numericUserId)) {
+      throw new Error('User ID повинен бути числом');
     }
 
     return new Promise(function(resolve, reject) {
       try {
         // Викликаємо API функцію через глобальну змінну
-        window.ReferralAPI.fetchReferralLink(userId)
-          .then(function(referralId) {
+        window.ReferralAPI.fetchReferralLink(numericUserId)
+          .then(function(referralLink) {
             // Форматуємо URL через утиліту
-            resolve(formatReferralUrl(referralId));
+            resolve(formatReferralUrl(numericUserId));
           })
           .catch(function(error) {
             console.error('Error generating referral link:', error);
-            reject(new Error('Failed to generate referral link'));
+            reject(new Error('Failed to generate referral link: ' + error.message));
           });
       } catch (error) {
         console.error('Error generating referral link:', error);
-        reject(new Error('Failed to generate referral link'));
+        reject(new Error('Failed to generate referral link: ' + error.message));
       }
     });
   }
