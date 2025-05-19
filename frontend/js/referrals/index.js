@@ -27,9 +27,6 @@ export { calculatePercentage, formatPercentageResult } from './utils/calculatePe
 export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward.js';
 export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward.js';
 
-// Експортуємо функцію fetchLevelRewards з окремого файлу
-export { fetchLevelRewards } from './fetchLevelRewards.js';
-
 // Експортуємо інші дії для роботи з відсотковими винагородами
 export {
   fetchRewardsHistory,
