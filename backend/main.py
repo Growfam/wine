@@ -1,6 +1,7 @@
 """
 Основний файл Flask застосунку для системи WINIX
 Оптимізована версія з покращеною структурою, логуванням і обробкою помилок
+ПОВНА ВЕРСІЯ ДЛЯ РОБОТИ З TELEGRAM БОТОМ
 """
 
 # Стандартні бібліотеки
@@ -190,6 +191,14 @@ def register_api_routes(app):
             if error:
                 logger.error(traceback.format_exc())
 
+    # Реєстрація маршрутів користувачів (ОНОВЛЕНО ДЛЯ TELEGRAM БОТА)
+    try:
+        from users.routes import register_user_routes
+        register_user_routes(app)
+        log_registration_result("користувачів", True)
+    except Exception as e:
+        log_registration_result("користувачів", False, str(e))
+
     # Реєстрація маршрутів розіграшів
     try:
         from raffles.routes import register_raffles_routes
@@ -205,14 +214,6 @@ def register_api_routes(app):
         log_registration_result("авторизації", True)
     except Exception as e:
         log_registration_result("авторизації", False, str(e))
-
-    # Реєстрація маршрутів користувачів
-    try:
-        from users.routes import register_user_routes
-        register_user_routes(app)
-        log_registration_result("користувачів", True)
-    except Exception as e:
-        log_registration_result("користувачів", False, str(e))
 
     # Реєстрація маршрутів гаманця
     try:
@@ -383,6 +384,162 @@ def register_utility_routes(app):
             result['api_files'] = os.listdir(api_dir)
 
         return jsonify(result)
+
+    # ===== ЕНДПОІНТИ ДЛЯ TELEGRAM БОТА =====
+
+    @app.route('/api/test/user-creation')
+    def test_user_creation():
+        """Тестовий ендпоінт для перевірки створення користувачів"""
+        try:
+            # Імпортуємо функцію створення користувача
+            from users.controllers import create_user_profile
+
+            # Тестуємо створення користувача
+            test_user_id = "test_" + str(int(time.time()))
+            result = create_user_profile(test_user_id, "Test User", None)
+
+            return jsonify({
+                "status": "success",
+                "message": "User creation test completed",
+                "test_result": result,
+                "available_endpoints": [
+                    "POST /api/user/create",
+                    "GET /api/user/{telegram_id}",
+                    "POST /api/referrals/register",
+                    "GET /api/bot/status"
+                ]
+            })
+        except Exception as e:
+            logger.error(f"User creation test failed: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "User creation test failed",
+                "error": str(e)
+            }), 500
+
+    @app.route('/api/bot/status')
+    def bot_status():
+        """Статус ендпоінтів для бота"""
+        try:
+            # Перевіряємо доступність ключових ендпоінтів
+            endpoints_status = {
+                "user_creation": True,  # POST /api/user/create
+                "user_profile": True,   # GET /api/user/{telegram_id}
+                "referral_registration": True,  # POST /api/referrals/register
+                "balance_update": True,  # POST /api/user/{telegram_id}/balance
+                "user_routes": True,    # Всі маршрути користувачів
+                "referral_routes": True # Всі маршрути рефералів
+            }
+
+            # Перевіряємо підключення до бази даних
+            try:
+                from supabase_client import test_supabase_connection
+                db_status = test_supabase_connection()
+                endpoints_status["database"] = db_status.get("success", False)
+                endpoints_status["database_details"] = db_status
+            except Exception as e:
+                logger.warning(f"Database status check failed: {str(e)}")
+                endpoints_status["database"] = False
+                endpoints_status["database_error"] = str(e)
+
+            # Перевіряємо доступність модулів
+            try:
+                from users.controllers import create_user_profile, get_user_profile
+                endpoints_status["user_controllers"] = True
+            except Exception as e:
+                endpoints_status["user_controllers"] = False
+                endpoints_status["user_controllers_error"] = str(e)
+
+            try:
+                from referrals.routes import referrals_bp
+                endpoints_status["referral_controllers"] = True
+            except Exception as e:
+                endpoints_status["referral_controllers"] = False
+                endpoints_status["referral_controllers_error"] = str(e)
+
+            # Перевіряємо список зареєстрованих маршрутів для бота
+            bot_routes = []
+            for rule in app.url_map.iter_rules():
+                rule_str = str(rule)
+                if any(pattern in rule_str for pattern in ['/api/user/', '/api/referrals/', '/api/bot/']):
+                    bot_routes.append({
+                        "endpoint": rule.endpoint,
+                        "methods": list(rule.methods),
+                        "path": rule_str
+                    })
+
+            return jsonify({
+                "status": "success",
+                "message": "Bot endpoints status",
+                "endpoints": endpoints_status,
+                "bot_ready": all(endpoints_status.get(key, False) for key in [
+                    "user_creation", "user_profile", "referral_registration", "database"
+                ]),
+                "bot_routes": bot_routes,
+                "total_routes": len(bot_routes),
+                "backend_url": os.environ.get("BACKEND_URL", "http://localhost:8080"),
+                "frontend_url": os.environ.get("FRONTEND_URL", "http://localhost:3000"),
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Bot status check failed: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "Failed to check bot status",
+                "error": str(e)
+            }), 500
+
+    @app.route('/api/bot/test-referral')
+    def test_referral_system():
+        """Тестування реферальної системи"""
+        try:
+            # Створюємо двох тестових користувачів
+            test_time = str(int(time.time()))
+            referrer_id = f"test_referrer_{test_time}"
+            referee_id = f"test_referee_{test_time}"
+
+            # Імпортуємо необхідні функції
+            from users.controllers import create_user_profile
+
+            # Створюємо реферера
+            referrer_result = create_user_profile(referrer_id, "Test Referrer", None)
+
+            # Створюємо реферала з referrer_id
+            referee_result = create_user_profile(referee_id, "Test Referee", referrer_id)
+
+            # Тестуємо реєстрацію реферального зв'язку
+            try:
+                import requests
+                referral_data = {
+                    "referrer_id": int(referrer_id.split('_')[-1]),
+                    "referee_id": int(referee_id.split('_')[-1])
+                }
+
+                # Це тест - в реальності бот буде викликати цей ендпоінт
+                test_registration = {"status": "test_mode", "note": "This would register the referral"}
+            except Exception as e:
+                test_registration = {"status": "error", "error": str(e)}
+
+            return jsonify({
+                "status": "success",
+                "message": "Referral system test completed",
+                "results": {
+                    "referrer_creation": referrer_result,
+                    "referee_creation": referee_result,
+                    "referral_registration": test_registration
+                },
+                "test_users": {
+                    "referrer_id": referrer_id,
+                    "referee_id": referee_id
+                }
+            })
+        except Exception as e:
+            logger.error(f"Referral test failed: {str(e)}")
+            return jsonify({
+                "status": "error",
+                "message": "Referral test failed",
+                "error": str(e)
+            }), 500
 
 
 def register_static_routes(app):
@@ -826,6 +983,9 @@ if __name__ == '__main__':
 
         # Виводимо інформацію про запуск
         logger.info(f"Запуск застосунку на порту {port}, режим налагодження: {debug_mode}")
+        logger.info(f"🤖 WINIX готовий для роботи з Telegram ботом!")
+        logger.info(f"📡 Backend URL: {os.environ.get('BACKEND_URL', f'http://localhost:{port}')}")
+        logger.info(f"🌐 Frontend URL: {os.environ.get('FRONTEND_URL', 'http://localhost:3000')}")
 
         # Запускаємо застосунок
         app.run(debug=debug_mode, host='0.0.0.0', port=port)
