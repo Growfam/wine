@@ -1,7 +1,6 @@
 """
 Основний файл Flask застосунку для системи WINIX
 Оптимізована версія з покращеною структурою, логуванням і обробкою помилок
-ПОВНА ВЕРСІЯ ДЛЯ РОБОТИ З TELEGRAM БОТОМ
 """
 
 # Стандартні бібліотеки
@@ -11,9 +10,9 @@ import logging
 import json
 import time
 import uuid
-import traceback
 from datetime import datetime
 from pathlib import Path
+import traceback
 
 # Сторонні бібліотеки
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, g, abort
@@ -68,15 +67,11 @@ def create_app(config_name=None):
     )
 
     # Завантажуємо конфігурацію
-    try:
-        from settings import current_config
-        app.config.from_object(current_config)
-        # Секретний ключ для сесій
-        app.secret_key = current_config.SECRET_KEY
-    except ImportError:
-        # Базові налаштування, якщо settings не знайдено
-        app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-        app.config['DEBUG'] = os.environ.get('FLASK_ENV') == 'development'
+    from settings import current_config
+    app.config.from_object(current_config)
+
+    # Секретний ключ для сесій
+    app.secret_key = current_config.SECRET_KEY
 
     # Налаштування бази даних
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///winix.db')
@@ -90,9 +85,6 @@ def create_app(config_name=None):
 
     # Налаштовуємо обробники запитів
     setup_request_handlers(app)
-
-    # Додаємо health check endpoint
-    add_health_check(app)
 
     # Реєструємо маршрути API
     register_api_routes(app)
@@ -168,18 +160,6 @@ def setup_request_handlers(app):
         return response
 
 
-def add_health_check(app):
-    """Додає endpoint для перевірки стану API"""
-    @app.route('/api/health', methods=['GET'])
-    def health_check():
-        """Перевірка стану API"""
-        return jsonify({
-            "status": "ok",
-            "timestamp": datetime.utcnow().isoformat(),
-            "service": "WINIX API"
-        })
-
-
 def register_api_routes(app):
     """Реєстрація всіх API маршрутів"""
     # Функція для логування результату реєстрації маршрутів
@@ -190,14 +170,6 @@ def register_api_routes(app):
             logger.error(f"❌ Помилка реєстрації маршрутів {name}: {error}")
             if error:
                 logger.error(traceback.format_exc())
-
-    # Реєстрація маршрутів користувачів (ОНОВЛЕНО ДЛЯ TELEGRAM БОТА)
-    try:
-        from users.routes import register_user_routes
-        register_user_routes(app)
-        log_registration_result("користувачів", True)
-    except Exception as e:
-        log_registration_result("користувачів", False, str(e))
 
     # Реєстрація маршрутів розіграшів
     try:
@@ -214,6 +186,14 @@ def register_api_routes(app):
         log_registration_result("авторизації", True)
     except Exception as e:
         log_registration_result("авторизації", False, str(e))
+
+    # Реєстрація маршрутів користувачів
+    try:
+        from users.routes import register_user_routes
+        register_user_routes(app)
+        log_registration_result("користувачів", True)
+    except Exception as e:
+        log_registration_result("користувачів", False, str(e))
 
     # Реєстрація маршрутів гаманця
     try:
@@ -241,19 +221,19 @@ def register_api_routes(app):
 
     # Реєстрація маршрутів рефералів
     try:
-        from referrals.routes import referrals_bp
-        app.register_blueprint(referrals_bp)
+        # Функція регістрації маршрутів рефералів
+        register_referrals_routes(app)
         log_registration_result("рефералів", True)
     except Exception as e:
         log_registration_result("рефералів", False, str(e))
 
-    # Реєстрація маршрутів бейджів та завдань
+    # Реєстрація маршрутів бейджів
     try:
-        from badges.routes import badges_bp
-        app.register_blueprint(badges_bp)
-        log_registration_result("бейджів та завдань", True)
+        # Функція регістрації маршрутів бейджів
+        register_badges_routes(app)
+        log_registration_result("бейджів", True)
     except Exception as e:
-        log_registration_result("бейджів та завдань", False, str(e))
+        log_registration_result("бейджів", False, str(e))
 
     # Реєстрація маршрутів адміністратора
     try:
@@ -272,6 +252,357 @@ def register_api_routes(app):
         log_registration_result("статистики", False, str(e))
 
     logger.info("Реєстрація API маршрутів завершена")
+
+
+def register_referrals_routes(app):
+    """
+    Реєстрація маршрутів для реферальної системи
+
+    Args:
+        app: Екземпляр Flask додатку
+    """
+    from referrals.controllers.referral_controller import ReferralController
+    from referrals.controllers.bonus_controller import BonusController
+    from referrals.controllers.earnings_controller import EarningsController
+    from referrals.controllers.activity_controller import ActivityController
+    from referrals.controllers.analytics_controller import AnalyticsController
+
+    # Маршрути для реферальних посилань
+    @app.route('/api/referrals/link/<int:user_id>', methods=['GET'])
+    def get_referral_link(user_id):
+        """Отримання реферального посилання для користувача"""
+        result = ReferralController.generate_referral_link(user_id)
+        return jsonify(result)
+
+    @app.route('/api/referrals/register', methods=['POST'])
+    def register_referral():
+        """Реєстрація нового реферала"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'referrer_id' not in data or 'referee_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'Both referrer_id and referee_id are required'
+            }), 400
+
+        referrer_id = data['referrer_id']
+        referee_id = data['referee_id']
+
+        result = ReferralController.register_referral(referrer_id, referee_id)
+
+        # Якщо реєстрація успішна, автоматично нараховуємо бонус
+        if result['success']:
+            bonus_result = BonusController.award_direct_bonus(referrer_id, referee_id)
+            result['bonus_awarded'] = bonus_result['success']
+            if bonus_result['success']:
+                result['bonus'] = bonus_result['bonus']
+
+        return jsonify(result)
+
+    # Маршрути для статистики рефералів
+    @app.route('/api/referrals/stats/<int:user_id>', methods=['GET'])
+    def get_referral_stats(user_id):
+        """Отримання статистики рефералів користувача"""
+        result = ReferralController.get_referral_structure(user_id)
+        return jsonify(result)
+
+    @app.route('/api/referrals/details/<int:referral_id>', methods=['GET'])
+    def get_referral_details(referral_id):
+        """Отримання детальної інформації про конкретного реферала"""
+        # В цій демо-версії повертаємо заглушку
+        return jsonify({
+            'success': True,
+            'id': referral_id,
+            'registrationDate': '2024-04-15T09:45:00Z',
+            'active': True,
+            'earnings': 320,
+            'referralCount': 3,
+            'lastActivity': '2024-04-20T14:30:00Z'
+        })
+
+    # Маршрути для прямих бонусів
+    @app.route('/api/referrals/bonus/direct', methods=['POST'])
+    def award_direct_bonus():
+        """Нарахування прямого бонусу за реферала"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'referrer_id' not in data or 'referee_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'Both referrer_id and referee_id are required'
+            }), 400
+
+        referrer_id = data['referrer_id']
+        referee_id = data['referee_id']
+        amount = data.get('amount', 50)  # За замовчуванням 50 winix
+
+        result = BonusController.award_direct_bonus(referrer_id, referee_id, amount)
+        return jsonify(result)
+
+    @app.route('/api/referrals/bonus/history/<int:user_id>', methods=['GET'])
+    def get_bonus_history(user_id):
+        """Отримання історії прямих бонусів користувача"""
+        result = BonusController.get_bonus_history(user_id)
+        return jsonify(result)
+
+    # Маршрути для заробітків рефералів
+    @app.route('/api/referrals/earnings/<int:user_id>', methods=['GET', 'POST'])
+    def get_referral_earnings(user_id):
+        """Отримання даних про заробітки рефералів користувача"""
+        # Отримання опцій з запиту (для POST) або з параметрів URL (для GET)
+        if request.method == 'POST':
+            options = request.get_json() or {}
+        else:
+            options = {
+                'startDate': request.args.get('startDate'),
+                'endDate': request.args.get('endDate'),
+                'activeOnly': request.args.get('activeOnly') == 'true'
+            }
+
+        result = EarningsController.get_referral_earnings(user_id, options)
+        return jsonify(result)
+
+    @app.route('/api/referrals/earnings/detailed/<int:referral_id>', methods=['GET'])
+    def get_detailed_earnings(referral_id):
+        """Отримання детальних даних про заробітки конкретного реферала"""
+        result = EarningsController.get_detailed_earnings(referral_id)
+        return jsonify(result)
+
+    @app.route('/api/referrals/earnings/summary/<int:user_id>', methods=['GET'])
+    def get_earnings_summary(user_id):
+        """Отримання зведеної інформації про заробітки"""
+        result = EarningsController.get_earnings_summary(user_id)
+        return jsonify(result)
+
+    # Маршрути для відсоткових винагород
+    @app.route('/api/referrals/reward/percentage', methods=['POST'])
+    def calculate_percentage_reward():
+        """Розрахунок і нарахування відсоткової винагороди"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'user_id' not in data or 'referral_id' not in data or 'amount' not in data or 'level' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'user_id, referral_id, amount, and level are required'
+            }), 400
+
+        user_id = data['user_id']
+        referral_id = data['referral_id']
+        amount = data['amount']
+        level = data['level']
+
+        result = EarningsController.calculate_percentage_reward(user_id, referral_id, amount, level)
+        return jsonify(result)
+
+    @app.route('/api/referrals/reward/history/<int:user_id>', methods=['GET'])
+    def get_percentage_rewards(user_id):
+        """Отримання історії відсоткових винагород"""
+        # Отримання опцій з параметрів URL
+        options = {
+            'startDate': request.args.get('startDate'),
+            'endDate': request.args.get('endDate'),
+            'level': int(request.args.get('level')) if request.args.get('level') else None
+        }
+
+        result = EarningsController.get_percentage_rewards(user_id, options)
+        return jsonify(result)
+
+    # Маршрути для активності рефералів
+    @app.route('/api/referrals/activity/<int:user_id>', methods=['GET', 'POST'])
+    def get_referral_activity(user_id):
+        """Отримання даних про активність рефералів користувача"""
+        # Отримання опцій з запиту або з параметрів URL
+        if request.method == 'POST':
+            options = request.get_json() or {}
+        else:
+            options = {
+                'startDate': request.args.get('startDate'),
+                'endDate': request.args.get('endDate'),
+                'level': int(request.args.get('level')) if request.args.get('level') else None,
+                'activeOnly': request.args.get('activeOnly') == 'true'
+            }
+
+        result = ActivityController.get_referral_activity(user_id, options)
+        return jsonify(result)
+
+    @app.route('/api/referrals/activity/detailed/<int:referral_id>', methods=['GET'])
+    def get_referral_detailed_activity(referral_id):
+        """Отримання детальних даних про активність конкретного реферала"""
+        result = ActivityController.get_referral_detailed_activity(referral_id)
+        return jsonify(result)
+
+    @app.route('/api/referrals/activity/summary/<int:user_id>', methods=['GET'])
+    def get_activity_summary(user_id):
+        """Отримання зведеної інформації про активність"""
+        result = ActivityController.get_activity_summary(user_id)
+        return jsonify(result)
+
+    @app.route('/api/referrals/activity/update', methods=['POST'])
+    def update_activity():
+        """Оновлення активності реферала"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'user_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'user_id is required'
+            }), 400
+
+        user_id = data['user_id']
+        draws_participation = data.get('draws_participation')
+        invited_referrals = data.get('invited_referrals')
+
+        result = ActivityController.update_activity(user_id, draws_participation, invited_referrals)
+        return jsonify(result)
+
+    @app.route('/api/referrals/activity/activate', methods=['POST'])
+    def manually_activate_referral():
+        """Ручна активація реферала"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'user_id' not in data or 'admin_id' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'user_id and admin_id are required'
+            }), 400
+
+        user_id = data['user_id']
+        admin_id = data['admin_id']
+
+        result = ActivityController.manually_activate(user_id, admin_id)
+        return jsonify(result)
+
+    # Маршрути для аналітики та рейтингу рефералів
+    @app.route('/api/analytics/ranking/<int:user_id>', methods=['GET'])
+    def get_referrals_ranking(user_id):
+        """Отримання рейтингу рефералів"""
+        sort_by = request.args.get('sortBy', 'earnings')
+
+        result = AnalyticsController.get_referrals_ranking(user_id, sort_by=sort_by)
+        return jsonify(result)
+
+    @app.route('/api/analytics/top/<int:user_id>/<int:limit>', methods=['GET'])
+    def get_top_referrals(user_id, limit):
+        """Отримання топ-N рефералів"""
+        metric = request.args.get('metric', 'earnings')
+
+        result = AnalyticsController.get_top_referrals(user_id, limit=limit, metric=metric)
+        return jsonify(result)
+
+    @app.route('/api/analytics/earnings/total/<int:user_id>', methods=['GET'])
+    def get_total_earnings(user_id):
+        """Отримання загального заробітку"""
+        result = AnalyticsController.get_total_earnings(user_id)
+        return jsonify(result)
+
+    @app.route('/api/analytics/earnings/predict/<int:user_id>', methods=['GET'])
+    def predict_earnings(user_id):
+        """Отримання прогнозу майбутніх заробітків"""
+        result = AnalyticsController.predict_earnings(user_id)
+        return jsonify(result)
+
+    @app.route('/api/analytics/earnings/roi/<int:user_id>', methods=['GET'])
+    def get_earnings_roi(user_id):
+        """Отримання рентабельності реферальної програми"""
+        result = AnalyticsController.get_earnings_roi(user_id)
+        return jsonify(result)
+
+    @app.route('/api/analytics/earnings/distribution/<int:user_id>', methods=['GET'])
+    def get_earnings_distribution(user_id):
+        """Отримання розподілу заробітку за категоріями"""
+        result = AnalyticsController.get_earnings_distribution(user_id)
+        return jsonify(result)
+
+    logger.info("Маршрути для реферальної системи зареєстровано")
+    return True
+
+
+def register_badges_routes(app):
+    """
+    Реєстрація маршрутів для бейджів та завдань
+
+    Args:
+        app: Екземпляр Flask додатку
+    """
+    from badges.controllers.badge_controller import BadgeController
+    from badges.controllers.task_controller import TaskController
+
+    # Маршрути для бейджів
+    @app.route('/api/badges/<int:user_id>', methods=['GET'])
+    def get_user_badges(user_id):
+        """Отримання інформації про бейджі користувача"""
+        result = BadgeController.get_user_badges(user_id)
+        return jsonify(result)
+
+    @app.route('/api/badges/check/<int:user_id>', methods=['POST'])
+    def check_badges(user_id):
+        """Перевірка та нарахування бейджів"""
+        result = BadgeController.check_badges(user_id)
+        return jsonify(result)
+
+    @app.route('/api/badges/claim', methods=['POST'])
+    def claim_badge_reward():
+        """Отримання винагороди за бейдж"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'user_id' not in data or 'badge_type' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'user_id and badge_type are required'
+            }), 400
+
+        user_id = data['user_id']
+        badge_type = data['badge_type']
+
+        result = BadgeController.claim_badge_reward(user_id, badge_type)
+        return jsonify(result)
+
+    # Маршрути для завдань
+    @app.route('/api/tasks/<int:user_id>', methods=['GET'])
+    def get_user_tasks(user_id):
+        """Отримання інформації про завдання користувача"""
+        result = TaskController.get_user_tasks(user_id)
+        return jsonify(result)
+
+    @app.route('/api/tasks/update/<int:user_id>', methods=['POST'])
+    def update_tasks(user_id):
+        """Оновлення прогресу завдань"""
+        result = TaskController.update_tasks(user_id)
+        return jsonify(result)
+
+    @app.route('/api/tasks/claim', methods=['POST'])
+    def claim_task_reward():
+        """Отримання винагороди за виконане завдання"""
+        data = request.get_json()
+
+        # Перевірка наявності необхідних полів
+        if not data or 'user_id' not in data or 'task_type' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields',
+                'details': 'user_id and task_type are required'
+            }), 400
+
+        user_id = data['user_id']
+        task_type = data['task_type']
+
+        result = TaskController.claim_task_reward(user_id, task_type)
+        return jsonify(result)
+
+    logger.info("Маршрути для бейджів та завдань зареєстровано")
+    return True
 
 
 def register_utility_routes(app):
@@ -384,285 +715,6 @@ def register_utility_routes(app):
             result['api_files'] = os.listdir(api_dir)
 
         return jsonify(result)
-
-    # ===== ЕНДПОІНТИ ДЛЯ TELEGRAM БОТА =====
-
-    @app.route('/api/test/user-creation')
-    def test_user_creation():
-        """Тестовий ендпоінт для перевірки створення користувачів"""
-        try:
-            # Імпортуємо функцію створення користувача
-            from users.controllers import create_user_profile
-
-            # Тестуємо створення користувача
-            test_user_id = "test_" + str(int(time.time()))
-            result = create_user_profile(test_user_id, "Test User", None)
-
-            return jsonify({
-                "status": "success",
-                "message": "User creation test completed",
-                "test_result": result,
-                "available_endpoints": [
-                    "POST /api/user/create",
-                    "GET /api/user/{telegram_id}",
-                    "POST /api/referrals/register",
-                    "GET /api/bot/status"
-                ]
-            })
-        except Exception as e:
-            logger.error(f"User creation test failed: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "User creation test failed",
-                "error": str(e)
-            }), 500
-
-    @app.route('/api/bot/status')
-    def bot_status():
-        """Статус ендпоінтів для бота"""
-        try:
-            # Перевіряємо доступність ключових ендпоінтів
-            endpoints_status = {
-                "user_creation": True,  # POST /api/user/create
-                "user_profile": True,   # GET /api/user/{telegram_id}
-                "referral_registration": True,  # POST /api/referrals/register
-                "balance_update": True,  # POST /api/user/{telegram_id}/balance
-                "user_routes": True,    # Всі маршрути користувачів
-                "referral_routes": True # Всі маршрути рефералів
-            }
-
-            # Перевіряємо підключення до бази даних
-            try:
-                from supabase_client import test_supabase_connection
-                db_status = test_supabase_connection()
-                endpoints_status["database"] = db_status.get("success", False)
-                endpoints_status["database_details"] = db_status
-            except Exception as e:
-                logger.warning(f"Database status check failed: {str(e)}")
-                endpoints_status["database"] = False
-                endpoints_status["database_error"] = str(e)
-
-            # Перевіряємо доступність модулів
-            try:
-                from users.controllers import create_user_profile, get_user_profile
-                endpoints_status["user_controllers"] = True
-            except Exception as e:
-                endpoints_status["user_controllers"] = False
-                endpoints_status["user_controllers_error"] = str(e)
-
-            try:
-                from referrals.routes import referrals_bp
-                endpoints_status["referral_controllers"] = True
-            except Exception as e:
-                endpoints_status["referral_controllers"] = False
-                endpoints_status["referral_controllers_error"] = str(e)
-
-            # Перевіряємо список зареєстрованих маршрутів для бота
-            bot_routes = []
-            for rule in app.url_map.iter_rules():
-                rule_str = str(rule)
-                if any(pattern in rule_str for pattern in ['/api/user/', '/api/referrals/', '/api/bot/']):
-                    bot_routes.append({
-                        "endpoint": rule.endpoint,
-                        "methods": list(rule.methods),
-                        "path": rule_str
-                    })
-
-            return jsonify({
-                "status": "success",
-                "message": "Bot endpoints status",
-                "endpoints": endpoints_status,
-                "bot_ready": all(endpoints_status.get(key, False) for key in [
-                    "user_creation", "user_profile", "referral_registration", "database"
-                ]),
-                "bot_routes": bot_routes,
-                "total_routes": len(bot_routes),
-                "backend_url": os.environ.get("BACKEND_URL", "http://localhost:8080"),
-                "frontend_url": os.environ.get("FRONTEND_URL", "http://localhost:3000"),
-                "timestamp": datetime.utcnow().isoformat()
-            })
-        except Exception as e:
-            logger.error(f"Bot status check failed: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "Failed to check bot status",
-                "error": str(e)
-            }), 500
-
-    @app.route('/api/bot/test-referral')
-    def test_referral_system():
-        """Тестування реферальної системи"""
-        try:
-            # Створюємо двох тестових користувачів
-            test_time = str(int(time.time()))
-            referrer_id = f"test_referrer_{test_time}"
-            referee_id = f"test_referee_{test_time}"
-
-            # Імпортуємо необхідні функції
-            from users.controllers import create_user_profile
-
-            # Створюємо реферера
-            referrer_result = create_user_profile(referrer_id, "Test Referrer", None)
-
-            # Створюємо реферала з referrer_id
-            referee_result = create_user_profile(referee_id, "Test Referee", referrer_id)
-
-            # Тестуємо реєстрацію реферального зв'язку
-            try:
-                import requests
-                referral_data = {
-                    "referrer_id": int(referrer_id.split('_')[-1]),
-                    "referee_id": int(referee_id.split('_')[-1])
-                }
-
-                # Це тест - в реальності бот буде викликати цей ендпоінт
-                test_registration = {"status": "test_mode", "note": "This would register the referral"}
-            except Exception as e:
-                test_registration = {"status": "error", "error": str(e)}
-
-            return jsonify({
-                "status": "success",
-                "message": "Referral system test completed",
-                "results": {
-                    "referrer_creation": referrer_result,
-                    "referee_creation": referee_result,
-                    "referral_registration": test_registration
-                },
-                "test_users": {
-                    "referrer_id": referrer_id,
-                    "referee_id": referee_id
-                }
-            })
-        except Exception as e:
-            logger.error(f"Referral test failed: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "message": "Referral test failed",
-                "error": str(e)
-            }), 500
-
-    # ===== НОВІ ДІАГНОСТИЧНІ ЕНДПОІНТИ =====
-
-    @app.route('/api/diagnose/user-data/<telegram_id>')
-    def diagnose_user_data(telegram_id):
-        """Діагностичний ендпоінт для перевірки формату даних користувача"""
-        try:
-            from users.controllers import diagnose_user_data_format
-            result = diagnose_user_data_format(telegram_id)
-            return jsonify({"status": "success", "data": result})
-        except Exception as e:
-            logger.error(f"Diagnose user data error: {str(e)}")
-            return jsonify({"status": "error", "error": str(e)}), 500
-
-    @app.route('/api/test/user-creation-detailed')
-    def test_user_creation_detailed():
-        """Детальний тест створення користувача з діагностикою"""
-        try:
-            test_user_id = "test_detailed_" + str(int(time.time()))
-
-            logger.info(f"Starting detailed user creation test with ID: {test_user_id}")
-
-            # Імпортуємо функції
-            from users.controllers import create_user_profile, diagnose_user_data_format
-
-            # Спочатку перевіряємо, чи користувач не існує
-            logger.info("Checking if user exists before creation...")
-            existing_check = diagnose_user_data_format(test_user_id)
-
-            # Спробуємо створити користувача
-            logger.info("Creating new user...")
-            result = create_user_profile(test_user_id, "Test User Detailed", None)
-            logger.info(f"Creation result: {result}")
-
-            # Діагностуємо результат
-            final_check = None
-            if result and result.get('status') == 'success':
-                logger.info("Diagnosing final state...")
-                final_check = diagnose_user_data_format(test_user_id)
-
-            # Очищаємо тестового користувача
-            try:
-                if result and result.get('status') == 'success':
-                    logger.info("Cleaning up test user...")
-                    supabase.table("winix").delete().eq("telegram_id", test_user_id).execute()
-                    logger.info("Test user cleaned up successfully")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to cleanup test user: {str(cleanup_error)}")
-
-            return jsonify({
-                "status": "success",
-                "test_user_id": test_user_id,
-                "existing_check": existing_check,
-                "creation_result": result,
-                "final_check": final_check,
-                "cleanup_performed": True
-            })
-        except Exception as e:
-            logger.error(f"Detailed user creation test failed: {str(e)}", exc_info=True)
-            return jsonify({
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc() if os.getenv("DEBUG") == "true" else None
-            }), 500
-
-    @app.route('/api/diagnose/supabase-response-format')
-    def diagnose_supabase_response_format():
-        """Діагностичний ендпоінт для аналізу формату відповідей Supabase"""
-        try:
-            if not supabase:
-                return jsonify({
-                    "status": "error",
-                    "message": "Supabase client not initialized"
-                }), 500
-
-            # Тестовий запит для перевірки формату
-            logger.info("Testing Supabase response format...")
-
-            # Пробуємо зробити простий select запит
-            try:
-                res = supabase.table("winix").select("telegram_id,username,balance").limit(1).execute()
-
-                response_info = {
-                    "response_type": str(type(res)),
-                    "has_data_attr": hasattr(res, 'data'),
-                    "has_error_attr": hasattr(res, 'error'),
-                    "data_type": str(type(res.data)) if hasattr(res, 'data') else None,
-                    "data_is_list": isinstance(res.data, list) if hasattr(res, 'data') else False,
-                    "data_length": len(res.data) if hasattr(res, 'data') and res.data else 0
-                }
-
-                # Аналізуємо перший елемент, якщо є дані
-                if hasattr(res, 'data') and res.data and len(res.data) > 0:
-                    first_item = res.data[0]
-                    response_info.update({
-                        "first_item_type": str(type(first_item)),
-                        "first_item_is_dict": isinstance(first_item, dict),
-                        "first_item_is_tuple": isinstance(first_item, tuple),
-                        "first_item_is_list": isinstance(first_item, list),
-                        "first_item_keys": list(first_item.keys()) if isinstance(first_item, dict) else None,
-                        "first_item_length": len(first_item) if hasattr(first_item, '__len__') else None,
-                        "first_item_sample": str(first_item)[:200] + "..." if len(str(first_item)) > 200 else str(first_item)
-                    })
-
-                return jsonify({
-                    "status": "success",
-                    "supabase_response_analysis": response_info,
-                    "recommendation": "dict" if response_info.get("first_item_is_dict") else "tuple conversion needed"
-                })
-
-            except Exception as query_error:
-                return jsonify({
-                    "status": "error",
-                    "message": f"Query error: {str(query_error)}",
-                    "error_type": str(type(query_error))
-                }), 500
-
-        except Exception as e:
-            logger.error(f"Supabase response format diagnosis error: {str(e)}")
-            return jsonify({
-                "status": "error",
-                "error": str(e)
-            }), 500
 
 
 def register_static_routes(app):
@@ -938,11 +990,7 @@ def register_tutorial_routes(app):
     try:
         # Імпорт необхідних компонентів
         from users.controllers import get_user_profile, update_user_balance
-
-        try:
-            from supabase_client import supabase
-        except ImportError:
-            supabase = None
+        from supabase_client import supabase
 
         @app.route('/confirm', methods=['POST'])
         def confirm():
@@ -974,8 +1022,7 @@ def register_tutorial_routes(app):
                         return update_response, update_status
 
                     # Оновлюємо статус завершення сторінки
-                    if supabase:
-                        supabase.table("winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
+                    supabase.table("winix").update({"page1_completed": True}).eq("telegram_id", user_id).execute()
 
                     return jsonify({"status": "success", "tokens": update_data["balance"]})
                 else:
@@ -1106,9 +1153,6 @@ if __name__ == '__main__':
 
         # Виводимо інформацію про запуск
         logger.info(f"Запуск застосунку на порту {port}, режим налагодження: {debug_mode}")
-        logger.info(f"🤖 WINIX готовий для роботи з Telegram ботом!")
-        logger.info(f"📡 Backend URL: {os.environ.get('BACKEND_URL', f'http://localhost:{port}')}")
-        logger.info(f"🌐 Frontend URL: {os.environ.get('FRONTEND_URL', 'http://localhost:3000')}")
 
         # Запускаємо застосунок
         app.run(debug=debug_mode, host='0.0.0.0', port=port)
