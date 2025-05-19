@@ -27,42 +27,9 @@ export { calculatePercentage, formatPercentageResult } from './utils/calculatePe
 export { calculateLevel1Reward, calculatePotentialLevel1Reward } from './services/calculateLevel1Reward.js';
 export { calculateLevel2Reward, calculatePotentialLevel2Reward, calculateCombinedLevel2Reward } from './services/calculateLevel2Reward.js';
 
-// Імпорти для функції fetchLevelRewards
-import { fetchReferralEarnings } from './api/fetchReferralEarnings.js';
-import { calculateLevel1Reward } from './services/calculateLevel1Reward.js';
-import { calculateLevel2Reward } from './services/calculateLevel2Reward.js';
-import { LevelRewardsActionTypes } from './constants/actionTypes.js';
-
-/**
- * Створює дію початку запиту відсоткових винагород
- * @returns {Object} Об'єкт дії REQUEST
- */
-const fetchLevelRewardsRequest = () => ({
-  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_REQUEST
-});
-
-/**
- * Створює дію успішного отримання відсоткових винагород
- * @param {Object} data - Дані про відсоткові винагороди
- * @returns {Object} Об'єкт дії SUCCESS з даними
- */
-const fetchLevelRewardsSuccess = (data) => ({
-  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_SUCCESS,
-  payload: data
-});
-
-/**
- * Створює дію невдалого отримання відсоткових винагород
- * @param {Error} error - Об'єкт помилки
- * @returns {Object} Об'єкт дії FAILURE з помилкою
- */
-const fetchLevelRewardsFailure = (error) => ({
-  type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_FAILURE,
-  payload: { error: error.message || 'Помилка отримання даних про винагороди' }
-});
-
 /**
  * Асинхронна дія для отримання та розрахунку відсоткових винагород
+ * Використовує динамічні імпорти для уникнення циклічних залежностей
  *
  * @param {string|number} userId - ID користувача
  * @param {Object} [options] - Додаткові опції для запиту
@@ -71,10 +38,38 @@ const fetchLevelRewardsFailure = (error) => ({
  */
 export const fetchLevelRewards = (userId, options = {}) => {
   return async (dispatch) => {
-    // Диспатчимо початок запиту
-    dispatch(fetchLevelRewardsRequest());
-
     try {
+      // Динамічно імпортуємо необхідні модулі
+      const [
+        { fetchReferralEarnings },
+        { calculateLevel1Reward },
+        { calculateLevel2Reward },
+        { LevelRewardsActionTypes }
+      ] = await Promise.all([
+        import('./api/fetchReferralEarnings.js'),
+        import('./services/calculateLevel1Reward.js'),
+        import('./services/calculateLevel2Reward.js'),
+        import('./constants/actionTypes.js')
+      ]);
+
+      // Створюємо функції дій всередині
+      const fetchLevelRewardsRequest = () => ({
+        type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_REQUEST
+      });
+
+      const fetchLevelRewardsSuccess = (data) => ({
+        type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_SUCCESS,
+        payload: data
+      });
+
+      const fetchLevelRewardsFailure = (error) => ({
+        type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_FAILURE,
+        payload: { error: error.message || 'Помилка отримання даних про винагороди' }
+      });
+
+      // Диспатчимо початок запиту
+      dispatch(fetchLevelRewardsRequest());
+
       // Отримуємо дані про заробітки рефералів
       const earningsData = await fetchReferralEarnings(userId, options);
 
@@ -109,6 +104,14 @@ export const fetchLevelRewards = (userId, options = {}) => {
 
       return rewardsData;
     } catch (error) {
+      // Імпортуємо типи дій для помилки
+      const { LevelRewardsActionTypes } = await import('./constants/actionTypes.js');
+
+      const fetchLevelRewardsFailure = (error) => ({
+        type: LevelRewardsActionTypes.FETCH_LEVEL_REWARDS_FAILURE,
+        payload: { error: error.message || 'Помилка отримання даних про винагороди' }
+      });
+
       // Диспатчимо помилку
       dispatch(fetchLevelRewardsFailure(error));
 
