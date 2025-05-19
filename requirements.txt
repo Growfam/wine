@@ -19,6 +19,5 @@ certifi==2025.1.31
 charset-normalizer==3.4.1
 idna==3.10
 urllib3==2.3.0
-flask-sqlalchemy==3.1.1
-sqlalchemy==2.0.23
-cryptography==43.0.3
+flask-sqlalchemy
+sqlalchemy
