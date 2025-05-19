@@ -1,14 +1,16 @@
-# Flask та основа
+# Базовий requirements.txt - БЕЗ Telegram Bot функціоналу
 Flask==3.1.0
 flask-cors==5.0.1
 gunicorn==23.0.0
 python-dotenv==1.1.0
+
+# Supabase (без конфліктів)
 supabase==2.15.0
 gotrue==2.12.0
 postgrest==1.0.1
-realtime==2.4.2
 storage3==0.11.3
-propcache==0.3.1
+
+# Основні залежності
 PyJWT==2.10.1
 requests==2.32.3
 Werkzeug==3.1.3
@@ -20,12 +22,10 @@ certifi==2025.1.31
 charset-normalizer==3.4.1
 idna==3.10
 urllib3==2.3.0
-flask-sqlalchemy
-sqlalchemy
 
-# Telegram Bot (ВИПРАВЛЕНІ ВЕРСІЇ)
-aiogram==3.13.1
-aiohttp>=3.11.14,<4.0.0
+# SQLAlchemy
+flask-sqlalchemy==3.1.1
+sqlalchemy==2.0.23
 
-# Криптографія
+# Криптографія (базова)
 cryptography==43.0.3
