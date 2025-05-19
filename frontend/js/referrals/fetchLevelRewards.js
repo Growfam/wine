@@ -14,7 +14,8 @@
 export const fetchLevelRewards = (userId, options = {}) => {
   return async (dispatch) => {
     try {
-      console.log('fetchLevelRewards: початок виконання для userId:', userId);
+            console.log('💎 fetchLevelRewards: початок виконання для userId:', userId);
+      console.log('⚙️ fetchLevelRewards: опції:', options);
 
       // Динамічно імпортуємо всі необхідні модулі
       const [
@@ -27,7 +28,7 @@ export const fetchLevelRewards = (userId, options = {}) => {
         import('./services/calculateLevel2Reward.js')
       ]);
 
-      console.log('fetchLevelRewards: модулі завантажені успішно');
+         console.log('✅ fetchLevelRewards: модулі завантажені успішно');
 
       // Типи дій визначені тут безпосередньо
       const FETCH_LEVEL_REWARDS_REQUEST = 'FETCH_LEVEL_REWARDS_REQUEST';
@@ -93,7 +94,7 @@ export const fetchLevelRewards = (userId, options = {}) => {
 
       return rewardsData;
     } catch (error) {
-      console.error('fetchLevelRewards: помилка:', error);
+      console.error('❌ fetchLevelRewards: критична помилка:', error);
 
       // Типи дій для помилки
       const FETCH_LEVEL_REWARDS_FAILURE = 'FETCH_LEVEL_REWARDS_FAILURE';

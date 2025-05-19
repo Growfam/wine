@@ -161,17 +161,22 @@ window.WinixReferral = {
 
 // Автоматична ініціалізація при завантаженні DOM
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOMContentLoaded: ініціалізація WinixReferral...');
+  console.log('🔄 DOMContentLoaded: початок ініціалізації WinixReferral...');
+
   if (typeof initReferralSystem === 'function') {
     try {
+      console.log('✅ Функція initReferralSystem знайдена, запускаємо...');
       initReferralSystem();
-      console.log('Реферальна система успішно ініціалізована!');
+      console.log('🎉 Реферальна система успішно ініціалізована!');
     } catch (error) {
-      console.error('Помилка при ініціалізації реферальної системи:', error);
+      console.error('❌ Помилка при ініціалізації реферальної системи:', error);
+      console.error('📊 Стек помилки:', error.stack);
     }
   } else {
-    console.error('Функція initReferralSystem не знайдена або не є функцією!');
+    console.error('❌ Функція initReferralSystem не знайдена або не є функцією!');
+    console.error('🔍 Тип initReferralSystem:', typeof initReferralSystem);
   }
 });
 
-console.log('WINIX Реферальна система: модуль завантажено!');
+console.log('📦 WINIX Реферальна система: модуль адаптера завантажено!');
+console.log('🔧 Доступні функції в WinixReferral:', Object.keys(window.WinixReferral));
