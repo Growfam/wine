@@ -162,7 +162,7 @@ def cache_set(key: str, data: Any, timeout: int = CACHE_TIMEOUT) -> None:
 
 
 def cleanup_cache() -> None:
-    """Очищує застарілі записи в кеші"""
+    """Очищає застарілі записи в кеші"""
     if not CACHE_ENABLED:
         return
 
@@ -265,7 +265,7 @@ def invalidate_cache_for_entity(entity_id: Any) -> None:
 
 def clear_cache(pattern: Optional[str] = None) -> int:
     """
-    Повністю очищує кеш або його частину за патерном
+    Повністю очищає кеш або його частину за патерном
 
     Args:
         pattern: Опціональний патерн для часткового очищення
@@ -532,7 +532,7 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
 
 def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Створює нового користувача в Supabase
+    Створює нового користувача в Supabase з автоматичною реєстрацією реферального зв'язку
 
     Args:
         telegram_id: Ідентифікатор Telegram користувача
@@ -557,7 +557,67 @@ def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = No
             return existing_user
 
         # Створюємо нового користувача
-        return force_create_user(telegram_id, username, referrer_id)
+        user = force_create_user(telegram_id, username, referrer_id)
+
+        if not user:
+            logger.error(f"create_user: Не вдалося створити користувача {telegram_id}")
+            return None
+
+        # Якщо є referrer_id, реєструємо реферальний зв'язок
+        if referrer_id:
+            try:
+                referrer_id = str(referrer_id)
+                logger.info(f"create_user: Реєструємо реферальний зв'язок: {referrer_id} -> {telegram_id}")
+
+                # Імпортуємо контролери реферальної системи
+                from referrals.controllers.referral_controller import ReferralController
+                from referrals.controllers.bonus_controller import BonusController
+
+                # Реєструємо реферальний зв'язок
+                referral_result = ReferralController.register_referral(
+                    referrer_id=referrer_id,
+                    referee_id=telegram_id
+                )
+
+                if referral_result['success']:
+                    logger.info(f"create_user: Реферальний зв'язок успішно створено")
+
+                    # Нараховуємо прямий бонус
+                    bonus_result = BonusController.award_direct_bonus(
+                        referrer_id=referrer_id,
+                        referee_id=telegram_id,
+                        amount=50
+                    )
+
+                    if bonus_result['success']:
+                        logger.info(f"create_user: Прямий бонус успішно нараховано")
+
+                        # Оновлюємо баланс реферера
+                        referrer_user = get_user(referrer_id)
+                        if referrer_user:
+                            current_balance = float(referrer_user.get('balance', 0))
+                            new_balance = current_balance + 50
+
+                            supabase.table("winix").update({
+                                "balance": new_balance,
+                                "updated_at": datetime.now(timezone.utc).isoformat()
+                            }).eq("telegram_id", referrer_id).execute()
+
+                            logger.info(f"create_user: Баланс реферера {referrer_id} оновлено: {current_balance} -> {new_balance}")
+
+                            # Інвалідуємо кеш для реферера
+                            invalidate_cache_for_entity(referrer_id)
+                    else:
+                        logger.warning(f"create_user: Помилка нарахування бонусу: {bonus_result}")
+                else:
+                    logger.warning(f"create_user: Помилка реєстрації реферального зв'язку: {referral_result}")
+
+            except ImportError as e:
+                logger.error(f"create_user: Помилка імпорту реферальних контролерів: {str(e)}")
+            except Exception as e:
+                logger.error(f"create_user: Помилка обробки реферального зв'язку: {str(e)}")
+
+        return user
     except Exception as e:
         logger.error(f"❌ Помилка створення користувача {telegram_id}: {str(e)}", exc_info=True)
         return None
@@ -1745,6 +1805,7 @@ def test_supabase_connection() -> Dict[str, Any]:
             "message": f"Неочікувана помилка при тестуванні з'єднання: {str(e)}",
             "details": None
         }
+
 def check_and_update_badges(user_id, context=None):
     """
     Функція для перевірки та оновлення бейджів користувача.
