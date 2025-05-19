@@ -1,3 +1,4 @@
+# Flask та основа
 Flask==3.1.0
 flask-cors==5.0.1
 gunicorn==23.0.0
@@ -22,7 +23,9 @@ urllib3==2.3.0
 flask-sqlalchemy
 sqlalchemy
 
-# Telegram Bot dependencies
+# Telegram Bot (ВИПРАВЛЕНІ ВЕРСІЇ)
 aiogram==3.13.1
-aiohttp==3.10.11
+aiohttp>=3.11.14,<4.0.0
+
+# Криптографія
 cryptography==43.0.3
