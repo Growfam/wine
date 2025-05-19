@@ -996,7 +996,7 @@ init_raffle_service()
 if __name__ == '__main__':
     try:
         # Отримуємо порт з конфігурації або середовища
-        port = int(os.environ.get("PORT", app.config.get("PORT", 5000)))
+        port = int(os.environ.get("PORT", app.config.get("PORT", 8080)))
         debug_mode = app.config.get("DEBUG", False)
 
         # Виводимо інформацію про запуск
@@ -1010,3 +1010,11 @@ if __name__ == '__main__':
     except Exception as e:
         logger.critical(f"Критична помилка запуску застосунку: {str(e)}")
         traceback.print_exc()
+
+        if __name__ == '__main__':
+            app = create_app()
+            port = int(os.environ.get("PORT", 8080))
+            app.run(debug=False, host='0.0.0.0', port=port)
+
+        # Для gunicorn
+        app = create_app()
