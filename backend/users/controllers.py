@@ -26,14 +26,9 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
-import sys
-import os
-
-# Додати шлях до батьківської директорії
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 try:
-    from backend.supabase_client import (
+    # Імпорт клієнта Supabase та утиліт
+    from supabase_client import (
         get_user, create_user, update_user, update_balance, update_coins,
         check_and_update_badges, cache_get, cache_set, supabase
     )
@@ -50,77 +45,6 @@ BALANCE_CACHE_TTL = 120  # 2 хвилини для кешу балансу
 
 
 # ====== ДОПОМІЖНІ ФУНКЦІЇ ======
-
-def ensure_dict(data, default_keys=None):
-    """
-    Перетворює кортеж в словник або повертає словник як є
-
-    Args:
-        data: Дані (кортеж або словник)
-        default_keys: Список ключів для перетворення кортежа
-
-    Returns:
-        Словник з даними
-    """
-    if data is None:
-        return None
-
-    if isinstance(data, dict):
-        return data
-
-    if isinstance(data, tuple):
-        # Якщо є список ключів, використовуємо їх
-        if default_keys:
-            return dict(zip(default_keys, data))
-
-        # Інакше використовуємо стандартні ключі для користувачів
-        user_keys = [
-            "telegram_id", "username", "balance", "coins", "referrer_id",
-            "referral_code", "page1_completed", "newbie_bonus_claimed",
-            "participations_count", "badge_winner", "badge_beginner",
-            "badge_rich", "badge_winner_reward_claimed", "badge_beginner_reward_claimed",
-            "badge_rich_reward_claimed", "wins_count", "created_at", "updated_at",
-            "seed_phrase", "password_hash", "password_salt", "avatar_id",
-            "avatar_url", "language", "notifications_enabled"
-        ]
-
-        # Обрізаємо список ключів до довжини кортежа
-        keys_to_use = user_keys[:len(data)]
-        result = dict(zip(keys_to_use, data))
-        logger.debug(f"ensure_dict: Конвертовано кортеж з {len(data)} елементів в словник")
-        return result
-
-    # Якщо це не dict і не tuple, логуємо попередження і повертаємо як є
-    logger.warning(f"ensure_dict: Неочікуваний тип даних: {type(data)}, value: {str(data)[:100]}")
-    return data
-
-
-def diagnose_user_data_format(telegram_id):
-    """
-    Діагностична функція для перевірки формату даних користувача
-    """
-    try:
-        user_raw = get_user(telegram_id)
-        diagnosis = {
-            "raw_data_type": str(type(user_raw)),
-            "raw_data_is_none": user_raw is None,
-            "raw_data_is_dict": isinstance(user_raw, dict),
-            "raw_data_is_tuple": isinstance(user_raw, tuple),
-            "raw_data_length": len(user_raw) if user_raw and hasattr(user_raw, '__len__') else 0,
-            "converted_data_available": ensure_dict(user_raw) is not None,
-            "sample_data": str(user_raw)[:100] + "..." if user_raw else None
-        }
-
-        if user_raw:
-            converted = ensure_dict(user_raw)
-            diagnosis["converted_is_dict"] = isinstance(converted, dict)
-            diagnosis["converted_keys"] = list(converted.keys()) if isinstance(converted, dict) else None
-
-        return diagnosis
-    except Exception as e:
-        logger.error(f"diagnose_user_data_format error: {str(e)}")
-        return {"error": str(e)}
-
 
 def handle_exceptions(f):
     """
@@ -170,22 +94,8 @@ def validate_telegram_id(telegram_id):
     # Переконуємося, що ID - це рядок
     telegram_id = str(telegram_id).strip()
 
-    # Дозволяємо тестові ID (починаються з "test_")
-    if telegram_id.startswith("test_"):
-        logger.info(f"validate_telegram_id: Тестовий ID дозволено: {telegram_id}")
-        return telegram_id
-
-    # Перевірка на валідність реального Telegram ID
+    # Перевірка на валідність ID
     if not telegram_id.isdigit() and not telegram_id.startswith("-100"):
-        # Додаткова перевірка для UUID (для деяких випадків)
-        try:
-            # Перевіряємо, чи це UUID
-            uuid.UUID(telegram_id)
-            logger.info(f"validate_telegram_id: UUID ID дозволено: {telegram_id}")
-            return telegram_id
-        except ValueError:
-            pass
-
         raise ValueError(f"Невалідний формат Telegram ID: {telegram_id}")
 
     return telegram_id
@@ -235,10 +145,7 @@ def get_user_info(telegram_id):
         dict: Дані користувача
     """
     telegram_id = validate_telegram_id(telegram_id)
-    user_raw = get_user(telegram_id)
-
-    # ДОДАЄМО ПЕРЕВІРКУ ТА КОНВЕРТАЦІЮ
-    user = ensure_dict(user_raw)
+    user = get_user(telegram_id)
 
     if not user:
         logger.warning(f"Користувача з ID {telegram_id} не знайдено")
@@ -263,16 +170,13 @@ def create_new_user(telegram_id, username, referrer_id=None):
     telegram_id = validate_telegram_id(telegram_id)
 
     # Перевіряємо, чи вже існує користувач
-    existing_user_raw = get_user(telegram_id)
-    existing_user = ensure_dict(existing_user_raw)
-
+    existing_user = get_user(telegram_id)
     if existing_user:
         logger.info(f"Користувач з ID {telegram_id} вже існує")
         return existing_user
 
     # Створюємо нового користувача через функцію з supabase_client
-    user_raw = create_user(telegram_id, username, referrer_id)
-    user = ensure_dict(user_raw)
+    user = create_user(telegram_id, username, referrer_id)
 
     if not user:
         logger.error(f"Помилка створення користувача з ID {telegram_id}")
@@ -302,10 +206,8 @@ def get_user_profile(telegram_id):
         logger.info(f"Повернення кешованих даних профілю для {telegram_id}")
         return jsonify({"status": "success", "data": cached_profile, "source": "cache"})
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -318,9 +220,9 @@ def get_user_profile(telegram_id):
     except Exception as e:
         logger.warning(f"Помилка отримання даних стейкінгу: {str(e)}")
 
-    # Безпечне формування даних профілю
+    # Формування даних профілю
     user_data = {
-        "telegram_id": user.get("telegram_id", telegram_id),
+        "telegram_id": user["telegram_id"],
         "username": user.get("username", "WINIX User"),
         "balance": float(user.get("balance", 0)),
         "coins": int(user.get("coins", 0)),
@@ -367,10 +269,8 @@ def get_user_init_data(telegram_id):
         logger.info(f"Повернення кешованих даних ініціалізації для {telegram_id}")
         return jsonify({"status": "success", "data": cached_init_data, "source": "cache"})
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -450,15 +350,13 @@ def get_user_balance(telegram_id):
         logger.info(f"Повернення кешованих даних балансу для {telegram_id}")
         return jsonify({"status": "success", "data": cached_balance, "source": "cache"})
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         logger.warning(f"Користувача {telegram_id} не знайдено")
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
-    # Безпечне формування даних балансу
+    # Формування даних балансу
     balance_data = {
         "balance": float(user.get("balance", 0)),
         "coins": int(user.get("coins", 0))
@@ -493,10 +391,8 @@ def update_user_balance(telegram_id, data):
     except (ValueError, TypeError):
         return jsonify({"status": "error", "message": "Невалідне значення балансу"}), 400
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         logger.warning(f"Користувача {telegram_id} не знайдено")
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
@@ -553,10 +449,8 @@ def claim_badge_reward(telegram_id, data):
     if badge_id not in valid_badge_ids:
         return jsonify({"status": "error", "message": "Невідомий бейдж"}), 400
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -637,10 +531,8 @@ def claim_newbie_bonus(telegram_id):
     # Валідація вхідних даних
     telegram_id = validate_telegram_id(telegram_id)
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({'status': 'error', 'message': 'Користувача не знайдено'}), 404
 
@@ -722,10 +614,8 @@ def get_user_settings(telegram_id):
         logger.info(f"Повернення кешованих налаштувань для {telegram_id}")
         return jsonify({"status": "success", "data": cached_settings, "source": "cache"})
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -763,10 +653,8 @@ def update_user_settings(telegram_id, data):
     if not data:
         return jsonify({"status": "error", "message": "Відсутні дані налаштувань"}), 400
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -817,10 +705,8 @@ def update_user_password(telegram_id, data):
     if not password_hash or len(password_hash) < 8:
         return jsonify({"status": "error", "message": "Невалідний хеш пароля"}), 400
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -853,10 +739,8 @@ def get_user_seed_phrase(telegram_id):
     # Валідація вхідних даних
     telegram_id = validate_telegram_id(telegram_id)
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -924,10 +808,8 @@ def get_user_transactions(telegram_id, limit=50, offset=0):
         logger.info(f"Повернення кешованих транзакцій для {telegram_id}")
         return jsonify({"status": "success", "data": cached_transactions, "source": "cache"})
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -999,10 +881,8 @@ def update_user_coins(telegram_id, data):
     except (ValueError, TypeError):
         return jsonify({"status": "error", "message": "Невалідне значення жетонів"}), 400
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -1052,10 +932,8 @@ def add_user_coins(telegram_id, data):
     # Валідація опису транзакції
     description = data.get('description', 'Додавання жетонів')
 
-    # Отримання даних користувача з конвертацією
-    user_raw = get_user(telegram_id)
-    user = ensure_dict(user_raw)
-
+    # Отримання даних користувача
+    user = get_user(telegram_id)
     if not user:
         return jsonify({"status": "error", "message": "Користувача не знайдено"}), 404
 
@@ -1069,98 +947,11 @@ def add_user_coins(telegram_id, data):
     cache_user_data("profile", telegram_id, None, 0)
     cache_user_data("init", telegram_id, None, 0)
 
-    # Безпечно отримуємо кількість жетонів з результату
-    result_dict = ensure_dict(result)
-    final_coins = result_dict.get("coins", 0) if result_dict else 0
-
     return jsonify({
         "status": "success",
         "message": f"Додано {amount} жетонів",
         "data": {
-            "coins": final_coins,
+            "coins": result.get("coins", 0),
             "added": amount
         }
     })
-
-
-@handle_exceptions
-def create_user_profile(telegram_id, username, referrer_id=None):
-    """
-    Створення профілю користувача з повними даними (для Telegram бота).
-
-    Args:
-        telegram_id (str): Telegram ID користувача
-        username (str): Ім'я користувача
-        referrer_id (str, optional): ID реферала, який запросив користувача
-
-    Returns:
-        dict: Результат створення з повними даними користувача
-    """
-    try:
-        telegram_id = validate_telegram_id(telegram_id)
-
-        # Перевіряємо, чи вже існує користувач
-        existing_user_raw = get_user(telegram_id)
-        existing_user = ensure_dict(existing_user_raw)
-
-        if existing_user:
-            logger.info(f"Користувач з ID {telegram_id} вже існує")
-
-            # Безпечно отримуємо дані користувача
-            user_data = {
-                "telegram_id": existing_user.get("telegram_id", telegram_id),
-                "username": existing_user.get("username", username),
-                "balance": float(existing_user.get("balance", 0)),
-                "coins": int(existing_user.get("coins", 0)),
-                "created_at": existing_user.get("created_at"),
-                "referrer_id": existing_user.get("referrer_id")
-            }
-
-            return {
-                "status": "exists",
-                "message": "Користувач вже існує",
-                "data": user_data
-            }
-
-        # Створюємо нового користувача через функцію з supabase_client
-        user_raw = create_user(telegram_id, username, referrer_id)
-        user = ensure_dict(user_raw)
-
-        if not user:
-            logger.error(f"Помилка створення користувача з ID {telegram_id}")
-            return {
-                "status": "error",
-                "message": f"Не вдалося створити користувача з ID {telegram_id}"
-            }
-
-        # Безпечно формуємо повні дані користувача для відповіді
-        user_data = {
-            "telegram_id": user.get("telegram_id", telegram_id),
-            "username": user.get("username", username),
-            "balance": float(user.get("balance", 0)),
-            "coins": int(user.get("coins", 0)),
-            "created_at": user.get("created_at"),
-            "referrer_id": user.get("referrer_id"),
-            "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
-            "participations_count": user.get("participations_count", 0),
-            "wins_count": user.get("wins_count", 0),
-            "badges": {
-                "winner_completed": user.get("badge_winner", False),
-                "beginner_completed": user.get("badge_beginner", False),
-                "rich_completed": user.get("badge_rich", False)
-            }
-        }
-
-        logger.info(f"Успішно створено нового користувача з ID {telegram_id}")
-
-        return {
-            "status": "success",
-            "message": "Користувача успішно створено",
-            "data": user_data
-        }
-    except Exception as e:
-        logger.error(f"Помилка в create_user_profile: {str(e)}", exc_info=True)
-        return {
-            "status": "error",
-            "message": f"Помилка створення користувача: {str(e)}"
-        }
