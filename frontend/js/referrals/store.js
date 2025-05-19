@@ -419,7 +419,12 @@ window.ReferralStore = (function() {
 
       return window.ReferralAPI.fetchReferralLink(numericUserId)
         .then(function(link) {
-          const formattedLink = 'Winix/referral/' + link.replace('Winix/referral/', '');
+          // API тепер повертає повну ссилку формату: https://t.me/WINIX_Official_bot?start={id}
+          // Якщо ссилка не містить повний домен, форматуємо її
+          const formattedLink = link.includes('t.me/WINIX_Official_bot')
+            ? link
+            : 'https://t.me/WINIX_Official_bot?start=' + numericUserId;
+
           dispatch(fetchReferralLinkSuccess(formattedLink));
           return formattedLink;
         })

@@ -157,6 +157,7 @@ window.ReferralAPI = (function() {
   }
 
   // fetchReferralLink.js
+// fetchReferralLink.js - ОНОВЛЕНО
   function fetchReferralLink(userId) {
     if (!userId) {
       return Promise.reject(new Error('ID користувача обов\'язковий для отримання реферального посилання'));
@@ -169,7 +170,9 @@ window.ReferralAPI = (function() {
 
     return apiRequest(API_CONFIG.baseUrl + '/referrals/link/' + numericUserId)
       .then(function(data) {
-        return data.referral_link || numericUserId.toString();
+        // API тепер повертає повне посилання формату: https://t.me/WINIX_Official_bot?start={id}
+        const fullLink = data.referral_link || ('https://t.me/WINIX_Official_bot?start=' + numericUserId);
+        return fullLink;
       });
   }
 

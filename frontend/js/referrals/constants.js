@@ -83,8 +83,11 @@ window.ReferralConstants = (function() {
 
   const TASK_TYPES = Object.keys(TASK_THRESHOLDS);
 
-  // urlPatterns.js
-  const REFERRAL_URL_PATTERN = 'Winix/referral/{id}';
+  // urlPatterns.js - ОНОВЛЕНО для нового формату
+  const REFERRAL_URL_PATTERN = 'https://t.me/WINIX_Official_bot?start={id}';
+
+  // Базовий URL для Telegram бота
+  const TELEGRAM_BOT_URL = 'https://t.me/WINIX_Official_bot';
 
   // Публічний API
   return {
@@ -112,7 +115,8 @@ window.ReferralConstants = (function() {
     ACTIVE_REFERRALS_TASK_REWARD: ACTIVE_REFERRALS_TASK_REWARD,
     TASK_THRESHOLDS: TASK_THRESHOLDS,
     TASK_TYPES: TASK_TYPES,
-    REFERRAL_URL_PATTERN: REFERRAL_URL_PATTERN
+    REFERRAL_URL_PATTERN: REFERRAL_URL_PATTERN,
+    TELEGRAM_BOT_URL: TELEGRAM_BOT_URL
   };
 })();
 
