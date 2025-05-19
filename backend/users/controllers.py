@@ -955,3 +955,74 @@ def add_user_coins(telegram_id, data):
             "added": amount
         }
     })
+
+
+@handle_exceptions
+def create_user_profile(telegram_id, username, referrer_id=None):
+    """
+    Створення профілю користувача з повними даними (для Telegram бота).
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+        username (str): Ім'я користувача
+        referrer_id (str, optional): ID реферала, який запросив користувача
+
+    Returns:
+        dict: Результат створення з повними даними користувача
+    """
+    telegram_id = validate_telegram_id(telegram_id)
+
+    # Перевіряємо, чи вже існує користувач
+    existing_user = get_user(telegram_id)
+    if existing_user:
+        logger.info(f"Користувач з ID {telegram_id} вже існує")
+
+        # Повертаємо дані існуючого користувача
+        return {
+            "status": "exists",
+            "message": "Користувач вже існує",
+            "data": {
+                "telegram_id": existing_user["telegram_id"],
+                "username": existing_user.get("username", username),
+                "balance": float(existing_user.get("balance", 0)),
+                "coins": int(existing_user.get("coins", 0)),
+                "created_at": existing_user.get("created_at"),
+                "referrer_id": existing_user.get("referrer_id")
+            }
+        }
+
+    # Створюємо нового користувача через функцію з supabase_client
+    user = create_user(telegram_id, username, referrer_id)
+
+    if not user:
+        logger.error(f"Помилка створення користувача з ID {telegram_id}")
+        return {
+            "status": "error",
+            "message": f"Не вдалося створити користувача з ID {telegram_id}"
+        }
+
+    # Формуємо повні дані користувача для відповіді
+    user_data = {
+        "telegram_id": user["telegram_id"],
+        "username": user.get("username", username),
+        "balance": float(user.get("balance", 0)),
+        "coins": int(user.get("coins", 0)),
+        "created_at": user.get("created_at"),
+        "referrer_id": user.get("referrer_id"),
+        "newbie_bonus_claimed": user.get("newbie_bonus_claimed", False),
+        "participations_count": user.get("participations_count", 0),
+        "wins_count": user.get("wins_count", 0),
+        "badges": {
+            "winner_completed": user.get("badge_winner", False),
+            "beginner_completed": user.get("badge_beginner", False),
+            "rich_completed": user.get("badge_rich", False)
+        }
+    }
+
+    logger.info(f"Успішно створено нового користувача з ID {telegram_id}")
+
+    return {
+        "status": "success",
+        "message": "Користувача успішно створено",
+        "data": user_data
+    }
