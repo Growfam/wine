@@ -147,7 +147,109 @@ def verify_user(telegram_data):
 
         update_user(telegram_id, updates)
 
+
+
         return user
     except Exception as e:
         logger.error(f"verify_user: Помилка авторизації користувача: {str(e)}", exc_info=True)
         return None
+
+    # Додайте ці функції в backend/auth/controllers.py
+
+    def verify_telegram_webapp_data(init_data, bot_token):
+        """
+        Перевіряє автентичність даних від Telegram WebApp
+        """
+        import hmac
+        import hashlib
+        import urllib.parse
+
+        try:
+            # Розбираємо init_data
+            parsed_data = urllib.parse.parse_qs(init_data)
+
+            # Отримуємо hash та видаляємо його з даних
+            received_hash = parsed_data.get('hash', [None])[0]
+            if not received_hash:
+                return False
+
+            # Створюємо рядок для перевірки
+            auth_items = []
+            for key, value in parsed_data.items():
+                if key != 'hash':
+                    auth_items.append(f"{key}={value[0]}")
+
+            auth_string = '\n'.join(sorted(auth_items))
+
+            # Створюємо секретний ключ
+            secret_key = hmac.new(
+                "WebAppData".encode(),
+                bot_token.encode(),
+                hashlib.sha256
+            ).digest()
+
+            # Обчислюємо hash
+            calculated_hash = hmac.new(
+                secret_key,
+                auth_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+
+            # Порівнюємо hash'і
+            return hmac.compare_digest(received_hash, calculated_hash)
+
+        except Exception as e:
+            logger.error(f"Помилка перевірки Telegram WebApp data: {str(e)}")
+            return False
+
+    def extract_user_from_webapp_data(init_data):
+        """
+        Витягує дані користувача з init_data
+        """
+        import urllib.parse
+        import json
+
+        try:
+            parsed_data = urllib.parse.parse_qs(init_data)
+            user_data = parsed_data.get('user', [None])[0]
+
+            if user_data:
+                user_info = json.loads(user_data)
+                return {
+                    'id': user_info.get('id'),
+                    'username': user_info.get('username'),
+                    'first_name': user_info.get('first_name'),
+                    'last_name': user_info.get('last_name'),
+                    'language_code': user_info.get('language_code')
+                }
+        except Exception as e:
+            logger.error(f"Помилка витягення користувача: {str(e)}")
+
+        return None
+
+    def verify_telegram_mini_app_user(telegram_data):
+        """
+        Покращена верифікація користувача з Telegram Mini App
+        """
+        try:
+            # Перевіряємо initData якщо є
+            init_data = telegram_data.get('initData')
+            if init_data:
+                # Перевіряємо автентичність даних
+                bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+                if not verify_telegram_webapp_data(init_data, bot_token):
+                    logger.warning("verify_telegram_mini_app_user: Невалідні WebApp дані")
+                    return None
+
+                # Витягуємо дані користувача
+                webapp_user = extract_user_from_webapp_data(init_data)
+                if webapp_user:
+                    telegram_data.update(webapp_user)
+
+            # Продовжуємо з базовою логікою
+            return verify_user(telegram_data)
+
+        except Exception as e:
+            logger.error(f"verify_telegram_mini_app_user: Помилка: {str(e)}")
+            return None
+
