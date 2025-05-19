@@ -21,8 +21,8 @@ class ReferralController:
             dict: Словник з реферальним посиланням
         """
         try:
-            # Формат посилання: Winix/referral/{ID}
-            referral_link = f"Winix/referral/{user_id}"
+            # Новий формат посилання: https://t.me/WINIX_Official_bot?start={user_id}
+            referral_link = f"https://t.me/WINIX_Official_bot?start={user_id}"
             return {
                 'success': True,
                 'user_id': user_id,

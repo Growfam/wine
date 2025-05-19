@@ -1,4 +1,4 @@
-// utils.js - Виправлена версія (валідація userId як числа)
+// utils.js - Виправлена версія з новим форматом реферальних посилань
 /**
  * Утиліти для реферальної системи
  */
@@ -46,7 +46,7 @@ window.ReferralUtils = (function() {
     });
   }
 
-  // formatReferralUrl.js
+  // formatReferralUrl.js - ОНОВЛЕНО для нового формату
   function formatReferralUrl(userId) {
     if (!userId) {
       throw new Error('User ID обов\'язковий для генерації реферального посилання');
@@ -58,6 +58,7 @@ window.ReferralUtils = (function() {
       throw new Error('User ID повинен бути числом');
     }
 
+    // Використовуємо новий формат: https://t.me/WINIX_Official_bot?start={id}
     const REFERRAL_URL_PATTERN = window.ReferralConstants.REFERRAL_URL_PATTERN;
     return REFERRAL_URL_PATTERN.replace('{id}', numericUserId.toString());
   }
@@ -374,7 +375,7 @@ window.ReferralUtils = (function() {
     }
   }
 
-  // generateReferralLink.js (виправлено для числових ID)
+  // generateReferralLink.js - ОНОВЛЕНО для нового формату
   function generateReferralLink(userId) {
     if (!userId) {
       throw new Error('User ID обов\'язковий');
@@ -391,18 +392,67 @@ window.ReferralUtils = (function() {
         // Викликаємо API функцію через глобальну змінну
         window.ReferralAPI.fetchReferralLink(numericUserId)
           .then(function(referralLink) {
-            // Форматуємо URL через утиліту
-            resolve(formatReferralUrl(numericUserId));
+            // Якщо API повертає повне посилання, використовуємо його
+            // Інакше форматуємо URL через утиліту
+            if (referralLink && referralLink.includes('t.me/WINIX_Official_bot')) {
+              resolve(referralLink);
+            } else {
+              resolve(formatReferralUrl(numericUserId));
+            }
           })
           .catch(function(error) {
             console.error('Error generating referral link:', error);
-            reject(new Error('Failed to generate referral link: ' + error.message));
+            // У випадку помилки API, використовуємо локальну утиліту
+            resolve(formatReferralUrl(numericUserId));
           });
       } catch (error) {
         console.error('Error generating referral link:', error);
-        reject(new Error('Failed to generate referral link: ' + error.message));
+        // У випадку помилки, використовуємо локальну утиліту
+        resolve(formatReferralUrl(numericUserId));
       }
     });
+  }
+
+  // Додаткові функції для роботи з новим форматом
+  function getTelegramBotUrl() {
+    return window.ReferralConstants.TELEGRAM_BOT_URL;
+  }
+
+  function parseReferralUrl(url) {
+    if (!url || typeof url !== 'string') {
+      return null;
+    }
+
+    // Парсимо новий формат: https://t.me/WINIX_Official_bot?start={id}
+    const match = url.match(/https:\/\/t\.me\/WINIX_Official_bot\?start=(\d+)/);
+    if (match) {
+      return {
+        userId: parseInt(match[1]),
+        isValid: true,
+        format: 'telegram'
+      };
+    }
+
+    // Підтримуємо старий формат для зворотної сумісності: Winix/referral/{id}
+    const oldMatch = url.match(/Winix\/referral\/(\d+)/);
+    if (oldMatch) {
+      return {
+        userId: parseInt(oldMatch[1]),
+        isValid: true,
+        format: 'legacy'
+      };
+    }
+
+    return {
+      userId: null,
+      isValid: false,
+      format: 'unknown'
+    };
+  }
+
+  function isValidReferralUrl(url) {
+    const parsed = parseReferralUrl(url);
+    return parsed && parsed.isValid;
   }
 
   // Публічний API
@@ -424,6 +474,9 @@ window.ReferralUtils = (function() {
     sortByDrawsParticipation: sortByDrawsParticipation,
     sortByActivity: sortByActivity,
     filterAndSortReferrals: filterAndSortReferrals,
-    generateReferralLink: generateReferralLink
+    generateReferralLink: generateReferralLink,
+    getTelegramBotUrl: getTelegramBotUrl,
+    parseReferralUrl: parseReferralUrl,
+    isValidReferralUrl: isValidReferralUrl
   };
 })();
