@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint, String
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import db
 
@@ -10,16 +10,16 @@ class DirectBonus(db.Model):
 
     Attributes:
         id (int): Унікальний ідентифікатор запису
-        referrer_id (str): ID користувача, який отримує бонус
-        referee_id (str): ID запрошеного користувача, за якого нараховується бонус
+        referrer_id (int): ID користувача, який отримує бонус
+        referee_id (int): ID запрошеного користувача, за якого нараховується бонус
         amount (int): Сума бонусу в winix
         created_at (datetime): Дата та час нарахування бонусу
     """
     __tablename__ = 'direct_bonuses'
 
     id = Column(Integer, primary_key=True)
-    referrer_id = Column(String(100), nullable=False)
-    referee_id = Column(String(100), nullable=False, unique=True)
+    referrer_id = Column(Integer, nullable=False)
+    referee_id = Column(Integer, nullable=False, unique=True)
     amount = Column(Integer, default=50)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -33,13 +33,12 @@ class DirectBonus(db.Model):
         Ініціалізує новий прямий бонус
 
         Args:
-            referrer_id (str): ID користувача, який отримує бонус
-            referee_id (str): ID запрошеного користувача
+            referrer_id (int): ID користувача, який отримує бонус
+            referee_id (int): ID запрошеного користувача
             amount (int, optional): Сума бонусу. Defaults to 50.
         """
-        # Перетворюємо ID в рядки для уникнення проблем з типами
-        self.referrer_id = str(referrer_id)
-        self.referee_id = str(referee_id)
+        self.referrer_id = referrer_id
+        self.referee_id = referee_id
         self.amount = amount
 
     def to_dict(self):
