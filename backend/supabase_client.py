@@ -410,95 +410,72 @@ def retry_supabase(func: Callable[[], T], max_retries: int = MAX_RETRIES,
 # Функція для створення реферальних записів напряму
 def create_referral_records_directly(referrer_id, referee_id, amount=50):
     """
-    Створює записи в таблицях referrals та direct_bonuses напряму, без використання контролерів.
-    Використовується як запасний варіант, якщо не вдалося імпортувати контролери.
+    Створює записи в таблицях referrals та direct_bonuses за Telegram ID
     """
     try:
-        # Конвертуємо ID в цілі числа, якщо це можливо
+        # Конвертуємо telegram_id в цілі числа
         try:
             referrer_id_int = int(referrer_id)
-        except (ValueError, TypeError):
-            referrer_id_int = referrer_id
-
-        try:
             referee_id_int = int(referee_id)
         except (ValueError, TypeError):
-            referee_id_int = referee_id
-
-        # Перевіряємо, чи існує вже запис у таблиці referrals
-        check_res = supabase.table("referrals").select("id").eq("referee_id", referee_id_int).execute()
-        if check_res and check_res.data and len(check_res.data) > 0:
-            logger.info(f"create_referral_records_directly: Реферальний запис для {referee_id} вже існує")
+            logger.error(f"Неможливо конвертувати ID до числа: {referrer_id}, {referee_id}")
             return False
 
-        # Поточний час для записів
+        # Перевірка існуючих записів за referee_id
+        ref_check = supabase.table("referrals").select("id").eq("referee_id", referee_id_int).execute()
+
+        referral_exists = ref_check.data and len(ref_check.data) > 0
+
         current_time = datetime.now(timezone.utc).isoformat()
 
-        # 1. Створюємо запис про реферала 1-го рівня
-        referral_data = {
-            "referrer_id": referrer_id_int,
-            "referee_id": referee_id_int,
-            "level": 1,
-            "created_at": current_time
-        }
-
-        ref_res = supabase.table("referrals").insert(referral_data).execute()
-        logger.info(f"create_referral_records_directly: Створено реферальний запис 1-го рівня: {referrer_id} -> {referee_id}")
-
-        # 2. Перевіряємо наявність реферера 2-го рівня
-        try:
-            higher_ref_res = supabase.table("referrals").select("referrer_id").eq("referee_id", referrer_id_int).eq("level", 1).execute()
-
-            if higher_ref_res and higher_ref_res.data and len(higher_ref_res.data) > 0:
-                higher_referrer_id = higher_ref_res.data[0]["referrer_id"]
-
-                # Створюємо запис про реферала 2-го рівня
-                second_level_data = {
-                    "referrer_id": higher_referrer_id,
-                    "referee_id": referee_id_int,
-                    "level": 2,
+        # Створення реферального запису, якщо не існує
+        if not referral_exists:
+            try:
+                referral_data = {
+                    "referrer_id": referrer_id_int,  # Використовуємо telegram_id
+                    "referee_id": referee_id_int,  # Використовуємо telegram_id
+                    "level": 1,
                     "created_at": current_time
                 }
 
-                supabase.table("referrals").insert(second_level_data).execute()
-                logger.info(f"create_referral_records_directly: Створено реферальний запис 2-го рівня: {higher_referrer_id} -> {referee_id}")
-        except Exception as e:
-            logger.warning(f"create_referral_records_directly: Помилка створення запису 2-го рівня: {str(e)}")
+                supabase.table("referrals").insert(referral_data).execute()
+                logger.info(f"Створено реферальний запис: {referrer_id} -> {referee_id}")
 
-        # 3. Створюємо запис про прямий бонус
-        try:
-            bonus_data = {
-                "referrer_id": referrer_id_int,
-                "referee_id": referee_id_int,
-                "amount": amount,
-                "created_at": current_time
-            }
-
-            supabase.table("direct_bonuses").insert(bonus_data).execute()
-            logger.info(f"create_referral_records_directly: Створено запис прямого бонусу для {referrer_id}")
-
-            # 4. Оновлюємо баланс реферера
-            referrer_user = get_user(referrer_id)
-            if referrer_user:
-                current_balance = float(referrer_user.get('balance', 0))
-                new_balance = current_balance + amount
-
-                update_data = {
-                    "balance": new_balance,
-                    "updated_at": current_time
+                # Створення запису бонусу
+                bonus_data = {
+                    "referrer_id": referrer_id_int,  # Використовуємо telegram_id
+                    "referee_id": referee_id_int,  # Використовуємо telegram_id
+                    "amount": amount,
+                    "created_at": current_time
                 }
 
-                supabase.table("winix").update(update_data).eq("telegram_id", str(referrer_id)).execute()
-                logger.info(f"create_referral_records_directly: Оновлено баланс реферера {referrer_id}: {current_balance} -> {new_balance}")
+                supabase.table("direct_bonuses").insert(bonus_data).execute()
+                logger.info(f"Створено запис бонусу: {referrer_id} -> {referee_id}")
 
-                # Інвалідуємо кеш для реферера
-                invalidate_cache_for_entity(referrer_id)
-        except Exception as e:
-            logger.error(f"create_referral_records_directly: Помилка нарахування бонусу: {str(e)}")
+                # Оновлення балансу реферера
+                referrer_user = get_user(referrer_id)
+                if referrer_user:
+                    current_balance = float(referrer_user.get('balance', 0))
+                    new_balance = current_balance + amount
 
-        return True
+                    supabase.table("winix").update({
+                        "balance": new_balance,
+                        "updated_at": current_time
+                    }).eq("telegram_id", str(referrer_id)).execute()
+
+                    logger.info(f"Оновлено баланс реферера: {current_balance} -> {new_balance}")
+                    invalidate_cache_for_entity(referrer_id)
+
+                return True
+            except Exception as e:
+                logger.error(f"Помилка при створенні реферальних записів: {str(e)}")
+                return False
+        else:
+            logger.info(f"Реферальний запис вже існує: {referrer_id} -> {referee_id}")
+            return True
+
     except Exception as e:
-        logger.error(f"create_referral_records_directly: Помилка створення реферальних записів: {str(e)}")
+        logger.error(f"Помилка створення реферальних записів: {str(e)}")
         return False
 
 
