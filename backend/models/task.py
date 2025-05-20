@@ -2,6 +2,9 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import db
+ACTION_TYPE_VISIT = 'visit'
+ACTION_TYPE_FOLLOW = 'follow'
+ACTION_TYPE_SHARE = 'share'
 
 class UserTask(db.Model):
     """
