@@ -1042,5 +1042,42 @@ def check_and_update_badges(user_id, context=None):
                 logger.error(f"❌ Помилка перевірки бейджів {user_id}: {str(e)}", exc_info=True)
                 return None
 
+# Добавлена відсутня функція для отримання сесій стейкінгу
+@cached()
+def get_user_staking_sessions(telegram_id):
+    """
+    Отримує сесії стейкінгу користувача з Supabase
+
+    Args:
+        telegram_id (str): Telegram ID користувача
+
+    Returns:
+        list: Список сесій стейкінгу
+    """
+    try:
+        if not supabase:
+            logger.error("❌ Клієнт Supabase не ініціалізовано")
+            return None
+
+        # Перетворюємо ID в рядок
+        telegram_id = str(telegram_id)
+
+        logger.info(f"get_user_staking_sessions: Спроба отримати сесії стейкінгу для {telegram_id}")
+
+        # Виконуємо запит з повторними спробами
+        def fetch_sessions():
+            res = supabase.table("staking_sessions").select("*").eq("telegram_id", telegram_id).execute()
+            if not res.data:
+                logger.info(f"get_user_staking_sessions: Для користувача {telegram_id} не знайдено сесій стейкінгу")
+                return []
+
+            logger.info(f"get_user_staking_sessions: Знайдено {len(res.data)} сесій стейкінгу для {telegram_id}")
+            return res.data if res.data else []
+
+        return retry_supabase(fetch_sessions)
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання сесій стейкінгу для {telegram_id}: {str(e)}", exc_info=True)
+        return None
+
 # Очищення кешу від застарілих записів при завантаженні модуля
 cleanup_cache()
