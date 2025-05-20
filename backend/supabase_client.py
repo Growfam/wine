@@ -9,6 +9,8 @@ import logging
 import json
 import uuid
 import functools
+import importlib.util
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Callable, TypeVar
 from contextlib import contextmanager
@@ -405,6 +407,102 @@ def retry_supabase(func: Callable[[], T], max_retries: int = MAX_RETRIES,
     raise last_error
 
 
+# Функція для створення реферальних записів напряму
+def create_referral_records_directly(referrer_id, referee_id, amount=50):
+    """
+    Створює записи в таблицях referrals та direct_bonuses напряму, без використання контролерів.
+    Використовується як запасний варіант, якщо не вдалося імпортувати контролери.
+    """
+    try:
+        # Конвертуємо ID в цілі числа, якщо це можливо
+        try:
+            referrer_id_int = int(referrer_id)
+        except (ValueError, TypeError):
+            referrer_id_int = referrer_id
+
+        try:
+            referee_id_int = int(referee_id)
+        except (ValueError, TypeError):
+            referee_id_int = referee_id
+
+        # Перевіряємо, чи існує вже запис у таблиці referrals
+        check_res = supabase.table("referrals").select("id").eq("referee_id", referee_id_int).execute()
+        if check_res and check_res.data and len(check_res.data) > 0:
+            logger.info(f"create_referral_records_directly: Реферальний запис для {referee_id} вже існує")
+            return False
+
+        # Поточний час для записів
+        current_time = datetime.now(timezone.utc).isoformat()
+
+        # 1. Створюємо запис про реферала 1-го рівня
+        referral_data = {
+            "referrer_id": referrer_id_int,
+            "referee_id": referee_id_int,
+            "level": 1,
+            "created_at": current_time
+        }
+
+        ref_res = supabase.table("referrals").insert(referral_data).execute()
+        logger.info(f"create_referral_records_directly: Створено реферальний запис 1-го рівня: {referrer_id} -> {referee_id}")
+
+        # 2. Перевіряємо наявність реферера 2-го рівня
+        try:
+            higher_ref_res = supabase.table("referrals").select("referrer_id").eq("referee_id", referrer_id_int).eq("level", 1).execute()
+
+            if higher_ref_res and higher_ref_res.data and len(higher_ref_res.data) > 0:
+                higher_referrer_id = higher_ref_res.data[0]["referrer_id"]
+
+                # Створюємо запис про реферала 2-го рівня
+                second_level_data = {
+                    "referrer_id": higher_referrer_id,
+                    "referee_id": referee_id_int,
+                    "level": 2,
+                    "created_at": current_time
+                }
+
+                supabase.table("referrals").insert(second_level_data).execute()
+                logger.info(f"create_referral_records_directly: Створено реферальний запис 2-го рівня: {higher_referrer_id} -> {referee_id}")
+        except Exception as e:
+            logger.warning(f"create_referral_records_directly: Помилка створення запису 2-го рівня: {str(e)}")
+
+        # 3. Створюємо запис про прямий бонус
+        try:
+            bonus_data = {
+                "referrer_id": referrer_id_int,
+                "referee_id": referee_id_int,
+                "amount": amount,
+                "created_at": current_time
+            }
+
+            supabase.table("direct_bonuses").insert(bonus_data).execute()
+            logger.info(f"create_referral_records_directly: Створено запис прямого бонусу для {referrer_id}")
+
+
+            # 4. Оновлюємо баланс реферера
+            referrer_user = get_user(referrer_id)
+            if referrer_user:
+                current_balance = float(referrer_user.get('balance', 0))
+                new_balance = current_balance + amount
+
+                update_data = {
+                    "balance": new_balance,
+                    "updated_at": current_time
+                }
+
+                supabase.table("winix").update(update_data).eq("telegram_id", str(referrer_id)).execute()
+                logger.info(f"create_referral_records_directly: Оновлено баланс реферера {referrer_id}: {current_balance} -> {new_balance}")
+
+                # Інвалідуємо кеш для реферера
+                invalidate_cache_for_entity(referrer_id)
+        except Exception as e:
+            logger.error(f"create_referral_records_directly: Помилка нарахування бонусу: {str(e)}")
+
+        return True
+    except Exception as e:
+        logger.error(f"create_referral_records_directly: Помилка створення реферальних записів: {str(e)}")
+        return False
+
+
 # Базові функції для роботи з користувачами
 
 @cached()
@@ -530,191 +628,6 @@ def force_create_user(telegram_id: str, username: str, referrer_id: Optional[str
         return None
 
 
-def register_referral(referrer_id, referee_id, level=1):
-    """
-    Реєструє реферальний зв'язок між користувачами
-
-    Args:
-        referrer_id: ID користувача-реферера (хто запросив)
-        referee_id: ID користувача-реферала (кого запросили)
-        level: Рівень реферала (1 - прямий, 2 - другого рівня)
-
-    Returns:
-        bool: True при успіху, False при помилці
-    """
-    try:
-        logger.info(f"register_referral: Реєстрація реферала {referee_id} для {referrer_id} рівня {level}")
-
-        # Конвертація ID до чисел, якщо вони рядки
-        try:
-            referrer_id_int = int(referrer_id)
-            referee_id_int = int(referee_id)
-        except (ValueError, TypeError):
-            logger.warning(f"register_referral: Не вдалося конвертувати ID до чисел, використовуємо як є")
-            referrer_id_int = referrer_id
-            referee_id_int = referee_id
-
-        # Перевіряємо, чи вже існує такий запис
-        check_query = supabase.table("referrals").select("id").eq("referee_id", referee_id_int).execute()
-
-        if check_query.data and len(check_query.data) > 0:
-            logger.info(f"register_referral: Запис для реферала {referee_id} вже існує")
-            return True
-
-        # Створюємо запис в таблиці referrals
-        now = datetime.now(timezone.utc).isoformat()
-        referral_data = {
-            "referrer_id": referrer_id_int,
-            "referee_id": referee_id_int,
-            "level": level,
-            "created_at": now
-        }
-
-        result = supabase.table("referrals").insert(referral_data).execute()
-
-        if result.data and len(result.data) > 0:
-            logger.info(f"register_referral: Успішно створено реферальний запис")
-            return True
-        else:
-            logger.warning(f"register_referral: Не вдалося створити реферальний запис")
-            return False
-
-    except Exception as e:
-        logger.error(f"register_referral: Помилка: {str(e)}")
-        return False
-
-
-def award_direct_bonus(referrer_id, referee_id, amount=50):
-    """
-    Нараховує прямий бонус за запрошення реферала
-
-    Args:
-        referrer_id: ID користувача, який отримує бонус
-        referee_id: ID запрошеного користувача
-        amount: Сума бонусу
-
-    Returns:
-        bool: True при успіху, False при помилці
-    """
-    try:
-        logger.info(f"award_direct_bonus: Нарахування бонусу {amount} для {referrer_id} за реферала {referee_id}")
-
-        # Конвертація ID до чисел, якщо вони рядки
-        try:
-            referrer_id_int = int(referrer_id)
-            referee_id_int = int(referee_id)
-        except (ValueError, TypeError):
-            logger.warning(f"award_direct_bonus: Не вдалося конвертувати ID до чисел, використовуємо як є")
-            referrer_id_int = referrer_id
-            referee_id_int = referee_id
-
-        # Перевіряємо, чи вже існує такий запис
-        check_query = supabase.table("direct_bonuses").select("id").eq("referee_id", referee_id_int).execute()
-
-        if check_query.data and len(check_query.data) > 0:
-            logger.info(f"award_direct_bonus: Бонус за реферала {referee_id} вже нараховано")
-            return True
-
-        # Створюємо запис в таблиці direct_bonuses
-        now = datetime.now(timezone.utc).isoformat()
-        bonus_data = {
-            "referrer_id": referrer_id_int,
-            "referee_id": referee_id_int,
-            "amount": amount,
-            "created_at": now
-        }
-
-        result = supabase.table("direct_bonuses").insert(bonus_data).execute()
-
-        if result.data and len(result.data) > 0:
-            logger.info(f"award_direct_bonus: Успішно створено запис бонусу")
-
-            # Оновлюємо баланс реферера
-            referrer_user = get_user(referrer_id)
-            if referrer_user:
-                current_balance = float(referrer_user.get('balance', 0))
-                new_balance = current_balance + amount
-
-                update_result = supabase.table("winix").update({
-                    "balance": new_balance,
-                    "updated_at": now
-                }).eq("telegram_id", str(referrer_id)).execute()
-
-                if update_result.data:
-                    logger.info(f"award_direct_bonus: Баланс реферера оновлено: {current_balance} -> {new_balance}")
-                    # Інвалідуємо кеш для реферера
-                    invalidate_cache_for_entity(referrer_id)
-                    return True
-                else:
-                    logger.warning("award_direct_bonus: Не вдалося оновити баланс реферера")
-            else:
-                logger.warning(f"award_direct_bonus: Не знайдено користувача з ID {referrer_id}")
-
-            return True
-        else:
-            logger.warning(f"award_direct_bonus: Не вдалося створити запис бонусу")
-            return False
-
-    except Exception as e:
-        logger.error(f"award_direct_bonus: Помилка: {str(e)}")
-        return False
-
-
-def process_referral_registration(referrer_id, referee_id):
-    """
-    Обробляє повний цикл реєстрації реферала:
-    1. Створює запис в таблиці referrals
-    2. Нараховує прямий бонус
-    3. Додає запис реферала 2-го рівня, якщо є
-
-    Args:
-        referrer_id: ID користувача-реферера
-        referee_id: ID користувача-реферала
-
-    Returns:
-        dict: Результат операції
-    """
-    try:
-        logger.info(f"process_referral_registration: Обробка реферальної реєстрації {referee_id} від {referrer_id}")
-        results = {
-            "referral_created": False,
-            "bonus_awarded": False,
-            "second_level_created": False,
-            "balance_updated": False
-        }
-
-        # 1. Реєструємо реферала 1-го рівня
-        if register_referral(referrer_id, referee_id, level=1):
-            results["referral_created"] = True
-
-            # 2. Нараховуємо прямий бонус
-            if award_direct_bonus(referrer_id, referee_id):
-                results["bonus_awarded"] = True
-                results["balance_updated"] = True
-
-            # 3. Перевіряємо, чи є реферер 2-го рівня
-            try:
-                referrer_id_int = int(referrer_id) if isinstance(referrer_id, str) else referrer_id
-
-                # Шукаємо реферера для поточного реферера
-                higher_ref_query = supabase.table("referrals").select("referrer_id").eq("referee_id", referrer_id_int).eq("level", 1).execute()
-
-                if higher_ref_query.data and len(higher_ref_query.data) > 0:
-                    higher_referrer_id = higher_ref_query.data[0]["referrer_id"]
-
-                    # Створюємо запис реферала 2-го рівня
-                    if register_referral(higher_referrer_id, referee_id, level=2):
-                        results["second_level_created"] = True
-                        logger.info(f"process_referral_registration: Створено реферальний запис 2-го рівня: {higher_referrer_id} -> {referee_id}")
-            except Exception as e:
-                logger.warning(f"process_referral_registration: Помилка створення запису 2-го рівня: {str(e)}")
-
-        return results
-    except Exception as e:
-        logger.error(f"process_referral_registration: Помилка: {str(e)}")
-        return {"success": False, "error": str(e)}
-
-
 def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Створює нового користувача в Supabase з автоматичною реєстрацією реферального зв'язку
@@ -754,13 +667,115 @@ def create_user(telegram_id: str, username: str, referrer_id: Optional[str] = No
                 referrer_id = str(referrer_id)
                 logger.info(f"create_user: Реєструємо реферальний зв'язок: {referrer_id} -> {telegram_id}")
 
-                # Використовуємо нашу функцію для повної обробки реферальної реєстрації
-                results = process_referral_registration(referrer_id, telegram_id)
+                # Визначаємо змінні заздалегідь для уникнення попереджень
+                modules_imported = False
+                ReferralController = None
+                BonusController = None
 
-                logger.info(f"create_user: Результати реферальної реєстрації: {results}")
+                # Спроба 1: Стандартний імпорт
+                try:
+                    from referrals.controllers.referral_controller import ReferralController
+                    from referrals.controllers.bonus_controller import BonusController
+                    modules_imported = True
+                    logger.info("create_user: Успішно імпортовано контролери реферальної системи (спроба 1)")
+                except ImportError:
+                    pass
+
+                # Спроба 2: Імпорт з префіксом backend
+                if not modules_imported:
+                    try:
+                        from backend.referrals.controllers.referral_controller import ReferralController
+                        from backend.referrals.controllers.bonus_controller import BonusController
+                        modules_imported = True
+                        logger.info("create_user: Успішно імпортовано контролери реферальної системи (спроба 2)")
+                    except ImportError:
+                        pass
+
+                # Спроба 3: Динамічний імпорт через модульний шлях
+                if not modules_imported:
+                    try:
+                        # Підготовка системного шляху
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        parent_dir = os.path.dirname(current_dir) if current_dir else os.getcwd()
+
+                        # Спроба знайти файли контролерів
+                        referral_controller_path = os.path.join(parent_dir, 'referrals', 'controllers', 'referral_controller.py')
+                        bonus_controller_path = os.path.join(parent_dir, 'referrals', 'controllers', 'bonus_controller.py')
+
+                        if os.path.exists(referral_controller_path) and os.path.exists(bonus_controller_path):
+                            # Динамічний імпорт через spec
+                            spec_referral = importlib.util.spec_from_file_location(
+                                "referral_controller", referral_controller_path)
+                            referral_module = importlib.util.module_from_spec(spec_referral)
+                            spec_referral.loader.exec_module(referral_module)
+
+                            spec_bonus = importlib.util.spec_from_file_location(
+                                "bonus_controller", bonus_controller_path)
+                            bonus_module = importlib.util.module_from_spec(spec_bonus)
+                            spec_bonus.loader.exec_module(bonus_module)
+
+                            ReferralController = referral_module.ReferralController
+                            BonusController = bonus_module.BonusController
+                            modules_imported = True
+                            logger.info("create_user: Успішно імпортовано контролери реферальної системи (спроба 3)")
+                    except Exception as e:
+                        logger.warning(f"create_user: Помилка динамічного імпорту: {str(e)}")
+
+                # Якщо контролери успішно імпортовано, використовуємо їх
+                if modules_imported and ReferralController and BonusController:
+                    # Реєструємо реферальний зв'язок
+                    referral_result = ReferralController.register_referral(
+                        referrer_id=referrer_id,
+                        referee_id=telegram_id
+                    )
+
+                    if referral_result.get('success', False):
+                        logger.info(f"create_user: Реферальний зв'язок успішно створено")
+
+                        # Нараховуємо прямий бонус
+                        bonus_result = BonusController.award_direct_bonus(
+                            referrer_id=referrer_id,
+                            referee_id=telegram_id,
+                            amount=50
+                        )
+
+                        if bonus_result.get('success', False):
+                            logger.info(f"create_user: Прямий бонус успішно нараховано")
+
+                            # Оновлюємо баланс реферера
+                            referrer_user = get_user(referrer_id)
+                            if referrer_user:
+                                current_balance = float(referrer_user.get('balance', 0))
+                                new_balance = current_balance + 50
+
+                                supabase.table("winix").update({
+                                    "balance": new_balance,
+                                    "updated_at": datetime.now(timezone.utc).isoformat()
+                                }).eq("telegram_id", referrer_id).execute()
+
+                                logger.info(
+                                    f"create_user: Баланс реферера {referrer_id} оновлено: {current_balance} -> {new_balance}")
+
+                                # Інвалідуємо кеш для реферера
+                                invalidate_cache_for_entity(referrer_id)
+                        else:
+                            logger.warning(f"create_user: Помилка нарахування бонусу: {bonus_result}")
+                    else:
+                        logger.warning(f"create_user: Помилка реєстрації реферального зв'язку: {referral_result}")
+                else:
+                    # Якщо імпорт не вдався, використовуємо прямий запис
+                    logger.warning("create_user: Не вдалося імпортувати контролери реферальної системи")
+                    logger.info("create_user: Використовуємо прямий запис реферальних даних")
+                    create_referral_records_directly(referrer_id, telegram_id)
 
             except Exception as e:
                 logger.error(f"create_user: Помилка обробки реферального зв'язку: {str(e)}", exc_info=True)
+                # Спроба прямого запису як запасний варіант
+                try:
+                    logger.info("create_user: Спроба прямого запису реферальних даних після помилки")
+                    create_referral_records_directly(referrer_id, telegram_id)
+                except Exception as direct_error:
+                    logger.error(f"create_user: Помилка прямого запису реферальних даних: {str(direct_error)}")
 
         return user
     except Exception as e:
